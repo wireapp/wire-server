@@ -225,16 +225,16 @@ services:
       - ./docker/elasticsearch-cert.pem:/usr/share/opensearch/config/certs/tls.crt
       - ./docker/elasticsearch-key.pem:/usr/share/opensearch/config/certs/tls.key
       - ./docker/elasticsearch-ca.pem:/usr/share/opensearch/config/certs/ca.crt
-      - ./docker/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
-      - ./docker/opensearch-security-config.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/config.yml
-      - ./docker/opensearch-security-internal_users.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/internal_users.yml
-      - ./docker/opensearch-security-roles_mapping.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/roles_mapping.yml
-      - ./docker/opensearch-security-allowlist.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/allowlist.yml
-      - ./docker/opensearch-security-roles.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/roles.yml
-      - ./docker/opensearch-security-nodes_dn.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/nodes_dn.yml
-      - ./docker/opensearch-security-action_groups.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/action_groups.yml
-      - ./docker/opensearch-security-tenants.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/tenants.yml
-      - ./docker/opensearch-security-plugin-descriptor.properties:/usr/share/opensearch/plugins/opensearch-security/plugin-descriptor.properties
+      - ./docker/opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+      - ./docker/opensearch/opensearch-security/config.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/config.yml
+      - ./docker/opensearch/opensearch-security/internal_users.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/internal_users.yml
+      - ./docker/opensearch/opensearch-security/roles_mapping.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/roles_mapping.yml
+      - ./docker/opensearch/opensearch-security/allowlist.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/allowlist.yml
+      - ./docker/opensearch/opensearch-security/roles.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/roles.yml
+      - ./docker/opensearch/opensearch-security/nodes_dn.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/nodes_dn.yml
+      - ./docker/opensearch/opensearch-security/action_groups.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/action_groups.yml
+      - ./docker/opensearch/opensearch-security/tenants.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/tenants.yml
+      - ./docker/opensearch/opensearch-security/plugin-descriptor.properties:/usr/share/opensearch/plugins/opensearch-security/plugin-descriptor.properties
     networks:
       - demo_wire
 
@@ -246,7 +246,7 @@ services:
     expose:
       - "5601"
     volumes:
-      - ./docker/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+      - ./docker/opensearch/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
     networks:
       - demo_wire
 
