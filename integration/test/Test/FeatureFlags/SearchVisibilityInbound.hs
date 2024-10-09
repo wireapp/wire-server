@@ -2,6 +2,7 @@ module Test.FeatureFlags.SearchVisibilityInbound where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
+import Control.Retry
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
@@ -29,4 +30,6 @@ testSearchVisibilityInboundInternal access = do
 
   void $ withWebSocket alice $ \ws -> do
     setFlag access ws tid featureName enabled
-    setFlag access ws tid featureName disabled
+    -- Wait until the change is reflected in OpenSearch.
+    recoverAll (exponentialBackoff 500000 <> limitRetries 5)
+      $ \_ -> setFlag access ws tid featureName disabled
