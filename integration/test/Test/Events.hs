@@ -3,12 +3,14 @@ module Test.Events where
 import API.Brig
 import API.BrigCommon
 import API.Common
+import API.Gundeck
 import Control.Retry
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Network.WebSockets as WS
+import Notifications (isUserClientAddNotif)
 import SetupHelpers
 import Testlib.Prelude hiding (assertNoEvent)
 import Testlib.Printing
@@ -17,6 +19,12 @@ import UnliftIO hiding (handle)
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
 testConsumeEventsOneWebSocket = do
   alice <- randomUser OwnDomain def
+
+  lastNotifId <-
+    getLastNotification alice def `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "id" & asString
+
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
@@ -36,6 +44,46 @@ testConsumeEventsOneWebSocket = do
     assertEvent eventsChan $ \e -> do
       e %. "payload.0.type" `shouldMatch` "user.update"
       e %. "payload.0.user.handle" `shouldMatch` handle
+
+  -- No new notifications should be stored in Cassandra as the user doesn't have
+  -- any legacy clients
+  getNotifications alice def {since = Just lastNotifId} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    shouldBeEmpty $ resp.json %. "notifications"
+
+testConsumeEventsWhileHavingLegacyClients :: (HasCallStack) => App ()
+testConsumeEventsWhileHavingLegacyClients = do
+  alice <- randomUser OwnDomain def
+
+  -- Even if alice has no clients, the notifications should still be persisted
+  -- in Cassandra. This choice is kinda arbitrary as these notifications
+  -- probably don't mean much, however, it ensures backwards compatibility.
+  lastNotifId <-
+    getNotifications alice def `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "notifications.0.payload.0.type" `shouldMatch` "user.activate"
+      resp.json %. "has_more" `shouldMatch` False
+      resp.json %. "notifications.-1.id" & asString
+
+  oldClient <- addClient alice def {acapabilities = Just []} >>= getJSON 201
+
+  withWebSocket (alice, "anything-but-conn", oldClient %. "id") $ \oldWS -> do
+    newClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    newClientId <- newClient %. "id" & asString
+
+    oldNotif <- awaitMatch isUserClientAddNotif oldWS
+    oldNotif %. "payload.0.client.id" `shouldMatch` newClientId
+
+    withEventsWebSocket alice newClientId $ \eventsChan _ ->
+      assertEvent eventsChan $ \e -> do
+        e %. "payload.0.type" `shouldMatch` "user.client-add"
+        e %. "payload.0.client.id" `shouldMatch` newClientId
+
+  -- All notifs are also in Cassandra because of the legacy client
+  getNotifications alice def {since = Just lastNotifId} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "notifications.0.payload.0.type" `shouldMatch` "user.client-add"
+    resp.json %. "notifications.1.payload.0.type" `shouldMatch` "user.client-add"
 
 testConsumeEventsAcks :: (HasCallStack) => App ()
 testConsumeEventsAcks = do
