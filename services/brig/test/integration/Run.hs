@@ -54,6 +54,7 @@ import Options.Applicative hiding (action)
 import SMTP qualified
 import System.Environment (withArgs)
 import System.Logger qualified as Logger
+import System.Mem (performGC)
 import Test.Tasty
 import Test.Tasty.Ingredients
 import Test.Tasty.Runners
@@ -150,16 +151,14 @@ runTests iConf brigOpts otherArgs = do
   let smtp = SMTP.tests mg lg
       oauthAPI = API.OAuth.tests mg db b n brigOpts
 
+  -- run the tests in two parts, with a gc in between. i did this on a hunch, and for some
+  -- reason this reduces the hunger for open file handles at run time significantly, and makes
+  -- the suite pass with my ulimit settings.  (fisx)
+
   withArgs otherArgs . defaultMainWithIngredients (listingTests : (composeReporters antXMLRunner consoleTestReporter) : defaultIngredients)
     $ testGroup
-      "Brig API Integration"
-    $ [ userApi,
-        providerApi,
-        searchApis,
-        teamApis,
-        turnApi,
-        metricsApi,
-        systemSettingsApi,
+      "Brig API Integration, part 1"
+    $ [ systemSettingsApi,
         settingsApi,
         createIndex,
         userPendingActivation,
@@ -169,6 +168,19 @@ runTests iConf brigOpts otherArgs = do
         smtp,
         oauthAPI,
         federationEnd2End
+      ]
+
+  performGC
+
+  withArgs otherArgs . defaultMainWithIngredients (listingTests : (composeReporters antXMLRunner consoleTestReporter) : defaultIngredients)
+    $ testGroup
+      "Brig API Integration, part 2"
+    $ [ userApi,
+        providerApi,
+        searchApis,
+        teamApis,
+        turnApi,
+        metricsApi
       ]
   where
     mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
