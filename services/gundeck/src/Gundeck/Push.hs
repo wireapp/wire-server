@@ -146,23 +146,6 @@ instance MonadMapAsync Gundeck where
 splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push])
 splitPushes = fmap partitionHereThere . traverse splitPush
 
-partitionHereThereRange :: Range 0 m [These a b] -> (Range 0 m [a], Range 0 m [b])
-partitionHereThereRange =
-  ((&&&) (rconcat . mapRange fst) (rconcat . mapRange snd))
-    . mapRange partitionToRange
-  where
-    rsingleton0 :: forall x. x -> Range 0 1 [x]
-    rsingleton0 = rcast . rsingleton
-
-    rnil1 :: forall x. Range 0 1 [x]
-    rnil1 = rcast rnil
-
-    partitionToRange :: These a b -> (Range 0 1 [a], Range 0 1 [b])
-    partitionToRange = \case
-      (This a) -> (rsingleton0 a, rnil1)
-      (That b) -> (rnil1, rsingleton0 b)
-      (These a b) -> (rsingleton0 a, rsingleton0 b)
-
 splitPush ::
   (MonadPushAll m) =>
   Push ->
@@ -179,29 +162,47 @@ splitPush p = do
         These
           p {_pushRecipients = rangeListToSet $ rcons rabbit0 rabbits}
           p {_pushRecipients = rangeListToSet $ rcons legacy0 legacies}
+  where
+    -- TODO: optimize for possibility of  many pushes having the same users
+    splitRecipient :: (MonadPushAll m) => Recipient -> m (These Recipient Recipient)
+    splitRecipient rcpt = do
+      clientsFull <- mpaGetClients rcpt._recipientId
+      let allClients = Map.findWithDefault mempty rcpt._recipientId $ clientsFull.userClientsFull
+      let relevantClients = case rcpt._recipientClients of
+            RecipientClientsSome cs ->
+              Set.filter (\c -> c.clientId `elem` toList cs) allClients
+            RecipientClientsAll -> allClients
+          isClientForRabbitMq c = ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList
+          (rabbitmqClients, legacyClients) = Set.partition isClientForRabbitMq relevantClients
+          rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
+          legacyClientIds = (.clientId) <$> Set.toList legacyClients
+      case (rabbitmqClientIds, legacyClientIds) of
+        ([], _) -> pure (That rcpt)
+        (_, []) -> pure (This rcpt)
+        (r : rs, l : ls) ->
+          pure $
+            These
+              rcpt {_recipientClients = RecipientClientsSome $ list1 r rs}
+              rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
 
--- TODO: optimize for possibility of  many pushes having the same users
-splitRecipient :: (MonadPushAll m) => Recipient -> m (These Recipient Recipient)
-splitRecipient rcpt = do
-  clientsFull <- mpaGetClients rcpt._recipientId
-  let allClients = Map.findWithDefault mempty rcpt._recipientId $ clientsFull.userClientsFull
-  let relevantClients = case rcpt._recipientClients of
-        RecipientClientsSome cs ->
-          Set.filter (\c -> c.clientId `elem` toList cs) allClients
-        RecipientClientsAll -> allClients
-      isClientForRabbitMq c = ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList
-      (rabbitmqClients, legacyClients) = Set.partition isClientForRabbitMq relevantClients
-      rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
-      legacyClientIds = (.clientId) <$> Set.toList legacyClients
-  case (rabbitmqClientIds, legacyClientIds) of
-    ([], _) -> pure (That rcpt)
-    (_, []) -> pure (This rcpt)
-    (r : rs, l : ls) ->
-      pure $
-        These
-          rcpt {_recipientClients = RecipientClientsSome $ list1 r rs}
-          rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
+    partitionHereThereRange :: Range 0 m [These a b] -> (Range 0 m [a], Range 0 m [b])
+    partitionHereThereRange =
+      ((&&&) (rconcat . mapRange fst) (rconcat . mapRange snd))
+        . mapRange partitionToRange
+      where
+        rsingleton0 :: forall x. x -> Range 0 1 [x]
+        rsingleton0 = rcast . rsingleton
 
+        rnil1 :: forall x. Range 0 1 [x]
+        rnil1 = rcast rnil
+
+        partitionToRange :: These a b -> (Range 0 1 [a], Range 0 1 [b])
+        partitionToRange = \case
+          (This a) -> (rsingleton0 a, rnil1)
+          (That b) -> (rnil1, rsingleton0 b)
+          (These a b) -> (rsingleton0 a, rsingleton0 b)
+
+-- TODO: Move to some util module
 getClients :: (MonadReader Env m, Bilge.MonadHttp m, MonadThrow m) => UserId -> m UserClientsFull
 getClients uid = do
   r <- do
