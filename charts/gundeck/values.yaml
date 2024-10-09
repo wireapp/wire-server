@@ -56,7 +56,6 @@ config:
   # # tlsCaSecretRef:
   # #   name: <secret-name>
   # #   key: <ca-attribute>
-  bulkPush: true
   aws:
     region: "eu-west-1"
   proxy: {}
