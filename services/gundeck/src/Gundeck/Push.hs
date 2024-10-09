@@ -149,7 +149,7 @@ splitPushes ps = do
   allUserClients <- mpaGetClients (Set.unions $ map (\p -> Set.map (._recipientId) $ p._pushRecipients.fromRange) ps)
   pure . partitionHereThere $ map (splitPush allUserClients) ps
 
--- | Split a puish into rabbitmq and legacy push. This code exists to help with
+-- | Split a push into rabbitmq and legacy push. This code exists to help with
 -- migration. Once it is completed and old APIs are not supported anymore we can
 -- assume everything is meant for RabbtiMQ and stop splitting.
 splitPush ::
