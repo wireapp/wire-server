@@ -32,9 +32,10 @@ testConsumeEventsOneWebSocket = do
 
   withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
     deliveryTag <- assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.client-add"
-      e %. "payload.0.client.id" `shouldMatch` clientId
-      e %. "delivery_tag"
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.delivery_tag"
     assertNoEvent eventsChan
 
     sendAck ackChan deliveryTag False
@@ -44,8 +45,9 @@ testConsumeEventsOneWebSocket = do
     putHandle alice handle >>= assertSuccess
 
     assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.update"
-      e %. "payload.0.user.handle" `shouldMatch` handle
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
 
   -- No new notifications should be stored in Cassandra as the user doesn't have
   -- any legacy clients
@@ -73,9 +75,9 @@ testConsumeEventsForDifferentUsers = do
     assertClientAdd :: (HasCallStack) => String -> TChan Value -> TChan Value -> App ()
     assertClientAdd clientId eventsChan ackChan = do
       deliveryTag <- assertEvent eventsChan $ \e -> do
-        e %. "payload.0.type" `shouldMatch` "user.client-add"
-        e %. "payload.0.client.id" `shouldMatch` clientId
-        e %. "delivery_tag"
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+        e %. "data.delivery_tag"
       assertNoEvent eventsChan
       sendAck ackChan deliveryTag False
 
@@ -104,8 +106,8 @@ testConsumeEventsWhileHavingLegacyClients = do
 
     withEventsWebSocket alice newClientId $ \eventsChan _ ->
       assertEvent eventsChan $ \e -> do
-        e %. "payload.0.type" `shouldMatch` "user.client-add"
-        e %. "payload.0.client.id" `shouldMatch` newClientId
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` newClientId
 
   -- All notifs are also in Cassandra because of the legacy client
   getNotifications alice def {since = Just lastNotifId} `bindResponse` \resp -> do
@@ -121,15 +123,15 @@ testConsumeEventsAcks = do
 
   withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
     assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.client-add"
-      e %. "payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
 
   -- without ack, we receive the same event again
   withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
     deliveryTag <- assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.client-add"
-      e %. "payload.0.client.id" `shouldMatch` clientId
-      e %. "delivery_tag"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.delivery_tag"
     sendAck ackChan deliveryTag False
 
   withEventsWebSocket alice clientId $ \eventsChan _ -> do
@@ -146,13 +148,13 @@ testConsumeEventsMultipleAcks = do
 
   withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
     assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.client-add"
-      e %. "payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
 
     deliveryTag <- assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.update"
-      e %. "payload.0.user.handle" `shouldMatch` handle
-      e %. "delivery_tag"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+      e %. "data.delivery_tag"
 
     sendAck ackChan deliveryTag True
 
@@ -170,13 +172,13 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
 
   withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
     assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.client-add"
-      e %. "payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
 
     deliveryTagHandleAdd <- assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.update"
-      e %. "payload.0.user.handle" `shouldMatch` handle
-      e %. "delivery_tag"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+      e %. "data.delivery_tag"
 
     -- Only ack the handle add delivery tag
     sendAck ackChan deliveryTagHandleAdd False
@@ -184,9 +186,9 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
   -- Expect client-add event to be delivered again.
   withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
     deliveryTagClientAdd <- assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.client-add"
-      e %. "payload.0.client.id" `shouldMatch` clientId
-      e %. "delivery_tag"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.delivery_tag"
 
     sendAck ackChan deliveryTagClientAdd False
 
