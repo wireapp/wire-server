@@ -10,7 +10,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Network.WebSockets as WS
-import Notifications (isUserClientAddNotif)
+import Notifications
 import SetupHelpers
 import Testlib.Prelude hiding (assertNoEvent)
 import Testlib.Printing
@@ -20,10 +20,12 @@ testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
 testConsumeEventsOneWebSocket = do
   alice <- randomUser OwnDomain def
 
-  lastNotifId <-
-    getLastNotification alice def `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json %. "id" & asString
+  lastNotifResp <-
+    retrying
+      (constantDelay 10_000 <> limitRetries 10)
+      (\_ resp -> pure $ resp.status == 404)
+      (\_ -> getLastNotification alice def)
+  lastNotifId <- lastNotifResp.json %. "id" & asString
 
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
@@ -85,11 +87,11 @@ testConsumeEventsWhileHavingLegacyClients = do
   -- in Cassandra. This choice is kinda arbitrary as these notifications
   -- probably don't mean much, however, it ensures backwards compatibility.
   lastNotifId <-
-    getNotifications alice def `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json %. "notifications.0.payload.0.type" `shouldMatch` "user.activate"
-      resp.json %. "has_more" `shouldMatch` False
-      resp.json %. "notifications.-1.id" & asString
+    awaitNotification alice noValue (const $ pure True) >>= \notif -> do
+      notif %. "payload.0.type" `shouldMatch` "user.activate"
+      -- There is only one notification (at the time of writing), so we assume
+      -- it to be the last one.
+      notif %. "id" & asString
 
   oldClient <- addClient alice def {acapabilities = Just []} >>= getJSON 201
 
