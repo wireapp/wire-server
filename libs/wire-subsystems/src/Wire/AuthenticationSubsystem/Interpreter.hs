@@ -42,7 +42,7 @@ import Wire.API.Password qualified as Password
 import Wire.API.Password qualified as Pasword
 import Wire.API.User
 import Wire.API.User.Password
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem (..), isSamlUser)
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem (..))
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
 import Wire.HashPassword
@@ -115,7 +115,6 @@ authenticateImpl ::
   PlainTextPassword6 ->
   Sem r ()
 authenticateImpl uid plaintext = do
-  -- FUTUREWORK: Move this logic into auth subsystem.
   getUserAuthenticationInfo uid >>= \case
     Nothing -> throw AuthenticationSubsystemInvalidUser
     Just (_, Deleted) -> throw AuthenticationSubsystemInvalidUser
@@ -127,8 +126,6 @@ authenticateImpl uid plaintext = do
       case Pasword.verifyPasswordWithStatus plaintext password of
         (False, _) -> throw AuthenticationSubsystemBadCredentials
         (True, PasswordStatusNeedsUpdate) -> do
-          -- FUTUREWORK(elland): 6char pwd allowed for now
-          -- throwE AuthStalePassword in the future
           for_ (plainTextPassword8 . fromPlainTextPassword $ plaintext) (hashAndUpdatePwd uid)
         (True, _) -> pure ()
   where

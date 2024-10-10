@@ -41,10 +41,3 @@ data AuthenticationSubsystem m a where
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 
 makeSem ''AuthenticationSubsystem
-
--- TODO: move to user
-isSamlUser :: User -> Bool
-isSamlUser usr = do
-  case usr.userIdentity of
-    Just (SSOIdentity (UserSSOId _) _) -> True
-    _ -> False

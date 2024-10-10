@@ -138,7 +138,7 @@ verifyCode mbCode action luid = do
     mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe ((def @(Feature Public.SndFactorPasswordChallengeConfig)).status == Public.FeatureStatusEnabled) mbFeatureEnabled
   account <- lift . liftSem $ User.getAccountNoFilter luid
-  let isSsoUser = maybe False Authentication.isSamlUser account
+  let isSsoUser = maybe False isSamlUser account
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
@@ -232,7 +232,7 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
   isSaml <- lift . liftSem $ do
     account <- User.getAccountNoFilter luid
-    pure $ maybe False Authentication.isSamlUser account
+    pure $ maybe False isSamlUser account
   unless isSaml do
     lift . liftSem $ Authentication.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll

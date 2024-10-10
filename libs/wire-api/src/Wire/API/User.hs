@@ -35,6 +35,7 @@ module Wire.API.User
     SelfProfile (..),
     -- User (should not be here)
     User (..),
+    isSamlUser,
     userId,
     userDeleted,
     userEmail,
@@ -583,6 +584,12 @@ data User = User
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
+
+isSamlUser :: User -> Bool
+isSamlUser usr = do
+  case usr.userIdentity of
+    Just (SSOIdentity (UserSSOId _) _) -> True
+    _ -> False
 
 userId :: User -> UserId
 userId = qUnqualified . userQualifiedId
