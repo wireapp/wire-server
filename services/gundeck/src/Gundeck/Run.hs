@@ -100,7 +100,7 @@ run opts = withTracer \tracer -> do
 
     createUserNotificationsExchange :: Channel -> IO ()
     createUserNotificationsExchange chan = do
-      declareExchange chan newExchange {exchangeName = userNotificationExchangeName, exchangeType = "topic"}
+      declareExchange chan newExchange {exchangeName = userNotificationExchangeName, exchangeType = "direct"}
 
     createDeadUserNotificationsExchange :: Channel -> IO ()
     createDeadUserNotificationsExchange chan = do
