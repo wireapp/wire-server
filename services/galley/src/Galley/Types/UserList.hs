@@ -34,7 +34,7 @@ data UserList a = UserList
   { ulLocals :: [a],
     ulRemotes :: [Remote a]
   }
-  deriving (Functor, Foldable, Traversable)
+  deriving (Show, Functor, Foldable, Traversable)
 
 instance Semigroup (UserList a) where
   UserList locals1 remotes1 <> UserList locals2 remotes2 =
