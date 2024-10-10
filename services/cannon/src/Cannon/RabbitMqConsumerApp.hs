@@ -18,7 +18,7 @@ import Wire.API.Notification
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
   wsConn <- liftIO (acceptRequest pendingConn `catch` rejectOnError pendingConn)
-  -- FUTUREWORK: Pool connections
+  -- FUTUREWORK: Pool connections -- TODO: Create ticket
   withConnection e.logg e.rabbitmq $ \conn -> do
     bracket (Amqp.openChannel conn) (Amqp.closeChannel) $ \chan -> do
       closeWS <- newEmptyMVar
@@ -80,7 +80,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
             -- no timeout necessary here, we want to keep running forever.
             eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn)
             case eitherData of
-              Left () -> do
+              Left _closeWS -> do
                 Log.debug e.logg $
                   Log.msg (Log.val "Closing the websocket")
                     . logClient
