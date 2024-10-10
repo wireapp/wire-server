@@ -6,10 +6,12 @@ import API.Brig
 import qualified API.Brig as API
 import API.BrigCommon
 import API.Gundeck
+import API.Stern
 import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.Aeson hiding ((.=))
+import qualified Data.ByteString.Char8 as B8
 import Data.ProtoLens.Labels ()
 import Data.Time.Clock.POSIX
 import Data.Time.Clock.System
@@ -41,6 +43,35 @@ testClientLastActive = do
       . utcTimeToPOSIXSeconds
       <$> parseTimeM False defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" tm1
   assertBool "last_active is earlier than expected" $ ts1 >= now
+
+testTeamActivity :: (HasCallStack) => App ()
+testTeamActivity = do
+  (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
+  [alice1, _alice2] <- replicateM 2 $ addClient alice def >>= getJSON 201
+  [_bob1, _bob2] <- replicateM 2 $ addClient bob def >>= getJSON 201
+  charlie1 <- addClient charlie def >>= getJSON 201
+
+  now <-
+    formatTime defaultTimeLocale "%Y-%m-%d"
+      . systemToUTCTime
+      <$> liftIO getSystemTime
+
+  for_ [(alice, alice1), (charlie, charlie1)] $ \(u, cl) -> do
+    clientId <- cl %. "id" & asString
+    void $ getNotifications u def {client = Just clientId}
+
+  let row (u, t) = do
+        uid <- u %. "id" & asString
+        pure (uid, t)
+
+  expectedRows <- sort <$> traverse row [(alice, True), (bob, False), (charlie, True)]
+
+  bindResponse (getTeamActivity alice tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    for_ (zip (sort (B8.lines resp.body)) expectedRows) $ \(row, (uid, active)) -> do
+      let [actualUser, timestamp] = B8.split ',' row
+      B8.unpack actualUser `shouldMatch` uid
+      B8.null timestamp `shouldMatch` not active
 
 testListClientsIfBackendIsOffline :: (HasCallStack) => App ()
 testListClientsIfBackendIsOffline = do

@@ -923,9 +923,9 @@ acceptTeamInvitationImpl luid pw code = do
   generateUserEvent uid Nothing (teamUpdated uid tid)
 
 getUserActivityTimestampImpl :: (Member UserStore r) => UserId -> Sem r (Maybe UTCTime)
-getUserActivityTimestampImpl =
-  fmap
-    ( maximum
-        . (Nothing :) -- make sure the list of timestamps is non-empty
-    )
-    . getActivityTimestamps
+getUserActivityTimestampImpl uid = do
+  ts <- getActivityTimestamps uid
+  pure $
+    maximum
+      -- make sure the list of timestamps is non-empty)
+      (Nothing : ts)

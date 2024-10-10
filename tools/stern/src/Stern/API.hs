@@ -52,6 +52,7 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
+import Data.Time.Format
 import Debug.Trace
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (head)
@@ -481,7 +482,12 @@ getTeamActivityInfo tid = do
               ( Just
                   ( toByteString' user
                       <> ","
-                      <> B8.pack (maybe mempty show tm)
+                      <> B8.pack
+                        ( maybe
+                            mempty
+                            (formatTime defaultTimeLocale "%Y-%m-%d")
+                            tm
+                        )
                   )
               )
           writeChan chan Nothing
