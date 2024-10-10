@@ -287,7 +287,7 @@ onUserDeleted ::
 onUserDeleted origDomain udcn = lift $ do
   let deletedUser = toRemoteUnsafe origDomain udcn.user
       connections = udcn.connections
-      event = pure . UserEvent $ UserDeleted (tUntagged deletedUser)
+      event = UserEvent $ UserDeleted (tUntagged deletedUser)
   acceptedLocals <-
     map csv2From
       . filter (\x -> csv2Status x == Accepted)
