@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Cannon.RabbitMqConsumerApp where
 
 import Cannon.App (rejectOnError)
@@ -31,7 +33,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
     pushEventsToWS :: WS.Connection -> (Amqp.Message, Amqp.Envelope) -> IO ()
     pushEventsToWS wsConn (msg, envelope) =
-      case eitherDecode @Value msg.msgBody of
+      case eitherDecode @(QueuedNotification) msg.msgBody of
         Left err -> do
           Log.err e.logg $
             Log.msg (Log.val "failed to decode event from the queue as a JSON")
@@ -46,12 +48,12 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
           -- pushed as JSONs, hopefully we think of the parsing side if/when
           -- that happens.
           Amqp.rejectEnv envelope False
-        Right payload -> do
-          WS.sendBinaryData wsConn . encode $
-            object
-              [ "payload" .= payload,
-                "delivery_tag" .= envelope.envDeliveryTag
-              ]
+        Right event -> do
+          Log.debug e.logg $ Log.msg (Log.val "got event") . logClient . Log.field "event" (encode event)
+          WS.sendBinaryData wsConn
+            . encode
+            . EventMessage
+            $ EventData {deliveryTag = envelope.envDeliveryTag, ..}
 
     startWsSender :: Connection -> Amqp.Channel -> MVar () -> IO Amqp.ConsumerTag
     startWsSender wsConn chan closeWS = do

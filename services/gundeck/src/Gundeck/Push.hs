@@ -40,7 +40,7 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
-import Data.List1 (List1, list1)
+import Data.List1 (List1, list1, toNonEmpty)
 import Data.Map qualified as Map
 import Data.Range
 import Data.Set qualified as Set
@@ -274,9 +274,13 @@ pushAllViaRabbitMq pushes =
 
 pushViaRabbitMq :: (MonadPushAll m) => Push -> m ()
 pushViaRabbitMq p = do
+  notifId <- mpaMkNotificationId
   let qMsg =
         Q.newMsg
-          { msgBody = Aeson.encode p._pushPayload, -- TODO: Include NotificationId
+          { msgBody =
+              Aeson.encode
+                . queuedNotification notifId
+                $ toNonEmpty p._pushPayload,
             msgContentType = Just "application/json"
           }
       routingKeys =

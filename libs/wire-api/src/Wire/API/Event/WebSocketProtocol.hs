@@ -9,6 +9,7 @@ import Data.Aeson.Types qualified as A
 import Data.Schema
 import Data.Word
 import Imports
+import Wire.API.Internal.Notification
 import Wire.Arbitrary
 
 data AckData = AckData
@@ -30,7 +31,7 @@ instance ToSchema AckData where
         <*> multiple .= field "multiple" schema
 
 data EventData = EventData
-  { payload :: [A.Object],
+  { event :: QueuedNotification,
     deliveryTag :: Word64
   }
   deriving (Show, Eq, Generic)
@@ -41,7 +42,7 @@ instance ToSchema EventData where
   schema =
     object "EventData" $
       EventData
-        <$> payload .= field "payload" (array genericToSchema)
+        <$> event .= field "event" schema
         <*> (.deliveryTag) .= field "delivery_tag" schema
 
 data MessageServerToClient
