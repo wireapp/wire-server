@@ -506,7 +506,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.RemoveBotResponse_user
     Test.Wire.API.Golden.Generated.RemoveCookies_user
     Test.Wire.API.Golden.Generated.RemoveLegalHoldSettingsRequest_team
-    Test.Wire.API.Golden.Generated.RequestNewLegalHoldClientV0_team
+    Test.Wire.API.Golden.Generated.RequestNewLegalHoldClient_team
     Test.Wire.API.Golden.Generated.RichField_user
     Test.Wire.API.Golden.Generated.RichInfo_user
     Test.Wire.API.Golden.Generated.RichInfoAssocList_user

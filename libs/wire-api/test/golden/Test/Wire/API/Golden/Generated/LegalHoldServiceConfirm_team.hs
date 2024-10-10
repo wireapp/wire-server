@@ -42,8 +42,8 @@ testObject_LegalHoldServiceConfirmV0_team_2 =
       lhcRefreshToken = "\\i"
     }
 
-testObject_LegalHoldServiceConfirm_team_3 :: LegalHoldServiceConfirm
-testObject_LegalHoldServiceConfirm_team_3 =
+testObject_LegalHoldServiceConfirm_team_1 :: LegalHoldServiceConfirm
+testObject_LegalHoldServiceConfirm_team_1 =
   LegalHoldServiceConfirm
     { clientId = ClientId 4,
       userId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000600000005"))) (Domain "example.com"),
@@ -51,8 +51,8 @@ testObject_LegalHoldServiceConfirm_team_3 =
       refreshToken = ")"
     }
 
-testObject_LegalHoldServiceConfirm_team_4 :: LegalHoldServiceConfirm
-testObject_LegalHoldServiceConfirm_team_4 =
+testObject_LegalHoldServiceConfirm_team_2 :: LegalHoldServiceConfirm
+testObject_LegalHoldServiceConfirm_team_2 =
   LegalHoldServiceConfirm
     { clientId = ClientId 0x1b,
       userId = Qualified (Id (fromJust (UUID.fromString "00000008-0000-0002-0000-000300000001"))) (Domain "example.com"),
