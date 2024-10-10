@@ -151,7 +151,7 @@ reauthenticateImpl user plaintextMaybe =
     Just (_, Deleted) -> throw AuthenticationSubsystemInvalidUser
     Just (_, Suspended) -> throw AuthenticationSubsystemSuspended
     Just (_, PendingInvitation) -> throw AuthenticationSubsystemPendingInvitation
-    Just (Nothing, _) -> throw AuthenticationSubsystemBadCredentials
+    Just (Nothing, _) -> for_ plaintextMaybe $ const (throw AuthenticationSubsystemBadCredentials)
     Just (Just pw', Active) -> maybeReAuth pw'
     Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
