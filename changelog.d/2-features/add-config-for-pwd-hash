@@ -1,0 +1,9 @@
+Added configuration options for password hashing. 
+This can be done by adding the following fields to `optSettings`:
+
+```yaml
+setPasswordHashingOptions:
+	iterations: 2
+	memory: 12345 # Memory needed in kibibytes
+	parallelism: 8
+```
