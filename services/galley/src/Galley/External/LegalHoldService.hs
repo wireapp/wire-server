@@ -30,6 +30,7 @@ where
 import Bilge qualified
 import Bilge.Response
 import Brig.Types.Team.LegalHold
+import Control.Monad.Catch (MonadThrow (throwM))
 import Data.Aeson
 import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Conversion.To
@@ -56,13 +57,13 @@ data LhApiVersion = V0 | V1
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
 
 -- | Get /api-version from legal hold service; this does not throw an error because the api-version endpoint may not exist.
-getLegalHoldApiVersion ::
+getLegalHoldApiVersions ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member LegalHoldStore r
   ) =>
   TeamId ->
   Sem r (Maybe (Set LhApiVersion))
-getLegalHoldApiVersion tid =
+getLegalHoldApiVersions tid =
   fmap toLhApiVersion . decode . (.responseBody) <$> makeLegalHoldServiceRequest tid params
   where
     params =
@@ -105,13 +106,14 @@ requestNewDevice ::
   ( Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member LegalHoldStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Embed IO) r
   ) =>
   TeamId ->
   Local UserId ->
   Sem r NewLegalHoldClient
 requestNewDevice tid luid = do
-  apiVersion <- negotiateVersion tid supportedClientVersions
+  apiVersion <- negotiateVersion tid
   resp <- makeLegalHoldServiceRequest tid (reqParams apiVersion)
   case eitherDecode (responseBody resp) of
     Left e -> do
@@ -145,7 +147,8 @@ requestNewDevice tid luid = do
 confirmLegalHold ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member P.TinyLog r,
-    Member LegalHoldStore r
+    Member LegalHoldStore r,
+    Member (Embed IO) r
   ) =>
   ClientId ->
   TeamId ->
@@ -154,7 +157,7 @@ confirmLegalHold ::
   OpaqueAuthToken ->
   Sem r ()
 confirmLegalHold clientId tid luid legalHoldAuthToken = do
-  apiVersion <- negotiateVersion tid supportedClientVersions
+  apiVersion <- negotiateVersion tid
   void $ makeLegalHoldServiceRequest tid (reqParams apiVersion)
   where
     reqParams v =
@@ -187,13 +190,14 @@ confirmLegalHold clientId tid luid legalHoldAuthToken = do
 removeLegalHold ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member P.TinyLog r,
-    Member LegalHoldStore r
+    Member LegalHoldStore r,
+    Member (Embed IO) r
   ) =>
   TeamId ->
   Local UserId ->
   Sem r ()
 removeLegalHold tid uid = do
-  apiVersion <- negotiateVersion tid supportedClientVersions
+  apiVersion <- negotiateVersion tid
   void $ makeLegalHoldServiceRequest tid (reqParams apiVersion)
   where
     reqParams v =
@@ -256,31 +260,34 @@ versionedPaths :: LhApiVersion -> [ByteString] -> Http.Request -> Http.Request
 versionedPaths V0 paths = Bilge.paths paths
 versionedPaths v paths = Bilge.paths (versionToBS v : paths)
 
-supportedClientVersions :: Set LhApiVersion
-supportedClientVersions = Set.fromList [minBound .. maxBound]
+supportedByWireServer :: Set LhApiVersion
+supportedByWireServer = Set.fromList [minBound .. maxBound]
 
 -- | Find the highest common version between wire-server and the legalhold service.
 -- If the legalhold service does not support the `/api-version` endpoint, we assume it's `v0`.
--- If there is no common version, we log a warning and use `v0`. This violates the fail-fast principle,
--- but makes multiple API endpoints backwards compatible.
 negotiateVersion ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member LegalHoldStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Embed IO) r
   ) =>
   TeamId ->
-  Set LhApiVersion ->
   Sem r LhApiVersion
-negotiateVersion tid clientVersions = do
-  mSupportedServerVersions <- getLegalHoldApiVersion tid
-  case mSupportedServerVersions of
+negotiateVersion tid = do
+  mSupportedByExternalLhService <- getLegalHoldApiVersions tid
+  case mSupportedByExternalLhService of
     Nothing -> pure V0
-    Just serverVersions -> do
-      let commonVersions = Set.intersection clientVersions serverVersions
+    Just supportedByLhService -> do
+      let commonVersions = Set.intersection supportedByWireServer supportedByLhService
       case Set.lookupMax commonVersions of
         Nothing -> do
           P.warn $
             Log.msg (Log.val "Version negotiation with legal hold service failed. No common versions found. Using v0.")
               . Log.field "team_id" (show tid)
-          pure V0
+          liftIO $ throwM NoCommonVersions
         Just v -> pure v
+
+data VersionNegotiationException = NoCommonVersions
+  deriving (Show)
+
+instance Exception VersionNegotiationException

@@ -171,7 +171,8 @@ removeSettingsInternalPaging ::
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member (TeamMemberStore InternalPaging) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -213,7 +214,8 @@ removeSettings ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Embed IO) r
   ) =>
   UserId ->
   TeamId ->
@@ -268,7 +270,8 @@ removeSettings' ::
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Embed IO) r
   ) =>
   TeamId ->
   Sem r ()
@@ -367,7 +370,8 @@ requestDevice ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -460,7 +464,8 @@ approveDevice ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -536,7 +541,8 @@ disableForUser ::
     Member P.TinyLog r,
     Member Random r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   TeamId ->
