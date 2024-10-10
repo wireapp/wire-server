@@ -137,7 +137,6 @@ data LegalHoldLoginError
   | LegalHoldLoginError LoginError
   | LegalHoldReAuthError ReAuthError
 
--- TODO: Remove?
 data LoginError
   = LoginFailed
   | LoginSuspended
