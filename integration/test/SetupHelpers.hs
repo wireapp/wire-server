@@ -403,3 +403,13 @@ uploadDownloadProfilePicture :: (HasCallStack, MakesValue usr) => usr -> App (St
 uploadDownloadProfilePicture usr = do
   (dom, key, _payload) <- uploadProfilePicture usr
   downloadProfilePicture usr dom key
+
+mkContextUserIds :: (MakesValue user) => [(String, user)] -> App String
+mkContextUserIds =
+  fmap (intercalate "\n")
+    . traverse
+      ( \(name, user) -> do
+          uid <- objQidObject user %. "id" & asString
+          domain <- objDomain user
+          pure $ name <> ": " <> uid <> "@" <> domain
+      )
