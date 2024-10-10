@@ -50,7 +50,7 @@ import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
 import Data.UUID.V4
-import Gundeck.Options hiding (bulkPush)
+import Gundeck.Options
 import Gundeck.Options qualified as O
 import Imports
 import Network.HTTP.Client qualified as Http

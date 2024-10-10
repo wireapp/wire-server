@@ -57,9 +57,6 @@ data Settings = Settings
     _httpPoolSize :: !Int,
     -- | TTL (seconds) of stored notifications
     _notificationTTL :: !NotificationTTL,
-    -- | Use this option to group push notifications and send them in bulk to Cannon, instead
-    -- of in individual requests
-    _bulkPush :: !Bool,
     -- | Maximum number of concurrent threads calling SNS.
     _maxConcurrentNativePushes :: !(Maybe MaxConcurrentNativePushes),
     -- | Maximum number of parallel requests to SNS and cassandra

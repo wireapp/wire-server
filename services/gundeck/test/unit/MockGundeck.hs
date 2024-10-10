@@ -439,9 +439,6 @@ instance MonadMapAsync MockGundeck where
   mntgtPerPushConcurrency = pure Nothing -- (unbounded)
   mntgtMapAsync f xs = Right <$$> mapM f xs -- (no concurrency)
 
-instance MonadPushAny MockGundeck where
-  mpyPush = mockOldSimpleWebPush
-
 instance MonadBulkPush MockGundeck where
   mbpBulkSend = mockBulkSend
   mbpDeleteAllPresences _ = pure () -- FUTUREWORK: test presence deletion logic
@@ -643,53 +640,6 @@ mockBulkSend uri notifs = do
   pure . (uri,) . Right $
     BulkPushResponse
       [(ntfId ntif, trgt, getstatus trgt) | (ntif, trgt) <- flat]
-
-mockOldSimpleWebPush ::
-  (HasCallStack, m ~ MockGundeck) =>
-  Notification ->
-  List1 NotificationTarget ->
-  Maybe UserId ->
-  Maybe ConnId ->
-  Set ConnId ->
-  m [Presence]
-mockOldSimpleWebPush notif tgts _senderid mconnid connWhitelist = do
-  env <- ask
-  getstatus <- mkWSStatus
-  let clients :: [(UserId, ClientId)]
-      clients =
-        -- reformat
-        fmap (\(PushTarget uid connid) -> (uid, clientIdFromConnId connid))
-          -- drop all broken web sockets
-          . filter ((== PushStatusOk) . getstatus)
-          -- do not push to sending device
-          . filter ((/= mconnid) . Just . ptConnId)
-          -- reformat
-          . mconcat
-          . fmap
-            ( ( \tgt ->
-                  PushTarget (tgt ^. targetUser)
-                    . fakeConnId
-                    <$> (tgt ^. targetClients)
-              )
-                -- apply filters
-                . connWhitelistSieve
-                . emptyMeansFullHack
-            )
-          $ toList tgts
-      connWhitelistSieve :: NotificationTarget -> NotificationTarget
-      connWhitelistSieve =
-        if null connWhitelist
-          then id
-          else targetClients %~ filter ((`elem` connWhitelist) . fakeConnId)
-      emptyMeansFullHack :: NotificationTarget -> NotificationTarget
-      emptyMeansFullHack tgt =
-        tgt
-          & targetClients %~ \case
-            [] -> clientIdsOfUser env (tgt ^. targetUser)
-            same@(_ : _) -> same
-  forM_ clients $ \(userid, clientid) -> do
-    msWSQueue %= deliver (userid, clientid) (ntfPayload notif)
-  pure $ uncurry fakePresence <$> clients
 
 ----------------------------------------------------------------------
 -- helpers
