@@ -10,8 +10,8 @@ import Wire.HashPassword
 
 staticHashPasswordInterpreter :: InterpreterFor HashPassword r
 staticHashPasswordInterpreter = interpret $ \case
-  HashPassword8 password -> hashPassword password
   HashPassword6 password -> hashPassword password
+  HashPassword8 password -> hashPassword password
 
 hashPassword :: (Monad m) => PlainTextPassword' t -> m Password
 hashPassword password =
