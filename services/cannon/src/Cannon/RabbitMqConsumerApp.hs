@@ -18,7 +18,7 @@ import Wire.API.Notification
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
   wsConn <- liftIO (acceptRequest pendingConn `catch` rejectOnError pendingConn)
-  -- FUTUREWORK: Pool connections -- TODO: Create ticket
+  -- FUTUREWORK: Pool connections: https://wearezeta.atlassian.net/browse/WPB-11491
   withConnection e.logg e.rabbitmq $ \conn -> do
     bracket (Amqp.openChannel conn) (Amqp.closeChannel) $ \chan -> do
       closeWS <- newEmptyMVar
