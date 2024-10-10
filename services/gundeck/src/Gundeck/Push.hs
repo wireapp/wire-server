@@ -276,7 +276,7 @@ pushViaRabbitMq :: (MonadPushAll m) => Push -> m ()
 pushViaRabbitMq p = do
   let qMsg =
         Q.newMsg
-          { msgBody = Aeson.encode p._pushPayload,
+          { msgBody = Aeson.encode p._pushPayload, -- TODO: Include NotificationId
             msgContentType = Just "application/json"
           }
       routingKeys =
