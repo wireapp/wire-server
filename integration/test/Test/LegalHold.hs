@@ -997,10 +997,9 @@ testLHApiV1 :: App ()
 testLHApiV1 = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
 
-  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  legalholdWhitelistTeam tid alice >>= assertSuccess
 
   withMockServer def (lhMockAppV V1) \lhDomAndPort chan -> do
-    legalholdWhitelistTeam tid alice >>= assertStatus 200
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
 
     checkChan chan \(req, _) -> runMaybeT . lift $ do
@@ -1049,3 +1048,17 @@ testLHApiV1 = do
       value %. "team_id" `shouldMatch` tid
       value %. "qualified_user_id.id" `shouldMatch` objId bob
       value %. "qualified_user_id.domain" `shouldMatch` objDomain bob
+
+testNoCommonVersion :: App ()
+testNoCommonVersion = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  legalholdWhitelistTeam tid alice >>= assertSuccess
+
+  withMockServer def lhMockNoCommonVersion \lhDomAndPort _ -> do
+    legalholdWhitelistTeam tid alice >>= assertStatus 200
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertSuccess
+
+    bindResponse (requestLegalHoldDevice tid alice bob) $ \resp -> do
+      resp.status `shouldMatchInt` 500
+      resp.json %. "label" `shouldMatch` "server-error"

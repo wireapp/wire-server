@@ -3,6 +3,7 @@ module Testlib.MockIntegrationService
     lhMockAppWithPrekeys,
     lhMockApp,
     lhMockAppV,
+    lhMockNoCommonVersion,
     mkLegalHoldSettings,
     CreateMock (..),
     LiftedApplication,
@@ -127,7 +128,7 @@ lhMockAppWithPrekeys version mks ch req cont = withRunInIO \inIO -> do
       V1 ->
         case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
           (["legalhold", "status"], "GET", _) -> cont respondOk
-          (["legalhold", "api-version"], "GET", _) -> cont apiVersionResp
+          (["legalhold", "api-version"], "GET", _) -> cont $ apiVersionResp [0, 1]
           (_, _, Nothing) -> cont missingAuth
           (["legalhold", "initiate"], "POST", Just _) -> do
             (nextLastPrekey, threePrekeys) <- getPreyKeys
@@ -153,25 +154,34 @@ lhMockAppWithPrekeys version mks ch req cont = withRunInIO \inIO -> do
             "last_prekey" .= npk
           ]
 
-    apiVersionResp :: Wai.Response
-    apiVersionResp =
-      responseLBS status200 [(hContentType, cs "application/json")]
-        . encode
-        . Data.Aeson.object
-        $ [ "supported" .= ([0, 1] :: [Int])
-          ]
+apiVersionResp :: [Int] -> Wai.Response
+apiVersionResp versions =
+  responseLBS status200 [(hContentType, cs "application/json")]
+    . encode
+    . Data.Aeson.object
+    $ [ "supported" .= versions
+      ]
 
-    respondOk :: Wai.Response
-    respondOk = responseLBS status200 mempty mempty
+respondOk :: Wai.Response
+respondOk = responseLBS status200 mempty mempty
 
-    respondBad :: Wai.Response
-    respondBad = responseLBS status404 mempty mempty
+respondBad :: Wai.Response
+respondBad = responseLBS status404 mempty mempty
 
-    missingAuth :: Wai.Response
-    missingAuth = responseLBS status400 mempty (cs "no authorization header")
+missingAuth :: Wai.Response
+missingAuth = responseLBS status400 mempty (cs "no authorization header")
 
-    getRequestHeader :: String -> Wai.Request -> Maybe ByteString
-    getRequestHeader name = lookup (fromString name) . requestHeaders
+getRequestHeader :: String -> Wai.Request -> Maybe ByteString
+getRequestHeader name = lookup (fromString name) . requestHeaders
+
+lhMockNoCommonVersion ::
+  Chan () -> LiftedApplication
+lhMockNoCommonVersion _ req cont = withRunInIO \inIO -> do
+  inIO do
+    case (cs <$> pathInfo req, cs $ requestMethod req) of
+      (["legalhold", "status"], "GET") -> cont respondOk
+      (["legalhold", "api-version"], "GET") -> cont $ apiVersionResp [9999999]
+      _ -> cont respondBad
 
 mkLegalHoldSettings :: (String, Warp.Port) -> Value
 mkLegalHoldSettings (botHost, lhPort) =

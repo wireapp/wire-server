@@ -282,12 +282,12 @@ negotiateVersion tid = do
       case Set.lookupMax commonVersions of
         Nothing -> do
           P.warn $
-            Log.msg (Log.val "Version negotiation with legal hold service failed. No common versions found. Using v0.")
+            Log.msg (Log.val "Version negotiation with legal hold service failed. No common versions found.")
               . Log.field "team_id" (show tid)
-          liftIO $ throwM NoCommonVersions
+          liftIO $ throwM LegalHoldNoCommonVersions
         Just v -> pure v
 
-data VersionNegotiationException = NoCommonVersions
+data LegalHoldVersionNegotiationException = LegalHoldNoCommonVersions
   deriving (Show)
 
-instance Exception VersionNegotiationException
+instance Exception LegalHoldVersionNegotiationException
