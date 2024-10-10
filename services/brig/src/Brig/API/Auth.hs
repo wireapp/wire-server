@@ -22,7 +22,6 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.API.User
 import Brig.App
-import Brig.Data.User qualified as User
 import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Brig.ZAuth hiding (Env, settings)
@@ -50,11 +49,11 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.BlockListStore
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess
-import Wire.PasswordStore (PasswordStore)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -97,7 +96,6 @@ sendLoginCode _ =
 login ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
     Member Events r,
@@ -162,7 +160,6 @@ listCookies lusr (fold -> labels) =
 
 removeCookies ::
   ( Member TinyLog r,
-    Member PasswordStore r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r
   ) =>
@@ -213,7 +210,7 @@ reauthenticate ::
   ReAuthUser ->
   Handler r ()
 reauthenticate luid@(tUnqualified -> uid) body = do
-  User.reauthenticate uid body.reAuthPassword !>> reauthError
+  (lift . liftSem $ Authentication.reauthenticate uid body.reAuthPassword) !>> reauthError
   case reAuthCodeAction body of
     Just action ->
       Auth.verifyCode (reAuthCode body) action luid

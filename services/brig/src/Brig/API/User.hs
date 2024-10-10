@@ -137,6 +137,8 @@ import Wire.Error
 import Wire.Events (Events)
 import Wire.Events qualified as Events
 import Wire.GalleyAPIAccess as GalleyAPIAccess
+import Wire.HashPassword (HashPassword)
+import Wire.HashPassword qualified as HashPassword
 import Wire.InvitationStore (InvitationStore, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.NotificationSubsystem
@@ -839,15 +841,22 @@ mkActivationKey (ActivateEmail e) =
 -------------------------------------------------------------------------------
 -- Password Management
 
-changePassword :: (Member PasswordStore r, Member UserStore r) => UserId -> PasswordChange -> ExceptT ChangePasswordError (AppT r) ()
+changePassword ::
+  ( Member PasswordStore r,
+    Member UserStore r,
+    Member HashPassword r
+  ) =>
+  UserId ->
+  PasswordChange ->
+  ExceptT ChangePasswordError (AppT r) ()
 changePassword uid cp = do
   activated <- lift $ liftSem $ isActivated uid
   unless activated $
     throwE ChangePasswordNoIdentity
   currpw <- lift $ liftSem $ lookupHashedPassword uid
-  let newpw = cpNewPassword cp
-  hashedNewPw <- mkSafePassword newpw
-  case (currpw, cpOldPassword cp) of
+  let newpw = cp.newPassword
+  hashedNewPw <- lift . liftSem $ HashPassword.hashPassword8 newpw
+  case (currpw, cp.oldPassword) of
     (Nothing, _) -> lift . liftSem $ upsertHashedPassword uid hashedNewPw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do

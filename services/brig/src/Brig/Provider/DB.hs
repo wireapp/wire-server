@@ -118,7 +118,9 @@ updateAccountPassword ::
   PlainTextPassword6 ->
   m ()
 updateAccountPassword pid pwd = do
-  p <- liftIO $ mkSafePassword pwd
+  -- TODO: Check if this is what we actually want here.
+  -- or if we need to poke to Env to get the options.
+  p <- liftIO $ mkSafePassword Nothing pwd
   retry x5 $ write cql $ params LocalQuorum (p, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()

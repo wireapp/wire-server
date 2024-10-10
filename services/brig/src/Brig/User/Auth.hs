@@ -40,7 +40,6 @@ import Brig.App
 import Brig.Budget
 import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
-import Brig.Data.User qualified as Data
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
@@ -73,10 +72,11 @@ import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Interpreter (AuthenticationSubsystemError (..))
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.PasswordStore (PasswordStore)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)
@@ -90,7 +90,6 @@ login ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
     Member VerificationCodeSubsystem r,
@@ -105,13 +104,15 @@ login ::
 login (MkLogin li pw label code) typ = do
   uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
-  wrapHttpClientE $ checkRetryLimit uid
-  Data.authenticate uid pw `catchE` \case
-    AuthInvalidUser -> wrapHttpClientE $ loginFailed uid
-    AuthInvalidCredentials -> wrapHttpClientE $ loginFailed uid
-    AuthSuspended -> throwE LoginSuspended
-    AuthEphemeral -> throwE LoginEphemeral
-    AuthPendingInvitation -> throwE LoginPendingActivation
+  wrapClientE $ checkRetryLimit uid
+  lift (liftSem $ Authentication.authenticate uid pw)
+    `catchE` \case
+      AuthenticationSubsystemInvalidUser -> lift (decrRetryLimit uid) >> throwE LoginFailed
+      AuthenticationSubsystemBadCredentials -> lift (decrRetryLimit uid) >> throwE LoginFailed
+      AuthenticationSubsystemSuspended -> throwE LoginSuspended
+      AuthenticationSubsystemEphemeral -> throwE LoginEphemeral
+      AuthenticationSubsystemPendingInvitation -> throwE LoginPendingActivation
+      _ -> pure () -- ?
   verifyLoginCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
   where
@@ -120,9 +121,9 @@ login (MkLogin li pw label code) typ = do
       luid <- lift $ qualifyLocal uid
       verifyCode mbCode Login luid
         `catchE` \case
-          VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
-          VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
-          VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
+          VerificationCodeNoPendingCode -> lift (decrRetryLimit uid) >> throwE LoginCodeInvalid
+          VerificationCodeRequired -> lift (decrRetryLimit uid) >> throwE LoginCodeRequired
+          VerificationCodeNoEmail -> lift (decrRetryLimit uid) >> throwE LoginFailed
 
 verifyCode ::
   forall r.
@@ -137,7 +138,7 @@ verifyCode mbCode action luid = do
     mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe ((def @(Feature Public.SndFactorPasswordChallengeConfig)).status == Public.FeatureStatusEnabled) mbFeatureEnabled
   account <- lift . liftSem $ User.getAccountNoFilter luid
-  let isSsoUser = maybe False Data.isSamlUser account
+  let isSsoUser = maybe False Authentication.isSamlUser account
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
@@ -158,23 +159,26 @@ verifyCode mbCode action luid = do
           userTeam =<< mbAccount
         )
 
-loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
-loginFailedWith e uid = decrRetryLimit uid >> throwE e
+decrRetryLimit :: UserId -> (AppT r) ()
+decrRetryLimit = wrapClient . withRetryLimit (\k b -> withBudget k b $ pure ())
 
-loginFailed :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
-loginFailed = loginFailedWith LoginFailed
-
-decrRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
-decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
-
-checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
-checkRetryLimit = withRetryLimit checkBudget
+checkRetryLimit ::
+  ( MonadReader Env m,
+    MonadClient m
+  ) =>
+  UserId ->
+  ExceptT LoginError m ()
+checkRetryLimit uid =
+  flip withRetryLimit uid $ \budgetKey budget ->
+    checkBudget budgetKey budget >>= \case
+      BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
+      BudgetedValue () remaining -> pure $ BudgetedValue () remaining
 
 withRetryLimit ::
   (MonadReader Env m) =>
-  (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
+  (BudgetKey -> Budget -> m (Budgeted ())) ->
   UserId ->
-  ExceptT LoginError m ()
+  m ()
 withRetryLimit action uid = do
   mLimitFailedLogins <- asks (.settings.limitFailedLogins)
   forM_ mLimitFailedLogins $ \opts -> do
@@ -183,10 +187,7 @@ withRetryLimit action uid = do
           Budget
             (timeoutDiff $ Opt.timeout opts)
             (fromIntegral $ Opt.retryLimit opts)
-    bresult <- action bkey budget
-    case bresult of
-      BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
-      BudgetedValue () _ -> pure ()
+    action bkey budget
 
 logout ::
   (ZAuth.TokenPair u a) =>
@@ -219,7 +220,6 @@ renewAccess uts at mcid = do
 
 revokeAccess ::
   ( Member TinyLog r,
-    Member PasswordStore r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r
   ) =>
@@ -232,8 +232,9 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
   isSaml <- lift . liftSem $ do
     account <- User.getAccountNoFilter luid
-    pure $ maybe False Data.isSamlUser account
-  unless isSaml $ Data.authenticate u pw
+    pure $ maybe False Authentication.isSamlUser account
+  unless isSaml do
+    lift . liftSem $ Authentication.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
@@ -389,17 +390,15 @@ ssoLogin ::
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
-  (Data.reauthenticate uid Nothing) `catchE` \case
-    ReAuthMissingPassword -> pure ()
-    ReAuthCodeVerificationRequired -> pure ()
-    ReAuthCodeVerificationNoPendingCode -> pure ()
-    ReAuthCodeVerificationNoEmail -> pure ()
-    ReAuthError e -> case e of
-      AuthInvalidUser -> throwE LoginFailed
-      AuthInvalidCredentials -> pure ()
-      AuthSuspended -> throwE LoginSuspended
-      AuthEphemeral -> throwE LoginEphemeral
-      AuthPendingInvitation -> throwE LoginPendingActivation
+  lift
+    (liftSem $ Authentication.reauthenticate uid Nothing)
+    `catchE` \case
+      AuthenticationSubsystemBadCredentials -> throwE LoginFailed
+      AuthenticationSubsystemInvalidUser -> pure ()
+      AuthenticationSubsystemSuspended -> throwE LoginSuspended
+      AuthenticationSubsystemEphemeral -> throwE LoginEphemeral
+      AuthenticationSubsystemPendingInvitation -> throwE LoginPendingActivation
+      _ -> pure () -- TODO:
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
@@ -414,7 +413,7 @@ legalHoldLogin ::
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid pw label) typ = do
-  (Data.reauthenticate uid pw) !>> LegalHoldReAuthError
+  (lift . liftSem $ Authentication.reauthenticate uid pw) !>> LegalHoldReAuthError
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled

@@ -26,6 +26,7 @@ module Wire.API.Password
     verifyPassword,
     verifyPasswordWithStatus,
     PasswordReqBody (..),
+    defaultOptions,
 
     -- * Only for testing
     hashPasswordArgon2idWithSalt,
@@ -152,8 +153,8 @@ genPassword =
 mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordScrypt = fmap ScryptPassword . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
-mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePassword = fmap Argon2Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePassword :: (MonadIO m) => Maybe Argon2.Options -> PlainTextPassword' t -> m Password
+mkSafePassword opts = fmap Argon2Password . hashPasswordArgon2id opts . Text.encodeUtf8 . fromPlainTextPassword
 
 -- | Verify a plaintext password from user input against a stretched
 -- password from persistent storage.
@@ -188,13 +189,13 @@ encodeScryptPassword ScryptHashedPassword {..} =
       Text.decodeUtf8 . B64.encode $ hashedKey
     ]
 
-hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Argon2HashedPassword
-hashPasswordArgon2id pwd = do
+hashPasswordArgon2id :: (MonadIO m) => Maybe Argon2.Options -> ByteString -> m Argon2HashedPassword
+hashPasswordArgon2id opts pwd = do
   salt <- newSalt 16
-  pure $! hashPasswordArgon2idWithSalt salt pwd
+  pure $! hashPasswordArgon2idWithSalt opts salt pwd
 
-hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Argon2HashedPassword
-hashPasswordArgon2idWithSalt = hashPasswordArgon2idWithOptions defaultOptions
+hashPasswordArgon2idWithSalt :: Maybe Argon2.Options -> ByteString -> ByteString -> Argon2HashedPassword
+hashPasswordArgon2idWithSalt opts = hashPasswordArgon2idWithOptions (fromMaybe defaultOptions opts)
 
 hashPasswordArgon2idWithOptions :: Argon2.Options -> ByteString -> ByteString -> Argon2HashedPassword
 hashPasswordArgon2idWithOptions opts salt pwd = do

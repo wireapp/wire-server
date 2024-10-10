@@ -29,6 +29,8 @@ import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
+  Authenticate :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
+  Reauthenticate :: UserId -> Maybe PlainTextPassword6 -> AuthenticationSubsystem m ()
   CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
   VerifyPassword :: PlainTextPassword6 -> Password -> AuthenticationSubsystem m (Bool, PasswordStatus)
@@ -39,3 +41,10 @@ data AuthenticationSubsystem m a where
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 
 makeSem ''AuthenticationSubsystem
+
+-- TODO: move to user
+isSamlUser :: User -> Bool
+isSamlUser usr = do
+  case usr.userIdentity of
+    Just (SSOIdentity (UserSSOId _) _) -> True
+    _ -> False

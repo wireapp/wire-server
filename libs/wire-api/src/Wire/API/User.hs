@@ -1418,8 +1418,8 @@ instance (res ~ PutSelfResponses) => AsUnion res (Maybe UpdateProfileError) wher
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
-  { cpOldPassword :: Maybe PlainTextPassword6,
-    cpNewPassword :: PlainTextPassword8
+  { oldPassword :: Maybe PlainTextPassword6,
+    newPassword :: PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
@@ -1435,9 +1435,9 @@ instance ToSchema PasswordChange where
       )
       . object "PasswordChange"
       $ PasswordChange
-        <$> cpOldPassword
+        <$> oldPassword
           .= maybe_ (optField "old_password" schema)
-        <*> cpNewPassword
+        <*> newPassword
           .= field "new_password" schema
 
 data ChangePasswordError

@@ -36,7 +36,7 @@ tests =
 testHashPasswordScrypt :: IO ()
 testHashPasswordScrypt = do
   pwd <- genPassword
-  hashed <- mkSafePassword pwd
+  hashed <- mkSafePassword Nothing pwd
   let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertBool "Password could not be verified" correct
   assertEqual "Password could not be verified" status PasswordStatusOk
@@ -44,7 +44,7 @@ testHashPasswordScrypt = do
 testHashPasswordArgon2id :: IO ()
 testHashPasswordArgon2id = do
   pwd <- genPassword
-  hashed <- mkSafePassword pwd
+  hashed <- mkSafePassword Nothing pwd
   let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertEqual "Password could not be verified" status PasswordStatusOk
   assertBool "Password could not be verified" correct

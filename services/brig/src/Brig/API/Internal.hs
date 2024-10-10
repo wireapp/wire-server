@@ -65,7 +65,7 @@ import Data.Time.Clock.System
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
 import Polysemy
-import Polysemy.Error qualified
+import Polysemy.Error qualified as Polysemy
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -102,6 +102,7 @@ import Wire.FederationConfigStore
   )
 import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore
 import Wire.NotificationSubsystem
@@ -144,7 +145,8 @@ servantSitemap ::
     Member PropertySubsystem r,
     Member (Input (Local ())) r,
     Member IndexedUserStore r,
-    Member (Polysemy.Error.Error UserSubsystemError) r
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member HashPassword r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -246,7 +248,7 @@ teamsAPI ::
     Member InvitationStore r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
-    Member (Polysemy.Error.Error UserSubsystemError) r,
+    Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
     Member IndexedUserStore r

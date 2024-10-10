@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 -- Disabling to stop errors on Getters
@@ -584,7 +585,9 @@ data Settings = Settings
     oAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
     -- use `oAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
-    oAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
+    oAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
+    -- | Options to override the default Argon2id settings for specific operators.
+    passwordHashingOptions :: !(Maybe PasswordHashingOptions)
   }
   deriving (Show, Generic)
 
@@ -845,6 +848,7 @@ instance FromJSON Opts where
           { fieldLabelModifier = \case
               "settings" -> "optSettings"
               "stompOptions" -> "stomp"
+              "passwordHashingOptions" -> "setPasswordHashingOptions"
               other -> other
           }
 

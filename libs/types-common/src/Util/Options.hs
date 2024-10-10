@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -146,3 +147,21 @@ getOptions desc mp defaultPath = do
 
 parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString
+
+data PasswordHashingOptions = PasswordHashingOptions
+  { iterations :: !Int,
+    memory :: !Int,
+    parallelism :: !Int
+  }
+  deriving (Show, Generic)
+
+instance FromJSON PasswordHashingOptions where
+  parseJSON =
+    withObject
+      "PasswordHashingOptions"
+      ( \obj -> do
+          iterations <- obj .: "iterations"
+          memory <- obj .: "memory"
+          parallelism <- obj .: "parallelism"
+          pure (PasswordHashingOptions {..})
+      )

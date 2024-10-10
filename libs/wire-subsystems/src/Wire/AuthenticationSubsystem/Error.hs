@@ -33,6 +33,10 @@ data AuthenticationSubsystemError
   | AuthenticationSubsystemAllowListError
   | AuthenticationSubsystemMissingAuth
   | AuthenticationSubsystemBadCredentials
+  | AuthenticationSubsystemInvalidUser
+  | AuthenticationSubsystemSuspended
+  | AuthenticationSubsystemEphemeral
+  | AuthenticationSubsystemPendingInvitation
   deriving (Eq, Show)
 
 instance Exception AuthenticationSubsystemError
@@ -47,3 +51,7 @@ authenticationSubsystemErrorToHttpError =
     AuthenticationSubsystemAllowListError -> errorToWai @E.AllowlistError
     AuthenticationSubsystemMissingAuth -> errorToWai @E.MissingAuth
     AuthenticationSubsystemBadCredentials -> errorToWai @E.BadCredentials
+    AuthenticationSubsystemInvalidUser -> errorToWai @E.BadCredentials
+    AuthenticationSubsystemSuspended -> errorToWai @E.AccountSuspended
+    AuthenticationSubsystemEphemeral -> errorToWai @E.AccountEphemeral
+    AuthenticationSubsystemPendingInvitation -> errorToWai @E.AccountPending

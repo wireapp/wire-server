@@ -9,6 +9,7 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Error
+import Wire.API.Password
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.StoredUser
@@ -67,6 +68,7 @@ data UserStore m a where
   IsActivated :: UserId -> UserStore m Bool
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
+  GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
 
 makeSem ''UserStore
 

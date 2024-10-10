@@ -115,7 +115,7 @@ import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
-import Wire.API.User hiding (cpNewPassword, cpOldPassword)
+import Wire.API.User
 import Wire.API.User qualified as Public (UserProfile, mkUserProfile)
 import Wire.API.User.Auth
 import Wire.API.User.Client
@@ -127,6 +127,8 @@ import Wire.EmailSending (EmailSending)
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.HashPassword (HashPassword)
+import Wire.HashPassword qualified as HashPassword
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserSubsystem
@@ -180,6 +182,7 @@ providerAPI ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member EmailSending r,
+    Member HashPassword r,
     Member VerificationCodeSubsystem r
   ) =>
   ServerT ProviderAPI (Handler r)
@@ -209,6 +212,7 @@ internalProviderAPI = Named @"get-provider-activation-code" getActivationCode
 newAccount ::
   ( Member GalleyAPIAccess r,
     Member EmailSending r,
+    Member HashPassword r,
     Member VerificationCodeSubsystem r
   ) =>
   Public.NewProvider ->
@@ -223,10 +227,12 @@ newAccount new = do
   let emailKey = mkEmailKey email
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   (safePass, newPass) <- case pass of
-    Just newPass -> (,Nothing) <$> mkSafePassword newPass
+    Just newPass -> do
+      hashed <- lift . liftSem $ HashPassword.hashPassword6 newPass
+      pure (hashed, Nothing)
     Nothing -> do
       newPass <- genPassword
-      safePass <- mkSafePassword newPass
+      safePass <- lift . liftSem $ HashPassword.hashPassword8 newPass
       pure (safePass, Just newPass)
   pid <- wrapClientE $ DB.insertAccount name safePass url descr
   let gen = mkVerificationCodeGen email
@@ -388,7 +394,7 @@ updateAccountPassword pid upd = do
     throwStd (errorToWai @E.BadCredentials)
   whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid upd.newPassword)) do
     throwStd (errorToWai @E.ResetPasswordMustDiffer)
-  wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
+  wrapClientE $ DB.updateAccountPassword pid upd.newPassword
 
 addService ::
   (Member GalleyAPIAccess r) =>
