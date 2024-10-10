@@ -83,6 +83,9 @@ interpretBrigAccess = interpret $ \case
   GetRichInfoMultiUser uids -> do
     logEffect "BrigAccess.GetRichInfoMultiUser"
     embedApp $ getRichInfoMultiUser uids
+  GetUserExportData uid -> do
+    logEffect "BrigAccess.GetUserExportData"
+    embedApp $ getUserExportData uid
   GetSize tid -> do
     logEffect "BrigAccess.GetSize"
     embedApp $ getSize tid

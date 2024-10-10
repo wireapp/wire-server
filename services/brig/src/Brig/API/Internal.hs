@@ -83,6 +83,7 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
+import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Activation
@@ -268,6 +269,7 @@ userAPI =
     :<|> deleteLocale
     :<|> getDefaultUserLocale
     :<|> Named @"get-activity-timestamp" getUserActivityTimestampH
+    :<|> Named @"get-user-export-data" getUserExportDataH
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
 clientAPI = Named @"update-client-last-active" updateClientLastActive
@@ -812,3 +814,9 @@ getUserActivityTimestampH =
     . liftSem
     . fmap (fmap toUTCTimeMillis)
     . getUserActivityTimestamp
+
+getUserExportDataH ::
+  (Member UserSubsystem r) =>
+  UserId ->
+  Handler r (Maybe TeamExportUser)
+getUserExportDataH = lift . liftSem . getUserExportData

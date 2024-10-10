@@ -473,7 +473,6 @@ getTeamActivityInfo tid = do
     chan <- liftIO newChan
     let runThread :: IO () = do
           pooledForConcurrentlyN_ 8 memList $ \user -> do
-            -- get user info
             tm <-
               runHandler env (Intra.getActivityTimestamp user)
                 >>= either throwIO pure

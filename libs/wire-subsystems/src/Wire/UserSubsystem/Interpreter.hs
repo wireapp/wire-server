@@ -7,8 +7,10 @@ module Wire.UserSubsystem.Interpreter
   )
 where
 
-import Control.Lens (view)
+import Control.Error.Util (hush)
+import Control.Lens (view, (^.))
 import Control.Monad.Trans.Maybe
+import Data.CaseInsensitive qualified as CI
 import Data.Domain
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
@@ -16,7 +18,7 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.List.Extra (nubOrd)
-import Data.Misc (PlainTextPassword6)
+import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl)
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
@@ -27,6 +29,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
+import SAML2.WebSSO qualified as SAML
 import Servant.Client.Core
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.API
@@ -34,6 +37,7 @@ import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
+import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission qualified as Permission
@@ -41,6 +45,7 @@ import Wire.API.Team.Role (defaultRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User as User
+import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.Arbitrary
@@ -152,6 +157,50 @@ runUserSubsystem authInterpreter = interpret $
     InternalFindTeamInvitation mEmailKey code ->
       internalFindTeamInvitationImpl mEmailKey code
     GetUserActivityTimestamp uid -> getUserActivityTimestampImpl uid
+    GetUserExportData uid -> getUserExportDataImpl uid
+
+getUserExportDataImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamExportUser)
+getUserExportDataImpl uid = fmap hush . runError @() $ do
+  su <- UserStore.getUser uid >>= note ()
+  mRichInfo <- UserStore.getRichInfo uid
+  timestamps <- UserStore.getActivityTimestamps uid
+  let numClients = length timestamps
+  pure $
+    TeamExportUser
+      { tExportDisplayName = su.name,
+        tExportHandle = su.handle,
+        tExportEmail = su.email,
+        tExportRole = Nothing,
+        tExportCreatedOn = Nothing,
+        tExportInvitedBy = Nothing,
+        tExportIdpIssuer = userToIdPIssuer su,
+        tExportManagedBy = fromMaybe ManagedByWire su.managedBy,
+        tExportSAMLNamedId = fromMaybe "" (samlNamedId su),
+        tExportSCIMExternalId = fromMaybe "" (scimExtId su),
+        tExportSCIMRichInfo = fmap RichInfo mRichInfo,
+        tExportUserId = uid,
+        tExportNumDevices = numClients
+      }
+
+scimExtId :: StoredUser -> Maybe Text
+scimExtId su = do
+  m <- su.managedBy
+  i <- su.identity
+  sso <- ssoIdentity i
+  scimExternalId m sso
+
+userToIdPIssuer :: StoredUser -> Maybe HttpsUrl
+userToIdPIssuer su = case su.identity >>= ssoIdentity of
+  Just (UserSSOId (SAML.UserRef issuer _)) ->
+    either (const Nothing) Just . mkHttpsUrl $ issuer ^. SAML.fromIssuer
+  Just _ -> Nothing
+  Nothing -> Nothing
+
+samlNamedId :: StoredUser -> Maybe Text
+samlNamedId su =
+  su.identity >>= ssoIdentity >>= \case
+    (UserSSOId (SAML.UserRef _idp nameId)) -> Just . CI.original . SAML.unsafeShowNameID $ nameId
+    (UserScimExternalId _) -> Nothing
 
 internalFindTeamInvitationImpl ::
   ( Member InvitationStore r,

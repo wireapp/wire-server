@@ -77,6 +77,7 @@ import Wire.API.Routes.Internal.LegalHold qualified as LegalHoldInternalAPI
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
+import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation (Invitation)
 import Wire.API.Team.LegalHold.Internal
@@ -609,6 +610,14 @@ type UserAPI =
                :> Capture "uid" UserId
                :> "activity"
                :> MultiVerb1 'GET '[JSON] (Respond 200 "Activity" (Maybe UTCTimeMillis))
+           )
+    :<|> Named
+           "get-user-export-data"
+           ( Summary "Get user export data"
+               :> "users"
+               :> Capture "uid" UserId
+               :> "export-data"
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "User export data" (Maybe TeamExportUser))
            )
 
 type UpdateUserLocale =

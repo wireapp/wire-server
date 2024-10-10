@@ -21,6 +21,7 @@ import Polysemy
 import Polysemy.Error
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
+import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
@@ -145,6 +146,7 @@ data UserSubsystem m a where
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
   GetUserActivityTimestamp :: UserId -> UserSubsystem m (Maybe UTCTime)
+  GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

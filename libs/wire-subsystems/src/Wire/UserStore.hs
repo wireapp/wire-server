@@ -11,6 +11,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Wire.API.User
+import Wire.API.User.RichInfo
 import Wire.Arbitrary
 import Wire.StoredUser
 import Wire.UserStore.IndexUser
@@ -69,6 +70,7 @@ data UserStore m a where
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
   GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
+  GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
 
 makeSem ''UserStore
 

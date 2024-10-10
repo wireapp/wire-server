@@ -17,6 +17,7 @@
 
 module Wire.API.Team.Export (TeamExportUser (..), quoted, unquoted) where
 
+import Data.Aeson qualified as A
 import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString.Lazy (parseOnly)
 import Data.ByteString.Char8 qualified as C
@@ -26,6 +27,8 @@ import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Misc (HttpsUrl)
+import Data.OpenApi qualified as OpenApi
+import Data.Schema
 import Data.Vector (fromList)
 import Imports
 import Test.QuickCheck
@@ -53,6 +56,25 @@ data TeamExportUser = TeamExportUser
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform TeamExportUser)
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via (Schema TeamExportUser)
+
+instance ToSchema TeamExportUser where
+  schema =
+    object "TeamExportUser" $
+      TeamExportUser
+        <$> tExportDisplayName .= field "display_name" schema
+        <*> tExportHandle .= maybe_ (optField "handle" schema)
+        <*> tExportEmail .= maybe_ (optField "email" schema)
+        <*> tExportRole .= maybe_ (optField "role" schema)
+        <*> tExportCreatedOn .= maybe_ (optField "created_on" schema)
+        <*> tExportInvitedBy .= maybe_ (optField "invited_by" schema)
+        <*> tExportIdpIssuer .= maybe_ (optField "idp_issuer" schema)
+        <*> tExportManagedBy .= field "managed_by" schema
+        <*> tExportSAMLNamedId .= field "saml_name_id" schema
+        <*> tExportSCIMExternalId .= field "scim_external_id" schema
+        <*> tExportSCIMRichInfo .= maybe_ (optField "scim_rich_info" schema)
+        <*> tExportUserId .= field "user_id" schema
+        <*> tExportNumDevices .= field "num_devices" schema
 
 instance ToNamedRecord TeamExportUser where
   toNamedRecord row =

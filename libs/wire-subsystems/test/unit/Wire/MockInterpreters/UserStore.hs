@@ -72,6 +72,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
       map
         (\u -> if u.id == uid then u {teamId = Just tid} :: StoredUser else u)
   GetActivityTimestamps _ -> pure []
+  GetRichInfo _ -> error "rich info not implemented"
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

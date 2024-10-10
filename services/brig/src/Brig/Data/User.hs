@@ -374,6 +374,7 @@ lookupName u =
   fmap runIdentity
     <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
 
+-- TODO: remove this
 lookupRichInfo :: (MonadClient m) => UserId -> m (Maybe RichInfoAssocList)
 lookupRichInfo u =
   fmap runIdentity

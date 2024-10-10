@@ -122,6 +122,7 @@ library
     Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
+    Galley.API.Teams.Export
     Galley.API.Teams.Features
     Galley.API.Teams.Features.Get
     Galley.API.Teams.Notifications

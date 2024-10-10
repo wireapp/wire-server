@@ -11,6 +11,7 @@ import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.User.RichInfo
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser hiding (userId)
@@ -33,6 +34,7 @@ interpretUserStoreCassandra casClient =
       LookupLocale uid -> lookupLocaleImpl uid
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
       GetActivityTimestamps uid -> getActivityTimestampsImpl uid
+      GetRichInfo uid -> getRichInfoImpl uid
 
 getUsersImpl :: [UserId] -> Client [StoredUser]
 getUsersImpl usrs =
@@ -177,6 +179,14 @@ getActivityTimestampsImpl uid = do
   where
     q :: PrepQuery R (Identity UserId) (Identity (Maybe UTCTime))
     q = "SELECT last_active from clients where user = ?"
+
+getRichInfoImpl :: UserId -> Client (Maybe RichInfoAssocList)
+getRichInfoImpl uid =
+  fmap runIdentity
+    <$> retry x1 (query1 q (params LocalQuorum (Identity uid)))
+  where
+    q :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
+    q = "SELECT json FROM rich_info WHERE user = ?"
 
 --------------------------------------------------------------------------------
 -- Queries
