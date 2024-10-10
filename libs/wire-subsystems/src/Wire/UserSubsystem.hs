@@ -18,17 +18,19 @@ import Data.Range
 import Imports
 import Polysemy
 import Polysemy.Error
+import SAML2.WebSSO.Types (UserRef)
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
+import Wire.API.User.Activation
 import Wire.API.User.Search
 import Wire.Arbitrary
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationStore
-import Wire.UserKeyStore (EmailKey, emailKeyOrig)
+import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserSubsystem.Error (UserSubsystemError (..))
 
@@ -110,7 +112,15 @@ data UserSubsystem m a where
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
   UpdateUserProfile :: Local UserId -> Maybe ConnId -> UpdateOriginType -> UserProfileUpdate -> UserSubsystem m ()
-  -- | Parse and lookup a handle.
+  -- | Initiate change of email address
+  UpdateUserEmailInit :: UserId -> EmailAddress -> UserSubsystem m ChangeEmailResponse
+  -- | Complete the email address update flow
+  UpdateUserEmailComplete :: Activate -> UserSubsystem m ActivationFullResponse
+  -- | Update SAML IdP EntityId (Issuer) and User NameId
+  UpdateUserSamlUserRef :: UserRef -> UserSubsystem m ()
+  -- | Update SCIM externalId
+  UpdateUserScimExternalId :: Text -> UserSubsystem m ()
+  -- | parse and lookup a handle, return what the operation has found
   CheckHandle :: Text {- use Handle here? -} -> UserSubsystem m CheckHandleResp
   -- | Check a number of 'Handle's for availability and returns at most 'Word' amount of them
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]

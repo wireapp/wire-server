@@ -475,20 +475,20 @@ createUserNoVerify ::
 createUserNoVerify uData = lift . runExceptT $ do
   result <- API.createUser uData
   let acc = createdAccount result
-  let uid = userId acc
+  let usr = accountUser acc
+  let uid = userId usr
   let eac = createdEmailActivation result
   for_ eac $ \adata ->
     let key = ActivateKey $ activationKey adata
         code = activationCode adata
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
-  pure . SelfProfile $ acc
+  pure . SelfProfile $ usr
 
 createUserNoVerifySpar ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r,
-    Member PasswordResetCodeStore r
+    Member Events r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
@@ -496,13 +496,14 @@ createUserNoVerifySpar uData =
   lift . runExceptT $ do
     result <- API.createUserSpar uData
     let acc = createdAccount result
-    let uid = userId acc
+    let usr = accountUser acc
+    let uid = userId usr
     let eac = createdEmailActivation result
     for_ eac $ \adata ->
       let key = ActivateKey $ activationKey adata
           code = activationCode adata
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
-    pure . SelfProfile $ acc
+    pure . SelfProfile $ usr
 
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,

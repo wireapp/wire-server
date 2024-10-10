@@ -647,6 +647,29 @@ spec = describe "UserSubsystem.Interpreter" do
                       getUserProfile lusr (tUntagged lusr)
            in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
+    describe "UpdateUserEmailInit" do
+      prop "idempotent change -> do nothing" $
+        \() -> False
+
+      prop "change to different email address -> send email with verification link" $
+        \() -> False
+
+    describe "UpdateUserEmailComplete" do
+      prop "valid code -> changes email" $
+        \() -> False
+
+      prop "invalid code -> error, email unchanged" $
+        \() -> False
+
+      prop "missing code -> error, email unchanged" $
+        \() -> False
+
+    prop "UpdateUserSamlUserRef" $
+      \() -> False
+
+    prop "UpdateUserScimExternalId" $
+      \() -> False
+
     prop
       "CheckHandle succeeds if there is a user with that handle"
       \((NotPendingStoredUser alice, handle :: Handle), config) ->

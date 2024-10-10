@@ -50,7 +50,7 @@ import Wire.UserKeyStore
 
 data CreateUserResult = CreateUserResult
   { -- | The newly created user account.
-    createdAccount :: !User,
+    createdAccount :: !UserAccount,
     -- | Activation data for the registered email address, if any.
     createdEmailActivation :: !(Maybe Activation),
     -- | Info of a team just created/joined
@@ -58,17 +58,23 @@ data CreateUserResult = CreateUserResult
   }
   deriving (Show)
 
-data ActivationResult
-  = -- | The key/code was valid and successfully activated.
-    ActivationSuccess !(Maybe UserIdentity) !Bool
-  | -- | The key/code was valid but already recently activated.
-    ActivationPass
+-- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
+data ChangeEmailResult
+  = -- | The request was successful, user needs to verify the new email address
+    ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
+  | -- | The user asked to change the email address to the one already owned
+    ChangeEmailIdempotent
+
+data CreateUserTeam = CreateUserTeam
+  { createdTeamId :: !TeamId,
+    createdTeamName :: !Text
+  }
   deriving (Show)
 
 -- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
 data ChangeEmailResult
   = -- | The request was successful, user needs to verify the new email address
-    ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
+    ChangeEmailNeedsActivation !(User, Activation, Email)
   | -- | The user asked to change the email address to the one already owned
     ChangeEmailIdempotent
   deriving (Show)

@@ -52,12 +52,14 @@ import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
+import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
+import Brig.Types.User (HavePendingInvitations (..))
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens ((.~), (?~))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
@@ -737,12 +739,9 @@ createUser ::
     Member InvitationStore r,
     Member (UserPendingActivationStore p) r,
     Member (Input (Local ())) r,
-    Member TinyLog r,
-    Member UserKeyStore r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member Events r,
-    Member UserSubsystem r,
-    Member PasswordResetCodeStore r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
@@ -792,16 +791,16 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
   where
-    sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
+    sendActivationEmail :: (Member EmailSubsystem r) => Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
-        let Public.BindingNewTeamUser team _ = creator =
-          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team.newTeamName)
+        let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
+          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team ^. Public.newTeamName)
       | otherwise =
           liftSem $ sendActivationMail email name key code locale
 
-    sendWelcomeEmail :: (Member EmailSending r) => Public.EmailAddress -> Public.CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
+    sendWelcomeEmail :: (Member EmailSending r) => Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (Public.CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
@@ -1297,7 +1296,7 @@ activate ::
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
-  (Handler r) ActivationRespWithStatus
+  (Handler r) Public.ActivationFullResponse
 activate k c = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   activateKey activationRequest
@@ -1311,19 +1310,19 @@ activateKey ::
     Member PasswordResetCodeStore r
   ) =>
   Public.Activate ->
-  (Handler r) ActivationRespWithStatus
+  (Handler r) Public.ActivationFullResponse
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
       wrapClientE (API.preverify tgt code) !>> actError
-      pure ActivationRespDryRun
+      pure Public.ActivationRespDryRun
   | otherwise = do
       result <- API.activate tgt code Nothing !>> actError
       pure $ case result of
-        ActivationSuccess ident x -> respond ident x
-        ActivationPass -> ActivationRespPass
+        Public.ActivationSuccess ident x -> respond ident x
+        Public.ActivationPass -> Public.ActivationRespPass
   where
-    respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
-    respond Nothing _ = ActivationRespSuccessNoIdent
+    respond (Just ident) x = Public.ActivationResp $ Public.ActivationResponse ident x
+    respond Nothing _ = Public.ActivationRespSuccessNoIdentity
 
 sendVerificationCode ::
   forall r.

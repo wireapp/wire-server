@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -34,7 +35,6 @@ import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
-import Generics.SOP qualified as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
@@ -519,6 +519,7 @@ type AccountAPI =
     :<|> Named
            "get-activate"
            ( Summary "Activate (i.e. confirm) an email address."
+               :> Description "Used in deprecated registration flow.  DO NOT USE"
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> Description "See also 'POST /activate' which has a larger feature set."
                :> CanThrow 'UserKeyExists
@@ -533,7 +534,7 @@ type AccountAPI =
                     'GET
                     '[JSON]
                     GetActivateResponse
-                    ActivationRespWithStatus
+                    ActivationFullResponse
            )
     -- docs/reference/user/activation.md {#RefActivationSubmit}
     --
@@ -546,6 +547,7 @@ type AccountAPI =
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
+               :> Description "Used in deprecated registration flow.  DO NOT USE"
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
@@ -558,12 +560,13 @@ type AccountAPI =
                     'POST
                     '[JSON]
                     GetActivateResponse
-                    ActivationRespWithStatus
+                    ActivationFullResponse
            )
     -- docs/reference/user/activation.md {#RefActivationRequest}
     :<|> Named
            "post-activate-send"
            ( Summary "Send (or resend) an email activation code."
+               :> Description "Used in standard activation flow as a first step to trigger sending the validation email."
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidEmail
                :> CanThrow 'BlacklistedEmail
@@ -637,15 +640,7 @@ instance ToSchema DeprecatedMatchingResult where
         <* const []
           .= field "auto-connects" (array (null_ @SwaggerDoc))
 
-data ActivationRespWithStatus
-  = ActivationResp ActivationResponse
-  | ActivationRespDryRun
-  | ActivationRespPass
-  | ActivationRespSuccessNoIdent
-  deriving (Generic)
-  deriving (AsUnion GetActivateResponse) via GenericAsUnion GetActivateResponse ActivationRespWithStatus
-
-instance GSOP.Generic ActivationRespWithStatus
+deriving via GenericAsUnion GetActivateResponse ActivationFullResponse instance AsUnion GetActivateResponse ActivationFullResponse
 
 type GetActivateResponse =
   '[ Respond 200 "Activation successful." ActivationResponse,
@@ -1488,6 +1483,11 @@ type AuthAPI =
                :> "self"
                :> "email"
                :> Summary "Change your email address"
+               :> Description
+                    "Called when user changes email address in settings out of an active session.\n\n\
+                    \ We have to do zauth validation here in cases where we may not have a session token\
+                    \ (because no communication for 15 minutes). In these cases, nginz can't authenticate,\
+                    \ so brig has to do it based on the cookie(s)."
                :> Cookies '["zuid" ::: SomeUserToken]
                :> Bearer SomeAccessToken
                :> ReqBody '[JSON] EmailUpdate
