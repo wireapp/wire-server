@@ -47,7 +47,7 @@ assertNoNotifications u uc since0 p = do
 awaitNotifications ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
-  client ->
+  Maybe client ->
   Maybe String ->
   -- | Max no. of notifications
   Int ->
@@ -62,11 +62,11 @@ awaitNotifications user client since0 n selector = do
       | timeRemaining <= 0 = pure res0
       | otherwise =
           do
-            c <- make client & asString
+            c <- for client (asString . make)
             notifs <-
               getNotifications
                 user
-                def {since = since, client = Just c}
+                def {since = since, client = c}
                 `bindResponse` \resp -> asList (resp.json %. "notifications")
             lastNotifId <- case notifs of
               [] -> pure since
@@ -85,16 +85,26 @@ awaitNotifications user client since0 n selector = do
                 threadDelay 1_000
                 go (timeRemaining - 1) lastNotifId res
 
-awaitNotification ::
+awaitNotificationClient ::
   (HasCallStack, MakesValue user, MakesValue client, MakesValue lastNotifId) =>
   user ->
   client ->
   Maybe lastNotifId ->
   (Value -> App Bool) ->
   App Value
-awaitNotification user client lastNotifId selector = do
+awaitNotificationClient user client lastNotifId selector = do
   since0 <- mapM objId lastNotifId
-  head <$> awaitNotifications user client since0 1 selector
+  head <$> awaitNotifications user (Just client) since0 1 selector
+
+awaitNotification ::
+  (HasCallStack, MakesValue user, MakesValue lastNotifId) =>
+  user ->
+  Maybe lastNotifId ->
+  (Value -> App Bool) ->
+  App Value
+awaitNotification user lastNotifId selector = do
+  since0 <- mapM objId lastNotifId
+  head <$> awaitNotifications user (Nothing :: Maybe ()) since0 1 selector
 
 isDeleteUserNotif :: (MakesValue a) => a -> App Bool
 isDeleteUserNotif n =
@@ -219,9 +229,9 @@ assertLeaveNotification ::
   App ()
 assertLeaveNotification fromUser conv user client leaver =
   void
-    $ awaitNotification
+    $ awaitNotificationClient
       user
-      client
+      (Just client)
       noValue
       ( allPreds
           [ isConvLeaveNotif,
