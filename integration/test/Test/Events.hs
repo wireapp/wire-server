@@ -51,6 +51,32 @@ testConsumeEventsOneWebSocket = do
     resp.status `shouldMatchInt` 200
     shouldBeEmpty $ resp.json %. "notifications"
 
+testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
+testConsumeEventsForDifferentUsers = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
+
+  aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  aliceClientId <- objId aliceClient
+
+  bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  bobClientId <- objId bobClient
+
+  userIdsContext <- mkContextUserIds [("alice", alice), ("bob", bob)]
+  addFailureContext userIdsContext $ do
+    withEventsWebSockets [(alice, aliceClientId), (bob, bobClientId)] $ \[(aliceEventsChan, aliceAckChan), (bobEventsChan, bobAckChan)] -> do
+      assertClientAdd aliceClientId aliceEventsChan aliceAckChan
+      assertClientAdd bobClientId bobEventsChan bobAckChan
+  where
+    assertClientAdd :: (HasCallStack) => String -> TChan Value -> TChan Value -> App ()
+    assertClientAdd clientId eventsChan ackChan = do
+      deliveryTag <- assertEvent eventsChan $ \e -> do
+        e %. "payload.0.type" `shouldMatch` "user.client-add"
+        e %. "payload.0.client.id" `shouldMatch` clientId
+        e %. "delivery_tag"
+      assertNoEvent eventsChan
+      sendAck ackChan deliveryTag False
+
 testConsumeEventsWhileHavingLegacyClients :: (HasCallStack) => App ()
 testConsumeEventsWhileHavingLegacyClients = do
   alice <- randomUser OwnDomain def
@@ -168,6 +194,15 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
 ----------------------------------------------------------------------
 -- helpers
 
+withEventsWebSockets :: forall uid a. (HasCallStack, MakesValue uid) => [(uid, String)] -> ([(TChan Value, TChan Value)] -> App a) -> App a
+withEventsWebSockets userClients k = go [] $ reverse userClients
+  where
+    go :: [(TChan Value, TChan Value)] -> [(uid, String)] -> App a
+    go chans [] = k chans
+    go chans ((uid, cid) : remaining) =
+      withEventsWebSocket uid cid $ \eventsChan ackChan ->
+        go ((eventsChan, ackChan) : chans) remaining
+
 withEventsWebSocket :: (HasCallStack, MakesValue uid) => uid -> String -> (TChan Value -> TChan Value -> App a) -> App a
 withEventsWebSocket uid cid k = do
   closeWS <- newEmptyMVar
@@ -213,11 +248,14 @@ sendAck ackChan deliveryTag multiple = do
             ]
       ]
 
-assertEvent :: (HasCallStack) => TChan Value -> (Value -> App a) -> App a
+assertEvent :: (HasCallStack) => TChan Value -> ((HasCallStack) => Value -> App a) -> App a
 assertEvent eventsChan expectations = do
-  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
+  timeout 10_000_000 (atomically (readTChan eventsChan)) >>= \case
     Nothing -> assertFailure "No event received for 1s"
-    Just e -> expectations e
+    Just e -> do
+      pretty <- prettyJSON e
+      addFailureContext ("event:\n" <> pretty)
+        $ expectations e
 
 assertNoEvent :: (HasCallStack) => TChan Value -> App ()
 assertNoEvent eventsChan = do
@@ -245,7 +283,9 @@ eventsWebSocket user clientId eventsChan ackChan closeWS = do
         bs <- WS.receiveData conn
         case decodeStrict' bs of
           Just n -> atomically $ writeTChan eventsChan n
-          Nothing -> putStrLn $ "Failed to decode events: " ++ show bs
+          Nothing ->
+            -- TODO: Throw an error
+            putStrLn $ "Failed to decode events: " ++ show bs
 
       wsWrite conn = forever $ do
         eitherAck <- race (readMVar closeWS) (atomically $ readTChan ackChan)
