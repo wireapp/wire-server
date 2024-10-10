@@ -286,8 +286,7 @@ eventsWebSocket user clientId eventsChan ackChan closeWS = do
         case decodeStrict' bs of
           Just n -> atomically $ writeTChan eventsChan n
           Nothing ->
-            -- TODO: Throw an error
-            putStrLn $ "Failed to decode events: " ++ show bs
+            error $ "Failed to decode events: " ++ show bs
 
       wsWrite conn = forever $ do
         eitherAck <- race (readMVar closeWS) (atomically $ readTChan ackChan)
