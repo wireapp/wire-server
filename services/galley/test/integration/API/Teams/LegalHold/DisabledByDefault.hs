@@ -212,7 +212,7 @@ testApproveLegalHoldDevice = do
   WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
     \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam' owner tid $ \_ chan -> do
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClient userId' teamId') -> do
+      liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClientV0 userId' teamId') -> do
         assertEqual "userId == member" userId' member
         assertEqual "teamId == tid" teamId' tid
       -- Only the user themself can approve adding a LH device
@@ -236,7 +236,7 @@ testApproveLegalHoldDevice = do
           userStatus
       let pluck = \case
             Ev.ClientAdded eClient -> do
-              clientId eClient @?= someClientId
+              eClient.clientId @?= someClientId
               clientType eClient @?= LegalHoldClientType
               clientClass eClient @?= Just LegalHoldClient
             _ -> assertBool "Unexpected event" False
@@ -315,7 +315,7 @@ testDisableLegalHoldForUser = do
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     assertNotification mws $ \case
       Ev.ClientAdded client -> do
-        clientId client @?= someClientId
+        client.clientId @?= someClientId
         clientType client @?= LegalHoldClientType
         clientClass client @?= Just LegalHoldClient
       _ -> assertBool "Unexpected event" False
@@ -648,7 +648,7 @@ testOldClientsBlockDeviceHandshake = do
               >>> Set.unions
               >>> Set.toList
               >>> head
-              >>> clientId
+              >>> (.clientId)
 
   withDummyTestServiceForTeam' legalholder tid $ \_ _chan -> do
     grantConsent tid legalholder
@@ -726,7 +726,7 @@ testClaimKeys testcase = do
               >>> Set.unions
               >>> Set.toList
               >>> head
-              >>> clientId
+              >>> (.clientId)
 
   let makePeerClient :: TestM ()
       makePeerClient = case testcase of

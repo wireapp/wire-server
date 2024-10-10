@@ -347,7 +347,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member TeamStore r,
         Member (TeamMemberStore InternalPaging) r,
         Member P.TinyLog r,
-        Member Random r
+        Member Random r,
+        Member (Embed IO) r
       )
 
   prepareFeature tid feat = do

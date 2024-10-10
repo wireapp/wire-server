@@ -1,0 +1,1 @@
+Introduced API versioning and version negotiation for external LegalHold Service supporting `v0` and `v1`

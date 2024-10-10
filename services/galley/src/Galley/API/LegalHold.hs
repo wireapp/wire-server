@@ -111,9 +111,9 @@ createSettings lzusr tid newService = do
   --     . Log.field "action" (Log.val "LegalHold.createSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
-    LegalHoldData.validateServiceKey (newLegalHoldServiceKey newService)
+    LegalHoldData.validateServiceKey newService.newLegalHoldServiceKey
       >>= noteS @'LegalHoldServiceInvalidKey
-  LHService.checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
+  LHService.checkLegalHoldServiceStatus fpr newService.newLegalHoldServiceUrl
   let service = legalHoldService tid fpr newService key
   LegalHoldData.createSettings service
   pure . viewLegalHoldService $ service
@@ -171,7 +171,8 @@ removeSettingsInternalPaging ::
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member (TeamMemberStore InternalPaging) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -213,7 +214,8 @@ removeSettings ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Embed IO) r
   ) =>
   UserId ->
   TeamId ->
@@ -268,7 +270,8 @@ removeSettings' ::
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Embed IO) r
   ) =>
   TeamId ->
   Sem r ()
@@ -289,7 +292,7 @@ removeSettings' tid =
     removeLHForUser member = do
       luid <- qualifyLocal (member ^. userId)
       removeLegalHoldClientFromUser (tUnqualified luid)
-      LHService.removeLegalHold tid (tUnqualified luid)
+      LHService.removeLegalHold tid luid
       changeLegalholdStatusAndHandlePolicyConflicts tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Change 'UserLegalHoldStatus' from no consent to disabled.  FUTUREWORK:
@@ -367,7 +370,8 @@ requestDevice ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -419,7 +423,7 @@ requestDevice lzusr tid uid = do
     requestDeviceFromService :: Local UserId -> Sem r (LastPrekey, [Prekey])
     requestDeviceFromService luid = do
       LegalHoldData.dropPendingPrekeys (tUnqualified luid)
-      lhDevice <- LHService.requestNewDevice tid (tUnqualified luid)
+      lhDevice <- LHService.requestNewDevice tid luid
       let NewLegalHoldClient prekeys lastKey = lhDevice
       pure (lastKey, prekeys)
 
@@ -460,7 +464,8 @@ approveDevice ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -494,7 +499,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
   --       checks that the user is part of a binding team
   -- FUTUREWORK: reduce double checks
   legalHoldAuthToken <- getLegalHoldAuthToken (tUnqualified luid) mPassword
-  LHService.confirmLegalHold clientId tid (tUnqualified luid) legalHoldAuthToken
+  LHService.confirmLegalHold clientId tid luid legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
   changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldEnabled
@@ -536,7 +541,8 @@ disableForUser ::
     Member P.TinyLog r,
     Member Random r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -570,7 +576,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
     disableLH zusr luid userLHStatus = do
       ensureReAuthorised zusr mPassword Nothing Nothing
       removeLegalHoldClientFromUser uid
-      LHService.removeLegalHold tid uid
+      LHService.removeLegalHold tid luid
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
