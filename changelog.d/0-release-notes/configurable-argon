@@ -1,0 +1,1 @@
+Password salting & hashing is now done using argon2id instead of scrypt. This has some performance and scalability implications for brig, see Section "features".

@@ -1,9 +1,35 @@
-Added configuration options for password hashing. 
-This can be done by adding the following fields to `optSettings`:
+Added configuration options for argon2id password hashing. Defaults:
 
 ```yaml
-setPasswordHashingOptions:
-	iterations: 2
-	memory: 12345 # Memory needed in kibibytes
-	parallelism: 8
+    setPasswordHashingOptions:
+      iterations: 1
+      memory: 180224 # memory needed in kibibytes (1 kibibyte is 2^10 bytes)
+      parallelism: 32
 ```
+
+You can change this in your server config:
+
+```yaml
+brig:
+  optSettings:
+    setPasswordHashingOptions:
+      iterations: ...
+      memory: ... # memory needed in kibibytes (1 kibibyte is 2^10 bytes)
+      parallelism: ...
+```
+
+See also: [rfc](https://datatracker.ietf.org/doc/html/rfc9106), or
+search for `setPasswordHashingOptions` on docs.wire.com.
+
+**Performance implications:** scrypt takes ~80ms on a realistic test
+system, and argon2id with default settings takes ~500ms. This is a
+runtime increase by a factor of ~6.  This happens every time a
+password is entered by the user: during login, password reset,
+deleving a device, etc. (It does **NOT** happen during any are
+cryptographic operations like session key update or message
+de-/encryption.)
+
+The settings are a trade-off between resilience against brute force
+attacks and password secrecy.  For most systems this should be safe
+and not need more hardware resources for brig, but you may want to
+form your own opinion.

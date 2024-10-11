@@ -707,6 +707,34 @@ optSettings:
   setOAuthMaxActiveRefreshTokens: 10
 ```
 
+#### Argon2id password hashing parameters
+
+Since release 5.6.0, wire-server hashes passwords with
+[argon2id](https://datatracker.ietf.org/doc/html/rfc9106) at rest.  If
+you do not do anything, the default parameters will be used, which
+are:
+
+```yaml
+    setPasswordHashingOptions:
+      iterations: 1
+      memory: 180224 # memory needed in kibibytes (1 kibibyte is 2^10 bytes)
+      parallelism: 32
+```
+
+The default will be adjusted to new developments in hashing algorithm
+security from time to time.
+
+To override the default, add this to your server config:
+
+```yaml
+brig:
+  optSettings:
+    setPasswordHashingOptions:
+      iterations: ...
+      memory: ... # memory needed in kibibytes (1 kibibyte is 2^10 bytes)
+      parallelism: ...
+```
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.
