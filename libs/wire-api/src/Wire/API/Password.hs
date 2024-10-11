@@ -125,8 +125,7 @@ defaultOptions :: Argon2.Options
 defaultOptions =
   Argon2.Options
     { iterations = 1,
-      -- TODO: fix this after meeting with Security
-      memory = 2 ^ (17 :: Int),
+      memory = 180224,
       parallelism = 32,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
