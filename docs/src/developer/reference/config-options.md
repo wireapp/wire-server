@@ -735,6 +735,19 @@ brig:
       parallelism: ...
 ```
 
+**Performance implications:** scrypt takes ~80ms on a realistic test
+system, and argon2id with default settings takes ~500ms. This is a
+runtime increase by a factor of ~6.  This happens every time a
+password is entered by the user: during login, password reset,
+deleving a device, etc. (It does **NOT** happen during any are
+cryptographic operations like session key update or message
+de-/encryption.)
+
+The settings are a trade-off between resilience against brute force
+attacks and password secrecy.  For most systems this should be safe
+and not need more hardware resources for brig, but you may want to
+form your own opinion.
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.
