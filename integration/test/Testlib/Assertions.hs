@@ -14,7 +14,6 @@ import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import Data.Aeson.Lens (_Array, _Object)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as BS
 import Data.Char

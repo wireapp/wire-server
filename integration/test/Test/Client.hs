@@ -51,11 +51,6 @@ testTeamActivity = do
   [_bob1, _bob2] <- replicateM 2 $ addClient bob def >>= getJSON 201
   charlie1 <- addClient charlie def >>= getJSON 201
 
-  now <-
-    formatTime defaultTimeLocale "%Y-%m-%d"
-      . systemToUTCTime
-      <$> liftIO getSystemTime
-
   for_ [(alice, alice1), (charlie, charlie1)] $ \(u, cl) -> do
     clientId <- cl %. "id" & asString
     void $ getNotifications u def {client = Just clientId}
@@ -68,8 +63,8 @@ testTeamActivity = do
 
   bindResponse (getTeamActivity alice tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    for_ (zip (sort (B8.lines resp.body)) expectedRows) $ \(row, (uid, active)) -> do
-      let [actualUser, timestamp] = B8.split ',' row
+    for_ (zip (sort (B8.lines resp.body)) expectedRows) $ \(r, (uid, active)) -> do
+      let [actualUser, timestamp] = B8.split ',' r
       B8.unpack actualUser `shouldMatch` uid
       B8.null timestamp `shouldMatch` not active
 
