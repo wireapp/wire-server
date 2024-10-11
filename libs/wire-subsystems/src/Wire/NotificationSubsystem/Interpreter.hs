@@ -42,7 +42,7 @@ runNotificationSubsystemGundeck ::
 runNotificationSubsystemGundeck cfg = interpret $ \case
   PushNotifications ps -> runInputConst cfg $ pushImpl ps
   PushNotificationsSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
-  PushNotificationsAsync ps -> runInputConst cfg $ pushAsyncImpl ps
+  PushNotificationAsync ps -> runInputConst cfg $ pushAsyncImpl ps
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
@@ -75,11 +75,11 @@ pushAsyncImpl ::
     Member (Final IO) r,
     Member P.TinyLog r
   ) =>
-  [Push] ->
+  Push ->
   Sem r (Async (Maybe ()))
-pushAsyncImpl ps = async $ do
+pushAsyncImpl p = async $ do
   reqId <- inputs requestId
-  errorToIOFinal @SomeException (fromExceptionSem @SomeException $ pushImpl ps) >>= \case
+  errorToIOFinal @SomeException (fromExceptionSem @SomeException $ pushImpl [p]) >>= \case
     Left e ->
       P.err $
         Log.msg (Log.val "Error while pushing notifications")

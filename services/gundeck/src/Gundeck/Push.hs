@@ -23,15 +23,12 @@ module Gundeck.Push
     deleteToken,
     -- (for testing)
     pushAll,
-    pushAny,
     MonadPushAll (..),
     MonadNativeTargets (..),
     MonadMapAsync (..),
-    MonadPushAny (..),
   )
 where
 
-import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
@@ -43,7 +40,6 @@ import Data.List.Extra qualified as List
 import Data.List1 (List1, list1)
 import Data.Map qualified as Map
 import Data.Range
-import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
@@ -74,16 +70,9 @@ import Wire.API.Push.V2
 
 push :: [Push] -> Gundeck ()
 push ps = do
-  bulk :: Bool <- view (options . settings . bulkPush)
-  rs <-
-    if bulk
-      then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)
-      else pushAny ps
-  case rs of
-    Right () -> pure ()
-    Left exs -> do
-      forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
-      throwM (mkError status500 "server-error" "Server Error")
+  pushAll ps `catch` \(ex :: SomeException) -> do
+    Log.err $ msg (val "Push failed") . Log.field "error" (displayException ex)
+    throwM (mkError status500 "server-error" "Server Error")
 
 -- | Abstract over all effects in 'pushAll' (for unit testing).
 class (MonadThrow m) => MonadPushAll m where
@@ -133,59 +122,6 @@ instance MonadMapAsync Gundeck where
     case perPushConcurrency of
       Nothing -> mapAsync f l
       Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
-
--- | Abstract over all effects in 'pushAny' (for unit testing).
-class (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => MonadPushAny m where
-  mpyPush ::
-    Notification ->
-    List1 NotificationTarget ->
-    Maybe UserId ->
-    Maybe ConnId ->
-    Set ConnId ->
-    m [Presence]
-
-instance MonadPushAny Gundeck where
-  mpyPush = Web.push
-
--- | Send individual HTTP requests to cannon for every device and notification.
---
--- REFACTOR: This should go away in the future, once 'pushAll' has been proven to always do the same
--- thing.  also check what types this removal would make unnecessary.
-pushAny ::
-  forall m.
-  (MonadPushAny m) =>
-  [Push] ->
-  m (Either (Seq.Seq SomeException) ())
-pushAny ps = collectErrors <$> mntgtMapAsync pushAny' ps
-  where
-    collectErrors :: [Either SomeException ()] -> Either (Seq.Seq SomeException) ()
-    collectErrors = runAllE . foldMap (AllE . fmapL Seq.singleton)
-
-pushAny' ::
-  forall m.
-  (MonadPushAny m) =>
-  Push ->
-  m ()
-pushAny' p = do
-  i <- mpaMkNotificationId
-  let pload = p ^. pushPayload
-  let notif = Notification i (p ^. pushTransient) pload
-  let rcps = fromRange (p ^. pushRecipients)
-  let uniq = uncurry list1 $ head &&& tail $ toList rcps
-  let tgts = mkTarget <$> uniq
-  unless (p ^. pushTransient) $
-    mpaStreamAdd i tgts pload =<< mpaNotificationTTL
-  mpaForkIO $ do
-    alreadySent <- mpyPush notif tgts (p ^. pushOrigin) (p ^. pushOriginConnection) (p ^. pushConnections)
-    unless (p ^. pushTransient) $
-      mpaPushNative notif (p ^. pushNativePriority) =<< nativeTargets p (nativeTargetsRecipients p) alreadySent
-  where
-    mkTarget :: Recipient -> NotificationTarget
-    mkTarget r =
-      target (r ^. recipientId)
-        & targetClients .~ case r ^. recipientClients of
-          RecipientClientsAll -> []
-          RecipientClientsSome cs -> toList cs
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.

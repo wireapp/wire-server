@@ -228,9 +228,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushJson = payload1,
                 _pushApsData = Nothing
               }
-          pushes = [push1]
       (_, attemptedPushes, logs) <- runMiniStackAsync mockConfig $ do
-        thread <- pushAsyncImpl pushes
+        thread <- pushAsyncImpl push1
         await thread
 
       attemptedPushes `shouldBe` [[toV2Push push1]]

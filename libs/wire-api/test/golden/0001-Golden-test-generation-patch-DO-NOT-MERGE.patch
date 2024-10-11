@@ -569,19 +569,19 @@ diff --git a/libs/wire-api/src/Wire/API/Team/LegalHold/External.hs b/libs/wire-a
 index feb034ada..4305a35d5 100644
 --- a/libs/wire-api/src/Wire/API/Team/LegalHold/External.hs
 +++ b/libs/wire-api/src/Wire/API/Team/LegalHold/External.hs
-@@ -48,9 +48,12 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
+@@ -48,9 +48,12 @@ data RequestNewLegalHoldClientV0 = RequestNewLegalHoldClientV0
    { userId :: UserId,
      teamId :: TeamId
    }
 -  deriving stock (Show, Eq, Generic)
 +  deriving stock (Eq, Generic)
-   deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
+   deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClientV0)
  
-+instance Show RequestNewLegalHoldClient where
-+  show (RequestNewLegalHoldClient uid tid) = "(RequestNewLegalHoldClient (" <> show uid <> ") (" <> show tid <> "))"
++instance Show RequestNewLegalHoldClientV0 where
++  show (RequestNewLegalHoldClientV0 uid tid) = "(RequestNewLegalHoldClientV0 (" <> show uid <> ") (" <> show tid <> "))"
 +
- instance ToJSON RequestNewLegalHoldClient where
-   toJSON (RequestNewLegalHoldClient userId teamId) =
+ instance ToJSON RequestNewLegalHoldClientV0 where
+   toJSON (RequestNewLegalHoldClientV0 userId teamId) =
      object $
 diff --git a/libs/wire-api/src/Wire/API/Team/Member.hs b/libs/wire-api/src/Wire/API/Team/Member.hs
 index a106c02cc..9503860ac 100644

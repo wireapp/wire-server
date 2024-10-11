@@ -45,7 +45,7 @@ data NotificationSubsystem m a where
   -- send notifications is not critical.
   --
   -- See 'Polysemy.Async' to know more about the 'Maybe'
-  PushNotificationsAsync :: [Push] -> NotificationSubsystem m (Async (Maybe ()))
+  PushNotificationAsync :: Push -> NotificationSubsystem m (Async (Maybe ()))
   CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]
