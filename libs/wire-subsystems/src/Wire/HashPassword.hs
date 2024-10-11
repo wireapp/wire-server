@@ -46,4 +46,4 @@ hashPasswordImpl pwd = do
             }
         Nothing -> Password.defaultOptions
 
-  liftIO $ Password.mkSafePassword (Just argonOpts) pwd
+  liftIO $ Password.mkSafePassword argonOpts pwd

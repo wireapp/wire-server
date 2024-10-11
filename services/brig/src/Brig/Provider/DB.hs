@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,10 +19,13 @@
 
 module Brig.Provider.DB where
 
+import Brig.App (Env (..))
+import Brig.Options (passwordHashingOptions)
 import Brig.Types.Instances ()
 import Brig.Types.Provider.Tag
 import Cassandra as C
 import Control.Arrow ((&&&))
+import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Id
 import Data.List1 (List1)
 import Data.Misc
@@ -29,7 +34,8 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Imports
 import UnliftIO (mapConcurrently)
-import Wire.API.Password
+import Util.Options (PasswordHashingOptions (..))
+import Wire.API.Password as Password
 import Wire.API.Provider
 import Wire.API.Provider.Service hiding (updateServiceTags)
 import Wire.API.Provider.Service.Tag
@@ -113,14 +119,25 @@ deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
     cql = "DELETE FROM provider WHERE id = ?"
 
 updateAccountPassword ::
-  (MonadClient m) =>
+  (MonadClient m, MonadReader Env m) =>
   ProviderId ->
   PlainTextPassword6 ->
   m ()
 updateAccountPassword pid pwd = do
-  -- TODO: Check if this is what we actually want here.
-  -- or if we need to poke to Env to get the options.
-  p <- liftIO $ mkSafePassword Nothing pwd
+  argonOpts <- do
+    -- argonOpts will be hidden inside the authentication subsystem in the future.
+    asks (passwordHashingOptions . settings) <&> \case
+      Just (PasswordHashingOptions {..}) ->
+        Argon2.Options
+          { variant = Argon2.Argon2id,
+            version = Argon2.Version13,
+            iterations = fromIntegral iterations,
+            memory = fromIntegral memory,
+            parallelism = fromIntegral parallelism
+          }
+      Nothing -> Password.defaultOptions
+
+  p <- liftIO $ mkSafePassword argonOpts pwd
   retry x5 $ write cql $ params LocalQuorum (p, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()

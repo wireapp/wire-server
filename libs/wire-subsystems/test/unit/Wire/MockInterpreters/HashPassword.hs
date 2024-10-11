@@ -16,7 +16,7 @@ staticHashPasswordInterpreter = interpret $ \case
 hashPassword :: (Monad m) => PlainTextPassword' t -> m Password
 hashPassword password =
   pure . Argon2Password $
-    hashPasswordArgon2idWithOptions
+    hashPasswordArgon2idWithSalt
       fastArgon2IdOptions
       "9bytesalt"
       (Text.encodeUtf8 (fromPlainTextPassword password))
