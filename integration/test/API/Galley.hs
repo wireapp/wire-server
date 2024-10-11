@@ -727,3 +727,9 @@ getTeamNotifications user mSince =
   baseRequest user Galley Versioned "teams/notifications" >>= \req ->
     submit "GET"
       $ addQueryParams [("since", since) | since <- maybeToList mSince] req
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__members_csv
+getTeamMembersCsv :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getTeamMembersCsv user tid = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tid, "members", "csv"])
+  submit "GET" req

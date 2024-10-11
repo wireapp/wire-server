@@ -20,11 +20,13 @@ module Test.Teams where
 import API.Brig
 import API.BrigInternal (createUser, getInvitationCode, refreshIndex)
 import API.Common
-import API.Galley (getTeam, getTeamMembers, getTeamNotifications)
+import API.Galley (getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
 import API.GalleyInternal (setTeamFeatureStatus)
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.Map as Map
 import Notifications
 import SetupHelpers
 import Testlib.JSON
@@ -276,3 +278,28 @@ testUpgradePersonalToTeamAlreadyInATeam = do
   bindResponse (upgradePersonalToTeam alice "wonderland") $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "user-already-in-a-team"
+
+testTeamMemberCsvExport :: (HasCallStack) => App ()
+testTeamMemberCsvExport = do
+  (owner, tid, members) <- createTeam OwnDomain 10
+  modifiedMembers <- for (owner : members) $ \m -> do
+    handle <- randomHandle
+    putHandle m handle >>= assertSuccess
+    setField "handle" handle m
+
+  memberMap :: Map.Map String Value <- fmap Map.fromList $ for (modifiedMembers) $ \m -> do
+    uid <- m %. "id" & asString
+    pure (uid, m)
+
+  print $ Map.keys memberMap
+  bindResponse (getTeamMembersCsv owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    let rows = sort $ tail $ B8.lines $ resp.body
+    length rows `shouldMatchInt` 10
+    for_ rows $ \row -> do
+      liftIO $ B8.putStrLn row
+      let cols = B8.split ',' row
+      let uid = read $ B8.unpack $ cols !! 11
+      liftIO $ putStrLn uid
+      let mem = memberMap Map.! uid
+      read @String (B8.unpack (cols !! 2)) `shouldMatch` (mem %. "email")
