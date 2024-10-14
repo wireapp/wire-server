@@ -2,13 +2,15 @@ module Galley.API.Teams.Export (getTeamMembersCSV) where
 
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
-import Control.Error (MaybeT (MaybeT, runMaybeT))
 import Control.Lens (view, (^.))
 import Control.Monad.Codensity
 import Data.ByteString (toStrict)
 import Data.ByteString.Builder
 import Data.Csv
+import Data.Handle
+import Data.IORef (atomicModifyIORef, newIORef)
 import Data.Id
+import Data.Map qualified as Map
 import Data.Qualified (Local, tUnqualified)
 import Debug.Trace
 import Galley.Effects
@@ -16,7 +18,7 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.SparAccess qualified as Spar
 import Galley.Effects.TeamMemberStore (listTeamMembers)
 import Galley.Effects.TeamStore
-import Imports hiding (newEmptyMVar, putMVar, takeMVar, threadDelay)
+import Imports hiding (atomicModifyIORef, newEmptyMVar, newIORef, putMVar, readMVar, takeMVar, threadDelay, tryPutMVar)
 import Polysemy
 import Polysemy.Async
 import Polysemy.Resource
@@ -31,27 +33,63 @@ import Wire.Sem.Concurrency.IO
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
+-- | Cache of inviter handles.
+--
+-- This is used to make sure that inviters are only looked up once in brig,
+-- even if they appear as inviters of several users in the team.
+type InviterCache = IORef (Map UserId (MVar (Maybe Handle)))
+
+lookupInviter ::
+  (Member Resource r, Member BrigAccess r, Member (Final IO) r) =>
+  InviterCache ->
+  UserId ->
+  Sem r (Maybe Handle)
+lookupInviter cache uid = flip onException ensureCache $ do
+  empty <- embedFinal newEmptyMVar
+  (cached, var) <-
+    embedFinal $ atomicModifyIORef cache $ \m -> case Map.lookup uid m of
+      Nothing -> (Map.insert uid empty m, (False, empty))
+      Just v -> (m, (True, v))
+  -- the cache did not contain this user, so write it in the corresponding MVar
+  unless cached $ do
+    u <- listToMaybe <$> getUsers [uid]
+    embedFinal $ putMVar var (u >>= userHandle)
+  -- at this point, we know that the MVar contains a value or some other thread
+  -- is about to write one, so it is safe to just read from the MVar with a
+  -- blocking call
+  embedFinal $ readMVar var
+  where
+    -- this is run in case of errors to guarantee that other threads will never
+    -- deadlock while reading the cache
+    ensureCache = embedFinal $ do
+      m <- readIORef cache
+      for_ (Map.lookup uid m) $ \var ->
+        tryPutMVar var Nothing
+
 getUserRecord ::
   ( Member BrigAccess r,
-    Member Spar.SparAccess r
+    Member Spar.SparAccess r,
+    Member (ErrorS TeamMemberNotFound) r,
+    Member (Final IO) r,
+    Member Resource r
   ) =>
+  InviterCache ->
   TeamMember ->
-  Sem r (Maybe TeamExportUser)
-getUserRecord member = runMaybeT do
+  Sem r TeamExportUser
+getUserRecord cache member = do
   let uid = member ^. userId
-  export <- MaybeT $ getUserExportData uid
+  export <- getUserExportData uid >>= noteS @TeamMemberNotFound
   mCreatedOn <- do
     let mFromInvitation = snd <$> member ^. invitation
     case mFromInvitation of
       Just ts -> pure $ Just ts
       Nothing -> do
         -- TODO: make this a single user query
-        suis <- lift $ Spar.lookupScimUserInfos [uid]
+        suis <- Spar.lookupScimUserInfos [uid]
         pure $ listToMaybe suis >>= suiCreatedOn
-  -- TODO: optimize!
+  -- look up inviter handle from the cache
   let mInviterId = fst <$> member ^. invitation
-  users <- lift $ getUsers (maybeToList mInviterId)
-  let invitedBy = listToMaybe users >>= userHandle
+  invitedBy <- join <$> traverse (lookupInviter cache) mInviterId
   pure
     export
       { tExportInvitedBy = invitedBy,
@@ -77,13 +115,16 @@ getTeamMembersCSV lusr tid = do
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
 
   chan <- embedFinal newChan
+  cache <- embedFinal $ newIORef mempty
 
   let encodeRow r = encodeDefaultOrderedByNameWith customEncodeOptions [r]
   let produceTeamExportUsers = do
         embedFinal $ writeChan chan (Just headerLine)
         E.withChunks (\mps -> listTeamMembers @InternalPaging tid mps maxBound) $
           \members -> unsafePooledForConcurrentlyN_ 8 members $ \member -> do
-            mRecord <- getUserRecord member
+            mRecord <-
+              runErrorS @TeamMemberNotFound $
+                getUserRecord cache member
             let mRow = encodeRow <$> mRecord
             when (isJust mRow) $
               embedFinal $
