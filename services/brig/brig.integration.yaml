@@ -230,8 +230,8 @@ optSettings:
   setOAuthMaxActiveRefreshTokens: 10
   setPasswordHashingOptions:
     iterations: 1
-    memory: 128 # 131072 # 2 ^ 17 kibibytes (1 kibibyte is 2^10 bytes)
-    parallelism: 1 # 32
+    memory: 131072 # 2 ^ 17 kibibytes (1 kibibyte is 2^10 bytes)
+    parallelism: 32
 
 logLevel: Warn
 logNetStrings: false
