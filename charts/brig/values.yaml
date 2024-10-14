@@ -16,7 +16,7 @@ metrics:
     enabled: false
 # This is not supported for production use, only here for testing:
 # preStop:
-#  exec: 
+#  exec:
 #   command: ["sh", "-c", "curl http://acme.example"]
 config:
   logLevel: Info
@@ -150,10 +150,6 @@ config:
     setDisabledAPIVersions: [ development ]
     setFederationStrategy: allowNone
     setFederationDomainConfigsUpdateFreq: 10
-    setPasswordHashingOptions:
-      iterations: 1
-      memory: 128 # 131072 # 2 ^ 17 kibibytes (1 kibibyte is 2^10 bytes)
-      parallelism: 1 # 32
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}
