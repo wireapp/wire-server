@@ -25,7 +25,7 @@ search for `setPasswordHashingOptions` on docs.wire.com.
 system, and argon2id with default settings takes ~500ms. This is a
 runtime increase by a factor of ~6.  This happens every time a
 password is entered by the user: during login, password reset,
-deleving a device, etc. (It does **NOT** happen during any are
+deleting a device, etc. (It does **NOT** happen during any are
 cryptographic operations like session key update or message
 de-/encryption.)
 
