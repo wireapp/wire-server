@@ -745,6 +745,7 @@ createUser ::
     Member Events r,
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
+    Member HashPassword r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->

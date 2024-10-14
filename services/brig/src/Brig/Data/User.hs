@@ -78,12 +78,14 @@ import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
+import Polysemy
 import Wire.API.Password
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
+import Wire.HashPassword
 
 -- | Authentication errors.
 data AuthError
@@ -110,12 +112,12 @@ data ReAuthError
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
 newAccount ::
-  (MonadClient m, MonadReader Env m) =>
+  (Member HashPassword r) =>
   NewUser ->
   Maybe InvitationId ->
   Maybe TeamId ->
   Maybe Handle ->
-  m (User, Maybe Password)
+  AppT r (User, Maybe Password)
 newAccount u inv tid mbHandle = do
   defLoc <- defaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
@@ -125,7 +127,7 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  passwd <- maybe (pure Nothing) (fmap Just . liftIO . mkSafePasswordScrypt) pass
+  passwd <- maybe (pure Nothing) (fmap Just . liftSem . hashPassword8) pass
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds

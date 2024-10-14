@@ -198,6 +198,7 @@ accountAPI ::
     Member PropertySubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
+    Member HashPassword r,
     Member InvitationStore r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -470,6 +471,7 @@ createUserNoVerify ::
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member (Input (Local ())) r,
+    Member HashPassword r,
     Member PasswordResetCodeStore r
   ) =>
   NewUser ->
@@ -490,6 +492,7 @@ createUserNoVerifySpar ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
+    Member HashPassword r,
     Member PasswordResetCodeStore r
   ) =>
   NewUserSpar ->

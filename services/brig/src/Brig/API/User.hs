@@ -193,6 +193,7 @@ createUserSpar ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
+    Member HashPassword r,
     Member Events r
   ) =>
   NewUserSpar ->
@@ -205,7 +206,7 @@ createUserSpar new = do
 
   -- Create account
   account <- lift $ do
-    (account, pw) <- wrapClient $ newAccount new' Nothing (Just tid) handle'
+    (account, pw) <- newAccount new' Nothing (Just tid) handle'
 
     let uid = userId account
 
@@ -318,6 +319,7 @@ createUser ::
     Member Events r,
     Member (Input (Local ())) r,
     Member PasswordResetCodeStore r,
+    Member HashPassword r,
     Member InvitationStore r
   ) =>
   NewUser ->
@@ -371,7 +373,7 @@ createUser new = do
 
   -- Create account
   account <- lift $ do
-    (account, pw) <- wrapClient $ newAccount new' mbInv tid mbHandle
+    (account, pw) <- newAccount new' mbInv tid mbHandle
 
     let uid = userId account
     liftSem $ do
