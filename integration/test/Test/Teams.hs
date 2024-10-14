@@ -286,12 +286,12 @@ testTeamMemberCsvExport = do
     handle <- randomHandle
     putHandle m handle >>= assertSuccess
     setField "handle" handle m
+      >>= setField "role" (if m == owner then "owner" else "member")
 
   memberMap :: Map.Map String Value <- fmap Map.fromList $ for (modifiedMembers) $ \m -> do
     uid <- m %. "id" & asString
     pure (uid, m)
 
-  print $ Map.keys memberMap
   bindResponse (getTeamMembersCsv owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     let rows = sort $ tail $ B8.lines $ resp.body
@@ -302,4 +302,15 @@ testTeamMemberCsvExport = do
       let uid = read $ B8.unpack $ cols !! 11
       liftIO $ putStrLn uid
       let mem = memberMap Map.! uid
-      read @String (B8.unpack (cols !! 2)) `shouldMatch` (mem %. "email")
+      printJSON mem
+      parseField (cols !! 0) `shouldMatch` (mem %. "name")
+      parseField (cols !! 1) `shouldMatch` (mem %. "handle")
+      parseField (cols !! 2) `shouldMatch` (mem %. "email")
+      parseField (cols !! 3) `shouldMatch` (mem %. "role")
+  where
+    parseField :: ByteString -> String
+    parseField = unquote . read . B8.unpack
+
+    unquote :: String -> String
+    unquote ('\'' : x) = x
+    unquote x = x
