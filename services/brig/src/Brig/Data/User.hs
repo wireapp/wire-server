@@ -27,8 +27,6 @@ module Brig.Data.User
     newAccount,
     newAccountInviteViaScim,
     insertAccount,
-    authenticate,
-    reauthenticate,
 
     -- * Lookups
     lookupUser,
@@ -84,7 +82,6 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
-import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.HashPassword
 
 -- | Authentication errors.

@@ -105,6 +105,7 @@ tests conf m z db b g n =
           testGroup
             "sso-login"
             [ test m "email" (testEmailSsoLogin b),
+              test m "login-non-sso-fails" (testEmailSsoLoginNonSsoUser b),
               test m "failure-suspended" (testSuspendedSsoLogin b),
               test m "failure-no-user" (testNoUserSsoLogin b)
             ],
@@ -577,16 +578,35 @@ testLegalHoldLogout brig galley = do
 -- right password.
 testEmailSsoLogin :: Brig -> Http ()
 testEmailSsoLogin brig = do
-  -- Create a user
-  uid <- Public.userId <$> randomUser brig
+  teamid <- snd <$> createUserWithTeam brig
+  let ssoid = UserSSOId mkSimpleSampleUref
+  -- creating user with sso_id, team_id
+  profile :: SelfProfile <-
+    responseJsonError
+      =<< postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
+        const 201 === statusCode
+        const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
+
+  let uid = userId profile.selfUser
   now <- liftIO getCurrentTime
   -- Login and do some checks
-  _rs <-
+  rs <-
     ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
       <!! const 200 === statusCode
   liftIO $ do
-    assertSanePersistentCookie @ZAuth.User (decodeCookie _rs)
-    assertSaneAccessToken now uid (decodeToken _rs)
+    assertSanePersistentCookie @ZAuth.User (decodeCookie rs)
+    assertSaneAccessToken now uid (decodeToken rs)
+
+testEmailSsoLoginNonSsoUser :: Brig -> Http ()
+testEmailSsoLoginNonSsoUser brig = do
+  -- Create a user
+  uid <- Public.userId <$> randomUser brig
+  -- Login and do some checks
+  void $
+    ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
+      <!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === errorLabel
 
 -- | Check that @/sso-login@ can not be used to login as a suspended
 -- user.

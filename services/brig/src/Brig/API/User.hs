@@ -47,7 +47,6 @@ module Brig.API.User
     deleteAccount,
     checkHandles,
     isBlacklistedHandle,
-    Data.reauthenticate,
 
     -- * Activation
     sendActivationCode,
