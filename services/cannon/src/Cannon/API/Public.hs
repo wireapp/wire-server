@@ -21,6 +21,7 @@ module Cannon.API.Public
 where
 
 import Cannon.App (wsapp)
+import Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp)
 import Cannon.Types
 import Cannon.WS
 import Control.Monad.IO.Class
@@ -32,9 +33,16 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cannon
 
 publicAPIServer :: ServerT CannonAPI Cannon
-publicAPIServer = Named @"await-notifications" streamData
+publicAPIServer =
+  Named @"await-notifications" streamData
+    :<|> Named @"consume-events" consumeEvents
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
 streamData userId connId clientId con = do
   e <- wsenv
   liftIO $ wsapp (mkKey userId connId) clientId e con
+
+consumeEvents :: UserId -> ClientId -> PendingConnection -> Cannon ()
+consumeEvents userId clientId con = do
+  e <- wsenv
+  liftIO $ rabbitMQWebSocketApp userId clientId e con

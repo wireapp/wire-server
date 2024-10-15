@@ -7,6 +7,7 @@
 , amazonka
 , amazonka-core
 , amazonka-ses
+, amqp
 , async
 , attoparsec
 , base
@@ -96,6 +97,7 @@ mkDerivation {
     amazonka
     amazonka-core
     amazonka-ses
+    amqp
     async
     attoparsec
     base

@@ -319,7 +319,7 @@ testLHRequestDevice v = do
     [bobc1, bobc2] <- replicateM 2 do
       objId $ addClient bob def `bindResponse` getJSON 201
     for_ [bobc1, bobc2] \client ->
-      awaitNotification bob client noValue isUserLegalholdRequestNotif >>= \notif -> do
+      awaitNotificationClient bob client noValue isUserLegalholdRequestNotif >>= \notif -> do
         notif %. "payload.0.last_prekey" `shouldMatch` lpk
         notif %. "payload.0.id" `shouldMatch` objId bob
 
@@ -411,15 +411,14 @@ testLHApproveDevice = do
     replicateM 2 do
       objId $ addClient bob def `bindResponse` getJSON 201
       >>= traverse_ \client ->
-        awaitNotification bob client noValue isUserClientAddNotif >>= \notif -> do
+        awaitNotificationClient bob client noValue isUserClientAddNotif >>= \notif -> do
           notif %. "payload.0.client.type" `shouldMatch` "legalhold"
           notif %. "payload.0.client.class" `shouldMatch` "legalhold"
 
     -- the other team members receive a notification about the
     -- legalhold device being approved in their team
     for_ [alice, charlie] \user -> do
-      client <- objId $ addClient user def `bindResponse` getJSON 201
-      awaitNotification user client noValue isUserLegalholdEnabledNotif >>= \notif -> do
+      awaitNotification user noValue isUserLegalholdEnabledNotif >>= \notif -> do
         notif %. "payload.0.id" `shouldMatch` objId bob
     for_ [ollie, sandy] \outsider -> do
       outsiderClient <- objId $ addClient outsider def `bindResponse` getJSON 201
@@ -489,9 +488,7 @@ testLHDisableForUser = do
   withMockServer def lhMockApp \lhDomAndPort chan -> do
     setUpLHDevice tid alice bob lhDomAndPort
 
-    bobc <- objId $ addClient bob def `bindResponse` getJSON 201
-
-    awaitNotification bob bobc noValue isUserClientAddNotif >>= \notif -> do
+    awaitNotification bob noValue isUserClientAddNotif >>= \notif -> do
       notif %. "payload.0.client.type" `shouldMatch` "legalhold"
       notif %. "payload.0.client.class" `shouldMatch` "legalhold"
 
@@ -515,8 +512,8 @@ testLHDisableForUser = do
         mzero
 
     void $ local (setTimeoutTo 90) do
-      awaitNotification bob bobc noValue isUserClientRemoveNotif
-        *> awaitNotification bob bobc noValue isUserLegalholdDisabledNotif
+      awaitNotification bob noValue isUserClientRemoveNotif
+        *> awaitNotification bob noValue isUserLegalholdDisabledNotif
 
     bobId <- objId bob
     lhClients <-

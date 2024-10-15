@@ -9,6 +9,7 @@
 , amazonka-core
 , amazonka-sns
 , amazonka-sqs
+, amqp
 , async
 , attoparsec
 , auto-update
@@ -69,6 +70,7 @@
 , tasty-hunit
 , tasty-quickcheck
 , text
+, these
 , time
 , tinylog
 , tls
@@ -98,6 +100,7 @@ mkDerivation {
     amazonka-core
     amazonka-sns
     amazonka-sqs
+    amqp
     async
     attoparsec
     auto-update
@@ -135,6 +138,7 @@ mkDerivation {
     servant
     servant-server
     text
+    these
     time
     tinylog
     tls

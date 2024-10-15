@@ -302,8 +302,8 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
-    Member (ConnectionStore InternalPaging) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -392,7 +392,7 @@ servantSitemap =
     userClientAPI =
       Named @"add-client-v6" (callsFed (exposeAnnotations addClient))
         :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
-        :<|> Named @"update-client" updateClient
+        :<|> Named @"update-client" API.updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients-v6" listClients
         :<|> Named @"list-clients" listClients
@@ -615,9 +615,6 @@ deleteClient ::
   (Handler r) ()
 deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
-
-updateClient :: UserId -> ClientId -> Public.UpdateClient -> (Handler r) ()
-updateClient usr clt upd = wrapClientE (API.updateClient usr clt upd) !>> clientError
 
 listClients :: UserId -> (Handler r) [Public.Client]
 listClients zusr =

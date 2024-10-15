@@ -109,8 +109,8 @@ currentFanoutLimit o = do
   let maxSize = fromIntegral (o ^. (O.settings . maxTeamSize))
   unsafeRange (min maxSize optFanoutLimit)
 
-notificationSubssystemConfig :: Env -> NotificationSubsystemConfig
-notificationSubssystemConfig env =
+notificationSubsystemConfig :: Env -> NotificationSubsystemConfig
+notificationSubsystemConfig env =
   NotificationSubsystemConfig
     { chunkSize = defaultChunkSize,
       fanoutLimit = currentFanoutLimit env._options,
