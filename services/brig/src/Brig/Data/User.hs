@@ -134,7 +134,7 @@ newAccount u inv tid mbHandle = do
   _ <-
     liftSem $
       Log.warn $
-        msg (val $ "New account with hash opts: " <> (BS.pack . show $ env.settings.passwordHashingOptions))
+        msg (val $ "New account with hash opts: " <> (BS.pack . show $ env.settings))
   passwd <- maybe (pure Nothing) (fmap Just . liftSem . hashPassword8) pass
   expiry <- case status of
     Ephemeral -> do
