@@ -234,7 +234,6 @@ services:
       - ./docker/opensearch/opensearch-security/nodes_dn.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/nodes_dn.yml
       - ./docker/opensearch/opensearch-security/action_groups.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/action_groups.yml
       - ./docker/opensearch/opensearch-security/tenants.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/tenants.yml
-      - ./docker/opensearch/opensearch-security/plugin-descriptor.properties:/usr/share/opensearch/plugins/opensearch-security/plugin-descriptor.properties
     networks:
       - demo_wire
 
