@@ -35,7 +35,6 @@ else
     export INGRESS_CHART="nginx-ingress-controller"
 fi
 echo "kubeVersion: $KUBERNETES_VERSION and ingress controller=$INGRESS_CHART"
-
 export NAMESPACE_1="$NAMESPACE"
 export FEDERATION_DOMAIN_BASE_1="$NAMESPACE_1.svc.cluster.local"
 export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE_1"
