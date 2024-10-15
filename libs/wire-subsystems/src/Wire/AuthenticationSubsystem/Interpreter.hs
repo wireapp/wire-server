@@ -159,7 +159,7 @@ reauthenticateImpl user plaintextMaybe =
       Nothing -> do
         local <- input
         musr <- getLocalAccountBy NoPendingInvitations (qualifyAs local user)
-        unless (maybe False isSamlUser musr) $ throw AuthenticationSubsystemBadCredentials
+        unless (maybe False isSamlUser musr) $ throw AuthenticationSubsystemMissingAuth
       Just p ->
         unless (Password.verifyPassword p pw') do
           throw AuthenticationSubsystemBadCredentials
