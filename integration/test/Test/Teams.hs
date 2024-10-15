@@ -27,6 +27,8 @@ import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
+import Data.Time.Clock
+import Data.Time.Format
 import Notifications
 import SetupHelpers
 import Testlib.JSON
@@ -282,11 +284,14 @@ testUpgradePersonalToTeamAlreadyInATeam = do
 testTeamMemberCsvExport :: (HasCallStack) => App ()
 testTeamMemberCsvExport = do
   (owner, tid, members) <- createTeam OwnDomain 10
-  modifiedMembers <- for (owner : members) $ \m -> do
+  let numClients = [0, 1, 2] <> repeat 0
+  modifiedMembers <- for (zip numClients (owner : members)) $ \(n, m) -> do
     handle <- randomHandle
     putHandle m handle >>= assertSuccess
+    replicateM_ n $ addClient m def
     setField "handle" handle m
       >>= setField "role" (if m == owner then "owner" else "member")
+      >>= setField "num_clients" (show n)
 
   memberMap :: Map.Map String Value <- fmap Map.fromList $ for (modifiedMembers) $ \m -> do
     uid <- m %. "id" & asString
@@ -303,10 +308,21 @@ testTeamMemberCsvExport = do
       liftIO $ putStrLn uid
       let mem = memberMap Map.! uid
       printJSON mem
+
+      ownerId <- owner %. "id" & asString
+      let ownerMember = memberMap Map.! ownerId
+
       parseField (cols !! 0) `shouldMatch` (mem %. "name")
       parseField (cols !! 1) `shouldMatch` (mem %. "handle")
       parseField (cols !! 2) `shouldMatch` (mem %. "email")
-      parseField (cols !! 3) `shouldMatch` (mem %. "role")
+      role <- mem %. "role" & asString
+      parseField (cols !! 3) `shouldMatch` role
+      when (role /= "owner") $ do
+        now <- formatTime defaultTimeLocale "%Y-%m-%d" <$> liftIO getCurrentTime
+        take 10 (parseField (cols !! 4)) `shouldMatch` now
+        parseField (cols !! 5) `shouldMatch` (ownerMember %. "handle")
+      parseField (cols !! 7) `shouldMatch` "wire"
+      parseField (cols !! 12) `shouldMatch` (mem %. "num_clients")
   where
     parseField :: ByteString -> String
     parseField = unquote . read . B8.unpack
