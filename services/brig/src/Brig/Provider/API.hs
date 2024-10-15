@@ -235,7 +235,7 @@ newAccount new = do
   _ <-
     lift . liftSem $
       Log.warn $
-        msg (val $ "New account with hash opts: " <> (BS.pack . show $ env.settings.passwordHashingOptions))
+        msg (val $ "New provider account with hash opts: " <> (BS.pack . show $ env.settings.passwordHashingOptions))
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   (safePass, newPass) <- case pass of
     Just newPass -> do
