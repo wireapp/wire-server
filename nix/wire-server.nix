@@ -315,6 +315,7 @@ let
     openssl
     nix-output-monitor
     which
+    awscli2
   ];
 
   images = localMods@{ enableOptimization, enableDocs, enableTests }:

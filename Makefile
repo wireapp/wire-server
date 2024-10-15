@@ -586,7 +586,7 @@ kind-restart-%: .local/kind-kubeconfig
 # templating issues without actually installing anything, and without needing
 # access to a kubernetes cluster. e.g.:
 #   make helm-template-wire-server
-helm-template-%: clean-charts charts-integration
+helm-template-%: # clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
 # Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
