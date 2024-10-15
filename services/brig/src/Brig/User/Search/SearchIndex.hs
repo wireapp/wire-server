@@ -34,11 +34,11 @@ import Data.Handle (Handle (fromHandle))
 import Data.Id
 import Data.Qualified (Qualified (Qualified))
 import Database.Bloodhound qualified as ES
+import Database.Bloodhound.Common.Requests as ESR
 import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
-import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.UserSearch.Types
 import Wire.UserStore.IndexUser (normalized)
 
@@ -77,15 +77,17 @@ queryIndex (IndexQuery q f _) s = do
   liftIndexIO $ do
     idx <- asks idxName
     let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
-    r <-
-      ES.searchByType idx mappingName search
-        >>= ES.parseEsResponse @_ @(ES.SearchResult UserDoc)
-    either (throwM . IndexLookupError) (traverse (userDocToContact localDomain) . mkResult) r
+    resp <- ES.tryPerformBHRequest . ES.keepBHResponse $ ESR.searchByIndex idx search
+    resp' <- either (throwM . IndexLookupError . Right) pure resp
+    let parsedResult = ES.parseEsResponse . fst $ resp'
+    r <- either (throwM . IndexLookupError . Left) pure parsedResult
+    either (throwM . IndexLookupError . Right) (traverse (userDocToContact localDomain) . mkResult) r
   where
+    mkResult :: ES.SearchResult UserDoc -> SearchResult UserDoc
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = (ES.value . ES.hitsTotal . ES.searchHits) es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -183,7 +185,7 @@ termQ :: Text -> Text -> ES.Query
 termQ f v =
   ES.TermQuery
     ES.Term
-      { ES.termField = f,
+      { ES.termField = Key.fromText f,
         ES.termValue = v
       }
     Nothing
@@ -248,7 +250,7 @@ matchTeamMembersSearchableByAllTeams =
     boolQuery
       { ES.boolQueryMustMatch =
           [ ES.QueryExistsQuery $ ES.FieldName "team",
-            ES.TermQuery (ES.Term (Key.toText searchVisibilityInboundFieldName) "searchable-by-all-teams") Nothing
+            ES.TermQuery (ES.Term searchVisibilityInboundFieldName "searchable-by-all-teams") Nothing
           ]
       }
 

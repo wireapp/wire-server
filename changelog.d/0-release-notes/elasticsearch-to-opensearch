@@ -1,0 +1,10 @@
+Switch from ElasticSearch 6.8 to OpenSearch 1.3 (we're testing with OpenSearch
+1.3.19.) Please note that the APIs of ElasticSearch 6.8 and OpenSearch 1.3 are
+not compatible. I.e., either a migration is required
+(https://opensearch.org/docs/latest/upgrade-to/) or the indexes need to be
+rebuilt from scratch. The latter is done automatically when the
+`elasticsearch-index-create` job of the `elasticsearch-index` Helm chart faces
+an OpenSearch instance where Wire's indexes are missing. Alternatively, this can
+be started manually; see
+https://docs.wire.com/developer/reference/elastic-search.html#refill-es-documents-from-cassandra
+. Depending on the amount of users in the database, this may take long.
