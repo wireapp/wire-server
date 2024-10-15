@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 module Test.Search where
 
 import qualified API.Brig as BrigP

@@ -18,7 +18,7 @@
 module Test.Teams where
 
 import API.Brig
-import API.BrigInternal (createUser, getInvitationCode, refreshIndex)
+import qualified API.BrigInternal as I
 import API.Common
 import API.Galley (getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
 import API.GalleyInternal (setTeamFeatureStatus)
@@ -56,13 +56,13 @@ testInvitePersonalUserToTeam = do
 
         ownerId <- owner %. "id" & asString
         setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" >>= assertSuccess
-        user <- createUser domain def >>= getJSON 201
+        user <- I.createUser domain def >>= getJSON 201
         uid <- user %. "id" >>= asString
         email <- user %. "email" >>= asString
 
         inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
         checkListInvitations owner tid email
-        code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+        code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
         inv %. "url" & asString >>= assertUrlContainsCode code
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
@@ -109,7 +109,7 @@ testInvitePersonalUserToTeam = do
           ids <- for documents ((%. "id") >=> asString)
           ids `shouldContain` [ownerId]
 
-        refreshIndex domain
+        I.refreshIndex domain
         -- a team member can now search for the former personal user
         bindResponse (searchContacts tm (user %. "name") domain) $ \resp -> do
           resp.status `shouldMatchInt` 200
@@ -144,11 +144,11 @@ testInvitePersonalUserToLargeTeam = do
   teamSize <- readServiceConfig Galley %. "settings.maxFanoutSize" & asInt <&> (+ 1)
   (owner, tid, (alice : otherTeamMembers)) <- createTeam OwnDomain teamSize
   -- User to be invited to the team
-  knut <- createUser OwnDomain def >>= getJSON 201
+  knut <- I.createUser OwnDomain def >>= getJSON 201
 
   -- Non team friends of knut
-  dawn <- createUser OwnDomain def >>= getJSON 201
-  eli <- createUser OtherDomain def >>= getJSON 201
+  dawn <- I.createUser OwnDomain def >>= getJSON 201
+  eli <- I.createUser OtherDomain def >>= getJSON 201
 
   -- knut is also friends with alice, but not any other team members.
   traverse_ (connectTwoUsers knut) [alice, dawn, eli]
@@ -163,7 +163,7 @@ testInvitePersonalUserToLargeTeam = do
 
       knutEmail <- knut %. "email" >>= asString
       inv <- postInvitation owner (PostInvitation (Just knutEmail) Nothing) >>= getJSON 201
-      code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+      code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
 
       withWebSockets [owner, alice, dawn, eli, head otherTeamMembers] $ \[wsOwner, wsAlice, wsDawn, wsEli, wsOther] -> do
         acceptTeamInvitation knut code (Just defPassword) >>= assertSuccess
@@ -208,16 +208,16 @@ testInvitePersonalUserToTeamMultipleInvitations :: (HasCallStack) => App ()
 testInvitePersonalUserToTeamMultipleInvitations = do
   (owner, tid, _) <- createTeam OwnDomain 0
   (owner2, _, _) <- createTeam OwnDomain 0
-  user <- createUser OwnDomain def >>= getJSON 201
+  user <- I.createUser OwnDomain def >>= getJSON 201
   email <- user %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
   inv2 <- postInvitation owner2 (PostInvitation (Just email) Nothing) >>= getJSON 201
-  code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
   acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
   bindResponse (getSelf user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "team" `shouldMatch` tid
-  code2 <- getInvitationCode owner2 inv2 >>= getJSON 200 >>= (%. "code") & asString
+  code2 <- I.getInvitationCode owner2 inv2 >>= getJSON 200 >>= (%. "code") & asString
   bindResponse (acceptTeamInvitation user code2 (Just defPassword)) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "cannot-join-multiple-teams"
@@ -231,10 +231,10 @@ testInvitationTypesAreDistinct = do
   -- We are only testing one direction because the other is not possible
   -- because the non-existing user cannot have a valid session
   (owner, _, _) <- createTeam OwnDomain 0
-  user <- createUser OwnDomain def >>= getJSON 201
+  user <- I.createUser OwnDomain def >>= getJSON 201
   email <- user %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
-  code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
   let body =
         AddUser
           { name = Just email,
@@ -289,6 +289,7 @@ testTeamMemberCsvExport = do
     handle <- randomHandle
     putHandle m handle >>= assertSuccess
     replicateM_ n $ addClient m def
+    void $ I.putSSOId m def {I.scimExternalId = Just "foo"} >>= getBody 200
     setField "handle" handle m
       >>= setField "role" (if m == owner then "owner" else "member")
       >>= setField "num_clients" (show n)
@@ -322,6 +323,7 @@ testTeamMemberCsvExport = do
         take 10 (parseField (cols !! 4)) `shouldMatch` now
         parseField (cols !! 5) `shouldMatch` (ownerMember %. "handle")
       parseField (cols !! 7) `shouldMatch` "wire"
+      parseField (cols !! 9) `shouldMatch` "foo"
       parseField (cols !! 12) `shouldMatch` (mem %. "num_clients")
   where
     parseField :: ByteString -> String

@@ -60,8 +60,18 @@ createTeamMember ::
   App Value
 createTeamMember inviter args = do
   newUserEmail <- randomEmail
-  invitation <- postInvitation inviter (PostInvitation (Just newUserEmail) (Just args.role)) >>= getJSON 201
-  invitationCode <- getInvitationCode inviter invitation >>= getJSON 200 >>= (%. "code") & asString
+  invitation <-
+    postInvitation
+      inviter
+      def
+        { email = Just newUserEmail,
+          role = Just args.role
+        }
+      >>= getJSON 201
+  invitationCode <-
+    (getInvitationCode inviter invitation >>= getJSON 200)
+      %. "code"
+      & asString
   let body =
         AddUser
           { name = Just newUserEmail,
