@@ -606,7 +606,7 @@ testEmailSsoLoginNonSsoUser brig = do
     ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
       <!! do
         const 403 === statusCode
-        const (Just "invalid-credentials") === errorLabel
+        const (Just "missing-auth") === errorLabel
 
 -- | Check that @/sso-login@ can not be used to login as a suspended
 -- user.
