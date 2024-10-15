@@ -667,7 +667,7 @@ testDeleteTeamMemberLimitedEventFanout :: (HasCallStack) => App ()
 testDeleteTeamMemberLimitedEventFanout = do
   -- Alex will get removed from the team
   (alice, team, [alex, alison]) <- createTeam OwnDomain 3
-  ana <- createTeamMemberWithRole alice team "admin"
+  ana <- createTeamMember alice def {role = "admin"}
   [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
   forM_ [amy, bob] $ connectTwoUsers alice
   [aliceId, alexId, amyId, alisonId, anaId, bobId] <- do
