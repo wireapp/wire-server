@@ -49,6 +49,7 @@ import Control.Exception.Enclosed (handleAny)
 import Control.Lens ((^.))
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Code qualified as Code
@@ -85,8 +86,10 @@ import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Error
+import Polysemy.TinyLog
 import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
+import System.Logger (msg, val)
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Conversation hiding (Member)
@@ -130,6 +133,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.Sem.Logger qualified as Log
 import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -183,6 +187,7 @@ providerAPI ::
     Member AuthenticationSubsystem r,
     Member EmailSending r,
     Member HashPassword r,
+    Member TinyLog r,
     Member VerificationCodeSubsystem r
   ) =>
   ServerT ProviderAPI (Handler r)
@@ -213,7 +218,8 @@ newAccount ::
   ( Member GalleyAPIAccess r,
     Member EmailSending r,
     Member HashPassword r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member TinyLog r
   ) =>
   Public.NewProvider ->
   (Handler r) Public.NewProviderResponse
@@ -225,6 +231,11 @@ newAccount new = do
   let descr = fromRange new.newProviderDescr
   let url = new.newProviderUrl
   let emailKey = mkEmailKey email
+  env <- ask
+  _ <-
+    lift . liftSem $
+      Log.warn $
+        msg (val $ "New account with hash opts: " <> (BS.pack . show $ env.settings.passwordHashingOptions))
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   (safePass, newPass) <- case pass of
     Just newPass -> do
@@ -245,8 +256,8 @@ newAccount new = do
         (Timeout (3600 * 24)) -- 24h
         (Just (toUUID pid))
   let key = codeKey code
-  let val = codeValue code
-  lift $ sendActivationMail name email key val False
+  let value = codeValue code
+  lift $ sendActivationMail name email key value False
   pure $ Public.NewProviderResponse pid newPass
 
 activateAccountKey ::
@@ -257,9 +268,9 @@ activateAccountKey ::
   Code.Key ->
   Code.Value ->
   (Handler r) (Maybe Public.ProviderActivationResponse)
-activateAccountKey key val = do
+activateAccountKey key value = do
   guardSecondFactorDisabled Nothing
-  c <- (lift . liftSem $ verifyCode key IdentityVerification val) >>= maybeInvalidCode
+  c <- (lift . liftSem $ verifyCode key IdentityVerification value) >>= maybeInvalidCode
   (pid, email) <- case (codeAccount c, Just (codeFor c)) of
     (Just p, Just e) -> pure (Id p, e)
     _ -> throwStd (errorToWai @'E.InvalidCode)
@@ -327,9 +338,9 @@ completePasswordReset ::
   ) =>
   Public.CompletePasswordReset ->
   (Handler r) ()
-completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
+completePasswordReset (Public.CompletePasswordReset key value newpwd) = do
   guardSecondFactorDisabled Nothing
-  code <- (lift . liftSem $ verifyCode key VerificationCode.PasswordReset val) >>= maybeInvalidCode
+  code <- (lift . liftSem $ verifyCode key VerificationCode.PasswordReset value) >>= maybeInvalidCode
   case Id <$> code.codeAccount of
     Nothing -> throwStd (errorToWai @E.InvalidPasswordResetCode)
     Just pid -> do
