@@ -26,7 +26,7 @@ module Wire.API.Password
     verifyPassword,
     verifyPasswordWithStatus,
     PasswordReqBody (..),
-    defaultOptions,
+    argon2OptsFromHashingOpts,
 
     -- * Only for testing
     hashPasswordArgon2idWithSalt,
@@ -52,6 +52,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Imports
 import OpenSSL.Random (randBytes)
+import Util.Options
 
 -- | A derived, stretched password that can be safely stored.
 data Password
@@ -120,16 +121,6 @@ defaultScryptParams =
       outputLength = 64
     }
 
-defaultOptions :: Argon2.Options
-defaultOptions =
-  Argon2.Options
-    { iterations = 1,
-      memory = 180224,
-      parallelism = 32,
-      variant = Argon2.Argon2id,
-      version = Argon2.Version13
-    }
-
 fromScrypt :: ScryptParameters -> Parameters
 fromScrypt scryptParams =
   Parameters
@@ -137,6 +128,16 @@ fromScrypt scryptParams =
       r = fromIntegral scryptParams.blockSize,
       p = fromIntegral scryptParams.parallelism,
       outputLength = 64
+    }
+
+argon2OptsFromHashingOpts :: PasswordHashingOptions -> Argon2.Options
+argon2OptsFromHashingOpts PasswordHashingOptions {..} =
+  Argon2.Options
+    { variant = Argon2.Argon2id,
+      version = Argon2.Version13,
+      iterations = iterations,
+      memory = memory,
+      parallelism = parallelism
     }
 
 -------------------------------------------------------------------------------

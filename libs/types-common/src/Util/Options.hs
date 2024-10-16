@@ -149,9 +149,9 @@ parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString
 
 data PasswordHashingOptions = PasswordHashingOptions
-  { iterations :: !Int,
-    memory :: !Int,
-    parallelism :: !Int
+  { iterations :: !Word32,
+    memory :: !Word32,
+    parallelism :: !Word32
   }
   deriving (Show, Generic)
 

@@ -24,8 +24,10 @@ hashPassword password =
 fastArgon2IdOptions :: Argon2.Options
 fastArgon2IdOptions =
   let hashParallelism = 4
-   in Password.defaultOptions
-        { iterations = 1,
+   in Argon2.Options
+        { variant = Argon2.Argon2id,
+          version = Argon2.Version13,
+          iterations = 1,
           parallelism = hashParallelism,
           -- This needs to be min 8 * hashParallelism, otherewise we get an
           -- unsafe error
