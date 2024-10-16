@@ -482,8 +482,7 @@ getTeamActivityInfo tid = do
                   ( toByteString' user
                       <> ","
                       <> B8.pack
-                        ( maybe
-                            mempty
+                        ( foldMap
                             (formatTime defaultTimeLocale "%Y-%m-%d")
                             tm
                         )
