@@ -30,10 +30,10 @@ import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.Internal.Kind
 import Polysemy.TinyLog (TinyLog)
-import Util.Options (PasswordHashingOptions)
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AuthenticationSubsystem
@@ -140,7 +140,6 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
-     Input (Maybe PasswordHashingOptions),
      NotificationSubsystem,
      GundeckAPIAccess,
      FederationConfigStore,
@@ -248,7 +247,6 @@ runBrigToIO e (AppT ma) = do
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
-              . runInputConst e.settings.passwordHashingOptions
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
@@ -265,7 +263,7 @@ runBrigToIO e (AppT ma) = do
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
-              . runHashPassword
+              . runHashPassword (argon2OptsFromHashingOpts e.settings.passwordHashingOptions)
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
               . mapError propertySubsystemErrorToHttpError

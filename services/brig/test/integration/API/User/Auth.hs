@@ -62,7 +62,7 @@ import UnliftIO.Async hiding (wait)
 import Util
 import Util.Timeout
 import Wire.API.Conversation (Conversation (..))
-import Wire.API.Password as Password (Password, defaultOptions, mkSafePassword)
+import Wire.API.Password as Password
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
@@ -101,7 +101,7 @@ tests conf m z db b g n =
           test m "testLoginFailure - failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
           test m "testLimitRetries - limit-retry" (testLimitRetries conf b),
-          test m "login with 6 character password" (testLoginWith6CharPassword b db),
+          test m "login with 6 character password" (testLoginWith6CharPassword conf b db),
           testGroup
             "sso-login"
             [ test m "email" (testEmailSsoLogin b),
@@ -169,8 +169,8 @@ tests conf m z db b g n =
         ]
     ]
 
-testLoginWith6CharPassword :: Brig -> DB.ClientState -> Http ()
-testLoginWith6CharPassword brig db = do
+testLoginWith6CharPassword :: Opts.Opts -> Brig -> DB.ClientState -> Http ()
+testLoginWith6CharPassword opts brig db = do
   (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
   checkLogin email defPassword 200
   let pw6 = plainTextPassword6Unsafe "123456"
@@ -194,7 +194,7 @@ testLoginWith6CharPassword brig db = do
 
     updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
-      p <- mkSafePassword Password.defaultOptions t
+      p <- mkSafePassword (argon2OptsFromHashingOpts opts.settings.passwordHashingOptions) t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()

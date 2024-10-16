@@ -586,7 +586,7 @@ data Settings = Settings
     -- use `oAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
     oAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
     -- | Options to override the default Argon2id settings for specific operators.
-    passwordHashingOptions :: !(Maybe PasswordHashingOptions)
+    passwordHashingOptions :: !(PasswordHashingOptions)
   }
   deriving (Show, Generic)
 
@@ -847,7 +847,6 @@ instance FromJSON Opts where
           { fieldLabelModifier = \case
               "settings" -> "optSettings"
               "stompOptions" -> "stomp"
-              "passwordHashingOptions" -> "setPasswordHashingOptions"
               other -> other
           }
 

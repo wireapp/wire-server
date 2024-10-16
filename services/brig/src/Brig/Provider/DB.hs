@@ -19,13 +19,10 @@
 
 module Brig.Provider.DB where
 
-import Brig.App (Env (..))
-import Brig.Options (passwordHashingOptions)
 import Brig.Types.Instances ()
 import Brig.Types.Provider.Tag
 import Cassandra as C
 import Control.Arrow ((&&&))
-import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Id
 import Data.List1 (List1)
 import Data.Misc
@@ -34,7 +31,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Imports
 import UnliftIO (mapConcurrently)
-import Util.Options (PasswordHashingOptions (..))
 import Wire.API.Password as Password
 import Wire.API.Provider
 import Wire.API.Provider.Service hiding (updateServiceTags)
@@ -119,29 +115,15 @@ deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
     cql = "DELETE FROM provider WHERE id = ?"
 
 updateAccountPassword ::
-  (MonadClient m, MonadReader Env m) =>
+  (MonadClient m) =>
   ProviderId ->
-  PlainTextPassword6 ->
+  Password ->
   m ()
 updateAccountPassword pid pwd = do
-  argonOpts <- do
-    -- argonOpts will be hidden inside the authentication subsystem in the future.
-    asks (passwordHashingOptions . settings) <&> \case
-      Just (PasswordHashingOptions {..}) ->
-        Argon2.Options
-          { variant = Argon2.Argon2id,
-            version = Argon2.Version13,
-            iterations = fromIntegral iterations,
-            memory = fromIntegral memory,
-            parallelism = fromIntegral parallelism
-          }
-      Nothing -> Password.defaultOptions
-
-  p <- liftIO $ mkSafePassword argonOpts pwd
-  retry x5 $ write cql $ params LocalQuorum (p, pid)
+  retry x5 $ write cql $ params LocalQuorum (pwd, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()
-    cql = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET password = ? where id = ?"
+    cql = "UPDATE provider SET password = ? where id = ?"
 
 --------------------------------------------------------------------------------
 -- Unique (Natural) Keys

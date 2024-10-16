@@ -334,7 +334,8 @@ beginPasswordReset (Public.PasswordReset target) = do
 completePasswordReset ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member HashPassword r
   ) =>
   Public.CompletePasswordReset ->
   (Handler r) ()
@@ -346,8 +347,8 @@ completePasswordReset (Public.CompletePasswordReset key value newpwd) = do
     Just pid -> do
       whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid newpwd)) do
         throwStd (errorToWai @E.ResetPasswordMustDiffer)
-      wrapClientE $ do
-        DB.updateAccountPassword pid newpwd
+      hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 newpwd
+      wrapClientE $ DB.updateAccountPassword pid hashedPwd
       lift . liftSem $ deleteCode key VerificationCode.PasswordReset
 
 --------------------------------------------------------------------------------
@@ -394,7 +395,8 @@ updateAccountEmail pid (Public.EmailUpdate email) = do
 
 updateAccountPassword ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member HashPassword r
   ) =>
   ProviderId ->
   Public.PasswordChange ->
@@ -405,7 +407,8 @@ updateAccountPassword pid upd = do
     throwStd (errorToWai @E.BadCredentials)
   whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid upd.newPassword)) do
     throwStd (errorToWai @E.ResetPasswordMustDiffer)
-  wrapClientE $ DB.updateAccountPassword pid upd.newPassword
+  hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 upd.newPassword
+  wrapClientE $ DB.updateAccountPassword pid hashedPwd
 
 addService ::
   (Member GalleyAPIAccess r) =>
