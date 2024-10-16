@@ -134,10 +134,12 @@ brig:
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
-      setPasswordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
+      # These values are insecure, against anyone getting hold of the hash, 
+      # but its not a concern for the integration tests.
+      setPasswordHashingOptions: 
         iterations: 1
-        memory: 128
-        parallelism: 1 # 32
+        parallelism: 4
+        memory: 32 # This needs to be at least 8 * parallelism.
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
