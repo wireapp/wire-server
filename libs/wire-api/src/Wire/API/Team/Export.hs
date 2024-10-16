@@ -37,7 +37,7 @@ import Data.Vector (fromList)
 import Imports
 import Test.QuickCheck
 import Wire.API.Team.Role (Role)
-import Wire.API.User (Name)
+import Wire.API.User (AccountStatus (..), Name)
 import Wire.API.User.Identity (EmailAddress)
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo (RichInfo)
@@ -60,7 +60,8 @@ data TeamExportUser = TeamExportUser
     tExportSCIMRichInfo :: Maybe RichInfo,
     tExportUserId :: UserId,
     tExportNumDevices :: Int,
-    tExportLastActive :: Maybe UTCTime
+    tExportLastActive :: Maybe UTCTime,
+    tExportStatus :: Maybe AccountStatus
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform TeamExportUser)
@@ -84,6 +85,7 @@ instance ToSchema TeamExportUser where
         <*> tExportUserId .= field "user_id" schema
         <*> tExportNumDevices .= field "num_devices" schema
         <*> tExportLastActive .= maybe_ (optField "last_active" utcTimeSchema)
+        <*> tExportStatus .= maybe_ (optField "status" schema)
 
 instance ToNamedRecord TeamExportUser where
   toNamedRecord row =
@@ -108,7 +110,8 @@ instance ToNamedRecord TeamExportUser where
                 (formatTime defaultTimeLocale timestampFormat)
                 (tExportLastActive row)
             )
-        )
+        ),
+        ("status", maybe "" formatAccountStatus (tExportStatus row))
       ]
 
 secureCsvFieldToByteString :: forall a. (ToByteString a) => a -> ByteString
@@ -131,7 +134,8 @@ instance DefaultOrdered TeamExportUser where
           "scim_rich_info",
           "user_id",
           "num_devices",
-          "last_active"
+          "last_active",
+          "status"
         ]
 
 allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
@@ -148,6 +152,21 @@ parseUTCTime :: ByteString -> Parser UTCTime
 parseUTCTime b = do
   s <- either (fail . displayException) pure $ T.decodeUtf8' b
   parseTimeM False defaultTimeLocale timestampFormat (T.unpack s)
+
+parseAccountStatus :: ByteString -> Parser AccountStatus
+parseAccountStatus "active" = pure Active
+parseAccountStatus "suspended" = pure Suspended
+parseAccountStatus "deleted" = pure Deleted
+parseAccountStatus "ephemeral" = pure Ephemeral
+parseAccountStatus "pending-invitation" = pure PendingInvitation
+parseAccountStatus _ = fail "invalid account status"
+
+formatAccountStatus :: AccountStatus -> ByteString
+formatAccountStatus Active = "active"
+formatAccountStatus Suspended = "suspended"
+formatAccountStatus Deleted = "deleted"
+formatAccountStatus Ephemeral = "ephemeral"
+formatAccountStatus PendingInvitation = "pending-invitation"
 
 instance FromNamedRecord TeamExportUser where
   parseNamedRecord nrec =
@@ -172,6 +191,7 @@ instance FromNamedRecord TeamExportUser where
       <*> (nrec .: "user_id" >>= parseByteString)
       <*> (nrec .: "num_devices" >>= parseByteString)
       <*> (nrec .: "last_active" >>= allowEmpty parseUTCTime)
+      <*> (nrec .: "status" >>= allowEmpty parseAccountStatus)
 
 quoted :: ByteString -> ByteString
 quoted bs = case C.uncons bs of

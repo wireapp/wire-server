@@ -343,6 +343,7 @@ testTeamMemberCsvExport = do
       (if numClients > 0 then shouldNotMatch else shouldMatch)
         (parseField 13)
         ""
+      parseField 14 `shouldMatch` "active"
   where
     unquote :: String -> String
     unquote ('\'' : x) = x

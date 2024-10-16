@@ -981,5 +981,6 @@ getUserExportDataImpl uid = fmap hush . runError @() $ do
         tExportSCIMRichInfo = fmap RichInfo mRichInfo,
         tExportUserId = uid,
         tExportNumDevices = numClients,
-        tExportLastActive = lastActive
+        tExportLastActive = lastActive,
+        tExportStatus = su.status
       }
