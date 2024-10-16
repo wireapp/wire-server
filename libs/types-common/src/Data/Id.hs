@@ -48,6 +48,7 @@ module Data.Id
     -- * Other IDs
     ConnId (..),
     RequestId (..),
+    defRequestId,
     BotId (..),
     NoId,
     OAuthClientId,
@@ -417,6 +418,9 @@ newtype RequestId = RequestId
       Generic,
       ToBytes
     )
+
+defRequestId :: RequestId
+defRequestId = RequestId "N/A"
 
 instance ToSchema RequestId where
   schema =
