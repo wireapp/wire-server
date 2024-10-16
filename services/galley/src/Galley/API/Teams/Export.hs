@@ -12,7 +12,6 @@ import Data.IORef (atomicModifyIORef, newIORef)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified (Local, tUnqualified)
-import Debug.Trace
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.SparAccess qualified as Spar
@@ -97,6 +96,12 @@ getUserRecord cache member = do
         tExportCreatedOn = mCreatedOn
       }
 
+-- | Export team info as a CSV, and stream it to the client.
+--
+-- We paginate through the team member list, then spawn a thread for each user
+-- (out of a thread pool) in order to fetch information for that user from brig
+-- and spar. Inviter IDs are resolved to handles via a brig request, then
+-- stored in a cache so that they can be reused by subsequent requests.
 getTeamMembersCSV ::
   forall r.
   ( Member BrigAccess r,
@@ -157,7 +162,6 @@ getTeamMembersCSV lusr tid = do
             pure r
           pure $ \write flush -> do
             let go = do
-                  traceM "write chunk"
                   readChan chan >>= \case
                     Nothing -> write "" >> flush
                     Just line -> write (byteString (toStrict line)) >> flush >> go

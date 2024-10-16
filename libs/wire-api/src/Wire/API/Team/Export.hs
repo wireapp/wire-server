@@ -25,10 +25,14 @@ import Data.ByteString.Conversion (FromByteString (..), ToByteString, toByteStri
 import Data.Csv (DefaultOrdered (..), FromNamedRecord (..), Parser, ToNamedRecord (..), namedRecord, (.:))
 import Data.Handle (Handle)
 import Data.Id (UserId)
-import Data.Json.Util (UTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, utcTimeSchema)
 import Data.Misc (HttpsUrl)
 import Data.OpenApi qualified as OpenApi
 import Data.Schema
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Time.Clock
+import Data.Time.Format
 import Data.Vector (fromList)
 import Imports
 import Test.QuickCheck
@@ -38,6 +42,9 @@ import Wire.API.User.Identity (EmailAddress)
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo (RichInfo)
 import Wire.Arbitrary
+
+timestampFormat :: String
+timestampFormat = "%Y-%m-%d"
 
 data TeamExportUser = TeamExportUser
   { tExportDisplayName :: Name,
@@ -52,7 +59,8 @@ data TeamExportUser = TeamExportUser
     tExportSCIMExternalId :: Text,
     tExportSCIMRichInfo :: Maybe RichInfo,
     tExportUserId :: UserId,
-    tExportNumDevices :: Int
+    tExportNumDevices :: Int,
+    tExportLastActive :: Maybe UTCTime
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform TeamExportUser)
@@ -75,6 +83,7 @@ instance ToSchema TeamExportUser where
         <*> tExportSCIMRichInfo .= maybe_ (optField "scim_rich_info" schema)
         <*> tExportUserId .= field "user_id" schema
         <*> tExportNumDevices .= field "num_devices" schema
+        <*> tExportLastActive .= maybe_ (optField "last_active" utcTimeSchema)
 
 instance ToNamedRecord TeamExportUser where
   toNamedRecord row =
@@ -91,7 +100,15 @@ instance ToNamedRecord TeamExportUser where
         ("scim_external_id", secureCsvFieldToByteString (tExportSCIMExternalId row)),
         ("scim_rich_info", maybe "" (C.toStrict . Aeson.encode) (tExportSCIMRichInfo row)),
         ("user_id", secureCsvFieldToByteString (tExportUserId row)),
-        ("num_devices", secureCsvFieldToByteString (tExportNumDevices row))
+        ("num_devices", secureCsvFieldToByteString (tExportNumDevices row)),
+        ( "last_active",
+          C.pack
+            ( maybe
+                ""
+                (formatTime defaultTimeLocale timestampFormat)
+                (tExportLastActive row)
+            )
+        )
       ]
 
 secureCsvFieldToByteString :: forall a. (ToByteString a) => a -> ByteString
@@ -113,7 +130,8 @@ instance DefaultOrdered TeamExportUser where
           "scim_external_id",
           "scim_rich_info",
           "user_id",
-          "num_devices"
+          "num_devices",
+          "last_active"
         ]
 
 allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
@@ -125,6 +143,11 @@ parseByteString bstr =
   case parseOnly (parser @a) (C.fromStrict (unquoted bstr)) of
     Left err -> fail err
     Right thing -> pure thing
+
+parseUTCTime :: ByteString -> Parser UTCTime
+parseUTCTime b = do
+  s <- either (fail . displayException) pure $ T.decodeUtf8' b
+  parseTimeM False defaultTimeLocale timestampFormat (T.unpack s)
 
 instance FromNamedRecord TeamExportUser where
   parseNamedRecord nrec =
@@ -148,6 +171,7 @@ instance FromNamedRecord TeamExportUser where
           )
       <*> (nrec .: "user_id" >>= parseByteString)
       <*> (nrec .: "num_devices" >>= parseByteString)
+      <*> (nrec .: "last_active" >>= allowEmpty parseUTCTime)
 
 quoted :: ByteString -> ByteString
 quoted bs = case C.uncons bs of

@@ -159,29 +159,6 @@ runUserSubsystem authInterpreter = interpret $
     GetUserActivityTimestamp uid -> getUserActivityTimestampImpl uid
     GetUserExportData uid -> getUserExportDataImpl uid
 
-getUserExportDataImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamExportUser)
-getUserExportDataImpl uid = fmap hush . runError @() $ do
-  su <- UserStore.getUser uid >>= note ()
-  mRichInfo <- UserStore.getRichInfo uid
-  timestamps <- UserStore.getActivityTimestamps uid
-  let numClients = length timestamps
-  pure $
-    TeamExportUser
-      { tExportDisplayName = su.name,
-        tExportHandle = su.handle,
-        tExportEmail = su.email,
-        tExportRole = Nothing,
-        tExportCreatedOn = Nothing,
-        tExportInvitedBy = Nothing,
-        tExportIdpIssuer = userToIdPIssuer su,
-        tExportManagedBy = fromMaybe ManagedByWire su.managedBy,
-        tExportSAMLNamedId = fromMaybe "" (samlNamedId su),
-        tExportSCIMExternalId = fromMaybe "" (scimExtId su),
-        tExportSCIMRichInfo = fmap RichInfo mRichInfo,
-        tExportUserId = uid,
-        tExportNumDevices = numClients
-      }
-
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
   m <- su.managedBy
@@ -971,6 +948,7 @@ acceptTeamInvitationImpl luid pw code = do
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
 
+-- TODO: remove
 getUserActivityTimestampImpl :: (Member UserStore r) => UserId -> Sem r (Maybe UTCTime)
 getUserActivityTimestampImpl uid = do
   ts <- getActivityTimestamps uid
@@ -978,3 +956,30 @@ getUserActivityTimestampImpl uid = do
     maximum
       -- make sure the list of timestamps is non-empty)
       (Nothing : ts)
+
+getUserExportDataImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamExportUser)
+getUserExportDataImpl uid = fmap hush . runError @() $ do
+  su <- UserStore.getUser uid >>= note ()
+  mRichInfo <- UserStore.getRichInfo uid
+  timestamps <- UserStore.getActivityTimestamps uid
+  -- Make sure the list of timestamps is non-empty so that 'maximum' is
+  -- well-defined and returns 'Nothing' when no valid timestamps are present.
+  let lastActive = maximum (Nothing : timestamps)
+  let numClients = length timestamps
+  pure $
+    TeamExportUser
+      { tExportDisplayName = su.name,
+        tExportHandle = su.handle,
+        tExportEmail = su.email,
+        tExportRole = Nothing,
+        tExportCreatedOn = Nothing,
+        tExportInvitedBy = Nothing,
+        tExportIdpIssuer = userToIdPIssuer su,
+        tExportManagedBy = fromMaybe ManagedByWire su.managedBy,
+        tExportSAMLNamedId = fromMaybe "" (samlNamedId su),
+        tExportSCIMExternalId = fromMaybe "" (scimExtId su),
+        tExportSCIMRichInfo = fmap RichInfo mRichInfo,
+        tExportUserId = uid,
+        tExportNumDevices = numClients,
+        tExportLastActive = lastActive
+      }

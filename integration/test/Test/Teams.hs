@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
@@ -22,6 +23,7 @@ import qualified API.BrigInternal as I
 import API.Common
 import API.Galley (getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
 import API.GalleyInternal (setTeamFeatureStatus)
+import API.Gundeck
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
@@ -284,16 +286,28 @@ testUpgradePersonalToTeamAlreadyInATeam = do
 -- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
 testTeamMemberCsvExport :: (HasCallStack) => App ()
 testTeamMemberCsvExport = do
-  (owner, tid, members) <- createTeam OwnDomain 10
-  let numClients = [0, 1, 2] <> repeat 0
-  modifiedMembers <- for (zip numClients (owner : members)) $ \(n, m) -> do
-    handle <- randomHandle
-    putHandle m handle >>= assertSuccess
-    replicateM_ n $ addClient m def
-    void $ I.putSSOId m def {I.scimExternalId = Just "foo"} >>= getBody 200
-    setField "handle" handle m
-      >>= setField "role" (if m == owner then "owner" else "member")
-      >>= setField "num_clients" (show n)
+  (owner, tid, members) <- createTeam OwnDomain 5
+
+  modifiedMembers <- for
+    ( zip
+        ([0, 1, 2] <> repeat 0)
+        (owner : members)
+    )
+    $ \(n, m) -> do
+      handle <- randomHandle
+      putHandle m handle >>= assertSuccess
+      clients <-
+        replicateM n
+          $ addClient m def
+          >>= getJSON 201
+          >>= (%. "id")
+          >>= asString
+      for_ (listToMaybe clients) $ \c ->
+        getNotifications m def {client = Just c}
+      void $ I.putSSOId m def {I.scimExternalId = Just "foo"} >>= getBody 200
+      setField "handle" handle m
+        >>= setField "role" (if m == owner then "owner" else "member")
+        >>= setField "num_clients" n
 
   memberMap :: Map.Map String Value <- fmap Map.fromList $ for (modifiedMembers) $ \m -> do
     uid <- m %. "id" & asString
@@ -302,7 +316,7 @@ testTeamMemberCsvExport = do
   bindResponse (getTeamMembersCsv owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     let rows = sort $ tail $ B8.lines $ resp.body
-    length rows `shouldMatchInt` 10
+    length rows `shouldMatchInt` 5
     for_ rows $ \row -> do
       let cols = B8.split ',' row
       let uid = read $ B8.unpack $ cols !! 11
@@ -310,6 +324,8 @@ testTeamMemberCsvExport = do
 
       ownerId <- owner %. "id" & asString
       let ownerMember = memberMap Map.! ownerId
+      now <- formatTime defaultTimeLocale "%Y-%m-%d" <$> liftIO getCurrentTime
+      numClients <- mem %. "num_clients" & asInt
 
       let parseField = unquote . read . B8.unpack . (cols !!)
 
@@ -319,12 +335,14 @@ testTeamMemberCsvExport = do
       role <- mem %. "role" & asString
       parseField 3 `shouldMatch` role
       when (role /= "owner") $ do
-        now <- formatTime defaultTimeLocale "%Y-%m-%d" <$> liftIO getCurrentTime
         take 10 (parseField 4) `shouldMatch` now
         parseField 5 `shouldMatch` (ownerMember %. "handle")
       parseField 7 `shouldMatch` "wire"
       parseField 9 `shouldMatch` "foo"
-      parseField 12 `shouldMatch` (mem %. "num_clients")
+      parseField 12 `shouldMatch` show numClients
+      (if numClients > 0 then shouldNotMatch else shouldMatch)
+        (parseField 13)
+        ""
   where
     unquote :: String -> String
     unquote ('\'' : x) = x
