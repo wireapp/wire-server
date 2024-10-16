@@ -40,10 +40,8 @@ import Servant.Swagger.UI
 import Stern.Types
 import Wire.API.CustomBackend
 import Wire.API.OAuth
-import Wire.API.Routes.CSV
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
-import Wire.API.Routes.LowLevelStream
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.Team.Feature
@@ -439,13 +437,6 @@ type SternAPI =
                :> "clients"
                :> Capture "id" OAuthClientId
                :> Delete '[JSON] ()
-           )
-    :<|> Named
-           "get-team-activity-info"
-           ( Summary "List user IDs and the timestamp of their last activity"
-               :> "team-activity-info"
-               :> Capture "tid" TeamId
-               :> LowLevelStream GET 200 '[] "Output CSV" CSV
            )
 
 -------------------------------------------------------------------------------

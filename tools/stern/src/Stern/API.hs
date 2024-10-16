@@ -28,18 +28,13 @@ module Stern.API
 where
 
 import Brig.Types.Intra
-import Control.Concurrent.Chan
 import Control.Error
-import Control.Exception (throwIO)
-import Control.Lens (toListOf, (.~))
-import Control.Monad.Codensity
+import Control.Lens ((.~))
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (fromStrict)
-import Data.ByteString.Builder (byteString)
-import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
@@ -52,8 +47,6 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
-import Data.Time.Format
-import Debug.Trace
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -70,17 +63,14 @@ import Stern.Intra qualified as Intra
 import Stern.Options
 import Stern.Types
 import System.Logger.Class hiding (Error, flush, name, trace, (.=))
-import UnliftIO.Async
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Internal.Notification (QueuedNotification)
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
-import Wire.API.Routes.LowLevelStream
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature
-import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
@@ -197,7 +187,6 @@ sitemap' =
     :<|> Named @"stern-get-oauth-client" Intra.getOAuthClient
     :<|> Named @"update-oauth-client" Intra.updateOAuthClient
     :<|> Named @"delete-oauth-client" Intra.deleteOAuthClient
-    :<|> Named @"get-team-activity-info" getTeamActivityInfo
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =
@@ -460,44 +449,6 @@ getUserData uid mMaxConvs mMaxNotifs = do
       "marketo" .= marketo,
       "properties" .= properties
     ]
-
-getTeamActivityInfo :: TeamId -> Handler LowLevelStreamingBody
-getTeamActivityInfo tid = do
-  traceM "getTeamActivityInfo"
-  -- TODO: handle large teams
-  memList <-
-    toListOf (Team.teamMembers . traverse . Team.newTeamMember . Team.nUserId)
-      <$> Intra.getTeamMembers tid
-  env <- ask
-  pure $ do
-    chan <- liftIO newChan
-    let runThread :: IO () = do
-          pooledForConcurrentlyN_ 8 memList $ \user -> do
-            tm <-
-              runHandler env (Intra.getActivityTimestamp user)
-                >>= either throwIO pure
-            writeChan
-              chan
-              ( Just
-                  ( toByteString' user
-                      <> ","
-                      <> B8.pack
-                        ( foldMap
-                            (formatTime defaultTimeLocale "%Y-%m-%d")
-                            tm
-                        )
-                  )
-              )
-          writeChan chan Nothing
-    void $ Codensity $ withAsync runThread
-    let body write flush = do
-          let go = do
-                traceM "write chunk"
-                readChan chan >>= \case
-                  Nothing -> write "" >> flush
-                  Just line -> write (byteString line <> "\n") >> flush >> go
-          go
-    pure (body :: StreamingBody)
 
 -- Utilities
 
