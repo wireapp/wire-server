@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Options
-  ( Settings,
+  ( Settings (..),
     httpPoolSize,
     maxTeamSize,
     maxFanoutSize,
@@ -53,6 +53,7 @@ module Galley.Options
     logFormat,
     guestLinkTTLSeconds,
     defGuestLinkTTLSeconds,
+    passwordHashingOptions,
     GuestLinkTTLSeconds (..),
   )
 where
@@ -141,7 +142,8 @@ data Settings = Settings
     _disabledAPIVersions :: !(Set VersionExp),
     -- | The lifetime of a conversation guest link in seconds with the maximum of 1 year (31536000 seconds).
     -- If not set use the default `defGuestLinkTTLSeconds`
-    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds)
+    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
+    _passwordHashingOptions :: !(PasswordHashingOptions)
   }
   deriving (Show, Generic)
 
