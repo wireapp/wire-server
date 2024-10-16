@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 module Test.MLS.Services where
 
 import API.Brig
