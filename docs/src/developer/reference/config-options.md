@@ -724,14 +724,20 @@ are:
 The default will be adjusted to new developments in hashing algorithm
 security from time to time.
 
-To override the default, add this to your server config:
+The password hashing options are set for brig and galley:
 
 ```yaml
 brig:
   optSettings:
     setPasswordHashingOptions:
       iterations: ...
-      memory: ... # memory needed in kibibytes (1 kibibyte is 2^10 bytes)
+      memory: ... # memory needed in KiB
+      parallelism: ...
+galley:
+  settings:
+    passwordHashingOptions:
+      iterations: ...
+      memory: ... # memory needed in KiB
       parallelism: ...
 ```
 
