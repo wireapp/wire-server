@@ -22,6 +22,7 @@
 , http-client-tls
 , http-types
 , imports
+, kan-extensions
 , lens
 , lens-aeson
 , lib
@@ -42,6 +43,7 @@
 , tasty-ant-xml
 , tasty-hunit
 , text
+, time
 , tinylog
 , transformers
 , types-common
@@ -73,6 +75,7 @@ mkDerivation {
     http-client
     http-types
     imports
+    kan-extensions
     lens
     mtl
     openapi3
@@ -83,6 +86,7 @@ mkDerivation {
     servant-swagger-ui
     split
     text
+    time
     tinylog
     transformers
     types-common

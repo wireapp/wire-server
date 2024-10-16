@@ -19,7 +19,6 @@
 , bytestring
 , bytestring-conversion
 , call-stack
-, case-insensitive
 , cassandra-util
 , cassava
 , cereal
@@ -148,7 +147,6 @@ mkDerivation {
     brig-types
     bytestring
     bytestring-conversion
-    case-insensitive
     cassandra-util
     cassava
     comonad
@@ -189,7 +187,6 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
-    saml2-web-sso
     servant
     servant-client
     servant-server
