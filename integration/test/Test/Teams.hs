@@ -303,32 +303,28 @@ testTeamMemberCsvExport = do
     let rows = sort $ tail $ B8.lines $ resp.body
     length rows `shouldMatchInt` 10
     for_ rows $ \row -> do
-      liftIO $ B8.putStrLn row
       let cols = B8.split ',' row
       let uid = read $ B8.unpack $ cols !! 11
-      liftIO $ putStrLn uid
       let mem = memberMap Map.! uid
-      printJSON mem
 
       ownerId <- owner %. "id" & asString
       let ownerMember = memberMap Map.! ownerId
 
-      parseField (cols !! 0) `shouldMatch` (mem %. "name")
-      parseField (cols !! 1) `shouldMatch` (mem %. "handle")
-      parseField (cols !! 2) `shouldMatch` (mem %. "email")
+      let parseField = unquote . read . B8.unpack . (cols !!)
+
+      parseField 0 `shouldMatch` (mem %. "name")
+      parseField 1 `shouldMatch` (mem %. "handle")
+      parseField 2 `shouldMatch` (mem %. "email")
       role <- mem %. "role" & asString
-      parseField (cols !! 3) `shouldMatch` role
+      parseField 3 `shouldMatch` role
       when (role /= "owner") $ do
         now <- formatTime defaultTimeLocale "%Y-%m-%d" <$> liftIO getCurrentTime
-        take 10 (parseField (cols !! 4)) `shouldMatch` now
-        parseField (cols !! 5) `shouldMatch` (ownerMember %. "handle")
-      parseField (cols !! 7) `shouldMatch` "wire"
-      parseField (cols !! 9) `shouldMatch` "foo"
-      parseField (cols !! 12) `shouldMatch` (mem %. "num_clients")
+        take 10 (parseField 4) `shouldMatch` now
+        parseField 5 `shouldMatch` (ownerMember %. "handle")
+      parseField 7 `shouldMatch` "wire"
+      parseField 9 `shouldMatch` "foo"
+      parseField 12 `shouldMatch` (mem %. "num_clients")
   where
-    parseField :: ByteString -> String
-    parseField = unquote . read . B8.unpack
-
     unquote :: String -> String
     unquote ('\'' : x) = x
     unquote x = x
