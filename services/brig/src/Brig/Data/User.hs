@@ -65,7 +65,6 @@ import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
-import Data.ByteString.Char8 qualified as BS
 import Data.Conduit (ConduitM)
 import Data.Domain
 import Data.Handle (Handle)
@@ -78,15 +77,12 @@ import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
 import Polysemy
-import Polysemy.TinyLog
-import System.Logger (msg, val)
 import Wire.API.Password
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.HashPassword
-import Wire.Sem.Logger qualified as Log
 
 -- | Authentication errors.
 data AuthError
@@ -113,9 +109,7 @@ data ReAuthError
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
 newAccount ::
-  ( Member HashPassword r,
-    Member TinyLog r
-  ) =>
+  (Member HashPassword r) =>
   NewUser ->
   Maybe InvitationId ->
   Maybe TeamId ->
@@ -130,11 +124,6 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  env <- ask
-  _ <-
-    liftSem $
-      Log.warn $
-        msg (val $ "New account with hash opts: " <> (BS.pack . show $ env.settings))
   passwd <- maybe (pure Nothing) (fmap Just . liftSem . hashPassword8) pass
   expiry <- case status of
     Ephemeral -> do
