@@ -409,7 +409,7 @@ taggedEventDataSchema =
 
 memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
 memberLeaveSchema =
-  object "QualifiedUserIdList with EdMemberLeftReason" $
+  object "QualifiedUserIdList_with_EdMemberLeftReason" $
     (,) <$> fst .= field "reason" schema <*> snd .= qualifiedUserIdListObjectSchema
 
 instance ToSchema Event where

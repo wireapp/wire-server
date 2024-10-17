@@ -118,7 +118,7 @@ instance ToSchema Invitation where
         <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inviteeUrl)
           .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
     where
-      urlSchema = parsedText "URIRef Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
+      urlSchema = parsedText "URIRef_Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
 
 newtype InvitationLocation = InvitationLocation
   { unInvitationLocation :: ByteString
