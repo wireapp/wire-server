@@ -112,7 +112,7 @@ import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
-import Wire.UserStore
+import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
@@ -764,8 +764,10 @@ updateClientLastActive u c = do
             }
   lift . wrapClient $ Data.updateClientLastActive u c now
 
-getRichInfoH :: UserId -> (Handler r) RichInfo
-getRichInfoH uid = RichInfo . fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo uid)
+getRichInfoH :: (Member UserStore r) => UserId -> Handler r RichInfo
+getRichInfoH uid =
+  RichInfo . fromMaybe mempty
+    <$> lift (liftSem $ UserStore.getRichInfo uid)
 
 getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, RichInfo)]
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
