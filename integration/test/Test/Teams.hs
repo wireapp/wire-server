@@ -281,6 +281,7 @@ testUpgradePersonalToTeamAlreadyInATeam = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "user-already-in-a-team"
 
+-- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
 testTeamMemberCsvExport :: (HasCallStack) => App ()
 testTeamMemberCsvExport = do
   (owner, tid, members) <- createTeam OwnDomain 10
