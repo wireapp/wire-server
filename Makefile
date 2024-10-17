@@ -126,6 +126,9 @@ ci:
 cr: c db-migrate
 	./dist/run-services
 
+crm: c db-migrate
+	./dist/run-services -m
+
 # Run integration from new test suite
 # Usage: make devtest
 # Usage: TEST_INCLUDE=test1,test2 make devtest
@@ -134,7 +137,7 @@ devtest:
 	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
-sanitize-pr: 
+sanitize-pr:
 	make lint-all-shallow
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )

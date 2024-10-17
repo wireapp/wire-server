@@ -218,3 +218,26 @@ After all containers are up you can use these Makefile targets to run the tests 
    ```
 
    `TASTY_NUM_THREADS` can also be set to other values, it defaults to number of cores available.
+
+## How to run the webapp locally against locally running backend
+
+1. Clone the webapp from: https://github.com/wireapp/wire-webapp
+2. Install these depedencies needed for the webapp:
+   1. nodejs
+   2. yarn
+   3. mkcert
+3. Copy `.env.localhost` to `.env` and uncomment the local section
+4. Run the webapp using:
+   ```bash
+   yarn
+   yarn start
+   ```
+4. From wire-server repo start the dependencies using:
+   ```bash
+   ./deploy/dockerephemeral/run.sh
+   ```
+5. From wire-server repo start the backend using:
+   ```bash
+   make crm
+   ```
+6. Go to http://localhost:8081 in the browser.

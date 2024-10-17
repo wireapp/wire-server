@@ -262,6 +262,23 @@ setField ::
 setField selector v x = do
   modifyField @a @Value selector (\_ -> pure (toJSON v)) x
 
+-- | Merges fields if the old and new are both Objects or Arrays. Otherwise new
+-- field overwrites the old completely
+mergeField :: forall a b. (HasCallStack, MakesValue a, ToJSON b) => String -> b -> a -> App Value
+mergeField selector v x = do
+  modifyField @a @Value
+    selector
+    ( \case
+        Just (Object old) -> case toJSON v of
+          (Object new) -> pure $ Object (new <> old)
+          nonObjectNew -> pure nonObjectNew
+        Just (Array old) -> case toJSON v of
+          (Array new) -> pure $ Array (old <> new)
+          nonArrayNew -> pure nonArrayNew
+        _ -> pure (toJSON v)
+    )
+    x
+
 member :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 member k x = KM.member (KM.fromString k) <$> (make x >>= asObject)
 
