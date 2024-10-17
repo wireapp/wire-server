@@ -714,6 +714,7 @@ test-suite wire-api-tests
     , tasty-hunit
     , tasty-quickcheck
     , text
+    , time
     , types-common           >=0.16
     , unliftio
     , uuid
