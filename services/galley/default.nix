@@ -116,7 +116,6 @@
 , utf8-string
 , uuid
 , uuid-types
-, vector
 , wai
 , wai-extra
 , wai-middleware-gunzip
@@ -237,7 +236,6 @@ mkDerivation {
     bytestring-conversion
     call-stack
     cassandra-util
-    cassava
     cereal
     conduit
     containers
@@ -276,7 +274,6 @@ mkDerivation {
     quickcheck-instances
     random
     retry
-    saml2-web-sso
     servant-client
     servant-client-core
     servant-server
@@ -302,7 +299,6 @@ mkDerivation {
     unliftio
     unordered-containers
     uuid
-    vector
     wai
     wai-utilities
     warp
