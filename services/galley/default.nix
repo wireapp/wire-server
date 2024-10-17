@@ -78,7 +78,6 @@
 , resourcet
 , retry
 , safe-exceptions
-, saml2-web-sso
 , servant
 , servant-client
 , servant-client-core

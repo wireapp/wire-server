@@ -22,7 +22,6 @@
 , http-client-tls
 , http-types
 , imports
-, kan-extensions
 , lens
 , lens-aeson
 , lib
@@ -75,7 +74,6 @@ mkDerivation {
     http-client
     http-types
     imports
-    kan-extensions
     lens
     mtl
     openapi3
