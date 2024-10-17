@@ -85,6 +85,7 @@ import Wire.API.User.RichInfo
 import Wire.HashPassword
 
 -- | Authentication errors.
+-- TODO: Rethink these two error types in terms of subsystem
 data AuthError
   = AuthInvalidUser
   | AuthInvalidCredentials

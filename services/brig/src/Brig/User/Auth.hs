@@ -71,9 +71,9 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
-import Wire.AuthenticationSubsystem.Interpreter (AuthenticationSubsystemError (..))
+import Wire.AuthenticationSubsystem.Error
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -105,14 +105,16 @@ login (MkLogin li pw label code) typ = do
   uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapClientE $ checkRetryLimit uid
-  lift (liftSem $ Authentication.authenticate uid pw)
-    `catchE` \case
+
+  (lift . liftSem $ Authentication.authenticateEither uid pw) >>= \case
+    Right a -> pure a
+    Left e -> case e of
       AuthenticationSubsystemInvalidUser -> lift (decrRetryLimit uid) >> throwE LoginFailed
       AuthenticationSubsystemBadCredentials -> lift (decrRetryLimit uid) >> throwE LoginFailed
       AuthenticationSubsystemSuspended -> throwE LoginSuspended
       AuthenticationSubsystemEphemeral -> throwE LoginEphemeral
       AuthenticationSubsystemPendingInvitation -> throwE LoginPendingActivation
-      _ -> pure () -- ?
+      _ -> pure () -- TODO: constraint this error with a wrapper? Same for reauth. Check previous implementation for how it was done / what is meant.
   verifyLoginCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
   where
@@ -234,7 +236,7 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
     account <- User.getAccountNoFilter luid
     pure $ maybe False isSamlUser account
   unless isSaml do
-    lift . liftSem $ Authentication.authenticate u pw
+    lift . liftSem $ Authentication.authenticateEither u pw >>= undefined -- TODO: ! Map to the right error?
   lift $ wrapHttpClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
@@ -391,6 +393,7 @@ ssoLogin ::
   ExceptT LoginError (AppT r) (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
   lift
+    -- TODO: fix it!
     (liftSem $ Authentication.reauthenticate uid Nothing)
     `catchE` \case
       AuthenticationSubsystemBadCredentials -> throwE LoginFailed

@@ -42,7 +42,7 @@ import Wire.API.Password qualified as Password
 import Wire.API.Password qualified as Pasword
 import Wire.API.User
 import Wire.API.User.Password
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem (..))
+import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
 import Wire.HashPassword
@@ -76,7 +76,8 @@ interpretAuthenticationSubsystem ::
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
     userSubsystemInterpreter . \case
-      Authenticate uid pwd -> authenticateImpl uid pwd
+      AuthenticateEither uid pwd -> authenticateImpl uid pwd
+      -- TODO: fix reuth to also return Either like we did for Authenticate
       Reauthenticate uid pwd -> reauthenticateImpl uid pwd
       CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
       ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
@@ -107,27 +108,27 @@ instance Exception PasswordResetError where
 
 authenticateImpl ::
   ( Member UserStore r,
-    Member (Error AuthenticationSubsystemError) r,
     Member HashPassword r,
     Member PasswordStore r
   ) =>
   UserId ->
   PlainTextPassword6 ->
-  Sem r ()
+  Sem r (Either AuthenticationSubsystemError ())
 authenticateImpl uid plaintext = do
-  getUserAuthenticationInfo uid >>= \case
-    Nothing -> throw AuthenticationSubsystemInvalidUser
-    Just (_, Deleted) -> throw AuthenticationSubsystemInvalidUser
-    Just (_, Suspended) -> throw AuthenticationSubsystemSuspended
-    Just (_, Ephemeral) -> throw AuthenticationSubsystemEphemeral
-    Just (_, PendingInvitation) -> throw AuthenticationSubsystemPendingInvitation
-    Just (Nothing, _) -> throw AuthenticationSubsystemBadCredentials
-    Just (Just password, Active) -> do
-      case Pasword.verifyPasswordWithStatus plaintext password of
-        (False, _) -> throw AuthenticationSubsystemBadCredentials
-        (True, PasswordStatusNeedsUpdate) -> do
-          for_ (plainTextPassword8 . fromPlainTextPassword $ plaintext) (hashAndUpdatePwd uid)
-        (True, _) -> pure ()
+  runError $
+    getUserAuthenticationInfo uid >>= \case
+      Nothing -> throw AuthenticationSubsystemInvalidUser
+      Just (_, Deleted) -> throw AuthenticationSubsystemInvalidUser
+      Just (_, Suspended) -> throw AuthenticationSubsystemSuspended
+      Just (_, Ephemeral) -> throw AuthenticationSubsystemEphemeral
+      Just (_, PendingInvitation) -> throw AuthenticationSubsystemPendingInvitation
+      Just (Nothing, _) -> throw AuthenticationSubsystemBadCredentials
+      Just (Just password, Active) -> do
+        case Pasword.verifyPasswordWithStatus plaintext password of
+          (False, _) -> throw AuthenticationSubsystemBadCredentials
+          (True, PasswordStatusNeedsUpdate) -> do
+            for_ (plainTextPassword8 . fromPlainTextPassword $ plaintext) (hashAndUpdatePwd uid)
+          (True, _) -> pure ()
   where
     hashAndUpdatePwd u pwd = do
       hashed <- hashPassword8 pwd
@@ -337,7 +338,9 @@ verifyPasswordImpl plaintext password = do
   pure $ Password.verifyPasswordWithStatus plaintext password
 
 verifyProviderPasswordImpl ::
-  (Member PasswordStore r, Member (Error AuthenticationSubsystemError) r) =>
+  ( Member PasswordStore r,
+    Member (Error AuthenticationSubsystemError) r
+  ) =>
   ProviderId ->
   PlainTextPassword6 ->
   Sem r (Bool, PasswordStatus)
@@ -349,7 +352,9 @@ verifyProviderPasswordImpl pid plaintext = do
   verifyPasswordImpl plaintext password
 
 verifyUserPasswordImpl ::
-  (Member PasswordStore r, Member (Error AuthenticationSubsystemError) r) =>
+  ( Member PasswordStore r,
+    Member (Error AuthenticationSubsystemError) r
+  ) =>
   UserId ->
   PlainTextPassword6 ->
   Sem r (Bool, PasswordStatus)
