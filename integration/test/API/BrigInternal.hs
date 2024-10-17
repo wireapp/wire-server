@@ -303,3 +303,29 @@ getPasswordResetCode :: (HasCallStack, MakesValue domain) => domain -> String ->
 getPasswordResetCode domain email = do
   req <- baseRequest domain Brig Unversioned "i/users/password-reset-code"
   submit "GET" $ req & addQueryParams [("email", email)]
+
+data PutSSOId = PutSSOId
+  { scimExternalId :: Maybe String,
+    subject :: Maybe String,
+    tenant :: Maybe String
+  }
+
+instance Default PutSSOId where
+  def =
+    PutSSOId
+      { scimExternalId = Nothing,
+        subject = Nothing,
+        tenant = Nothing
+      }
+
+putSSOId :: (HasCallStack, MakesValue user) => user -> PutSSOId -> App Response
+putSSOId user args = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned (joinHttpPath ["i", "users", uid, "sso-id"])
+  submit "PUT" $
+    req
+      & addJSONObject
+        [ "scim_external_id" .= args.scimExternalId,
+          "subject" .= args.subject,
+          "tenant" .= args.tenant
+        ]

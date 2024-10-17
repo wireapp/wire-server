@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 module Test.MLS.Services where
 
 import API.Brig
@@ -13,7 +14,7 @@ testWhitelistUpdatePermissions = do
   (owner, tid, []) <- createTeam OwnDomain 1
 
   -- Create a team admin
-  admin <- createTeamMemberWithRole owner tid "admin"
+  admin <- createTeamMember owner def {role = "admin"}
 
   -- Create a service
   email <- randomEmail

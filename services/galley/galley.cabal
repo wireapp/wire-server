@@ -483,7 +483,6 @@ executable galley-integration
     , bytestring-conversion
     , call-stack
     , cassandra-util
-    , cassava
     , cereal
     , containers
     , cookie
@@ -521,7 +520,6 @@ executable galley-integration
     , quickcheck-instances
     , random
     , retry
-    , saml2-web-sso          >=0.20
     , servant-client
     , servant-client-core
     , servant-server
@@ -547,7 +545,6 @@ executable galley-integration
     , unliftio
     , unordered-containers
     , uuid
-    , vector
     , wai
     , wai-utilities
     , warp
