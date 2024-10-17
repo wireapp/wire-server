@@ -57,7 +57,6 @@ import Data.Domain (Domain)
 import Data.Handle
 import Data.HavePendingInvitations
 import Data.Id as Id
-import Data.Json.Util
 import Data.Map.Strict qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
@@ -268,7 +267,6 @@ userAPI =
   updateLocale
     :<|> deleteLocale
     :<|> getDefaultUserLocale
-    :<|> Named @"get-activity-timestamp" getUserActivityTimestampH
     :<|> Named @"get-user-export-data" getUserExportDataH
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
@@ -804,16 +802,6 @@ checkHandleInternalH h = lift $ liftSem do
 
 getContactListH :: UserId -> (Handler r) UserIds
 getContactListH uid = lift . wrapClient $ UserIds <$> API.lookupContactList uid
-
-getUserActivityTimestampH ::
-  (Member UserSubsystem r) =>
-  UserId ->
-  Handler r (Maybe UTCTimeMillis)
-getUserActivityTimestampH =
-  lift
-    . liftSem
-    . fmap (fmap toUTCTimeMillis)
-    . getUserActivityTimestamp
 
 getUserExportDataH ::
   (Member UserSubsystem r) =>

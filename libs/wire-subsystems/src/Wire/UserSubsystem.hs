@@ -15,7 +15,6 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -145,7 +144,6 @@ data UserSubsystem m a where
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
-  GetUserActivityTimestamp :: UserId -> UserSubsystem m (Maybe UTCTime)
   GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
 
 -- | the return type of 'CheckHandle'

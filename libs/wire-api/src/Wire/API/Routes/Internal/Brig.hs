@@ -47,7 +47,6 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
-import Data.Json.Util
 import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
@@ -603,14 +602,6 @@ type UserAPI =
   UpdateUserLocale
     :<|> DeleteUserLocale
     :<|> GetDefaultLocale
-    :<|> Named
-           "get-activity-timestamp"
-           ( Summary "Get the last activity timestamp of a user"
-               :> "users"
-               :> Capture "uid" UserId
-               :> "activity"
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "Activity" (Maybe UTCTimeMillis))
-           )
     :<|> Named
            "get-user-export-data"
            ( Summary "Get user export data"

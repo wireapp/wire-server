@@ -156,7 +156,6 @@ runUserSubsystem authInterpreter = interpret $
         acceptTeamInvitationImpl luid pwd code
     InternalFindTeamInvitation mEmailKey code ->
       internalFindTeamInvitationImpl mEmailKey code
-    GetUserActivityTimestamp uid -> getUserActivityTimestampImpl uid
     GetUserExportData uid -> getUserExportDataImpl uid
 
 scimExtId :: StoredUser -> Maybe Text
@@ -947,15 +946,6 @@ acceptTeamInvitationImpl luid pw code = do
   deleteInvitation inv.teamId inv.invitationId
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
-
--- TODO: remove
-getUserActivityTimestampImpl :: (Member UserStore r) => UserId -> Sem r (Maybe UTCTime)
-getUserActivityTimestampImpl uid = do
-  ts <- getActivityTimestamps uid
-  pure $
-    maximum
-      -- make sure the list of timestamps is non-empty)
-      (Nothing : ts)
 
 getUserExportDataImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamExportUser)
 getUserExportDataImpl uid = fmap hush . runError @() $ do
