@@ -70,6 +70,11 @@ config:
     # The lifetime of a conversation guest link in seconds. Must be a value 0 < x <= 31536000 (365 days)
     # Default is 31536000 (365 days) if not set
     guestLinkTTLSeconds: 31536000
+    # Options for Argon2id version 19
+    passwordHashingOptions:
+      iterations: 1
+      parallelism: 32
+      memory: 180224 # 176 MiB
     featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
       appLock:
         defaults:

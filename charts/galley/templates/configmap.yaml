@@ -96,6 +96,7 @@ data:
       {{- if .settings.guestLinkTTLSeconds }}
       guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
       {{- end }}
+      passwordHashingOptions: {{ toYaml .settings.passwordHashingOptions | nindent 8 }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}

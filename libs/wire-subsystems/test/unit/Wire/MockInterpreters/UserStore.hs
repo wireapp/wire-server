@@ -71,6 +71,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
     modify $
       map
         (\u -> if u.id == uid then u {teamId = Just tid} :: StoredUser else u)
+  GetUserAuthenticationInfo _uid -> error "Not implemented"
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

@@ -151,7 +151,6 @@ sparResponseURI (Just tid) =
 type APIScim =
   OmitDocs :> "v2" :> ScimSiteAPI SparTag
     :<|> "auth-tokens"
-      :> CanThrow 'PasswordAuthenticationFailed
       :> CanThrow 'CodeAuthenticationFailed
       :> CanThrow 'CodeAuthenticationRequired
       :> APIScimToken
