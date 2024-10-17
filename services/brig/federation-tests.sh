@@ -44,4 +44,4 @@ AWS_REGION="$(kubectl get deployment -n "$NAMESPACE" brig -o json | jq -r '.spec
 export AWS_REGION
 
 # shellcheck disable=SC2086
-telepresence --namespace "$NAMESPACE" --also-proxy=cassandra-ephemeral ${alsoProxyOptions[*]} --run bash -c "./dist/brig-integration -p federation-end2end-user -i i.yaml -s b.yaml"
+telepresence --namespace "$NAMESPACE" --also-proxy=cassandra-ephemeral "${alsoProxyOptions[@]}" --run bash -c "./dist/brig-integration -p federation-end2end-user -i i.yaml -s b.yaml"

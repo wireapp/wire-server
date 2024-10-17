@@ -45,8 +45,8 @@ if [ "$#" -ne 0 ]; then
 fi
 
 
-ADMIN_EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
-ADMIN_PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
+ADMIN_EMAIL=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)"@example.com"
+ADMIN_PASSWORD=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)
 
 CURL_OUT=$(curl -i -s --show-error \
     -XPOST "$BRIG_HOST/i/users" \
@@ -61,23 +61,23 @@ BEARER=$(curl -X POST \
               --header 'Content-Type: application/json' \
               --header 'Accept: application/json' \
               -d '{"email":"'"$ADMIN_EMAIL"'","password":"'"$ADMIN_PASSWORD"'"}' \
-              $BRIG_HOST/login'?persist=false' | jq -r .access_token)
+              "$BRIG_HOST"/login'?persist=false' | jq -r .access_token)
 
 SCIM_TOKEN_FULL=$(curl -X POST \
                        --header "Authorization: Bearer $BEARER" \
                        --header 'Content-Type: application/json;charset=utf-8' \
                        --header 'Z-User: '"$ADMIN_UUID" \
-                       -d '{ "description": "test '"`date`"'", "password": "'"$ADMIN_PASSWORD"'" }' \
-                       $SPAR_HOST/scim/auth-tokens)
+                       -d '{ "description": "test '"$(date)"'", "password": "'"$ADMIN_PASSWORD"'" }' \
+                       "$SPAR_HOST/scim/auth-tokens")
 
-SCIM_TOKEN=$(echo $SCIM_TOKEN_FULL | jq -r .token)
-SCIM_TOKEN_ID=$(echo $SCIM_TOKEN_FULL | jq -r .info.id)
+SCIM_TOKEN=$(echo "$SCIM_TOKEN_FULL" | jq -r .token)
+SCIM_TOKEN_ID=$(echo "$SCIM_TOKEN_FULL" | jq -r .info.id)
 
 
 # Create regular user via team invitation
 
-REGULAR_USER_EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
-REGULAR_USER_PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
+REGULAR_USER_EMAIL=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)"@example.com"
+REGULAR_USER_PASSWORD=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)
 CURL_OUT_INVITATION=$(curl -i -s --show-error \
                             -XPOST "$BRIG_HOST/teams/$TEAM_UUID/invitations" \
                             -H'Content-type: application/json' \
@@ -122,7 +122,7 @@ REGULAR_TEAM_MEMBER_UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z
 # Create user via SCIM invitation
 
 
-scimUserName=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
+scimUserName=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)
 scimUserDisplayName="Display of $scimUserName"
 scimUserEmail="$scimUserName@example.com"
 scimUserExternalId="$scimUserEmail"
@@ -156,7 +156,7 @@ CURL_OUT_SCIM_POST=$(curl --location --request POST "$SPAR_HOST/scim/v2/Users" \
     --header "Authorization: Bearer $SCIM_TOKEN" \
     -d "$SCIM_USER")
 
-SCIM_USER_UUID=$(echo $CURL_OUT_SCIM_POST | jq -r .id)
+SCIM_USER_UUID=$(echo "$CURL_OUT_SCIM_POST" | jq -r .id)
 
 SCIM_USER_INVITATION_ID=$(curl --location -G "$BRIG_HOST/i/teams/invitations/by-email?" \
     --header 'Content-Type: application/json' \
@@ -170,17 +170,7 @@ SCIM_USER_INVITATION_CODE=$(curl --silent --show-error \
                             -XGET "$BRIG_HOST/i/teams/invitation-code?team=$TEAM_UUID&invitation_id=$SCIM_USER_INVITATION_ID" | jq -r .code
                             )
 
-scimUserPassword=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
-
-REGISTER_ACCEPT=$(cat <<EOF
-{
-   "name": "$scimUserDisplayName",
-   "email": "$scimUserEmail",
-   "password": "$scimUserPassword",
-   "team_code": "$SCIM_USER_INVITATION_CODE"
-}
-EOF
-)
+scimUserPassword=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)
 
 # Create the user using that code
 CURL_OUT=$(curl \
@@ -192,7 +182,7 @@ SCIM_USER_REGISTER_TEAM=$(echo "$CURL_OUT" | jq -r .team)
 
 if [ "$SCIM_USER_REGISTER_TEAM" != "$TEAM_UUID" ]; then
     echo "unexpected error: user got assigned to no / the wrong team?!"
-    echo ${CURL_OUT}
+    echo "${CURL_OUT}"
     exit 1
 fi
 

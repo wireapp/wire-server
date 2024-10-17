@@ -11,7 +11,8 @@
 set -e
 set -o pipefail
 
-export GOLDEN_TMPDIR=$(mktemp -d)
+GOLDEN_TMPDIR=$(mktemp -d)
+export GOLDEN_TMPDIR
 export GOLDEN_TESTDIR="test/unit/Test/Wire/API/Golden/Generated"
 
 # trap cleanup EXIT
@@ -149,7 +150,7 @@ mkdir -p "$GOLDEN_TESTDIR"
 mkdir -p "$GOLDEN_TMPDIR/dump"
 
 stack build --fast --test --bench --no-run-benchmarks wire-api |
-    while read module section; do
+    while read -r module section; do
         echo -ne "\033[KProcessing module $module...\r"
         {
             echo "{-# OPTIONS_GHC -Wno-unused-imports #-}"
@@ -194,10 +195,10 @@ for module in "$GOLDEN_TESTDIR"/*; do
       -e '/^import/d' \
       -e "/^module/ r $dump" \
       "$module"
-    ormolu -m inplace -c ${EXTS[@]/#/'-o '} "$module"
+    ormolu -m inplace -c "${EXTS[@]/#/'-o '}" "$module"
 done
 
-ormolu -m inplace -c ${EXTS[@]/#/'-o '} "$GOLDEN_TESTDIR.hs"
+ormolu -m inplace -c "${EXTS[@]/#/'-o '}" "$GOLDEN_TESTDIR.hs"
 ( cd ../.. && headroom run -a -s libs/wire-api/test/unit/Test/Wire/API/Golden/ )
 
 # build one final time

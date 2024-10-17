@@ -51,10 +51,11 @@ fi
 
 # Generate users
 
+#shellcheck disable=SC2034
 for i in $(seq 1 "$COUNT")
 do
-    EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
-    PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
+    EMAIL=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)"@example.com"
+    PASSWORD=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)
 
     CURL_OUT=$(curl -i -s --show-error \
         -XPOST "$BRIG_HOST/i/users" \
