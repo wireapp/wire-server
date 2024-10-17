@@ -6,10 +6,12 @@ import Cassandra (PageWithState (..), PagingState)
 import Data.Default
 import Data.Handle
 import Data.Id
+import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Error
 import Wire.API.User
+import Wire.API.User.RichInfo
 import Wire.Arbitrary
 import Wire.StoredUser
 import Wire.UserStore.IndexUser
@@ -67,6 +69,8 @@ data UserStore m a where
   IsActivated :: UserId -> UserStore m Bool
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
+  GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
+  GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
 
 makeSem ''UserStore
 

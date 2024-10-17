@@ -35,7 +35,6 @@ module Brig.API.User
     getLegalHoldStatus,
     Data.lookupName,
     Data.lookupUser,
-    Data.lookupRichInfo,
     Data.lookupRichInfoMultiUsers,
     removeEmail,
     revokeIdentity,

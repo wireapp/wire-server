@@ -156,6 +156,7 @@ library
     , bloodhound
     , bytestring
     , bytestring-conversion
+    , case-insensitive
     , cassandra-util
     , conduit
     , containers
