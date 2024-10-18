@@ -51,7 +51,12 @@ install: init
 
 .PHONY: clean-rabbit
 clean-rabbit:
-	rabbitmqadmin -f pretty_json list queues vhost name messages | jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' | bash
+	rabbitmqadmin -f pretty_json list queues vhost name \
+		| jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' \
+		| bash
+	rabbitmqadmin -f pretty_json list exchanges name vhost \
+		| jq -r '.[] |select(.name | startswith("amq") | not) | select (.name != "") | "rabbitmqadmin delete exchange name=\(.name) --vhost=\(.vhost)"' \
+		| bash
 
 # Clean
 .PHONY: full-clean
@@ -85,7 +90,7 @@ cabal.project.local:
 c: treefmt c-fast
 
 .PHONY: c
-c-fast: 
+c-fast:
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)

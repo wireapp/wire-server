@@ -207,6 +207,7 @@ requestIdMiddleware logger reqIdHeaderName origApp req responder =
       let reqWithId = req {requestHeaders = (reqIdHeaderName, reqId) : req.requestHeaders}
       origApp reqWithId responder
 
+{-# INLINEABLE catchErrors #-}
 catchErrors :: Logger -> HeaderName -> Middleware
 catchErrors l reqIdHeaderName = catchErrorsWithRequestId (lookupRequestId reqIdHeaderName) l
 
@@ -230,8 +231,6 @@ catchErrorsWithRequestId getRequestId l app req k =
     errorResponse ex = do
       er <- runHandlers ex errorHandlers
       onError l mReqId req k er
-
-{-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.

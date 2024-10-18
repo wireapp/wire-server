@@ -194,16 +194,6 @@ testInvitePersonalUserToLargeTeam = do
         resp.json %. "notifications.1.payload.0.team" `shouldMatch` tid
         resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` objId knut
 
-mkContextUserIds :: (MakesValue user) => [(String, user)] -> App String
-mkContextUserIds =
-  fmap (intercalate "\n")
-    . traverse
-      ( \(name, user) -> do
-          uid <- objQidObject user %. "id" & asString
-          domain <- objDomain user
-          pure $ name <> ": " <> uid <> "@" <> domain
-      )
-
 testInvitePersonalUserToTeamMultipleInvitations :: (HasCallStack) => App ()
 testInvitePersonalUserToTeamMultipleInvitations = do
   (owner, tid, _) <- createTeam OwnDomain 0

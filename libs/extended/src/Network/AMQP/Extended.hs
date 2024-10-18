@@ -4,6 +4,7 @@ module Network.AMQP.Extended
   ( RabbitMqHooks (..),
     RabbitMqAdminOpts (..),
     AmqpEndpoint (..),
+    withConnection,
     openConnectionWithRetries,
     mkRabbitMqAdminClientEnv,
     mkRabbitMqChannelMVar,
@@ -55,7 +56,7 @@ data RabbitMqTlsOpts = RabbitMqTlsOpts
   { caCert :: !(Maybe FilePath),
     insecureSkipVerifyTls :: Bool
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 parseTlsJson :: Object -> Parser (Maybe RabbitMqTlsOpts)
 parseTlsJson v = do
@@ -76,7 +77,7 @@ data RabbitMqAdminOpts = RabbitMqAdminOpts
     tls :: Maybe RabbitMqTlsOpts,
     adminPort :: !Int
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance FromJSON RabbitMqAdminOpts where
   parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
@@ -111,7 +112,7 @@ data AmqpEndpoint = AmqpEndpoint
     vHost :: !Text,
     tls :: !(Maybe RabbitMqTlsOpts)
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance FromJSON AmqpEndpoint where
   parseJSON = withObject "AmqpEndpoint" $ \v ->
@@ -144,6 +145,45 @@ data RabbitMqConnectionError = RabbitMqConnectionFailed String
   deriving (Show)
 
 instance Exception RabbitMqConnectionError
+
+-- | Connects with RabbitMQ and opens a channel.
+withConnection ::
+  forall m a.
+  (MonadIO m, MonadMask m) =>
+  Logger ->
+  AmqpEndpoint ->
+  (Q.Connection -> m a) ->
+  m a
+withConnection l AmqpEndpoint {..} k = do
+  (username, password) <- liftIO $ readCredsFromEnv
+  -- Jittered exponential backoff with 1ms as starting delay and 1s as total
+  -- wait time.
+  let policy = limitRetriesByCumulativeDelay 1_000_000 $ fullJitterBackoff 1000
+      logError willRetry e retryStatus = do
+        Log.err l $
+          Log.msg (Log.val "Failed to connect to RabbitMQ")
+            . Log.field "error" (displayException @SomeException e)
+            . Log.field "willRetry" willRetry
+            . Log.field "retryCount" retryStatus.rsIterNumber
+      getConn =
+        recovering
+          policy
+          ( skipAsyncExceptions
+              <> [logRetries (const $ pure True) logError]
+          )
+          ( const $ do
+              Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
+              mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
+              liftIO $
+                Q.openConnection'' $
+                  Q.defaultConnectionOpts
+                    { Q.coServers = [(host, fromIntegral port)],
+                      Q.coVHost = vHost,
+                      Q.coAuth = [Q.plain username password],
+                      Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
+                    }
+          )
+  bracket getConn (liftIO . Q.closeConnection) k
 
 -- | Connects with RabbitMQ and opens a channel. If the channel is closed for
 -- some reasons, reopens the channel. If the connection is closed for some

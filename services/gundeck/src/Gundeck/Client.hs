@@ -15,11 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.Client
-  ( unregister,
-    removeUser,
-  )
-where
+module Gundeck.Client where
 
 import Control.Lens (view)
 import Data.Id
@@ -28,6 +24,8 @@ import Gundeck.Notification.Data qualified as Notifications
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native
 import Imports
+import Network.AMQP
+import Wire.API.Notification
 
 unregister :: UserId -> ClientId -> Gundeck ()
 unregister uid cid = do
@@ -42,3 +40,20 @@ removeUser user = do
   deleteTokens toks Nothing
   Push.erase user
   Notifications.deleteAll user
+
+setupConsumableNotifications ::
+  Channel ->
+  UserId ->
+  ClientId ->
+  IO Text
+setupConsumableNotifications chan uid cid = do
+  let qName = clientNotificationQueueName uid cid
+  void $ declareQueue chan newQueue {queueName = qName}
+  for_ [userRoutingKey uid, clientRoutingKey uid cid] $ bindQueue chan qName userNotificationExchangeName
+  pure qName
+
+userRoutingKey :: UserId -> Text
+userRoutingKey = idToText
+
+clientRoutingKey :: UserId -> ClientId -> Text
+clientRoutingKey uid cid = idToText uid <> "." <> clientToText cid

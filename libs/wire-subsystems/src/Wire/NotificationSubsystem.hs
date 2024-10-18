@@ -49,6 +49,7 @@ data NotificationSubsystem m a where
   CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]
+  SetupConsumableNotifications :: UserId -> ClientId -> NotificationSubsystem m ()
 
 makeSem ''NotificationSubsystem
 

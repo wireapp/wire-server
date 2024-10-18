@@ -389,7 +389,7 @@ data Opts = Opts
     -- | SFT Federation
     multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.
-    rabbitmq :: !(Maybe AmqpEndpoint),
+    rabbitmq :: !AmqpEndpoint,
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy

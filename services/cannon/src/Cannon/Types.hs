@@ -44,6 +44,7 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Text.Encoding
 import Imports
+import Network.AMQP.Extended (AmqpEndpoint)
 import Prometheus
 import Servant qualified
 import System.Logger qualified as Logger
@@ -98,10 +99,11 @@ mkEnv ::
   Manager ->
   GenIO ->
   Clock ->
+  AmqpEndpoint ->
   Env
-mkEnv external o l d p g t =
+mkEnv external o l d p g t rabbitmqOpts =
   Env o l d (RequestId "N/A") $
-    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
+    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts) rabbitmqOpts
 
 runCannon :: Env -> Cannon a -> IO a
 runCannon e c = runReaderT (unCannon c) e
