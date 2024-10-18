@@ -84,8 +84,8 @@ hself: hsuper: {
   # -----------------
   cryptostore = hlib.addBuildDepends (hlib.dontCheck (hlib.appendConfigureFlags hsuper.cryptostore [ "-fuse_crypton" ]))
     [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation ];
-  # jailbreak because upstreams requires a specific crypton-connection version we don't have
-  hoogle = hlib.justStaticExecutables (hlib.jailBreak (hlib.dontCheck (hsuper.hoogle)));
+  # doJailbreak because upstreams requires a specific crypton-connection version we don't have
+  hoogle = hlib.justStaticExecutables (hlib.doJailbreak (hlib.dontCheck (hsuper.hoogle)));
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
