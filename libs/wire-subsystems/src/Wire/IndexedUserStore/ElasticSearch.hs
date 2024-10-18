@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+-- for ES.errorStatus
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Wire.IndexedUserStore.ElasticSearch where
 
@@ -92,17 +94,37 @@ upsertImpl cfg docId userDoc versioning = do
   void $ runInBothES cfg indexDoc
   where
     indexDoc :: ES.IndexName -> ES.BH (Sem r) ()
-    indexDoc idx = do
-      r <-
-        hoistBH (embed @IO) $
-          ES.performBHRequest . fmap fst . ES.keepBHResponse $
-            ESR.indexDocument idx settings userDoc docId
-      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        lift $ Metrics.incCounter indexUpdateErrorCounter
-        liftIO . throwIO . IndexUpdateError $ parseESError r
-      lift $ Metrics.incCounter indexUpdateSuccessCounter
+    indexDoc idx =
+      runUpdateAction
+        (ESR.indexDocument idx settings userDoc docId)
+        (lift $ Metrics.incCounter indexUpdateSuccessCounter)
+        (lift $ Metrics.incCounter indexUpdateErrorCounter)
 
     settings = ES.defaultIndexDocumentSettings {ES.idsVersionControl = versioning}
+
+runUpdateAction ::
+  forall r a.
+  (Member (Embed IO) r) =>
+  ES.BHRequest ES.StatusDependant a ->
+  ES.BH (Sem r) () ->
+  ES.BH (Sem r) () ->
+  ES.BH (Sem r) ()
+runUpdateAction action onSuccess onError = do
+  r <-
+    hoistBH (embed @IO) $
+      ES.tryEsError . ES.performBHRequest . ES.keepBHResponse $
+        action
+  -- ElasticSearch and OpenSearch differ in their error regarding version
+  -- conflicts. This is why we use both the isVersionConflict predicate
+  -- (ElasticSearch) and a check on the errorStatus of EsError (OpenSearch).
+  case r of
+    Right (resp, _) -> unless (ES.isSuccess resp || ES.isVersionConflict resp) $ do
+      onError
+      liftIO . throwIO . IndexUpdateError $ parseESError resp
+    Left e -> unless (ES.errorStatus e == Just 409) $ do
+      onError
+      liftIO . throwIO . IndexUpdateError . Right $ e
+  onSuccess
 
 hoistBH :: (forall x. m x -> n x) -> ES.BH m a -> ES.BH n a
 hoistBH nat (ES.BH action) = ES.BH $ hoistReaderT (hoistExceptT nat) action
@@ -122,10 +144,11 @@ updateTeamSearchVisibilityInboundImpl cfg tid vis =
   void $ runInBothES cfg updateAllDocs
   where
     updateAllDocs :: ES.IndexName -> ES.BH (Sem r) ()
-    updateAllDocs idx = do
-      r <- hoistBH (embed @IO) $ ES.performBHRequest . fmap fst . ES.keepBHResponse $ ESR.updateByQuery @Value idx query (Just script)
-      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        liftIO . throwIO . IndexUpdateError $ parseESError r
+    updateAllDocs idx =
+      runUpdateAction
+        (fmap fst . ES.keepBHResponse $ ESR.updateByQuery @Value idx query (Just script))
+        (pure ())
+        (pure ())
 
     query :: ES.Query
     query = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing
