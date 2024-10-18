@@ -108,7 +108,7 @@ optionalActiveMLSConversationDataSchema (Just v)
             (description ?~ "The epoch number of the corresponding MLS group")
             schema
         <*> fmap (.epochTimestamp)
-          .= field "epoch_timestamp" (named "Epoch Timestamp" . nullable . unnamed $ utcTimeSchema)
+          .= field "epoch_timestamp" (named "EpochTimestamp" . nullable . unnamed $ utcTimeSchema)
         <*> maybe MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (.ciphersuite)
           .= fieldWithDocModifier
             "cipher_suite"
