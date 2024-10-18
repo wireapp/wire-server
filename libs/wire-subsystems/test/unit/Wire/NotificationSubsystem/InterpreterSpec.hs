@@ -1,6 +1,5 @@
 module Wire.NotificationSubsystem.InterpreterSpec (spec) where
 
-import Bilge (RequestId (..))
 import Control.Concurrent.Async (async, wait)
 import Control.Exception (throwIO)
 import Data.Data (Proxy (Proxy))
