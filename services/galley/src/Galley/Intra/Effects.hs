@@ -128,9 +128,9 @@ interpretSparAccess = interpret $ \case
   DeleteTeam tid -> do
     logEffect "SparAccess.DeleteTeam"
     embedApp $ deleteTeam tid
-  LookupScimUserInfos uids -> do
-    logEffect "SparAccess.LookupScimUserInfos"
-    embedApp $ lookupScimUserInfos uids
+  LookupScimUserInfo uid -> do
+    logEffect "SparAccess.LookupScimUserInfo"
+    embedApp $ lookupScimUserInfo uid
 
 interpretBotAccess ::
   ( Member (Embed IO) r,

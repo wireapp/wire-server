@@ -17,19 +17,18 @@
 
 module Galley.Intra.Spar
   ( deleteTeam,
-    lookupScimUserInfos,
+    lookupScimUserInfo,
   )
 where
 
 import Bilge
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Set qualified as Set
 import Galley.Intra.Util
 import Galley.Monad
 import Imports
 import Network.HTTP.Types.Method
-import Wire.API.User (ScimUserInfo, UserSet (..), scimUserInfos)
+import Wire.API.User (ScimUserInfo)
 
 -- | Notify Spar that a team is being deleted.
 deleteTeam :: TeamId -> App ()
@@ -40,11 +39,10 @@ deleteTeam tid = do
       . expect2xx
 
 -- | Get the SCIM user info for a user.
-lookupScimUserInfos :: [UserId] -> App [ScimUserInfo]
-lookupScimUserInfos uids = do
+lookupScimUserInfo :: UserId -> App (ScimUserInfo)
+lookupScimUserInfo uid = do
   response <-
     call Spar $
       method POST
-        . paths ["i", "scim", "userinfos"]
-        . json (UserSet $ Set.fromList uids)
-  pure $ foldMap scimUserInfos $ responseJsonMaybe response
+        . paths ["i", "scim", "userinfos", toByteString' uid]
+  responseJsonError response

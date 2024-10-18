@@ -82,10 +82,7 @@ getUserRecord cache member = do
     let mFromInvitation = snd <$> member ^. invitation
     case mFromInvitation of
       Just ts -> pure $ Just ts
-      Nothing -> do
-        -- TODO: make this a single user query
-        suis <- Spar.lookupScimUserInfos [uid]
-        pure $ listToMaybe suis >>= suiCreatedOn
+      Nothing -> suiCreatedOn <$> Spar.lookupScimUserInfo uid
   -- look up inviter handle from the cache
   let mInviterId = fst <$> member ^. invitation
   invitedBy <- join <$> traverse (lookupInviter cache) mInviterId
