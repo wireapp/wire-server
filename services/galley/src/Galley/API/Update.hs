@@ -125,12 +125,12 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
-import Wire.API.Password (mkSafePassword)
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.User.Client
+import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
 
 acceptConv ::
@@ -497,7 +497,7 @@ addCodeUnqualifiedWithReqBody ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (Embed IO) r,
+    Member HashPassword r,
     Member (Input Opts) r,
     Member TeamFeatureStore r
   ) =>
@@ -522,7 +522,7 @@ addCodeUnqualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
-    Member (Embed IO) r,
+    Member HashPassword r,
     Member TeamFeatureStore r
   ) =>
   Maybe CreateConversationCodeRequest ->
@@ -545,11 +545,11 @@ addCode ::
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
+    Member HashPassword r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r,
-    Member (Embed IO) r
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   Maybe ZHostValue ->
@@ -569,7 +569,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
     Nothing -> do
       ttl <- realToFrac . unGuestLinkTTLSeconds . fromMaybe defGuestLinkTTLSeconds . view (settings . guestLinkTTLSeconds) <$> input
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout ttl)
-      mPw <- for (mReq >>= (.password)) mkSafePassword
+      mPw <- for (mReq >>= (.password)) HashPassword.hashPassword8
       E.createCode code mPw
       now <- input
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))

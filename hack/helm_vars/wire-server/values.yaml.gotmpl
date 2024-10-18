@@ -134,6 +134,12 @@ brig:
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
+      # These values are insecure, against anyone getting hold of the hash, 
+      # but its not a concern for the integration tests.
+      setPasswordHashingOptions: 
+        iterations: 1
+        parallelism: 4
+        memory: 32 # This needs to be at least 8 * parallelism.
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
@@ -257,6 +263,13 @@ galley:
       # See helmfile for the real value
       federationDomain: integration.example.com
       disabledAPIVersions: []
+
+      # These values are insecure, against anyone getting hold of the hash, 
+      # but its not a concern for the integration tests.
+      passwordHashingOptions: 
+        iterations: 1
+        parallelism: 4
+        memory: 32 # This needs to be at least 8 * parallelism.
 
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.

@@ -156,6 +156,7 @@ import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.NotificationSubsystem
@@ -303,7 +304,8 @@ servantSitemap ::
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
     Member (ConnectionStore InternalPaging) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member HashPassword r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -743,6 +745,7 @@ createUser ::
     Member Events r,
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
+    Member HashPassword r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
@@ -967,7 +970,14 @@ removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
 
-changePassword :: (Member PasswordStore r, Member UserStore r) => UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
+changePassword ::
+  ( Member PasswordStore r,
+    Member UserStore r,
+    Member HashPassword r
+  ) =>
+  UserId ->
+  Public.PasswordChange ->
+  (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::

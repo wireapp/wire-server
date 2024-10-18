@@ -26,10 +26,10 @@ module Wire.API.Password
     verifyPassword,
     verifyPasswordWithStatus,
     PasswordReqBody (..),
+    argon2OptsFromHashingOpts,
 
     -- * Only for testing
     hashPasswordArgon2idWithSalt,
-    hashPasswordArgon2idWithOptions,
     mkSafePasswordScrypt,
     parsePassword,
   )
@@ -52,6 +52,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Imports
 import OpenSSL.Random (randBytes)
+import Util.Options
 
 -- | A derived, stretched password that can be safely stored.
 data Password
@@ -120,19 +121,6 @@ defaultScryptParams =
       outputLength = 64
     }
 
--- | Recommended in the RFC as the second choice: https://www.rfc-editor.org/rfc/rfc9106.html#name-parameter-choice
--- The first choice takes ~1s to hash passwords which seems like too much.
-defaultOptions :: Argon2.Options
-defaultOptions =
-  Argon2.Options
-    { iterations = 1,
-      -- TODO: fix this after meeting with Security
-      memory = 2 ^ (17 :: Int),
-      parallelism = 32,
-      variant = Argon2.Argon2id,
-      version = Argon2.Version13
-    }
-
 fromScrypt :: ScryptParameters -> Parameters
 fromScrypt scryptParams =
   Parameters
@@ -140,6 +128,16 @@ fromScrypt scryptParams =
       r = fromIntegral scryptParams.blockSize,
       p = fromIntegral scryptParams.parallelism,
       outputLength = 64
+    }
+
+argon2OptsFromHashingOpts :: PasswordHashingOptions -> Argon2.Options
+argon2OptsFromHashingOpts PasswordHashingOptions {..} =
+  Argon2.Options
+    { variant = Argon2.Argon2id,
+      version = Argon2.Version13,
+      iterations = iterations,
+      memory = memory,
+      parallelism = parallelism
     }
 
 -------------------------------------------------------------------------------
@@ -154,8 +152,8 @@ genPassword =
 mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordScrypt = fmap ScryptPassword . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
-mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePassword = fmap Argon2Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePassword :: (MonadIO m) => Argon2.Options -> PlainTextPassword' t -> m Password
+mkSafePassword opts = fmap Argon2Password . hashPasswordArgon2id opts . Text.encodeUtf8 . fromPlainTextPassword
 
 -- | Verify a plaintext password from user input against a stretched
 -- password from persistent storage.
@@ -190,16 +188,13 @@ encodeScryptPassword ScryptHashedPassword {..} =
       Text.decodeUtf8 . B64.encode $ hashedKey
     ]
 
-hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Argon2HashedPassword
-hashPasswordArgon2id pwd = do
+hashPasswordArgon2id :: (MonadIO m) => Argon2.Options -> ByteString -> m Argon2HashedPassword
+hashPasswordArgon2id opts pwd = do
   salt <- newSalt 16
-  pure $! hashPasswordArgon2idWithSalt salt pwd
+  pure $! hashPasswordArgon2idWithSalt opts salt pwd
 
-hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Argon2HashedPassword
-hashPasswordArgon2idWithSalt = hashPasswordArgon2idWithOptions defaultOptions
-
-hashPasswordArgon2idWithOptions :: Argon2.Options -> ByteString -> ByteString -> Argon2HashedPassword
-hashPasswordArgon2idWithOptions opts salt pwd = do
+hashPasswordArgon2idWithSalt :: Argon2.Options -> ByteString -> ByteString -> Argon2HashedPassword
+hashPasswordArgon2idWithSalt opts salt pwd = do
   let hashedKey = hashPasswordWithOptions opts pwd salt
    in Argon2HashedPassword {..}
 
