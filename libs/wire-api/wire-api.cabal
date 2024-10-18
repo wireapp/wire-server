@@ -300,6 +300,7 @@ library
     , iso3166-country-codes      >=0.2
     , iso639                     >=0.1
     , jose
+    , kan-extensions
     , lens                       >=4.12
     , memory
     , metrics-wai
@@ -713,6 +714,7 @@ test-suite wire-api-tests
     , tasty-hunit
     , tasty-quickcheck
     , text
+    , time
     , types-common           >=0.16
     , unliftio
     , uuid

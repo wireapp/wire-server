@@ -54,7 +54,6 @@ import Data.HavePendingInvitations
 import Data.Id
 import Data.Proxy
 import Data.Range
-import qualified Data.Set as Set
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
@@ -791,8 +790,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
     *> DefaultSsoCode.store code
       $> NoContent
 
-internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserSet -> Sem r ScimUserInfos
-internalGetScimUserInfo (UserSet uids) = do
-  results <- ScimUserTimesStore.readMulti (Set.toList uids)
-  let scimUserInfos = results <&> (\(uid, t, _) -> ScimUserInfo uid (Just t))
-  pure $ ScimUserInfos scimUserInfos
+internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserId -> Sem r ScimUserInfo
+internalGetScimUserInfo uid = do
+  t <- fmap fst <$> ScimUserTimesStore.read uid
+  pure $ ScimUserInfo uid t

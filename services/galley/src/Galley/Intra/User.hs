@@ -30,6 +30,7 @@ module Galley.Intra.User
     getContactList,
     chunkify,
     getRichInfoMultiUser,
+    getUserExportData,
     getAccountConferenceCallingConfigClient,
     updateSearchVisibilityInbound,
   )
@@ -66,6 +67,7 @@ import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.Named
+import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
@@ -236,6 +238,16 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . queryItem "ids" (toByteString' (List uids))
         . expect2xx
   parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/rich-info`") resp
+
+-- | Calls 'Brig.API.Internal.getUserExportDataH'
+getUserExportData :: UserId -> App (Maybe TeamExportUser)
+getUserExportData uid = do
+  resp <-
+    call Brig $
+      method GET
+        . paths ["i/users", toByteString' uid, "export-data"]
+        . expect2xx
+  parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/:uid/export-data`") resp
 
 getAccountConferenceCallingConfigClient :: (HasCallStack) => UserId -> App (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =

@@ -22,6 +22,7 @@
 module Wire.API.Team.Member
   ( -- * TeamMember
     TeamMember,
+    newTeamMember,
     mkTeamMember,
     userId,
     permissions,

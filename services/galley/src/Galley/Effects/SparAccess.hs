@@ -25,6 +25,6 @@ import Wire.API.User (ScimUserInfo)
 
 data SparAccess m a where
   DeleteTeam :: TeamId -> SparAccess m ()
-  LookupScimUserInfos :: [UserId] -> SparAccess m [ScimUserInfo]
+  LookupScimUserInfo :: UserId -> SparAccess m ScimUserInfo
 
 makeSem ''SparAccess
