@@ -37,7 +37,7 @@ waiPrometheusMiddleware :: (Monad m) => Routes a m b -> Wai.Middleware
 waiPrometheusMiddleware routes = waiPrometheusMiddlewarePaths $ treeToPaths $ prepare routes
 
 -- | Helper function that should only be needed as long as we have wai-routing code left in
--- proxy: run `treeToPaths` on old routing tables and `routeToPaths` on the servant ones, and
+-- proxy: run 'treeToPaths' on old routing tables and 'routeToPaths' on the servant ones, and
 -- feed both to this function.
 waiPrometheusMiddlewarePaths :: Paths -> Wai.Middleware
 waiPrometheusMiddlewarePaths paths =
