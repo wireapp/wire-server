@@ -55,7 +55,7 @@ run o = do
 
   let metricsMW :: Middleware
       metricsMW =
-        -- once wai-routing has been removed from proxy: use `servantPrometheusMiddleware
+        -- FUTUREWORK: once wai-routing has been removed from proxy: use `servantPrometheusMiddleware
         -- (Servant.Proxy @CombinedAPI)` here (and probably inline the whole thing).
         waiPrometheusMiddlewarePaths (pub <> int)
         where
