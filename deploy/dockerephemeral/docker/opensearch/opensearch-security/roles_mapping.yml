@@ -1,0 +1,9 @@
+_meta:
+  type: "rolesmapping"
+  config_version: 2
+
+all_access:
+  reserved: false
+  backend_roles:
+    - index_manager
+  description: "Map index_manager to full_access"

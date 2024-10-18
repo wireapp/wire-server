@@ -1,0 +1,45 @@
+cluster.name: opensearch-cluster
+
+# Bind to all interfaces because we don't know what IP address Docker will assign to us.
+network.host: 0.0.0.0
+
+# Setting network.host to a non-loopback address enables the annoying bootstrap checks. "Single-node" mode disables them again.
+discovery.type: single-node
+
+path.data: /usr/share/opensearch/data
+
+# WARNING: This is not a production-ready config! (Good enough for testing,
+# though.)
+plugins:
+  security:
+    ssl:
+      transport:
+          pemcert_filepath: certs/tls.crt
+          pemkey_filepath: certs/tls.key
+          pemtrustedcas_filepath: certs/ca.crt
+          enforce_hostname_verification: false
+      http:
+        enabled: true
+        pemcert_filepath: certs/tls.crt
+        pemkey_filepath: certs/tls.key
+        pemtrustedcas_filepath: certs/ca.crt
+    allow_unsafe_democertificates: true
+    allow_default_init_securityindex: true
+    audit.type: internal_opensearch
+    restapi:
+      roles_enabled: ["all_access", "security_rest_api_access"]
+    system_indices:
+      enabled: true
+      indices:
+        [
+          ".opendistro-alerting-config",
+          ".opendistro-alerting-alert*",
+          ".opendistro-anomaly-results*",
+          ".opendistro-anomaly-detector*",
+          ".opendistro-anomaly-checkpoints",
+          ".opendistro-anomaly-detection-state",
+          ".opendistro-reports-*",
+          ".opendistro-notifications-*",
+          ".opendistro-notebooks",
+          ".opendistro-asynchronous-search-response*",
+        ]
