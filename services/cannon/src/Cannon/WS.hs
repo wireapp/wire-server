@@ -62,7 +62,7 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
 import Data.Hashable
-import Data.Id (ClientId, ConnId (..), UserId)
+import Data.Id (ClientId, ConnId (..), UserId, defRequestId)
 import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
@@ -192,7 +192,7 @@ env ::
   Clock ->
   DrainOpts ->
   Env
-env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId "N/A")
+env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId defRequestId)
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e

@@ -97,7 +97,7 @@ withMockFederatorClient mock action = withTempMockFederator mock $ \port -> do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
             ceHttp2Manager = mgr,
-            ceOriginRequestId = RequestId "N/A"
+            ceOriginRequestId = RequestId defRequestId
           }
   a <- runFederatorClient env action
   case a of
@@ -137,7 +137,7 @@ testClientStreaming = withInfiniteMockServer $ \port -> do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
             ceHttp2Manager = mgr,
-            ceOriginRequestId = RequestId "N/A"
+            ceOriginRequestId = RequestId defRequestId
           }
       venv = FederatorClientVersionedEnv env Nothing
   let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig))
@@ -202,7 +202,7 @@ testClientConnectionError = do
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" 1,
             ceHttp2Manager = mgr,
-            ceOriginRequestId = RequestId "N/A"
+            ceOriginRequestId = RequestId defRequestId
           }
   result <- runFederatorClient env (fedClient @'Brig @"get-user-by-handle" handle)
   case result of

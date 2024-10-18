@@ -92,7 +92,7 @@ run opts = do
 
 newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IO Env
 newEnv o _dnsResolver _applog = do
-  let _requestId = RequestId "N/A"
+  let _requestId = RequestId defRequestId
       _runSettings = o.optSettings
       _service Brig = o.brig
       _service Galley = o.galley
