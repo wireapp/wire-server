@@ -85,4 +85,4 @@ mkApp env req = Servant.serve (Servant.Proxy @CombinedAPI) toServantSitemap req
     injectReqId :: Request -> Env -> Env
     injectReqId r = reqId .~ lookupReqId r
       where
-        lookupReqId = maybe defRequestId RequestId . lookup requestIdName . requestHeaders
+        lookupReqId = RequestId . fromMaybe defRequestId . lookup requestIdName . requestHeaders

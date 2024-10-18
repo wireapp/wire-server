@@ -60,6 +60,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain (domainText)
+import Data.Id
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.Text.Encoding qualified as Text
@@ -168,7 +169,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
           r = reasonStr <$> reason e
           t = message e
        in case catMaybes [l, s, r] of
-            [] -> maybe "N/A" (LT.decodeUtf8With lenientDecode . LBS.fromStrict) t
+            [] -> maybe defRequestId (LT.decodeUtf8With lenientDecode . LBS.fromStrict) t
             bs -> LT.decodeUtf8With lenientDecode . toLazyByteString $ mconcat bs <> messageStr t
     labelStr [] = Nothing
     labelStr ls =
@@ -311,7 +312,7 @@ heavyDebugLogging sanitizeReq lvl lgr reqIdHeaderName app = \req cont -> do
     logMostlyEverything req bdy resp = Log.debug lgr logMsg
       where
         logMsg =
-          field "request" (fromMaybe "N/A" $ lookupRequestId reqIdHeaderName req)
+          field "request" (fromMaybe defRequestId $ lookupRequestId reqIdHeaderName req)
             . field "request_details" (show req)
             . field "request_body" bdy
             . field "response_status" (show $ responseStatus resp)
@@ -350,7 +351,7 @@ rethrow5xx getRequestId logger app req k = app req k'
       let logMsg =
             field "canoncalpath" (show $ pathInfo req)
               . field "rawpath" (rawPathInfo req)
-              . field "request" (fromMaybe "N/A" $ getRequestId req)
+              . field "request" (fromMaybe defRequestId $ getRequestId req)
               . msg (val "ResponseRaw - cannot collect metrics or log info on errors")
       Log.log logger Log.Debug logMsg
       k resp
@@ -436,7 +437,7 @@ logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
 
 logJSONResponse :: (MonadIO m) => Logger -> Maybe ByteString -> JSONResponse -> m ()
 logJSONResponse g mReqId e = do
-  let r = fromMaybe "N/A" mReqId
+  let r = fromMaybe defRequestId mReqId
   liftIO $
     doLog g $
       field "request" r
@@ -462,7 +463,7 @@ logErrorMsg (Wai.Error c l m md inner) =
 
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =
-  field "request" (fromMaybe "N/A" mr) . logErrorMsg e
+  field "request" (fromMaybe defRequestId mr) . logErrorMsg e
 
 runHandlers :: SomeException -> [Handler IO a] -> IO a
 runHandlers e [] = throwIO e

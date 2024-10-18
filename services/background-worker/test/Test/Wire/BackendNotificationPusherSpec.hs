@@ -67,7 +67,7 @@ spec = do
                 path = "/on-user-deleted-connections",
                 body = RawJson $ Aeson.encode notifContent,
                 bodyVersions = Nothing,
-                requestId = Just $ RequestId "N/A"
+                requestId = Just $ RequestId defRequestId
               }
       envelope <- newMockEnvelope
       let msg =
@@ -104,7 +104,7 @@ spec = do
       notifContent <-
         generate $
           ClientRemovedRequest <$> arbitrary <*> arbitrary <*> arbitrary
-      let bundle = toBundle @'OnClientRemovedTag (RequestId "N/A") origDomain notifContent
+      let bundle = toBundle @'OnClientRemovedTag (RequestId defRequestId) origDomain notifContent
       envelope <- newMockEnvelope
       let msg =
             Q.newMsg
@@ -148,8 +148,8 @@ spec = do
             }
       let update0 = conversationUpdateToV0 update
       let bundle =
-            toBundle (RequestId "N/A") origDomain update
-              <> toBundle (RequestId "N/A") origDomain update0
+            toBundle (RequestId defRequestId) origDomain update
+              <> toBundle (RequestId defRequestId) origDomain update0
       envelope <- newMockEnvelope
       let msg =
             Q.newMsg
@@ -215,7 +215,7 @@ spec = do
                 path = "/on-user-deleted-connections",
                 body = RawJson $ Aeson.encode notifContent,
                 bodyVersions = Nothing,
-                requestId = Just $ RequestId "N/A"
+                requestId = Just $ RequestId defRequestId
               }
       envelope <- newMockEnvelope
       let msg =

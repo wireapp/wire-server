@@ -56,7 +56,7 @@ lookupRequestId reqIdHeaderName =
 
 getRequestId :: HeaderName -> Request -> RequestId
 getRequestId reqIdHeaderName req =
-  RequestId $ fromMaybe "N/A" $ lookupRequestId reqIdHeaderName req
+  RequestId $ fromMaybe defRequestId $ lookupRequestId reqIdHeaderName req
 
 ----------------------------------------------------------------------------
 -- Typed JSON 'Request'

@@ -116,7 +116,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             ceHttp2Manager <- asks http2Manager
             let ceOriginDomain = notif.ownDomain
                 ceTargetDomain = targetDomain
-                ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
+                ceOriginRequestId = fromMaybe (RequestId defRequestId) notif.requestId
                 cveEnv = FederatorClientEnv {..}
                 cveVersion = Just V0 -- V0 is assumed for non-versioned queue messages
                 fcEnv = FederatorClientVersionedEnv {..}
@@ -135,7 +135,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                   ceFederator = federator,
                   ceHttp2Manager = manager,
                   ceOriginRequestId =
-                    fromMaybe (RequestId "N/A") . (.requestId) . NE.head $ bundle.notifications
+                    fromMaybe (RequestId defRequestId) . (.requestId) . NE.head $ bundle.notifications
                 }
         remoteVersions :: Set Int <-
           liftIO
@@ -166,7 +166,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             ceHttp2Manager <- asks http2Manager
             let ceOriginDomain = notif.ownDomain
                 ceTargetDomain = targetDomain
-                ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
+                ceOriginRequestId = fromMaybe (RequestId defRequestId) notif.requestId
                 cveEnv = FederatorClientEnv {..}
                 fcEnv = FederatorClientVersionedEnv {..}
             sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body

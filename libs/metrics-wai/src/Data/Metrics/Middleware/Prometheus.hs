@@ -22,6 +22,7 @@ module Data.Metrics.Middleware.Prometheus
   )
 where
 
+import Data.Id
 import Data.Metrics.Types (Paths, treeLookup)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding qualified as T
@@ -63,4 +64,4 @@ normalizeWaiRequestRoute paths req = pathInfo
     -- Use the normalized path info if available; otherwise dump the raw path info for
     -- debugging purposes
     pathInfo :: Text
-    pathInfo = T.decodeUtf8 $ fromMaybe "N/A" mPathInfo
+    pathInfo = T.decodeUtf8 $ fromMaybe defRequestId mPathInfo

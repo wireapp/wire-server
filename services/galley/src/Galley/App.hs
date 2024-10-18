@@ -167,7 +167,7 @@ createEnv o l = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  Env (RequestId "N/A") o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
+  Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)

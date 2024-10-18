@@ -27,6 +27,7 @@
 module Data.Metrics.Servant where
 
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Id
 import Data.Metrics.Types
 import Data.Metrics.Types qualified as Metrics
 import Data.Proxy
@@ -49,7 +50,7 @@ servantPrometheusMiddleware _ = Promth.prometheus conf . instrument promthNormal
     promthNormalize req = pathInfo
       where
         mPathInfo = Metrics.treeLookup (routesToPaths @api) $ encodeUtf8 <$> Wai.pathInfo req
-        pathInfo = decodeUtf8With lenientDecode $ fromMaybe "N/A" mPathInfo
+        pathInfo = decodeUtf8With lenientDecode $ fromMaybe defRequestId mPathInfo
 
     -- See Note [Raw Response]
     instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses

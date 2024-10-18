@@ -4,6 +4,7 @@ import Bilge (RequestId (..))
 import Control.Concurrent.Async (async, wait)
 import Control.Exception (throwIO)
 import Data.Data (Proxy (Proxy))
+import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
 import Data.List1 qualified as List1
 import Data.Range (fromRange, toRange)
@@ -37,7 +38,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               { fanoutLimit = toRange $ Proxy @30,
                 chunkSize = 12,
                 slowPushDelay = 0,
-                requestId = RequestId "N/A"
+                requestId = RequestId defRequestId
               }
 
       connId2 <- generate arbitrary
@@ -98,7 +99,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               { fanoutLimit = toRange $ Proxy @30,
                 chunkSize = 12,
                 slowPushDelay = 0,
-                requestId = RequestId "N/A"
+                requestId = RequestId defRequestId
               }
 
       connId2 <- generate arbitrary
@@ -153,7 +154,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               { fanoutLimit = toRange $ Proxy @30,
                 chunkSize = 12,
                 slowPushDelay = 1,
-                requestId = RequestId "N/A"
+                requestId = RequestId defRequestId
               }
 
       connId2 <- generate arbitrary
@@ -211,7 +212,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               { fanoutLimit = toRange $ Proxy @30,
                 chunkSize = 12,
                 slowPushDelay = 1,
-                requestId = RequestId "N/A"
+                requestId = RequestId defRequestId
               }
 
       user1 <- generate arbitrary

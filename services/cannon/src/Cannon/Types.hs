@@ -33,7 +33,7 @@ module Cannon.Types
   )
 where
 
-import Bilge (Manager, RequestId (..))
+import Bilge (Manager)
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
 import Cannon.Options
@@ -42,6 +42,7 @@ import Cannon.WS qualified as WS
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens ((^.))
 import Control.Monad.Catch
+import Data.Id
 import Data.Text.Encoding
 import Imports
 import Prometheus
@@ -100,7 +101,7 @@ mkEnv ::
   Clock ->
   Env
 mkEnv external o l d p g t =
-  Env o l d (RequestId "N/A") $
+  Env o l d (RequestId defRequestId) $
     WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
 
 runCannon :: Env -> Cannon a -> IO a

@@ -419,8 +419,8 @@ newtype RequestId = RequestId
       ToBytes
     )
 
-defRequestId :: RequestId
-defRequestId = RequestId "N/A"
+defRequestId :: (IsString s) => s
+defRequestId = "N/A"
 
 instance ToSchema RequestId where
   schema =
