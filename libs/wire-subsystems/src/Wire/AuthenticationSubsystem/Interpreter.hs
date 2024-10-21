@@ -134,8 +134,9 @@ authenticateEitherImpl uid plaintext = do
       upsertHashedPassword u hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication
--- is mandatory. If the account has no password, or is an SSO user, and no password is given,
--- reauthentication is a no-op.
+-- is mandatory. If
+-- * User has no password, re-auth is a no-op
+-- * User is an SSO user and no password is given, re-auth is a no-op.
 reauthenticateEitherImpl ::
   ( Member UserStore r,
     Member UserSubsystem r,
@@ -153,8 +154,7 @@ reauthenticateEitherImpl user plaintextMaybe =
         Just (_, Suspended) -> throw (ReAuthError AuthSuspended)
         Just (_, PendingInvitation) -> throw (ReAuthError AuthPendingInvitation)
         Just (Nothing, _) -> for_ plaintextMaybe $ const (throw $ ReAuthError AuthInvalidCredentials)
-        Just (Just pw', Active) -> maybeReAuth pw'
-        Just (Just pw', Ephemeral) -> maybeReAuth pw'
+        Just (Just pw', _) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case plaintextMaybe of
       Nothing -> do

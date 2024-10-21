@@ -162,9 +162,6 @@ getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe 
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
-getLocalUser :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe User)
-getLocalUser = (selfUser <$$>) . getSelfProfile
-
 getLocalAccountBy ::
   (Member UserSubsystem r) =>
   HavePendingInvitations ->

@@ -396,6 +396,10 @@ ssoLogin (SsoLogin uid label) typ = do
     >>= \case
       Right a -> pure a
       Left loginErr -> case loginErr of
+        -- Important: We throw on Missing Password here because this can only be thrown
+        -- for non-SSO users, so if we got this error, someone tried to authenticate
+        -- a regular user as if they were an SSO user, bypassing pwd requirements.
+        -- This would be a serious security issue if this weren't an internal endpoint.
         ReAuthMissingPassword -> throwE LoginFailed
         ReAuthCodeVerificationRequired -> pure ()
         ReAuthCodeVerificationNoPendingCode -> pure ()
