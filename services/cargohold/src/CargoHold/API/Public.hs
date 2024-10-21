@@ -61,11 +61,20 @@ servantSitemap =
     :<|> mainAPI
   where
     userAPI :: forall tag. (tag ~ 'UserPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
-    userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    userAPI =
+      Named @'("upload-asset", tag) uploadAssetV3
+        :<|> Named @'("download-asset", tag) downloadAssetV3
+        :<|> Named @'("delete-asset", tag) deleteAssetV3
     botAPI :: forall tag. (tag ~ 'BotPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
-    botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    botAPI =
+      Named @'("upload-asset", tag) uploadAssetV3
+        :<|> Named @'("download-asset", tag) downloadAssetV3
+        :<|> Named @'("delete-asset", tag) deleteAssetV3
     providerAPI :: forall tag. (tag ~ 'ProviderPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
-    providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    providerAPI =
+      Named @'("upload-asset", tag) uploadAssetV3
+        :<|> Named @'("download-asset", tag) downloadAssetV3
+        :<|> Named @'("delete-asset", tag) deleteAssetV3
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
     qualifiedAPI = callsFed (exposeAnnotations downloadAssetV4) :<|> deleteAssetV4

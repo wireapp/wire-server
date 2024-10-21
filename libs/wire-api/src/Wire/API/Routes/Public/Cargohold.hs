@@ -33,12 +33,22 @@ import Wire.API.MakesFederatedCall
 import Wire.API.Routes.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 
 data PrincipalTag = UserPrincipalTag | BotPrincipalTag | ProviderPrincipalTag
   deriving (Eq, Show)
+
+instance RenderableSymbol UserPrincipalTag where
+  renderSymbol = "user"
+
+instance RenderableSymbol BotPrincipalTag where
+  renderSymbol = "bot"
+
+instance RenderableSymbol ProviderPrincipalTag where
+  renderSymbol = "provider"
 
 type family PrincipalId (tag :: PrincipalTag) = (id :: Type) | id -> tag where
   PrincipalId 'UserPrincipalTag = Local UserId
@@ -128,40 +138,46 @@ type CargoholdAPI =
 -- This was introduced before API versioning, and the user endpoints contain a
 -- v3 suffix, which is removed starting from API V2.
 type BaseAPIv3 (tag :: PrincipalTag) =
-  ( Summary "Upload an asset"
-      :> CanThrow 'AssetTooLarge
-      :> CanThrow 'InvalidLength
-      :> tag
-      :> AssetBody
-      :> MultiVerb
-           'POST
-           '[JSON]
-           '[ WithHeaders
-                (AssetLocationHeader Relative)
-                (Asset, AssetLocation Relative)
-                (Respond 201 "Asset posted" Asset)
-            ]
-           (Asset, AssetLocation Relative)
-  )
-    :<|> ( Summary "Download an asset"
-             :> tag
-             :> Capture "key" AssetKey
-             :> Header "Asset-Token" AssetToken
-             :> QueryParam "asset_token" AssetToken
-             :> ZHostOpt
-             :> GetAsset
-         )
-    :<|> ( Summary "Delete an asset"
-             :> CanThrow 'AssetNotFound
-             :> CanThrow 'Unauthorised
-             :> tag
-             :> Capture "key" AssetKey
-             :> MultiVerb
-                  'DELETE
-                  '[JSON]
-                  '[RespondEmpty 200 "Asset deleted"]
-                  ()
-         )
+  Named
+    '("upload-asset", tag)
+    ( Summary "Upload an asset"
+        :> CanThrow 'AssetTooLarge
+        :> CanThrow 'InvalidLength
+        :> tag
+        :> AssetBody
+        :> MultiVerb
+             'POST
+             '[JSON]
+             '[ WithHeaders
+                  (AssetLocationHeader Relative)
+                  (Asset, AssetLocation Relative)
+                  (Respond 201 "Asset posted" Asset)
+              ]
+             (Asset, AssetLocation Relative)
+    )
+    :<|> Named
+           '("download-asset", tag)
+           ( Summary "Download an asset"
+               :> tag
+               :> Capture "key" AssetKey
+               :> Header "Asset-Token" AssetToken
+               :> QueryParam "asset_token" AssetToken
+               :> ZHostOpt
+               :> GetAsset
+           )
+    :<|> Named
+           '("delete-asset", tag)
+           ( Summary "Delete an asset"
+               :> CanThrow 'AssetNotFound
+               :> CanThrow 'Unauthorised
+               :> tag
+               :> Capture "key" AssetKey
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[RespondEmpty 200 "Asset deleted"]
+                    ()
+           )
 
 -- | Qualified asset API. Only download and delete endpoints are supported, as
 -- upload has stayed unqualified. These endpoints also predate API versioning,
