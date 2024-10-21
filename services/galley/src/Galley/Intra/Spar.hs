@@ -39,10 +39,10 @@ deleteTeam tid = do
       . expect2xx
 
 -- | Get the SCIM user info for a user.
-lookupScimUserInfo :: UserId -> App (ScimUserInfo)
+lookupScimUserInfo :: UserId -> App ScimUserInfo
 lookupScimUserInfo uid = do
   response <-
     call Spar $
       method POST
-        . paths ["i", "scim", "userinfos", toByteString' uid]
+        . paths ["i", "scim", "userinfo", toByteString' uid]
   responseJsonError response
