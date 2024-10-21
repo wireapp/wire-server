@@ -63,14 +63,6 @@ let
     # maintained by us
     # ----------------
 
-    transitive-anns = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/transitive-anns";
-        rev = "5e0cad1f411a0c92e6445404c205ddd4a0229c4d";
-        hash = "sha256-/P4KJ4yZgqhZhzmg1GcE+Ti4kdsWUQX8q++RhgCUDKI=";
-      };
-    };
-
     cryptobox-haskell = {
       src = fetchgit {
         url = "https://github.com/wireapp/cryptobox-haskell";
