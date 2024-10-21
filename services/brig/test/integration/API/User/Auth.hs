@@ -554,7 +554,7 @@ testWrongPasswordLegalHoldLogin brig galley = do
   legalHoldLogin brig (LegalHoldLogin alice (plainTextPassword6 "wrong-password") Nothing) PersistentCookie !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") === errorLabel
-  -- attempt a legalhold login with a no password
+  -- attempt a legalhold login without a password
   legalHoldLogin brig (LegalHoldLogin alice Nothing Nothing) PersistentCookie !!! do
     const 403 === statusCode
     const (Just "missing-auth") === errorLabel
@@ -606,7 +606,7 @@ testEmailSsoLoginNonSsoUser brig = do
     ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
       <!! do
         const 403 === statusCode
-        const (Just "missing-auth") === errorLabel
+        const (Just "invalid-credentials") === errorLabel
 
 -- | Check that @/sso-login@ can not be used to login as a suspended
 -- user.

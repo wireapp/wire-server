@@ -396,7 +396,7 @@ ssoLogin (SsoLogin uid label) typ = do
     >>= \case
       Right a -> pure a
       Left loginErr -> case loginErr of
-        ReAuthMissingPassword -> pure ()
+        ReAuthMissingPassword -> throwE LoginFailed
         ReAuthCodeVerificationRequired -> pure ()
         ReAuthCodeVerificationNoPendingCode -> pure ()
         ReAuthCodeVerificationNoEmail -> pure ()

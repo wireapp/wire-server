@@ -160,7 +160,10 @@ reauthenticateEitherImpl user plaintextMaybe =
       Nothing -> do
         local <- input
         musr <- getLocalAccountBy NoPendingInvitations (qualifyAs local user)
-        unless (maybe False isSamlUser musr) $ throw ReAuthMissingPassword
+        let isSaml = maybe False isSamlUser musr
+        -- If this is a SAML user, re-auth should be no-op so no error is thrown.
+        unless isSaml $
+          throw ReAuthMissingPassword
       Just p ->
         unless (Password.verifyPassword p pw') do
           throw (ReAuthError AuthInvalidCredentials)
