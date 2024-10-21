@@ -22,9 +22,7 @@
 
 -- TODO: Move to Brig.User.Account.DB
 module Brig.Data.User
-  ( AuthError (..),
-    ReAuthError (..),
-    newAccount,
+  ( newAccount,
     newAccountInviteViaScim,
     insertAccount,
 
@@ -83,23 +81,6 @@ import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.HashPassword
-
--- | Authentication errors.
--- TODO: Rethink these two error types in terms of subsystem
-data AuthError
-  = AuthInvalidUser
-  | AuthInvalidCredentials
-  | AuthSuspended
-  | AuthEphemeral
-  | AuthPendingInvitation
-
--- | Re-authentication errors.
-data ReAuthError
-  = ReAuthError !AuthError
-  | ReAuthMissingPassword
-  | ReAuthCodeVerificationRequired
-  | ReAuthCodeVerificationNoPendingCode
-  | ReAuthCodeVerificationNoEmail
 
 -- | Preconditions:
 --

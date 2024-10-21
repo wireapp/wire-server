@@ -272,7 +272,9 @@ rmClient u con clt pw =
         -- Temporary clients don't need to re-auth
         TemporaryClientType -> pure ()
         -- All other clients must authenticate
-        _ -> (lift . liftSem $ Authentication.reauthenticate u pw) !>> ClientDataError . ClientReAuthError
+        _ ->
+          (lift . liftSem $ Authentication.reauthenticateEither u pw)
+            >>= either (throwE . ClientDataError . ClientReAuthError) (const $ pure ())
       lift $ execDelete u (Just con) client
 
 claimPrekey ::

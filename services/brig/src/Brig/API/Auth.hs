@@ -210,7 +210,8 @@ reauthenticate ::
   ReAuthUser ->
   Handler r ()
 reauthenticate luid@(tUnqualified -> uid) body = do
-  (lift . liftSem $ Authentication.reauthenticate uid body.reAuthPassword) !>> reauthError
+  (lift . liftSem $ Authentication.reauthenticateEither uid body.reAuthPassword)
+    >>= either (throwE . reauthError) (const $ pure ())
   case reAuthCodeAction body of
     Just action ->
       Auth.verifyCode (reAuthCode body) action luid

@@ -31,8 +31,8 @@ import Wire.AuthenticationSubsystem.Error
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
-  AuthenticateEither :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem m (Either AuthenticationSubsystemError ())
-  Reauthenticate :: UserId -> Maybe PlainTextPassword6 -> AuthenticationSubsystem m ()
+  AuthenticateEither :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem m (Either AuthError ())
+  ReauthenticateEither :: UserId -> Maybe PlainTextPassword6 -> AuthenticationSubsystem m (Either ReAuthError ())
   CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
   VerifyPassword :: PlainTextPassword6 -> Password -> AuthenticationSubsystem m (Bool, PasswordStatus)
@@ -45,10 +45,19 @@ data AuthenticationSubsystem m a where
 makeSem ''AuthenticationSubsystem
 
 authenticate ::
-  ( Member (Error AuthenticationSubsystemError) r,
+  ( Member (Error AuthError) r,
     Member AuthenticationSubsystem r
   ) =>
   UserId ->
   PlainTextPassword6 ->
   Sem r ()
 authenticate uid pwd = authenticateEither uid pwd >>= either throw pure
+
+reauthenticate ::
+  ( Member (Error ReAuthError) r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  Maybe PlainTextPassword6 ->
+  Sem r ()
+reauthenticate uid pwd = reauthenticateEither uid pwd >>= either throw pure

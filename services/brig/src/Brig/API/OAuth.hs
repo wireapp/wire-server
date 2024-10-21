@@ -26,7 +26,6 @@ where
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
-import Brig.Data.User
 import Brig.Options qualified as Opt
 import Cassandra hiding (Set)
 import Cassandra qualified as C
@@ -45,7 +44,6 @@ import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
 import Data.Time
 import Imports hiding (exp)
-import Network.Wai.Utilities.Error
 import OpenSSL.Random (randBytes)
 import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
@@ -58,6 +56,7 @@ import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error
 import Wire.Error
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
@@ -367,7 +366,8 @@ revokeOAuthAccountAccess ::
   PasswordReqBody ->
   (Handler r) ()
 revokeOAuthAccountAccess luid@(tUnqualified -> uid) cid req = do
-  (lift . liftSem $ Authentication.reauthenticate uid req.fromPasswordReqBody) !>> toAccessDenied
+  (lift . liftSem $ Authentication.reauthenticateEither uid req.fromPasswordReqBody)
+    >>= either (throwE . toAccessDenied) (const $ pure ())
   revokeOAuthAccountAccessV6 luid cid
   where
     toAccessDenied :: ReAuthError -> HttpError
@@ -381,7 +381,8 @@ deleteOAuthRefreshTokenById ::
   PasswordReqBody ->
   (Handler r) ()
 deleteOAuthRefreshTokenById (tUnqualified -> uid) cid tokenId req = do
-  (lift . liftSem $ Authentication.reauthenticate uid req.fromPasswordReqBody) !>> toAccessDenied
+  (lift . liftSem $ Authentication.reauthenticateEither uid req.fromPasswordReqBody)
+    >>= either (throwE . toAccessDenied) (const $ pure ())
   mInfo <- lift $ wrapClient $ lookupOAuthRefreshTokenInfo tokenId
   case mInfo of
     Nothing -> pure ()

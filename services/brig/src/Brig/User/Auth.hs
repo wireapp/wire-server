@@ -73,7 +73,6 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
-import Wire.AuthenticationSubsystem.Error
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -109,12 +108,11 @@ login (MkLogin li pw label code) typ = do
   (lift . liftSem $ Authentication.authenticateEither uid pw) >>= \case
     Right a -> pure a
     Left e -> case e of
-      AuthenticationSubsystemInvalidUser -> lift (decrRetryLimit uid) >> throwE LoginFailed
-      AuthenticationSubsystemBadCredentials -> lift (decrRetryLimit uid) >> throwE LoginFailed
-      AuthenticationSubsystemSuspended -> throwE LoginSuspended
-      AuthenticationSubsystemEphemeral -> throwE LoginEphemeral
-      AuthenticationSubsystemPendingInvitation -> throwE LoginPendingActivation
-      _ -> pure () -- TODO: constraint this error with a wrapper? Same for reauth. Check previous implementation for how it was done / what is meant.
+      AuthInvalidUser -> lift (decrRetryLimit uid) >> throwE LoginFailed
+      AuthInvalidCredentials -> lift (decrRetryLimit uid) >> throwE LoginFailed
+      AuthSuspended -> throwE LoginSuspended
+      AuthEphemeral -> throwE LoginEphemeral
+      AuthPendingInvitation -> throwE LoginPendingActivation
   verifyLoginCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
   where
@@ -236,7 +234,8 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
     account <- User.getAccountNoFilter luid
     pure $ maybe False isSamlUser account
   unless isSaml do
-    lift . liftSem $ Authentication.authenticateEither u pw >>= undefined -- TODO: ! Map to the right error?
+    (lift . liftSem $ Authentication.authenticateEither u pw)
+      >>= either throwE pure
   lift $ wrapHttpClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
@@ -393,15 +392,20 @@ ssoLogin ::
   ExceptT LoginError (AppT r) (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
   lift
-    -- TODO: fix it!
-    (liftSem $ Authentication.reauthenticate uid Nothing)
-    `catchE` \case
-      AuthenticationSubsystemBadCredentials -> throwE LoginFailed
-      AuthenticationSubsystemInvalidUser -> pure ()
-      AuthenticationSubsystemSuspended -> throwE LoginSuspended
-      AuthenticationSubsystemEphemeral -> throwE LoginEphemeral
-      AuthenticationSubsystemPendingInvitation -> throwE LoginPendingActivation
-      _ -> pure () -- TODO:
+    (liftSem $ Authentication.reauthenticateEither uid Nothing)
+    >>= \case
+      Right a -> pure a
+      Left loginErr -> case loginErr of
+        ReAuthMissingPassword -> pure ()
+        ReAuthCodeVerificationRequired -> pure ()
+        ReAuthCodeVerificationNoPendingCode -> pure ()
+        ReAuthCodeVerificationNoEmail -> pure ()
+        ReAuthError e -> case e of
+          AuthInvalidUser -> throwE LoginFailed
+          AuthInvalidCredentials -> pure ()
+          AuthSuspended -> throwE LoginSuspended
+          AuthEphemeral -> throwE LoginEphemeral
+          AuthPendingInvitation -> throwE LoginPendingActivation
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
@@ -416,7 +420,8 @@ legalHoldLogin ::
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid pw label) typ = do
-  (lift . liftSem $ Authentication.reauthenticate uid pw) !>> LegalHoldReAuthError
+  (lift . liftSem $ Authentication.reauthenticateEither uid pw)
+    >>= either (throwE . LegalHoldReAuthError) (const $ pure ())
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled

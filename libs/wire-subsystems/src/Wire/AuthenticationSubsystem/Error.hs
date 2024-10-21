@@ -21,6 +21,28 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.Error
 
+-- | Authentication errors.
+data AuthError
+  = AuthInvalidUser
+  | AuthInvalidCredentials
+  | AuthSuspended
+  | AuthEphemeral
+  | AuthPendingInvitation
+  deriving (Show, Eq)
+
+instance Exception AuthError
+
+-- | Re-authentication errors.
+data ReAuthError
+  = ReAuthError !AuthError
+  | ReAuthMissingPassword
+  | ReAuthCodeVerificationRequired
+  | ReAuthCodeVerificationNoPendingCode
+  | ReAuthCodeVerificationNoEmail
+  deriving (Show, Eq)
+
+instance Exception ReAuthError
+
 data AuthenticationSubsystemError
   = AuthenticationSubsystemInvalidPasswordResetKey
   | AuthenticationSubsystemResetPasswordMustDiffer
@@ -28,11 +50,6 @@ data AuthenticationSubsystemError
   | AuthenticationSubsystemInvalidPhone
   | AuthenticationSubsystemAllowListError
   | AuthenticationSubsystemBadCredentials
-  | AuthenticationSubsystemInvalidUser
-  | AuthenticationSubsystemSuspended
-  | AuthenticationSubsystemEphemeral
-  | AuthenticationSubsystemPendingInvitation
-  | AuthenticationSubsystemMissingAuth
   deriving (Eq, Show)
 
 instance Exception AuthenticationSubsystemError
@@ -46,8 +63,3 @@ authenticationSubsystemErrorToHttpError =
     AuthenticationSubsystemInvalidPhone -> errorToWai @E.InvalidPhone
     AuthenticationSubsystemAllowListError -> errorToWai @E.AllowlistError
     AuthenticationSubsystemBadCredentials -> errorToWai @E.BadCredentials
-    AuthenticationSubsystemInvalidUser -> errorToWai @E.BadCredentials
-    AuthenticationSubsystemSuspended -> errorToWai @E.AccountSuspended
-    AuthenticationSubsystemEphemeral -> errorToWai @E.AccountEphemeral
-    AuthenticationSubsystemPendingInvitation -> errorToWai @E.AccountPending
-    AuthenticationSubsystemMissingAuth -> errorToWai @E.MissingAuth

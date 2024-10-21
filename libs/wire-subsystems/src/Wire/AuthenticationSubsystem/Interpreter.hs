@@ -76,9 +76,8 @@ interpretAuthenticationSubsystem ::
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
     userSubsystemInterpreter . \case
-      AuthenticateEither uid pwd -> authenticateImpl uid pwd
-      -- TODO: fix reuth to also return Either like we did for Authenticate
-      Reauthenticate uid pwd -> reauthenticateImpl uid pwd
+      AuthenticateEither uid pwd -> authenticateEitherImpl uid pwd
+      ReauthenticateEither uid pwd -> reauthenticateEitherImpl uid pwd
       CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
       ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
       VerifyPassword plaintext pwd -> verifyPasswordImpl plaintext pwd
@@ -106,26 +105,26 @@ instance Exception PasswordResetError where
   displayException InvalidResetKey = "invalid reset key for password reset"
   displayException InProgress = "password reset already in progress"
 
-authenticateImpl ::
+authenticateEitherImpl ::
   ( Member UserStore r,
     Member HashPassword r,
     Member PasswordStore r
   ) =>
   UserId ->
   PlainTextPassword6 ->
-  Sem r (Either AuthenticationSubsystemError ())
-authenticateImpl uid plaintext = do
+  Sem r (Either AuthError ())
+authenticateEitherImpl uid plaintext = do
   runError $
     getUserAuthenticationInfo uid >>= \case
-      Nothing -> throw AuthenticationSubsystemInvalidUser
-      Just (_, Deleted) -> throw AuthenticationSubsystemInvalidUser
-      Just (_, Suspended) -> throw AuthenticationSubsystemSuspended
-      Just (_, Ephemeral) -> throw AuthenticationSubsystemEphemeral
-      Just (_, PendingInvitation) -> throw AuthenticationSubsystemPendingInvitation
-      Just (Nothing, _) -> throw AuthenticationSubsystemBadCredentials
+      Nothing -> throw AuthInvalidUser
+      Just (_, Deleted) -> throw AuthInvalidUser
+      Just (_, Suspended) -> throw AuthSuspended
+      Just (_, Ephemeral) -> throw AuthEphemeral
+      Just (_, PendingInvitation) -> throw AuthPendingInvitation
+      Just (Nothing, _) -> throw AuthInvalidCredentials
       Just (Just password, Active) -> do
         case Pasword.verifyPasswordWithStatus plaintext password of
-          (False, _) -> throw AuthenticationSubsystemBadCredentials
+          (False, _) -> throw AuthInvalidCredentials
           (True, PasswordStatusNeedsUpdate) -> do
             for_ (plainTextPassword8 . fromPlainTextPassword $ plaintext) (hashAndUpdatePwd uid)
           (True, _) -> pure ()
@@ -137,33 +136,34 @@ authenticateImpl uid plaintext = do
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,
 -- reauthentication is a no-op.
-reauthenticateImpl ::
-  ( Member (Error AuthenticationSubsystemError) r,
-    Member UserStore r,
+reauthenticateEitherImpl ::
+  ( Member UserStore r,
     Member UserSubsystem r,
     Member (Input (Local ())) r
   ) =>
   UserId ->
   Maybe (PlainTextPassword' t) ->
-  Sem r ()
-reauthenticateImpl user plaintextMaybe =
-  getUserAuthenticationInfo user >>= \case
-    Nothing -> throw AuthenticationSubsystemInvalidUser
-    Just (_, Deleted) -> throw AuthenticationSubsystemInvalidUser
-    Just (_, Suspended) -> throw AuthenticationSubsystemSuspended
-    Just (_, PendingInvitation) -> throw AuthenticationSubsystemPendingInvitation
-    Just (Nothing, _) -> for_ plaintextMaybe $ const (throw AuthenticationSubsystemBadCredentials)
-    Just (Just pw', Active) -> maybeReAuth pw'
-    Just (Just pw', Ephemeral) -> maybeReAuth pw'
+  Sem r (Either ReAuthError ())
+reauthenticateEitherImpl user plaintextMaybe =
+  getUserAuthenticationInfo user
+    >>= runError
+      . \case
+        Nothing -> throw (ReAuthError AuthInvalidUser)
+        Just (_, Deleted) -> throw (ReAuthError AuthInvalidUser)
+        Just (_, Suspended) -> throw (ReAuthError AuthSuspended)
+        Just (_, PendingInvitation) -> throw (ReAuthError AuthPendingInvitation)
+        Just (Nothing, _) -> for_ plaintextMaybe $ const (throw $ ReAuthError AuthInvalidCredentials)
+        Just (Just pw', Active) -> maybeReAuth pw'
+        Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case plaintextMaybe of
       Nothing -> do
         local <- input
         musr <- getLocalAccountBy NoPendingInvitations (qualifyAs local user)
-        unless (maybe False isSamlUser musr) $ throw AuthenticationSubsystemMissingAuth
+        unless (maybe False isSamlUser musr) $ throw ReAuthMissingPassword
       Just p ->
         unless (Password.verifyPassword p pw') do
-          throw AuthenticationSubsystemBadCredentials
+          throw (ReAuthError AuthInvalidCredentials)
 
 createPasswordResetCodeImpl ::
   forall r.
