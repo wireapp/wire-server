@@ -42,6 +42,7 @@
 , tasty-ant-xml
 , tasty-hunit
 , text
+, time
 , tinylog
 , transformers
 , types-common
@@ -83,6 +84,7 @@ mkDerivation {
     servant-swagger-ui
     split
     text
+    time
     tinylog
     transformers
     types-common

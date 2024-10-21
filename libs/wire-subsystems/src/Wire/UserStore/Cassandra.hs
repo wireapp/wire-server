@@ -4,12 +4,14 @@ import Cassandra
 import Cassandra.Exec (prepared)
 import Data.Handle
 import Data.Id
+import Data.Time.Clock
 import Database.CQL.Protocol
 import Imports
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.User.RichInfo
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser hiding (userId)
@@ -31,6 +33,8 @@ interpretUserStoreCassandra casClient =
       IsActivated uid -> isActivatedImpl uid
       LookupLocale uid -> lookupLocaleImpl uid
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
+      GetActivityTimestamps uid -> getActivityTimestampsImpl uid
+      GetRichInfo uid -> getRichInfoImpl uid
 
 getUsersImpl :: [UserId] -> Client [StoredUser]
 getUsersImpl usrs =
@@ -168,6 +172,21 @@ updateUserTeamImpl u t = retry x5 $ write userTeamUpdate (params LocalQuorum (t,
   where
     userTeamUpdate :: PrepQuery W (TeamId, UserId) ()
     userTeamUpdate = "UPDATE user SET team = ? WHERE id = ?"
+
+getActivityTimestampsImpl :: UserId -> Client [Maybe UTCTime]
+getActivityTimestampsImpl uid = do
+  runIdentity <$$> retry x1 (query q (params LocalQuorum (Identity uid)))
+  where
+    q :: PrepQuery R (Identity UserId) (Identity (Maybe UTCTime))
+    q = "SELECT last_active from clients where user = ?"
+
+getRichInfoImpl :: UserId -> Client (Maybe RichInfoAssocList)
+getRichInfoImpl uid =
+  fmap runIdentity
+    <$> retry x1 (query1 q (params LocalQuorum (Identity uid)))
+  where
+    q :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
+    q = "SELECT json FROM rich_info WHERE user = ?"
 
 --------------------------------------------------------------------------------
 -- Queries

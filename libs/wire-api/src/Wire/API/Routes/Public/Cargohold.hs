@@ -80,7 +80,6 @@ type AssetStreaming =
   RespondStreaming
     200
     "Asset returned directly with content type `application/octet-stream`"
-    NoFraming
     OctetStream
 
 type GetAsset =
