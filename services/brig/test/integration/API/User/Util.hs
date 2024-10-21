@@ -40,11 +40,9 @@ import Data.Handle (parseHandle)
 import Data.Id
 import Data.Kind
 import Data.List1 qualified as List1
-import Data.Misc
 import Data.Qualified
 import Data.Range (unsafeRange)
 import Data.String.Conversions
-import Data.Text.Ascii qualified as Ascii
 import Data.Vector qualified as Vec
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
@@ -69,7 +67,6 @@ import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken (Proof)
 import Wire.API.User.Handle
-import Wire.API.User.Password
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeStore.Cassandra qualified as VerificationCodeStore
 
@@ -129,15 +126,6 @@ registerUser name brig = do
             ]
   post (brig . path "/register" . contentJson . body p)
 
-initiatePasswordReset :: Brig -> EmailAddress -> (MonadHttp m) => m ResponseLBS
-initiatePasswordReset brig email =
-  post
-    ( brig
-        . path "/password-reset"
-        . contentJson
-        . body (RequestBodyLBS . encode $ NewPasswordReset email)
-    )
-
 activateEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> EmailAddress -> m ()
 activateEmail brig email = do
   act <- getActivationCode brig (Left email)
@@ -179,31 +167,6 @@ initiateEmailUpdateNoSend brig email uid =
   let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
    in put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
         <!! const 202 === statusCode
-
-preparePasswordReset ::
-  (MonadIO m, MonadHttp m) =>
-  Brig ->
-  EmailAddress ->
-  UserId ->
-  PlainTextPassword8 ->
-  m CompletePasswordReset
-preparePasswordReset brig email uid newpw = do
-  let qry = queryItem "email" (toByteString' email)
-  r <- get $ brig . path "/i/users/password-reset-code" . qry
-  let lbs = fromMaybe "" $ responseBody r
-  let Just pwcode = PasswordResetCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
-  let ident = PasswordResetIdentityKey (mkPasswordResetKey uid)
-  let complete = CompletePasswordReset ident pwcode newpw
-  pure complete
-
-completePasswordReset :: Brig -> CompletePasswordReset -> (MonadHttp m) => m ResponseLBS
-completePasswordReset brig passwordResetData =
-  post
-    ( brig
-        . path "/password-reset/complete"
-        . contentJson
-        . body (RequestBodyLBS $ encode passwordResetData)
-    )
 
 removeBlacklist :: Brig -> EmailAddress -> (MonadIO m, MonadHttp m) => m ()
 removeBlacklist brig email =

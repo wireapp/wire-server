@@ -407,9 +407,6 @@ assertNothing = maybe (pure ()) $ const $ assertFailure "Maybe value was Just, n
 addFailureContext :: String -> App a -> App a
 addFailureContext ctx = modifyFailureContext (\mCtx0 -> Just $ maybe ctx (\x -> ctx <> "\n" <> x) mCtx0)
 
-modifyFailureMsg :: (String -> String) -> App a -> App a
-modifyFailureMsg modMessage = modifyFailure (\e -> e {msg = modMessage e.msg})
-
 modifyFailureContext :: (Maybe String -> Maybe String) -> App a -> App a
 modifyFailureContext modContext =
   modifyFailure

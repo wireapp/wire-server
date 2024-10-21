@@ -42,7 +42,6 @@ import Data.Code qualified as Code
 import Data.Currency qualified as Currency
 import Data.Default
 import Data.Domain
-import Data.Handle qualified as Handle
 import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util hiding ((#))
@@ -69,7 +68,6 @@ import Data.UUID.V4
 import Federator.MockServer
 import Federator.MockServer qualified as Mock
 import GHC.TypeNats
-import Galley.Intra.User (chunkify)
 import Galley.Options qualified as Opts
 import Galley.Run qualified as Run
 import Galley.Types.Conversations.One2One
@@ -303,14 +301,6 @@ getTeamMembers usr tid = do
   g <- viewGalley
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
   responseJsonError r
-
--- alternative to 'ResponseLBS': [BodyReader](https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/82492d944a85db90f4cd7cec6f4d5215ef9ac1ac8aeffeed4a805fbd6b1232c5/8.8.4/doc/http-client-0.7.0/Network-HTTP-Client.html#t:BodyReader)
-getTeamMembersCsv :: (HasCallStack) => UserId -> TeamId -> TestM ResponseLBS
-getTeamMembersCsv usr tid = do
-  g <- viewGalley
-  get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser usr) <!! do
-    const 200 === statusCode
-    const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
 
 getTeamMembersTruncated :: (HasCallStack) => UserId -> TeamId -> Int -> TestM TeamMemberList
 getTeamMembersTruncated usr tid n = do
@@ -2388,22 +2378,6 @@ deleteTeam owner tid = do
     )
     !!! do
       const 202 === statusCode
-
-getUsersBy :: forall uidsOrHandles. (ToByteString uidsOrHandles) => ByteString -> [uidsOrHandles] -> TestM [User]
-getUsersBy keyName = chunkify $ \keys -> do
-  brig <- viewBrig
-  let users = BS.intercalate "," $ toByteString' <$> keys
-  res <-
-    get
-      ( brig
-          . path "/i/users"
-          . queryItem keyName users
-          . expect2xx
-      )
-  pure $ fromJust $ responseJsonMaybe @[User] res
-
-getUsersByHandle :: [Handle.Handle] -> TestM [User]
-getUsersByHandle = getUsersBy "handles"
 
 upgradeClientToLH :: (HasCallStack) => UserId -> ClientId -> TestM ()
 upgradeClientToLH zusr cid =

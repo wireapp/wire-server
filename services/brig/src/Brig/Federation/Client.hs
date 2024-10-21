@@ -99,18 +99,6 @@ claimMultiPrekeyBundle domain uc = do
   lift . Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   runBrigFederatorClient domain $ fedClient @'Brig @"claim-multi-prekey-bundle" uc
 
-searchUsers ::
-  ( MonadReader Env m,
-    MonadIO m,
-    Log.MonadLogger m
-  ) =>
-  Domain ->
-  SearchRequest ->
-  ExceptT FederationError m SearchResponse
-searchUsers domain searchTerm = do
-  lift $ Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
-  runBrigFederatorClient domain $ fedClient @'Brig @"search-users" searchTerm
-
 getUserClients ::
   ( MonadReader Env m,
     MonadIO m,

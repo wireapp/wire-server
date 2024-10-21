@@ -23,7 +23,6 @@ module Brig.Data.Activation
     activationErrorToRegisterError,
     newActivation,
     mkActivationKey,
-    lookupActivationCode,
     activateKey,
     verifyCode,
   )
@@ -175,12 +174,6 @@ newActivation uk timeout u = do
       ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
         <$> randIntegerZeroToNMinusOne 1000000
 
--- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
-lookupActivationCode :: (MonadClient m) => EmailKey -> m (Maybe (Maybe UserId, ActivationCode))
-lookupActivationCode k =
-  liftIO (mkActivationKey k)
-    >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
-
 -- | Verify an activation code.
 verifyCode ::
   (MonadClient m) =>
@@ -228,9 +221,6 @@ keyInsert =
 
 keySelect :: PrepQuery R (Identity ActivationKey) (Int32, Ascii, Text, ActivationCode, Maybe UserId, Int32)
 keySelect = "SELECT ttl(code) as ttl, key_type, key_text, code, user, retries FROM activation_keys WHERE key = ?"
-
-codeSelect :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
-codeSelect = "SELECT user, code FROM activation_keys WHERE key = ?"
 
 keyDelete :: PrepQuery W (Identity ActivationKey) ()
 keyDelete = "DELETE FROM activation_keys WHERE key = ?"

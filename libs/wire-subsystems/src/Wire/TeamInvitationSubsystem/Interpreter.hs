@@ -175,14 +175,6 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
 mkInvitationCode :: (Member Random r) => Sem r InvitationCode
 mkInvitationCode = InvitationCode . AsciiText.encodeBase64Url <$> Random.bytes 24
 
-isPersonalUser :: (Member UserSubsystem r) => Local EmailKey -> Sem r Bool
-isPersonalUser uke = do
-  mAccount <- getLocalUserAccountByUserKey uke
-  pure $ case mAccount of
-    -- this can e.g. happen if the key is claimed but the account is not yet created
-    Nothing -> False
-    Just user -> user.userStatus == Active && isNothing user.userTeam
-
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
 toInvitation ::

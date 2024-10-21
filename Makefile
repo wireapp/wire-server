@@ -56,10 +56,10 @@ rabbit-clean:
 # Clean
 .PHONY: full-clean
 full-clean: clean
+	make rabbit-clean
 	rm -rf ~/.cache/hie-bios
 	rm -rf ./dist-newstyle ./.env
 	direnv reload
-	make rabbit-clean
 	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
 .PHONY: clean
@@ -138,6 +138,7 @@ devtest:
 
 .PHONY: sanitize-pr
 sanitize-pr:
+	./hack/bin/check-weed.sh
 	make lint-all-shallow
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
