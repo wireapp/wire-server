@@ -43,6 +43,7 @@ newtype Named name x = Named {unnamed :: x}
 class RenderableSymbol a where
   renderSymbol :: Text
   renderOperationId :: Text
+  renderOperationId = renderSymbol @a
 
 instance (KnownSymbol a) => RenderableSymbol a where
   renderSymbol = T.pack . show $ symbolVal (Proxy @a)
@@ -50,7 +51,7 @@ instance (KnownSymbol a) => RenderableSymbol a where
 
 instance (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
-  renderOperationId = renderSymbol @a <> "_" <> renderSymbol @b
+  renderOperationId = renderOperationId @a <> "_" <> renderOperationId @b
 
 newtype RenderableTypeName a = RenderableTypeName a
 
