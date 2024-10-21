@@ -18,18 +18,13 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Wire.API.MakesFederatedCall
-  ( CallsFed,
-    MakesFederatedCall,
+  ( MakesFederatedCall,
     Component (..),
     callsFed,
-    AddAnnotation,
-    Location (..),
     ShowComponent,
-    Annotation,
     HasFeds (..),
     FedCallFrom' (..),
     Calls (..),
-    Wire.API.MakesFederatedCall.exposeAnnotations,
   )
 where
 
@@ -53,10 +48,7 @@ import Servant.API.Extended.RawM qualified as RawM
 import Servant.Client
 import Servant.Multipart
 import Servant.OpenApi
-import Servant.Server
 import Test.QuickCheck (Arbitrary)
-import TransitiveAnns.Types
-import Unsafe.Coerce (unsafeCoerce)
 import Wire.API.Deprecated (Deprecated)
 import Wire.API.Error (CanThrow, CanThrowMany)
 import Wire.API.Routes.Bearer (Bearer)
@@ -71,29 +63,6 @@ import Wire.API.Routes.Versioned (VersionedReqBody)
 import Wire.API.Routes.WebSocket (WebSocketPending)
 import Wire.API.SwaggerServant (OmitDocs)
 import Wire.Arbitrary (GenericUniform (..))
-
--- | This function exists only to provide a convenient place for the
--- @transitive-anns@ plugin to solve the 'ToHasAnnotations' constraint. This is
--- highly magical and warrants a note.
---
--- The call @'exposeAnnotations' (some expr here)@ will expand to @some expr
--- here@, additionally generating wanted 'HasAnnotation' constraints for every
--- 'AddAnnotation' constraint in the _transitive call closure_ of @some expr
--- here@.
---
--- The use case is always going to be @'callsFed' ('exposeAnnotations' expr)@,
--- where 'exposeAnnotations' re-introduces all of the constraints we've been
--- squirreling away, and 'callsFed' is responsible for discharging them. It
--- would be very desirable to combine these into one call, but the semantics of
--- solving 'ToHasAnnotations' attaches the wanted calls to the same place as
--- the call itself, which means the wanteds appear just after our opportunity
--- to solve them via 'callsFed'. This is likely not a hard limitation.
---
--- The @x@ parameter here is intentionally ambiguous, existing as a unique
--- skolem to prevent GHC from caching the results of solving
--- 'ToHasAnnotations'. Callers needn't worry about it.
-exposeAnnotations :: (ToHasAnnotations x) => a -> a
-exposeAnnotations = id
 
 data Component
   = Brig
@@ -126,39 +95,16 @@ instance ToHttpApiData Component where
     Galley -> "galley"
     Cargohold -> "cargohold"
 
--- | A typeclass corresponding to calls to federated services. This class has
--- no methods, and exists only to automatically propagate information up to
--- servant.
---
--- The only way to discharge this constraint is via 'callsFed', which should be
--- invoked for each federated call when connecting handlers to the server
--- definition.
-type CallsFed (comp :: Component) = HasAnnotation 'Remote (ShowComponent comp)
-
 -- | A typeclass with the same layout as 'CallsFed', which exists only so we
 -- can discharge 'CallsFeds' constraints by unsafely coercing this one.
 class Nullary
 
 instance Nullary
 
--- | Construct a dictionary for 'CallsFed'.
-synthesizeCallsFed :: forall (comp :: Component) (name :: Symbol). Dict (CallsFed comp name)
-synthesizeCallsFed = unsafeCoerce $ Dict @Nullary
-
 -- | Servant combinator for tracking calls to federated calls. Annotating API
 -- endpoints with 'MakesFederatedCall' is the only way to eliminate 'CallsFed'
 -- constraints on handlers.
 data MakesFederatedCall (comp :: Component) (name :: Symbol)
-
-instance (HasServer api ctx) => HasServer (MakesFederatedCall comp name :> api :: Type) ctx where
-  -- \| This should have type @CallsFed comp name => ServerT api m@, but GHC
-  -- complains loudly thinking this is a polytype. We need to introduce the
-  -- 'CallsFed' constraint so that we can eliminate it via
-  -- 'synthesizeCallsFed', which otherwise is too-high rank for GHC to notice
-  -- we've solved our constraint.
-  type ServerT (MakesFederatedCall comp name :> api) m = Dict (CallsFed comp name) -> ServerT api m
-  route _ ctx f = route (Proxy @api) ctx $ fmap ($ synthesizeCallsFed @comp @name) f
-  hoistServerWithContext _ ctx f s = hoistServerWithContext (Proxy @api) ctx f . s
 
 instance (HasLink api) => HasLink (MakesFederatedCall comp name :> api :: Type) where
   type MkLink (MakesFederatedCall comp name :> api) x = MkLink api x

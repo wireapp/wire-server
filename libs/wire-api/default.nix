@@ -100,7 +100,6 @@
 , these
 , time
 , tinylog
-, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -202,7 +201,6 @@ mkDerivation {
     these
     time
     tinylog
-    transitive-anns
     types-common
     unordered-containers
     uri-bytestring

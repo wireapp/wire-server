@@ -82,7 +82,6 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -Wredundant-constraints -Wunused-packages
-    -fplugin=TransitiveAnns.Plugin
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -116,7 +115,6 @@ library
     , text                   >=0.11
     , time                   >=1.8
     , transformers
-    , transitive-anns
     , types-common
     , wai-utilities
     , wire-api
