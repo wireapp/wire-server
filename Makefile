@@ -49,8 +49,8 @@ install: init
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
 
-.PHONY: clean-rabbit
-clean-rabbit:
+.PHONY: rabbit-clean
+rabbit-clean:
 	rabbitmqadmin -f pretty_json list queues vhost name messages | jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' | bash
 
 # Clean
@@ -59,7 +59,7 @@ full-clean: clean
 	rm -rf ~/.cache/hie-bios
 	rm -rf ./dist-newstyle ./.env
 	direnv reload
-	clean-rabbit
+	make rabbit-clean
 	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
 .PHONY: clean

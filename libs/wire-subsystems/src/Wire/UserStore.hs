@@ -10,6 +10,7 @@ import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Error
+import Wire.API.Password
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.Arbitrary
@@ -71,6 +72,7 @@ data UserStore m a where
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
   GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
+  GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
 
 makeSem ''UserStore
 

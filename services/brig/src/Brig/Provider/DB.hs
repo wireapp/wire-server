@@ -29,7 +29,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Imports
 import UnliftIO (mapConcurrently)
-import Wire.API.Password
+import Wire.API.Password as Password
 import Wire.API.Provider
 import Wire.API.Provider.Service hiding (updateServiceTags)
 import Wire.API.Provider.Service.Tag
@@ -115,14 +115,13 @@ deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
 updateAccountPassword ::
   (MonadClient m) =>
   ProviderId ->
-  PlainTextPassword6 ->
+  Password ->
   m ()
 updateAccountPassword pid pwd = do
-  p <- liftIO $ mkSafePassword pwd
-  retry x5 $ write cql $ params LocalQuorum (p, pid)
+  retry x5 $ write cql $ params LocalQuorum (pwd, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()
-    cql = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET password = ? where id = ?"
+    cql = "UPDATE provider SET password = ? where id = ?"
 
 --------------------------------------------------------------------------------
 -- Unique (Natural) Keys

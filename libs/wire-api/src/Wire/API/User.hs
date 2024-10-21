@@ -34,6 +34,7 @@ module Wire.API.User
     SelfProfile (..),
     -- User (should not be here)
     User (..),
+    isSamlUser,
     userId,
     userDeleted,
     userEmail,
@@ -582,6 +583,12 @@ data User = User
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
+
+isSamlUser :: User -> Bool
+isSamlUser usr = do
+  case usr.userIdentity of
+    Just (SSOIdentity (UserSSOId _) _) -> True
+    _ -> False
 
 userId :: User -> UserId
 userId = qUnqualified . userQualifiedId
@@ -1405,8 +1412,8 @@ instance (res ~ PutSelfResponses) => AsUnion res (Maybe UpdateProfileError) wher
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
-  { cpOldPassword :: Maybe PlainTextPassword6,
-    cpNewPassword :: PlainTextPassword8
+  { oldPassword :: Maybe PlainTextPassword6,
+    newPassword :: PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
@@ -1422,9 +1429,9 @@ instance ToSchema PasswordChange where
       )
       . object "PasswordChange"
       $ PasswordChange
-        <$> cpOldPassword
+        <$> oldPassword
           .= maybe_ (optField "old_password" schema)
-        <*> cpNewPassword
+        <*> newPassword
           .= field "new_password" schema
 
 data ChangePasswordError

@@ -33,6 +33,7 @@ import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AuthenticationSubsystem
@@ -264,7 +265,7 @@ runBrigToIO e (AppT ma) = do
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
-              . runHashPassword
+              . runHashPassword (argon2OptsFromHashingOpts e.settings.passwordHashingOptions)
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
               . mapError propertySubsystemErrorToHttpError

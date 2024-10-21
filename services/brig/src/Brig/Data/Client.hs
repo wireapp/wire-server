@@ -55,8 +55,6 @@ import Amazonka.DynamoDB.Lens qualified as AWS
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
 import Brig.App
-import Brig.Data.User (AuthError (..), ReAuthError (..))
-import Brig.Data.User qualified as User
 import Brig.Types.Instances ()
 import Cassandra as C hiding (Client)
 import Cassandra.Settings as C hiding (Client)
@@ -92,6 +90,8 @@ import Wire.API.User.Client hiding (UpdateClient (..))
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (UserMap (..))
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error
 
 data ClientDataError
   = TooManyClients
@@ -144,9 +144,9 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients caps = do
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
   let upsert = any exists typed
-  when (reAuthPolicy count upsert) $
-    fmapLT ClientReAuthError $
-      User.reauthenticate (tUnqualified u) (newClientPassword c)
+  when (reAuthPolicy count upsert) do
+    (lift . liftSem $ Authentication.reauthenticateEither (tUnqualified u) (newClientPassword c))
+      >>= either (throwE . ClientReAuthError) pure
   let capacity = fmap (+ (-count)) limit
   unless (maybe True (> 0) capacity || upsert) $
     throwE TooManyClients

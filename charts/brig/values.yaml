@@ -16,7 +16,7 @@ metrics:
     enabled: false
 # This is not supported for production use, only here for testing:
 # preStop:
-#  exec: 
+#  exec:
 #   command: ["sh", "-c", "curl http://acme.example"]
 config:
   logLevel: Info
@@ -150,6 +150,11 @@ config:
     setDisabledAPIVersions: [ development ]
     setFederationStrategy: allowNone
     setFederationDomainConfigsUpdateFreq: 10
+    # Options for Argon2id version 19
+    setPasswordHashingOptions:
+      iterations: 1
+      parallelism: 32
+      memory: 180224 # 176 MiB
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

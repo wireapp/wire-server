@@ -23,11 +23,12 @@ module Wire.AuthenticationSubsystem.Interpreter
 where
 
 import Data.ByteString.Conversion
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Time
-import Imports hiding (lookup)
+import Imports hiding (local, lookup)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -36,21 +37,24 @@ import Polysemy.TinyLog qualified as Log
 import System.Logger
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Allowlists qualified as AllowLists
-import Wire.API.Password as Password
+import Wire.API.Password (Password, PasswordStatus (..))
+import Wire.API.Password qualified as Password
+import Wire.API.Password qualified as Pasword
 import Wire.API.User
 import Wire.API.User.Password
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem (..))
+import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
-import Wire.PasswordStore (PasswordStore)
+import Wire.PasswordStore (PasswordStore, upsertHashedPassword)
 import Wire.PasswordStore qualified as PasswordStore
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.SessionStore
 import Wire.UserKeyStore
-import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserStore
+import Wire.UserSubsystem (UserSubsystem, getLocalAccountBy)
 import Wire.UserSubsystem qualified as User
 
 interpretAuthenticationSubsystem ::
@@ -64,13 +68,16 @@ interpretAuthenticationSubsystem ::
     Member (Input (Local ())) r,
     Member (Input (Maybe AllowlistEmailDomains)) r,
     Member PasswordStore r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member UserStore r
   ) =>
   InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
     userSubsystemInterpreter . \case
+      AuthenticateEither uid pwd -> authenticateEitherImpl uid pwd
+      ReauthenticateEither uid pwd -> reauthenticateEitherImpl uid pwd
       CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
       ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
       VerifyPassword plaintext pwd -> verifyPasswordImpl plaintext pwd
@@ -97,6 +104,70 @@ instance Exception PasswordResetError where
   displayException AllowListError = "email domain is not allowed for password reset"
   displayException InvalidResetKey = "invalid reset key for password reset"
   displayException InProgress = "password reset already in progress"
+
+authenticateEitherImpl ::
+  ( Member UserStore r,
+    Member HashPassword r,
+    Member PasswordStore r
+  ) =>
+  UserId ->
+  PlainTextPassword6 ->
+  Sem r (Either AuthError ())
+authenticateEitherImpl uid plaintext = do
+  runError $
+    getUserAuthenticationInfo uid >>= \case
+      Nothing -> throw AuthInvalidUser
+      Just (_, Deleted) -> throw AuthInvalidUser
+      Just (_, Suspended) -> throw AuthSuspended
+      Just (_, Ephemeral) -> throw AuthEphemeral
+      Just (_, PendingInvitation) -> throw AuthPendingInvitation
+      Just (Nothing, _) -> throw AuthInvalidCredentials
+      Just (Just password, Active) -> do
+        case Pasword.verifyPasswordWithStatus plaintext password of
+          (False, _) -> throw AuthInvalidCredentials
+          (True, PasswordStatusNeedsUpdate) -> do
+            (hashAndUpdatePwd uid plaintext)
+          (True, _) -> pure ()
+  where
+    hashAndUpdatePwd u pwd = do
+      hashed <- hashPassword6 pwd
+      upsertHashedPassword u hashed
+
+-- | Password reauthentication. If the account has a password, reauthentication
+-- is mandatory. If
+-- * User has no password, re-auth is a no-op
+-- * User is an SSO user and no password is given, re-auth is a no-op.
+reauthenticateEitherImpl ::
+  ( Member UserStore r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  UserId ->
+  Maybe (PlainTextPassword' t) ->
+  Sem r (Either ReAuthError ())
+reauthenticateEitherImpl user plaintextMaybe =
+  getUserAuthenticationInfo user
+    >>= runError
+      . \case
+        Nothing -> throw (ReAuthError AuthInvalidUser)
+        Just (_, Deleted) -> throw (ReAuthError AuthInvalidUser)
+        Just (_, Suspended) -> throw (ReAuthError AuthSuspended)
+        Just (_, PendingInvitation) -> throw (ReAuthError AuthPendingInvitation)
+        Just (Nothing, _) -> for_ plaintextMaybe $ const (throw $ ReAuthError AuthInvalidCredentials)
+        Just (Just pw', Active) -> maybeReAuth pw'
+        Just (Just pw', Ephemeral) -> maybeReAuth pw'
+  where
+    maybeReAuth pw' = case plaintextMaybe of
+      Nothing -> do
+        local <- input
+        musr <- getLocalAccountBy NoPendingInvitations (qualifyAs local user)
+        let isSaml = maybe False isSamlUser musr
+        -- If this is a SAML user, re-auth should be no-op so no error is thrown.
+        unless isSaml $
+          throw ReAuthMissingPassword
+      Just p ->
+        unless (Password.verifyPassword p pw') do
+          throw (ReAuthError AuthInvalidCredentials)
 
 createPasswordResetCodeImpl ::
   forall r.
@@ -225,7 +296,7 @@ resetPasswordImpl ident code pw = do
     Just uid -> do
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
-      hashedPw <- hashPassword pw
+      hashedPw <- hashPassword8 pw
       PasswordStore.upsertHashedPassword uid hashedPw
       codeDelete key
       deleteAllCookies uid
@@ -271,7 +342,9 @@ verifyPasswordImpl plaintext password = do
   pure $ Password.verifyPasswordWithStatus plaintext password
 
 verifyProviderPasswordImpl ::
-  (Member PasswordStore r, Member (Error AuthenticationSubsystemError) r) =>
+  ( Member PasswordStore r,
+    Member (Error AuthenticationSubsystemError) r
+  ) =>
   ProviderId ->
   PlainTextPassword6 ->
   Sem r (Bool, PasswordStatus)
@@ -283,7 +356,9 @@ verifyProviderPasswordImpl pid plaintext = do
   verifyPasswordImpl plaintext password
 
 verifyUserPasswordImpl ::
-  (Member PasswordStore r, Member (Error AuthenticationSubsystemError) r) =>
+  ( Member PasswordStore r,
+    Member (Error AuthenticationSubsystemError) r
+  ) =>
   UserId ->
   PlainTextPassword6 ->
   Sem r (Bool, PasswordStatus)

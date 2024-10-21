@@ -46,7 +46,6 @@ module Brig.API.User
     deleteAccount,
     checkHandles,
     isBlacklistedHandle,
-    Data.reauthenticate,
 
     -- * Activation
     sendActivationCode,
@@ -136,6 +135,8 @@ import Wire.Error
 import Wire.Events (Events)
 import Wire.Events qualified as Events
 import Wire.GalleyAPIAccess as GalleyAPIAccess
+import Wire.HashPassword (HashPassword)
+import Wire.HashPassword qualified as HashPassword
 import Wire.InvitationStore (InvitationStore, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.NotificationSubsystem
@@ -190,6 +191,7 @@ createUserSpar ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
+    Member HashPassword r,
     Member Events r
   ) =>
   NewUserSpar ->
@@ -202,7 +204,7 @@ createUserSpar new = do
 
   -- Create account
   account <- lift $ do
-    (account, pw) <- wrapClient $ newAccount new' Nothing (Just tid) handle'
+    (account, pw) <- newAccount new' Nothing (Just tid) handle'
 
     let uid = userId account
 
@@ -315,6 +317,7 @@ createUser ::
     Member Events r,
     Member (Input (Local ())) r,
     Member PasswordResetCodeStore r,
+    Member HashPassword r,
     Member InvitationStore r
   ) =>
   NewUser ->
@@ -368,7 +371,7 @@ createUser new = do
 
   -- Create account
   account <- lift $ do
-    (account, pw) <- wrapClient $ newAccount new' mbInv tid mbHandle
+    (account, pw) <- newAccount new' mbInv tid mbHandle
 
     let uid = userId account
     liftSem $ do
@@ -838,15 +841,22 @@ mkActivationKey (ActivateEmail e) =
 -------------------------------------------------------------------------------
 -- Password Management
 
-changePassword :: (Member PasswordStore r, Member UserStore r) => UserId -> PasswordChange -> ExceptT ChangePasswordError (AppT r) ()
+changePassword ::
+  ( Member PasswordStore r,
+    Member UserStore r,
+    Member HashPassword r
+  ) =>
+  UserId ->
+  PasswordChange ->
+  ExceptT ChangePasswordError (AppT r) ()
 changePassword uid cp = do
   activated <- lift $ liftSem $ isActivated uid
   unless activated $
     throwE ChangePasswordNoIdentity
   currpw <- lift $ liftSem $ lookupHashedPassword uid
-  let newpw = cpNewPassword cp
-  hashedNewPw <- mkSafePassword newpw
-  case (currpw, cpOldPassword cp) of
+  let newpw = cp.newPassword
+  hashedNewPw <- lift . liftSem $ HashPassword.hashPassword8 newpw
+  case (currpw, cp.oldPassword) of
     (Nothing, _) -> lift . liftSem $ upsertHashedPassword uid hashedNewPw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do

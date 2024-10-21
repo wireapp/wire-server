@@ -10,6 +10,7 @@ import Imports
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
+import Wire.API.Password (Password)
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.StoredUser
@@ -35,6 +36,17 @@ interpretUserStoreCassandra casClient =
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
       GetActivityTimestamps uid -> getActivityTimestampsImpl uid
       GetRichInfo uid -> getRichInfoImpl uid
+      GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
+
+getUserAuthenticationInfoImpl :: UserId -> Client (Maybe (Maybe Password, AccountStatus))
+getUserAuthenticationInfoImpl uid = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity uid)))
+  where
+    f (pw, st) = (pw, fromMaybe Active st)
+    authSelect :: PrepQuery R (Identity UserId) (Maybe Password, Maybe AccountStatus)
+    authSelect =
+      [sql|
+        SELECT password, status FROM user WHERE id = ?
+      |]
 
 getUsersImpl :: [UserId] -> Client [StoredUser]
 getUsersImpl usrs =
