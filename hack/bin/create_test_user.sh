@@ -62,6 +62,6 @@ do
 
     if [ "$CSV" == "false" ]
         then echo -e "Succesfully created a user with email: ""$EMAIL"" and password: ""$PASSWORD"
-        else echo -e "$UUID"",""$EMAIL"",""$PASSWORD"
+        else echo -e "$UUID,$EMAIL,$PASSWORD"
     fi
 done
