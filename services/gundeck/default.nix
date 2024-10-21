@@ -23,6 +23,7 @@
 , containers
 , criterion
 , crypton-x509-store
+, data-timeout
 , errors
 , exceptions
 , extended
@@ -111,6 +112,7 @@ mkDerivation {
     cassandra-util
     containers
     crypton-x509-store
+    data-timeout
     errors
     exceptions
     extended

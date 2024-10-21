@@ -42,10 +42,12 @@ import Data.Id
 import Data.List.Extra qualified as List
 import Data.List1 (List1, list1, toNonEmpty)
 import Data.Map qualified as Map
+import Data.Misc
 import Data.Range
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
+import Data.Timeout
 import Data.UUID qualified as UUID
 import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws qualified as Aws
@@ -275,13 +277,37 @@ pushAllViaRabbitMq pushes =
 pushViaRabbitMq :: (MonadPushAll m) => Push -> m ()
 pushViaRabbitMq p = do
   notifId <- mpaMkNotificationId
+  NotificationTTL ttl <- mpaNotificationTTL
   let qMsg =
         Q.newMsg
           { msgBody =
               Aeson.encode
                 . queuedNotification notifId
                 $ toNonEmpty p._pushPayload,
-            msgContentType = Just "application/json"
+            msgContentType = Just "application/json",
+            msgDeliveryMode =
+              -- Non-persistent messages never hit the disk and so do not
+              -- survive RabbitMQ node restarts, this is great for transient
+              -- notifications.
+              Just
+                ( if p._pushTransient
+                    then Q.NonPersistent
+                    else Q.Persistent
+                ),
+            msgExpiration =
+              Just
+                ( if p._pushTransient
+                    then
+                      ( -- Means that if there is no active consumer, this
+                        -- message will never be delivered to anyone. It can
+                        -- still take some time before RabbitMQ forgets about
+                        -- this message because the expiration is only
+                        -- considered for messages which are at the head of a
+                        -- queue. See docs: https://www.rabbitmq.com/docs/ttl
+                        "0"
+                      )
+                    else showT $ fromIntegral ttl # Second #> MilliSecond
+                )
           }
       routingKeys =
         Set.unions $

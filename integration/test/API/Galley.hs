@@ -733,3 +733,12 @@ getTeamMembersCsv :: (HasCallStack, MakesValue user) => user -> String -> App Re
 getTeamMembersCsv user tid = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tid, "members", "csv"])
   submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/post_conversations__cnv_domain___cnv__typing
+sendTypingStatus :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
+sendTypingStatus user conv status = do
+  convDomain <- objDomain conv
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "typing"])
+  submit "POST"
+    $ addJSONObject ["status" .= status] req

@@ -127,6 +127,7 @@ library
     , cassandra-util                        >=0.16.2
     , containers                            >=0.5
     , crypton-x509-store
+    , data-timeout
     , errors                                >=2.0
     , exceptions                            >=0.4
     , extended

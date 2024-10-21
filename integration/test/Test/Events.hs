@@ -3,12 +3,13 @@ module Test.Events where
 import API.Brig
 import API.BrigCommon
 import API.Common
+import API.Galley
 import API.Gundeck
+import qualified Control.Concurrent.Timeout as Timeout
 import Control.Retry
-import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
+import Data.Timeout
 import qualified Network.WebSockets as WS
 import Notifications
 import SetupHelpers
@@ -195,6 +196,57 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
   withEventsWebSocket alice clientId $ \eventsChan _ -> do
     assertNoEvent eventsChan
 
+testEventExpiration :: (HasCallStack) => App ()
+testEventExpiration = do
+  let notifTTL = 2 # Second
+  withModifiedBackend (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}) $ \domain -> do
+    alice <- randomUser domain def
+    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    clientId <- objId client
+
+    Timeout.threadDelay (notifTTL + 1 # Second)
+    withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
+      assertNoEvent eventsChan
+
+testTransientEvents :: (HasCallStack) => App ()
+testTransientEvents = do
+  alice <- randomUser OwnDomain def
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
+
+  -- Self conv ID is same as user's ID, we'll use this to send typing
+  -- indicators, so we don't have to create another conv.
+  selfConvId <- objQidObject alice
+
+  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
+    consumeAllEvents eventsChan ackChan
+    sendTypingStatus alice selfConvId "started" >>= assertSuccess
+    assertEvent eventsChan $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` selfConvId
+      deliveryTag <- e %. "data.delivery_tag"
+      sendAck ackChan deliveryTag False
+
+  handle1 <- randomHandle
+  putHandle alice handle1 >>= assertSuccess
+
+  sendTypingStatus alice selfConvId "stopped" >>= assertSuccess
+
+  handle2 <- randomHandle
+  putHandle alice handle2 >>= assertSuccess
+
+  -- We shouldn't see the stopped typing status because we were not connected to
+  -- the websocket when it was sent. The other events should still show up in
+  -- order.
+  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
+    for_ [handle1, handle2] $ \handle ->
+      assertEvent eventsChan $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+        e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+        ackEvent ackChan e
+
+    assertNoEvent eventsChan
+
 ----------------------------------------------------------------------
 -- helpers
 
@@ -240,6 +292,11 @@ withEventsWebSocket uid cid k = do
 sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
 sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
 
+ackEvent :: (HasCallStack) => TChan Value -> Value -> App ()
+ackEvent ackChan event = do
+  deliveryTag <- event %. "data.delivery_tag"
+  sendAck ackChan deliveryTag False
+
 sendAck :: (HasCallStack) => TChan Value -> Value -> Bool -> App ()
 sendAck ackChan deliveryTag multiple = do
   sendMsg ackChan
@@ -265,7 +322,17 @@ assertNoEvent :: (HasCallStack) => TChan Value -> App ()
 assertNoEvent eventsChan = do
   timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
     Nothing -> pure ()
-    Just e -> assertFailure $ "Did not expect event: " <> cs (A.encode e)
+    Just e -> do
+      eventJSON <- prettyJSON e
+      assertFailure $ "Did not expect event: \n" <> eventJSON
+
+consumeAllEvents :: TChan Value -> TChan Value -> App ()
+consumeAllEvents eventsChan ackChan = do
+  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
+    Nothing -> pure ()
+    Just e -> do
+      ackEvent ackChan e
+      consumeAllEvents eventsChan ackChan
 
 eventsWebSocket :: (MakesValue user) => user -> String -> TChan Value -> TChan Value -> MVar () -> App (Async ())
 eventsWebSocket user clientId eventsChan ackChan closeWS = do
