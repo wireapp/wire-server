@@ -18,6 +18,7 @@
 module Galley.API.Public.TeamMember where
 
 import Galley.API.Teams
+import Galley.API.Teams.Export qualified as Export
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamMember
@@ -31,4 +32,4 @@ teamMemberAPI =
     <@> mkNamedAPI @"delete-team-member" deleteTeamMember
     <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
     <@> mkNamedAPI @"update-team-member" updateTeamMember
-    <@> mkNamedAPI @"get-team-members-csv" getTeamMembersCSV
+    <@> mkNamedAPI @"get-team-members-csv" Export.getTeamMembersCSV

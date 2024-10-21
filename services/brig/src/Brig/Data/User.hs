@@ -30,7 +30,6 @@ module Brig.Data.User
     lookupUser,
     lookupUsers,
     lookupName,
-    lookupRichInfo,
     lookupRichInfoMultiUsers,
     lookupUserTeam,
     lookupServiceUsers,
@@ -288,11 +287,6 @@ lookupName u =
   fmap runIdentity
     <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
 
-lookupRichInfo :: (MonadClient m) => UserId -> m (Maybe RichInfoAssocList)
-lookupRichInfo u =
-  fmap runIdentity
-    <$> retry x1 (query1 richInfoSelect (params LocalQuorum (Identity u)))
-
 -- | Returned rich infos are in the same order as users
 lookupRichInfoMultiUsers :: (MonadClient m) => [UserId] -> m [(UserId, RichInfo)]
 lookupRichInfoMultiUsers users = do
@@ -427,9 +421,6 @@ idSelect = "SELECT id FROM user WHERE id = ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
 nameSelect = "SELECT name FROM user WHERE id = ?"
-
-richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
-richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
 
 richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
 richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"

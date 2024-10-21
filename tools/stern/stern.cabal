@@ -96,6 +96,7 @@ library
     , servant-swagger-ui
     , split                  >=0.2
     , text                   >=1.1
+    , time
     , tinylog                >=0.10
     , transformers           >=0.3
     , types-common           >=0.4.13

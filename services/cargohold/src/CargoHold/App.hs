@@ -47,7 +47,7 @@ module CargoHold.App
 where
 
 import Amazonka (S3AddressingStyle (S3AddressingStylePath))
-import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
+import Bilge (Manager, MonadHttp, newManager, withResponse)
 import qualified Bilge
 import Bilge.RPC (HasRequestId (..))
 import qualified CargoHold.AWS as AWS
@@ -57,6 +57,7 @@ import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
 import Control.Lens (lensField, lensRules, makeLensesWith, non, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
@@ -100,7 +101,7 @@ newEnv opts = do
   awsEnv <- initAws opts.aws logger httpMgr
   multiIngressAWS <- initMultiIngressAWS logger httpMgr
   let localDomain = toLocalUnsafe opts.settings.federationDomain ()
-  pure $ Env awsEnv logger httpMgr http2Mgr (RequestId "N/A") opts localDomain multiIngressAWS
+  pure $ Env awsEnv logger httpMgr http2Mgr (RequestId defRequestId) opts localDomain multiIngressAWS
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
     initMultiIngressAWS logger httpMgr =

@@ -41,6 +41,7 @@ newtype PathTemplate = PathTemplate Text
 -- (e.g. user id).
 newtype Paths = Paths (Forest PathSegment)
   deriving (Eq, Show)
+  deriving newtype (Semigroup)
 
 type PathSegment = Either ByteString ByteString
 

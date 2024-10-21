@@ -82,6 +82,7 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
+import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Activation
@@ -112,7 +113,7 @@ import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
-import Wire.UserStore
+import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
@@ -269,6 +270,7 @@ userAPI =
   updateLocale
     :<|> deleteLocale
     :<|> getDefaultUserLocale
+    :<|> Named @"get-user-export-data" getUserExportDataH
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
 clientAPI = Named @"update-client-last-active" updateClientLastActive
@@ -767,8 +769,10 @@ updateClientLastActive u c = do
             }
   lift . wrapClient $ Data.updateClientLastActive u c now
 
-getRichInfoH :: UserId -> (Handler r) RichInfo
-getRichInfoH uid = RichInfo . fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo uid)
+getRichInfoH :: (Member UserStore r) => UserId -> Handler r RichInfo
+getRichInfoH uid =
+  RichInfo . fromMaybe mempty
+    <$> lift (liftSem $ UserStore.getRichInfo uid)
 
 getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, RichInfo)]
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
@@ -805,3 +809,9 @@ checkHandleInternalH h = lift $ liftSem do
 
 getContactListH :: UserId -> (Handler r) UserIds
 getContactListH uid = lift . wrapClient $ UserIds <$> API.lookupContactList uid
+
+getUserExportDataH ::
+  (Member UserSubsystem r) =>
+  UserId ->
+  Handler r (Maybe TeamExportUser)
+getUserExportDataH = lift . liftSem . getUserExportData

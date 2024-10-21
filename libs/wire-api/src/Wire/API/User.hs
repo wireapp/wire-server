@@ -28,7 +28,6 @@ module Wire.API.User
     qualifiedUserIdListObjectSchema,
     LimitedQualifiedUserIdList (..),
     ScimUserInfo (..),
-    ScimUserInfos (..),
     UserSet (..),
     -- Profiles
     UserProfile (..),
@@ -1345,18 +1344,6 @@ instance ToSchema ScimUserInfo where
           .= field "id" schema
         <*> suiCreatedOn
           .= maybe_ (optField "created_on" schema)
-
-newtype ScimUserInfos = ScimUserInfos {scimUserInfos :: [ScimUserInfo]}
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ScimUserInfos)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ScimUserInfos)
-
-instance ToSchema ScimUserInfos where
-  schema =
-    object "ScimUserInfos" $
-      ScimUserInfos
-        <$> scimUserInfos
-          .= field "scim_user_infos" (array schema)
 
 -------------------------------------------------------------------------------
 -- UserSet

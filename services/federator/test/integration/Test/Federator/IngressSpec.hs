@@ -150,7 +150,7 @@ inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
     mgr <- liftToCodensity . liftIO $ http2ManagerWithSSLCtx sslCtx
     liftToCodensity
       . runInputConst mgr
-      . runInputConst (RequestId "N/A")
+      . runInputConst (RequestId defRequestId)
       . assertNoError @DiscoveryFailure
       . discoverConst target
       . interpretRemote

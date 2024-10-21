@@ -19,7 +19,6 @@
 , bytestring
 , bytestring-conversion
 , call-stack
-, case-insensitive
 , cassandra-util
 , cassava
 , cereal
@@ -79,7 +78,6 @@
 , resourcet
 , retry
 , safe-exceptions
-, saml2-web-sso
 , servant
 , servant-client
 , servant-client-core
@@ -116,7 +114,6 @@
 , utf8-string
 , uuid
 , uuid-types
-, vector
 , wai
 , wai-extra
 , wai-middleware-gunzip
@@ -149,7 +146,6 @@ mkDerivation {
     brig-types
     bytestring
     bytestring-conversion
-    case-insensitive
     cassandra-util
     cassava
     comonad
@@ -190,7 +186,6 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
-    saml2-web-sso
     servant
     servant-client
     servant-server
@@ -237,7 +232,6 @@ mkDerivation {
     bytestring-conversion
     call-stack
     cassandra-util
-    cassava
     cereal
     conduit
     containers
@@ -276,7 +270,6 @@ mkDerivation {
     quickcheck-instances
     random
     retry
-    saml2-web-sso
     servant-client
     servant-client-core
     servant-server
@@ -302,7 +295,6 @@ mkDerivation {
     unliftio
     unordered-containers
     uuid
-    vector
     wai
     wai-utilities
     warp

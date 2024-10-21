@@ -171,6 +171,7 @@ import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
@@ -659,7 +660,13 @@ getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
-getRichInfo :: (Member UserSubsystem r) => Local UserId -> UserId -> Handler r Public.RichInfoAssocList
+getRichInfo ::
+  ( Member UserSubsystem r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  UserId ->
+  Handler r Public.RichInfoAssocList
 getRichInfo lself user = do
   let luser = qualifyAs lself user
   -- Check that both users exist and the requesting user is allowed to see rich info of the
@@ -673,7 +680,7 @@ getRichInfo lself user = do
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo (tUnqualified luser)
+  lift $ liftSem $ fold <$> UserStore.getRichInfo (tUnqualified luser)
 
 getSupportedProtocols ::
   (Member UserSubsystem r) =>

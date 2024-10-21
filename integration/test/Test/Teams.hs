@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
@@ -18,13 +19,18 @@
 module Test.Teams where
 
 import API.Brig
-import API.BrigInternal (createUser, getInvitationCode, refreshIndex)
+import qualified API.BrigInternal as I
 import API.Common
-import API.Galley (getTeam, getTeamMembers, getTeamNotifications)
+import API.Galley (getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
 import API.GalleyInternal (setTeamFeatureStatus)
+import API.Gundeck
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.Map as Map
+import Data.Time.Clock
+import Data.Time.Format
 import Notifications
 import SetupHelpers
 import Testlib.JSON
@@ -52,13 +58,13 @@ testInvitePersonalUserToTeam = do
 
         ownerId <- owner %. "id" & asString
         setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" >>= assertSuccess
-        user <- createUser domain def >>= getJSON 201
+        user <- I.createUser domain def >>= getJSON 201
         uid <- user %. "id" >>= asString
         email <- user %. "email" >>= asString
 
         inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
         checkListInvitations owner tid email
-        code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+        code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
         inv %. "url" & asString >>= assertUrlContainsCode code
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
@@ -105,7 +111,7 @@ testInvitePersonalUserToTeam = do
           ids <- for documents ((%. "id") >=> asString)
           ids `shouldContain` [ownerId]
 
-        refreshIndex domain
+        I.refreshIndex domain
         -- a team member can now search for the former personal user
         bindResponse (searchContacts tm (user %. "name") domain) $ \resp -> do
           resp.status `shouldMatchInt` 200
@@ -140,11 +146,11 @@ testInvitePersonalUserToLargeTeam = do
   teamSize <- readServiceConfig Galley %. "settings.maxFanoutSize" & asInt <&> (+ 1)
   (owner, tid, (alice : otherTeamMembers)) <- createTeam OwnDomain teamSize
   -- User to be invited to the team
-  knut <- createUser OwnDomain def >>= getJSON 201
+  knut <- I.createUser OwnDomain def >>= getJSON 201
 
   -- Non team friends of knut
-  dawn <- createUser OwnDomain def >>= getJSON 201
-  eli <- createUser OtherDomain def >>= getJSON 201
+  dawn <- I.createUser OwnDomain def >>= getJSON 201
+  eli <- I.createUser OtherDomain def >>= getJSON 201
 
   -- knut is also friends with alice, but not any other team members.
   traverse_ (connectTwoUsers knut) [alice, dawn, eli]
@@ -159,7 +165,7 @@ testInvitePersonalUserToLargeTeam = do
 
       knutEmail <- knut %. "email" >>= asString
       inv <- postInvitation owner (PostInvitation (Just knutEmail) Nothing) >>= getJSON 201
-      code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+      code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
 
       withWebSockets [owner, alice, dawn, eli, head otherTeamMembers] $ \[wsOwner, wsAlice, wsDawn, wsEli, wsOther] -> do
         acceptTeamInvitation knut code (Just defPassword) >>= assertSuccess
@@ -204,16 +210,16 @@ testInvitePersonalUserToTeamMultipleInvitations :: (HasCallStack) => App ()
 testInvitePersonalUserToTeamMultipleInvitations = do
   (owner, tid, _) <- createTeam OwnDomain 0
   (owner2, _, _) <- createTeam OwnDomain 0
-  user <- createUser OwnDomain def >>= getJSON 201
+  user <- I.createUser OwnDomain def >>= getJSON 201
   email <- user %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
   inv2 <- postInvitation owner2 (PostInvitation (Just email) Nothing) >>= getJSON 201
-  code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
   acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
   bindResponse (getSelf user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "team" `shouldMatch` tid
-  code2 <- getInvitationCode owner2 inv2 >>= getJSON 200 >>= (%. "code") & asString
+  code2 <- I.getInvitationCode owner2 inv2 >>= getJSON 200 >>= (%. "code") & asString
   bindResponse (acceptTeamInvitation user code2 (Just defPassword)) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "cannot-join-multiple-teams"
@@ -227,10 +233,10 @@ testInvitationTypesAreDistinct = do
   -- We are only testing one direction because the other is not possible
   -- because the non-existing user cannot have a valid session
   (owner, _, _) <- createTeam OwnDomain 0
-  user <- createUser OwnDomain def >>= getJSON 201
+  user <- I.createUser OwnDomain def >>= getJSON 201
   email <- user %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
-  code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
   let body =
         AddUser
           { name = Just email,
@@ -276,3 +282,69 @@ testUpgradePersonalToTeamAlreadyInATeam = do
   bindResponse (upgradePersonalToTeam alice "wonderland") $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "user-already-in-a-team"
+
+-- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
+testTeamMemberCsvExport :: (HasCallStack) => App ()
+testTeamMemberCsvExport = do
+  (owner, tid, members) <- createTeam OwnDomain 5
+
+  modifiedMembers <- for
+    ( zip
+        ([0, 1, 2] <> repeat 0)
+        (owner : members)
+    )
+    $ \(n, m) -> do
+      handle <- randomHandle
+      putHandle m handle >>= assertSuccess
+      clients <-
+        replicateM n
+          $ addClient m def
+          >>= getJSON 201
+          >>= (%. "id")
+          >>= asString
+      for_ (listToMaybe clients) $ \c ->
+        getNotifications m def {client = Just c}
+      void $ I.putSSOId m def {I.scimExternalId = Just "foo"} >>= getBody 200
+      setField "handle" handle m
+        >>= setField "role" (if m == owner then "owner" else "member")
+        >>= setField "num_clients" n
+
+  memberMap :: Map.Map String Value <- fmap Map.fromList $ for (modifiedMembers) $ \m -> do
+    uid <- m %. "id" & asString
+    pure (uid, m)
+
+  bindResponse (getTeamMembersCsv owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    let rows = sort $ tail $ B8.lines $ resp.body
+    length rows `shouldMatchInt` 5
+    for_ rows $ \row -> do
+      let cols = B8.split ',' row
+      let uid = read $ B8.unpack $ cols !! 11
+      let mem = memberMap Map.! uid
+
+      ownerId <- owner %. "id" & asString
+      let ownerMember = memberMap Map.! ownerId
+      now <- formatTime defaultTimeLocale "%Y-%m-%d" <$> liftIO getCurrentTime
+      numClients <- mem %. "num_clients" & asInt
+
+      let parseField = unquote . read . B8.unpack . (cols !!)
+
+      parseField 0 `shouldMatch` (mem %. "name")
+      parseField 1 `shouldMatch` (mem %. "handle")
+      parseField 2 `shouldMatch` (mem %. "email")
+      role <- mem %. "role" & asString
+      parseField 3 `shouldMatch` role
+      when (role /= "owner") $ do
+        take 10 (parseField 4) `shouldMatch` now
+        parseField 5 `shouldMatch` (ownerMember %. "handle")
+      parseField 7 `shouldMatch` "wire"
+      parseField 9 `shouldMatch` "foo"
+      parseField 12 `shouldMatch` show numClients
+      (if numClients > 0 then shouldNotMatch else shouldMatch)
+        (parseField 13)
+        ""
+      parseField 14 `shouldMatch` "active"
+  where
+    unquote :: String -> String
+    unquote ('\'' : x) = x
+    unquote x = x

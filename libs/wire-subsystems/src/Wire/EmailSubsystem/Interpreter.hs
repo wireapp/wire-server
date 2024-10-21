@@ -345,8 +345,8 @@ renderNewClientEmail email name locale Client {..} NewClientEmailTemplate {..} b
     html = renderHtmlWithBranding newClientEmailBodyHtml replace branding
     subj = renderTextWithBranding newClientEmailSubject replace branding
     replace "name" = fromName name
-    replace "label" = fromMaybe "N/A" clientLabel
-    replace "model" = fromMaybe "N/A" clientModel
+    replace "label" = fromMaybe defRequestId clientLabel
+    replace "model" = fromMaybe defRequestId clientModel
     replace "date" =
       formatDateTime
         "%A %e %B %Y, %H:%M - %Z"
