@@ -31,14 +31,13 @@ import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Team qualified as Public ()
-import Wire.API.Federation.API
 import Wire.API.Provider.Bot
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
 
 botAPI :: API BotAPI GalleyEffects
 botAPI =
-  mkNamedAPI @"post-bot-message-unqualified" (callsFed (exposeAnnotations postBotMessageUnqualified))
+  mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified
     <@> mkNamedAPI @"get-bot-conversation" getBotConversation
 
 getBotConversation ::
