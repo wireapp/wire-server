@@ -154,7 +154,8 @@ reauthenticateEitherImpl user plaintextMaybe =
         Just (_, Suspended) -> throw (ReAuthError AuthSuspended)
         Just (_, PendingInvitation) -> throw (ReAuthError AuthPendingInvitation)
         Just (Nothing, _) -> for_ plaintextMaybe $ const (throw $ ReAuthError AuthInvalidCredentials)
-        Just (Just pw', _) -> maybeReAuth pw'
+        Just (Just pw', Active) -> maybeReAuth pw'
+        Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case plaintextMaybe of
       Nothing -> do
