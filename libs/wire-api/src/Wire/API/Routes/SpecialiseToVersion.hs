@@ -23,7 +23,6 @@ import GHC.TypeLits
 import Servant
 import Servant.API.Extended.RawM qualified as RawM
 import Wire.API.Deprecated
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
@@ -83,10 +82,6 @@ type instance
 type instance
   SpecialiseToVersion v (Description desc :> api) =
     Description desc :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (MakesFederatedCall comp rpc :> api) =
-    MakesFederatedCall comp rpc :> SpecialiseToVersion v api
 
 type instance
   SpecialiseToVersion v (StreamBody' opts f t x :> api) =

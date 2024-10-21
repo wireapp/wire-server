@@ -18,9 +18,7 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Wire.API.MakesFederatedCall
-  ( MakesFederatedCall,
-    Component (..),
-    callsFed,
+  ( Component (..),
     ShowComponent,
     HasFeds (..),
     FedCallFrom' (..),
