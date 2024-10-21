@@ -126,11 +126,11 @@ authenticateEitherImpl uid plaintext = do
         case Pasword.verifyPasswordWithStatus plaintext password of
           (False, _) -> throw AuthInvalidCredentials
           (True, PasswordStatusNeedsUpdate) -> do
-            for_ (plainTextPassword8 . fromPlainTextPassword $ plaintext) (hashAndUpdatePwd uid)
+            (hashAndUpdatePwd uid plaintext)
           (True, _) -> pure ()
   where
     hashAndUpdatePwd u pwd = do
-      hashed <- hashPassword8 pwd
+      hashed <- hashPassword6 pwd
       upsertHashedPassword u hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication
