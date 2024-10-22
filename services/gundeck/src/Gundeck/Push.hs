@@ -242,8 +242,6 @@ pushAll pushes = do
 pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
 pushAllLegacy pushes = do
   newNotifications <- mapM mkNewNotification pushes
-  -- let rs = concatMap (toList . (.nnRecipients)) newNotifications
-  -- (capableClients, incapableClients) :: ([Recipient], [Recipient]) <- splitClients rs
   -- persist push request
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications
