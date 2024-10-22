@@ -63,6 +63,7 @@ import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema
 import Data.Text qualified as T
+import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
 import Data.These.Combinators
@@ -88,6 +89,8 @@ import Web.Scim.Schema.Schema qualified as Scim
 import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Locale
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Role (Role)
 import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.API.User.Profile as BT
@@ -406,14 +409,20 @@ data CreateScimToken = CreateScimToken
   deriving (Arbitrary) via (GenericUniform CreateScimToken)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Data.Schema.Schema CreateScimToken)
 
+createScimTokenSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateScimToken
+createScimTokenSchema v =
+  object ("CreateScimToken" <> foldMap (Text.toUpper . versionText) v) $
+    CreateScimToken
+      <$> (.description) .= field "description" schema
+      <*> password .= optField "password" (maybeWithDefault A.Null schema)
+      <*> verificationCode .= optField "verification_code" (maybeWithDefault A.Null schema)
+      <*> (if isJust v then const Nothing else (.name)) .= maybe_ (optField "name" schema)
+
 instance ToSchema CreateScimToken where
-  schema =
-    object "CreateScimToken" $
-      CreateScimToken
-        <$> (.description) .= field "description" schema
-        <*> password .= optField "password" (maybeWithDefault A.Null schema)
-        <*> verificationCode .= optField "verification_code" (maybeWithDefault A.Null schema)
-        <*> (.name) .= maybe_ (optField "name" schema)
+  schema = createScimTokenSchema Nothing
+
+instance ToSchema (Versioned 'V6 CreateScimToken) where
+  schema = Versioned <$> unVersioned .= createScimTokenSchema (Just V6)
 
 -- | Type used for the response of 'APIScimTokenCreate'.
 data CreateScimTokenResponse = CreateScimTokenResponse

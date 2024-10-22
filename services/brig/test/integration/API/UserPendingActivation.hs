@@ -106,7 +106,8 @@ createScimToken spar' owner = do
       CreateScimToken
         { description = "testCreateToken",
           password = Just defPassword,
-          verificationCode = Nothing
+          verificationCode = Nothing,
+          name = Nothing
         }
   pure tok
 
