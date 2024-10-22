@@ -48,6 +48,7 @@ import Imports
 import Network.AMQP
 import Servant.Client
 import Servant.Client.Core
+import Wire.API.Component as X
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
@@ -58,7 +59,6 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Federation.Version
-import Wire.API.Component as X
 import Wire.API.Routes.Named
 
 -- Note: this type family being injective means that in most cases there is no need
