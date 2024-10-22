@@ -81,8 +81,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
-    -Wunused-packages
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -125,7 +124,6 @@ library
     , time                   >=1.4
     , tinylog                >=0.10
     , transformers
-    , transitive-anns
     , types-common           >=0.16
     , types-common-aws
     , unliftio

@@ -41,7 +41,6 @@ import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString as URI
 import Wire.API.Asset
-import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Brig (brigInternalClient)
 import Wire.API.Routes.Internal.Cargohold
@@ -68,13 +67,13 @@ servantSitemap =
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
-    qualifiedAPI = callsFed (exposeAnnotations downloadAssetV4) :<|> deleteAssetV4
+    qualifiedAPI = downloadAssetV4 :<|> deleteAssetV4
     mainAPI :: ServerT MainAPI Handler
     mainAPI =
       renewTokenV3
         :<|> deleteTokenV3
         :<|> uploadAssetV3 @'UserPrincipalTag
-        :<|> callsFed (exposeAnnotations downloadAssetV4)
+        :<|> downloadAssetV4
         :<|> deleteAssetV4
 
 internalSitemap :: ServerT InternalAPI Handler

@@ -103,7 +103,6 @@
 , tinylog
 , tls
 , transformers
-, transitive-anns
 , types-common
 , types-common-aws
 , types-common-journal
@@ -202,7 +201,6 @@ mkDerivation {
     tinylog
     tls
     transformers
-    transitive-anns
     types-common
     types-common-aws
     types-common-journal

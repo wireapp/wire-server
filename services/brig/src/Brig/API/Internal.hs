@@ -75,7 +75,6 @@ import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Federation.API
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
@@ -209,8 +208,8 @@ accountAPI =
     :<|> deleteAccountConferenceCallingConfig
     :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
-    :<|> Named @"createUserNoVerify" (callsFed (exposeAnnotations createUserNoVerify))
-    :<|> Named @"createUserNoVerifySpar" (callsFed (exposeAnnotations createUserNoVerifySpar))
+    :<|> Named @"createUserNoVerify" createUserNoVerify
+    :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
     :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
     :<|> Named @"iDeleteUser" deleteUserNoAuthH
     :<|> Named @"iPutUserStatus" changeAccountStatusH
@@ -285,8 +284,8 @@ authAPI ::
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
-  Named @"legalhold-login" (callsFed (exposeAnnotations legalHoldLogin))
-    :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
+  Named @"legalhold-login" legalHoldLogin
+    :<|> Named @"sso-login" ssoLogin
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate"
       ( \uid reauth ->

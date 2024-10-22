@@ -46,7 +46,6 @@ import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.MLS.Keys
 import Wire.API.MLS.SubConversation
-import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.Messaging
@@ -83,58 +82,32 @@ type GalleyApi =
            "get-conversations"
            GetConversationsRequest
            GetConversationsResponseV2
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Brig "get-users-by-ids",
-              MakesFederatedCall 'Brig "api-version"
-            ]
+    :<|> FedEndpoint
            "leave-conversation"
            LeaveConversationRequest
            LeaveConversationResponse
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-message-sent",
-              MakesFederatedCall 'Brig "get-user-clients"
-            ]
+    :<|> FedEndpoint
            "send-message"
            ProteusMessageSendRequest
            MessageSendResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Brig "get-users-by-ids",
-              MakesFederatedCall 'Galley "on-mls-message-sent"
-            ]
+    :<|> FedEndpoint
            "update-conversation"
            ConversationUpdateRequest
            ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "send-mls-message",
-              MakesFederatedCall 'Brig "get-mls-clients"
-            ]
+    :<|> FedEndpoint
            "send-mls-message"
            MLSMessageSendRequest
            MLSMessageResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "mls-welcome",
-              MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "send-mls-commit-bundle",
-              MakesFederatedCall 'Brig "get-mls-clients",
-              MakesFederatedCall 'Brig "get-users-by-ids",
-              MakesFederatedCall 'Brig "api-version"
-            ]
+    :<|> FedEndpoint
            "send-mls-commit-bundle"
            MLSMessageSendRequest
            MLSMessageResponse
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
     :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-typing-indicator-updated"
+           '[
             ]
            "update-typing-indicator"
            TypingDataUpdateRequest
@@ -153,8 +126,7 @@ type GalleyApi =
            DeleteSubConversationFedRequest
            DeleteSubConversationResponse
     :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-              From 'V1
+           '[ From 'V1
             ]
            "leave-sub-conversation"
            LeaveSubConversationRequest

@@ -23,7 +23,7 @@ where
 
 import Data.Proxy
 import Imports
-import Wire.API.MakesFederatedCall (Component (..))
+import Wire.API.Component (Component (..))
 
 componentName :: Component -> Text
 componentName Brig = "brig"

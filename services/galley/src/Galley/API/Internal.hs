@@ -103,8 +103,8 @@ internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
   hoistAPI @InternalAPIBase Imports.id $
     mkNamedAPI @"status" (pure ())
-      <@> mkNamedAPI @"delete-user" (callsFed (exposeAnnotations rmUser))
-      <@> mkNamedAPI @"connect" (callsFed (exposeAnnotations Create.createConnectConversation))
+      <@> mkNamedAPI @"delete-user" rmUser
+      <@> mkNamedAPI @"connect" Create.createConnectConversation
       <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
@@ -117,7 +117,7 @@ internalAPI =
       <@> iEJPDAPI
 
 iEJPDAPI :: API IEJPDAPI GalleyEffects
-iEJPDAPI = mkNamedAPI @"get-conversations-by-user" (callsFed (exposeAnnotations ejpdGetConvInfo))
+iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
 
 -- | An unpaginated, internal http interface to `Query.conversationIdsPageFrom`.  Used for
 -- EJPD reports.  Called locally with very little data for each conv, so we don't expect

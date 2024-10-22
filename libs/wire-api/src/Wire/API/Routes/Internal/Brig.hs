@@ -65,7 +65,6 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -170,8 +169,6 @@ type AccountAPI =
            -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
            -- - UserIdentityUpdated event to created user, if email or phone get activated
            ( "users"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[Servant.JSON] NewUser
                :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
            )
@@ -179,8 +176,6 @@ type AccountAPI =
            "createUserNoVerifySpar"
            ( "users"
                :> "spar"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
@@ -649,16 +644,12 @@ type AuthAPI =
   Named
     "legalhold-login"
     ( "legalhold-login"
-        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-        :> MakesFederatedCall 'Brig "send-connection-action"
         :> ReqBody '[JSON] LegalHoldLogin
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
            "sso-login"
            ( "sso-login"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[JSON] SsoLogin
                :> QueryParam' [Optional, Strict] "persist" Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse

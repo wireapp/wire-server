@@ -23,7 +23,6 @@
 , cereal
 , comonad
 , conduit
-, constraints
 , containers
 , cookie
 , crypton
@@ -100,7 +99,6 @@
 , these
 , time
 , tinylog
-, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -136,7 +134,6 @@ mkDerivation {
     cereal
     comonad
     conduit
-    constraints
     containers
     cookie
     crypton
@@ -202,7 +199,6 @@ mkDerivation {
     these
     time
     tinylog
-    transitive-anns
     types-common
     unordered-containers
     uri-bytestring

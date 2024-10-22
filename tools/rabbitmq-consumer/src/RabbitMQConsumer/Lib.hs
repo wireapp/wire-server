@@ -29,8 +29,8 @@ import Imports
 import Network.AMQP
 import Network.Socket
 import Options.Applicative
+import Wire.API.Component (Component)
 import Wire.API.Federation.BackendNotifications (BackendNotification (..))
-import Wire.API.MakesFederatedCall (Component)
 
 main :: IO ()
 main = do
