@@ -104,6 +104,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Spar
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
@@ -186,11 +187,11 @@ apiSSO ::
 apiSSO opts =
   SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing)
     :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
-    :<|> authreqPrecheck
-    :<|> authreq (maxttlAuthreqDiffTime opts)
-    :<|> authresp Nothing
-    :<|> authresp . Just
-    :<|> ssoSettings
+    :<|> Named @"auth-req-precheck" authreqPrecheck
+    :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
+    :<|> Named @"auth-resp-legacy" (authresp Nothing)
+    :<|> Named @"auth-resp" (authresp . Just)
+    :<|> Named @"sso-settings" ssoSettings
 
 apiIDP ::
   ( Member Random r,

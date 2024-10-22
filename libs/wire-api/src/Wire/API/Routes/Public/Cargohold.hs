@@ -139,7 +139,7 @@ type CargoholdAPI =
 -- v3 suffix, which is removed starting from API V2.
 type BaseAPIv3 (tag :: PrincipalTag) =
   Named
-    '("upload-asset", tag)
+    '("assets-upload-v3", tag)
     ( Summary "Upload an asset"
         :> CanThrow 'AssetTooLarge
         :> CanThrow 'InvalidLength
@@ -156,7 +156,7 @@ type BaseAPIv3 (tag :: PrincipalTag) =
              (Asset, AssetLocation Relative)
     )
     :<|> Named
-           '("download-asset", tag)
+           '("assets-download-v3", tag)
            ( Summary "Download an asset"
                :> tag
                :> Capture "key" AssetKey
@@ -166,7 +166,7 @@ type BaseAPIv3 (tag :: PrincipalTag) =
                :> GetAsset
            )
     :<|> Named
-           '("delete-asset", tag)
+           '("assets-delete-v3", tag)
            ( Summary "Delete an asset"
                :> CanThrow 'AssetNotFound
                :> CanThrow 'Unauthorised
@@ -183,153 +183,173 @@ type BaseAPIv3 (tag :: PrincipalTag) =
 -- upload has stayed unqualified. These endpoints also predate API versioning,
 -- and contain a v4 suffix.
 type QualifiedAPI =
-  ( Summary "Download an asset"
-      :> Until 'V2
-      :> Description
-           "**Note**: local assets result in a redirect, \
-           \while remote assets are streamed directly."
-      :> MakesFederatedCall 'Cargohold "get-asset"
-      :> MakesFederatedCall 'Cargohold "stream-asset"
-      :> ZLocalUser
-      :> "assets"
-      :> "v4"
-      :> QualifiedCapture "key" AssetKey
-      :> Header "Asset-Token" AssetToken
-      :> QueryParam "asset_token" AssetToken
-      :> ZHostOpt
-      :> MultiVerb
-           'GET
-           '()
-           '[ ErrorResponse 'AssetNotFound,
-              AssetRedirect,
-              AssetStreaming
-            ]
-           (Maybe LocalOrRemoteAsset)
-  )
-    :<|> ( Summary "Delete an asset"
-             :> Until 'V2
-             :> Description "**Note**: only local assets can be deleted."
-             :> CanThrow 'AssetNotFound
-             :> CanThrow 'Unauthorised
-             :> ZLocalUser
-             :> "assets"
-             :> "v4"
-             :> QualifiedCapture "key" AssetKey
-             :> MultiVerb
-                  'DELETE
-                  '[JSON]
-                  '[RespondEmpty 200 "Asset deleted"]
-                  ()
-         )
+  Named
+    "assets-download-v4"
+    ( Summary "Download an asset"
+        :> Until 'V2
+        :> Description
+             "**Note**: local assets result in a redirect, \
+             \while remote assets are streamed directly."
+        :> MakesFederatedCall 'Cargohold "get-asset"
+        :> MakesFederatedCall 'Cargohold "stream-asset"
+        :> ZLocalUser
+        :> "assets"
+        :> "v4"
+        :> QualifiedCapture "key" AssetKey
+        :> Header "Asset-Token" AssetToken
+        :> QueryParam "asset_token" AssetToken
+        :> ZHostOpt
+        :> MultiVerb
+             'GET
+             '()
+             '[ ErrorResponse 'AssetNotFound,
+                AssetRedirect,
+                AssetStreaming
+              ]
+             (Maybe LocalOrRemoteAsset)
+    )
+    :<|> Named
+           "assets-delete-v4"
+           ( Summary "Delete an asset"
+               :> Until 'V2
+               :> Description "**Note**: only local assets can be deleted."
+               :> CanThrow 'AssetNotFound
+               :> CanThrow 'Unauthorised
+               :> ZLocalUser
+               :> "assets"
+               :> "v4"
+               :> QualifiedCapture "key" AssetKey
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[RespondEmpty 200 "Asset deleted"]
+                    ()
+           )
 
 -- Old endpoints, predating BaseAPIv3, and therefore API versioning.
 type LegacyAPI =
-  ( ZLocalUser
-      :> Until 'V2
-      :> "assets"
-      :> QueryParam' [Required, Strict] "conv_id" ConvId
-      :> Capture "id" AssetId
-      :> GetAsset
-  )
-    :<|> ( ZLocalUser
-             :> Until 'V2
-             :> "conversations"
-             :> Capture "cnv" ConvId
-             :> "assets"
-             :> Capture "id" AssetId
-             :> GetAsset
-         )
-    :<|> ( ZLocalUser
-             :> Until 'V2
-             :> "conversations"
-             :> Capture "cnv" ConvId
-             :> "otr"
-             :> "assets"
-             :> Capture "id" AssetId
-             :> GetAsset
-         )
+  Named
+    "assets-download-legacy"
+    ( ZLocalUser
+        :> Until 'V2
+        :> "assets"
+        :> QueryParam' [Required, Strict] "conv_id" ConvId
+        :> Capture "id" AssetId
+        :> GetAsset
+    )
+    :<|> Named
+           "assets-conv-download-legacy"
+           ( ZLocalUser
+               :> Until 'V2
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "assets"
+               :> Capture "id" AssetId
+               :> GetAsset
+           )
+    :<|> Named
+           "assets-conv-otr-download-legacy"
+           ( ZLocalUser
+               :> Until 'V2
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "otr"
+               :> "assets"
+               :> Capture "id" AssetId
+               :> GetAsset
+           )
 
 -- | With API versioning, the previous ad-hoc v3/v4 versioning is abandoned, and
 -- asset endpoints are versioned normally as part of the public API, without any
 -- explicit prefix.
 type MainAPI =
-  ( Summary "Renew an asset token"
-      :> From 'V2
-      :> CanThrow 'AssetNotFound
-      :> CanThrow 'Unauthorised
-      :> ZLocalUser
-      :> "assets"
-      :> Capture "key" AssetKey
-      :> "token"
-      :> Post '[JSON] NewAssetToken
-  )
-    :<|> ( Summary "Delete an asset token"
-             :> From 'V2
-             :> Description "**Note**: deleting the token makes the asset public."
-             :> ZLocalUser
-             :> "assets"
-             :> Capture "key" AssetKey
-             :> "token"
-             :> MultiVerb
-                  'DELETE
-                  '[JSON]
-                  '[RespondEmpty 200 "Asset token deleted"]
-                  ()
-         )
-    :<|> ( Summary "Upload an asset"
-             :> From 'V2
-             :> CanThrow 'AssetTooLarge
-             :> CanThrow 'InvalidLength
-             :> ZLocalUser
-             :> "assets"
-             :> AssetBody
-             :> MultiVerb
-                  'POST
-                  '[JSON]
-                  '[ WithHeaders
-                       (AssetLocationHeader Relative)
-                       (Asset, AssetLocation Relative)
-                       (Respond 201 "Asset posted" Asset)
-                   ]
-                  (Asset, AssetLocation Relative)
-         )
-    :<|> ( Summary "Download an asset"
-             :> From 'V2
-             :> Description
-                  "**Note**: local assets result in a redirect, \
-                  \while remote assets are streamed directly."
-             :> MakesFederatedCall 'Cargohold "get-asset"
-             :> MakesFederatedCall 'Cargohold "stream-asset"
-             :> CanThrow 'NoMatchingAssetEndpoint
-             :> ZLocalUser
-             :> "assets"
-             :> QualifiedCapture "key" AssetKey
-             :> Header "Asset-Token" AssetToken
-             :> QueryParam "asset_token" AssetToken
-             :> ZHostOpt
-             :> MultiVerb
-                  'GET
-                  '()
-                  '[ ErrorResponse 'AssetNotFound,
-                     AssetRedirect,
-                     AssetStreaming
-                   ]
-                  (Maybe LocalOrRemoteAsset)
-         )
-    :<|> ( Summary "Delete an asset"
-             :> From 'V2
-             :> Description "**Note**: only local assets can be deleted."
-             :> CanThrow 'AssetNotFound
-             :> CanThrow 'Unauthorised
-             :> ZLocalUser
-             :> "assets"
-             :> QualifiedCapture "key" AssetKey
-             :> MultiVerb
-                  'DELETE
-                  '[JSON]
-                  '[RespondEmpty 200 "Asset deleted"]
-                  ()
-         )
+  Named
+    "tokens-renew"
+    ( Summary "Renew an asset token"
+        :> From 'V2
+        :> CanThrow 'AssetNotFound
+        :> CanThrow 'Unauthorised
+        :> ZLocalUser
+        :> "assets"
+        :> Capture "key" AssetKey
+        :> "token"
+        :> Post '[JSON] NewAssetToken
+    )
+    :<|> Named
+           "tokens-delete"
+           ( Summary "Delete an asset token"
+               :> From 'V2
+               :> Description "**Note**: deleting the token makes the asset public."
+               :> ZLocalUser
+               :> "assets"
+               :> Capture "key" AssetKey
+               :> "token"
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[RespondEmpty 200 "Asset token deleted"]
+                    ()
+           )
+    :<|> Named
+           "assets-upload"
+           ( Summary "Upload an asset"
+               :> From 'V2
+               :> CanThrow 'AssetTooLarge
+               :> CanThrow 'InvalidLength
+               :> ZLocalUser
+               :> "assets"
+               :> AssetBody
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[ WithHeaders
+                         (AssetLocationHeader Relative)
+                         (Asset, AssetLocation Relative)
+                         (Respond 201 "Asset posted" Asset)
+                     ]
+                    (Asset, AssetLocation Relative)
+           )
+    :<|> Named
+           "assets-download"
+           ( Summary "Download an asset"
+               :> From 'V2
+               :> Description
+                    "**Note**: local assets result in a redirect, \
+                    \while remote assets are streamed directly."
+               :> MakesFederatedCall 'Cargohold "get-asset"
+               :> MakesFederatedCall 'Cargohold "stream-asset"
+               :> CanThrow 'NoMatchingAssetEndpoint
+               :> ZLocalUser
+               :> "assets"
+               :> QualifiedCapture "key" AssetKey
+               :> Header "Asset-Token" AssetToken
+               :> QueryParam "asset_token" AssetToken
+               :> ZHostOpt
+               :> MultiVerb
+                    'GET
+                    '()
+                    '[ ErrorResponse 'AssetNotFound,
+                       AssetRedirect,
+                       AssetStreaming
+                     ]
+                    (Maybe LocalOrRemoteAsset)
+           )
+    :<|> Named
+           "assets-delete"
+           ( Summary "Delete an asset"
+               :> From 'V2
+               :> Description "**Note**: only local assets can be deleted."
+               :> CanThrow 'AssetNotFound
+               :> CanThrow 'Unauthorised
+               :> ZLocalUser
+               :> "assets"
+               :> QualifiedCapture "key" AssetKey
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[RespondEmpty 200 "Asset deleted"]
+                    ()
+           )
 
 data CargoholdAPITag
 

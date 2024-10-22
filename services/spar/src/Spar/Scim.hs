@@ -97,6 +97,7 @@ import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
 import Wire.Sem.Logger (Logger)
@@ -135,7 +136,7 @@ apiScim ::
   ServerT APIScim (Sem r)
 apiScim =
   hoistScim (toServant (server configuration))
-    :<|> apiScimToken
+    :<|> Named @"auth-tokens" apiScimToken
   where
     hoistScim =
       hoistServer

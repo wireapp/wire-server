@@ -35,6 +35,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Spar
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.SwaggerServant
 import Wire.API.User.IdentityProvider
@@ -69,32 +70,44 @@ type APISSO =
 type CheckOK = Verb 'HEAD 200
 
 type APIAuthReqPrecheck =
-  QueryParam "success_redirect" URI.URI
-    :> QueryParam "error_redirect" URI.URI
-    :> Capture "idp" SAML.IdPId
-    :> CheckOK '[PlainText] NoContent
+  Named
+    "auth-req-precheck"
+    ( QueryParam "success_redirect" URI.URI
+        :> QueryParam "error_redirect" URI.URI
+        :> Capture "idp" SAML.IdPId
+        :> CheckOK '[PlainText] NoContent
+    )
 
 type APIAuthReq =
-  QueryParam "success_redirect" URI.URI
-    :> QueryParam "error_redirect" URI.URI
-    -- (SAML.APIAuthReq from here on, except for the cookies)
-    :> Capture "idp" SAML.IdPId
-    :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
+  Named
+    "auth-req"
+    ( QueryParam "success_redirect" URI.URI
+        :> QueryParam "error_redirect" URI.URI
+        -- (SAML.APIAuthReq from here on, except for the cookies)
+        :> Capture "idp" SAML.IdPId
+        :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
+    )
 
 type APIAuthRespLegacy =
-  DeprecateSSOAPIV1
-    :> Deprecated
-    :> "finalize-login"
-    -- (SAML.APIAuthResp from here on, except for response)
-    :> MultipartForm Mem SAML.AuthnResponseBody
-    :> Post '[PlainText] Void
+  Named
+    "auth-resp-legacy"
+    ( DeprecateSSOAPIV1
+        :> Deprecated
+        :> "finalize-login"
+        -- (SAML.APIAuthResp from here on, except for response)
+        :> MultipartForm Mem SAML.AuthnResponseBody
+        :> Post '[PlainText] Void
+    )
 
 type APIAuthResp =
-  "finalize-login"
-    :> Capture "team" TeamId
-    -- (SAML.APIAuthResp from here on, except for response)
-    :> MultipartForm Mem SAML.AuthnResponseBody
-    :> Post '[PlainText] Void
+  Named
+    "auth-resp"
+    ( "finalize-login"
+        :> Capture "team" TeamId
+        -- (SAML.APIAuthResp from here on, except for response)
+        :> MultipartForm Mem SAML.AuthnResponseBody
+        :> Post '[PlainText] Void
+    )
 
 type APIIDP =
   ZOptUser :> IdpGet
@@ -132,7 +145,10 @@ type IdpDelete =
     :> DeleteNoContent
 
 type SsoSettingsGet =
-  Get '[JSON] SsoSettings
+  Named
+    "sso-settings"
+    ( Get '[JSON] SsoSettings
+    )
 
 sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m SAML.Issuer
 sparSPIssuer Nothing =
@@ -150,11 +166,14 @@ sparResponseURI (Just tid) =
 
 type APIScim =
   OmitDocs :> "v2" :> ScimSiteAPI SparTag
-    :<|> "auth-tokens"
-      :> CanThrow 'PasswordAuthenticationFailed
-      :> CanThrow 'CodeAuthenticationFailed
-      :> CanThrow 'CodeAuthenticationRequired
-      :> APIScimToken
+    :<|> Named
+           "auth-tokens"
+           ( "auth-tokens"
+               :> CanThrow 'PasswordAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
+               :> APIScimToken
+           )
 
 type ScimSiteAPI tag = ToServantApi (ScimSite tag)
 
