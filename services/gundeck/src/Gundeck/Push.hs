@@ -52,7 +52,6 @@ import Data.UUID qualified as UUID
 import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
-import Gundeck.Client
 import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Data
@@ -74,7 +73,7 @@ import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
 import Util.Options
 import Wire.API.Internal.Notification
-import Wire.API.Notification (userNotificationExchangeName)
+import Wire.API.Notification
 import Wire.API.Presence (Presence (..))
 import Wire.API.Presence qualified as Presence
 import Wire.API.Push.Token qualified as Public

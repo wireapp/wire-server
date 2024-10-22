@@ -49,11 +49,6 @@ setupConsumableNotifications ::
 setupConsumableNotifications chan uid cid = do
   let qName = clientNotificationQueueName uid cid
   void $ declareQueue chan newQueue {queueName = qName}
-  for_ [userRoutingKey uid, clientRoutingKey uid cid] $ bindQueue chan qName userNotificationExchangeName
+  for_ [userRoutingKey uid, clientRoutingKey uid cid] $
+    bindQueue chan qName userNotificationExchangeName
   pure qName
-
-userRoutingKey :: UserId -> Text
-userRoutingKey = idToText
-
-clientRoutingKey :: UserId -> ClientId -> Text
-clientRoutingKey uid cid = idToText uid <> "." <> clientToText cid
