@@ -169,11 +169,25 @@ type UserAPI =
           :> GetUserVerb
       )
     :<|> Named
-           "update-user-email"
+           "update-user-email@v6"
            ( Summary "Resend email address validation email."
+               :> Until 'V7
                :> Description "If the user has a pending email validation, the validation email will be resent."
                :> ZUser
                :> "users"
+               :> CaptureUserId "uid"
+               :> "email"
+               :> ReqBody '[JSON] EmailUpdate
+               :> Put '[JSON] ()
+           )
+    :<|> Named
+           "update-user-email"
+           ( Summary "Resend email address validation email."
+               :> From 'V7
+               :> Description "If the user has a pending email validation, the validation email will be resent."
+               :> ZUser
+               :> "users"
+               :> "uid"
                :> CaptureUserId "uid"
                :> "email"
                :> ReqBody '[JSON] EmailUpdate
@@ -255,11 +269,28 @@ type UserAPI =
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
            )
     :<|> Named
-           "get-rich-info"
+           "get-rich-info@v6"
            ( Summary "Get a user's rich info"
+               :> Until 'V7
                :> CanThrow 'InsufficientTeamPermissions
                :> ZLocalUser
                :> "users"
+               :> CaptureUserId "uid"
+               :> "rich-info"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[Respond 200 "Rich info about the user" RichInfoAssocList]
+                    RichInfoAssocList
+           )
+    :<|> Named
+           "get-rich-info"
+           ( Summary "Get a user's rich info"
+               :> From 'V7
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZLocalUser
+               :> "users"
+               :> "uid"
                :> CaptureUserId "uid"
                :> "rich-info"
                :> MultiVerb

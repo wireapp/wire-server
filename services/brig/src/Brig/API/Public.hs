@@ -333,6 +333,7 @@ servantSitemap =
     userAPI =
       Named @"get-user-unqualified" getUserUnqualifiedH
         :<|> Named @"get-user-qualified" getUserProfileH
+        :<|> Named @"update-user-email@v6" updateUserEmail
         :<|> Named @"update-user-email" updateUserEmail
         :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
         :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
@@ -340,6 +341,7 @@ servantSitemap =
         :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles@V3" listUsersByIdsOrHandlesV3
         :<|> Named @"send-verification-code" sendVerificationCode
+        :<|> Named @"get-rich-info@v6" getRichInfo
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
 
