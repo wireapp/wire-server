@@ -651,10 +651,11 @@ type ConversationAPI =
                :> ConversationVerb 'V2 Conversation
            )
     :<|> Named
-           "create-one-to-one-conversation"
+           "create-one-to-one-conversation@v6"
            ( Summary "Create a 1:1 conversation"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> From 'V3
+               :> Until 'V7
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NoBindingTeamMembers
@@ -669,6 +670,27 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
+               :> ReqBody '[JSON] NewConv
+               :> ConversationVerb 'V3 Conversation
+           )
+    :<|> Named
+           "create-one-to-one-conversation"
+           ( Summary "Create a 1:1 conversation"
+               :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> From 'V7
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NoBindingTeamMembers
+               :> CanThrow 'NonBindingTeam
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
+               :> ZLocalUser
+               :> ZConn
+               :> "one2one-conversations"
                :> ReqBody '[JSON] NewConv
                :> ConversationVerb 'V3 Conversation
            )
@@ -706,8 +728,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
-               :> "conversations"
-               :> "one2one"
+               :> "one2one-conversations"
                :> QualifiedCapture "usr" UserId
                :> QueryParam "format" MLSPublicKeyFormat
                :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" (MLSOne2OneConversation SomeKey))
@@ -1015,6 +1036,7 @@ type ConversationAPI =
     :<|> Named
            "update-other-member-unqualified"
            ( Summary "Update membership of the specified user (deprecated)"
+               :> Until V7
                :> Deprecated
                :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
