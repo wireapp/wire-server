@@ -30,7 +30,7 @@ import Network.AMQP
 import Network.Socket
 import Options.Applicative
 import Wire.API.Federation.BackendNotifications (BackendNotification (..))
-import Wire.API.MakesFederatedCall (Component)
+import Wire.API.Component (Component)
 
 main :: IO ()
 main = do

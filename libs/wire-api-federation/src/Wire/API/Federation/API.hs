@@ -58,7 +58,7 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Federation.Version
-import Wire.API.MakesFederatedCall as X
+import Wire.API.Component as X
 import Wire.API.Routes.Named
 
 -- Note: this type family being injective means that in most cases there is no need

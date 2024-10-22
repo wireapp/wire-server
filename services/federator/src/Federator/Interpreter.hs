@@ -43,7 +43,7 @@ import Servant.Client (mkClientEnv)
 import Servant.Client.Core
 import Util.Options (Endpoint (..))
 import Wire.API.FederationUpdate qualified as FedUp (getFederationDomainConfigs)
-import Wire.API.MakesFederatedCall (Component (Brig))
+import Wire.API.Component (Component (Brig))
 import Wire.API.Routes.FederationDomainConfig qualified as FedUp (FederationDomainConfigs)
 import Wire.Network.DNS.Effect
 import Wire.Sem.Logger.TinyLog

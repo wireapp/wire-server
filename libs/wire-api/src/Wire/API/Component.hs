@@ -17,7 +17,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
-module Wire.API.MakesFederatedCall
+module Wire.API.Component
   ( Component (..),
     ShowComponent,
   )
