@@ -22,6 +22,7 @@ where
 
 import Brig.AWS.Types
 import Brig.App
+import Data.Mailbox
 import Imports
 import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
@@ -30,26 +31,26 @@ import Wire.API.User.Identity
 import Wire.UserSubsystem
 
 onEvent :: (Member UserSubsystem r) => SESNotification -> AppT r ()
-onEvent (MailBounce BouncePermanent es) = onPermanentBounce es
-onEvent (MailBounce BounceTransient es) = onTransientBounce es
-onEvent (MailBounce BounceUndetermined es) = onUndeterminedBounce es
-onEvent (MailComplaint es) = onComplaint es
+onEvent (MailBounce BouncePermanent recipients) = onPermanentBounce recipients
+onEvent (MailBounce BounceTransient recipients) = onTransientBounce recipients
+onEvent (MailBounce BounceUndetermined recipients) = onUndeterminedBounce recipients
+onEvent (MailComplaint recipients) = onComplaint recipients
 
-onPermanentBounce :: (Member UserSubsystem r) => [EmailAddress] -> AppT r ()
-onPermanentBounce = mapM_ $ \e -> do
-  logEmailEvent "Permanent bounce" e
-  liftSem $ blockListInsert e
+onPermanentBounce :: (Member UserSubsystem r) => [Mailbox] -> AppT r ()
+onPermanentBounce = mapM_ $ \mailbox -> do
+  logEmailEvent "Permanent bounce" mailbox.address
+  liftSem $ blockListInsert mailbox.address
 
-onTransientBounce :: [EmailAddress] -> AppT r ()
-onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
+onTransientBounce :: [Mailbox] -> AppT r ()
+onTransientBounce = mapM_ (logEmailEvent "Transient bounce" . (.address))
 
-onUndeterminedBounce :: [EmailAddress] -> AppT r ()
-onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
+onUndeterminedBounce :: [Mailbox] -> AppT r ()
+onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce" . (.address))
 
-onComplaint :: (Member UserSubsystem r) => [EmailAddress] -> AppT r ()
+onComplaint :: (Member UserSubsystem r) => [Mailbox] -> AppT r ()
 onComplaint = mapM_ $ \e -> do
-  logEmailEvent "Complaint" e
-  liftSem $ blockListInsert e
+  logEmailEvent "Complaint" e.address
+  liftSem $ blockListInsert e.address
 
 logEmailEvent :: Text -> EmailAddress -> AppT r ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t
