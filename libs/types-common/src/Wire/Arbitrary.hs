@@ -89,7 +89,7 @@ nonEmptyListOf' :: Gen a -> Gen (NonEmpty a)
 nonEmptyListOf' g = (:|) <$> g <*> listOf' g
 
 setOf' :: (Ord a) => Gen a -> Gen (Set a)
-setOf' g = Set.fromList <$> Generic.listOf' g
+setOf' g' = Set.fromList <$> Generic.listOf' g'
 
 mapOf' :: (Ord k) => Gen k -> Gen v -> Gen (Map k v)
 mapOf' genK genV = Map.fromList <$> Generic.listOf' (liftA2 (,) genK genV)
