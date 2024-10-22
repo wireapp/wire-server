@@ -159,7 +159,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all lint-common openapi-validate
+lint-all: formatc hlint-check-all lint-common
 
 # For use by local devs.
 #
@@ -603,4 +603,4 @@ upload-bombon:
 .PHONY: openapi-validate
 openapi-validate:
 	@echo -e "Make sure you are running the backend in another terminal (make cr)\n"
-	./tools/openapi-validate
+	VACUUM_ARGS="-a -d -w" ./tools/openapi-validate

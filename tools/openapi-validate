@@ -9,4 +9,4 @@ cleanup() {
 }
 
 curl http://localhost:8082/v7/api/swagger.json > $TEMP
-vacuum lint $TEMP -a -d -w
+vacuum lint $TEMP ${VACUUM_ARGS}
