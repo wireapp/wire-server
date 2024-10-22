@@ -59,8 +59,8 @@ type DeprecateSSOAPIV1 =
     \Details: https://docs.wire.com/understand/single-sign-on/trouble-shooting.html#can-i-use-the-same-sso-login-code-for-multiple-teams"
 
 type APISSO =
-  DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta
-    :<|> "metadata" :> Capture "team" TeamId :> SAML.APIMeta
+  Named "sso-metadata" (DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta)
+    :<|> Named "sso-team-metadata" ("metadata" :> Capture "team" TeamId :> SAML.APIMeta)
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
     :<|> APIAuthRespLegacy
@@ -110,12 +110,12 @@ type APIAuthResp =
     )
 
 type APIIDP =
-  ZOptUser :> IdpGet
-    :<|> ZOptUser :> IdpGetRaw
-    :<|> ZOptUser :> IdpGetAll
-    :<|> ZOptUser :> IdpCreate
-    :<|> ZOptUser :> IdpUpdate
-    :<|> ZOptUser :> IdpDelete
+  Named "idp-get" (ZOptUser :> IdpGet)
+    :<|> Named "idp-get-raw" (ZOptUser :> IdpGetRaw)
+    :<|> Named "idp-get-all" (ZOptUser :> IdpGetAll)
+    :<|> Named "idp-create" (ZOptUser :> IdpCreate)
+    :<|> Named "idp-update" (ZOptUser :> IdpUpdate)
+    :<|> Named "idp-delete" (ZOptUser :> IdpDelete)
 
 type IdpGetRaw = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
 
@@ -166,14 +166,11 @@ sparResponseURI (Just tid) =
 
 type APIScim =
   OmitDocs :> "v2" :> ScimSiteAPI SparTag
-    :<|> Named
-           "auth-tokens"
-           ( "auth-tokens"
-               :> CanThrow 'PasswordAuthenticationFailed
-               :> CanThrow 'CodeAuthenticationFailed
-               :> CanThrow 'CodeAuthenticationRequired
-               :> APIScimToken
-           )
+    :<|> "auth-tokens"
+      :> CanThrow 'PasswordAuthenticationFailed
+      :> CanThrow 'CodeAuthenticationFailed
+      :> CanThrow 'CodeAuthenticationRequired
+      :> APIScimToken
 
 type ScimSiteAPI tag = ToServantApi (ScimSite tag)
 
@@ -192,9 +189,9 @@ data ScimSite tag route = ScimSite
   deriving (Generic)
 
 type APIScimToken =
-  ZOptUser :> APIScimTokenCreate
-    :<|> ZOptUser :> APIScimTokenDelete
-    :<|> ZOptUser :> APIScimTokenList
+  Named "auth-tokens-create" (ZOptUser :> APIScimTokenCreate)
+    :<|> Named "auth-tokens-delete" (ZOptUser :> APIScimTokenDelete)
+    :<|> Named "auth-tokens-list" (ZOptUser :> APIScimTokenList)
 
 type APIScimTokenCreate =
   ReqBody '[JSON] CreateScimToken

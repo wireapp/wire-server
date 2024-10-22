@@ -185,8 +185,8 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing)
-    :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
+  Named @"sso-metadata" (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
+    :<|> Named @"sso-team-metadata" (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
     :<|> Named @"auth-req-precheck" authreqPrecheck
     :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
@@ -206,12 +206,12 @@ apiIDP ::
   ) =>
   ServerT APIIDP (Sem r)
 apiIDP =
-  idpGet -- get, json, captures idp id
-    :<|> idpGetRaw -- get, raw xml, capture idp id
-    :<|> idpGetAll -- get, json
-    :<|> idpCreate -- post, created
-    :<|> idpUpdate -- put, okay
-    :<|> idpDelete -- delete, no content
+  Named @"idp-get" idpGet -- get, json, captures idp id
+    :<|> Named @"idp-get-raw" idpGetRaw -- get, raw xml, capture idp id
+    :<|> Named @"idp-get-all" idpGetAll -- get, json
+    :<|> Named @"idp-create" idpCreate -- post, created
+    :<|> Named @"idp-update" idpUpdate -- put, okay
+    :<|> Named @"idp-delete" idpDelete -- delete, no content
 
 apiINTERNAL ::
   ( Member ScimTokenStore r,
