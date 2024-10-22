@@ -438,7 +438,9 @@ servantSitemap =
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =
-      Named @"check-user-handles" checkHandles
+      Named @"check-user-handles@v6" checkHandles
+        :<|> Named @"check-user-handles" checkHandles
+        :<|> Named @"check-user-handle@v6" checkHandle
         :<|> Named @"check-user-handle" checkHandle
 
     searchAPI :: ServerT SearchAPI (Handler r)
