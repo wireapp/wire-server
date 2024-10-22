@@ -9,4 +9,4 @@ cleanup() {
 }
 
 curl http://localhost:8082/v7/api/swagger.json > $TEMP
-docker run --rm -v $(dirname $TEMP):/work:ro dshanley/vacuum:v0.9.8 lint -a -e -d $(basename $TEMP)
+vacuum lint $TEMP -a -d -w

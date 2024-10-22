@@ -414,6 +414,7 @@ let
     pkgs.nixpkgs-fmt
     pkgs.openssl
     pkgs.ormolu
+    pkgs.vacuum-go
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
