@@ -1,1 +1,1 @@
-Notifications are now also send via RabbitMQ therefore RabbitMQ is now a required configuration in brig.
+Notifications are now also sent via RabbitMQ therefore RabbitMQ is now a required configuration in brig.
