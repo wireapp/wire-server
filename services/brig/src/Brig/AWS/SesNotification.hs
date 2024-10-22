@@ -48,9 +48,9 @@ onUndeterminedBounce :: [Mailbox] -> AppT r ()
 onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce" . (.address))
 
 onComplaint :: (Member UserSubsystem r) => [Mailbox] -> AppT r ()
-onComplaint = mapM_ $ \e -> do
-  logEmailEvent "Complaint" e.address
-  liftSem $ blockListInsert e.address
+onComplaint = mapM_ $ \mailbox -> do
+  logEmailEvent "Complaint" mailbox.address
+  liftSem $ blockListInsert mailbox.address
 
 logEmailEvent :: Text -> EmailAddress -> AppT r ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t
