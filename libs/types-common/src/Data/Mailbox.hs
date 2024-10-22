@@ -43,7 +43,9 @@ atextParser =
     num = Char8Parser.satisfy Char.isNumber
     allowedSpecials =
       Char8Parser.satisfy $
-        Char8Parser.inClass "!#$%&'*+-/=?^_`{|}~"
+        -- Make sure the - is the first or the last symbol, otherwise inClass
+        -- treats it as a signifier of range
+        Char8Parser.inClass "-!#$%&'*+/=?^_`{|}~"
 
 wspParser :: Parser Char
 wspParser = Char8Parser.satisfy (\c -> c == ' ' || c == '\t')
