@@ -19,6 +19,7 @@
 module Test.Wire.API.Password where
 
 import Control.Concurrent.Async
+import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Misc
 import Imports
 import Test.Tasty
@@ -33,10 +34,23 @@ tests =
       testCase "verify old scrypt password still works" testHashingOldScrypt
     ]
 
+defaultOptions :: Argon2.Options
+defaultOptions =
+  let hashParallelism = 4
+   in Argon2.Options
+        { variant = Argon2.Argon2id,
+          version = Argon2.Version13,
+          iterations = 1,
+          parallelism = hashParallelism,
+          -- This needs to be min 8 * hashParallelism, otherewise we get an
+          -- unsafe error
+          memory = 8 * hashParallelism
+        }
+
 testHashPasswordScrypt :: IO ()
 testHashPasswordScrypt = do
   pwd <- genPassword
-  hashed <- mkSafePassword pwd
+  hashed <- mkSafePassword defaultOptions pwd
   let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertBool "Password could not be verified" correct
   assertEqual "Password could not be verified" status PasswordStatusOk
@@ -44,7 +58,7 @@ testHashPasswordScrypt = do
 testHashPasswordArgon2id :: IO ()
 testHashPasswordArgon2id = do
   pwd <- genPassword
-  hashed <- mkSafePassword pwd
+  hashed <- mkSafePassword defaultOptions pwd
   let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertEqual "Password could not be verified" status PasswordStatusOk
   assertBool "Password could not be verified" correct

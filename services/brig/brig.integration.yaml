@@ -228,6 +228,10 @@ optSettings:
   setOAuthEnabled: true
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
   setOAuthMaxActiveRefreshTokens: 10
+  setPasswordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
+    iterations: 1
+    memory: 128
+    parallelism: 1
 
 logLevel: Warn
 logNetStrings: false

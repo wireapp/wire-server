@@ -70,7 +70,6 @@ data BrigError
   | LastIdentity
   | NoPassword
   | ChangePasswordMustDiffer
-  | PasswordAuthenticationFailed
   | TooManyTeamInvitations
   | CannotJoinMultipleTeams
   | InsufficientTeamPermissions
@@ -254,8 +253,6 @@ type instance MapError 'LastIdentity = 'StaticError 403 "last-identity" "The las
 type instance MapError 'NoPassword = 'StaticError 403 "no-password" "The user has no password."
 
 type instance MapError 'ChangePasswordMustDiffer = 'StaticError 409 "password-must-differ" "For password change, new and old password must be different."
-
-type instance MapError 'PasswordAuthenticationFailed = 'StaticError 403 "password-authentication-failed" "Password authentication failed."
 
 type instance MapError 'TooManyTeamInvitations = 'StaticError 403 "too-many-team-invitations" "Too many team invitations for this team"
 

@@ -26,7 +26,6 @@ where
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
-import Brig.Data.User
 import Brig.Options qualified as Opt
 import Cassandra hiding (Set)
 import Cassandra qualified as C
@@ -45,7 +44,6 @@ import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
 import Data.Time
 import Imports hiding (exp)
-import Network.Wai.Utilities.Error
 import OpenSSL.Random (randBytes)
 import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
@@ -57,7 +55,11 @@ import Wire.API.Routes.Internal.Brig.OAuth qualified as I
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error
 import Wire.Error
+import Wire.HashPassword (HashPassword)
+import Wire.HashPassword qualified as HashPassword
 import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
 import Wire.Sem.Now (Now)
@@ -66,7 +68,7 @@ import Wire.Sem.Now qualified as Now
 --------------------------------------------------------------------------------
 -- API Internal
 
-internalOauthAPI :: ServerT I.OAuthAPI (Handler r)
+internalOauthAPI :: (Member HashPassword r) => ServerT I.OAuthAPI (Handler r)
 internalOauthAPI =
   Named @"create-oauth-client" registerOAuthClient
     :<|> Named @"i-get-oauth-client" getOAuthClientById
@@ -95,19 +97,25 @@ oauthAPI =
 --------------------------------------------------------------------------------
 -- Handlers
 
-registerOAuthClient :: OAuthClientConfig -> (Handler r) OAuthClientCredentials
+registerOAuthClient :: (Member HashPassword r) => OAuthClientConfig -> (Handler r) OAuthClientCredentials
 registerOAuthClient (OAuthClientConfig name uri) = do
   guardOAuthEnabled
   credentials@(OAuthClientCredentials cid secret) <- OAuthClientCredentials <$> randomId <*> createSecret
-  safeSecret <- liftIO $ hashClientSecret secret
+  safeSecret <- hashClientSecret secret
   lift $ wrapClient $ insertOAuthClient cid name uri safeSecret
   pure credentials
   where
     createSecret :: (MonadIO m) => m OAuthClientPlainTextSecret
     createSecret = OAuthClientPlainTextSecret <$> rand32Bytes
 
-    hashClientSecret :: (MonadIO m) => OAuthClientPlainTextSecret -> m Password
-    hashClientSecret = mkSafePassword . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
+    hashClientSecret :: (Member HashPassword r) => OAuthClientPlainTextSecret -> (Handler r) Password
+    hashClientSecret =
+      lift
+        . liftSem
+        . HashPassword.hashPassword8
+        . plainTextPassword8Unsafe
+        . toText
+        . unOAuthClientPlainTextSecret
 
 rand32Bytes :: (MonadIO m) => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
@@ -358,7 +366,8 @@ revokeOAuthAccountAccess ::
   PasswordReqBody ->
   (Handler r) ()
 revokeOAuthAccountAccess luid@(tUnqualified -> uid) cid req = do
-  reauthenticate uid req.fromPasswordReqBody !>> toAccessDenied
+  (lift . liftSem $ Authentication.reauthenticateEither uid req.fromPasswordReqBody)
+    >>= either (throwE . toAccessDenied) (const $ pure ())
   revokeOAuthAccountAccessV6 luid cid
   where
     toAccessDenied :: ReAuthError -> HttpError
@@ -372,7 +381,8 @@ deleteOAuthRefreshTokenById ::
   PasswordReqBody ->
   (Handler r) ()
 deleteOAuthRefreshTokenById (tUnqualified -> uid) cid tokenId req = do
-  reauthenticate uid req.fromPasswordReqBody !>> toAccessDenied
+  (lift . liftSem $ Authentication.reauthenticateEither uid req.fromPasswordReqBody)
+    >>= either (throwE . toAccessDenied) (const $ pure ())
   mInfo <- lift $ wrapClient $ lookupOAuthRefreshTokenInfo tokenId
   case mInfo of
     Nothing -> pure ()

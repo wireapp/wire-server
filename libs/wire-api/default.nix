@@ -57,6 +57,7 @@
 , iso3166-country-codes
 , iso639
 , jose
+, kan-extensions
 , lens
 , lib
 , memory
@@ -165,6 +166,7 @@ mkDerivation {
     iso3166-country-codes
     iso639
     jose
+    kan-extensions
     lens
     memory
     metrics-wai

@@ -20,6 +20,7 @@ import Polysemy
 import Polysemy.Error
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
+import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
@@ -143,6 +144,7 @@ data UserSubsystem m a where
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
+  GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
@@ -159,9 +161,6 @@ getUserProfile luid targetUser =
 getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
-
-getLocalUser :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe User)
-getLocalUser = (selfUser <$$>) . getSelfProfile
 
 getLocalAccountBy ::
   (Member UserSubsystem r) =>

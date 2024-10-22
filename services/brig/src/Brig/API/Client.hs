@@ -106,6 +106,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.DeleteQueue
 import Wire.EmailSubsystem (EmailSubsystem, sendNewClientEmail)
 import Wire.Events (Events)
@@ -291,7 +292,9 @@ rmClient u con clt pw =
         -- Temporary clients don't need to re-auth
         TemporaryClientType -> pure ()
         -- All other clients must authenticate
-        _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
+        _ ->
+          (lift . liftSem $ Authentication.reauthenticateEither u pw)
+            >>= either (throwE . ClientDataError . ClientReAuthError) (const $ pure ())
       lift $ execDelete u (Just con) client
 
 claimPrekey ::

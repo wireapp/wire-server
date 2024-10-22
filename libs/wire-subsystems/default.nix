@@ -16,6 +16,7 @@
 , bloodhound
 , bytestring
 , bytestring-conversion
+, case-insensitive
 , cassandra-util
 , conduit
 , containers
@@ -106,6 +107,7 @@ mkDerivation {
     bloodhound
     bytestring
     bytestring-conversion
+    case-insensitive
     cassandra-util
     conduit
     containers

@@ -43,10 +43,10 @@ import Servant qualified
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 
-type CombinedAPI = PublicAPI Servant.:<|> InternalAPI
+type CombinedAPI = InternalAPI Servant.:<|> PublicAPI
 
 combinedSitemap :: Env -> Servant.ServerT CombinedAPI Proxy
-combinedSitemap env = P.servantSitemap env Servant.:<|> I.servantSitemap
+combinedSitemap env = I.servantSitemap Servant.:<|> P.servantSitemap env
 
 run :: Opts -> IO ()
 run o = do

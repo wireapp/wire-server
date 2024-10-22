@@ -106,8 +106,10 @@ import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.API.Team.Feature
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
+import Wire.HashPassword
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.Rpc
 import Wire.Sem.Delay
@@ -118,6 +120,7 @@ import Wire.Sem.Random.IO
 type GalleyEffects0 =
   '[ Input ClientState,
      Input Env,
+     HashPassword,
      Error InvalidInput,
      Error InternalError,
      -- federation errors can be thrown by almost every endpoint, so we avoid
@@ -251,6 +254,7 @@ evalGalley e =
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
+    . runHashPassword (argon2OptsFromHashingOpts e._options._settings._passwordHashingOptions)
     . runInputConst e
     . runInputConst (e ^. cstate)
     . mapError toResponse -- DynError

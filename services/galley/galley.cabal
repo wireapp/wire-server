@@ -122,6 +122,7 @@ library
     Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
+    Galley.API.Teams.Export
     Galley.API.Teams.Features
     Galley.API.Teams.Features.Get
     Galley.API.Teams.Notifications
@@ -300,7 +301,6 @@ library
     , brig-types                            >=0.73.1
     , bytestring                            >=0.9
     , bytestring-conversion                 >=0.2
-    , case-insensitive
     , cassandra-util                        >=0.16.2
     , cassava                               >=0.5.2
     , comonad
@@ -341,7 +341,6 @@ library
     , resourcet                             >=1.1
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
-    , saml2-web-sso                         >=0.20
     , servant
     , servant-client
     , servant-server
