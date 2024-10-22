@@ -14,16 +14,34 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Wire.AuthenticationSubsystem.Error
-  ( AuthenticationSubsystemError (..),
-    authenticationSubsystemErrorToHttpError,
-  )
-where
+module Wire.AuthenticationSubsystem.Error where
 
 import Imports
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.Error
+
+-- | Authentication errors.
+data AuthError
+  = AuthInvalidUser
+  | AuthInvalidCredentials
+  | AuthSuspended
+  | AuthEphemeral
+  | AuthPendingInvitation
+  deriving (Show, Eq)
+
+instance Exception AuthError
+
+-- | Re-authentication errors.
+data ReAuthError
+  = ReAuthError !AuthError
+  | ReAuthMissingPassword
+  | ReAuthCodeVerificationRequired
+  | ReAuthCodeVerificationNoPendingCode
+  | ReAuthCodeVerificationNoEmail
+  deriving (Show, Eq)
+
+instance Exception ReAuthError
 
 data AuthenticationSubsystemError
   = AuthenticationSubsystemInvalidPasswordResetKey
@@ -31,7 +49,6 @@ data AuthenticationSubsystemError
   | AuthenticationSubsystemInvalidPasswordResetCode
   | AuthenticationSubsystemInvalidPhone
   | AuthenticationSubsystemAllowListError
-  | AuthenticationSubsystemMissingAuth
   | AuthenticationSubsystemBadCredentials
   deriving (Eq, Show)
 
@@ -45,5 +62,4 @@ authenticationSubsystemErrorToHttpError =
     AuthenticationSubsystemResetPasswordMustDiffer -> errorToWai @E.ResetPasswordMustDiffer
     AuthenticationSubsystemInvalidPhone -> errorToWai @E.InvalidPhone
     AuthenticationSubsystemAllowListError -> errorToWai @E.AllowlistError
-    AuthenticationSubsystemMissingAuth -> errorToWai @E.MissingAuth
     AuthenticationSubsystemBadCredentials -> errorToWai @E.BadCredentials

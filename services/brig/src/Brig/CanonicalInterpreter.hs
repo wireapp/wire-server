@@ -33,6 +33,7 @@ import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AuthenticationSubsystem
@@ -134,6 +135,7 @@ type BrigLowerLevelEffects =
      PropertyStore,
      SFT,
      ConnectionStore InternalPaging,
+     Input UserSubsystemConfig,
      Input VerificationCodeThrottleTTL,
      Input UTCTime,
      Input (Local ()),
@@ -213,7 +215,7 @@ runBrigToIO e (AppT ma) = do
 
       -- These interpreters depend on each other, we use let recursion to solve that.
       userSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor UserSubsystem r
-      userSubsystemInterpreter = runUserSubsystem userSubsystemConfig authSubsystemInterpreter
+      userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
 
       authSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor AuthenticationSubsystem r
       authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
@@ -251,6 +253,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
               . runInputSem (embed getCurrentTime)
               . runInputConst (fromIntegral $ Opt.twoFACodeGenerationDelaySecs e.settings)
+              . runInputConst userSubsystemConfig
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
@@ -262,7 +265,7 @@ runBrigToIO e (AppT ma) = do
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
-              . runHashPassword
+              . runHashPassword (argon2OptsFromHashingOpts e.settings.passwordHashingOptions)
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
               . mapError propertySubsystemErrorToHttpError

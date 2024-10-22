@@ -48,6 +48,7 @@ import Imports
 import Network.AMQP
 import Servant.Client
 import Servant.Client.Core
+import Wire.API.Component as X
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
@@ -58,8 +59,6 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Federation.Version
-import Wire.API.MakesFederatedCall
-import Wire.API.MakesFederatedCall as X hiding (Location (..))
 import Wire.API.Routes.Named
 
 -- Note: this type family being injective means that in most cases there is no need
@@ -109,16 +108,9 @@ instance FederationMonad FederatorClient where
   fedClientWithProxy _ = clientIn
 
 -- | Return a client for a named endpoint.
---
--- This function introduces an 'AddAnnotation' constraint, which is
--- automatically solved by the @transitive-anns@ plugin, and pushes the
--- resulting information around in a side-channel. See the documentation at
--- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
--- of the information flow here.
 fedClient ::
-  forall (comp :: Component) name fedM (showcomp :: Symbol) api x.
-  ( AddAnnotation 'Remote showcomp (FedPath name) x,
-    showcomp ~ ShowComponent comp,
+  forall (comp :: Component) name fedM (showcomp :: Symbol) api.
+  ( showcomp ~ ShowComponent comp,
     HasFedEndpoint comp api name,
     HasClient (fedM comp) api,
     KnownComponent comp,

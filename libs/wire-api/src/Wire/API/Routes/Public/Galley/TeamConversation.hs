@@ -23,7 +23,6 @@ import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -68,9 +67,6 @@ type TeamConversationAPI =
     :<|> Named
            "delete-team-conversation"
            ( Summary "Remove a team conversation"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow ('ActionDenied 'DeleteConversation)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation

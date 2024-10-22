@@ -65,7 +65,6 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -76,6 +75,7 @@ import Wire.API.Routes.Internal.LegalHold qualified as LegalHoldInternalAPI
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
+import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation (Invitation)
 import Wire.API.Team.LegalHold.Internal
@@ -169,8 +169,6 @@ type AccountAPI =
            -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
            -- - UserIdentityUpdated event to created user, if email or phone get activated
            ( "users"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[Servant.JSON] NewUser
                :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
            )
@@ -178,8 +176,6 @@ type AccountAPI =
            "createUserNoVerifySpar"
            ( "users"
                :> "spar"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
@@ -601,6 +597,14 @@ type UserAPI =
   UpdateUserLocale
     :<|> DeleteUserLocale
     :<|> GetDefaultLocale
+    :<|> Named
+           "get-user-export-data"
+           ( Summary "Get user export data"
+               :> "users"
+               :> Capture "uid" UserId
+               :> "export-data"
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "User export data" (Maybe TeamExportUser))
+           )
 
 type UpdateUserLocale =
   Summary
@@ -640,16 +644,12 @@ type AuthAPI =
   Named
     "legalhold-login"
     ( "legalhold-login"
-        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-        :> MakesFederatedCall 'Brig "send-connection-action"
         :> ReqBody '[JSON] LegalHoldLogin
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
            "sso-login"
            ( "sso-login"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[JSON] SsoLogin
                :> QueryParam' [Optional, Strict] "persist" Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse

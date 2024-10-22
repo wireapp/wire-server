@@ -520,7 +520,7 @@ in
       pkgs.netcat
       pkgs.niv
       pkgs.haskellPackages.apply-refact
-      (pkgs.python310.withPackages
+      (pkgs.python3.withPackages
         (ps: with ps; [
           black
           bokeh

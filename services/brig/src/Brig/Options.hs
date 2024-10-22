@@ -584,7 +584,9 @@ data Settings = Settings
     oAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
     -- use `oAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
-    oAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
+    oAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
+    -- | Options to override the default Argon2id settings for specific operators.
+    passwordHashingOptions :: !(PasswordHashingOptions)
   }
   deriving (Show, Generic)
 

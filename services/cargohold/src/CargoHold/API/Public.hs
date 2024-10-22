@@ -41,7 +41,6 @@ import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString as URI
 import Wire.API.Asset
-import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Brig (brigInternalClient)
 import Wire.API.Routes.Internal.Cargohold
@@ -81,15 +80,14 @@ servantSitemap =
         :<|> Named @"assets-conv-otr-download-legacy" legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
     qualifiedAPI =
-      Named @"assets-download-v4"
-        (callsFed (exposeAnnotations downloadAssetV4))
+      Named @"assets-download-v4" downloadAssetV4
         :<|> Named @"assets-delete-v4" deleteAssetV4
     mainAPI :: ServerT MainAPI Handler
     mainAPI =
       Named @"tokens-renew" renewTokenV3
         :<|> Named @"tokens-delete" deleteTokenV3
         :<|> Named @"assets-upload" (uploadAssetV3 @'UserPrincipalTag)
-        :<|> Named @"assets-download" (callsFed (exposeAnnotations downloadAssetV4))
+        :<|> Named @"assets-download" downloadAssetV4
         :<|> Named @"assets-delete" deleteAssetV4
 
 internalSitemap :: ServerT InternalAPI Handler

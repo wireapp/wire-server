@@ -31,13 +31,11 @@ import API.Util qualified as Util
 import API.Util.TeamFeature qualified as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
-import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
-import Data.Csv (FromNamedRecord (..), decodeByName)
 import Data.Currency qualified as Currency
 import Data.Default
 import Data.Id
@@ -46,8 +44,7 @@ import Data.LegalHold qualified as LH
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 hiding (head)
 import Data.List1 qualified as List1
-import Data.Map qualified as Map
-import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl, plainTextPassword6)
+import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
@@ -56,7 +53,6 @@ import Data.Text.Ascii (AsciiChars (validate))
 import Data.UUID qualified as UUID
 import Data.UUID.Util qualified as UUID
 import Data.UUID.V1 qualified as UUID
-import Data.Vector qualified as V
 import Galley.Env qualified as Galley
 import Galley.Options (featureFlags, maxConvSize, maxFanoutSize, settings)
 import Galley.Types.Conversations.Roles
@@ -65,7 +61,6 @@ import Imports
 import Network.HTTP.Types.Status (status403)
 import Network.Wai.Utilities.Error qualified as Error
 import Network.Wai.Utilities.Error qualified as Wai
-import SAML2.WebSSO.Types qualified as SAML
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.Cannon qualified as WS
@@ -82,19 +77,15 @@ import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
 import Wire.API.Routes.Version
 import Wire.API.Team
-import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Member
-import Wire.API.Team.Member qualified as TM
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission as P
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User qualified as Public
 import Wire.API.User qualified as U
-import Wire.API.User.Client qualified as C
-import Wire.API.User.Client.Prekey qualified as PC
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -104,11 +95,6 @@ tests s =
       test s "create binding team with currency" testCreateBindingTeamWithCurrency,
       testGroup "List Team Members" $
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
-          let numMembers = 5
-           in test
-                s
-                ("admins should be able to get a csv stream with their team (" <> show numMembers <> " members)")
-                (testListTeamMembersCsv numMembers),
           test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated,
           test s "pagination" testListTeamMembersPagination
         ],
@@ -231,79 +217,6 @@ testListTeamMembersDefaultLimit = do
     assertBool
       "member list indicates that there are no more members"
       (listFromServer ^. teamMemberListType == ListComplete)
-
--- | for ad-hoc load-testing, set @numMembers@ to, say, 10k and see what
--- happens.  but please don't give that number to our ci!  :)
--- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
-testListTeamMembersCsv :: (HasCallStack) => Int -> TestM ()
-testListTeamMembersCsv numMembers = do
-  let teamSize = numMembers + 1
-
-  (owner, tid, mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
-  let numClientMappings = Map.fromList $ (owner : mbs) `zip` (cycle [1, 2, 3] :: [Int])
-  addClients numClientMappings
-  resp <- Util.getTeamMembersCsv owner tid
-  let rbody = fromMaybe (error "no body") . responseBody $ resp
-  usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
-  liftIO $ do
-    assertEqual "total number of team members" teamSize (length usersInCsv)
-    assertEqual "owners in team" 1 (countOn tExportRole (Just RoleOwner) usersInCsv)
-    assertEqual "members in team" numMembers (countOn tExportRole (Just RoleMember) usersInCsv)
-
-  do
-    let someUsersInCsv = take 50 usersInCsv
-        someHandles = tExportHandle <$> someUsersInCsv
-    users <- Util.getUsersByHandle (catMaybes someHandles)
-    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
-
-    let check :: (Eq a) => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
-        check msg getTeamExportUserAttr uid userAttr = do
-          assertBool msg (isJust userAttr)
-          assertEqual (msg <> ": " <> show uid) 1 (countOn getTeamExportUserAttr userAttr usersInCsv)
-
-    liftIO . forM_ (zip users mbrs) $ \(user, mbr) -> do
-      assertEqual "user/member id match" (U.userId user) (mbr ^. TM.userId)
-      check "tExportDisplayName" (Just . tExportDisplayName) (U.userId user) (Just $ U.userDisplayName user)
-      check "tExportEmail" tExportEmail (U.userId user) (U.userEmail user)
-
-    liftIO . forM_ (zip3 someUsersInCsv users mbrs) $ \(export, user, mbr) -> do
-      -- FUTUREWORK: there are a lot of cases we don't cover here (manual invitation, saml, other roles, ...).
-      assertEqual ("tExportDisplayName: " <> show (U.userId user)) (U.userDisplayName user) (tExportDisplayName export)
-      assertEqual ("tExportHandle: " <> show (U.userId user)) (U.userHandle user) (tExportHandle export)
-      assertEqual ("tExportEmail: " <> show (U.userId user)) (U.userEmail user) (tExportEmail export)
-      assertEqual ("tExportRole: " <> show (U.userId user)) (permissionsRole $ view permissions mbr) (tExportRole export)
-      assertEqual ("tExportCreatedOn: " <> show (U.userId user)) (snd <$> view invitation mbr) (tExportCreatedOn export)
-      assertEqual ("tExportInvitedBy: " <> show (U.userId user)) Nothing (tExportInvitedBy export)
-      assertEqual ("tExportIdpIssuer: " <> show (U.userId user)) (userToIdPIssuer user) (tExportIdpIssuer export)
-      assertEqual ("tExportManagedBy: " <> show (U.userId user)) (U.userManagedBy user) (tExportManagedBy export)
-      assertEqual ("tExportUserId: " <> show (U.userId user)) (U.userId user) (tExportUserId export)
-      assertEqual "tExportNumDevices: " (Map.findWithDefault (-1) (U.userId user) numClientMappings) (tExportNumDevices export)
-  where
-    userToIdPIssuer :: (HasCallStack) => U.User -> Maybe HttpsUrl
-    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
-      Just (U.UserSSOId (SAML.UserRef (SAML.Issuer issuer) _)) -> either (const $ error "shouldn't happen") Just $ mkHttpsUrl issuer
-      Just _ -> Nothing
-      Nothing -> Nothing
-
-    decodeCSV :: (FromNamedRecord a) => LByteString -> Either String [a]
-    decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)
-
-    countOn :: (Eq b) => (a -> b) -> b -> [a] -> Int
-    countOn prop val xs = sum $ fmap (bool 0 1 . (== val) . prop) xs
-
-    addClients :: Map.Map UserId Int -> TestM ()
-    addClients xs = forM_ (Map.toList xs) addClientForUser
-
-    addClientForUser :: (UserId, Int) -> TestM ()
-    addClientForUser (uid, n) = forM_ [0 .. (n - 1)] (addClient uid)
-
-    addClient :: UserId -> Int -> TestM ()
-    addClient uid i = do
-      brig <- viewBrig
-      post (brig . paths ["i", "clients", toByteString' uid] . contentJson . json (newClient (someLastPrekeys !! i)) . queryItem "skip_reauth" "true") !!! const 201 === statusCode
-
-    newClient :: PC.LastPrekey -> C.NewClient
-    newClient lpk = C.newClient C.PermanentClientType lpk
 
 testListTeamMembersPagination :: TestM ()
 testListTeamMembersPagination = do

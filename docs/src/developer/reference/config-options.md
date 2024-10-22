@@ -707,6 +707,53 @@ optSettings:
   setOAuthMaxActiveRefreshTokens: 10
 ```
 
+#### Argon2id password hashing parameters
+
+Since release 5.6.0, wire-server hashes passwords with
+[argon2id](https://datatracker.ietf.org/doc/html/rfc9106) at rest.  If
+you do not do anything, the default parameters will be used, which
+are:
+
+```yaml
+    setPasswordHashingOptions:
+      iterations: 1
+      memory: 180224 # memory needed in kibibytes (1 kibibyte is 2^10 bytes)
+      parallelism: 32
+```
+
+The default will be adjusted to new developments in hashing algorithm
+security from time to time.
+
+The password hashing options are set for brig and galley:
+
+```yaml
+brig:
+  optSettings:
+    setPasswordHashingOptions:
+      iterations: ...
+      memory: ... # memory needed in KiB
+      parallelism: ...
+galley:
+  settings:
+    passwordHashingOptions:
+      iterations: ...
+      memory: ... # memory needed in KiB
+      parallelism: ...
+```
+
+**Performance implications:** scrypt takes ~80ms on a realistic test
+system, and argon2id with default settings takes ~500ms. This is a
+runtime increase by a factor of ~6.  This happens every time a
+password is entered by the user: during login, password reset,
+deleting a device, etc. (It does **NOT** happen during any other
+cryptographic operations like session key update or message
+de-/encryption.)
+
+The settings are a trade-off between resilience against brute force
+attacks and password secrecy.  For most systems this should be safe
+and not need more hardware resources for brig, but you may want to
+form your own opinion.
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.

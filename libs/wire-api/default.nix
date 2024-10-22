@@ -23,7 +23,6 @@
 , cereal
 , comonad
 , conduit
-, constraints
 , containers
 , cookie
 , crypton
@@ -57,6 +56,7 @@
 , iso3166-country-codes
 , iso639
 , jose
+, kan-extensions
 , lens
 , lib
 , memory
@@ -99,7 +99,6 @@
 , these
 , time
 , tinylog
-, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -135,7 +134,6 @@ mkDerivation {
     cereal
     comonad
     conduit
-    constraints
     containers
     cookie
     crypton
@@ -165,6 +163,7 @@ mkDerivation {
     iso3166-country-codes
     iso639
     jose
+    kan-extensions
     lens
     memory
     metrics-wai
@@ -200,7 +199,6 @@ mkDerivation {
     these
     time
     tinylog
-    transitive-anns
     types-common
     unordered-containers
     uri-bytestring

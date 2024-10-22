@@ -15,6 +15,7 @@
 , bloodhound
 , bytestring
 , bytestring-conversion
+, case-insensitive
 , cassandra-util
 , conduit
 , containers
@@ -75,7 +76,6 @@
 , time-units
 , tinylog
 , transformers
-, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -104,6 +104,7 @@ mkDerivation {
     bloodhound
     bytestring
     bytestring-conversion
+    case-insensitive
     cassandra-util
     conduit
     containers
@@ -154,7 +155,6 @@ mkDerivation {
     time-units
     tinylog
     transformers
-    transitive-anns
     types-common
     unliftio
     unordered-containers

@@ -35,7 +35,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.FederationStatus
-import Wire.API.MakesFederatedCall
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Features
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -55,11 +54,6 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client
-
-type LegalHoldFeaturesStatusChangeFederatedCalls =
-  '[ MakesFederatedCall 'Galley "on-conversation-updated",
-     MakesFederatedCall 'Galley "on-mls-message-sent"
-   ]
 
 type family IFeatureAPI1 cfg where
   -- special case for classified domains, since it cannot be set
@@ -121,8 +115,6 @@ type InternalAPIBase =
            "delete-user"
            ( Summary
                "Remove a user from their teams and conversations and erase their clients"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> ZLocalUser
                :> ZOptConn
                :> "user"
@@ -134,9 +126,6 @@ type InternalAPIBase =
     :<|> Named
            "connect"
            ( Summary "Create a connect conversation (deprecated)"
-               :> MakesFederatedCall 'Brig "api-version"
-               :> MakesFederatedCall 'Galley "on-conversation-created"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotConnected

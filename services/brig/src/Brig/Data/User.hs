@@ -18,24 +18,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- for Show UserRowInsert
-
--- TODO: Move to Brig.User.Account.DB
 module Brig.Data.User
-  ( AuthError (..),
-    ReAuthError (..),
-    newAccount,
+  ( newAccount,
     newAccountInviteViaScim,
     insertAccount,
-    authenticate,
-    reauthenticate,
-    isSamlUser,
 
     -- * Lookups
     lookupUser,
     lookupUsers,
     lookupName,
-    lookupRichInfo,
     lookupRichInfoMultiUsers,
     lookupUserTeam,
     lookupServiceUsers,
@@ -74,7 +65,6 @@ import Data.Handle (Handle)
 import Data.HavePendingInvitations
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Misc
 import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
@@ -86,24 +76,7 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
-import Wire.AuthenticationSubsystem as AuthenticationSubsystem
-import Wire.PasswordStore
-
--- | Authentication errors.
-data AuthError
-  = AuthInvalidUser
-  | AuthInvalidCredentials
-  | AuthSuspended
-  | AuthEphemeral
-  | AuthPendingInvitation
-
--- | Re-authentication errors.
-data ReAuthError
-  = ReAuthError !AuthError
-  | ReAuthMissingPassword
-  | ReAuthCodeVerificationRequired
-  | ReAuthCodeVerificationNoPendingCode
-  | ReAuthCodeVerificationNoEmail
+import Wire.HashPassword
 
 -- | Preconditions:
 --
@@ -114,12 +87,12 @@ data ReAuthError
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
 newAccount ::
-  (MonadClient m, MonadReader Env m) =>
+  (Member HashPassword r) =>
   NewUser ->
   Maybe InvitationId ->
   Maybe TeamId ->
   Maybe Handle ->
-  m (User, Maybe Password)
+  AppT r (User, Maybe Password)
 newAccount u inv tid mbHandle = do
   defLoc <- defaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
@@ -129,7 +102,7 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  passwd <- maybe (pure Nothing) (fmap Just . liftIO . mkSafePasswordScrypt) pass
+  passwd <- maybe (pure Nothing) (fmap Just . liftSem . hashPassword8) pass
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
@@ -179,69 +152,6 @@ newAccountInviteViaScim uid externalId tid locale name email = do
       (Just tid)
       ManagedByScim
       defSupportedProtocols
-
--- | Mandatory password authentication.
-authenticate ::
-  forall r.
-  (Member PasswordStore r, Member AuthenticationSubsystem r) =>
-  UserId ->
-  PlainTextPassword6 ->
-  ExceptT AuthError (AppT r) ()
-authenticate u pw =
-  -- FUTUREWORK: Move this logic into auth subsystem.
-  lift (wrapHttp $ lookupAuth u) >>= \case
-    Nothing -> throwE AuthInvalidUser
-    Just (_, Deleted) -> throwE AuthInvalidUser
-    Just (_, Suspended) -> throwE AuthSuspended
-    Just (_, Ephemeral) -> throwE AuthEphemeral
-    Just (_, PendingInvitation) -> throwE AuthPendingInvitation
-    Just (Nothing, _) -> throwE AuthInvalidCredentials
-    Just (Just pw', Active) -> do
-      res <- lift $ liftSem (AuthenticationSubsystem.verifyPassword pw pw')
-      case res of
-        (False, _) -> throwE AuthInvalidCredentials
-        (True, PasswordStatusNeedsUpdate) -> do
-          -- FUTUREWORK(elland): 6char pwd allowed for now
-          -- throwE AuthStalePassword in the future
-          for_ (plainTextPassword8 . fromPlainTextPassword $ pw) (lift . hashAndUpdatePwd u)
-        (True, _) -> pure ()
-  where
-    hashAndUpdatePwd :: UserId -> PlainTextPassword8 -> AppT r ()
-    hashAndUpdatePwd uid pwd = do
-      hashed <- mkSafePassword pwd
-      liftSem $ upsertHashedPassword uid hashed
-
--- | Password reauthentication. If the account has a password, reauthentication
--- is mandatory. If the account has no password, or is an SSO user, and no password is given,
--- reauthentication is a no-op.
-reauthenticate ::
-  (Member AuthenticationSubsystem r) =>
-  UserId ->
-  Maybe PlainTextPassword6 ->
-  ExceptT ReAuthError (AppT r) ()
-reauthenticate u pw =
-  wrapClientE (lookupAuth u) >>= \case
-    Nothing -> throwE (ReAuthError AuthInvalidUser)
-    Just (_, Deleted) -> throwE (ReAuthError AuthInvalidUser)
-    Just (_, Suspended) -> throwE (ReAuthError AuthSuspended)
-    Just (_, PendingInvitation) -> throwE (ReAuthError AuthPendingInvitation)
-    Just (Nothing, _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
-    Just (Just pw', Active) -> maybeReAuth pw'
-    Just (Just pw', Ephemeral) -> maybeReAuth pw'
-  where
-    maybeReAuth pw' = case pw of
-      Nothing -> do
-        musr <- wrapClientE $ lookupUser NoPendingInvitations u
-        unless (maybe False isSamlUser musr) $ throwE ReAuthMissingPassword
-      Just p ->
-        unlessM (fst <$> lift (liftSem (AuthenticationSubsystem.verifyPassword p pw'))) do
-          throwE (ReAuthError AuthInvalidCredentials)
-
-isSamlUser :: User -> Bool
-isSamlUser usr = do
-  case usr.userIdentity of
-    Just (SSOIdentity (UserSSOId _) _) -> True
-    _ -> False
 
 insertAccount ::
   (MonadClient m) =>
@@ -374,11 +284,6 @@ lookupName u =
   fmap runIdentity
     <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
 
-lookupRichInfo :: (MonadClient m) => UserId -> m (Maybe RichInfoAssocList)
-lookupRichInfo u =
-  fmap runIdentity
-    <$> retry x1 (query1 richInfoSelect (params LocalQuorum (Identity u)))
-
 -- | Returned rich infos are in the same order as users
 lookupRichInfoMultiUsers :: (MonadClient m) => [UserId] -> m [(UserId, RichInfo)]
 lookupRichInfoMultiUsers users = do
@@ -392,11 +297,6 @@ lookupUserTeam :: (MonadClient m) => UserId -> m (Maybe TeamId)
 lookupUserTeam u =
   (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
-
-lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
-lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity u)))
-  where
-    f (pw, st) = (pw, fromMaybe Active st)
 
 -- | Return users with given IDs.
 --
@@ -518,12 +418,6 @@ idSelect = "SELECT id FROM user WHERE id = ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
 nameSelect = "SELECT name FROM user WHERE id = ?"
-
-authSelect :: PrepQuery R (Identity UserId) (Maybe Password, Maybe AccountStatus)
-authSelect = "SELECT password, status FROM user WHERE id = ?"
-
-richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
-richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
 
 richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
 richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"

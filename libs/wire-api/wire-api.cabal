@@ -75,6 +75,7 @@ library
     Wire.API.Bot.Service
     Wire.API.Call.Config
     Wire.API.CannonId
+    Wire.API.Component
     Wire.API.Connection
     Wire.API.Conversation
     Wire.API.Conversation.Action
@@ -105,7 +106,6 @@ library
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.Locale
-    Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
     Wire.API.MLS.AuthenticatedContent
@@ -270,7 +270,6 @@ library
     , cereal
     , comonad
     , conduit
-    , constraints
     , containers                 >=0.5
     , cookie
     , crypton
@@ -300,6 +299,7 @@ library
     , iso3166-country-codes      >=0.2
     , iso639                     >=0.1
     , jose
+    , kan-extensions
     , lens                       >=4.12
     , memory
     , metrics-wai
@@ -335,7 +335,6 @@ library
     , these
     , time                       >=1.4
     , tinylog
-    , transitive-anns
     , types-common               >=0.16
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2
@@ -713,6 +712,7 @@ test-suite wire-api-tests
     , tasty-hunit
     , tasty-quickcheck
     , text
+    , time
     , types-common           >=0.16
     , unliftio
     , uuid

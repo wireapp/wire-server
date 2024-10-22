@@ -122,6 +122,7 @@ library
     Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
+    Galley.API.Teams.Export
     Galley.API.Teams.Features
     Galley.API.Teams.Features.Get
     Galley.API.Teams.Notifications
@@ -283,7 +284,7 @@ library
     Galley.Types.UserList
     Galley.Validation
 
-  ghc-options:     -fplugin=TransitiveAnns.Plugin
+  ghc-options:
   other-modules:   Paths_galley
   hs-source-dirs:  src
   build-depends:
@@ -300,7 +301,6 @@ library
     , brig-types                            >=0.73.1
     , bytestring                            >=0.9
     , bytestring-conversion                 >=0.2
-    , case-insensitive
     , cassandra-util                        >=0.16.2
     , cassava                               >=0.5.2
     , comonad
@@ -341,7 +341,6 @@ library
     , resourcet                             >=1.1
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
-    , saml2-web-sso                         >=0.20
     , servant
     , servant-client
     , servant-server
@@ -358,7 +357,6 @@ library
     , tinylog                               >=0.10
     , tls                                   >=1.7.0
     , transformers
-    , transitive-anns
     , types-common                          >=0.16
     , types-common-aws
     , types-common-journal                  >=0.1
@@ -483,7 +481,6 @@ executable galley-integration
     , bytestring-conversion
     , call-stack
     , cassandra-util
-    , cassava
     , cereal
     , containers
     , cookie
@@ -521,7 +518,6 @@ executable galley-integration
     , quickcheck-instances
     , random
     , retry
-    , saml2-web-sso          >=0.20
     , servant-client
     , servant-client-core
     , servant-server
@@ -547,7 +543,6 @@ executable galley-integration
     , unliftio
     , unordered-containers
     , uuid
-    , vector
     , wai
     , wai-utilities
     , warp

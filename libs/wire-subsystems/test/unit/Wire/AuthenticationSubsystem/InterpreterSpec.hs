@@ -33,7 +33,9 @@ import Wire.PasswordStore
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
 import Wire.SessionStore
+import Wire.StoredUser
 import Wire.UserKeyStore
+import Wire.UserStore
 
 type AllEffects =
   [ AuthenticationSubsystem,
@@ -50,6 +52,8 @@ type AllEffects =
     State (Map PasswordResetKey (PRQueryData Identity)),
     TinyLog,
     EmailSubsystem,
+    UserStore,
+    State [StoredUser],
     State (Map EmailAddress [SentMail])
   ]
 
@@ -57,6 +61,8 @@ runAllEffects :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> Either 
 runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
   run
     . evalState mempty
+    . evalState mempty
+    . inMemoryUserStoreInterpreter
     . emailSubsystemInterpreter
     . discardTinyLogs
     . evalState mempty
@@ -320,7 +326,7 @@ verifyPasswordProp plainTextPassword passwordHash =
   counterexample ("Password doesn't match, plainText=" <> show plainTextPassword <> ", passwordHash=" <> show passwordHash) $
     fmap (Password.verifyPassword plainTextPassword) passwordHash == Just True
 
-hashAndUpsertPassword :: (Member PasswordStore r, Member HashPassword r) => UserId -> PlainTextPassword8 -> Sem r ()
+hashAndUpsertPassword :: (Member PasswordStore r) => UserId -> PlainTextPassword8 -> Sem r ()
 hashAndUpsertPassword uid password =
   upsertHashedPassword uid =<< hashPassword password
 

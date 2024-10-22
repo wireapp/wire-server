@@ -7,8 +7,10 @@ module Wire.UserSubsystem.Interpreter
   )
 where
 
-import Control.Lens (view)
+import Control.Error.Util (hush)
+import Control.Lens (view, (^.))
 import Control.Monad.Trans.Maybe
+import Data.CaseInsensitive qualified as CI
 import Data.Domain
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
@@ -16,7 +18,7 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.List.Extra (nubOrd)
-import Data.Misc (PlainTextPassword6)
+import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl)
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
@@ -27,6 +29,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
+import SAML2.WebSSO qualified as SAML
 import Servant.Client.Core
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.API
@@ -34,6 +37,7 @@ import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
+import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission qualified as Permission
@@ -41,6 +45,7 @@ import Wire.API.Team.Role (defaultRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User as User
+import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.Arbitrary
@@ -100,76 +105,78 @@ runUserSubsystem ::
     Member FederationConfigStore r,
     Member Metrics r,
     Member InvitationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input UserSubsystemConfig) r
   ) =>
-  UserSubsystemConfig ->
   InterpreterFor AuthenticationSubsystem r ->
-  InterpreterFor UserSubsystem r
-runUserSubsystem cfg authInterpreter =
-  interpret $
-    \case
-      GetUserProfiles self others ->
-        runInputConst cfg $
-          getUserProfilesImpl self others
-      GetLocalUserProfiles others ->
-        runInputConst cfg $
-          getLocalUserProfilesImpl others
-      GetAccountsBy getBy ->
-        runInputConst cfg $
-          getAccountsByImpl getBy
-      GetAccountsByEmailNoFilter emails ->
-        runInputConst cfg $
-          getAccountsByEmailNoFilterImpl emails
-      GetAccountNoFilter luid ->
-        runInputConst cfg $
-          getAccountNoFilterImpl luid
-      GetSelfProfile self ->
-        runInputConst cfg $
-          getSelfProfileImpl self
-      GetUserProfilesWithErrors self others ->
-        runInputConst cfg $
-          getUserProfilesWithErrorsImpl self others
-      UpdateUserProfile self mconn mb update ->
-        runInputConst cfg $
-          updateUserProfileImpl self mconn mb update
-      CheckHandle uhandle ->
-        runInputConst cfg $
-          checkHandleImpl uhandle
-      CheckHandles hdls cnt ->
-        runInputConst cfg $
-          checkHandlesImpl hdls cnt
-      UpdateHandle uid mconn mb uhandle ->
-        runInputConst cfg $
-          updateHandleImpl uid mconn mb uhandle
-      LookupLocaleWithDefault luid ->
-        runInputConst cfg $
-          lookupLocaleOrDefaultImpl luid
-      IsBlocked email ->
-        runInputConst cfg $
-          isBlockedImpl email
-      BlockListDelete email ->
-        runInputConst cfg $
-          blockListDeleteImpl email
-      BlockListInsert email ->
-        runInputConst cfg $
-          blockListInsertImpl email
-      UpdateTeamSearchVisibilityInbound status ->
-        runInputConst cfg $
-          updateTeamSearchVisibilityInboundImpl status
-      SearchUsers luid query mDomain mMaxResults ->
-        runInputConst cfg $
-          searchUsersImpl luid query mDomain mMaxResults
-      BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
-        browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-      InternalUpdateSearchIndex uid ->
-        syncUserIndex uid
-      AcceptTeamInvitation luid pwd code ->
-        authInterpreter
-          . runInputConst cfg
-          $ acceptTeamInvitationImpl luid pwd code
-      InternalFindTeamInvitation mEmailKey code ->
-        runInputConst cfg $
-          internalFindTeamInvitationImpl mEmailKey code
+  Sem (UserSubsystem ': r) a ->
+  Sem r a
+runUserSubsystem authInterpreter = interpret $
+  \case
+    GetUserProfiles self others ->
+      getUserProfilesImpl self others
+    GetLocalUserProfiles others ->
+      getLocalUserProfilesImpl others
+    GetAccountsBy getBy ->
+      getAccountsByImpl getBy
+    GetAccountsByEmailNoFilter emails ->
+      getAccountsByEmailNoFilterImpl emails
+    GetAccountNoFilter luid ->
+      getAccountNoFilterImpl luid
+    GetSelfProfile self ->
+      getSelfProfileImpl self
+    GetUserProfilesWithErrors self others ->
+      getUserProfilesWithErrorsImpl self others
+    UpdateUserProfile self mconn mb update ->
+      updateUserProfileImpl self mconn mb update
+    CheckHandle uhandle ->
+      checkHandleImpl uhandle
+    CheckHandles hdls cnt ->
+      checkHandlesImpl hdls cnt
+    UpdateHandle uid mconn mb uhandle ->
+      updateHandleImpl uid mconn mb uhandle
+    LookupLocaleWithDefault luid ->
+      lookupLocaleOrDefaultImpl luid
+    IsBlocked email ->
+      isBlockedImpl email
+    BlockListDelete email ->
+      blockListDeleteImpl email
+    BlockListInsert email ->
+      blockListInsertImpl email
+    UpdateTeamSearchVisibilityInbound status ->
+      updateTeamSearchVisibilityInboundImpl status
+    SearchUsers luid query mDomain mMaxResults ->
+      searchUsersImpl luid query mDomain mMaxResults
+    BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
+      browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
+    InternalUpdateSearchIndex uid ->
+      syncUserIndex uid
+    AcceptTeamInvitation luid pwd code ->
+      authInterpreter $
+        acceptTeamInvitationImpl luid pwd code
+    InternalFindTeamInvitation mEmailKey code ->
+      internalFindTeamInvitationImpl mEmailKey code
+    GetUserExportData uid -> getUserExportDataImpl uid
+
+scimExtId :: StoredUser -> Maybe Text
+scimExtId su = do
+  m <- su.managedBy
+  i <- su.identity
+  sso <- ssoIdentity i
+  scimExternalId m sso
+
+userToIdPIssuer :: StoredUser -> Maybe HttpsUrl
+userToIdPIssuer su = case su.identity >>= ssoIdentity of
+  Just (UserSSOId (SAML.UserRef issuer _)) ->
+    either (const Nothing) Just . mkHttpsUrl $ issuer ^. SAML.fromIssuer
+  Just _ -> Nothing
+  Nothing -> Nothing
+
+samlNamedId :: StoredUser -> Maybe Text
+samlNamedId su =
+  su.identity >>= ssoIdentity >>= \case
+    (UserSSOId (SAML.UserRef _idp nameId)) -> Just . CI.original . SAML.unsafeShowNameID $ nameId
+    (UserScimExternalId _) -> Nothing
 
 internalFindTeamInvitationImpl ::
   ( Member InvitationStore r,
@@ -939,3 +946,31 @@ acceptTeamInvitationImpl luid pw code = do
   deleteInvitation inv.teamId inv.invitationId
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
+
+getUserExportDataImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamExportUser)
+getUserExportDataImpl uid = fmap hush . runError @() $ do
+  su <- UserStore.getUser uid >>= note ()
+  mRichInfo <- UserStore.getRichInfo uid
+  timestamps <- UserStore.getActivityTimestamps uid
+  -- Make sure the list of timestamps is non-empty so that 'maximum' is
+  -- well-defined and returns 'Nothing' when no valid timestamps are present.
+  let lastActive = maximum (Nothing : timestamps)
+  let numClients = length timestamps
+  pure $
+    TeamExportUser
+      { tExportDisplayName = su.name,
+        tExportHandle = su.handle,
+        tExportEmail = su.email,
+        tExportRole = Nothing,
+        tExportCreatedOn = Nothing,
+        tExportInvitedBy = Nothing,
+        tExportIdpIssuer = userToIdPIssuer su,
+        tExportManagedBy = fromMaybe ManagedByWire su.managedBy,
+        tExportSAMLNamedId = fromMaybe "" (samlNamedId su),
+        tExportSCIMExternalId = fromMaybe "" (scimExtId su),
+        tExportSCIMRichInfo = fmap RichInfo mRichInfo,
+        tExportUserId = uid,
+        tExportNumDevices = numClients,
+        tExportLastActive = lastActive,
+        tExportStatus = su.status
+      }

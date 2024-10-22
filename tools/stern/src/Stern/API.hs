@@ -62,7 +62,7 @@ import Stern.App
 import Stern.Intra qualified as Intra
 import Stern.Options
 import Stern.Types
-import System.Logger.Class hiding (Error, name, trace, (.=))
+import System.Logger.Class hiding (Error, flush, name, trace, (.=))
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Internal.Notification (QueuedNotification)

@@ -92,7 +92,6 @@ module Brig.App
   )
 where
 
-import Bilge (RequestId (..))
 import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
@@ -122,6 +121,7 @@ import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
 import Data.Domain
+import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Text qualified as Text
@@ -278,7 +278,7 @@ newEnv opts = do
         awsEnv = aws, -- used by `journalEvent` directly
         appLogger = lgr,
         internalEvents = (eventsQueue :: QueueEnv),
-        requestId = RequestId "N/A",
+        requestId = RequestId defRequestId,
         userTemplates = utp,
         providerTemplates = ptp,
         teamTemplates = ttp,

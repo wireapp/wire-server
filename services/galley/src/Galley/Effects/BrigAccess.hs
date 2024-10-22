@@ -35,6 +35,7 @@ module Galley.Effects.BrigAccess
     deleteUser,
     getContactList,
     getRichInfoMultiUser,
+    getUserExportData,
 
     -- * Teams
     getSize,
@@ -71,6 +72,7 @@ import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
+import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.API.User.Auth.ReAuth
@@ -126,6 +128,7 @@ data BrigAccess m a where
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAccess m ()
+  GetUserExportData :: UserId -> BrigAccess m (Maybe TeamExportUser)
 
 makeSem ''BrigAccess
 

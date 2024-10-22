@@ -29,7 +29,6 @@ import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Error
 import Wire.API.Error.Cargohold
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
@@ -90,7 +89,6 @@ type AssetStreaming =
   RespondStreaming
     200
     "Asset returned directly with content type `application/octet-stream`"
-    NoFraming
     OctetStream
 
 type GetAsset =
@@ -190,8 +188,8 @@ type QualifiedAPI =
         :> Description
              "**Note**: local assets result in a redirect, \
              \while remote assets are streamed directly."
-        :> MakesFederatedCall 'Cargohold "get-asset"
-        :> MakesFederatedCall 'Cargohold "stream-asset"
+        :> "get-asset"
+        :> "stream-asset"
         :> ZLocalUser
         :> "assets"
         :> "v4"
@@ -316,8 +314,8 @@ type MainAPI =
                :> Description
                     "**Note**: local assets result in a redirect, \
                     \while remote assets are streamed directly."
-               :> MakesFederatedCall 'Cargohold "get-asset"
-               :> MakesFederatedCall 'Cargohold "stream-asset"
+               :> "get-asset"
+               :> "stream-asset"
                :> CanThrow 'NoMatchingAssetEndpoint
                :> ZLocalUser
                :> "assets"

@@ -43,26 +43,35 @@ createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, 
 createTeam domain memberCount = do
   owner <- createUser domain def {team = True} >>= getJSON 201
   tid <- owner %. "team" & asString
-  members <- for [2 .. memberCount] $ \_ -> createTeamMember owner tid
+  members <- for [2 .. memberCount] $ \_ -> createTeamMember owner def
   pure (owner, tid, members)
+
+data CreateTeamMember = CreateTeamMember
+  { role :: String
+  }
+
+instance Default CreateTeamMember where
+  def = CreateTeamMember {role = "member"}
 
 createTeamMember ::
   (HasCallStack, MakesValue inviter) =>
   inviter ->
-  String ->
+  CreateTeamMember ->
   App Value
-createTeamMember inviter tid = createTeamMemberWithRole inviter tid "member"
-
-createTeamMemberWithRole ::
-  (HasCallStack, MakesValue inviter) =>
-  inviter ->
-  String ->
-  String ->
-  App Value
-createTeamMemberWithRole inviter _ role = do
+createTeamMember inviter args = do
   newUserEmail <- randomEmail
-  invitation <- postInvitation inviter (PostInvitation (Just newUserEmail) (Just role)) >>= getJSON 201
-  invitationCode <- getInvitationCode inviter invitation >>= getJSON 200 >>= (%. "code") & asString
+  invitation <-
+    postInvitation
+      inviter
+      def
+        { email = Just newUserEmail,
+          role = Just args.role
+        }
+      >>= getJSON 201
+  invitationCode <-
+    (getInvitationCode inviter invitation >>= getJSON 200)
+      %. "code"
+      & asString
   let body =
         AddUser
           { name = Just newUserEmail,

@@ -69,7 +69,7 @@ newEnv opts = do
     (mkRequest opts.ibis)
     (mkRequest opts.galeb)
     l
-    (RequestId "N/A")
+    (RequestId defRequestId)
     <$> newManager
   where
     mkRequest s = Bilge.host (encodeUtf8 s.host) . Bilge.port s.port $ Bilge.empty
@@ -123,6 +123,9 @@ runAppT e (AppT ma) = runReaderT ma e
 -- Handler Monad
 
 type Handler = ExceptT Error App
+
+runHandler :: Env -> Handler a -> IO (Either Error a)
+runHandler env = runAppT env . runExceptT
 
 type Continue m = Response -> m ResponseReceived
 

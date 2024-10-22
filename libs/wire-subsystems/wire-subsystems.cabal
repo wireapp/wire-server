@@ -65,7 +65,7 @@ common common-all
 
 library
   import:           common-all
-  ghc-options:      -fplugin=Polysemy.Plugin -fplugin=TransitiveAnns.Plugin
+  ghc-options:      -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -156,6 +156,7 @@ library
     , bloodhound
     , bytestring
     , bytestring-conversion
+    , case-insensitive
     , cassandra-util
     , conduit
     , containers
@@ -206,7 +207,6 @@ library
     , time-units
     , tinylog
     , transformers
-    , transitive-anns
     , types-common
     , unliftio
     , unordered-containers

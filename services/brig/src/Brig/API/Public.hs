@@ -102,7 +102,6 @@ import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.Connection qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
 import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
@@ -156,6 +155,7 @@ import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.NotificationSubsystem
@@ -170,6 +170,7 @@ import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
@@ -303,7 +304,8 @@ servantSitemap ::
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
     Member (ConnectionStore InternalPaging) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member HashPassword r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -329,14 +331,14 @@ servantSitemap =
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
-      Named @"get-user-unqualified" (callsFed (exposeAnnotations getUserUnqualifiedH))
-        :<|> Named @"get-user-qualified" (callsFed (exposeAnnotations getUserProfileH))
+      Named @"get-user-unqualified" getUserUnqualifiedH
+        :<|> Named @"get-user-qualified" getUserProfileH
         :<|> Named @"update-user-email" updateUserEmail
-        :<|> Named @"get-handle-info-unqualified" (callsFed (exposeAnnotations getHandleInfoUnqualifiedH))
-        :<|> Named @"get-user-by-handle-qualified" (callsFed (exposeAnnotations Handle.getHandleInfo))
-        :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed (exposeAnnotations listUsersByUnqualifiedIdsOrHandles))
-        :<|> Named @"list-users-by-ids-or-handles" (callsFed (exposeAnnotations listUsersByIdsOrHandles))
-        :<|> Named @"list-users-by-ids-or-handles@V3" (callsFed (exposeAnnotations listUsersByIdsOrHandlesV3))
+        :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
+        :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
+        :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
+        :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
+        :<|> Named @"list-users-by-ids-or-handles@V3" listUsersByIdsOrHandlesV3
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
@@ -344,24 +346,24 @@ servantSitemap =
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
       Named @"get-self" getSelf
-        :<|> Named @"delete-self" (callsFed (exposeAnnotations deleteSelfUser))
-        :<|> Named @"put-self" (callsFed (exposeAnnotations updateUser))
+        :<|> Named @"delete-self" deleteSelfUser
+        :<|> Named @"put-self" updateUser
         :<|> Named @"change-phone" changePhone
-        :<|> Named @"remove-phone" (callsFed (exposeAnnotations removePhone))
-        :<|> Named @"remove-email" (callsFed (exposeAnnotations removeEmail))
+        :<|> Named @"remove-phone" removePhone
+        :<|> Named @"remove-email" removeEmail
         :<|> Named @"check-password-exists" checkPasswordExists
         :<|> Named @"change-password" changePassword
-        :<|> Named @"change-locale" (callsFed (exposeAnnotations changeLocale))
-        :<|> Named @"change-handle" (callsFed (exposeAnnotations changeHandle))
+        :<|> Named @"change-locale" changeLocale
+        :<|> Named @"change-handle" changeHandle
         :<|> Named @"change-supported-protocols" changeSupportedProtocols
 
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
       Named @"upgrade-personal-to-team" upgradePersonalToTeam
-        :<|> Named @"register" (callsFed (exposeAnnotations createUser))
-        :<|> Named @"verify-delete" (callsFed (exposeAnnotations verifyDeleteUser))
-        :<|> Named @"get-activate" (callsFed (exposeAnnotations activate))
-        :<|> Named @"post-activate" (callsFed (exposeAnnotations activateKey))
+        :<|> Named @"register" createUser
+        :<|> Named @"verify-delete" verifyDeleteUser
+        :<|> Named @"get-activate" activate
+        :<|> Named @"post-activate" activateKey
         :<|> Named @"post-activate-send" sendActivationCode
         :<|> Named @"post-password-reset" beginPasswordReset
         :<|> Named @"post-password-reset-complete" completePasswordReset
@@ -370,28 +372,28 @@ servantSitemap =
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
-      Named @"get-user-clients-unqualified" (callsFed (exposeAnnotations getUserClientsUnqualified))
-        :<|> Named @"get-user-clients-qualified" (callsFed (exposeAnnotations getUserClientsQualified))
-        :<|> Named @"get-user-client-unqualified" (callsFed (exposeAnnotations getUserClientUnqualified))
-        :<|> Named @"get-user-client-qualified" (callsFed (exposeAnnotations getUserClientQualified))
-        :<|> Named @"list-clients-bulk" (callsFed (exposeAnnotations listClientsBulk))
-        :<|> Named @"list-clients-bulk-v2" (callsFed (exposeAnnotations listClientsBulkV2))
-        :<|> Named @"list-clients-bulk@v2" (callsFed (exposeAnnotations listClientsBulkV2))
+      Named @"get-user-clients-unqualified" getUserClientsUnqualified
+        :<|> Named @"get-user-clients-qualified" getUserClientsQualified
+        :<|> Named @"get-user-client-unqualified" getUserClientUnqualified
+        :<|> Named @"get-user-client-qualified" getUserClientQualified
+        :<|> Named @"list-clients-bulk" listClientsBulk
+        :<|> Named @"list-clients-bulk-v2" listClientsBulkV2
+        :<|> Named @"list-clients-bulk@v2" listClientsBulkV2
 
     prekeyAPI :: ServerT PrekeyAPI (Handler r)
     prekeyAPI =
-      Named @"get-users-prekeys-client-unqualified" (callsFed (exposeAnnotations getPrekeyUnqualifiedH))
-        :<|> Named @"get-users-prekeys-client-qualified" (callsFed (exposeAnnotations getPrekeyH))
-        :<|> Named @"get-users-prekey-bundle-unqualified" (callsFed (exposeAnnotations getPrekeyBundleUnqualifiedH))
-        :<|> Named @"get-users-prekey-bundle-qualified" (callsFed (exposeAnnotations getPrekeyBundleH))
+      Named @"get-users-prekeys-client-unqualified" getPrekeyUnqualifiedH
+        :<|> Named @"get-users-prekeys-client-qualified" getPrekeyH
+        :<|> Named @"get-users-prekey-bundle-unqualified" getPrekeyBundleUnqualifiedH
+        :<|> Named @"get-users-prekey-bundle-qualified" getPrekeyBundleH
         :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
-        :<|> Named @"get-multi-user-prekey-bundle-qualified@v3" (callsFed (exposeAnnotations getMultiUserPrekeyBundleHV3))
-        :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed (exposeAnnotations getMultiUserPrekeyBundleH))
+        :<|> Named @"get-multi-user-prekey-bundle-qualified@v3" getMultiUserPrekeyBundleHV3
+        :<|> Named @"get-multi-user-prekey-bundle-qualified" getMultiUserPrekeyBundleH
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client-v6" (callsFed (exposeAnnotations addClient))
-        :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
+      Named @"add-client-v6" addClient
+        :<|> Named @"add-client" addClient
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients-v6" listClients
@@ -406,15 +408,15 @@ servantSitemap =
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
-      Named @"create-connection-unqualified" (callsFed (exposeAnnotations createConnectionUnqualified))
-        :<|> Named @"create-connection" (callsFed (exposeAnnotations createConnection))
+      Named @"create-connection-unqualified" createConnectionUnqualified
+        :<|> Named @"create-connection" createConnection
         :<|> Named @"list-local-connections" listLocalConnections
         :<|> Named @"list-connections" listConnections
         :<|> Named @"get-connection-unqualified" getLocalConnection
         :<|> Named @"get-connection" getConnection
-        :<|> Named @"update-connection-unqualified" (callsFed (exposeAnnotations updateLocalConnection))
-        :<|> Named @"update-connection" (callsFed (exposeAnnotations updateConnection))
-        :<|> Named @"search-contacts" (callsFed (exposeAnnotations searchUsersHandler))
+        :<|> Named @"update-connection-unqualified" updateLocalConnection
+        :<|> Named @"update-connection" updateConnection
+        :<|> Named @"search-contacts" searchUsersHandler
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
     propertiesAPI =
@@ -445,9 +447,9 @@ servantSitemap =
 
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
-      Named @"access" (callsFed (exposeAnnotations accessH))
+      Named @"access" accessH
         :<|> Named @"send-login-code" sendLoginCode
-        :<|> Named @"login" (callsFed (exposeAnnotations login))
+        :<|> Named @"login" login
         :<|> Named @"logout" logoutH
         :<|> Named @"change-self-email" changeSelfEmailH
         :<|> Named @"list-cookies" listCookies
@@ -657,7 +659,13 @@ getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
-getRichInfo :: (Member UserSubsystem r) => Local UserId -> UserId -> Handler r Public.RichInfoAssocList
+getRichInfo ::
+  ( Member UserSubsystem r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  UserId ->
+  Handler r Public.RichInfoAssocList
 getRichInfo lself user = do
   let luser = qualifyAs lself user
   -- Check that both users exist and the requesting user is allowed to see rich info of the
@@ -671,7 +679,7 @@ getRichInfo lself user = do
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo (tUnqualified luser)
+  lift $ liftSem $ fold <$> UserStore.getRichInfo (tUnqualified luser)
 
 getSupportedProtocols ::
   (Member UserSubsystem r) =>
@@ -743,6 +751,7 @@ createUser ::
     Member Events r,
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
+    Member HashPassword r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
@@ -967,7 +976,14 @@ removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
 
-changePassword :: (Member PasswordStore r, Member UserStore r) => UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
+changePassword ::
+  ( Member PasswordStore r,
+    Member UserStore r,
+    Member HashPassword r
+  ) =>
+  UserId ->
+  Public.PasswordChange ->
+  (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::
