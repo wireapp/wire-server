@@ -13,6 +13,7 @@ validAddresses =
     ("<john@doe.example>", Mailbox Nothing $ unsafeEmailAddress "john" "doe.example"),
     ("John Doe<john@doe.example>", Mailbox (Just ["John", "Doe"]) $ unsafeEmailAddress "john" "doe.example"),
     ("John Doe <john@doe.example>", Mailbox (Just ["John", "Doe"]) $ unsafeEmailAddress "john" "doe.example"),
+    ("John Q. Doe <john@doe.example>", Mailbox (Just ["John", "Q", ".", "Doe"]) $ unsafeEmailAddress "john" "doe.example"),
     ("\"John Doe\" <john@doe.example>", Mailbox (Just ["John Doe"]) $ unsafeEmailAddress "john" "doe.example"),
     ("\"John Doe\" (My Best Friend) <john@doe.example>", Mailbox (Just ["John Doe"]) $ unsafeEmailAddress "john" "doe.example"),
     ("\"John@Doe.Example\" (My Friend @ Doe) <john@doe.example>", Mailbox (Just ["John@Doe.Example"]) $ unsafeEmailAddress "john" "doe.example"),

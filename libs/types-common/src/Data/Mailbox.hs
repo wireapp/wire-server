@@ -65,7 +65,6 @@ fwsParser =
         pure $ fromMaybe "" mWspsAndCrlf <> wsps
    in notObs <|> obsFwsParser
 
--- TODO: Delete this and explain ignorance of obsolete things.
 obsFwsParser :: Parser String
 obsFwsParser = do
   wsps <- Char8Parser.many1' wspParser
@@ -75,14 +74,30 @@ obsFwsParser = do
     pure $ crlf <> wspsAfterCrlf
   pure $ concat $ wsps : crlfWsps
 
--- TODO: This doesn't include obs chars, explain why
 ctextParser :: Parser Char
 ctextParser = do
   let isAllowedChar w =
         (w >= 33 && w <= 39)
           || (w >= 42 && w <= 91)
           || (w >= 93 && w <= 126)
-  Char.chr . fromIntegral <$> BSParser.satisfy isAllowedChar
+  Char8Parser.satisfy (isAllowedChar . Char.ord) <|> obsNoWsCtl
+
+-- | US-ASCII control characters that do not include the carriage return, line
+-- feed, and white space characters
+obsNoWsCtl :: Parser Char
+obsNoWsCtl = do
+  Char8Parser.satisfy
+    ( \(ord -> c) ->
+        (c >= 1 && c <= 8)
+          || c == 11
+          || c == 12
+          || (c >= 14 && c <= 31)
+          || (c == 127)
+    )
+
+obsCtextParser, obsQtextParser :: Parser Char
+obsCtextParser = obsNoWsCtl
+obsQtextParser = obsNoWsCtl
 
 quotedPairParser :: Parser Char
 quotedPairParser = do
@@ -126,9 +141,10 @@ atomParser = do
   pure atom
 
 qtextParser :: Parser Char
-qtextParser = do
-  Char8Parser.satisfy $ \(ord -> c) ->
-    c == 33 || (c >= 35 && c <= 91) || (c >= 93 && c <= 126)
+qtextParser =
+  let newParser = Char8Parser.satisfy $ \(ord -> c) ->
+        c == 33 || (c >= 35 && c <= 91) || (c >= 93 && c <= 126)
+   in newParser <|> obsQtextParser
 
 qcontentParser :: Parser Char
 qcontentParser = qtextParser <|> quotedPairParser
@@ -148,12 +164,34 @@ quotedStringParser = do
 wordParser :: Parser String
 wordParser = atomParser <|> quotedStringParser
 
+-- | The spec says
+--
+-- @
+-- phrase = 1*word / obs-phrase
+-- @
+--
+-- Here if we tried to write it using '<|>', parising "John Q. Doe" would
+-- succeed with a 'many1 wordParser' while having parsed up to "John Q" and the
+-- rest of the string will be left for next parsers, which would likely fail. To
+-- avoid all that we can use just the obsPhraseParser, which forces the first
+-- thing to be a word and then allows for dots and CFWS.
 phraseParser :: Parser [String]
-phraseParser = Char8Parser.many1' wordParser
+phraseParser = obsPhraseParser
+
+-- | Ignores comments
+obsPhraseParser :: Parser [String]
+obsPhraseParser = do
+  w1 <- wordParser
+  ws <- fmap catMaybes . Char8Parser.many' $ do
+    fmap Just wordParser
+      <|> fmap (Just . (: [])) (Char8Parser.char '.')
+      <|> fmap (const Nothing) cfwsParser
+  pure $ w1 : ws
 
 nameParser :: Parser [Text]
 nameParser = map Text.pack <$> phraseParser
 
+-- | Does not implement parsing for obs-angle-addr
 angleAddrParser :: Parser EmailAddress
 angleAddrParser = do
   _ <- optional cfwsParser
