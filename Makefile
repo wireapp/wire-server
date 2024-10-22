@@ -162,7 +162,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all lint-common
+lint-all: formatc hlint-check-all lint-common openapi-validate
 
 # For use by local devs.
 #
