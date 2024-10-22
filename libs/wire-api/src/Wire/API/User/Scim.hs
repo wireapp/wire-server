@@ -398,7 +398,9 @@ data CreateScimToken = CreateScimToken
     -- | User password, which we ask for because creating a token is a "powerful" operation
     password :: !(Maybe PlainTextPassword6),
     -- | User code (sent by email), for 2nd factor to 'password'
-    verificationCode :: !(Maybe Code.Value)
+    verificationCode :: !(Maybe Code.Value),
+    -- | Optional name for the token
+    name :: Maybe Text
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateScimToken)
@@ -411,6 +413,7 @@ instance ToSchema CreateScimToken where
         <$> (.description) .= field "description" schema
         <*> password .= optField "password" (maybeWithDefault A.Null schema)
         <*> verificationCode .= optField "verification_code" (maybeWithDefault A.Null schema)
+        <*> (.name) .= maybe_ (optField "name" schema)
 
 -- | Type used for the response of 'APIScimTokenCreate'.
 data CreateScimTokenResponse = CreateScimTokenResponse
