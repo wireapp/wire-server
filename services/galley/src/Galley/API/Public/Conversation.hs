@@ -60,7 +60,6 @@ conversationAPI =
     <@> mkNamedAPI @"delete-subconversation" deleteSubConversation
     <@> mkNamedAPI @"get-subconversation-group-info" getSubConversationGroupInfo
     <@> mkNamedAPI @"create-one-to-one-conversation@v2" createOne2OneConversation
-    <@> mkNamedAPI @"create-one-to-one-conversation@v6" createOne2OneConversation
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" getMLSOne2OneConversationV5
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" getMLSOne2OneConversationV6
