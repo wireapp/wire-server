@@ -122,9 +122,9 @@ createScimToken ::
   CreateScimToken ->
   Sem r CreateScimTokenResponse
 createScimToken zusr Api.CreateScimToken {..} = do
-  let descr = createScimTokenDescr
+  let descr = description
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  BrigAccess.ensureReAuthorised zusr createScimTokenPassword createScimTokenCode (Just User.CreateScimToken)
+  BrigAccess.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
   tokenNumber <- length <$> ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $

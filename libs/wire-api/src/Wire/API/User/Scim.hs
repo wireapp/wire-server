@@ -59,7 +59,8 @@ import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util ((#))
 import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
-import Data.OpenApi hiding (Operation)
+import Data.OpenApi hiding (Operation, description, info, password)
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -392,50 +393,50 @@ makeLenses ''ValidScimId
 -- | Type used for request parameters to 'APIScimTokenCreate'.
 data CreateScimToken = CreateScimToken
   { -- | Token description (as memory aid for whoever is creating the token)
-    createScimTokenDescr :: !Text,
+    description :: !Text,
     -- | User password, which we ask for because creating a token is a "powerful" operation
-    createScimTokenPassword :: !(Maybe PlainTextPassword6),
-    -- | User code (sent by email), for 2nd factor to 'createScimTokenPassword'
-    createScimTokenCode :: !(Maybe Code.Value)
+    password :: !(Maybe PlainTextPassword6),
+    -- | User code (sent by email), for 2nd factor to 'password'
+    verificationCode :: !(Maybe Code.Value)
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateScimToken)
 
 instance A.FromJSON CreateScimToken where
   parseJSON = A.withObject "CreateScimToken" $ \o -> do
-    createScimTokenDescr <- o A..: "description"
-    createScimTokenPassword <- o A..:? "password"
-    createScimTokenCode <- o A..:? "verification_code"
+    description <- o A..: "description"
+    password <- o A..:? "password"
+    verificationCode <- o A..:? "verification_code"
     pure CreateScimToken {..}
 
 -- Used for integration tests
 instance A.ToJSON CreateScimToken where
   toJSON CreateScimToken {..} =
     A.object
-      [ "description" A..= createScimTokenDescr,
-        "password" A..= createScimTokenPassword,
-        "verification_code" A..= createScimTokenCode
+      [ "description" A..= description,
+        "password" A..= password,
+        "verification_code" A..= verificationCode
       ]
 
 -- | Type used for the response of 'APIScimTokenCreate'.
 data CreateScimTokenResponse = CreateScimTokenResponse
-  { createScimTokenResponseToken :: ScimToken,
-    createScimTokenResponseInfo :: ScimTokenInfo
+  { token :: ScimToken,
+    info :: ScimTokenInfo
   }
   deriving (Eq, Show)
 
 -- Used for integration tests
 instance A.FromJSON CreateScimTokenResponse where
   parseJSON = A.withObject "CreateScimTokenResponse" $ \o -> do
-    createScimTokenResponseToken <- o A..: "token"
-    createScimTokenResponseInfo <- o A..: "info"
+    token <- o A..: "token"
+    info <- o A..: "info"
     pure CreateScimTokenResponse {..}
 
 instance A.ToJSON CreateScimTokenResponse where
   toJSON CreateScimTokenResponse {..} =
     A.object
-      [ "token" A..= createScimTokenResponseToken,
-        "info" A..= createScimTokenResponseInfo
+      [ "token" A..= token,
+        "info" A..= info
       ]
 
 -- | Type used for responses of endpoints that return a list of SCIM tokens.
@@ -466,7 +467,7 @@ instance ToParamSchema ScimToken where
 instance ToSchema ScimToken where
   declareNamedSchema _ =
     declareNamedSchema (Proxy @Text)
-      & mapped . schema . description ?~ "Authentication token"
+      & mapped . schema . S.description ?~ "Authentication token"
 
 instance ToSchema ScimTokenInfo where
   declareNamedSchema _ = do
