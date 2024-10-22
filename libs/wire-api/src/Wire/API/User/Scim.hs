@@ -115,7 +115,7 @@ userSchemas =
 --
 -- For SCIM authentication and token handling logic, see "Spar.Scim.Auth".
 newtype ScimToken = ScimToken {fromScimToken :: Text}
-  deriving (Eq, Ord, Show, FromJSON, ToJSON, FromByteString, ToByteString)
+  deriving (Eq, Ord, Show, FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
 
 newtype ScimTokenHash = ScimTokenHash {fromScimTokenHash :: Text}
   deriving (Eq, Show)
@@ -150,7 +150,8 @@ data ScimTokenInfo = ScimTokenInfo
     --   by the token creator as a mental aid
     stiDescr :: !Text
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ScimTokenInfo)
 
 instance FromHttpApiData ScimToken where
   parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h
@@ -423,7 +424,8 @@ data CreateScimTokenResponse = CreateScimTokenResponse
   { token :: ScimToken,
     info :: ScimTokenInfo
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateScimTokenResponse)
 
 -- Used for integration tests
 instance A.FromJSON CreateScimTokenResponse where
