@@ -60,6 +60,7 @@ import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User as User
 import Wire.API.User.Scim as Api
@@ -97,9 +98,9 @@ apiScimToken ::
   ) =>
   ServerT APIScimToken (Sem r)
 apiScimToken =
-  createScimToken
-    :<|> deleteScimToken
-    :<|> listScimTokens
+  Named @"auth-tokens-create" createScimToken
+    :<|> Named @"auth-tokens-delete" deleteScimToken
+    :<|> Named @"auth-tokens-list" listScimTokens
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
 --
