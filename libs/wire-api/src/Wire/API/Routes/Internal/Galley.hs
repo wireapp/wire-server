@@ -55,10 +55,6 @@ import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client
 
-type LegalHoldFeaturesStatusChangeFederatedCalls =
-  '[
-   ]
-
 type family IFeatureAPI1 cfg where
   -- special case for classified domains, since it cannot be set
   IFeatureAPI1 ClassifiedDomainsConfig = IFeatureStatusGet ClassifiedDomainsConfig
