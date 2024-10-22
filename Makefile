@@ -602,3 +602,8 @@ upload-bombon:
 		--project-version $(HELM_SEMVER) \
 		--api-key $(DEPENDENCY_TRACK_API_KEY) \
 		--auto-create
+
+.PHONY: openapi-validate
+openapi-validate:
+	@echo -e "Make sure you are running the backend in another terminal (make cr)\n"
+	./tools/openapi-validate
