@@ -23,7 +23,6 @@
 , cereal
 , comonad
 , conduit
-, constraints
 , containers
 , cookie
 , crypton
@@ -135,7 +134,6 @@ mkDerivation {
     cereal
     comonad
     conduit
-    constraints
     containers
     cookie
     crypton

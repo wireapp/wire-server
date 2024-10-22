@@ -270,7 +270,6 @@ library
     , cereal
     , comonad
     , conduit
-    , constraints
     , containers                 >=0.5
     , cookie
     , crypton
