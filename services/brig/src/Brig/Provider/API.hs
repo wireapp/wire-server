@@ -143,9 +143,7 @@ botAPI ::
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
-  Named @"add-bot@v6" addBot
-    :<|> Named @"add-bot" addBot
-    :<|> Named @"remove-bot@v6" removeBot
+  Named @"add-bot" addBot
     :<|> Named @"remove-bot" removeBot
     :<|> Named @"bot-get-self" botGetSelf
     :<|> Named @"bot-delete-self" botDeleteSelf
