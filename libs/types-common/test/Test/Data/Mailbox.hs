@@ -29,7 +29,7 @@ validAddresses =
     ("\"John Doe\" <john@doe.example> (trailing comments)", Mailbox (Just ["John Doe"]) $ unsafeEmailAddress "john" "doe.example"),
     ("\"John Doe\" <john@[funky@domain.example]>", Mailbox (Just ["John Doe"]) $ unsafeEmailAddress "john" "[funky@domain.example]"),
     ("\"John Doe\" <john@(domain comment)[doe.example](trailing domain comment)>", Mailbox (Just ["John Doe"]) $ unsafeEmailAddress "john" "[doe.example]"),
-    -- This is wrong, but its what the upstream library parses
+    -- This is wrong, but its how the `email-validate` library does it
     ("\"John Doe\" <\"john (not comment)\"@doe.example>", Mailbox (Just ["John Doe"]) $ unsafeEmailAddress "\"john(notcomment)\"" "doe.example")
   ]
 
