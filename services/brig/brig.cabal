@@ -203,8 +203,7 @@ library
   hs-source-dirs:  src
   ghc-options:
     -funbox-strict-fields -fplugin=Polysemy.Plugin
-    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
-    -Wunused-packages
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
     , aeson                                 >=2.0.1.0
@@ -305,7 +304,6 @@ library
     , time-units
     , tinylog                               >=0.10
     , transformers                          >=0.3
-    , transitive-anns
     , types-common                          >=0.16
     , types-common-aws
     , types-common-journal                  >=0.1

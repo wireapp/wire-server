@@ -23,8 +23,6 @@ hself: hsuper: {
   # these are okay, the only issue is that the compiler underlines
   # errors differently than before
   singletons-base = hlib.markUnbroken (hlib.dontCheck hsuper.singletons-base);
-  # one of the tests is flaky
-  transitive-anns = hlib.dontCheck hsuper.transitive-anns;
 
   # Tests require a running redis
   hedis = hlib.dontCheck hsuper.hedis;
@@ -38,7 +36,7 @@ hself: hsuper: {
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
 
-  # the libsodium haskell library is incompatible with the new version of the libsodium c library 
+  # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
   libsodium = hlib.markUnbroken (hlib.addPkgconfigDepend hsuper.libsodium (
     libsodium.overrideAttrs (old:

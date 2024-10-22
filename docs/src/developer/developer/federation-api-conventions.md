@@ -31,7 +31,3 @@
     this request has authority on, like a conversation got created, or a message
     is sent, then use the second format like `on-conversation-created` or
     `on-message-sent`
-
-  A call graph of the API endpoints the can call to federation members is included below.
-
-  ![Federation call graph](FedCalls.png)

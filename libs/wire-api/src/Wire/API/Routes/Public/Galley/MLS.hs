@@ -26,7 +26,6 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -37,10 +36,6 @@ type MLSMessagingAPI =
     "mls-message"
     ( Summary "Post an MLS message"
         :> From 'V5
-        :> MakesFederatedCall 'Galley "on-mls-message-sent"
-        :> MakesFederatedCall 'Galley "send-mls-message"
-        :> MakesFederatedCall 'Galley "on-conversation-updated"
-        :> MakesFederatedCall 'Brig "get-mls-clients"
         :> CanThrow 'ConvAccessDenied
         :> CanThrow 'ConvMemberNotFound
         :> CanThrow 'ConvNotFound
@@ -73,13 +68,6 @@ type MLSMessagingAPI =
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
                :> From V5
-               :> MakesFederatedCall Galley "on-mls-message-sent"
-               :> MakesFederatedCall Galley "mls-welcome"
-               :> MakesFederatedCall Galley "send-mls-commit-bundle"
-               :> MakesFederatedCall Galley "on-conversation-updated"
-               :> MakesFederatedCall Brig "get-mls-clients"
-               :> MakesFederatedCall Brig "get-users-by-ids"
-               :> MakesFederatedCall Brig "api-version"
                :> CanThrow ConvAccessDenied
                :> CanThrow ConvMemberNotFound
                :> CanThrow ConvNotFound

@@ -284,7 +284,7 @@ library
     Galley.Types.UserList
     Galley.Validation
 
-  ghc-options:     -fplugin=TransitiveAnns.Plugin
+  ghc-options:
   other-modules:   Paths_galley
   hs-source-dirs:  src
   build-depends:
@@ -357,7 +357,6 @@ library
     , tinylog                               >=0.10
     , tls                                   >=1.7.0
     , transformers
-    , transitive-anns
     , types-common                          >=0.16
     , types-common-aws
     , types-common-journal                  >=0.1

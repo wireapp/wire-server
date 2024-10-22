@@ -27,7 +27,6 @@ import GHC.TypeLits
 import Imports
 import Servant
 import Wire.API.Federation.Domain
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
@@ -41,9 +40,6 @@ instance (HasTrivialHandler api) => HasTrivialHandler ((path :: Symbol) :> api) 
   trivialHandler = trivialHandler @api
 
 instance (HasTrivialHandler api) => HasTrivialHandler (OriginDomainHeader :> api) where
-  trivialHandler name _ = trivialHandler @api name
-
-instance (HasTrivialHandler api) => HasTrivialHandler (MakesFederatedCall comp name :> api) where
   trivialHandler name _ = trivialHandler @api name
 
 instance (HasTrivialHandler api) => HasTrivialHandler (ReqBody cs a :> api) where

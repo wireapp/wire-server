@@ -52,7 +52,6 @@ packages:
   , tools/db/team-info/
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
-  , tools/fedcalls/
   , tools/rabbitmq-consumer
   , tools/rex/
   , tools/stern/

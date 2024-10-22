@@ -108,18 +108,18 @@ federationSitemap =
   Named @"on-conversation-created" onConversationCreated
     :<|> Named @"get-conversations@v1" getConversationsV1
     :<|> Named @"get-conversations" getConversations
-    :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
-    :<|> Named @"send-message" (callsFed (exposeAnnotations sendMessage))
-    :<|> Named @"update-conversation" (callsFed (exposeAnnotations updateConversation))
+    :<|> Named @"leave-conversation" leaveConversation
+    :<|> Named @"send-message" sendMessage
+    :<|> Named @"update-conversation" updateConversation
     :<|> Named @"mls-welcome" mlsSendWelcome
-    :<|> Named @"send-mls-message" (callsFed (exposeAnnotations sendMLSMessage))
-    :<|> Named @"send-mls-commit-bundle" (callsFed (exposeAnnotations sendMLSCommitBundle))
+    :<|> Named @"send-mls-message" sendMLSMessage
+    :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
     :<|> Named @"query-group-info" queryGroupInfo
-    :<|> Named @"update-typing-indicator" (callsFed (exposeAnnotations updateTypingIndicator))
+    :<|> Named @"update-typing-indicator" updateTypingIndicator
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
     :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
-    :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
-    :<|> Named @"leave-sub-conversation" (callsFed leaveSubConversation)
+    :<|> Named @"delete-sub-conversation" deleteSubConversationForRemoteUser
+    :<|> Named @"leave-sub-conversation" leaveSubConversation
     :<|> Named @"get-one2one-conversation@v1" getOne2OneConversationV1
     :<|> Named @"get-one2one-conversation" getOne2OneConversation
     :<|> Named @"on-client-removed" onClientRemoved

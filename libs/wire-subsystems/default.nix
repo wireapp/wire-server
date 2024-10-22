@@ -76,7 +76,6 @@
 , time-units
 , tinylog
 , transformers
-, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -156,7 +155,6 @@ mkDerivation {
     time-units
     tinylog
     transformers
-    transitive-anns
     types-common
     unliftio
     unordered-containers

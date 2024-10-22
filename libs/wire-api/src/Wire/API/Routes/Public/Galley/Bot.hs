@@ -21,7 +21,6 @@ import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Provider.Bot
 import Wire.API.Routes.MultiVerb
@@ -32,9 +31,7 @@ import Wire.API.Routes.Public.Galley.Messaging
 type BotAPI =
   Named
     "post-bot-message-unqualified"
-    ( MakesFederatedCall 'Galley "on-message-sent"
-        :> MakesFederatedCall 'Brig "get-user-clients"
-        :> ZBot
+    ( ZBot
         :> ZConversation
         :> CanThrow 'ConvNotFound
         :> "bot"
