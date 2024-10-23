@@ -1,14 +1,15 @@
 module Test.Swagger where
 
 import qualified API.Brig as BrigP
+import qualified Data.ByteString as B
 import qualified Data.Set as Set
 import Data.String.Conversions
 import GHC.Stack
 import System.Exit
+import System.FilePath
 import System.Process
 import Testlib.Assertions
 import Testlib.Prelude
-import UnliftIO.Directory
 import UnliftIO.Temporary
 
 existingVersions :: Set Int
@@ -85,16 +86,21 @@ testSwaggerToc = do
     html :: String
     html = "<html><head></head><body><h2>please pick an api version</h2><a href=\"/v0/api/swagger-ui/\">/v0/api/swagger-ui/</a><br><a href=\"/v1/api/swagger-ui/\">/v1/api/swagger-ui/</a><br><a href=\"/v2/api/swagger-ui/\">/v2/api/swagger-ui/</a><br><a href=\"/v3/api/swagger-ui/\">/v3/api/swagger-ui/</a><br><a href=\"/v4/api/swagger-ui/\">/v4/api/swagger-ui/</a><br><a href=\"/v5/api/swagger-ui/\">/v5/api/swagger-ui/</a><br><a href=\"/v6/api/swagger-ui/\">/v6/api/swagger-ui/</a><br><a href=\"/v7/api/swagger-ui/\">/v7/api/swagger-ui/</a><br></body>"
 
--- | This runs the swagger linter [vacuum](https://quobix.com/vacuum/).  There is also a make
--- rule that does this, for convenience in your develop flow.  In order to run vacuum on CI, we need a running brig (or at least but running this this test case
--- makes it easier to do this in the integration test job on our CI.  vacuum
+-- | This runs the swagger linter [vacuum](https://quobix.com/vacuum/).
+--
+-- There is also a make rule that does this, for convenience in your develop
+-- flow. Make sure that brig is running before using the make rule.
 testSwaggerLint :: (HasCallStack) => App ()
 testSwaggerLint = do
-  withSystemTempDirectory "testSwaggerLint-XXX.swagger.json" $ \swaggerFile ->
-    withCurrentDirectory swaggerFile $ do
-      let url = "http://localhost:8082/v" <> show (maximum existingVersions) <> "/api/swagger.json"
-          cmd = shell ("curl " <> url <> " > swagger.json && vacuum lint swagger.json 2>&1")
-      outcome@(exitCode, _out, _err) <- liftIO $ readCreateProcessWithExitCode cmd ""
-      case exitCode of
-        ExitSuccess -> pure ()
-        _ -> error (show outcome)
+  withSystemTempDirectory "swagger" $ \tmp -> do
+    req <- baseRequest OwnDomain Brig Versioned $ joinHttpPath ["api", "swagger.json"]
+    swagger <- submit "GET" req >>= getBody 200
+    liftIO $ B.writeFile (tmp </> "swagger.json") swagger
+    let cmd = shell $ "vacuum lint -a -d -e " <> (tmp </> "swagger.json")
+    (exitCode, out, err) <- liftIO $ readCreateProcessWithExitCode cmd ""
+    case exitCode of
+      ExitSuccess -> pure ()
+      _ -> do
+        liftIO $ putStrLn out
+        liftIO $ putStrLn err
+        assertFailure "swagger validation errors"
