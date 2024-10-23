@@ -86,9 +86,12 @@ let
 
     bloodhound = {
       src = fetchgit {
-        url = "https://github.com/wireapp/bloodhound";
-        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
-        hash = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
+        # TODO: This should not refer to Sven's fork. Hope that we will get this
+        # upstreamed soonish or push the branch to Wire's fork.
+        url = "https://github.com/supersven/bloodhound";
+        # v0.23.0.0
+        rev = "79b25e7dea1fbdfea46c39a3efa11d2678e74436";
+        hash = "sha256-JbLZMY6XWpypnKHSfgcOrgGgwDy2JkJCRWeVxHPPzXA=";
       };
     };
 
