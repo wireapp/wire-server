@@ -21,6 +21,7 @@ module Main
 where
 
 import Imports
+import Test.Data.Mailbox qualified as Mailbox
 import Test.Data.PEMKeys qualified as PEMKeys
 import Test.Domain qualified as Domain
 import Test.Handle qualified as Handle
@@ -39,5 +40,6 @@ main =
         Domain.tests,
         Handle.tests,
         Qualified.tests,
-        PEMKeys.tests
+        PEMKeys.tests,
+        Mailbox.tests
       ]

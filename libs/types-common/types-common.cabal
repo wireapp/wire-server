@@ -12,6 +12,7 @@ license-file:  LICENSE
 build-type:    Simple
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
     Data.Code
     Data.CommaSeparatedList
@@ -24,6 +25,7 @@ library
     Data.Json.Util
     Data.LegalHold
     Data.List1
+    Data.Mailbox
     Data.Misc
     Data.Nonce
     Data.PEMKeys
@@ -151,8 +153,12 @@ library
 test-suite tests
   type:               exitcode-stdio-1.0
   main-is:            Main.hs
+
+  -- cabal-fmt: expand test
   other-modules:
+    Main
     Paths_types_common
+    Test.Data.Mailbox
     Test.Data.PEMKeys
     Test.Domain
     Test.Handle
@@ -214,6 +220,7 @@ test-suite tests
     , bytestring
     , bytestring-conversion
     , cereal
+    , email-validate
     , imports
     , protobuf
     , string-conversions
@@ -224,6 +231,7 @@ test-suite tests
     , time
     , types-common
     , unordered-containers
+    , utf8-string
     , uuid
 
   default-language:   GHC2021

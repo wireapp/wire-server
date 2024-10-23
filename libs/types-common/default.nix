@@ -123,6 +123,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cereal
+    email-validate
     imports
     protobuf
     string-conversions
@@ -132,6 +133,7 @@ mkDerivation {
     text
     time
     unordered-containers
+    utf8-string
     uuid
   ];
   description = "Shared type definitions";

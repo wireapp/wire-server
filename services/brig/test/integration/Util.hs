@@ -56,6 +56,7 @@ import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import Data.List1 qualified as List1
+import Data.Mailbox
 import Data.Misc
 import Data.Proxy
 import Data.Qualified
@@ -228,6 +229,12 @@ instance ToJSON SESNotification where
             [ "complainedRecipients" .= fmap (\e -> object ["emailAddress" .= e]) ems
             ]
       ]
+
+instance ToJSON Mailbox where
+  toJSON (Mailbox mName addr) =
+    case mName of
+      Nothing -> toJSON addr
+      Just ns -> String $ "\"" <> T.unwords ns <> "\" <" <> T.decodeUtf8 (toByteString' addr) <> ">"
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)

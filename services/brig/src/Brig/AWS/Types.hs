@@ -23,15 +23,15 @@ module Brig.AWS.Types
 where
 
 import Data.Aeson
+import Data.Mailbox
 import Imports
-import Wire.API.User.Identity
 
 -------------------------------------------------------------------------------
 -- Notifications
 
 data SESNotification
-  = MailBounce !SESBounceType [EmailAddress]
-  | MailComplaint [EmailAddress]
+  = MailBounce !SESBounceType [Mailbox]
+  | MailComplaint [Mailbox]
   deriving (Eq, Show)
 
 data SESBounceType
