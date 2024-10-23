@@ -135,12 +135,6 @@ spec:
               serviceName: {{ .Values.service.s3.serviceName }}
               servicePort: {{ .Values.service.s3.externalPort }}
               {{- end }}
-      annotations:
-        nginx.ingress.kubernetes.io/server-snippet: |
-          if ($args ~* "X-Amz-Algorithm|X-Amz-Credential|X-Amz-Date|X-Amz-Expires|X-Amz-SignedHeaders|X-Amz-Signature") {
-              return 200;
-          }
-          return 403;
 {{- end }}
 {{- if .Values.teamSettings.enabled }}
     - host: {{ .Values.config.dns.teamSettings }}
