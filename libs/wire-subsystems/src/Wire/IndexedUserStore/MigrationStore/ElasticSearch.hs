@@ -41,9 +41,7 @@ ensureMigrationIndexImpl env = do
     throwIfNotCreated :: (Member TinyLog r, Member (Error MigrationException) r) => (String -> MigrationException) -> Either ES.EsError (ES.BHResponse a b, c) -> Sem r ()
     throwIfNotCreated mkErr (Left e) = logAndThrow mkErr e
     throwIfNotCreated mkErr (Right (resp, _)) =
-      if ES.isSuccess resp
-        then pure ()
-        else logAndThrow mkErr resp
+      unless (ES.isSuccess resp) $ logAndThrow mkErr resp
 
     logAndThrow :: (Member TinyLog r, Member (Error MigrationException) r, Show e) => (String -> MigrationException) -> e -> Sem r a
     logAndThrow mkErr errMsg = do
