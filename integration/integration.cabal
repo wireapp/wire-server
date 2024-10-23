@@ -102,6 +102,7 @@ library
     API.Spar
     MLS.Util
     Notifications
+    Performance.BigConversation
     RunAllTests
     SetupHelpers
     Test.AccessUpdate
