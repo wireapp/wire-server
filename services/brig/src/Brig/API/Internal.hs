@@ -209,10 +209,10 @@ accountAPI ::
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
-    :<|> putAccountConferenceCallingConfig
-    :<|> deleteAccountConferenceCallingConfig
-    :<|> getConnectionsStatusUnqualified
-    :<|> getConnectionsStatus
+    :<|> Named @"i-put-account-conference-calling-config" putAccountConferenceCallingConfig
+    :<|> Named @"i-delete-account-conference-calling-config" deleteAccountConferenceCallingConfig
+    :<|> Named @"i-get-all-connections-unqualified" getConnectionsStatusUnqualified
+    :<|> Named @"i-get-all-connections" getConnectionsStatus
     :<|> Named @"createUserNoVerify" createUserNoVerify
     :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
     :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
@@ -271,9 +271,9 @@ teamsAPI =
 
 userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
-  updateLocale
-    :<|> deleteLocale
-    :<|> getDefaultUserLocale
+  Named @"i-update-user-locale" updateLocale
+    :<|> Named @"i-delete-user-locale" deleteLocale
+    :<|> Named @"i-get-default-locale" getDefaultUserLocale
     :<|> Named @"get-user-export-data" getUserExportDataH
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)

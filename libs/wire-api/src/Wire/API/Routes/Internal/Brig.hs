@@ -159,10 +159,10 @@ type GetAllConnections =
 
 type AccountAPI =
   Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
-    :<|> PutAccountConferenceCallingConfig
-    :<|> DeleteAccountConferenceCallingConfig
-    :<|> GetAllConnectionsUnqualified
-    :<|> GetAllConnections
+    :<|> Named "i-put-account-conference-calling-config" PutAccountConferenceCallingConfig
+    :<|> Named "i-delete-account-conference-calling-config" DeleteAccountConferenceCallingConfig
+    :<|> Named "i-get-all-connections-unqualified" GetAllConnectionsUnqualified
+    :<|> Named "i-get-all-connections" GetAllConnections
     :<|> Named
            "createUserNoVerify"
            -- This endpoint can lead to the following events being sent:
@@ -594,9 +594,9 @@ type TeamInvitations =
     )
 
 type UserAPI =
-  UpdateUserLocale
-    :<|> DeleteUserLocale
-    :<|> GetDefaultLocale
+  Named "i-update-user-locale" UpdateUserLocale
+    :<|> Named "i-delete-user-locale" DeleteUserLocale
+    :<|> Named "i-get-default-locale" GetDefaultLocale
     :<|> Named
            "get-user-export-data"
            ( Summary "Get user export data"
