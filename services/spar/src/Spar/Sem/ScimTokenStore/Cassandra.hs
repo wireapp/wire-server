@@ -67,25 +67,25 @@ insertScimToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
   let tokenHash = hashScimToken token
-  addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
-  addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, Just stiName)
+  addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, Just stiName)
 
 insByToken, insByTeam :: PrepQuery W ScimTokenRow ()
 insByToken =
   [r|
     INSERT INTO team_provisioning_by_token
-      (token_, team, id, created_at, idp, descr)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (token_, team, id, created_at, idp, descr, name)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
   |]
 insByTeam =
   [r|
     INSERT INTO team_provisioning_by_team
-      (token_, team, id, created_at, idp, descr)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (token_, team, id, created_at, idp, descr, name)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
   |]
 
 scimTokenLookupKey :: ScimTokenRow -> ScimTokenLookupKey
-scimTokenLookupKey (key, _, _, _, _, _) = key
+scimTokenLookupKey (key, _, _, _, _, _, _) = key
 
 -- | Check whether a token exists and if yes, what team and IdP are
 -- associated with it.
@@ -110,7 +110,7 @@ lookupScimToken token = do
     sel :: PrepQuery R (ScimTokenHash, ScimToken) ScimTokenRow
     sel =
       [r|
-      SELECT token_, team, id, created_at, idp, descr
+      SELECT token_, team, id, created_at, idp, descr, name
         FROM team_provisioning_by_token WHERE token_ in (?, ?)
       |]
 
@@ -130,9 +130,9 @@ connvertPlaintextToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setConsistency LocalQuorum
   let tokenHash = hashScimToken token
   -- enter by new lookup key
-  addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, Just stiName)
   -- update info table
-  addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, Just stiName)
   -- remove old lookup key
   addPrepQuery delByTokenLookup (Identity (ScimTokenLookupKeyPlaintext token))
 
@@ -150,7 +150,7 @@ getScimTokens team = do
     sel :: PrepQuery R (Identity TeamId) ScimTokenRow
     sel =
       [r|
-      SELECT token_, team, id, created_at, idp, descr
+      SELECT token_, team, id, created_at, idp, descr, name
         FROM team_provisioning_by_team WHERE team = ?
       |]
 
@@ -208,15 +208,15 @@ deleteTeamScimTokens team = do
     delByTeam :: PrepQuery W (Identity TeamId) ()
     delByTeam = "DELETE FROM team_provisioning_by_team WHERE team = ?"
 
-type ScimTokenRow = (ScimTokenLookupKey, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text)
+type ScimTokenRow = (ScimTokenLookupKey, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text, Maybe Text)
 
 fromScimTokenRow :: ScimTokenRow -> ScimTokenInfo
-fromScimTokenRow (_, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr) =
+fromScimTokenRow (_, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, stiName) =
   ScimTokenInfo
     { stiId,
       stiTeam,
       stiCreatedAt,
       stiIdP,
       stiDescr,
-      stiName = idToText stiId
+      stiName = fromMaybe (idToText stiId) stiName
     }
