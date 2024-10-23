@@ -23,6 +23,7 @@ import Data.OpenApi
 import Imports
 import Servant
 import Servant.OpenApi
+import Wire.API.Routes.Named
 import Wire.API.User
 import Wire.API.User.Saml
 

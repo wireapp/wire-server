@@ -35,6 +35,7 @@ import Servant
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Push.V2
 import Wire.API.Routes.Internal.Gundeck
+import Wire.API.Routes.Named
 
 servantSitemap :: ServerT InternalAPI Gundeck
 servantSitemap =

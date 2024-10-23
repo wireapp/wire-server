@@ -22,6 +22,7 @@ import Servant.Server.Internal.ErrorFormatter
 import Wire.API.CannonId
 import Wire.API.Presence
 import Wire.API.Push.V2
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 
 -- | this can be replaced by `ReqBody '[JSON] Presence` once the fix in cannon from
