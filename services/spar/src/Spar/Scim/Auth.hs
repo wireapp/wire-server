@@ -101,6 +101,7 @@ apiScimToken =
   Named @"auth-tokens-create@v6" createScimTokenV6
     :<|> Named @"auth-tokens-create" createScimToken
     :<|> Named @"auth-tokens-delete" deleteScimToken
+    :<|> Named @"auth-tokens-list@v6" listScimTokensV6
     :<|> Named @"auth-tokens-list" listScimTokens
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
@@ -207,6 +208,23 @@ deleteScimToken zusr tokenid = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   ScimTokenStore.delete teamid tokenid
   pure NoContent
+
+listScimTokensV6 ::
+  ( Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member (Error E.SparError) r
+  ) =>
+  -- | Who is trying to list tokens
+  Maybe UserId ->
+  Sem r ScimTokenListV6
+listScimTokensV6 zusr = toV6 <$> listScimTokens zusr
+  where
+    toV6 :: ScimTokenList -> ScimTokenListV6
+    toV6 (ScimTokenList tokens) = ScimTokenListV6 $ map infoToV6 tokens
+
+    infoToV6 :: ScimTokenInfo -> ScimTokenInfoV6
+    infoToV6 ScimTokenInfo {..} = ScimTokenInfoV6 {..}
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenList}
 --

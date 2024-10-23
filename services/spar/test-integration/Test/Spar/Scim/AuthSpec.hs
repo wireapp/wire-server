@@ -331,7 +331,7 @@ testListTokens = do
           name = Nothing
         }
   -- Check that the token is on the list
-  list <- scimTokenListTokens <$> listTokens owner
+  list <- (.scimTokenListTokens) <$> listTokens owner
   liftIO $
     map (.stiDescr) list
       `shouldBe` ["testListTokens / #1", "testListTokens / #2"]
@@ -461,7 +461,7 @@ testDeletedTokensAreUnlistable = do
   -- Delete the token
   deleteToken owner tokenInfo.stiId
   -- Check that the token is not on the list
-  list <- scimTokenListTokens <$> listTokens owner
+  list <- (.scimTokenListTokens) <$> listTokens owner
   liftIO $ list `shouldBe` []
 
 ----------------------------------------------------------------------------

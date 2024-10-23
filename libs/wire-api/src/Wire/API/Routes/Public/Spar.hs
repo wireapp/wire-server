@@ -192,7 +192,8 @@ type APIScimToken =
   Named "auth-tokens-create@v6" (Until 'V7 :> ZOptUser :> APIScimTokenCreateV6)
     :<|> Named "auth-tokens-create" (From 'V7 :> ZOptUser :> APIScimTokenCreate)
     :<|> Named "auth-tokens-delete" (ZOptUser :> APIScimTokenDelete)
-    :<|> Named "auth-tokens-list" (ZOptUser :> APIScimTokenList)
+    :<|> Named "auth-tokens-list@v6" (Until 'V7 :> ZOptUser :> APIScimTokenListV6)
+    :<|> Named "auth-tokens-list" (From 'V7 :> ZOptUser :> APIScimTokenList)
 
 type APIScimTokenCreateV6 =
   VersionedReqBody 'V6 '[JSON] CreateScimToken
@@ -208,6 +209,9 @@ type APIScimTokenDelete =
 
 type APIScimTokenList =
   Get '[JSON] ScimTokenList
+
+type APIScimTokenListV6 =
+  Get '[JSON] ScimTokenListV6
 
 data SparAPITag
 

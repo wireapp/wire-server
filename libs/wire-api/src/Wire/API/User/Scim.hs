@@ -488,3 +488,12 @@ data ScimTokenList = ScimTokenList
 
 instance ToSchema ScimTokenList where
   schema = object "ScimTokenList" $ ScimTokenList <$> (.scimTokenListTokens) .= field "tokens" (array schema)
+
+data ScimTokenListV6 = ScimTokenListV6
+  { scimTokenListTokens :: [ScimTokenInfoV6]
+  }
+  deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenListV6)
+
+instance ToSchema ScimTokenListV6 where
+  schema = object "ScimTokenListV6" $ ScimTokenListV6 <$> (.scimTokenListTokens) .= field "tokens" (array schema)
