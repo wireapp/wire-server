@@ -1,1 +1,0 @@
-Add useSFTForOneToOneCalls as a config option for the Conference Calling feature flag and make its lock status explicit.

@@ -1,3 +1,0 @@
-Config value `gundeck.config.bulkPush` has been removed. This is purely an
-internal change, in case the value was overriden to `false`, operators might see
-more spiky usage of CPU and memory from gundeck due to bulk processing.

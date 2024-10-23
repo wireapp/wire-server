@@ -1,3 +1,283 @@
+# [2024-10-23] (Chart Release 5.6.0)
+
+## Release notes
+
+
+* To remove phone keys from brig's `user_keys` table an ad hoc data-migration can be run. See PR https://github.com/wireapp/wire-server/pull/4146 which contains the implementation. (#4130)
+
+* Because the `phone` column is deleted from Brig's `user` table in a schema
+  migration, temporarily there might be 5xx errors during deployment if Wire
+  server 5.4.0 was not deployed previously. To avoid these errors, please deploy
+  the Wire server 5.4.0 release first. (#4130)
+
+* With this release it will be possible to invite personal users to teams. In `brig`'s config, `emailSMS.team.tExistingUserInvitationUrl` is required to be set to a value that points to the correct teams/account page.
+  If `emailSMS.team` is not defined at all in the current environment, the value of `externalUrls.teamSettings` (or, if not present, `externalUrls.nginz`) will be used to construct the correct url, and no configuration change is necessary. (#4229)
+
+* charts/wire-server: There is a new config value called `background-worker.config.enableFederation` which defaults to `false`. This must be kept in sync with `tags.federation`. (#4243)
+
+* If you are mapping an email address to the `externalId` field in the
+  scim schema, please check the following list for items that apply to
+  you and recommended steps before/during/after upgrade.
+
+  - **Situation:** the `emails` field of in your scim user records is
+      empty.
+
+    **What you need to do:** change your schema mapping to contain the
+      same address in `externalId` and (as a record with one element) in
+      `emails`.
+
+  - **Situation:** the `emails` field of your scim user records is
+      non-empty.
+
+    **What you need to do:** make sure `emails` contains exactly one
+      entry, which is the email from `externalId`.  If there is a
+      discrepancy, the address from `emails` will become the new
+      (unvalidated) address of the user, and the user will receive an
+      email to validate it.  If the email cannot be sent or is ignored
+      by the recipient, the *valid* address will not be changed. (#4221)
+
+* A schema migration drops column 'phone' from Brig's 'team_invitation' table. Previous releases were still reading this column. As there is no Team Settings UI action to enter a phone number, this reading will not miss to read actual phone numbers. Therefore, during deployment this will lead to benign 5xx errors. (#4149)
+
+* Password hashing is now done using argon2id instead of scrypt. The argon2id parameters can be configured using these options:
+
+  ```yaml
+  brig:
+    optSettings:
+      setPasswordHashingOptions:
+        iterations: ...
+        memory: ... # memory needed in KiB
+        parallelism: ...
+  galley:
+    settings:
+      passwordHashingOptions:
+        iterations: ...
+        memory: ... # memory needed in KiB
+        parallelism: ...
+  ```
+
+  These have default values, which should work for most deployments. Please see documentation on config-options for more.  (#4291)
+
+* Config value `gundeck.config.bulkPush` has been removed. This is purely an
+  internal change, in case the value was overriden to `false`, operators might see
+  more spiky usage of CPU and memory from gundeck due to bulk processing. (#4290)
+
+
+## API changes
+
+
+* A new endpoint `POST /teams/invitations/accept` allows a non-team user to accept an invitation to join a team (#4229)
+
+* Services allowlist are blocked by 409 (mls-services-not-allowed) for teams with default protocol MLS. (#4266)
+
+* The `POST /clients` and `PUT /clients/:cid` endpoints support a new capability "consume-notifications" (#4259)
+
+* All the phone number-based functionality is removed from the client API v6 (#4149)
+
+* The team CSV export endpoint has gained two extra columns: `last_active` and `status`. The streaming behaviour has also been improved. (#4293)
+
+* The changes to the `capabilities` field of the `Client` structure, introduced in v6, have now been postponed to v7 (#4179)
+
+* Finalise version 6 and introduce new development version 7 (#4179, #4179)
+
+* From API version 7 the `GET /mls/public-key` and `GET  /conversations/one2one/:domain/:uid` endpoints now take a `format` query parameter which can be either `raw` (default, for raw base64-encoded keys) or `jwk` (for JWK keys) (#4216, #4224)
+
+* `GET /conversations/one2one/:domain/:uid` now returns `public_keys` along with the conversation containing all MLS public keys for the backend which will host this conversation (since v6). (#4224)
+
+* Remove the ability to set the TTL of a feature flag. Existing TTLs are still retrieved and returned as before. Note that this only applies to the conferenceCalling feature, as none of the others supported TTL anyway. (#4164)
+
+* Add useSFTForOneToOneCalls as a config option for the Conference Calling feature flag and make its lock status explicit. (#4164)
+
+* Add endpoint to upgrade a personal user to a team owner (#4251)
+
+
+## Features
+
+
+* DB migration for dropping `phone` column from `user` table (#4130)
+
+* A text status field was added to user and user profile (#4155)
+
+* Allow an existing non-team user to migrate to a team (#4229, #4229)
+
+* Makes it impossible for a user to join an MLS conversation while already under legalhold (at least pending)
+
+  This implies two things:
+  1. If a user is under legalhold they cannot ever join an MLS conversation, not even an MLS self conversation.
+  2. A user has to reject to be put under legalhold when they want to join an MLS conversation (ignoring the request to be put under legalhold is not enough). (#4242)
+
+* Clients can declare to be supporting a capability for consuming notifications (#4259)
+
+* New endpoint to revoke an OAuth session (#4213)
+
+* Adds a field which contains a list of all active sessions to each OAuth application in the response of `GET /oauth/applications` (#4211)
+
+* SCIM's emails field is now handled and the external ID is not restricted to being an email anymore (#4221)
+
+* allow subconversations for MLS 1-1 conversations (#4133)
+
+* Allow configuring Argon2id parameters (#4291)
+
+* Deny requests for a legalhold device for users who are part of any MLS conversations (#4245)
+
+* Allow setting of Kubernetes annotations for the `coturn` Service. (#4189)
+
+* Add `initialConfig` setting for the `mls` feature flag (#4262)
+
+* added open telemetry instrumentation for brig, galley, gundeck and cannon (#3901)
+
+* Send confirmation email after adding a personal user to a new team (#4253)
+
+* The SFT and turn usernames returned by `/calls/config/v2` are now deterministically computed from the user ID (#4156)
+
+* Use latest stable RabbitMQ version (`3.13.7`) and Helm chart (`14.6.9`). Please
+  note that this minor RabbitMQ version upgrade (`3.11.x` to `3.13.x`) may need
+  special treatment regarding existing RabbitMQ instances. See
+  https://www.rabbitmq.com/docs/upgrade#rabbitmq-version-upgradability . The major
+  Helm chart version upgrade may (depending on your setup/values) need attention
+  as well: https://github.com/bitnami/charts/tree/main/bitnami/rabbitmq#upgrading (#4227)
+
+
+## Bug fixes and other updates
+
+
+* Fixed API version check. It has now precedence over other checks like e.g. method check. (#4152)
+
+* Fix handling of defaults of `mlsE2EID` feature config (#4233)
+
+* Match cipher suite tag in query parameters against key packages on replacing key packages (#4158)
+
+* Users with SAML-SSO are allowed to delete their email address on the rest api. If they do that, the search indices are not updated correctly, and finding the user by the removed email address is still possible. (#4260)
+
+* Exclude exception message from error response (#4153)
+
+* Return HTTP 400 instead of 500 when property key is not printable ASCII (#4148)
+
+* move cipher suite updates into the commit lock (#4151)
+
+* Fix feature flag default calculation for `mlsMigration` and `enforceFileDownloadLocation` (#4265)
+
+* Allow setting existing properties even if we have max properties (#4148)
+
+* removed spam from nginx (nginz) by using the new style http/2 directive (#3901)
+
+* brig: Make `GET /services/tags` work again (#4250)
+
+* Process bounce and complaint notifications from SES correctly.  (#4301)
+
+
+## Documentation
+
+
+* Call graph of federated endpoints was removed from the docs (#4299)
+
+* Restored LegalHold internal API swagger as part of Brig. (#4191)
+
+* Deleted proteus-specific test documentation tags and added some new tags to MLS tests (#4240)
+
+* Fix openapi validation errors (#4295)
+
+* Re-introduce test case tags for BSI audit (revert #4041) (#4192)
+
+
+## Internal changes
+
+
+* Introduced API versioning and version negotiation for external LegalHold Service supporting `v0` and `v1` (#4284)
+
+* Read sftTokenSecret from secrets.yaml and mount to /etc/wire/brig/secrets/sftTokenSecret by default (#4214)
+
+* Added node based topology constraint to ensure pods are distributed uniformly on all nodes. (#4222)
+
+* Move smallstep-accomp` helm charts to `wireapp/helm-charts` (#4204)
+
+* Remove coturn helm chart. It is moved to `wireapp/coturn`. (#4209)
+
+* Additional test for password reset, port tests to new integration test suite (#4249)
+
+* Remove unused invitation tables from brig. (#4263)
+
+* Improve abstraction in the invitation store and hide DB interaction-specific internal types from the application code. (#4280)
+
+* Move some invitation handling from brig to wire-subsystems.
+
+  - introduce cyclically dependent effects: UserSubsystem, AuthenticationSubsystem (see Brig.CanonicalInterpreter).
+  - introduce TeamInvitationSubsystem with operations inviteUser, internalCreateInvitation.
+  - add verifyPassword to AuthenticationSubsystem.
+  - add sendInvitationMail, sendInvitationMailPersonalUser to EmailSubsystem.
+  - add getTeamSize to IndexedUserStore (this is morally internal to wire-subsystems, and making another ES subsystem would mean adding a lot of code everywhere).
+  - add updateUserTeam to UserStore.
+  - add acceptTeamInvitation, internalFindTeamInvitation to UserSubsystem.
+  - make a few small rest api handlers in brig polysemic (Handler -> Sem). (#4264)
+
+* tools/db/team-info: collects last login times of all team members (#4274)
+
+* Introduce length-preserving function mapRange to replace Functor instance for Range data type. (#4279)
+
+* TransitiveAnns compiler plugin was removed (#4299)
+
+* Servantify internal routing table for proxy. (#4296)
+
+* Servantify gundeck internal api (#4246)
+
+* Removed `indexReindex` and `indexReindexIfSameOrNewer` from internal Brig/SearchIndex. (#4188)
+
+* Introduced ElasticSearch effects related to user search. (#4188)
+
+* Brig was refactored by pulling out email block-listing into a wire subsystems effect, and its actions are exposed via the user subsystem. (#4167)
+
+* charts/wire-server: Deploy background-worker even when tags.federation is `false` (#4342, #4248)
+
+* Refactor feature flags
+  - Improved naming slightly. Features types are now called `Feature`, `LockableFeature` and `LockableFeaturePatch`
+  - Turned `AllFeatures` into an extensible record type
+  - Removed `WithStatusBase` barbie.
+  - Deleted obsolete `computeFeatureConfigForTeamUser`
+  - Abstracted `getFeature` and `setFeature`
+  - Abstracted getAllTeamFeatures (#4181)
+
+* Clean up and reorganise feature flag endpoints (#4193)
+
+* Clean up feature default configuration code (#4196)
+
+* Add federation-v1 environment for testing compatibility of the federation API with version 1 (#4125)
+
+* nginz/local-conf: Update list of endpoints (#4176)
+
+* Expose gundeck internal API on swagger.  Mv some types and routes to wire-api. (#4247)
+
+* dockerephemeral: Use inbucket for SMTP (#4176)
+
+* Makefile: Add target `crm` to run services tuned for manual usage (#4176)
+
+* Postgresql helm chart is removed from charts/ directory and migrated to wireapp/helm-charts repo (#4208)
+
+* Simplify NewTeam and related types and remove lenses (#4257)
+
+* Optimize getting a lot of users by concurrently getting target users (#4140)
+
+* charts/{brig,galley}: Allow setting a preStop hook for the deployments (#4200)
+
+* Introduce proeprty subsytem (#4148)
+
+* Changed default password hashing from Scrypt to Argon2id. (#4271)
+
+* Factored out our Email type in favour of EmailAddress from email-validate. (#4206)
+
+* Move CSV export test to integration (#4292)
+
+* add the TODO pattern and the todo function to Imports (#4198)
+
+* Refactor user feature logic (#4178)
+
+* Remove `UserAccount` and `ExtendedUserAccount` and their fields to the `User` type (#4275)
+
+* Started weeding out dead code. (#4170)
+
+* New user subsystem operation `getAccountsBy` for complex account lookups. (#4218)
+
+* Added warning when deploying wire-server helm chart with User/Team creation over internet enabled. (#4212)
+
+
 # [2024-07-09] (Chart Release 5.5.0)
 
 ## Bug fixes and other updates
