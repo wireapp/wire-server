@@ -311,3 +311,20 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
   k userByUid
 
   userByUid `shouldMatch` userByIdExtId
+
+testSparCreateScimTokenNoName :: (HasCallStack) => App ()
+testSparCreateScimTokenNoName = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  createScimToken owner >>= assertSuccess
+  tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
+  for_ tokens $ \token -> do
+    token %. "name" `shouldMatch` (token %. "id")
+
+testSparCreateScimTokenWithName :: (HasCallStack) => App ()
+testSparCreateScimTokenWithName = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  let expected = "my scim token"
+  createScimTokenWithName owner expected >>= assertSuccess
+  tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
+  for_ tokens $ \token -> do
+    token %. "name" `shouldMatch` expected
