@@ -219,10 +219,10 @@ testNumIdPs = do
         void $ call $ Util.callIdpCreate apiversion spar (Just owner) metadata
 
   createToken owner (CreateScimToken "eins" (Just defPassword) Nothing Nothing)
-    >>= deleteToken owner . stiId . info
+    >>= deleteToken owner . (.stiId) . (.info)
   addSomeIdP
   createToken owner (CreateScimToken "zwei" (Just defPassword) Nothing Nothing)
-    >>= deleteToken owner . stiId . info
+    >>= deleteToken owner . (.stiId) . (.info)
   addSomeIdP
   createToken_ owner (CreateScimToken "drei" (Just defPassword) Nothing Nothing) (env ^. teSpar)
     !!! checkErr 400 (Just "more-than-one-idp")
@@ -333,7 +333,7 @@ testListTokens = do
   -- Check that the token is on the list
   list <- scimTokenListTokens <$> listTokens owner
   liftIO $
-    map stiDescr list
+    map (.stiDescr) list
       `shouldBe` ["testListTokens / #1", "testListTokens / #2"]
 
 testPlaintextTokensAreConverted :: TestSpar ()
@@ -437,7 +437,7 @@ testDeletedTokensAreUnusable = do
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
   -- Delete the token and now the operation should fail
-  deleteToken owner (stiId tokenInfo)
+  deleteToken owner tokenInfo.stiId
   listUsers_ (Just token) Nothing (env ^. teSpar)
     !!! checkErr 401 Nothing
 
@@ -459,7 +459,7 @@ testDeletedTokensAreUnlistable = do
           name = Nothing
         }
   -- Delete the token
-  deleteToken owner (stiId tokenInfo)
+  deleteToken owner tokenInfo.stiId
   -- Check that the token is not on the list
   list <- scimTokenListTokens <$> listTokens owner
   liftIO $ list `shouldBe` []

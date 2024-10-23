@@ -177,9 +177,37 @@ instance ToSchema ScimTokenInfo where
         <$> (.stiTeam) .= field "team" schema
         <*> (.stiId) .= field "id" schema
         <*> (.stiCreatedAt) .= field "created_at" utcTimeSchema
-        <*> (fmap SAML.fromIdPId . stiIdP) .= (SAML.IdPId <$$> maybe_ (optField "idp" uuidSchema))
+        <*> (fmap SAML.fromIdPId . (.stiIdP)) .= (SAML.IdPId <$$> maybe_ (optField "idp" uuidSchema))
         <*> (.stiDescr) .= field "description" schema
         <*> (.stiName) .= field "name" schema
+
+-- | Metadata that we store about each token.
+data ScimTokenInfoV6 = ScimTokenInfoV6
+  { -- | Which team can be managed with the token
+    stiTeam :: !TeamId,
+    -- | Token ID, can be used to eg. delete the token
+    stiId :: !ScimTokenId,
+    -- | Time of token creation
+    stiCreatedAt :: !UTCTime,
+    -- | IdP that created users will "belong" to
+    stiIdP :: !(Maybe SAML.IdPId),
+    -- | Free-form token description, can be set
+    --   by the token creator as a mental aid
+    stiDescr :: !Text
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ScimTokenInfoV6)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenInfoV6)
+
+instance ToSchema ScimTokenInfoV6 where
+  schema =
+    object "ScimTokenInfoV6" $
+      ScimTokenInfoV6
+        <$> (.stiTeam) .= field "team" schema
+        <*> (.stiId) .= field "id" schema
+        <*> (.stiCreatedAt) .= field "created_at" utcTimeSchema
+        <*> (fmap SAML.fromIdPId . (.stiIdP)) .= (SAML.IdPId <$$> maybe_ (optField "idp" uuidSchema))
+        <*> (.stiDescr) .= field "description" schema
 
 ----------------------------------------------------------------------------
 -- @hscim@ extensions and wrappers
@@ -430,6 +458,21 @@ instance ToSchema CreateScimTokenResponse where
   schema =
     object "CreateScimTokenResponse" $
       CreateScimTokenResponse
+        <$> (.token) .= field "token" schema
+        <*> (.info) .= field "info" schema
+
+data CreateScimTokenResponseV6 = CreateScimTokenResponseV6
+  { token :: ScimToken,
+    info :: ScimTokenInfoV6
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateScimTokenResponseV6)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema CreateScimTokenResponseV6)
+
+instance ToSchema CreateScimTokenResponseV6 where
+  schema =
+    object "CreateScimTokenResponseV6" $
+      CreateScimTokenResponseV6
         <$> (.token) .= field "token" schema
         <*> (.info) .= field "info" schema
 

@@ -196,7 +196,7 @@ type APIScimToken =
 
 type APIScimTokenCreateV6 =
   VersionedReqBody 'V6 '[JSON] CreateScimToken
-    :> Post '[JSON] CreateScimTokenResponse
+    :> Post '[JSON] CreateScimTokenResponseV6
 
 type APIScimTokenCreate =
   ReqBody '[JSON] CreateScimToken

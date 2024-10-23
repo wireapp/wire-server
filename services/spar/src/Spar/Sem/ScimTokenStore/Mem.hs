@@ -36,6 +36,6 @@ scimTokenStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Insert st sti -> modify $ M.insert st sti
     Lookup st -> gets $ M.lookup st
-    LookupByTeam tid -> gets $ filter ((== tid) . stiTeam) . M.elems
-    Delete tid stid -> modify $ M.filter $ \sti -> not $ stiTeam sti == tid && stiId sti == stid
-    DeleteByTeam tid -> modify $ M.filter ((/= tid) . stiTeam)
+    LookupByTeam tid -> gets $ filter ((== tid) . (.stiTeam)) . M.elems
+    Delete tid stid -> modify $ M.filter $ \sti -> not $ (.stiTeam) sti == tid && (.stiId) sti == stid
+    DeleteByTeam tid -> modify $ M.filter ((/= tid) . (.stiTeam))

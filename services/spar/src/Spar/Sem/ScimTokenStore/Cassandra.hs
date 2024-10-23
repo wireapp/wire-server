@@ -145,7 +145,7 @@ getScimTokens team = do
   -- We don't need pagination here because the limit should be pretty low
   -- (e.g. 16). If the limit grows, we might have to introduce pagination.
   rows <- retry x1 . query sel $ params LocalQuorum (Identity team)
-  pure $ sortOn stiCreatedAt $ map fromScimTokenRow rows
+  pure $ sortOn (.stiCreatedAt) $ map fromScimTokenRow rows
   where
     sel :: PrepQuery R (Identity TeamId) ScimTokenRow
     sel =

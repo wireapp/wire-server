@@ -98,10 +98,37 @@ apiScimToken ::
   ) =>
   ServerT APIScimToken (Sem r)
 apiScimToken =
-  Named @"auth-tokens-create@v6" createScimToken
+  Named @"auth-tokens-create@v6" createScimTokenV6
     :<|> Named @"auth-tokens-create" createScimToken
     :<|> Named @"auth-tokens-delete" deleteScimToken
     :<|> Named @"auth-tokens-list" listScimTokens
+
+-- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
+--
+-- Create a token for user's team.
+createScimTokenV6 ::
+  forall r.
+  ( Member Random r,
+    Member (Input Opts) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member Now r,
+    Member (Error E.SparError) r
+  ) =>
+  -- | Who is trying to create a token
+  Maybe UserId ->
+  -- | Request body
+  CreateScimToken ->
+  Sem r CreateScimTokenResponseV6
+createScimTokenV6 zusr req = responseToV6 <$> createScimToken zusr req
+  where
+    responseToV6 :: CreateScimTokenResponse -> CreateScimTokenResponseV6
+    responseToV6 (CreateScimTokenResponse token info) = CreateScimTokenResponseV6 token (infoToV6 info)
+
+    infoToV6 :: ScimTokenInfo -> ScimTokenInfoV6
+    infoToV6 ScimTokenInfo {..} = ScimTokenInfoV6 {..}
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
 --
