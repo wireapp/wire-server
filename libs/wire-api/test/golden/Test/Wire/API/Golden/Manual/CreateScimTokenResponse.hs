@@ -34,4 +34,5 @@ testObject_CreateScimTokenResponse_1 =
         (UTCTime {utctDay = ModifiedJulianDay 60605, utctDayTime = 65090})
         Nothing
         "description"
+        "token name"
     )

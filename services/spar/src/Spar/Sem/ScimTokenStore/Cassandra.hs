@@ -212,4 +212,11 @@ type ScimTokenRow = (ScimTokenLookupKey, TeamId, ScimTokenId, UTCTime, Maybe SAM
 
 fromScimTokenRow :: ScimTokenRow -> ScimTokenInfo
 fromScimTokenRow (_, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr) =
-  ScimTokenInfo {..}
+  ScimTokenInfo
+    { stiId,
+      stiTeam,
+      stiCreatedAt,
+      stiIdP,
+      stiDescr,
+      stiName = idToText stiId
+    }

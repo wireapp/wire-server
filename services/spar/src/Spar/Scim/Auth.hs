@@ -37,7 +37,7 @@ where
 
 import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
-import Data.Id (ScimTokenId, UserId)
+import Data.Id
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import Imports
@@ -149,7 +149,8 @@ createScimToken zusr Api.CreateScimToken {..} = do
                   stiTeam = teamid,
                   stiCreatedAt = now,
                   stiIdP = midpid,
-                  stiDescr = descr
+                  stiDescr = descr,
+                  stiName = fromMaybe (idToText tokenid) name
                 }
         ScimTokenStore.insert token info
         pure $ CreateScimTokenResponse token info

@@ -114,7 +114,8 @@ registerScimToken teamid midpid = do
           stiId = scimTokenId,
           stiCreatedAt = now,
           stiIdP = midpid,
-          stiDescr = "test token"
+          stiDescr = "test token",
+          stiName = "test token"
         }
   pure tok
 

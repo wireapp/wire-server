@@ -154,7 +154,9 @@ data ScimTokenInfo = ScimTokenInfo
     stiIdP :: !(Maybe SAML.IdPId),
     -- | Free-form token description, can be set
     --   by the token creator as a mental aid
-    stiDescr :: !Text
+    stiDescr :: !Text,
+    -- | Name for the token, if not set by the user, the name will be equal to the token ID
+    stiName :: !Text
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ScimTokenInfo)
@@ -177,6 +179,7 @@ instance ToSchema ScimTokenInfo where
         <*> (.stiCreatedAt) .= field "created_at" utcTimeSchema
         <*> (fmap SAML.fromIdPId . stiIdP) .= (SAML.IdPId <$$> maybe_ (optField "idp" uuidSchema))
         <*> (.stiDescr) .= field "description" schema
+        <*> (.stiName) .= field "name" schema
 
 ----------------------------------------------------------------------------
 -- @hscim@ extensions and wrappers
