@@ -21,7 +21,7 @@ import Data.Code
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
-import Imports (Maybe (Just, Nothing), fromRight, undefined)
+import Imports
 import Wire.API.User.Scim (CreateScimToken (..))
 
 testObject_CreateScimToken_1 :: CreateScimToken
@@ -54,4 +54,4 @@ testObject_CreateScimToken_4 =
     "description4"
     Nothing
     Nothing
-    Nothing
+    (Just "scim connection name")
