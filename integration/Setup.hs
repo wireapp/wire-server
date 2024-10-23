@@ -27,9 +27,9 @@ import System.Directory
 import System.FilePath
 import Prelude
 
-collectTests :: FilePath -> [FilePath] -> IO [(String, String, String, String)]
-collectTests pkgRoot roots =
-  concat <$> traverse (findAllTests . (<> "/Test")) roots
+collectTests :: FilePath -> FilePath -> [FilePath] -> IO [(String, String, String, String)]
+collectTests pkgRoot topModule roots =
+  concat <$> traverse (findAllTests . (</> topModule)) roots
   where
     findAllTests :: FilePath -> IO [(String, String, String, String)]
     findAllTests root = do
@@ -47,7 +47,7 @@ collectTests pkgRoot roots =
 
     findModuleTests :: FilePath -> FilePath -> IO [(String, String, String, String)]
     findModuleTests root path = do
-      let modl = "Test." <> toModule root path
+      let modl = topModule <> "." <> toModule root path
       tests <- collectTestsInModule pkgRoot path
       pure $ map (\(testName, summary, full) -> (modl, testName, summary, full)) tests
 
@@ -182,8 +182,11 @@ testHooks hooks =
       for_ (Map.lookup cname (componentNameMap l)) $ \compBIs -> do
         for_ compBIs $ \compBI -> do
           let dest = autogenComponentModulesDir l compBI </> "RunAllTests.hs"
-          tests <- collectTests (dataDir p) roots
-          let modules = Set.toList (Set.fromList (map (\(m, _, _, _) -> m) tests))
+          tests <- collectTests (dataDir p) "Test" roots
+          perfTests <- collectTests (dataDir p) "Performance" roots
+          let modules = Set.toList (Set.fromList (map (\(m, _, _, _) -> m) (tests <> perfTests)))
+              mkYieldTests testList =
+                unlines (map (\(m, n, s, f) -> "  yieldTests " <> unwords [show m, show n, show s, show f, m <> "." <> n]) testList)
           createDirectoryIfMissing True (takeDirectory dest)
           writeFile
             dest
@@ -195,7 +198,10 @@ testHooks hooks =
                   unlines (map ("import qualified " <>) modules),
                   "mkAllTests :: IO [Test]",
                   "mkAllTests = execWriterT $ do",
-                  unlines (map (\(m, n, s, f) -> "  yieldTests " <> unwords [show m, show n, show s, show f, m <> "." <> n]) tests)
+                  mkYieldTests tests,
+                  "mkAllPerfTests :: IO [Test]",
+                  "mkAllPerfTests = execWriterT $ do",
+                  mkYieldTests perfTests
                 ]
             )
           pure ()

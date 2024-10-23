@@ -103,6 +103,7 @@ library
     API.Stern
     MLS.Util
     Notifications
+    Performance.BigConversation
     RunAllTests
     SetupHelpers
     Test.AccessUpdate
