@@ -651,7 +651,7 @@ createOne2OneTeamConv u1 u2 n tid = do
   g <- viewGalley
   let conv =
         NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
-  post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
+  post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
   UserId ->
@@ -758,7 +758,7 @@ postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- viewGalley
   let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
-  post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
+  post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
 postConnectConv a b name msg email = do
@@ -1225,7 +1225,8 @@ putOtherMemberQualified from to m c = do
 
 putOtherMember :: UserId -> UserId -> OtherMemberUpdate -> ConvId -> TestM ResponseLBS
 putOtherMember from to m c = do
-  g <- viewGalley
+  -- this endpoint was removed in v7
+  g <- fmap (addPrefixAtVersion V6 .) (view tsUnversionedGalley)
   put $
     g
       . paths ["conversations", toByteString' c, "members", toByteString' to]
