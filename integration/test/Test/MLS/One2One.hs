@@ -416,7 +416,7 @@ testMLSFederationV1ConvOnOldBackend = do
     fedError <- getJSON 533 resp
     fedError %. "label" `shouldMatch` "federation-version-error"
 
-  conv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+  conv <- getMLSOne2OneConversationLegacy bob alice >>= getJSON 200
   keys <- getMLSPublicKeys bob >>= getJSON 200
   resetOne2OneGroupGeneric bob1 conv keys
 
