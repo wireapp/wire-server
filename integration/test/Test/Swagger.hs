@@ -88,6 +88,9 @@ testSwaggerToc = do
 
 -- | This runs the swagger linter [vacuum](https://quobix.com/vacuum/).
 --
+-- The reason for adding the linter in the integration tests, and not in the lint job, is that
+-- it calls brig for the swagger docs it validates, but no running brig during linting.
+--
 -- There is also a make rule that does this, for convenience in your develop
 -- flow. Make sure that brig is running before using the make rule.
 testSwaggerLint :: (HasCallStack) => App ()
