@@ -464,7 +464,7 @@ testMLSFederationV1ConvOnNewBackend = do
 
   -- Bob cannot start this conversation because it would exist on Alice's
   -- backend and Bob cannot get the MLS public keys of that backend.
-  getMLSOne2OneConversation bob alice `bindResponse` \resp -> do
+  getMLSOne2OneConversationLegacy bob alice `bindResponse` \resp -> do
     fedError <- getJSON 533 resp
     fedError %. "label" `shouldMatch` "federation-remote-error"
 
