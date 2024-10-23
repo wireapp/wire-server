@@ -127,6 +127,8 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
+import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BlockListStore as BlockListStore
 import Wire.DeleteQueue
@@ -778,6 +780,7 @@ sendActivationCode ::
   ( Member BlockListStore r,
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
+    Member ActivationCodeStore r,
     Member UserKeyStore r
   ) =>
   EmailAddress ->
@@ -792,7 +795,7 @@ sendActivationCode email loc = do
   blacklisted <- lift . liftSem $ BlockListStore.exists ek
   when blacklisted $
     throwE (ActivationBlacklistedUserKey ek)
-  uc <- lift . wrapClient $ Data.lookupActivationCode ek
+  uc <- lift . liftSem $ ActivationCode.lookupActivationCode ek
   case uc of
     Nothing -> sendVerificationEmail ek Nothing -- Fresh code request, no user
     Just (Nothing, c) -> sendVerificationEmail ek (Just c) -- Re-requesting existing code
@@ -1070,13 +1073,15 @@ deleteAccount user = do
 -- Lookups
 
 lookupActivationCode ::
-  (MonadClient m) =>
+  ( Member ActivationCodeStore r,
+    Member (Embed IO) r
+  ) =>
   EmailAddress ->
-  m (Maybe ActivationPair)
+  Sem r (Maybe ActivationPair)
 lookupActivationCode email = do
   let uk = mkEmailKey email
   k <- liftIO $ Data.mkActivationKey uk
-  c <- fmap snd <$> Data.lookupActivationCode uk
+  c <- fmap snd <$> ActivationCode.lookupActivationCode uk
   pure $ (k,) <$> c
 
 lookupPasswordResetCode ::

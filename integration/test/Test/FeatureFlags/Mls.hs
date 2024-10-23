@@ -59,16 +59,6 @@ testMlsPatch = do
                 ]
           ]
 
-mlsDefaultConfig :: Value
-mlsDefaultConfig =
-  object
-    [ "protocolToggleUsers" .= ([] :: [String]),
-      "defaultProtocol" .= "proteus",
-      "supportedProtocols" .= ["proteus", "mls"],
-      "allowedCipherSuites" .= ([1] :: [Int]),
-      "defaultCipherSuite" .= toJSON (1 :: Int)
-    ]
-
 mls1 :: String -> Value
 mls1 uid =
   object

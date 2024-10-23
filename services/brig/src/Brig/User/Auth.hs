@@ -38,7 +38,6 @@ import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
-import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
@@ -71,6 +70,8 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
+import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.Events (Events)
@@ -88,13 +89,14 @@ import Wire.VerificationCodeSubsystem qualified as VerificationCodeSubsystem
 login ::
   forall r.
   ( Member GalleyAPIAccess r,
+    Member (Input (Local ())) r,
+    Member ActivationCodeStore r,
+    Member Events r,
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
-    Member VerificationCodeSubsystem r,
-    Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member Events r,
+    Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r
   ) =>
   Login ->
@@ -290,6 +292,7 @@ resolveLoginId ::
   ( Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
+    Member ActivationCodeStore r,
     Member (Input (Local ())) r
   ) =>
   LoginId ->
@@ -311,7 +314,10 @@ validateLoginId (LoginByHandle h) = Right h
 
 isPendingActivation ::
   forall r.
-  (Member UserSubsystem r, Member (Input (Local ())) r) =>
+  ( Member UserSubsystem r,
+    Member ActivationCodeStore r,
+    Member (Input (Local ())) r
+  ) =>
   LoginId ->
   AppT r Bool
 isPendingActivation ident = case ident of
@@ -320,7 +326,7 @@ isPendingActivation ident = case ident of
   where
     checkKey :: EmailKey -> AppT r Bool
     checkKey k = do
-      musr <- (>>= fst) <$> wrapClient (Data.lookupActivationCode k)
+      musr <- (>>= fst) <$> liftSem (ActivationCode.lookupActivationCode k)
       case musr of
         Nothing -> pure False
         Just usr -> liftSem do

@@ -49,7 +49,6 @@ module Data.Misc
     PlainTextPassword6,
     PlainTextPassword8,
     plainTextPassword6,
-    plainTextPassword8,
     fromPlainTextPassword,
     plainTextPassword8Unsafe,
     plainTextPassword6Unsafe,
@@ -322,9 +321,6 @@ plainTextPassword6 = fmap PlainTextPassword' . checked
 
 plainTextPassword6Unsafe :: Text -> PlainTextPassword6
 plainTextPassword6Unsafe = PlainTextPassword' . unsafeRange
-
-plainTextPassword8 :: Text -> Maybe PlainTextPassword8
-plainTextPassword8 = fmap PlainTextPassword' . checked
 
 plainTextPassword8Unsafe :: Text -> PlainTextPassword8
 plainTextPassword8Unsafe = PlainTextPassword' . unsafeRange

@@ -115,7 +115,6 @@ library
     , generic-random         >=1.4.0.0
     , hashable               >=1.2
     , http-api-data
-    , http-types
     , imports
     , iproute                >=1.5
     , iso3166-country-codes  >=0.20140203.8

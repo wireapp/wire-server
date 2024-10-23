@@ -23,7 +23,6 @@ import Data.Misc
 import Data.Qualified
 import Imports
 import Polysemy
-import Polysemy.Error
 import Wire.API.Password (Password, PasswordStatus)
 import Wire.API.User
 import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
@@ -43,21 +42,3 @@ data AuthenticationSubsystem m a where
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 
 makeSem ''AuthenticationSubsystem
-
-authenticate ::
-  ( Member (Error AuthError) r,
-    Member AuthenticationSubsystem r
-  ) =>
-  UserId ->
-  PlainTextPassword6 ->
-  Sem r ()
-authenticate uid pwd = authenticateEither uid pwd >>= either throw pure
-
-reauthenticate ::
-  ( Member (Error ReAuthError) r,
-    Member AuthenticationSubsystem r
-  ) =>
-  UserId ->
-  Maybe PlainTextPassword6 ->
-  Sem r ()
-reauthenticate uid pwd = reauthenticateEither uid pwd >>= either throw pure

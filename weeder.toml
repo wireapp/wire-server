@@ -19,6 +19,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^API.Search._testOrderName",
          "^API.Team.Util.*$", # FUTUREWORK: Consider whether unused utility functions should be kept.
          "^Bilge.*$",
+         "^Cannon.run$",
          "^Cassandra.Helpers.toOptionFieldName",
          "^Cassandra.QQ.sql$",
          "^Data.ETag._OpaqueDigest",
@@ -35,11 +36,14 @@ roots = [ # may of the entries here are about general-purpose module
          "^Data.Range.rcons",
          "^Data.Range.rinc",
          "^Data.Range.rsingleton",
+         "^Data.Schema.fieldWithDocModifierF$",
          "^Data.ZAuth.Validation.*$",
          "^Galley.Cassandra.FeatureTH.generateSOPInstances$",
          "^Galley.Cassandra.FeatureTH.generateTupleP$",
          "^Galley.Types.Teams.canSeePermsOf", # TODO: figure out why weeder is confused by let bindings with curried infix notation
-         "^Galley.Types.UserList.ulDiff",
+         "^Galley.Types.UserList.ulDiff$",
+         "^Gundeck.Monad.runGundeck$",
+         "^Gundeck.run$",
          "^HTTP2.Client.Manager.*$",
          "^Imports.getChar",
          "^Imports.getContents",
@@ -52,6 +56,8 @@ roots = [ # may of the entries here are about general-purpose module
          "^Main.debugMainExport", # move-team
          "^Main.debugMainImport", # move-team
          "^Main.main$",
+         "^Network.Wai.Utilities.Request.parseBody$",
+         "^Network.Wai.Utilities.Server.route$",
          "^Network.Wai.Utilities.ZAuth.*$",
          "^Notifications.*$", # new integration tests
          "^ParseSchema._printAllTables",
@@ -112,12 +118,16 @@ roots = [ # may of the entries here are about general-purpose module
          "^Proto.Otr_Fields.vec'userIds",
          "^Proto.TeamEvents_Fields.currency",
          "^Proto.TeamEvents_Fields.vec'billingUser",
+         "^Proxy.run$",
+         "^Run.main$",
          "^Run.main$",
          "^Spar.Sem.AReqIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.AssIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.ScimTokenStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.VerdictFormatStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spec.main$",
+         "^Stern.App.runHandler$",
+         "^System.Logger.Extended.runWithLogger$",
          "^Test.Cargohold.API.Util.shouldMatchALittle",
          "^Test.Cargohold.API.Util.shouldMatchLeniently",
          "^Test.Cargohold.API.Util.shouldMatchSloppily",
@@ -126,8 +136,6 @@ roots = [ # may of the entries here are about general-purpose module
          "^Test.Data.Schema.userSchemaWithDefaultName'",
          "^Test.Federator.JSON.deriveJSONOptions", # This is used inside an instance derivation via TH
          "^Test.Wire.API.Golden.Run.main$",
-         "^Run.main$",
-         "^Test.Wire.API.Password.testHashPasswordScrypt", # FUTUREWORK: reworking scrypt/argon2id is planned for next sprint
          "^TestSetup.runFederationClient",
          "^TestSetup.viewCargohold",
          "^Testlib.App.*$", # FUTUREWORK: See how we can have weeder parse operators in the config file.
@@ -148,6 +156,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Testlib.Run.mainI$",
          "^Testlib.RunServices.main$",
          "^ThreadBudget.extractLogHistory",
+         "^Util.SuffixNamer.*",
          "^Util.assertOne",
          "^Util.randomActivationCode",
          "^Util.zClient",
@@ -174,8 +183,11 @@ roots = [ # may of the entries here are about general-purpose module
          "^Web.Scim.Test.Util.scim",
          "^Web.Scim.Test.Util.shouldEventuallyRespondWith",
          "^Wire.API.MLS.Serialisation.traceMLS", # Debug
+         "^Wire.API.Password.hashPasswordScrypt$", # Used in testing
+         "^Wire.API.Password.mkSafePasswordScrypt$", # Used in testing
          "^Wire.Sem.Concurrency.IO.performConcurrency",
-         "^Wire.Sem.Logger.fatal"
+         "^Wire.Sem.Logger.fatal",
+         "^Wire.Sem.Metrics.incGauge$" # Used in wai-utilities
         ]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 

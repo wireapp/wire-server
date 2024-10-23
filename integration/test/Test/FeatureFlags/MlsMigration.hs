@@ -77,13 +77,3 @@ mlsMigrationConfig2 =
             "finaliseRegardlessAfter" .= "2031-10-17T00:00:00Z"
           ]
     ]
-
-mlsMigrationInvalidConfig :: Value
-mlsMigrationInvalidConfig =
-  object
-    [ "status" .= "enabled",
-      "config"
-        .= object
-          [ "startTime" .= A.Number 1
-          ]
-    ]

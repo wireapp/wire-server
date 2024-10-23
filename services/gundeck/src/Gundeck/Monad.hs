@@ -31,7 +31,6 @@ module Gundeck.Monad
     Gundeck,
     runDirect,
     runGundeck,
-    fromJsonBody,
     posixTime,
 
     -- * Select which redis to target
@@ -44,11 +43,9 @@ import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
 import Control.Concurrent.Async (AsyncCancelled)
-import Control.Error
 import Control.Exception (throwIO)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch hiding (tryJust)
-import Data.Aeson (FromJSON)
 import Data.Misc (Milliseconds (..))
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -56,9 +53,7 @@ import Database.Redis qualified as Redis
 import Gundeck.Env
 import Gundeck.Redis qualified as Redis
 import Imports
-import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Utilities
 import Prometheus
 import System.Logger qualified as Log
 import System.Logger qualified as Logger
@@ -200,10 +195,6 @@ lookupReqId l r = case lookup requestIdName (requestHeaders r) of
         .= rawPathInfo r
         ~~ msg (val "generated a new request id for local request")
     pure localRid
-
-fromJsonBody :: (FromJSON a) => JsonRequest a -> Gundeck a
-fromJsonBody r = exceptT (throwM . mkError status400 "bad-request") pure (parseBody r)
-{-# INLINE fromJsonBody #-}
 
 posixTime :: Gundeck Milliseconds
 posixTime = view time >>= liftIO

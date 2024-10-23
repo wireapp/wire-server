@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -21,11 +20,6 @@
 module CargoHold.AWS
   ( -- * Monad
     Env (..),
-    amazonkaEnvLens,
-    CargoHold.AWS.s3BucketLens,
-    CargoHold.AWS.cloudFrontLens,
-    amazonkaDownloadEndpointLens,
-    loggerLens,
     mkEnv,
     amazonkaEnvWithDownloadEndpoint,
     Amazon,
@@ -56,7 +50,6 @@ import qualified System.Logger as Logger
 import System.Logger.Class (Logger, MonadLogger (log), (~~))
 import qualified System.Logger.Class as Log
 import Util.Options (AWSEndpoint (..))
-import Util.SuffixNamer
 
 data Env = Env
   { logger :: !Logger,
@@ -68,8 +61,6 @@ data Env = Env
     amazonkaDownloadEndpoint :: !AWSEndpoint,
     cloudFront :: !(Maybe CloudFront)
   }
-
-makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 
 -- | Override the endpoint in the '_amazonkaEnv' with '_amazonkaDownloadEndpoint'.
 -- TODO: Choose the correct s3 addressing style

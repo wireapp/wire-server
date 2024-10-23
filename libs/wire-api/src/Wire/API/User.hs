@@ -40,7 +40,6 @@ module Wire.API.User
     userEmail,
     userSSOId,
     userIssuer,
-    userSCIMExternalId,
     scimExternalId,
     ssoIssuerAndNameId,
     mkUserProfile,
@@ -635,9 +634,6 @@ userEmail = emailIdentity <=< userIdentity
 
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
-
-userSCIMExternalId :: User -> Maybe Text
-userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
 
 -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
