@@ -40,6 +40,7 @@ library
     Spar.Schema.V16
     Spar.Schema.V17
     Spar.Schema.V18
+    Spar.Schema.V19
     Spar.Schema.V2
     Spar.Schema.V3
     Spar.Schema.V4
