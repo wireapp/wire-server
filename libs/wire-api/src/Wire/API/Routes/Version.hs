@@ -74,6 +74,8 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named hiding (unnamed)
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
+import Servant.API.Extended (ReqBodyCustomError)
+import Servant.Multipart (MultipartForm)
 
 -- | Version of the public API.  Serializes to `"v<n>"`.  See 'VersionNumber' below for one
 -- that serializes to `<n>`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs`
@@ -293,11 +295,23 @@ type instance
   SpecialiseToVersion v (MultiVerb m t r x) =
     MultiVerb m t r x
 
+type instance
+  SpecialiseToVersion v (NoContentVerb m) =
+    NoContentVerb m
+
 type instance SpecialiseToVersion v RawM.RawM = RawM.RawM
 
 type instance
   SpecialiseToVersion v (ReqBody t x :> api) =
     ReqBody t x :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (ReqBodyCustomError t l x :> api) =
+    ReqBodyCustomError t l x :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (MultipartForm x b :> api) =
+    MultipartForm x b :> SpecialiseToVersion v api
 
 type instance
   SpecialiseToVersion v (QueryParam' mods l x :> api) =

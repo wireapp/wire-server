@@ -98,7 +98,8 @@ apiScimToken ::
   ) =>
   ServerT APIScimToken (Sem r)
 apiScimToken =
-  Named @"auth-tokens-create" createScimToken
+  Named @"auth-tokens-create@v6" createScimToken
+    :<|> Named @"auth-tokens-create" createScimToken
     :<|> Named @"auth-tokens-delete" deleteScimToken
     :<|> Named @"auth-tokens-list" listScimTokens
 

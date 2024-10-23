@@ -25,7 +25,6 @@ import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
 import Servant.Multipart
-import Servant.OpenApi
 import URI.ByteString qualified as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
@@ -37,6 +36,8 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.SwaggerServant
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -188,9 +189,14 @@ data ScimSite tag route = ScimSite
   deriving (Generic)
 
 type APIScimToken =
-  Named "auth-tokens-create" (ZOptUser :> APIScimTokenCreate)
+  Named "auth-tokens-create@v6" (Until 'V7 :> ZOptUser :> APIScimTokenCreateV6)
+    :<|> Named "auth-tokens-create" (From 'V7 :> ZOptUser :> APIScimTokenCreate)
     :<|> Named "auth-tokens-delete" (ZOptUser :> APIScimTokenDelete)
     :<|> Named "auth-tokens-list" (ZOptUser :> APIScimTokenList)
+
+type APIScimTokenCreateV6 =
+  VersionedReqBody 'V6 '[JSON] CreateScimToken
+    :> Post '[JSON] CreateScimTokenResponse
 
 type APIScimTokenCreate =
   ReqBody '[JSON] CreateScimToken
@@ -207,5 +213,3 @@ data SparAPITag
 
 instance ServiceAPI SparAPITag v where
   type ServiceAPIRoutes SparAPITag = SparAPI
-  type SpecialisedAPIRoutes v SparAPITag = SparAPI
-  serviceSwagger = toOpenApi (Proxy @SparAPI)

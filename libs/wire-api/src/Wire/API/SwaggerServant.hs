@@ -23,9 +23,8 @@ where
 
 import Data.Metrics.Servant
 import Data.Proxy
-import Imports hiding (head)
 import Servant
-import Servant.OpenApi (HasOpenApi (toOpenApi))
+import Wire.API.Routes.Version
 
 -- | A type-level tag that lets us omit any branch from Swagger docs.
 --
@@ -33,9 +32,6 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 -- and spar scim, and we should probably eliminate those uses and this combinator.
 -- it's only justification is laziness.
 data OmitDocs
-
-instance HasOpenApi (OmitDocs :> a) where
-  toOpenApi _ = mempty
 
 instance (HasServer api ctx) => HasServer (OmitDocs :> api) ctx where
   type ServerT (OmitDocs :> api) m = ServerT api m
@@ -46,3 +42,6 @@ instance (HasServer api ctx) => HasServer (OmitDocs :> api) ctx where
 
 instance (RoutesToPaths api) => RoutesToPaths (OmitDocs :> api) where
   getRoutes = getRoutes @api
+
+type instance
+  SpecialiseToVersion v (OmitDocs :> api) = EmptyAPI
