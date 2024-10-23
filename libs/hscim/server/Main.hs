@@ -68,7 +68,7 @@ mkUserDB = do
             E.value =
               maybe
                 (error "couldn't parse email")
-                EmailAddress2
+                EmailAddress
                 (emailAddress "elton@wire.com"),
             E.primary = Nothing
           }

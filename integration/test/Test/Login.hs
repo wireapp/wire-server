@@ -23,6 +23,7 @@ testLoginVerify6DigitEmailCodeSuccess = do
   bindResponse (loginWith2ndFactor owner email defPassword code) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that login fails with wrong second factor email verification code
 testLoginVerify6DigitWrongCodeFails :: (HasCallStack) => App ()
@@ -38,6 +39,9 @@ testLoginVerify6DigitWrongCodeFails = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "code-authentication-failed"
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that login without verification code fails if SndFactorPasswordChallenge feature is enabled in team
 testLoginVerify6DigitMissingCodeFails :: (HasCallStack) => App ()
@@ -50,6 +54,9 @@ testLoginVerify6DigitMissingCodeFails = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "code-authentication-required"
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that login fails with expired second factor email verification code
 testLoginVerify6DigitExpiredCodeFails :: (HasCallStack) => App ()
@@ -72,6 +79,8 @@ testLoginVerify6DigitExpiredCodeFails = do
       bindResponse (loginWith2ndFactor owner email defPassword code) \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "code-authentication-failed"
+
+-- @END
 
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: (HasCallStack) => App ()
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting = do

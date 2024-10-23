@@ -33,10 +33,10 @@ import Gundeck.Options
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types
 import Gundeck.ThreadBudget.Internal
-import Gundeck.Types.Push
 import Imports
 import OpenSSL (withOpenSSL)
 import System.Random (randomRIO)
+import Wire.API.Push.V2
 
 main :: IO ()
 main = withOpenSSL $ do

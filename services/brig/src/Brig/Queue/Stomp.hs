@@ -76,10 +76,10 @@ mkEnv o cred =
   Env
     { broker =
         Broker
-          { host = Opts.stompHost o,
-            port = Opts.stompPort o,
+          { host = o.host,
+            port = o.port,
             auth = Just cred,
-            tls = Opts.stompTls o
+            tls = o.tls
           }
     }
 

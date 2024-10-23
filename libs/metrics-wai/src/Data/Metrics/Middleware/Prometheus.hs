@@ -17,10 +17,12 @@
 
 module Data.Metrics.Middleware.Prometheus
   ( waiPrometheusMiddleware,
+    waiPrometheusMiddlewarePaths,
     normalizeWaiRequestRoute,
   )
 where
 
+import Data.Id
 import Data.Metrics.Types (Paths, treeLookup)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding qualified as T
@@ -33,12 +35,17 @@ import Network.Wai.Routing.Route (Routes, prepare)
 -- This middleware requires your servers 'Routes' because it does some normalization
 -- (e.g. removing params from calls)
 waiPrometheusMiddleware :: (Monad m) => Routes a m b -> Wai.Middleware
-waiPrometheusMiddleware routes =
+waiPrometheusMiddleware routes = waiPrometheusMiddlewarePaths $ treeToPaths $ prepare routes
+
+-- | Helper function that should only be needed as long as we have wai-routing code left in
+-- proxy: run 'treeToPaths' on old routing tables and 'routeToPaths' on the servant ones, and
+-- feed both to this function.
+waiPrometheusMiddlewarePaths :: Paths -> Wai.Middleware
+waiPrometheusMiddlewarePaths paths =
   Promth.prometheus conf . instrument (normalizeWaiRequestRoute paths)
   where
     -- See Note [Raw Response]
     instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
-    paths = treeToPaths $ prepare routes
     conf =
       Promth.def
         { Promth.prometheusEndPoint = ["i", "metrics"],
@@ -57,4 +64,4 @@ normalizeWaiRequestRoute paths req = pathInfo
     -- Use the normalized path info if available; otherwise dump the raw path info for
     -- debugging purposes
     pathInfo :: Text
-    pathInfo = T.decodeUtf8 $ fromMaybe "N/A" mPathInfo
+    pathInfo = T.decodeUtf8 $ fromMaybe defRequestId mPathInfo

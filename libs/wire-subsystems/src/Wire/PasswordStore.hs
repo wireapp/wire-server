@@ -10,5 +10,6 @@ import Wire.API.Password
 data PasswordStore m a where
   UpsertHashedPassword :: UserId -> Password -> PasswordStore m ()
   LookupHashedPassword :: UserId -> PasswordStore m (Maybe Password)
+  LookupHashedProviderPassword :: ProviderId -> PasswordStore m (Maybe Password)
 
 makeSem ''PasswordStore

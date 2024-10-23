@@ -21,10 +21,12 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Generated.Invite_user (testObject_Invite_user_2)
+import Test.Wire.API.Golden.Generated.LockableFeature_team
 import Test.Wire.API.Golden.Generated.MemberUpdateData_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
+import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Runner
 import Wire.API.Conversation (Conversation, MemberUpdate, OtherMemberUpdate)
 import Wire.API.User (NewUser, NewUserPublic)
@@ -88,5 +90,9 @@ tests =
             testFromJSONFailureWithMsg @NewUserPublic
               (Just "only managed-by-Wire users can be created here.")
               "testObject_NewUserPublic_user_1-3.json"
-        ]
+        ],
+      testCase "LockableFeature_ConferenceCallingConfig" $
+        testFromJSONObject testObject_LockableFeature_team_14 "testObject_LockableFeature_team_14.json",
+      testCase "LockableFeature_ConferenceCallingConfig" $
+        testFromJSONObject testObject_Presence_3 "testObject_Presence_3.json"
     ]

@@ -28,8 +28,9 @@
 , extra
 , foldl
 , gitignoreSource
-, gundeck-types
 , hedis
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , HsOpenSSL
 , http-client
 , http-client-tls
@@ -59,6 +60,7 @@
 , safe
 , safe-exceptions
 , scientific
+, servant
 , servant-server
 , string-conversions
 , tagged
@@ -78,11 +80,10 @@
 , wai
 , wai-extra
 , wai-middleware-gunzip
-, wai-predicates
-, wai-routing
 , wai-utilities
 , websockets
 , wire-api
+, wire-otel
 , yaml
 }:
 mkDerivation {
@@ -112,8 +113,9 @@ mkDerivation {
     extended
     extra
     foldl
-    gundeck-types
     hedis
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     http-client
     http-client-tls
     http-types
@@ -130,6 +132,7 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
+    servant
     servant-server
     text
     time
@@ -143,10 +146,9 @@ mkDerivation {
     wai
     wai-extra
     wai-middleware-gunzip
-    wai-predicates
-    wai-routing
     wai-utilities
     wire-api
+    wire-otel
     yaml
   ];
   executableHaskellDepends = [
@@ -162,7 +164,6 @@ mkDerivation {
     containers
     exceptions
     extended
-    gundeck-types
     HsOpenSSL
     http-client
     http-client-tls
@@ -200,11 +201,9 @@ mkDerivation {
     bytestring-conversion
     containers
     exceptions
-    gundeck-types
     HsOpenSSL
     imports
     lens
-    metrics-wai
     MonadRandom
     mtl
     multiset
@@ -218,17 +217,14 @@ mkDerivation {
     tasty-hunit
     tasty-quickcheck
     text
-    time
     tinylog
     types-common
-    wai-utilities
     wire-api
   ];
   benchmarkHaskellDepends = [
     amazonka
     base
     criterion
-    gundeck-types
     HsOpenSSL
     imports
     lens
@@ -236,6 +232,7 @@ mkDerivation {
     text
     types-common
     uuid
+    wire-api
   ];
   description = "Push Notification Hub";
   license = lib.licenses.agpl3Only;

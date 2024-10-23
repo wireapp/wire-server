@@ -1,8 +1,0 @@
-# DO NOT MODIFY THIS FILE. See README.md to learn why.
-
-resolver: https://raw.githubusercontent.com/wireapp/wire-server/develop/snapshots/wire-2.1.yaml
-name: wire-2.2
-
-packages:
-- git: https://github.com/wireapp/hsaml2
-  commit: cc47da1d097b0b26595b8889e40c33c6c0c1c551    # master (Feb 27, 2020)

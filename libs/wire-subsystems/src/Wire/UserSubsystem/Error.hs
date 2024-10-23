@@ -1,6 +1,8 @@
 module Wire.UserSubsystem.Error where
 
 import Imports
+import Network.HTTP.Types (status404)
+import Network.Wai.Utilities qualified as Wai
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.Error
@@ -16,6 +18,16 @@ data UserSubsystemError
   | UserSubsystemHandleExists
   | UserSubsystemInvalidHandle
   | UserSubsystemProfileNotFound
+  | UserSubsystemInsufficientTeamPermissions
+  | UserSubsystemCannotJoinMultipleTeams
+  | UserSubsystemTooManyTeamMembers
+  | UserSubsystemMissingIdentity
+  | UserSubsystemInvalidActivationCodeWrongUser
+  | UserSubsystemInvalidActivationCodeWrongCode
+  | UserSubsystemInvalidInvitationCode
+  | UserSubsystemInvitationNotFound
+  | UserSubsystemUserNotAllowedToJoinTeam Wai.Error
+  | UserSubsystemMLSServicesNotAllowed
   deriving (Eq, Show)
 
 userSubsystemErrorToHttpError :: UserSubsystemError -> HttpError
@@ -28,5 +40,15 @@ userSubsystemErrorToHttpError =
     UserSubsystemHandleExists -> errorToWai @E.HandleExists
     UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
     UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim
+    UserSubsystemInsufficientTeamPermissions -> errorToWai @E.InsufficientTeamPermissions
+    UserSubsystemCannotJoinMultipleTeams -> errorToWai @E.CannotJoinMultipleTeams
+    UserSubsystemTooManyTeamMembers -> errorToWai @E.TooManyTeamMembers
+    UserSubsystemMissingIdentity -> errorToWai @E.MissingIdentity
+    UserSubsystemInvalidActivationCodeWrongUser -> errorToWai @E.InvalidActivationCodeWrongUser
+    UserSubsystemInvalidActivationCodeWrongCode -> errorToWai @E.InvalidActivationCodeWrongCode
+    UserSubsystemInvalidInvitationCode -> errorToWai @E.InvalidInvitationCode
+    UserSubsystemInvitationNotFound -> Wai.mkError status404 "not-found" "Something went wrong, while looking up the invitation"
+    UserSubsystemUserNotAllowedToJoinTeam e -> e
+    UserSubsystemMLSServicesNotAllowed -> errorToWai @E.MLSServicesNotAllowed
 
 instance Exception UserSubsystemError

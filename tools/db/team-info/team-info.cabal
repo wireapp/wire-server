@@ -1,0 +1,92 @@
+cabal-version: 3.0
+name:          team-info
+version:       1.0.0
+synopsis:      get team info from cassandra
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2024 Wire Swiss GmbH
+license:       AGPL-3.0-only
+build-type:    Simple
+
+library
+  hs-source-dirs:     src
+  exposed-modules:
+    TeamInfo.Lib
+    TeamInfo.Types
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints -Wunused-packages
+
+  build-depends:
+    , cassandra-util
+    , conduit
+    , cql
+    , imports
+    , lens
+    , optparse-applicative
+    , time
+    , tinylog
+    , types-common
+
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+executable team-info
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , team-info
+
+  hs-source-dirs:   app
+  default-language: Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints -Wunused-packages

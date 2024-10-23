@@ -18,8 +18,7 @@
 -- FUTUREWORK: Remove this module all together.
 module Brig.Federation.Client where
 
-import Brig.App as Brig
-import Control.Lens
+import Brig.App
 import Control.Monad
 import Control.Monad.Catch (MonadMask, throwM)
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
@@ -154,7 +153,7 @@ notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
       remoteDomain = tDomain remotes
-  view rabbitmqChannel >>= \case
+  asks (.rabbitmqChannel) >>= \case
     Just chanVar -> do
       enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
         fedQueueClient @'OnUserDeletedConnectionsTag notif
@@ -172,7 +171,7 @@ enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
   recovering policy [logRetries (const $ pure True) logError] (const go)
   where
     logError willRetry (SomeException e) status = do
-      rid <- view Brig.requestId
+      rid <- asks (.requestId)
       Log.err $
         Log.msg @Text "failed to enqueue notification in RabbitMQ"
           . Log.field "error" (displayException e)
@@ -180,7 +179,7 @@ enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
           . Log.field "retryCount" status.rsIterNumber
           . Log.field "request" rid
     go = do
-      rid <- view Brig.requestId
+      rid <- asks (.requestId)
       mChan <- timeout (1 :: Second) (readMVar chanVar)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
@@ -198,9 +197,9 @@ runBrigFederatorClient ::
   ExceptT FederationError m a
 runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
-  endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
-  mgr <- view http2Manager
-  rid <- view Brig.requestId
+  endpoint <- asks (.federator) >>= maybe (throwE FederationNotConfigured) pure
+  mgr <- asks (.http2Manager)
+  rid <- asks (.requestId)
   let env =
         FederatorClientEnv
           { ceOriginDomain = ownDomain,

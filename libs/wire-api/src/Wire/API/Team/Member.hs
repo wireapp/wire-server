@@ -22,13 +22,13 @@
 module Wire.API.Team.Member
   ( -- * TeamMember
     TeamMember,
+    newTeamMember,
     mkTeamMember,
     userId,
     permissions,
     invitation,
     legalHoldStatus,
     ntmNewTeamMember,
-    teamMemberJson,
     setOptionalPerms,
     setOptionalPermsMany,
     teamMemberObjectSchema,
@@ -426,9 +426,6 @@ permissions = newTeamMember . nPermissions
 invitation :: Lens' TeamMember (Maybe (UserId, UTCTimeMillis))
 invitation = newTeamMember . nInvitation
 
-teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
-teamMemberJson withPerms = toJSON . setOptionalPerms withPerms
-
 setOptionalPerms :: (TeamMember -> Bool) -> TeamMember -> TeamMember' 'Optional
 setOptionalPerms withPerms m = m & permissions %~ setPerm (withPerms m)
 
@@ -589,10 +586,10 @@ class IsPerm perm where
 instance IsPerm Perm where
   type PermError p = 'MissingPermission ('Just p)
 
-  roleHasPerm r p = p `Set.member` (rolePermissions r ^. self)
-  roleGrantsPerm r p = p `Set.member` (rolePermissions r ^. copy)
-  hasPermission tm p = p `Set.member` (tm ^. permissions . self)
-  mayGrantPermission tm p = p `Set.member` (tm ^. permissions . copy)
+  roleHasPerm r p = p `Set.member` ((rolePermissions r).self)
+  roleGrantsPerm r p = p `Set.member` ((rolePermissions r).copy)
+  hasPermission tm p = p `Set.member` ((tm ^. permissions).self)
+  mayGrantPermission tm p = p `Set.member` ((tm ^. permissions).copy)
 
 instance IsPerm HiddenPerm where
   type PermError p = OperationDenied

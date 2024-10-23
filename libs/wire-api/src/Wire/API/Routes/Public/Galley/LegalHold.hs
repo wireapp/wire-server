@@ -20,12 +20,11 @@ module Wire.API.Routes.Public.Galley.LegalHold where
 import Data.Id
 import GHC.Generics
 import Generics.SOP qualified as GSOP
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -63,9 +62,6 @@ type LegalHoldAPI =
     :<|> Named
            "delete-legal-hold-settings"
            ( Summary "Delete legal hold service settings"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow AuthenticationError
                :> CanThrow OperationDenied
                :> CanThrow 'NotATeamMember
@@ -102,9 +98,6 @@ type LegalHoldAPI =
     :<|> Named
            "consent-to-legal-hold"
            ( Summary "Consent to legal hold"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'InvalidOperation
                :> CanThrow 'TeamMemberNotFound
@@ -120,9 +113,6 @@ type LegalHoldAPI =
     :<|> Named
            "request-legal-hold-device"
            ( Summary "Request legal hold device"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
@@ -133,6 +123,7 @@ type LegalHoldAPI =
                :> CanThrow 'LegalHoldServiceBadResponse
                :> CanThrow 'LegalHoldServiceNotRegistered
                :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> CanThrow 'MLSLegalholdIncompatible
                :> CanThrow 'UserLegalHoldIllegalOperation
                :> Description
                     "This endpoint can lead to the following events being sent:\n\
@@ -151,9 +142,6 @@ type LegalHoldAPI =
     :<|> Named
            "disable-legal-hold-for-user"
            ( Summary "Disable legal hold for user"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow AuthenticationError
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'NotATeamMember
@@ -180,9 +168,6 @@ type LegalHoldAPI =
     :<|> Named
            "approve-legal-hold-device"
            ( Summary "Approve legal hold device"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow AuthenticationError
                :> CanThrow 'AccessDenied
                :> CanThrow ('ActionDenied 'RemoveConversationMember)

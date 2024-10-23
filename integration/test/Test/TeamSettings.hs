@@ -26,7 +26,7 @@ import Testlib.Prelude
 testTeamSettingsUpdate :: (HasCallStack) => App ()
 testTeamSettingsUpdate = do
   (ownerA, tidA, [mem]) <- createTeam OwnDomain 2
-  partner <- createTeamMemberWithRole ownerA tidA "partner"
+  partner <- createTeamMember ownerA def {role = "partner"}
 
   bindResponse (putAppLockSettings tidA ownerA def) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -45,7 +45,7 @@ testTeamSettingsUpdate = do
 testTeamPropertiesUpdate :: (HasCallStack) => App ()
 testTeamPropertiesUpdate = do
   (ownerA, tidA, [mem]) <- createTeam OwnDomain 2
-  partner <- createTeamMemberWithRole ownerA tidA "partner"
+  partner <- createTeamMember ownerA def {role = "partner"}
 
   bindResponse (putTeamProperties tidA ownerA def) $ \resp -> do
     resp.status `shouldMatchInt` 200

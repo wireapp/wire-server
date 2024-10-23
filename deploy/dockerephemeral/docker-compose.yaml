@@ -58,9 +58,11 @@ services:
 
   basic_smtp: # needed for demo setup
     container_name: demo_wire_smtp
-    image: ixdotai/smtp:v0.5.2
+    image: inbucket/inbucket:latest
     ports:
-        - 127.0.0.1:2500:25
+        - 127.0.0.1:2500:2500
+        - 127.0.0.1:1100:1100
+        - 127.0.0.1:9000:9000
     networks:
       - demo_wire
 
@@ -262,7 +264,7 @@ services:
 
   rabbitmq:
     container_name: rabbitmq
-    image: rabbitmq:3.11-management-alpine
+    image: rabbitmq:3.13.7-management-alpine
     environment:
       - RABBITMQ_USERNAME
       - RABBITMQ_PASSWORD

@@ -21,3 +21,6 @@ import Wire.API.User.Client (ClientCapability (..))
 
 testObject_ClientCapability_1 :: ClientCapability
 testObject_ClientCapability_1 = ClientSupportsLegalholdImplicitConsent
+
+testObject_ClientCapability_2 :: ClientCapability
+testObject_ClientCapability_2 = ClientSupportsConsumableNotifications

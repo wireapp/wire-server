@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -20,35 +18,60 @@
 module Galley.Effects.TeamFeatureStore where
 
 import Data.Id
-import Imports
 import Polysemy
 import Wire.API.Team.Feature
 
 data TeamFeatureStore m a where
-  GetFeatureConfig ::
+  -- | Returns all stored feature values excluding lock status.
+  GetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
-    TeamFeatureStore m (Maybe (WithStatusNoLock cfg))
-  GetFeatureConfigMulti ::
+    TeamFeatureStore m (DbFeature cfg)
+  GetDbFeatureMulti ::
     FeatureSingleton cfg ->
     [TeamId] ->
-    TeamFeatureStore m [(TeamId, Maybe (WithStatusNoLock cfg))]
-  SetFeatureConfig ::
+    TeamFeatureStore m [(TeamId, DbFeature cfg)]
+  SetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
-    WithStatusNoLock cfg ->
+    LockableFeature cfg ->
     TeamFeatureStore m ()
-  GetFeatureLockStatus ::
-    FeatureSingleton cfg ->
-    TeamId ->
-    TeamFeatureStore m (Maybe LockStatus)
   SetFeatureLockStatus ::
     FeatureSingleton cfg ->
     TeamId ->
     LockStatus ->
     TeamFeatureStore m ()
-  GetAllFeatureConfigs ::
+  GetAllDbFeatures ::
     TeamId ->
-    TeamFeatureStore m AllFeatureConfigs
+    TeamFeatureStore m (AllFeatures DbFeature)
 
-makeSem ''TeamFeatureStore
+getDbFeature ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  Sem r (DbFeature cfg)
+getDbFeature tid = send (GetDbFeature featureSingleton tid)
+
+getDbFeatureMulti ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  [TeamId] ->
+  Sem r [(TeamId, DbFeature cfg)]
+getDbFeatureMulti tids = send (GetDbFeatureMulti featureSingleton tids)
+
+setDbFeature ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  LockableFeature cfg ->
+  Sem r ()
+setDbFeature tid feat = send (SetDbFeature featureSingleton tid feat)
+
+setFeatureLockStatus ::
+  forall cfg r.
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  LockStatus ->
+  Sem r ()
+setFeatureLockStatus tid lockStatus =
+  send (SetFeatureLockStatus (featureSingleton @cfg) tid lockStatus)
+
+getAllDbFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures DbFeature)
+getAllDbFeatures tid = send (GetAllDbFeatures tid)

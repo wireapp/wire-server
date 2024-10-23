@@ -115,7 +115,7 @@ getLocalSubConversation ::
 getLocalSubConversation qusr lconv sconv = do
   c <- getConversationAndCheckMembership qusr lconv
 
-  unless (Data.convType c == RegularConv) $
+  unless (Data.convType c == RegularConv || Data.convType c == One2OneConv) $
     throwS @'MLSSubConvUnsupportedConvType
 
   msub <- Eff.getSubConversation (tUnqualified lconv) sconv

@@ -31,7 +31,6 @@ module Galley.API.Teams
     addTeamMember,
     getTeamConversationRoles,
     getTeamMembers,
-    getTeamMembersCSV,
     bulkGetTeamMembers,
     getTeamMember,
     deleteTeamMember,
@@ -57,18 +56,13 @@ module Galley.API.Teams
   )
 where
 
-import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Cassandra (PageWithState (pwsResults), pwsHasMore)
 import Cassandra qualified as C
 import Control.Lens
-import Data.ByteString.Builder (lazyByteString)
 import Data.ByteString.Conversion (List, toByteString)
 import Data.ByteString.Conversion qualified
 import Data.ByteString.Lazy qualified as LBS
-import Data.CaseInsensitive qualified as CI
-import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
-import Data.Handle qualified as Handle
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold qualified as LH
@@ -76,8 +70,6 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 (list1)
 import Data.Map qualified as Map
-import Data.Map.Strict qualified as M
-import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.Proxy
 import Data.Qualified
 import Data.Range as Range
@@ -87,6 +79,7 @@ import Data.Time.Clock (UTCTime)
 import Galley.API.Action
 import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
+import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
@@ -112,14 +105,10 @@ import Galley.Types.Conversations.Members qualified as Conv
 import Galley.Types.Teams
 import Galley.Types.UserList
 import Imports hiding (forkIO)
-import Network.Wai
 import Polysemy
 import Polysemy.Error
-import Polysemy.Final
 import Polysemy.Input
-import Polysemy.Output
 import Polysemy.TinyLog qualified as P
-import SAML2.WebSSO qualified as SAML
 import System.Logger qualified as Log
 import Wire.API.Conversation (ConversationRemoveMembers (..))
 import Wire.API.Conversation.Role (wireConvRoles)
@@ -130,7 +119,6 @@ import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Federation.Error
-import Wire.API.Message qualified as Conv
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
@@ -138,7 +126,6 @@ import Wire.API.Team
 import Wire.API.Team qualified as Public
 import Wire.API.Team.Conversation
 import Wire.API.Team.Conversation qualified as Public
-import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as M
@@ -147,12 +134,8 @@ import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, 
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
-import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
 import Wire.API.User qualified as U
-import Wire.API.User.Identity (UserSSOId (UserSSOId))
-import Wire.API.User.RichInfo (RichInfo)
 import Wire.NotificationSubsystem
-import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra
 
 getTeamH ::
@@ -228,56 +211,37 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  forall r.
-  ( Member BrigAccess r,
-    Member (ErrorS 'UserBindingExists) r,
-    Member (ErrorS 'NotConnected) r,
-    Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    Member TeamStore r
-  ) =>
+  (Member (ErrorS InvalidAction) r) =>
   UserId ->
   ConnId ->
-  Public.NonBindingNewTeam ->
+  a ->
   Sem r TeamId
-createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
-  let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
-  let others =
-        filter ((zusr /=) . view userId)
-          . maybe [] fromRange
-          $ body ^. newTeamMembers
-  let zothers = map (view userId) others
-  ensureUnboundUsers (zusr : zothers)
-  ensureConnectedToLocals zusr zothers
-  P.debug $
-    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-      . Log.field "action" (Log.val "Teams.createNonBindingTeam")
-  team <-
-    E.createTeam
-      Nothing
-      zusr
-      (body ^. newTeamName)
-      (body ^. newTeamIcon)
-      (body ^. newTeamIconKey)
-      NonBinding
-  finishCreateTeam team owner others (Just zcon)
-  pure (team ^. teamId)
+createNonBindingTeamH _ _ _ = do
+  -- non-binding teams are not supported anymore
+  throwS @InvalidAction
 
 createBindingTeam ::
   ( Member NotificationSubsystem r,
     Member (Input UTCTime) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
   TeamId ->
   UserId ->
-  BindingNewTeam ->
+  NewTeam ->
   Sem r TeamId
-createBindingTeam tid zusr (BindingNewTeam body) = do
+createBindingTeam tid zusr body = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
-    E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
-  finishCreateTeam team owner [] Nothing
+    E.createTeam (Just tid) zusr body.newTeamName body.newTeamIcon body.newTeamIconKey Binding
+  initialiseTeamFeatures tid
+
+  E.createTeamMember tid owner
+  now <- input
+  let e = newEvent tid now (EdTeamCreate team)
+  pushNotifications
+    [newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| [])]
   pure tid
 
 updateTeamStatus ::
@@ -519,130 +483,6 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
               (pwsHasMore p)
               (teamMemberPagingState p)
 
-outputToStreamingBody :: (Member (Final IO) r) => Sem (Output LByteString ': r) () -> Sem r StreamingBody
-outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
-  pure . (<$ state) $ \write flush -> do
-    let writeChunk c = embedFinal $ do
-          write (lazyByteString c)
-          flush
-    void . weave . (<$ state) $ runOutputSem writeChunk action
-
-getTeamMembersCSV ::
-  ( Member BrigAccess r,
-    Member (ErrorS 'AccessDenied) r,
-    Member (TeamMemberStore InternalPaging) r,
-    Member TeamStore r,
-    Member (Final IO) r,
-    Member SparAccess r
-  ) =>
-  Local UserId ->
-  TeamId ->
-  Sem r StreamingBody
-getTeamMembersCSV lusr tid = do
-  E.getTeamMember tid (tUnqualified lusr) >>= \case
-    Nothing -> throwS @'AccessDenied
-    Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
-
-  -- In case an exception is thrown inside the StreamingBody of responseStream
-  -- the response will not contain a correct error message, but rather be an
-  -- http error such as 'InvalidChunkHeaders'. The exception however still
-  -- reaches the middleware and is being tracked in logging and metrics.
-  outputToStreamingBody $ do
-    output headerLine
-    E.withChunks (\mps -> E.listTeamMembers @InternalPaging tid mps maxBound) $
-      \members -> do
-        let uids = fmap (view userId) members
-        teamExportUser <-
-          mkTeamExportUser
-            <$> (lookupUser <$> E.lookupActivatedUsers uids)
-            <*> lookupInviterHandle members
-            <*> (lookupRichInfo <$> E.getRichInfoMultiUser uids)
-            <*> (lookupClients <$> E.lookupClients uids)
-            <*> (lookupScimUserInfo <$> Spar.lookupScimUserInfos uids)
-        output @LByteString
-          ( encodeDefaultOrderedByNameWith
-              defaultEncodeOptions
-              (mapMaybe teamExportUser members)
-          )
-  where
-    headerLine :: LByteString
-    headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
-
-    defaultEncodeOptions :: EncodeOptions
-    defaultEncodeOptions =
-      EncodeOptions
-        { encDelimiter = fromIntegral (ord ','),
-          encUseCrLf = True, -- to be compatible with Mac and Windows
-          encIncludeHeader = False, -- (so we can flush when the header is on the wire)
-          encQuoting = QuoteAll
-        }
-
-    mkTeamExportUser ::
-      (UserId -> Maybe User) ->
-      (UserId -> Maybe Handle.Handle) ->
-      (UserId -> Maybe RichInfo) ->
-      (UserId -> Int) ->
-      (UserId -> Maybe ScimUserInfo) ->
-      TeamMember ->
-      Maybe TeamExportUser
-    mkTeamExportUser users inviters richInfos numClients scimUserInfo member = do
-      let uid = member ^. userId
-      user <- users uid
-      pure $
-        TeamExportUser
-          { tExportDisplayName = U.userDisplayName user,
-            tExportHandle = U.userHandle user,
-            tExportEmail = U.userIdentity user >>= U.emailIdentity,
-            tExportRole = permissionsRole . view permissions $ member,
-            tExportCreatedOn = maybe (scimUserInfo uid >>= suiCreatedOn) (Just . snd) (view invitation member),
-            tExportInvitedBy = inviters . fst =<< member ^. invitation,
-            tExportIdpIssuer = userToIdPIssuer user,
-            tExportManagedBy = U.userManagedBy user,
-            tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
-            tExportSCIMExternalId = fromMaybe "" (userSCIMExternalId user),
-            tExportSCIMRichInfo = richInfos uid,
-            tExportUserId = U.userId user,
-            tExportNumDevices = numClients uid
-          }
-
-    lookupInviterHandle :: (Member BrigAccess r) => [TeamMember] -> Sem r (UserId -> Maybe Handle.Handle)
-    lookupInviterHandle members = do
-      let inviterIds :: [UserId]
-          inviterIds = nub $ mapMaybe (fmap fst . view invitation) members
-
-      userList :: [User] <- accountUser <$$> E.getUsers inviterIds
-
-      let userMap :: M.Map UserId Handle.Handle
-          userMap = M.fromList (mapMaybe extract userList)
-            where
-              extract u = (U.userId u,) <$> U.userHandle u
-
-      pure (`M.lookup` userMap)
-
-    userToIdPIssuer :: U.User -> Maybe HttpsUrl
-    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
-      Just (U.UserSSOId (SAML.UserRef issuer _)) -> either (const Nothing) Just . mkHttpsUrl $ issuer ^. SAML.fromIssuer
-      Just _ -> Nothing
-      Nothing -> Nothing
-
-    lookupScimUserInfo :: [ScimUserInfo] -> (UserId -> Maybe ScimUserInfo)
-    lookupScimUserInfo infos = (`M.lookup` M.fromList (infos <&> (\sui -> (suiUserId sui, sui))))
-
-    lookupUser :: [U.User] -> (UserId -> Maybe U.User)
-    lookupUser users = (`M.lookup` M.fromList (users <&> \user -> (U.userId user, user)))
-
-    lookupRichInfo :: [(UserId, RichInfo)] -> (UserId -> Maybe RichInfo)
-    lookupRichInfo pairs = (`M.lookup` M.fromList pairs)
-
-    lookupClients :: Conv.UserClients -> UserId -> Int
-    lookupClients userClients uid = maybe 0 length (M.lookup uid (Conv.userClients userClients))
-
-    samlNamedId :: User -> Maybe Text
-    samlNamedId =
-      userSSOId >=> \case
-        (UserSSOId (SAML.UserRef _idp nameId)) -> Just . CI.original . SAML.unsafeShowNameID $ nameId
-        (UserScimExternalId _) -> Nothing
-
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::
   ( Member (ErrorS 'BulkGetMemberLimitExceeded) r,
@@ -652,7 +492,7 @@ bulkGetTeamMembers ::
   Local UserId ->
   TeamId ->
   Maybe (Range 1 HardTruncationLimit Int32) ->
-  UserIdList ->
+  U.UserIdList ->
   Sem r TeamMemberListOptPerms
 bulkGetTeamMembers lzusr tid mbMaxResults uids = do
   unless (length (U.mUsers uids) <= fromIntegral (fromRange (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults))) $
@@ -991,7 +831,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
     else do
-      getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid
+      getFeatureForTeam @LimitedEventFanoutConfig tid
         >>= ( \case
                 FeatureStatusEnabled -> do
                   admins <- E.getTeamAdmins tid
@@ -1000,7 +840,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
                   mems <- getTeamMembersForFanout tid
                   uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
             )
-          . wsStatus
+          . (.status)
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
@@ -1256,8 +1096,8 @@ ensureNonBindingTeam tid = do
 ensureNotElevated :: (Member (ErrorS 'InvalidPermissions) r) => Permissions -> TeamMember -> Sem r ()
 ensureNotElevated targetPermissions member =
   unless
-    ( (targetPermissions ^. self)
-        `Set.isSubsetOf` (member ^. permissions . copy)
+    ( targetPermissions.self
+        `Set.isSubsetOf` (member ^. permissions).copy
     )
     $ throwS @'InvalidPermissions
 
@@ -1340,28 +1180,6 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
-
-finishCreateTeam ::
-  ( Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    Member TeamStore r
-  ) =>
-  Team ->
-  TeamMember ->
-  [TeamMember] ->
-  Maybe ConnId ->
-  Sem r ()
-finishCreateTeam team owner others zcon = do
-  let zusr = owner ^. userId
-  for_ (owner : others) $
-    E.createTeamMember (team ^. teamId)
-  now <- input
-  let e = newEvent (team ^. teamId) now (EdTeamCreate team)
-  let r = membersToRecipients Nothing others
-  pushNotifications
-    [ newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| r)
-        & pushConn .~ zcon
-    ]
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,

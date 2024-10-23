@@ -102,13 +102,6 @@ assertCan'tFind brig self expected q = do
     assertBool ("User shouldn't be present in results for query: " <> show q) $
       expected `notElem` map contactQualifiedId r
 
-assertCan'tFindWithDomain :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> Domain -> m ()
-assertCan'tFindWithDomain brig self expected q domain = do
-  r <- searchResults <$> executeSearchWithDomain brig self q domain
-  liftIO $ do
-    assertBool ("User shouldn't be present in results for query: " <> show q) $
-      expected `notElem` map contactQualifiedId r
-
 executeTeamUserSearch ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   Brig ->

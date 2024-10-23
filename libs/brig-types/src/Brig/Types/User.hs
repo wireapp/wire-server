@@ -19,7 +19,6 @@ module Brig.Types.User
   ( ManagedByUpdate (..),
     RichInfoUpdate (..),
     PasswordResetPair,
-    HavePendingInvitations (..),
   )
 where
 

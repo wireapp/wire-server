@@ -30,9 +30,6 @@ import Network.Wai.Utilities.Error
 empty :: Response
 empty = plain ""
 
-noContent :: Response
-noContent = empty & setStatus status204
-
 plain :: Lazy.ByteString -> Response
 plain = responseLBS status200 [plainContent]
 
@@ -45,11 +42,8 @@ json = responseLBS status200 [jsonContent] . encode
 jsonContent :: Header
 jsonContent = (hContentType, "application/json")
 
-errorRs :: Status -> LText -> LText -> Response
-errorRs s l m = errorRs' (mkError s l m)
-
-errorRs' :: Error -> Response
-errorRs' e = setStatus (code e) (json e)
+errorRs :: Error -> Response
+errorRs e = setStatus (code e) (json e)
 
 addHeader :: HeaderName -> ByteString -> Response -> Response
 addHeader k v (ResponseFile s h f ff) = ResponseFile s ((k, v) : h) f ff

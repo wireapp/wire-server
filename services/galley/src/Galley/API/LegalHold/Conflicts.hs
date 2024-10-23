@@ -24,7 +24,7 @@ module Galley.API.LegalHold.Conflicts
   )
 where
 
-import Control.Lens (view, (^.))
+import Control.Lens (to, view, (^.))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
@@ -44,6 +44,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
+import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User
@@ -92,7 +93,7 @@ guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClient
 guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
   opts <- input
-  case view (settings . featureFlags . flagLegalHold) opts of
+  case view (settings . featureFlags . to npProject) opts of
     FeatureLegalHoldDisabledPermanently -> case FutureWork @'LegalholdPlusFederationNotImplemented () of
       FutureWork () ->
         -- FUTUREWORK: if federation is enabled, we still need to run the guard!
@@ -127,7 +128,7 @@ guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
 
       checkAnyConsentMissing :: Sem r Bool
       checkAnyConsentMissing = do
-        users :: [User] <- accountUser <$$> getUsers (self : otherUids)
+        users <- getUsers (self : otherUids)
         -- NB: `users` can't be empty!
         let checkUserConsentMissing :: User -> Sem r Bool
             checkUserConsentMissing user =

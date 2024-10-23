@@ -166,6 +166,9 @@ isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
 notifTypeIsEqual :: (MakesValue a) => String -> a -> App Bool
 notifTypeIsEqual typ n = nPayload n %. "type" `isEqual` typ
 
+isTeamMemberJoinNotif :: (MakesValue a) => a -> App Bool
+isTeamMemberJoinNotif = notifTypeIsEqual "team.member-join"
+
 isTeamMemberLeaveNotif :: (MakesValue a) => a -> App Bool
 isTeamMemberLeaveNotif = notifTypeIsEqual "team.member-leave"
 
@@ -174,6 +177,9 @@ isUserActivateNotif = notifTypeIsEqual "user.activate"
 
 isUserClientAddNotif :: (MakesValue a) => a -> App Bool
 isUserClientAddNotif = notifTypeIsEqual "user.client-add"
+
+isUserUpdatedNotif :: (MakesValue a) => a -> App Bool
+isUserUpdatedNotif = notifTypeIsEqual "user.update"
 
 isUserClientRemoveNotif :: (MakesValue a) => a -> App Bool
 isUserClientRemoveNotif = notifTypeIsEqual "user.client-remove"

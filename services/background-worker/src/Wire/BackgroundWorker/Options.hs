@@ -11,7 +11,7 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
-    rabbitmq :: !RabbitMqAdminOpts,
+    rabbitmq :: !RabbitMqOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig
@@ -37,3 +37,13 @@ data BackendNotificationsConfig = BackendNotificationsConfig
   deriving (Show, Generic)
 
 instance FromJSON BackendNotificationsConfig
+
+newtype RabbitMqOpts = RabbitMqOpts {unRabbitMqOpts :: Either AmqpEndpoint RabbitMqAdminOpts}
+  deriving (Show)
+
+instance FromJSON RabbitMqOpts where
+  parseJSON v =
+    RabbitMqOpts
+      <$> ( (Right <$> parseJSON v)
+              <|> (Left <$> parseJSON v)
+          )

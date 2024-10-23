@@ -307,6 +307,19 @@ mls:
 
 This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
 
+This flag also supports setting an `initialConfig` value, which is applied when a team is created:
+
+```yaml
+# galley.yaml
+mls:
+  initialConfig:
+    protocolToggleUsers: []
+    defaultProtocol: mls
+    supportedProtocols: [proteus, mls] # must contain defaultProtocol
+    allowedCipherSuites: [1]
+    defaultCipherSuite: 1
+```
+
 ### MLS End-to-End Identity
 
 The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
@@ -331,6 +344,34 @@ mlsE2EId:
       crlProxy: https://example.com
     lockStatus: unlocked
 ```
+
+#### Key for DPoP access token signing
+
+The key for signing DPoP access tokens has to be configured at path `brig.secrets.dpopSigKeyBundle` e.g. as follows:
+
+```yaml
+brig:
+  secrets:
+    dpopSigKeyBundle: |
+      -----BEGIN PRIVATE KEY-----
+      MIGHAgEAMBMGByqGSM49....
+      -----END PRIVATE KEY-----
+```
+
+The corresponding public key has to be known by the ACME server.
+
+The key must be an ECDSA P-256 key and can be created with the following `openssl` command:
+
+```shell
+openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-256 --out private.pem
+```
+
+To get the public key run:
+
+```shell
+openssl ec -in private.pem -pubout --out public.pem
+```
+
 
 ### Federation Domain
 
@@ -665,6 +706,53 @@ optSettings:
   # ...
   setOAuthMaxActiveRefreshTokens: 10
 ```
+
+#### Argon2id password hashing parameters
+
+Since release 5.6.0, wire-server hashes passwords with
+[argon2id](https://datatracker.ietf.org/doc/html/rfc9106) at rest.  If
+you do not do anything, the default parameters will be used, which
+are:
+
+```yaml
+    setPasswordHashingOptions:
+      iterations: 1
+      memory: 180224 # memory needed in kibibytes (1 kibibyte is 2^10 bytes)
+      parallelism: 32
+```
+
+The default will be adjusted to new developments in hashing algorithm
+security from time to time.
+
+The password hashing options are set for brig and galley:
+
+```yaml
+brig:
+  optSettings:
+    setPasswordHashingOptions:
+      iterations: ...
+      memory: ... # memory needed in KiB
+      parallelism: ...
+galley:
+  settings:
+    passwordHashingOptions:
+      iterations: ...
+      memory: ... # memory needed in KiB
+      parallelism: ...
+```
+
+**Performance implications:** scrypt takes ~80ms on a realistic test
+system, and argon2id with default settings takes ~500ms. This is a
+runtime increase by a factor of ~6.  This happens every time a
+password is entered by the user: during login, password reset,
+deleting a device, etc. (It does **NOT** happen during any other
+cryptographic operations like session key update or message
+de-/encryption.)
+
+The settings are a trade-off between resilience against brute force
+attacks and password secrecy.  For most systems this should be safe
+and not need more hardware resources for brig, but you may want to
+form your own opinion.
 
 #### Disabling API versions
 

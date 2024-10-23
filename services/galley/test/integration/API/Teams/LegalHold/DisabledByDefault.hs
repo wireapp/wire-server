@@ -212,7 +212,7 @@ testApproveLegalHoldDevice = do
   WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
     \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam' owner tid $ \_ chan -> do
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClient userId' teamId') -> do
+      liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClientV0 userId' teamId') -> do
         assertEqual "userId == member" userId' member
         assertEqual "teamId == tid" teamId' tid
       -- Only the user themself can approve adding a LH device
@@ -236,7 +236,7 @@ testApproveLegalHoldDevice = do
           userStatus
       let pluck = \case
             Ev.ClientAdded eClient -> do
-              clientId eClient @?= someClientId
+              eClient.clientId @?= someClientId
               clientType eClient @?= LegalHoldClientType
               clientClass eClient @?= Just LegalHoldClient
             _ -> assertBool "Unexpected event" False
@@ -315,7 +315,7 @@ testDisableLegalHoldForUser = do
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     assertNotification mws $ \case
       Ev.ClientAdded client -> do
-        clientId client @?= someClientId
+        client.clientId @?= someClientId
         clientType client @?= LegalHoldClientType
         clientClass client @?= Just LegalHoldClient
       _ -> assertBool "Unexpected event" False
@@ -502,14 +502,12 @@ testEnablePerTeam = do
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   do
-    status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    let statusValue = Public.wssStatus status
-    liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.FeatureStatusDisabled
+    feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    liftIO $ assertEqual "Teams should start with LegalHold disabled" feat.status Public.FeatureStatusDisabled
   putEnabled tid Public.FeatureStatusEnabled -- enable it for this team
   do
-    status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    let statusValue = Public.wssStatus status
-    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.FeatureStatusEnabled
+    feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" feat.status Public.FeatureStatusEnabled
   withDummyTestServiceForTeam' owner tid $ \_ _chan -> do
     grantConsent tid member
     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
@@ -519,9 +517,8 @@ testEnablePerTeam = do
       liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
     do
       putEnabled tid Public.FeatureStatusDisabled -- disable again
-      status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-      let statusValue = Public.wssStatus status
-      liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" statusValue Public.FeatureStatusDisabled
+      feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+      liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" feat.status Public.FeatureStatusDisabled
     do
       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
       liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
@@ -540,9 +537,8 @@ testEnablePerTeamTooLarge = do
   -- Change the +1 to anything else and look at the logs
   (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 5)
 
-  status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-  let statusValue = Public.wssStatus status
-  liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.FeatureStatusDisabled
+  feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  liftIO $ assertEqual "Teams should start with LegalHold disabled" feat.status Public.FeatureStatusDisabled
   -- You cannot enable legal hold on a team that is too large
   putEnabled' id tid Public.FeatureStatusEnabled !!! do
     const 403 === statusCode
@@ -553,9 +549,8 @@ testAddTeamUserTooLargeWithLegalhold = do
   o <- view tsGConf
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
   (tid, owner, _others) <- createBindingTeamWithMembers fanoutLimit
-  status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-  let statusValue = Public.wssStatus status
-  liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.FeatureStatusDisabled
+  feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  liftIO $ assertEqual "Teams should start with LegalHold disabled" feat.status Public.FeatureStatusDisabled
   -- You can still enable for this team
   putEnabled tid Public.FeatureStatusEnabled
   -- But now Adding a user should now fail since the team is too large
@@ -653,7 +648,7 @@ testOldClientsBlockDeviceHandshake = do
               >>> Set.unions
               >>> Set.toList
               >>> head
-              >>> clientId
+              >>> (.clientId)
 
   withDummyTestServiceForTeam' legalholder tid $ \_ _chan -> do
     grantConsent tid legalholder
@@ -662,17 +657,17 @@ testOldClientsBlockDeviceHandshake = do
     legalholderLHDevice <- doEnableLH legalholder legalholder
     _legalholder2LHDevice <- doEnableLH legalholder legalholder2
 
-    let caps = Set.singleton Client.ClientSupportsLegalholdImplicitConsent
+    let caps = Client.ClientCapabilityList $ Set.singleton Client.ClientSupportsLegalholdImplicitConsent
     legalholderClient <- do
       clnt <- randomClientWithCaps legalholder (someLastPrekeys !! 1) (Just caps)
-      ensureClientCaps legalholder clnt (Client.ClientCapabilityList caps)
+      ensureClientCaps legalholder clnt caps
       pure clnt
     legalholder2Client <- do
       clnt <- randomClient legalholder2 (someLastPrekeys !! 3)
       -- this another way to do it (instead of providing caps during client creation).
       ensureClientCaps legalholder2 clnt (Client.ClientCapabilityList mempty)
       upgradeClientToLH legalholder2 clnt
-      ensureClientCaps legalholder2 clnt (Client.ClientCapabilityList caps)
+      ensureClientCaps legalholder2 clnt caps
       pure clnt
     grantConsent tid2 peer
     connectUsers peer (List1.list1 legalholder [legalholder2])
@@ -731,7 +726,7 @@ testClaimKeys testcase = do
               >>> Set.unions
               >>> Set.toList
               >>> head
-              >>> clientId
+              >>> (.clientId)
 
   let makePeerClient :: TestM ()
       makePeerClient = case testcase of

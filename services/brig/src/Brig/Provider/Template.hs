@@ -51,16 +51,16 @@ data ApprovalRequestEmailTemplate = ApprovalRequestEmailTemplate
     approvalRequestEmailSubject :: !Template,
     approvalRequestEmailBodyText :: !Template,
     approvalRequestEmailBodyHtml :: !Template,
-    approvalRequestEmailSender :: !Email,
+    approvalRequestEmailSender :: !EmailAddress,
     approvalRequestEmailSenderName :: !Text,
-    approvalRequestEmailTo :: !Email
+    approvalRequestEmailTo :: !EmailAddress
   }
 
 data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
   { approvalConfirmEmailSubject :: !Template,
     approvalConfirmEmailBodyText :: !Template,
     approvalConfirmEmailBodyHtml :: !Template,
-    approvalConfirmEmailSender :: !Email,
+    approvalConfirmEmailSender :: !EmailAddress,
     approvalConfirmEmailSenderName :: !Text,
     approvalConfirmEmailHomeUrl :: !HttpsUrl
   }
@@ -115,13 +115,13 @@ loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provi
             <*> readText fp "email/sender.txt"
         )
   where
-    maybeUrl = fromByteString $ encodeUtf8 $ homeUrl pOptions
-    gOptions = general $ emailSMS o
-    pOptions = provider $ emailSMS o
-    defLocale = setDefaultTemplateLocale (optSettings o)
-    readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "provider"
-    readText = readTextWithDefault (templateDir gOptions) defLocale "provider"
+    maybeUrl = fromByteString . encodeUtf8 $ pOptions.homeUrl
+    gOptions = o.emailSMS.general
+    pOptions = o.emailSMS.provider
+    defLocale = defaultTemplateLocale o.settings
+    readTemplate = readTemplateWithDefault gOptions.templateDir defLocale "provider"
+    readText = readTextWithDefault gOptions.templateDir defLocale "provider"
     -- URL templates
-    activationUrl' = template $ providerActivationUrl pOptions
-    approvalUrl' = template $ approvalUrl pOptions
-    pwResetUrl' = template $ providerPwResetUrl pOptions
+    activationUrl' = template pOptions.providerActivationUrl
+    approvalUrl' = template pOptions.approvalUrl
+    pwResetUrl' = template pOptions.providerPwResetUrl

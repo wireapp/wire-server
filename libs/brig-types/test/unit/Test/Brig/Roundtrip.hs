@@ -19,7 +19,6 @@ module Test.Brig.Roundtrip where
 
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
-import Data.ByteString.Conversion
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty (TestTree)
@@ -56,14 +55,3 @@ testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
             validatePrettyToJSON v
         )
         $ isNothing (validatePrettyToJSON v)
-
-testRoundTripByteString ::
-  forall a.
-  (Arbitrary a, Typeable a, ToByteString a, FromByteString a, Eq a, Show a) =>
-  TestTree
-testRoundTripByteString = testProperty msg trip
-  where
-    msg = show (typeRep @a)
-    trip (v :: a) =
-      counterexample (show $ toByteString' v) $
-        Just v === (fromByteString . toByteString') v

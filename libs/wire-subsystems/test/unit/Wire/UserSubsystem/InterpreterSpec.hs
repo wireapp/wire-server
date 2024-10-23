@@ -28,6 +28,9 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
+import Wire.AuthenticationSubsystem.Error
+import Wire.InvitationStore (StoredInvitation)
+import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserKeyStore
@@ -54,8 +57,9 @@ spec = describe "UserSubsystem.Interpreter" do
               target1 = mkUserIds remoteDomain1 targetUsers1
               target2 = mkUserIds remoteDomain2 targetUsers2
               localBackend = def {users = [viewer] <> localTargetUsers}
+              config = UserSubsystemConfig visibility miniLocale False 100
               retrievedProfiles =
-                runFederationStack localBackend federation Nothing (UserSubsystemConfig visibility miniLocale) $
+                runFederationStack localBackend federation Nothing config $
                   getUserProfiles
                     (toLocalUnsafe localDomain viewer.id)
                     (localTargets <> target1 <> target2)
@@ -81,11 +85,12 @@ spec = describe "UserSubsystem.Interpreter" do
             mkUserIds domain users = map (flip Qualified domain . (.id)) users
             onlineUsers = mkUserIds onlineDomain onlineTargetUsers
             offlineUsers = mkUserIds offlineDomain offlineTargetUsers
-            config = UserSubsystemConfig visibility miniLocale
+            config = UserSubsystemConfig visibility miniLocale False 100
             localBackend = def {users = [viewer]}
             result =
               run
                 . runErrorUnsafe @UserSubsystemError
+                . runErrorUnsafe @AuthenticationSubsystemError
                 . runError @FederationError
                 . interpretFederationStack localBackend online Nothing config
                 $ getUserProfiles
@@ -100,49 +105,45 @@ spec = describe "UserSubsystem.Interpreter" do
 
     describe "[without federation]" do
       prop "returns nothing when none of the users exist" $
-        \viewer targetUserIds visibility domain locale ->
-          let config = UserSubsystemConfig visibility locale
-              retrievedProfiles =
+        \viewer targetUserIds config domain ->
+          let retrievedProfiles =
                 runNoFederationStack def Nothing config $
                   getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
            in retrievedProfiles === []
 
       prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
-        \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
+        \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) config domain sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
-              config = UserSubsystemConfig visibility locale
               localBackend = def {users = [targetUser, viewer]}
               retrievedProfiles =
                 runNoFederationStack localBackend (Just teamMember) config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
            in retrievedProfiles
                 === [ mkUserProfile
-                        (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
-                        (mkUserFromStored domain locale targetUser)
+                        (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) config.emailVisibilityConfig)
+                        (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
 
       prop "gets a local user profile when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
-        \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
+        \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) config domain sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
-              config = UserSubsystemConfig visibility locale
               localBackend = def {users = [targetUser, viewer]}
               retrievedProfile =
                 runNoFederationStack localBackend (Just teamMember) config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
            in retrievedProfile
                 === [ mkUserProfile
-                        (fmap (const Nothing) visibility)
-                        (mkUserFromStored domain locale targetUser)
+                        (fmap (const Nothing) config.emailVisibilityConfig)
+                        (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
 
       prop "returns Nothing if the target user has not accepted their invitation yet" $
-        \viewer (PendingStoredUser targetUser) visibility domain locale ->
+        \viewer (PendingStoredUser targetUser) config domain ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
-              config = UserSubsystemConfig visibility locale
               localBackend = def {users = [targetUser, viewer]}
               retrievedProfile =
                 runNoFederationStack localBackend (Just teamMember) config $
@@ -154,7 +155,7 @@ spec = describe "UserSubsystem.Interpreter" do
       \viewer targetUsers visibility domain remoteDomain -> do
         let remoteBackend = def {users = targetUsers}
             federation = [(remoteDomain, remoteBackend)]
-            config = UserSubsystemConfig visibility miniLocale
+            config = UserSubsystemConfig visibility miniLocale False 100
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
               runFederationStack localBackend federation Nothing config $
@@ -175,7 +176,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "Remote users on offline backend always fail to return" $
       \viewer (targetUsers :: Set StoredUser) visibility domain remoteDomain -> do
         let online = mempty
-            config = UserSubsystemConfig visibility miniLocale
+            config = UserSubsystemConfig visibility miniLocale False 100
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
               runFederationStack localBackend online Nothing config $
@@ -195,7 +196,7 @@ spec = describe "UserSubsystem.Interpreter" do
             allDomains = [domain, remoteDomainA, remoteDomainB]
             remoteAUsers = map (flip Qualified remoteDomainA . (.id)) targetUsers
             remoteBUsers = map (flip Qualified remoteDomainB . (.id)) targetUsers
-            config = UserSubsystemConfig visibility miniLocale
+            config = UserSubsystemConfig visibility miniLocale False 100
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
               runFederationStack localBackend online Nothing config $
@@ -221,9 +222,12 @@ spec = describe "UserSubsystem.Interpreter" do
               getSelfProfile (toLocalUnsafe domain selfId)
        in retrievedProfile === Nothing
 
-    prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig mlsE2EIdConfig ->
+    prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig (mlsE2EIdConfig :: MlsE2EIdConfig) ->
       let localBackend = def {users = [storedSelf]}
-          allFeatureConfigs = def {afcMlsE2EId = withStatus FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig FeatureTTLUnlimited}
+          allFeatureConfigs =
+            npUpdate
+              (LockableFeature FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig)
+              def
           SelfProfile retrievedUser =
             fromJust
               . runAllErrorsUnsafe
@@ -251,18 +255,20 @@ spec = describe "UserSubsystem.Interpreter" do
               .&&. userAfterUpdate.userLocale === fromMaybe userBeforeUpdate.userLocale update.locale
 
     prop "Update user events" $
-      \(NotPendingStoredUser alice) localDomain update config -> do
+      \(NotPendingStoredUser alice) connId localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             events = runNoFederationStack localBackend Nothing config do
-              updateUserProfile lusr Nothing UpdateOriginScim update
+              updateUserProfile lusr connId UpdateOriginScim update
               get @[MiniEvent]
          in events
               === [ MkMiniEvent
                       alice.id
-                      ( UserUpdated $
+                      connId
+                      ( UserEvent . UserUpdated $
                           (emptyUserUpdatedData alice.id)
                             { eupName = update.name,
+                              eupTextStatus = update.textStatus,
                               eupPict = update.pict,
                               eupAccentId = update.accentId,
                               eupAssets = update.assets,
@@ -272,6 +278,302 @@ spec = describe "UserSubsystem.Interpreter" do
                       )
                   ]
 
+    describe "getAccountsBy" do
+      prop "GetBy userId when pending fails if not explicitly allowed" $
+        \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale False 100
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId
+                    -- For simplicity, so we don't have to match the email with invitation
+                  }
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = NoPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    -- We need valid invitations or the user gets deleted by
+                    -- our drive-by cleanup job in the interprter.
+                    -- FUTUREWORK: Remove this if we remove the enqueueDeletion from getAccountsByImpl
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
+
+      prop "GetBy userId works for pending if explicitly queried" $
+        \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId
+                    -- For simplicity, so we don't have to match the email with invitation
+                  }
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    -- We need valid invitations or the user gets deleted by
+                    -- our drive-by cleanup job in the interprter.
+                    -- FUTUREWORK: Remove this if we remove the enqueueDeletion from getAccountsByImpl
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === [mkUserFromStored localDomain locale alice]
+      prop "GetBy handle when pending fails if not explicitly allowed" $
+        \(PendingNotEmptyIdentityStoredUser alice') handl email teamId invitationInfo localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId,
+                    handle = Just handl
+                    -- For simplicity, so we don't have to match the email with invitation
+                  }
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByHandle = [handl],
+                      includePendingInvitations = NoPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    -- We need valid invitations or the user gets deleted by
+                    -- our drive-by cleanup job in the interprter.
+                    -- FUTUREWORK: Remove this if we remove the enqueueDeletion from getAccountsByImpl
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
+
+      prop "GetBy handle works for pending if explicitly queried" $
+        \(PendingNotEmptyIdentityStoredUser alice') handl email teamId invitationInfo localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId,
+                    handle = Just handl
+                    -- For simplicity, so we don't have to match the email with invitation
+                  }
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByHandle = [handl],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    -- We need valid invitations or the user gets deleted by
+                    -- our drive-by cleanup job in the interprter.
+                    -- FUTUREWORK: Remove this if we remove the enqueueDeletion from getAccountsByImpl
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === [mkUserFromStored localDomain locale alice]
+
+      prop "GetBy email does not filter by pending, missing identity or expired invitations" $
+        \(alice' :: StoredUser) email localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              alice = alice' {email = Just email}
+              localBackend =
+                def
+                  { users = [alice],
+                    userKeys = Map.singleton (mkEmailKey email) alice.id
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsByEmailNoFilter (toLocalUnsafe localDomain [email])
+           in result === [mkUserFromStored localDomain locale alice]
+
+      prop "GetBy userId does not return missing identity users, pending invitation off" $
+        \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = NoPendingInvitations
+                    }
+              localBackend = def {users = [alice]}
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
+
+      prop "GetBy userId does not return missing identity users, pending invtation on" $
+        \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend = def {users = [alice]}
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
+
+      prop "GetBy pending user by id works if there is a valid invitation" $
+        \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) teamId (invitationInfo :: StoredInvitation) localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              emailKey = mkEmailKey email
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    userKeys = Map.singleton emailKey alice.id,
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              alice = alice' {email = Just email, teamId = Just teamId}
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === [mkUserFromStored localDomain locale alice]
+
+      prop "GetBy pending user by id fails if there is no valid invitation" $
+        \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) teamId localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              emailKey = mkEmailKey email
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    userKeys = Map.singleton emailKey alice.id
+                  }
+              alice = alice' {email = Just email, teamId = Just teamId}
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
+
+      prop "GetBy pending user handle id works if there is a valid invitation" $
+        \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) handl teamId (invitationInfo :: StoredInvitation) localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              emailKey = mkEmailKey email
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByHandle = [handl],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    userKeys = Map.singleton emailKey alice.id,
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId,
+                    handle = Just handl
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === [mkUserFromStored localDomain locale alice]
+
+      prop "GetBy pending user by handle fails if there is no valid invitation" $
+        \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) handl teamId localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale True 100
+              emailKey = mkEmailKey email
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByHandle = [handl],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    userKeys = Map.singleton emailKey alice.id
+                  }
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId,
+                    handle = Just handl
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
+
     describe "user managed by scim doesn't allow certain update operations, but allows others" $ do
       prop "happy" $
         \(NotPendingStoredUser alice) localDomain update config ->
@@ -280,6 +582,7 @@ spec = describe "UserSubsystem.Interpreter" do
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
                   . runErrorUnsafe
+                  . runErrorUnsafe @AuthenticationSubsystemError
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing}
@@ -294,6 +597,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
                     . runErrorUnsafe
+                    . runErrorUnsafe @AuthenticationSubsystemError
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
@@ -308,6 +612,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
                     . runErrorUnsafe
+                    . runErrorUnsafe @AuthenticationSubsystemError
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
@@ -323,10 +628,23 @@ spec = describe "UserSubsystem.Interpreter" do
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
                   . runErrorUnsafe
+                  . runErrorUnsafe @AuthenticationSubsystemError
                   . runError
-                  $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
-                    getUserProfile lusr (tUntagged lusr)
+                  $ interpretNoFederationStack
+                    localBackend
+                    Nothing
+                    ( npUpdate
+                        ( def
+                            { status = FeatureStatusEnabled
+                            } ::
+                            LockableFeature MlsE2EIdConfig
+                        )
+                        def
+                    )
+                    config
+                    do
+                      updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
+                      getUserProfile lusr (tUntagged lusr)
            in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
     prop
@@ -373,6 +691,7 @@ spec = describe "UserSubsystem.Interpreter" do
             let res :: Either UserSubsystemError ()
                 res = run
                   . runErrorUnsafe
+                  . runErrorUnsafe @AuthenticationSubsystemError
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
@@ -382,10 +701,11 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop
         "Updating handles succeeds when UpdateOriginScim"
-        \(alice, ssoId, email :: Maybe Email, fromHandle -> newHandle, domain, config) ->
+        \(alice, ssoId, email :: Maybe EmailAddress, fromHandle -> newHandle, domain, config) ->
           not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
             let res :: Either UserSubsystemError () = run
                   . runErrorUnsafe
+                  . runErrorUnsafe @AuthenticationSubsystemError
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
@@ -408,6 +728,7 @@ spec = describe "UserSubsystem.Interpreter" do
         (isJust storedUser.identity && not (isBlacklistedHandle newHandle)) ==>
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
+                . runErrorUnsafe @AuthenticationSubsystemError
                 . runError
                 $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
@@ -421,6 +742,7 @@ spec = describe "UserSubsystem.Interpreter" do
         isJust storedUser.identity ==>
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
+                . runErrorUnsafe @AuthenticationSubsystemError
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
@@ -461,15 +783,13 @@ spec = describe "UserSubsystem.Interpreter" do
                   userKeys = Map.singleton userKey storedUser.id
                 }
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runAllErrorsUnsafe
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
-         in retrievedUser === Just (mkAccountFromStored localDomain config.defaultLocale storedUser)
+         in retrievedUser === Just (mkUserFromStored localDomain config.defaultLocale storedUser)
 
     prop "doesn't get users if they are not indexed by the UserKeyStore" $
-      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUserNoEmail :: StoredUser) (email :: Email) ->
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUserNoEmail :: StoredUser) (email :: EmailAddress) ->
         let localBackend =
               def
                 { users = [storedUser],
@@ -477,9 +797,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 }
             storedUser = storedUserNoEmail {email = Just email}
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runAllErrorsUnsafe
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain (mkEmailKey email))
          in retrievedUser === Nothing
@@ -492,9 +810,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   userKeys = Map.singleton userKey nonExistentUserId
                 }
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runAllErrorsUnsafe
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Nothing

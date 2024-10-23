@@ -3,7 +3,7 @@
         {
             "accent_id": null,
             "created_at": null,
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": "",
             "id": "00000001-0000-0000-0000-000100000001",
@@ -18,7 +18,7 @@
         {
             "accent_id": 0,
             "created_at": "1864-05-09T13:46:22.701Z",
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": null,
             "id": "00000000-0000-0000-0000-000000000000",
@@ -33,7 +33,7 @@
         {
             "accent_id": 0,
             "created_at": "1864-05-09T09:25:11.685Z",
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": "",
             "id": "00000000-0000-0000-0000-000000000000",
@@ -48,7 +48,7 @@
         {
             "accent_id": 0,
             "created_at": "1864-05-09T11:37:20.763Z",
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": "",
             "id": "00000000-0000-0001-0000-000000000000",

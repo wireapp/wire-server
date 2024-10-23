@@ -35,6 +35,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Char8 qualified as C8
+import Data.Default (def)
 import Data.Id
 import Data.Misc
 import Data.String.Conversions
@@ -151,20 +152,17 @@ cliOptsParser =
 -- | Create an environment for integration tests from integration and federator config files.
 mkEnv :: (HasCallStack) => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
-  let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False) Nothing
+  let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False def) Nothing
   _teMgr :: Manager <- newManager managerSettings
   let _teBrig = endpointToReq _teTstOpts.brig
       _teCargohold = endpointToReq _teTstOpts.cargohold
   -- _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
-  _teSSLContext <- mkTLSSettingsOrThrow (optSettings _teOpts)
-  let _teSettings = optSettings _teOpts
+  _teSSLContext <- mkTLSSettingsOrThrow _teOpts.optSettings
+  let _teSettings = _teOpts.optSettings
   pure TestEnv {..}
 
-destroyEnv :: (HasCallStack) => TestEnv -> IO ()
-destroyEnv _ = pure ()
-
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
-endpointToReq ep = Bilge.host (ep ^. O.host . to cs) . Bilge.port (ep ^. O.port)
+endpointToReq ep = Bilge.host (cs ep.host) . Bilge.port ep.port
 
 -- All the code below is copied from brig-integration tests
 -- FUTUREWORK: This should live in another package and shared by all the integration tests
@@ -182,22 +180,15 @@ randomUser' ::
   m User
 randomUser' hasPwd brig = do
   n <- fromName <$> randomName
-  createUser' hasPwd n brig
+  createUser hasPwd n brig
 
 createUser ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
-  Text ->
-  BrigReq ->
-  m User
-createUser = createUser' True
-
-createUser' ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   Bool ->
   Text ->
   BrigReq ->
   m User
-createUser' hasPwd name brig = do
+createUser hasPwd name brig = do
   r <-
     postUser' hasPwd True name True False Nothing Nothing brig
       <!! const 201 === statusCode
@@ -229,7 +220,7 @@ postUserWithEmail ::
   Bool ->
   Bool ->
   Text ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   Bool ->
   Maybe UserSSOId ->
   Maybe TeamId ->
@@ -319,17 +310,17 @@ defCookieLabel = CookieLabel "auth"
 
 -- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
 -- disambiguation.  See also: 'Brig.Email.mkEmailKey'.
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = mkSimulatorEmail "success"
 
-mkSimulatorEmail :: (MonadIO m) => Text -> m Email
+mkSimulatorEmail :: (MonadIO m) => Text -> m EmailAddress
 mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
 
-mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m Email
+mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m EmailAddress
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
-  case parseEmail e of
-    Just (Email loc dom) -> pure $ Email (loc <> "+" <> UUID.toText uid) dom
+  case emailAddressText e of
+    Just mail -> pure $ unsafeEmailAddress ((localPart mail) <> "+" <> UUID.toASCIIBytes uid) (domainPart mail)
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
 zUser :: UserId -> Bilge.Request -> Bilge.Request

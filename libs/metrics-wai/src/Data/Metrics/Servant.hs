@@ -27,10 +27,9 @@
 module Data.Metrics.Servant where
 
 import Data.ByteString.UTF8 qualified as UTF8
-import Data.Metrics.Middleware.Prometheus (normalizeWaiRequestRoute)
+import Data.Id
 import Data.Metrics.Types
 import Data.Metrics.Types qualified as Metrics
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
@@ -40,7 +39,6 @@ import Imports
 import Network.Wai qualified as Wai
 import Network.Wai.Middleware.Prometheus
 import Network.Wai.Middleware.Prometheus qualified as Promth
-import Network.Wai.Routing (Routes, prepare)
 import Servant.API
 import Servant.Multipart
 
@@ -52,22 +50,10 @@ servantPrometheusMiddleware _ = Promth.prometheus conf . instrument promthNormal
     promthNormalize req = pathInfo
       where
         mPathInfo = Metrics.treeLookup (routesToPaths @api) $ encodeUtf8 <$> Wai.pathInfo req
-        pathInfo = decodeUtf8With lenientDecode $ fromMaybe "N/A" mPathInfo
+        pathInfo = decodeUtf8With lenientDecode $ fromMaybe defRequestId mPathInfo
 
     -- See Note [Raw Response]
     instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
-
-servantPlusWAIPrometheusMiddleware :: forall proxy api a m b. (RoutesToPaths api, Monad m) => Routes a m b -> proxy api -> Wai.Middleware
-servantPlusWAIPrometheusMiddleware routes _ = do
-  Promth.prometheus conf . instrument (normalizeWaiRequestRoute paths)
-  where
-    -- See Note [Raw Response]
-    instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
-
-    paths =
-      let Paths servantPaths = routesToPaths @api
-          Paths waiPaths = treeToPaths (prepare routes)
-       in Paths (meltTree (servantPaths <> waiPaths))
 
 conf :: PrometheusSettings
 conf =

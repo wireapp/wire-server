@@ -39,6 +39,7 @@ import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects
+import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
@@ -78,11 +79,12 @@ processInternalCommit ::
   Maybe ConnId ->
   Local ConvOrSubConv ->
   CipherSuiteTag ->
+  Bool ->
   Epoch ->
   ProposalAction ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processInternalCommit senderIdentity con lConvOrSub ciphersuite epoch action commit = do
+processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdate epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
       cm = convOrSub.members
@@ -260,6 +262,11 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite epoch action com
     -- add clients to the conversation state
     for_ newUserClients $ \(qtarget, newClients) -> do
       addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
+
+    -- set cipher suite
+    when ciphersuiteUpdate $ case convOrSub.id of
+      Conv cid -> setConversationCipherSuite cid ciphersuite
+      SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
 
     -- increment epoch number
     for_ lConvOrSub incrementEpoch

@@ -87,7 +87,7 @@ randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' is
 randomUserProfile' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM SelfProfile
 randomUserProfile' isCreator hasPassword hasEmail = randomUserProfile'' isCreator hasPassword hasEmail <&> fst
 
-randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, Email)
+randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, EmailAddress)
 randomUserProfile'' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
@@ -96,19 +96,19 @@ randomUserProfile'' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
+            <> ["team" .= newNewTeam (unsafeRange "teamName") DefaultIcon | isCreator]
   (,e) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
 
-randomEmailUser :: (HasCallStack) => TestM (UserId, Email)
+randomEmailUser :: (HasCallStack) => TestM (UserId, EmailAddress)
 randomEmailUser = randomUserProfile'' False False True <&> first (User.userId . selfUser)
 
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"
 
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = do
   uid <- liftIO nextRandom
-  pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ unsafeEmailAddress ("success+" <> UUID.toASCIIBytes uid) "simulator.amazonses.com"
 
 setHandle :: UserId -> Text -> TestM ()
 setHandle uid h = do
@@ -139,7 +139,7 @@ addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
       inviteeId = User.userId invitee
-  let invmeta = Just (inviter, inCreatedAt inv)
+  let invmeta = Just (inviter, inv.createdAt)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
@@ -149,21 +149,21 @@ addUserToTeamWithRole role inviter tid = do
 addUserToTeamWithRole' :: (HasCallStack) => Maybe Role -> UserId -> TeamId -> TestM (Invitation, ResponseLBS)
 addUserToTeamWithRole' role inviter tid = do
   brig <- view tsBrig
-  inviteeEmail <- randomEmail
-  let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
+  email <- randomEmail
+  let invite = InvitationRequest Nothing role Nothing email
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
-  inviteeCode <- getInvitationCode tid (inInvitation inv)
+  inviteeCode <- getInvitationCode tid inv.invitationId
   r <-
     post
       ( brig
           . path "/register"
           . contentJson
-          . body (acceptInviteBody inviteeEmail inviteeCode)
+          . body (acceptInviteBody email inviteeCode)
       )
   pure (inv, r)
 
-acceptInviteBody :: Email -> InvitationCode -> RequestBody
+acceptInviteBody :: EmailAddress -> InvitationCode -> RequestBody
 acceptInviteBody email code =
   RequestBodyLBS . encode $
     object

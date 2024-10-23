@@ -17,7 +17,7 @@ flag static
 
 library
   exposed-modules:
-    Proxy.API
+    Proxy.API.Internal
     Proxy.API.Public
     Proxy.Env
     Proxy.Options
@@ -80,6 +80,7 @@ library
     , bytestring             >=0.10
     , case-insensitive       >=1.2
     , configurator           >=0.3
+    , errors
     , exceptions             >=0.8
     , extended
     , http-client            >=0.7
@@ -90,6 +91,7 @@ library
     , lens                   >=4.11
     , metrics-wai            >=0.5
     , retry                  >=0.7
+    , servant-server
     , text                   >=1.2
     , tinylog                >=0.12
     , types-common           >=0.8

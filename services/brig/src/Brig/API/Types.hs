@@ -22,7 +22,6 @@ module Brig.API.Types
     Activation (..),
     ActivationError (..),
     ClientDataError (..),
-    PropertiesDataError (..),
     AuthError (..),
     ReAuthError (..),
     LegalHoldLoginError (..),
@@ -33,8 +32,6 @@ where
 
 import Brig.Data.Activation (Activation (..), ActivationError (..))
 import Brig.Data.Client (ClientDataError (..))
-import Brig.Data.Properties (PropertiesDataError (..))
-import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types.Intra
 import Data.Code
 import Data.Id
@@ -45,6 +42,7 @@ import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.AuthenticationSubsystem.Error
 import Wire.UserKeyStore
 
 -------------------------------------------------------------------------------
@@ -52,17 +50,11 @@ import Wire.UserKeyStore
 
 data CreateUserResult = CreateUserResult
   { -- | The newly created user account.
-    createdAccount :: !UserAccount,
+    createdAccount :: !User,
     -- | Activation data for the registered email address, if any.
     createdEmailActivation :: !(Maybe Activation),
     -- | Info of a team just created/joined
     createdUserTeam :: !(Maybe CreateUserTeam)
-  }
-  deriving (Show)
-
-data CreateUserTeam = CreateUserTeam
-  { createdTeamId :: !TeamId,
-    createdTeamName :: !Text
   }
   deriving (Show)
 
@@ -71,13 +63,15 @@ data ActivationResult
     ActivationSuccess !(Maybe UserIdentity) !Bool
   | -- | The key/code was valid but already recently activated.
     ActivationPass
+  deriving (Show)
 
 -- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
 data ChangeEmailResult
   = -- | The request was successful, user needs to verify the new email address
-    ChangeEmailNeedsActivation !(User, Activation, Email)
+    ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
   | -- | The user asked to change the email address to the one already owned
     ChangeEmailIdempotent
+  deriving (Show)
 
 -------------------------------------------------------------------------------
 -- Failures
@@ -87,7 +81,7 @@ data CreateUserError
   | MissingIdentity
   | EmailActivationError ActivationError
   | PhoneActivationError ActivationError
-  | InvalidEmail Email String
+  | InvalidEmail EmailAddress String
   | InvalidPhone Phone
   | DuplicateUserKey EmailKey
   | BlacklistedUserKey EmailKey
@@ -98,8 +92,8 @@ data CreateUserError
 
 data InvitationError
   = InviteeEmailExists UserId
-  | InviteInvalidEmail Email
-  | InviteBlacklistedEmail Email
+  | InviteInvalidEmail EmailAddress
+  | InviteBlacklistedEmail EmailAddress
 
 data ConnectionError
   = -- | Max. # of 'Accepted' / 'Sent' connections reached
@@ -117,7 +111,7 @@ data ConnectionError
   | -- | An attempt at creating an invitation to a blacklisted user key.
     ConnectBlacklistedUserKey EmailKey
   | -- | An attempt at creating an invitation to an invalid email address.
-    ConnectInvalidEmail Email String
+    ConnectInvalidEmail EmailAddress String
   | -- | An attempt at creating an invitation to an invalid phone nbumber.
     ConnectInvalidPhone Phone
   | -- | An attempt at creating a connection with another user from the same binding team.
@@ -160,9 +154,9 @@ data VerificationCodeError
   | VerificationCodeNoEmail
 
 data ChangeEmailError
-  = InvalidNewEmail !Email !String
-  | EmailExists !Email
-  | ChangeBlacklistedEmail !Email
+  = InvalidNewEmail !EmailAddress !String
+  | EmailExists !EmailAddress
+  | ChangeBlacklistedEmail !EmailAddress
   | EmailManagedByScim
 
 data SendActivationCodeError
@@ -176,6 +170,9 @@ data ClientError
   | ClientUserNotFound !UserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
+  | -- | this error is thrown if legalhold if incompatible with different features
+    --   for now, this is the case for MLS and federation
+    ClientLegalHoldIncompatible
   | ClientFederationError FederationError
   | ClientCapabilitiesCannotBeRemoved
   | ClientMissingLegalholdConsentOldClients

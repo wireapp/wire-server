@@ -39,7 +39,7 @@ data RandomValueType
 -- different contexts for the same email address.
 -- TODO: newtype KeyContext = KeyContext ByteString
 data VerificationCodeGen = VerificationCodeGen
-  { genFor :: !Email,
+  { genFor :: !EmailAddress,
     genKey :: !Key, -- Note [Unique keys]
     genValueType :: !RandomValueType
   }
@@ -49,17 +49,17 @@ data VerificationCodeGen = VerificationCodeGen
 -- | Initialise a 'Code' 'VerificationCodeGen'erator for a given natural key.
 -- This generates a link for emails and a 6-digit code for phone. See also:
 -- `mk6DigitVerificationCodeGen`.
-mkVerificationCodeGen :: Email -> VerificationCodeGen
+mkVerificationCodeGen :: EmailAddress -> VerificationCodeGen
 mkVerificationCodeGen email =
   VerificationCodeGen email (mkKey email) Random15Bytes
 
 -- | Initialise a 'Code' 'VerificationCodeGen'erator for a given natural key.
 -- This generates a 6-digit code, matter whether it is sent to a phone or to an
 -- email address. See also: `mkVerificationCodeGen`.
-mk6DigitVerificationCodeGen :: Email -> VerificationCodeGen
+mk6DigitVerificationCodeGen :: EmailAddress -> VerificationCodeGen
 mk6DigitVerificationCodeGen email = VerificationCodeGen email (mkKey email) Random6DigitNumber
 
-mkKey :: Email -> Key
+mkKey :: EmailAddress -> Key
 mkKey email =
   Key
     . unsafeRange

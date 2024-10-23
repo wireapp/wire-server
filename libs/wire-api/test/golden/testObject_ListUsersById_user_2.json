@@ -1,27 +1,36 @@
-{ "found" :
-  [ { "qualified_id" :
-      { "domain" : "example.com"
-      , "id" : "4f201a43-935e-4e19-8fe0-0a878d3d6e74"
-      }
-    , "id" : "4f201a43-935e-4e19-8fe0-0a878d3d6e74"
-    , "name" : "user1"
-    , "picture" : []
-    , "assets" : []
-    , "accent_id" : 0
-    , "legalhold_status" : "disabled"
-    , "supported_protocols" : ["proteus"]
-    }
-  , { "qualified_id" :
-      { "domain" : "test.net"
-      , "id" : "eb48b095-d96f-4a94-b4ec-2a1d61447e13"
-      }
-    , "id" : "eb48b095-d96f-4a94-b4ec-2a1d61447e13"
-    , "name" : "user2"
-    , "picture" : []
-    , "assets" : []
-    , "accent_id" : 0
-    , "legalhold_status" : "disabled"
-    , "supported_protocols" : ["proteus", "mls"]
-    }
-  ]
+{
+    "found": [
+        {
+            "accent_id": 0,
+            "assets": [],
+            "id": "4f201a43-935e-4e19-8fe0-0a878d3d6e74",
+            "legalhold_status": "disabled",
+            "name": "user1",
+            "picture": [],
+            "qualified_id": {
+                "domain": "example.com",
+                "id": "4f201a43-935e-4e19-8fe0-0a878d3d6e74"
+            },
+            "supported_protocols": [
+                "proteus"
+            ]
+        },
+        {
+            "accent_id": 0,
+            "assets": [],
+            "id": "eb48b095-d96f-4a94-b4ec-2a1d61447e13",
+            "legalhold_status": "disabled",
+            "name": "user2",
+            "picture": [],
+            "qualified_id": {
+                "domain": "test.net",
+                "id": "eb48b095-d96f-4a94-b4ec-2a1d61447e13"
+            },
+            "supported_protocols": [
+                "proteus",
+                "mls"
+            ],
+            "text_status": "text status"
+        }
+    ]
 }

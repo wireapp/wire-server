@@ -28,7 +28,6 @@ module Wire.API.Conversation.Protocol
     _ProtocolMLS,
     _ProtocolMixed,
     _ProtocolProteus,
-    conversationMLSData,
     protocolSchema,
     ConversationMLSData (..),
     ActiveMLSConversationData (..),
@@ -40,7 +39,7 @@ where
 
 import Control.Applicative
 import Control.Arrow
-import Control.Lens (Traversal', makePrisms, (?~))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Json.Util
 import Data.OpenApi qualified as S
@@ -109,12 +108,7 @@ optionalActiveMLSConversationDataSchema (Just v)
             (description ?~ "The epoch number of the corresponding MLS group")
             schema
         <*> fmap (.epochTimestamp)
-          .= maybe_
-            ( optFieldWithDocModifier
-                "epoch_timestamp"
-                (description ?~ "The timestamp of the epoch number")
-                utcTimeSchema
-            )
+          .= field "epoch_timestamp" (named "EpochTimestamp" . nullable . unnamed $ utcTimeSchema)
         <*> maybe MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (.ciphersuite)
           .= fieldWithDocModifier
             "cipher_suite"
@@ -201,11 +195,6 @@ data Protocol
 
 $(makePrisms ''Protocol)
 
-conversationMLSData :: Traversal' Protocol ConversationMLSData
-conversationMLSData _ ProtocolProteus = pure ProtocolProteus
-conversationMLSData f (ProtocolMLS mls) = ProtocolMLS <$> f mls
-conversationMLSData f (ProtocolMixed mls) = ProtocolMixed <$> f mls
-
 protocolTag :: Protocol -> ProtocolTag
 protocolTag ProtocolProteus = ProtocolProteusTag
 protocolTag (ProtocolMLS _) = ProtocolMLSTag
@@ -250,6 +239,9 @@ protocolSchema v =
 
 instance ToSchema Protocol where
   schema = object "Protocol" (protocolSchema Nothing)
+
+instance ToSchema (Versioned 'V5 Protocol) where
+  schema = object "Protocol" (Versioned <$> unVersioned .= protocolSchema (Just V5))
 
 deriving via (Schema Protocol) instance FromJSON Protocol
 

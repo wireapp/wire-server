@@ -14,13 +14,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
-module Main
-  ( main,
-  )
-where
+module Main (main) where
 
-import Control.Concurrent.Async
+import Control.Concurrent.Async (concurrently_)
 import Imports
 import OpenSSL (withOpenSSL)
 import System.Environment (withArgs)
@@ -28,7 +26,6 @@ import Test.Federator.IngressSpec qualified
 import Test.Federator.InwardSpec qualified
 import Test.Federator.Util (TestEnv, mkEnvFromOptions)
 import Test.Hspec
-import Test.Hspec.Core.Format
 import Test.Hspec.JUnit
 import Test.Hspec.JUnit.Config.Env
 import Test.Hspec.Runner
@@ -39,8 +36,14 @@ main = withOpenSSL $ do
   env <- withArgs wireArgs mkEnvFromOptions
   -- withArgs hspecArgs . hspec $ do
   --   beforeAll (pure env) . afterAll destroyEnv $ Hspec.mkspec
-  cfg <- hspecConfig
-  withArgs hspecArgs . hspecWith cfg $ mkspec env
+
+  -- FUTUREWORK(mangoiv): we should remove the deprecated module and instaed move to this config, however, this
+  -- needs check of whether it modifies the behaviour
+  -- junitConfig <- envJUnitConfig
+  -- withArgs hspecArgs . hspec . add junitConfig $ do
+
+  conf <- hspecConfig
+  withArgs hspecArgs . hspecWith conf $ mkspec env
 
 hspecConfig :: IO Config
 hspecConfig = do
@@ -52,7 +55,6 @@ hspecConfig = do
             : configAvailableFormatters defaultConfig
       }
   where
-    checksAndJUnitFormatter :: JUnitConfig -> FormatConfig -> IO Format
     checksAndJUnitFormatter junitConfig config = do
       junit <- junitFormat junitConfig config
       let checksFormatter = fromJust (lookup "checks" $ configAvailableFormatters defaultConfig)

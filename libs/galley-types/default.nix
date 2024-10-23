@@ -9,16 +9,15 @@
 , bytestring-conversion
 , containers
 , crypton
+, data-default
 , errors
 , gitignoreSource
 , imports
 , lens
 , lib
 , memory
-, QuickCheck
 , schema-profunctor
-, tasty
-, tasty-quickcheck
+, sop-core
 , text
 , types-common
 , utf8-string
@@ -36,25 +35,17 @@ mkDerivation {
     bytestring-conversion
     containers
     crypton
+    data-default
     errors
     imports
     lens
     memory
-    QuickCheck
     schema-profunctor
+    sop-core
     text
     types-common
     utf8-string
     uuid
-    wire-api
-  ];
-  testHaskellDepends = [
-    aeson
-    base
-    imports
-    QuickCheck
-    tasty
-    tasty-quickcheck
     wire-api
   ];
   license = lib.licenses.agpl3Only;

@@ -19,17 +19,32 @@ module Test.Wire.API.Roundtrip.CSV where
 
 import Control.Arrow ((>>>))
 import Data.Csv
+import Data.Time.Clock
 import Data.Vector qualified as V
 import Imports
 import Test.Tasty qualified as T
-import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
+import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
-import Wire.API.Team.Export qualified as Team.Export
+import Wire.API.Team.Export
+
+newtype ValidTeamExportUser = ValidTeamExportUser
+  {unValidTeamExportUser :: TeamExportUser}
+  deriving newtype (FromNamedRecord, ToNamedRecord, DefaultOrdered, Eq, Show)
+
+instance Arbitrary ValidTeamExportUser where
+  arbitrary = do
+    u <- arbitrary
+    let resetTime (UTCTime d _) = UTCTime d 0
+    pure $
+      ValidTeamExportUser
+        u
+          { tExportLastActive = fmap resetTime (tExportLastActive u)
+          }
 
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "CSV roundtrip tests" $
-    [testRoundTrip @Team.Export.TeamExportUser]
+    [testRoundTrip @ValidTeamExportUser]
 
 testRoundTrip ::
   forall a.

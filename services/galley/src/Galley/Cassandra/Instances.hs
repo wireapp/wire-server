@@ -27,7 +27,6 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
-import Data.Either.Combinators hiding (fromRight)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Imports

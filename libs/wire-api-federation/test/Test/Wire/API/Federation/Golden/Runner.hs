@@ -17,8 +17,6 @@
 
 module Test.Wire.API.Federation.Golden.Runner
   ( testObjects,
-    testFromJSONFailure,
-    testFromJSONObjects,
   )
 where
 
@@ -59,25 +57,6 @@ testObject obj path = do
     (fromJSON actualValue)
 
   pure exists
-
-testFromJSONObjects :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
-testFromJSONObjects = traverse_ (uncurry testFromJSONObject)
-
-testFromJSONObject :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO ()
-testFromJSONObject expected path = do
-  let dir = "test/golden/fromJSON"
-      fullPath = dir <> "/" <> path
-  parsed <- eitherDecodeFileStrict fullPath
-  assertEqual (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object") (Right expected) parsed
-
-testFromJSONFailure :: forall a. (Typeable a, FromJSON a, Show a) => FilePath -> IO ()
-testFromJSONFailure path = do
-  let dir = "test/golden/fromJSON"
-      fullPath = dir <> "/" <> path
-  parsed <- eitherDecodeFileStrict @a fullPath
-  case parsed of
-    Right x -> assertFailure $ show (typeRep @a) <> ": FromJSON of " <> path <> ": expected failure, got " <> show x
-    Left _ -> pure ()
 
 assertRight :: (Show a) => Either a b -> IO b
 assertRight =

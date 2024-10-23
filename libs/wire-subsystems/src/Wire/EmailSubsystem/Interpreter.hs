@@ -7,6 +7,7 @@ module Wire.EmailSubsystem.Interpreter
 where
 
 import Data.Code qualified as Code
+import Data.Id
 import Data.Json.Util
 import Data.Range (fromRange)
 import Data.Text qualified as Text
@@ -24,18 +25,21 @@ import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
 
-emailSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSubsystem r
-emailSubsystemInterpreter tpls branding = interpret \case
-  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl tpls branding email key code mLocale
-  SendVerificationMail email key code mLocale -> sendVerificationMailImpl tpls branding email key code mLocale
-  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl tpls branding email code mLocale
-  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl tpls branding email code mLocale
-  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl tpls branding email code mLocale
-  SendActivationMail email name key code mLocale -> sendActivationMailImpl tpls branding email name key code mLocale
-  SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl tpls branding email name key code mLocale
-  SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl tpls branding email name key code mLocale teamName
-  SendNewClientEmail email name client locale -> sendNewClientEmailImpl tpls branding email name client locale
-  SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl tpls branding email name key code locale
+emailSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> Localised TeamTemplates -> TemplateBranding -> InterpreterFor EmailSubsystem r
+emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
+  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
+  SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
+  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
+  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl userTpls branding email code mLocale
+  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl userTpls branding email code mLocale
+  SendActivationMail email name key code mLocale -> sendActivationMailImpl userTpls branding email name key code mLocale
+  SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl userTpls branding email name key code mLocale
+  SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl userTpls branding email name key code mLocale teamName
+  SendNewClientEmail email name client locale -> sendNewClientEmailImpl userTpls branding email name client locale
+  SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
+  SendUpgradePersonalToTeamConfirmationEmail email name teamName locale -> sendUpgradePersonalToTeamConfirmationEmailImpl userTpls branding email name teamName locale
+  SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls branding email tid from code loc
+  SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -47,7 +51,7 @@ sendTeamDeletionVerificationMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   Code.Value ->
   Maybe Locale ->
   Sem r ()
@@ -59,7 +63,7 @@ sendCreateScimTokenVerificationMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   Code.Value ->
   Maybe Locale ->
   Sem r ()
@@ -71,7 +75,7 @@ sendLoginVerificationMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   Code.Value ->
   Maybe Locale ->
   Sem r ()
@@ -80,7 +84,7 @@ sendLoginVerificationMailImpl userTemplates branding email code mLocale = do
   sendMail $ renderSecondFactorVerificationEmail email code tpl branding
 
 renderSecondFactorVerificationEmail ::
-  Email ->
+  EmailAddress ->
   Code.Value ->
   SecondFactorVerificationEmailTemplate ->
   TemplateBranding ->
@@ -114,7 +118,7 @@ sendActivationMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   Name ->
   ActivationKey ->
   ActivationCode ->
@@ -128,7 +132,7 @@ sendEmailAddressUpdateMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   Name ->
   ActivationKey ->
   ActivationCode ->
@@ -138,7 +142,7 @@ sendEmailAddressUpdateMailImpl userTemplates branding email name akey acode mLoc
   let tpl = activationEmailUpdate . snd $ forLocale mLocale userTemplates
   sendMail $ renderActivationMail email name akey acode tpl branding
 
-renderActivationMail :: Email -> Name -> ActivationKey -> ActivationCode -> ActivationEmailTemplate -> TemplateBranding -> Mail
+renderActivationMail :: EmailAddress -> Name -> ActivationKey -> ActivationCode -> ActivationEmailTemplate -> TemplateBranding -> Mail
 renderActivationMail email name akey@(ActivationKey key) acode@(ActivationCode code) ActivationEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
@@ -184,7 +188,7 @@ sendTeamActivationMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   Name ->
   ActivationKey ->
   ActivationCode ->
@@ -195,7 +199,7 @@ sendTeamActivationMailImpl userTemplates branding email name akey acode mLocale 
   let tpl = teamActivationEmail . snd $ forLocale mLocale userTemplates
   sendMail $ renderTeamActivationMail email name teamName akey acode tpl branding
 
-renderTeamActivationMail :: Email -> Name -> Text -> ActivationKey -> ActivationCode -> TeamActivationEmailTemplate -> TemplateBranding -> Mail
+renderTeamActivationMail :: EmailAddress -> Name -> Text -> ActivationKey -> ActivationCode -> TeamActivationEmailTemplate -> TemplateBranding -> Mail
 renderTeamActivationMail email name teamName akey@(ActivationKey key) acode@(ActivationCode code) TeamActivationEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
@@ -229,7 +233,7 @@ sendVerificationMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   ActivationKey ->
   ActivationCode ->
   Maybe Locale ->
@@ -238,7 +242,7 @@ sendVerificationMailImpl userTemplates branding email akey acode mLocale = do
   let tpl = verificationEmail . snd $ forLocale mLocale userTemplates
   sendMail $ renderVerificationMail email akey acode tpl branding
 
-renderVerificationMail :: Email -> ActivationKey -> ActivationCode -> VerificationEmailTemplate -> TemplateBranding -> Mail
+renderVerificationMail :: EmailAddress -> ActivationKey -> ActivationCode -> VerificationEmailTemplate -> TemplateBranding -> Mail
 renderVerificationMail email akey acode VerificationEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
@@ -269,7 +273,7 @@ sendPasswordResetMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   PasswordResetKey ->
   PasswordResetCode ->
   Maybe Locale ->
@@ -278,7 +282,7 @@ sendPasswordResetMailImpl userTemplates branding email pkey pcode mLocale = do
   let tpl = passwordResetEmail . snd $ forLocale mLocale userTemplates
   sendMail $ renderPwResetMail email pkey pcode tpl branding
 
-renderPwResetMail :: Email -> PasswordResetKey -> PasswordResetCode -> PasswordResetEmailTemplate -> TemplateBranding -> Mail
+renderPwResetMail :: EmailAddress -> PasswordResetKey -> PasswordResetCode -> PasswordResetEmailTemplate -> TemplateBranding -> Mail
 renderPwResetMail email pkey pcode PasswordResetEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
@@ -315,7 +319,7 @@ sendNewClientEmailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   Name ->
   Client ->
   Locale ->
@@ -324,7 +328,7 @@ sendNewClientEmailImpl userTemplates branding email name client locale = do
   let tpl = newClientEmail . snd $ forLocale (Just locale) userTemplates
   sendMail $ renderNewClientEmail email name locale client tpl branding
 
-renderNewClientEmail :: Email -> Name -> Locale -> Client -> NewClientEmailTemplate -> TemplateBranding -> Mail
+renderNewClientEmail :: EmailAddress -> Name -> Locale -> Client -> NewClientEmailTemplate -> TemplateBranding -> Mail
 renderNewClientEmail email name locale Client {..} NewClientEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
@@ -341,8 +345,8 @@ renderNewClientEmail email name locale Client {..} NewClientEmailTemplate {..} b
     html = renderHtmlWithBranding newClientEmailBodyHtml replace branding
     subj = renderTextWithBranding newClientEmailSubject replace branding
     replace "name" = fromName name
-    replace "label" = fromMaybe "N/A" clientLabel
-    replace "model" = fromMaybe "N/A" clientModel
+    replace "label" = fromMaybe defRequestId clientLabel
+    replace "model" = fromMaybe defRequestId clientModel
     replace "date" =
       formatDateTime
         "%A %e %B %Y, %H:%M - %Z"
@@ -357,7 +361,7 @@ sendAccountDeletionEmailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
-  Email ->
+  EmailAddress ->
   Name ->
   Code.Key ->
   Code.Value ->
@@ -367,7 +371,7 @@ sendAccountDeletionEmailImpl userTemplates branding email name key code locale =
   let tpl = deletionEmail . snd $ forLocale (Just locale) userTemplates
   sendMail $ renderDeletionEmail email name key code tpl branding
 
-renderDeletionEmail :: Email -> Name -> Code.Key -> Code.Value -> DeletionEmailTemplate -> TemplateBranding -> Mail
+renderDeletionEmail :: EmailAddress -> Name -> Code.Key -> Code.Value -> DeletionEmailTemplate -> TemplateBranding -> Mail
 renderDeletionEmail email name cKey cValue DeletionEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
@@ -395,6 +399,101 @@ renderDeletionEmail email name cKey cValue DeletionEmailTemplate {..} branding =
     replace2 "code" = code
     replace2 x = x
 
+--------------------------------------------------------------------------------
+-- Upgrade personal user to team owner confirmation email
+
+sendUpgradePersonalToTeamConfirmationEmailImpl ::
+  (Member EmailSending r) =>
+  Localised UserTemplates ->
+  TemplateBranding ->
+  EmailAddress ->
+  Name ->
+  Text ->
+  Locale ->
+  Sem r ()
+sendUpgradePersonalToTeamConfirmationEmailImpl userTemplates branding email name teamName locale = do
+  let tpl = upgradePersonalToTeamEmail . snd $ forLocale (Just locale) userTemplates
+  sendMail $ renderUpgradePersonalToTeamConfirmationEmail email name teamName tpl branding
+
+renderUpgradePersonalToTeamConfirmationEmail :: EmailAddress -> Name -> Text -> UpgradePersonalToTeamEmailTemplate -> TemplateBranding -> Mail
+renderUpgradePersonalToTeamConfirmationEmail email name _teamName UpgradePersonalToTeamEmailTemplate {..} branding =
+  (emptyMail from)
+    { mailTo = [to],
+      mailHeaders =
+        [ ("Subject", toStrict subj),
+          ("X-Zeta-Purpose", "Upgrade")
+        ],
+      mailParts = [[plainPart txt, htmlPart html]]
+    }
+  where
+    from = Address (Just upgradePersonalToTeamEmailSenderName) (fromEmail upgradePersonalToTeamEmailSender)
+    to = mkMimeAddress name email
+    txt = renderTextWithBranding upgradePersonalToTeamEmailBodyText replace1 branding
+    html = renderHtmlWithBranding upgradePersonalToTeamEmailBodyHtml replace1 branding
+    subj = renderTextWithBranding upgradePersonalToTeamEmailSubject replace1 branding
+    replace1 "email" = fromEmail email
+    replace1 "name" = fromName name
+    replace1 x = x
+
+-------------------------------------------------------------------------------
+-- Invitation Email
+
+sendTeamInvitationMailImpl :: (Member EmailSending r) => Localised TeamTemplates -> TemplateBranding -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
+sendTeamInvitationMailImpl teamTemplates branding to tid from code loc = do
+  let tpl = invitationEmail . snd $ forLocale loc teamTemplates
+      mail = InvitationEmail to tid code from
+      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl branding
+  sendMail renderedMail
+  pure renderedInvitaitonUrl
+
+sendTeamInvitationMailPersonalUserImpl :: (Member EmailSending r) => Localised TeamTemplates -> TemplateBranding -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
+sendTeamInvitationMailPersonalUserImpl teamTemplates branding to tid from code loc = do
+  let tpl = existingUserInvitationEmail . snd $ forLocale loc teamTemplates
+      mail = InvitationEmail to tid code from
+      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl branding
+  sendMail renderedMail
+  pure renderedInvitaitonUrl
+
+data InvitationEmail = InvitationEmail
+  { invTo :: !EmailAddress,
+    invTeamId :: !TeamId,
+    invInvCode :: !InvitationCode,
+    invInviter :: !EmailAddress
+  }
+
+renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> TemplateBranding -> (Mail, Text)
+renderInvitationEmail InvitationEmail {..} InvitationEmailTemplate {..} branding =
+  ( (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "TeamInvitation"),
+            ("X-Zeta-Code", Ascii.toText code)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      },
+    invitationUrl
+  )
+  where
+    (InvitationCode code) = invInvCode
+    from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
+    to = Address Nothing (fromEmail invTo)
+    txt = renderTextWithBranding invitationEmailBodyText replace branding
+    html = renderHtmlWithBranding invitationEmailBodyHtml replace branding
+    subj = renderTextWithBranding invitationEmailSubject replace branding
+    invitationUrl = renderInvitationUrl invitationEmailUrl invTeamId invInvCode branding
+    replace "url" = invitationUrl
+    replace "inviter" = fromEmail invInviter
+    replace x = x
+
+renderInvitationUrl :: Template -> TeamId -> InvitationCode -> TemplateBranding -> Text
+renderInvitationUrl t tid (InvitationCode c) branding =
+  toStrict $ renderTextWithBranding t replace branding
+  where
+    replace "team" = idToText tid
+    replace "code" = Ascii.toText c
+    replace x = x
+
 -------------------------------------------------------------------------------
 -- MIME Conversions
 
@@ -403,7 +502,7 @@ renderDeletionEmail email name cKey cValue DeletionEmailTemplate {..} branding =
 -- in SMTP, which is a safe limit for most mail servers (including those of
 -- Amazon SES). The display name is only included if it fits within that
 -- limit, otherwise it is dropped.
-mkMimeAddress :: Name -> Email -> Address
+mkMimeAddress :: Name -> EmailAddress -> Address
 mkMimeAddress name email =
   let addr = Address (Just (fromName name)) (fromEmail email)
    in if Text.compareLength (renderAddress addr) 320 == GT

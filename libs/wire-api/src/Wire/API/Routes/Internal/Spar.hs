@@ -31,7 +31,7 @@ type InternalAPI =
     :> ( "status" :> Get '[JSON] NoContent
            :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent
            :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
-           :<|> "scim" :> "userinfos" :> ReqBody '[JSON] UserSet :> Post '[JSON] ScimUserInfos
+           :<|> "scim" :> "userinfo" :> Capture "user" UserId :> Post '[JSON] ScimUserInfo
        )
 
 swaggerDoc :: OpenApi

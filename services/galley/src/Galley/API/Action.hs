@@ -26,7 +26,6 @@ module Galley.API.Action
     -- * Performing actions
     updateLocalConversation,
     updateLocalConversationUnchecked,
-    updateLocalConversationUserUnchecked,
     NoChanges (..),
     LocalConversationUpdate (..),
     notifyTypingIndicator,
@@ -92,7 +91,6 @@ import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
-import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding ((\\))
 import Network.AMQP qualified as Q
 import Polysemy
@@ -117,6 +115,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
@@ -244,11 +243,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
     ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
-      Member (ErrorS OperationDenied) r,
       Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
       Member (Error NoChanges) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (ErrorS 'TeamNotFound) r,
       Member BrigAccess r,
       Member ExternalAccess r,
       Member FederatorAccess r,
@@ -261,7 +257,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member Random r,
       Member SubConversationStore r,
       Member TeamFeatureStore r,
-      Member TeamStore r,
       Member TinyLog r
     )
 
@@ -494,7 +489,7 @@ performAction tag origUser lconv action = do
           E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
           pure (mempty, action)
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
-          mig <- getFeatureStatus @MlsMigrationConfig DontDoAuth tid
+          mig <- getFeatureForTeam @MlsMigrationConfig tid
           now <- input
           mlsConv <- mkMLSConversation conv >>= noteS @'ConvInvalidProtocolTransition
           ok <- checkMigrationCriteria now mlsConv mig
@@ -791,28 +786,6 @@ updateLocalConversationUnchecked lconv qusr con action = do
     lconv
     (convBotsAndMembers conv <> extraTargets)
     action'
-
--- | Similar to 'updateLocalConversationUnchecked', but skips performing
--- user authorisation checks. This is written for use in de-federation code
--- where conversations for many users will be torn down at once and must work.
---
--- Additionally, this function doesn't make notification calls to clients.
-updateLocalConversationUserUnchecked ::
-  forall tag r.
-  ( SingI tag,
-    HasConversationActionEffects tag r,
-    Member BackendNotificationQueueAccess r,
-    Member (Error FederationError) r
-  ) =>
-  Local Conversation ->
-  Qualified UserId ->
-  ConversationAction tag ->
-  Sem r ()
-updateLocalConversationUserUnchecked lconv qusr action = do
-  let tag = sing @tag
-
-  -- perform action
-  void $ performAction tag qusr lconv action
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities

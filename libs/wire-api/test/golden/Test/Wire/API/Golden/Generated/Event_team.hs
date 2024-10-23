@@ -230,7 +230,7 @@ testObject_Event_team_18 =
         (Id (fromJust (UUID.fromString "00007783-0000-7d60-0000-00d30000396e")))
         ( Just
             ( Permissions
-                { _self =
+                { self =
                     fromList
                       [ CreateConversation,
                         DeleteConversation,
@@ -246,7 +246,7 @@ testObject_Event_team_18 =
                         GetTeamConversations,
                         DeleteTeam
                       ],
-                  _copy =
+                  copy =
                     fromList
                       [ CreateConversation,
                         DeleteConversation,
@@ -273,7 +273,7 @@ testObject_Event_team_19 =
         (Id (fromJust (UUID.fromString "0000382c-0000-1ce7-0000-568b00001fe9")))
         ( Just
             ( Permissions
-                { _self =
+                { self =
                     fromList
                       [ DeleteConversation,
                         RemoveTeamMember,
@@ -284,7 +284,7 @@ testObject_Event_team_19 =
                         GetMemberPermissions,
                         GetTeamConversations
                       ],
-                  _copy =
+                  copy =
                     fromList
                       [ DeleteConversation,
                         RemoveTeamMember,

@@ -3,10 +3,10 @@ module Aws.Arn where
 import Amazonka.Data.Text
 import Control.Lens
 import Gundeck.Aws.Arn
-import Gundeck.Types
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.Push.V2
 
 tests :: TestTree
 tests =

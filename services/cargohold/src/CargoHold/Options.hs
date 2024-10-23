@@ -29,23 +29,22 @@ import Data.Domain
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Util.Options.Common
+import Util.SuffixNamer
 import Wire.API.Routes.Version
 
 -- | AWS CloudFront settings.
 data CloudFrontOpts = CloudFrontOpts
   { -- | Domain
-    _domain :: CF.Domain,
+    domain :: CF.Domain,
     -- | Keypair ID
-    _keyPairId :: CF.KeyPairId,
+    keyPairId :: CF.KeyPairId,
     -- | Path to private key
-    _privateKey :: FilePath
+    privateKey :: FilePath
   }
   deriving (Show, Generic)
 
-deriveFromJSON toOptionFieldName ''CloudFrontOpts
-
-makeLenses ''CloudFrontOpts
+deriveFromJSON defaultOptions ''CloudFrontOpts
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''CloudFrontOpts
 
 newtype OptS3AddressingStyle = OptS3AddressingStyle
   { unwrapS3AddressingStyle :: S3AddressingStyle
@@ -62,7 +61,7 @@ instance FromJSON OptS3AddressingStyle where
         other -> fail $ "invalid S3AddressingStyle: " <> show other
 
 data AWSOpts = AWSOpts
-  { _s3Endpoint :: !AWSEndpoint,
+  { s3Endpoint :: !AWSEndpoint,
     -- | S3 can either by addressed in path style, i.e.
     -- https://<s3-endpoint>/<bucket-name>/<object>, or vhost style, i.e.
     -- https://<bucket-name>.<s3-endpoint>/<object>. AWS's S3 offering has
@@ -88,18 +87,18 @@ data AWSOpts = AWSOpts
     --
     -- When this option is unspecified, we default to path style addressing to
     -- ensure smooth transition for older deployments.
-    _s3AddressingStyle :: !(Maybe OptS3AddressingStyle),
+    s3AddressingStyle :: !(Maybe OptS3AddressingStyle),
     -- | S3 endpoint for generating download links. Useful if Cargohold is configured to use
     -- an S3 replacement running inside the internal network (in which case internally we
     -- would use one hostname for S3, and when generating an asset link for a client app, we
     -- would use another hostname).
-    _s3DownloadEndpoint :: !(Maybe AWSEndpoint),
+    s3DownloadEndpoint :: !(Maybe AWSEndpoint),
     -- | S3 bucket name
-    _s3Bucket :: !Text,
+    s3Bucket :: !Text,
     -- | Enable this option for compatibility with specific S3 backends.
-    _s3Compatibility :: !(Maybe S3Compatibility),
+    s3Compatibility :: !(Maybe S3Compatibility),
     -- | AWS CloudFront options
-    _cloudFront :: !(Maybe CloudFrontOpts),
+    cloudFront :: !(Maybe CloudFrontOpts),
     -- | @Z-Host@ header to s3 download endpoint `Map`
     --
     -- This logic is: If the @Z-Host@ header is provided and found in this map,
@@ -107,7 +106,7 @@ data AWSOpts = AWSOpts
     -- otherwise a 404 is retuned. This option is only useful
     -- in the context of multi-ingress setups where one backend / deployment is
     -- reachable under several domains.
-    _multiIngress :: !(Maybe (Map String AWSEndpoint))
+    multiIngress :: !(Maybe (Map String AWSEndpoint))
   }
   deriving (Show, Generic)
 
@@ -122,15 +121,16 @@ instance FromJSON S3Compatibility where
     "scality-ring" -> pure S3CompatibilityScalityRing
     other -> fail $ "invalid S3Compatibility: " <> show other
 
-deriveFromJSON toOptionFieldName ''AWSOpts
+deriveFromJSON defaultOptions ''AWSOpts
 
 makeLenses ''AWSOpts
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''AWSOpts
 
 data Settings = Settings
   { -- | Maximum allowed size for uploads, in bytes
-    _maxTotalBytes :: !Int,
+    maxTotalBytes :: !Int,
     -- | TTL for download links, in seconds
-    _downloadLinkTTL :: !Word,
+    downloadLinkTTL :: !Word,
     -- | FederationDomain is required, even when not wanting to federate with other backends
     -- (in that case the 'allowedDomains' can be set to empty in Federator)
     -- Federation domain is used to qualify local IDs and handles,
@@ -141,37 +141,37 @@ data Settings = Settings
     -- Remember to keep it the same in all services.
     -- This is referred to as the 'backend domain' in the public documentation; See
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
-    _federationDomain :: !Domain,
-    _disabledAPIVersions :: !(Set VersionExp)
+    federationDomain :: !Domain,
+    disabledAPIVersions :: !(Set VersionExp)
   }
   deriving (Show, Generic)
 
-deriveFromJSON toOptionFieldName ''Settings
+deriveFromJSON defaultOptions ''Settings
 
-makeLenses ''Settings
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Settings
 
 -- | Options consist of information the server needs to operate, and 'Settings'
 -- modify the behavior.
 data Opts = Opts
   { -- | Hostname and port to bind to
-    _cargohold :: !Endpoint,
-    _aws :: !AWSOpts,
-    _settings :: !Settings,
+    cargohold :: !Endpoint,
+    aws :: !AWSOpts,
+    settings :: !Settings,
     -- | Federator endpoint
-    _federator :: Maybe Endpoint,
+    federator :: Maybe Endpoint,
     -- | Brig endpoint
-    _brig :: !Endpoint,
+    brig :: !Endpoint,
     -- Logging
 
     -- | Log level (Debug, Info, etc)
-    _logLevel :: !Level,
+    logLevel :: !Level,
     -- | Use netstrings encoding:
     --   <http://cr.yp.to/proto/netstrings.txt>
-    _logNetStrings :: !(Maybe (Last Bool)),
-    _logFormat :: !(Maybe (Last LogFormat)) --- ^ Log format
+    logNetStrings :: !(Maybe (Last Bool)),
+    logFormat :: !(Maybe (Last LogFormat)) --- ^ Log format
   }
   deriving (Show, Generic)
 
-deriveFromJSON toOptionFieldName ''Opts
+deriveFromJSON defaultOptions ''Opts
 
-makeLenses ''Opts
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Opts

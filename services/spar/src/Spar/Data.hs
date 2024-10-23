@@ -23,7 +23,6 @@ module Spar.Data
     mkTTLAssertions,
     nominalDiffToSeconds,
     mkTTLAuthnRequests,
-    mkTTLAuthnRequestsNDT,
 
     -- * SAML Users
     NormalizedUNameID (..),
@@ -74,9 +73,6 @@ mkEnv opts now =
 
 mkTTLAuthnRequests :: (MonadError TTLError m) => Env -> UTCTime -> m (TTL "authreq")
 mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
-
-mkTTLAuthnRequestsNDT :: (MonadError TTLError m) => Env -> NominalDiffTime -> m (TTL "authreq")
-mkTTLAuthnRequestsNDT (Env _ maxttl _) = mkTTLNDT maxttl
 
 mkTTLAssertions :: (MonadError TTLError m) => Env -> UTCTime -> m (TTL "authresp")
 mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl

@@ -41,14 +41,14 @@ import Wire.API.Team.Permission
         SetMemberPermissions,
         SetTeamData
       ),
-    Permissions (Permissions, _copy, _self),
+    Permissions (Permissions, copy, self),
   )
 
 testObject_NewTeamMember_team_1 :: NewTeamMember
 testObject_NewTeamMember_team_1 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000002-0000-0007-0000-000200000002")))
-    (Permissions {_self = fromList [], _copy = fromList []})
+    (Permissions {self = fromList [], copy = fromList []})
     ( Just
         ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000004")),
           fromJust (readUTCTimeMillis "1864-05-04T12:59:54.182Z")
@@ -60,7 +60,7 @@ testObject_NewTeamMember_team_2 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000200000003")))
     ( Permissions
-        { _self =
+        { self =
             fromList
               [ CreateConversation,
                 DeleteConversation,
@@ -69,7 +69,7 @@ testObject_NewTeamMember_team_2 =
                 AddRemoveConvMember,
                 ModifyConvName
               ],
-          _copy = fromList [DeleteConversation, AddRemoveConvMember]
+          copy = fromList [DeleteConversation, AddRemoveConvMember]
         }
     )
     ( Just
@@ -83,10 +83,10 @@ testObject_NewTeamMember_team_3 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000008-0000-0008-0000-000700000005")))
     ( Permissions
-        { _self =
+        { self =
             fromList
               [CreateConversation, DeleteConversation, RemoveTeamMember, GetBilling, DeleteTeam],
-          _copy = fromList [CreateConversation, DeleteConversation, GetBilling]
+          copy = fromList [CreateConversation, DeleteConversation, GetBilling]
         }
     )
     ( Just
@@ -100,8 +100,8 @@ testObject_NewTeamMember_team_4 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000700000005")))
     ( Permissions
-        { _self = fromList [CreateConversation, AddTeamMember, SetTeamData],
-          _copy = fromList [CreateConversation, SetTeamData]
+        { self = fromList [CreateConversation, AddTeamMember, SetTeamData],
+          copy = fromList [CreateConversation, SetTeamData]
         }
     )
     Nothing
@@ -110,7 +110,7 @@ testObject_NewTeamMember_team_5 :: NewTeamMember
 testObject_NewTeamMember_team_5 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")))
-    (Permissions {_self = fromList [AddTeamMember, SetBilling, GetTeamConversations], _copy = fromList [AddTeamMember]})
+    (Permissions {self = fromList [AddTeamMember, SetBilling, GetTeamConversations], copy = fromList [AddTeamMember]})
     ( Just
         ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000600000006")),
           fromJust (readUTCTimeMillis "1864-05-12T23:29:05.832Z")
@@ -122,10 +122,10 @@ testObject_NewTeamMember_team_6 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000002-0000-0006-0000-000400000003")))
     ( Permissions
-        { _self =
+        { self =
             fromList
               [CreateConversation, DeleteConversation, GetBilling, SetTeamData, SetMemberPermissions],
-          _copy = fromList [CreateConversation, GetBilling]
+          copy = fromList [CreateConversation, GetBilling]
         }
     )
     ( Just
@@ -139,10 +139,10 @@ testObject_NewTeamMember_team_7 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000007-0000-0004-0000-000500000005")))
     ( Permissions
-        { _self =
+        { self =
             fromList
               [AddTeamMember, RemoveTeamMember, ModifyConvName, GetTeamConversations, DeleteTeam],
-          _copy = fromList [AddTeamMember]
+          copy = fromList [AddTeamMember]
         }
     )
     ( Just
@@ -156,8 +156,8 @@ testObject_NewTeamMember_team_8 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000008-0000-0003-0000-000200000003")))
     ( Permissions
-        { _self = fromList [ModifyConvName],
-          _copy = fromList [ModifyConvName]
+        { self = fromList [ModifyConvName],
+          copy = fromList [ModifyConvName]
         }
     )
     ( Just
@@ -170,7 +170,7 @@ testObject_NewTeamMember_team_9 :: NewTeamMember
 testObject_NewTeamMember_team_9 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000001-0000-0008-0000-000300000004")))
-    (Permissions {_self = fromList [SetBilling], _copy = fromList []})
+    (Permissions {self = fromList [SetBilling], copy = fromList []})
     ( Just
         ( Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000700000000")),
           fromJust (readUTCTimeMillis "1864-05-08T10:27:23.240Z")
@@ -181,7 +181,7 @@ testObject_NewTeamMember_team_10 :: NewTeamMember
 testObject_NewTeamMember_team_10 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000008-0000-0003-0000-000600000003")))
-    (Permissions {_self = fromList [GetBilling], _copy = fromList []})
+    (Permissions {self = fromList [GetBilling], copy = fromList []})
     ( Just
         ( Id (fromJust (UUID.fromString "00000004-0000-0006-0000-000600000008")),
           fromJust (readUTCTimeMillis "1864-05-15T10:49:54.418Z")
@@ -193,8 +193,8 @@ testObject_NewTeamMember_team_11 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000000000002")))
     ( Permissions
-        { _self = fromList [CreateConversation, ModifyConvName, SetTeamData],
-          _copy = fromList []
+        { self = fromList [CreateConversation, ModifyConvName, SetTeamData],
+          copy = fromList []
         }
     )
     ( Just
@@ -207,7 +207,7 @@ testObject_NewTeamMember_team_12 :: NewTeamMember
 testObject_NewTeamMember_team_12 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000007")))
-    (Permissions {_self = fromList [SetBilling, SetTeamData, GetTeamConversations], _copy = fromList []})
+    (Permissions {self = fromList [SetBilling, SetTeamData, GetTeamConversations], copy = fromList []})
     Nothing
 
 testObject_NewTeamMember_team_13 :: NewTeamMember
@@ -215,8 +215,8 @@ testObject_NewTeamMember_team_13 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000600000001")))
     ( Permissions
-        { _self = fromList [AddTeamMember, AddRemoveConvMember, SetTeamData, GetTeamConversations],
-          _copy = fromList [AddTeamMember, AddRemoveConvMember, GetTeamConversations]
+        { self = fromList [AddTeamMember, AddRemoveConvMember, SetTeamData, GetTeamConversations],
+          copy = fromList [AddTeamMember, AddRemoveConvMember, GetTeamConversations]
         }
     )
     Nothing
@@ -226,10 +226,10 @@ testObject_NewTeamMember_team_14 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000500000004")))
     ( Permissions
-        { _self =
+        { self =
             fromList
               [CreateConversation, DeleteConversation, ModifyConvName, GetBilling],
-          _copy = fromList []
+          copy = fromList []
         }
     )
     ( Just
@@ -243,8 +243,8 @@ testObject_NewTeamMember_team_15 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000800000007")))
     ( Permissions
-        { _self = fromList [RemoveTeamMember, GetMemberPermissions, DeleteTeam],
-          _copy = fromList [RemoveTeamMember, GetMemberPermissions]
+        { self = fromList [RemoveTeamMember, GetMemberPermissions, DeleteTeam],
+          copy = fromList [RemoveTeamMember, GetMemberPermissions]
         }
     )
     ( Just
@@ -258,8 +258,8 @@ testObject_NewTeamMember_team_16 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000000-0000-0006-0000-000300000005")))
     ( Permissions
-        { _self = fromList [CreateConversation, RemoveTeamMember, GetBilling, GetTeamConversations, DeleteTeam],
-          _copy = fromList []
+        { self = fromList [CreateConversation, RemoveTeamMember, GetBilling, GetTeamConversations, DeleteTeam],
+          copy = fromList []
         }
     )
     Nothing
@@ -268,7 +268,7 @@ testObject_NewTeamMember_team_17 :: NewTeamMember
 testObject_NewTeamMember_team_17 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000400000005")))
-    (Permissions {_self = fromList [], _copy = fromList []})
+    (Permissions {self = fromList [], copy = fromList []})
     ( Just
         ( Id (fromJust (UUID.fromString "00000004-0000-0008-0000-000800000007")),
           fromJust (readUTCTimeMillis "1864-05-07T21:53:30.897Z")
@@ -279,7 +279,7 @@ testObject_NewTeamMember_team_18 :: NewTeamMember
 testObject_NewTeamMember_team_18 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000006-0000-0003-0000-000000000001")))
-    (Permissions {_self = fromList [], _copy = fromList []})
+    (Permissions {self = fromList [], copy = fromList []})
     ( Just
         ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000500000002")),
           fromJust (readUTCTimeMillis "1864-05-11T12:32:01.417Z")
@@ -291,8 +291,8 @@ testObject_NewTeamMember_team_19 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000004-0000-0005-0000-000100000008")))
     ( Permissions
-        { _self = fromList [DeleteConversation, RemoveTeamMember, SetBilling, SetMemberPermissions],
-          _copy = fromList [DeleteConversation, SetBilling]
+        { self = fromList [DeleteConversation, RemoveTeamMember, SetBilling, SetMemberPermissions],
+          copy = fromList [DeleteConversation, SetBilling]
         }
     )
     Nothing
@@ -302,7 +302,7 @@ testObject_NewTeamMember_team_20 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000000000004")))
     ( Permissions
-        { _self =
+        { self =
             fromList
               [ AddTeamMember,
                 AddRemoveConvMember,
@@ -311,7 +311,7 @@ testObject_NewTeamMember_team_20 =
                 GetMemberPermissions,
                 GetTeamConversations
               ],
-          _copy = fromList []
+          copy = fromList []
         }
     )
     ( Just

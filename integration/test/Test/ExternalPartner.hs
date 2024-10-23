@@ -29,7 +29,7 @@ testExternalPartnerPermissions :: (HasCallStack) => App ()
 testExternalPartnerPermissions = do
   (owner, tid, u1 : u2 : u3 : _) <- createTeam OwnDomain 4
 
-  partner <- createTeamMemberWithRole owner tid "partner"
+  partner <- createTeamMember owner def {role = "partner"}
 
   -- a partner should not be able to create conversation with 2 additional users or more
   void $ postConversation partner (defProteus {team = Just tid, qualifiedUsers = [u1, u2]}) >>= getJSON 403
@@ -58,23 +58,23 @@ testExternalPartnerPermissions = do
 testExternalPartnerPermissionsMls :: (HasCallStack) => App ()
 testExternalPartnerPermissionsMls = do
   -- external partners should not be able to create (MLS) conversations
-  (owner, tid, _) <- createTeam OwnDomain 2
-  bobExt <- createTeamMemberWithRole owner tid "partner"
+  (owner, _, _) <- createTeam OwnDomain 2
+  bobExt <- createTeamMember owner def {role = "partner"}
   bobExtClient <- createMLSClient def bobExt
   bindResponse (postConversation bobExtClient defMLS) $ \resp -> do
     resp.status `shouldMatchInt` 403
 
 testExternalPartnerPermissionMlsOne2One :: (HasCallStack) => App ()
 testExternalPartnerPermissionMlsOne2One = do
-  (owner, tid, alice : _) <- createTeam OwnDomain 2
-  bobExternal <- createTeamMemberWithRole owner tid "partner"
+  (owner, _, alice : _) <- createTeam OwnDomain 2
+  bobExternal <- createTeamMember owner def {role = "partner"}
   void $ getMLSOne2OneConversation alice bobExternal >>= getJSON 200
 
 testExternalPartnerPermissionsConvName :: (HasCallStack) => App ()
 testExternalPartnerPermissionsConvName = do
   (owner, tid, u1 : _) <- createTeam OwnDomain 2
 
-  partner <- createTeamMemberWithRole owner tid "partner"
+  partner <- createTeamMember owner def {role = "partner"}
 
   conv <- postConversation partner (defProteus {team = Just tid, qualifiedUsers = [u1]}) >>= getJSON 201
 

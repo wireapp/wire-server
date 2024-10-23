@@ -17,6 +17,7 @@
 
 module Test.Wire.API.Golden.Runner
   ( testObjects,
+    testToJSON,
     protoTestObjects,
     testFromJSONFailure,
     testFromJSONFailureWithMsg,
@@ -46,8 +47,19 @@ testObjects = fmap (\(obj, path) -> testCase path $ testObject obj path)
 
 testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> Assertion
 testObject obj path = do
+  assertJSONIsGolden obj path
+  assertEqual
+    (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object")
+    (Success obj)
+    (fromJSON $ toJSON obj)
+
+testToJSON :: forall a. (Typeable a, ToJSON a) => a -> FilePath -> TestTree
+testToJSON obj path = testCase path $ assertJSONIsGolden obj path
+
+assertJSONIsGolden :: forall a. (Typeable a, ToJSON a) => a -> FilePath -> Assertion
+assertJSONIsGolden obj path = do
   let actualValue = toJSON obj :: Value
-      actualJson = encodePretty' config actualValue
+      actualJson = encodePretty' encodeConfig actualValue
       dir = "test/golden"
       fullPath = dir <> "/" <> path
   createDirectoryIfMissing True dir
@@ -60,20 +72,17 @@ testObject obj path = do
         <> ": ToJSON should match golden file: "
         <> path
         <> "\n\nexpected:\n"
-        <> cs (encodePretty' config expectedValue)
+        <> cs (encodePretty' encodeConfig expectedValue)
         <> "\n\nactual:\n"
-        <> cs (encodePretty' config actualValue)
+        <> cs (encodePretty' encodeConfig actualValue)
         <> "\n\ndiff:\n"
-        <> cs (encodePretty' config (AD.diff expectedValue actualValue))
+        <> cs (encodePretty' encodeConfig (AD.diff expectedValue actualValue))
     )
     (expectedValue == actualValue)
-  assertEqual
-    (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object")
-    (Success obj)
-    (fromJSON actualValue)
   assertBool ("JSON golden file " <> path <> " does not exist") exists
-  where
-    config = defConfig {confCompare = compare, confTrailingNewline = True}
+
+encodeConfig :: Config
+encodeConfig = defConfig {confCompare = compare, confTrailingNewline = True}
 
 protoTestObjects ::
   forall m a.

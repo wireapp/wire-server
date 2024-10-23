@@ -7,6 +7,7 @@
 , bytestring
 , containers
 , deepseq
+, either
 , extra
 , gitignoreSource
 , lib
@@ -26,6 +27,7 @@ mkDerivation {
     bytestring
     containers
     deepseq
+    either
     extra
     mtl
     text

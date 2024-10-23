@@ -44,11 +44,14 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
+import Wire.API.MLS.Keys
 import Wire.API.MLS.SubConversation
-import Wire.API.MakesFederatedCall
 import Wire.API.Message
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.SpecialiseToVersion
+import Wire.API.Routes.Version qualified as ClientAPI
+import Wire.API.Routes.Versioned qualified as ClientAPI
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -66,59 +69,45 @@ type GalleyApi =
   FedEndpoint "on-conversation-created" (ConversationCreated ConvId) EmptyResponse
     -- This endpoint is called the first time a user from this backend is
     -- added to a remote conversation.
-    :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
+    :<|> Named
+           "get-conversations@v1"
+           ( UnnamedFedEndpointWithMods
+               '[Until 'V2]
+               "get-conversations"
+               GetConversationsRequest
+               GetConversationsResponse
+           )
     :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Brig "get-users-by-ids",
-              MakesFederatedCall 'Brig "api-version"
-            ]
+           '[From 'V2]
+           "get-conversations"
+           GetConversationsRequest
+           GetConversationsResponseV2
+    :<|> FedEndpoint
            "leave-conversation"
            LeaveConversationRequest
            LeaveConversationResponse
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-message-sent",
-              MakesFederatedCall 'Brig "get-user-clients"
-            ]
+    :<|> FedEndpoint
            "send-message"
            ProteusMessageSendRequest
            MessageSendResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Brig "get-users-by-ids",
-              MakesFederatedCall 'Galley "on-mls-message-sent"
-            ]
+    :<|> FedEndpoint
            "update-conversation"
            ConversationUpdateRequest
            ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "send-mls-message",
-              MakesFederatedCall 'Brig "get-mls-clients"
-            ]
+    :<|> FedEndpoint
            "send-mls-message"
            MLSMessageSendRequest
            MLSMessageResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "mls-welcome",
-              MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "send-mls-commit-bundle",
-              MakesFederatedCall 'Brig "get-mls-clients",
-              MakesFederatedCall 'Brig "get-users-by-ids",
-              MakesFederatedCall 'Brig "api-version"
-            ]
+    :<|> FedEndpoint
            "send-mls-commit-bundle"
            MLSMessageSendRequest
            MLSMessageResponse
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
     :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-typing-indicator-updated"
+           '[
             ]
            "update-typing-indicator"
            TypingDataUpdateRequest
@@ -137,17 +126,24 @@ type GalleyApi =
            DeleteSubConversationFedRequest
            DeleteSubConversationResponse
     :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-              From 'V1
+           '[ From 'V1
             ]
            "leave-sub-conversation"
            LeaveSubConversationRequest
            LeaveSubConversationResponse
+    :<|> Named
+           "get-one2one-conversation@v1"
+           ( UnnamedFedEndpointWithMods
+               '[From 'V1, Until 'V2]
+               "get-one2one-conversation"
+               GetOne2OneConversationRequest
+               GetOne2OneConversationResponse
+           )
     :<|> FedEndpointWithMods
-           '[From 'V1]
+           '[From 'V2]
            "get-one2one-conversation"
            GetOne2OneConversationRequest
-           GetOne2OneConversationResponse
+           GetOne2OneConversationResponseV2
     -- All the notification endpoints that go through the queue-based
     -- federation client ('fedQueueClient').
     :<|> GalleyNotificationAPI
@@ -226,13 +222,49 @@ data RemoteConversation = RemoteConversation
     id :: ConvId,
     metadata :: ConversationMetadata,
     members :: RemoteConvMembers,
-    protocol :: Protocol
+    protocol :: ClientAPI.Versioned 'ClientAPI.V5 Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteConversation)
   deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversation)
 
 instance ToSchema RemoteConversation
+
+-- | A conversation hosted on a remote backend. This contains the same
+-- information as a 'Conversation', with the exception that conversation status
+-- fields (muted\/archived\/hidden) are omitted, since they are not known by the
+-- remote backend.
+data RemoteConversationV2 = RemoteConversationV2
+  { -- | Id of the conversation, implicitly qualified with the domain of the
+    -- backend that created this value.
+    id :: ConvId,
+    metadata :: ConversationMetadata,
+    members :: RemoteConvMembers,
+    protocol :: Protocol
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteConversationV2)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversationV2)
+
+instance ToSchema RemoteConversationV2
+
+remoteConversationFromV2 :: RemoteConversationV2 -> RemoteConversation
+remoteConversationFromV2 rc =
+  RemoteConversation
+    { id = rc.id,
+      metadata = rc.metadata,
+      members = rc.members,
+      protocol = ClientAPI.Versioned rc.protocol
+    }
+
+remoteConversationToV2 :: RemoteConversation -> RemoteConversationV2
+remoteConversationToV2 rc =
+  RemoteConversationV2
+    { id = rc.id,
+      metadata = rc.metadata,
+      members = rc.members,
+      protocol = rc.protocol.unVersioned
+    }
 
 newtype GetConversationsResponse = GetConversationsResponse
   { convs :: [RemoteConversation]
@@ -242,6 +274,21 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
 
 instance ToSchema GetConversationsResponse
+
+newtype GetConversationsResponseV2 = GetConversationsResponseV2
+  { convs :: [RemoteConversationV2]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetConversationsResponseV2)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponseV2)
+
+instance ToSchema GetConversationsResponseV2
+
+getConversationsResponseToV2 :: GetConversationsResponse -> GetConversationsResponseV2
+getConversationsResponseToV2 res = GetConversationsResponseV2 (map remoteConversationToV2 res.convs)
+
+getConversationsResponseFromV2 :: GetConversationsResponseV2 -> GetConversationsResponse
+getConversationsResponseFromV2 res = GetConversationsResponse (map remoteConversationFromV2 res.convs)
 
 data GetOne2OneConversationResponse
   = GetOne2OneConversationOk RemoteConversation
@@ -256,6 +303,29 @@ data GetOne2OneConversationResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationResponse)
 
 instance ToSchema GetOne2OneConversationResponse
+
+data GetOne2OneConversationResponseV2
+  = GetOne2OneConversationV2Ok RemoteMLSOne2OneConversation
+  | -- | This is returned when the local backend is asked for a 1-1 conversation
+    -- that should reside on the other backend.
+    GetOne2OneConversationV2BackendMismatch
+  | -- | This is returned when a 1-1 conversation between two unconnected users
+    -- is requested.
+    GetOne2OneConversationV2NotConnected
+  | GetOne2OneConversationV2MLSNotEnabled
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationResponseV2)
+
+instance ToSchema GetOne2OneConversationResponseV2
+
+data RemoteMLSOne2OneConversation = RemoteMLSOne2OneConversation
+  { conversation :: RemoteConversationV2,
+    publicKeys :: MLSKeysByPurpose MLSPublicKeys
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSOne2OneConversation)
+
+instance ToSchema RemoteMLSOne2OneConversation
 
 -- | A record type describing a new federated conversation
 --

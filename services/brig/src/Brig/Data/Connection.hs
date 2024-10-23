@@ -21,7 +21,6 @@ module Brig.Data.Connection
     updateConnection,
     updateConnectionStatus,
     lookupConnection,
-    lookupRelation,
     lookupLocalConnectionsPage,
     lookupRemoteConnectionsPage,
     lookupRelationWithHistory,
@@ -33,17 +32,14 @@ module Brig.Data.Connection
     lookupLocalConnectionStatuses,
     lookupRemoteConnectionStatuses,
     lookupAllStatuses,
-    lookupRemoteConnectedUsersC,
     lookupRemoteConnectedUsersPaginated,
     countConnections,
     deleteConnections,
     deleteRemoteConnections,
-    deleteRemoteConnectionsDomain,
     remoteConnectionInsert,
     remoteConnectionSelect,
     remoteConnectionSelectFrom,
     remoteConnectionDelete,
-    remoteConnectionSelectFromDomain,
     remoteConnectionClear,
 
     -- * Re-exports
@@ -56,7 +52,7 @@ import Brig.Data.Types as T
 import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
-import Data.Conduit (ConduitT, runConduit, (.|))
+import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as C
 import Data.Domain (Domain)
 import Data.Id
@@ -153,12 +149,6 @@ lookupRelationWithHistory self target = do
   let remote (tUntagged -> Qualified rtarget domain) =
         query1 remoteRelationSelect (params LocalQuorum (tUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
-
-lookupRelation :: (MonadClient m) => Local UserId -> Qualified UserId -> m Relation
-lookupRelation self target =
-  lookupRelationWithHistory self target <&> \case
-    Nothing -> Cancelled
-    Just relh -> (relationDropHistory relh)
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
 lookupLocalConnections ::
@@ -267,11 +257,6 @@ lookupAllStatuses lfroms = do
       map (\(d, u, r) -> toConnectionStatusV2 from d u r)
         <$> retry x1 (query remoteRelationsSelectAll (params LocalQuorum (Identity from)))
 
-lookupRemoteConnectedUsersC :: forall m. (MonadClient m) => Local UserId -> Int32 -> ConduitT () [Remote UserConnection] m ()
-lookupRemoteConnectedUsersC u maxResults =
-  paginateC remoteConnectionSelect (paramsP LocalQuorum (Identity (tUnqualified u)) maxResults) x1
-    .| C.map (\xs -> map (\x@(d, _, _, _, _, _) -> toRemoteUnsafe d (toRemoteUserConnection u x)) xs)
-
 lookupRemoteConnectedUsersPaginated :: (MonadClient m) => Local UserId -> Int32 -> m (Page (Remote UserConnection))
 lookupRemoteConnectedUsersPaginated u maxResults = do
   (\x@(d, _, _, _, _, _) -> toRemoteUnsafe d (toRemoteUserConnection u x)) <$$> retry x1 (paginate remoteConnectionSelect (paramsP LocalQuorum (Identity (tUnqualified u)) maxResults))
@@ -328,14 +313,6 @@ deleteRemoteConnections ::
 deleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->
     write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
-
-deleteRemoteConnectionsDomain :: (MonadClient m, MonadUnliftIO m) => Domain -> m ()
-deleteRemoteConnectionsDomain dom = do
-  -- Select all triples for the given domain, and then delete them
-  runConduit $
-    paginateC remoteConnectionSelectFromDomain (paramsP LocalQuorum (pure dom) 100) x1
-      .| C.mapM_
-        (pooledMapConcurrentlyN_ 16 $ write remoteConnectionDelete . params LocalQuorum)
 
 -- Queries
 
@@ -398,9 +375,6 @@ remoteConnectionUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDA
 
 remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
 remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
-
-remoteConnectionSelectFromDomain :: PrepQuery R (Identity Domain) (UserId, Domain, UserId)
-remoteConnectionSelectFromDomain = "SELECT left, right_domain, right_user FROM connection_remote where right_domain = ?"
 
 remoteConnectionClear :: PrepQuery W (Identity UserId) ()
 remoteConnectionClear = "DELETE FROM connection_remote where left = ?"

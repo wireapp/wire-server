@@ -83,7 +83,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- and 'developmentVersions' stay in sync; everything else here should keep working without
 -- change.  See also documentation in the *docs* directory.
 -- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
-data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6
+data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
@@ -102,6 +102,7 @@ versionInt V3 = 3
 versionInt V4 = 4
 versionInt V5 = 5
 versionInt V6 = 6
+versionInt V7 = 7
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
@@ -211,6 +212,7 @@ isDevelopmentVersion V2 = False
 isDevelopmentVersion V3 = False
 isDevelopmentVersion V4 = False
 isDevelopmentVersion V5 = False
+isDevelopmentVersion V6 = False
 isDevelopmentVersion _ = True
 
 developmentVersions :: [Version]

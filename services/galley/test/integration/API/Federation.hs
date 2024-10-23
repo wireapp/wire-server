@@ -137,7 +137,7 @@ getConversationsAllFound = do
 
   fedGalleyClient <- view tsFedGalleyClient
 
-  GetConversationsResponse convs <-
+  GetConversationsResponseV2 convs <-
     runFedClient @"get-conversations" fedGalleyClient (qDomain aliceQ) $
       GetConversationsRequest
         (qUnqualified aliceQ)
@@ -159,6 +159,7 @@ getConversationsAllFound = do
       (Just (sort [bob, qUnqualified carlQ]))
       (fmap (sort . map (qUnqualified . omQualifiedId) . (.members.others)) c2)
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that via a federation client a user cannot fetch
 -- conversation details of a conversation they are not part of: they get an
@@ -182,10 +183,12 @@ getConversationsNotPartOf = do
 
   fedGalleyClient <- view tsFedGalleyClient
   rando <- Id <$> liftIO nextRandom
-  GetConversationsResponse convs <-
+  GetConversationsResponseV2 convs <-
     runFedClient @"get-conversations" fedGalleyClient localDomain $
       GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1]
   liftIO $ assertEqual "conversation list not empty" [] convs
+
+-- @END
 
 onConvCreated :: TestM ()
 onConvCreated = do
@@ -916,27 +919,3 @@ sendMessage = do
       -- check that alice received the message
       WS.assertMatch_ (5 # Second) ws $
         wsAssertOtr' "" conv bob bobClient aliceClient (toBase64Text "hi alice")
-
-getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
-getConvAction tquery (SomeConversationAction tag action) =
-  case (tag, tquery) of
-    (SConversationJoinTag, SConversationJoinTag) -> Just action
-    (SConversationJoinTag, _) -> Nothing
-    (SConversationLeaveTag, SConversationLeaveTag) -> Just action
-    (SConversationLeaveTag, _) -> Nothing
-    (SConversationMemberUpdateTag, SConversationMemberUpdateTag) -> Just action
-    (SConversationMemberUpdateTag, _) -> Nothing
-    (SConversationDeleteTag, SConversationDeleteTag) -> Just action
-    (SConversationDeleteTag, _) -> Nothing
-    (SConversationRenameTag, SConversationRenameTag) -> Just action
-    (SConversationRenameTag, _) -> Nothing
-    (SConversationMessageTimerUpdateTag, SConversationMessageTimerUpdateTag) -> Just action
-    (SConversationMessageTimerUpdateTag, _) -> Nothing
-    (SConversationReceiptModeUpdateTag, SConversationReceiptModeUpdateTag) -> Just action
-    (SConversationReceiptModeUpdateTag, _) -> Nothing
-    (SConversationAccessDataTag, SConversationAccessDataTag) -> Just action
-    (SConversationAccessDataTag, _) -> Nothing
-    (SConversationRemoveMembersTag, SConversationRemoveMembersTag) -> Just action
-    (SConversationRemoveMembersTag, _) -> Nothing
-    (SConversationUpdateProtocolTag, SConversationUpdateProtocolTag) -> Just action
-    (SConversationUpdateProtocolTag, _) -> Nothing

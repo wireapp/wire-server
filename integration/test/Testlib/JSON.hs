@@ -25,6 +25,7 @@ import Data.String
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Vector ((!?))
+import qualified Data.Vector as V
 import GHC.Stack
 import Testlib.Types
 import Prelude
@@ -237,7 +238,10 @@ lookupField val selector = do
         Object ob -> pure (KM.lookup (KM.fromString k) ob)
         -- index array
         Array arr -> case reads k of
-          [(i, "")] -> pure (arr !? i)
+          [(i, "")] ->
+            if i >= 0
+              then pure (arr !? i)
+              else pure (arr !? (V.length arr + i))
           _ -> assertFailureWithJSON arr $ "Invalid array index \"" <> k <> "\""
         x -> assertFailureWithJSON x ("Object or Array" `typeWasExpectedButGot` x)
     go k [] v = get v k
@@ -257,6 +261,23 @@ setField ::
   App Value
 setField selector v x = do
   modifyField @a @Value selector (\_ -> pure (toJSON v)) x
+
+-- | Merges fields if the old and new are both Objects or Arrays. Otherwise new
+-- field overwrites the old completely
+mergeField :: forall a b. (HasCallStack, MakesValue a, ToJSON b) => String -> b -> a -> App Value
+mergeField selector v x = do
+  modifyField @a @Value
+    selector
+    ( \case
+        Just (Object old) -> case toJSON v of
+          (Object new) -> pure $ Object (new <> old)
+          nonObjectNew -> pure nonObjectNew
+        Just (Array old) -> case toJSON v of
+          (Array new) -> pure $ Array (old <> new)
+          nonArrayNew -> pure nonArrayNew
+        _ -> pure (toJSON v)
+    )
+    x
 
 member :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 member k x = KM.member (KM.fromString k) <$> (make x >>= asObject)

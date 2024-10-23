@@ -1,0 +1,8 @@
+{
+    "config": {
+        "useSFTForOneToOneCalls": false
+    },
+    "lockStatus": "unlocked",
+    "status": "disabled",
+    "ttl": "unlimited"
+}

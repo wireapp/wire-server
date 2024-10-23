@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 module Test.Search where
 
 import qualified API.Brig as BrigP
@@ -19,9 +20,9 @@ testSearchContactForExternalUsers = do
   owner <- randomUser OwnDomain def {BrigI.team = True}
   tid <- owner %. "team" & asString
 
-  partner <- createTeamMemberWithRole owner tid "partner"
-  tm1 <- createTeamMember owner tid
-  tm2 <- createTeamMember owner tid
+  partner <- createTeamMember owner def {role = "partner"}
+  tm1 <- createTeamMember owner def
+  tm2 <- createTeamMember owner def
 
   -- a team member can search for contacts
   bindResponse (BrigP.searchContacts tm1 (owner %. "name") OwnDomain) $ \resp ->

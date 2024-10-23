@@ -20,29 +20,69 @@ module Proxy.Run
   )
 where
 
+import Bilge.Request (requestIdName)
+import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Id (RequestId (RequestId), defRequestId)
+import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddlewarePaths)
+import Data.Metrics.Servant
+import Data.Metrics.Types
+import Data.Metrics.WaiRoute
 import Imports hiding (head)
+import Network.Wai (Middleware, Request, requestHeaders)
 import Network.Wai.Middleware.Gunzip qualified as GZip
+import Network.Wai.Routing.Route
 import Network.Wai.Utilities.Server hiding (serverPort)
-import Proxy.API (sitemap)
+import Proxy.API.Internal as I
+import Proxy.API.Public as P
 import Proxy.Env
 import Proxy.Options
 import Proxy.Proxy
+import Servant qualified
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+
+type CombinedAPI = InternalAPI Servant.:<|> PublicAPI
+
+combinedSitemap :: Env -> Servant.ServerT CombinedAPI Proxy
+combinedSitemap env = I.servantSitemap Servant.:<|> P.servantSitemap env
 
 run :: Opts -> IO ()
 run o = do
   e <- createEnv o
   s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e ^. applog)
-  let rtree = compile (sitemap e)
-  let app r k = runProxy e r (route rtree r k)
-  let middleware =
+
+  let metricsMW :: Middleware
+      metricsMW =
+        -- FUTUREWORK: once wai-routing has been removed from proxy: use `servantPrometheusMiddleware
+        -- (Servant.Proxy @CombinedAPI)` here (and probably inline the whole thing).
+        waiPrometheusMiddlewarePaths (pub <> int)
+        where
+          pub, int :: Paths
+          pub = treeToPaths $ prepare (P.waiRoutingSitemap e)
+          int = routesToPaths @InternalAPI
+
+      middleware :: Middleware
+      middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
           . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
-          . waiPrometheusMiddleware (sitemap e)
+          . metricsMW
           . GZip.gunzip
           . catchErrors (e ^. applog) defaultRequestIdHeaderName
-  runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e
+
+  runSettingsWithShutdown s (middleware (mkApp e)) Nothing `finally` destroyEnv e
+
+mkApp :: Env -> Servant.Application
+mkApp env req = Servant.serve (Servant.Proxy @CombinedAPI) toServantSitemap req
+  where
+    toServantSitemap :: Servant.Server CombinedAPI
+    toServantSitemap = Servant.hoistServer (Servant.Proxy @CombinedAPI) toServantHandler (combinedSitemap env)
+
+    toServantHandler :: Proxy a -> Servant.Handler a
+    toServantHandler p = Servant.Handler . ExceptT $ Right <$> runProxy (injectReqId req env) p
+
+    injectReqId :: Request -> Env -> Env
+    injectReqId r = reqId .~ lookupReqId r
+      where
+        lookupReqId = RequestId . fromMaybe defRequestId . lookup requestIdName . requestHeaders

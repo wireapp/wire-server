@@ -2,9 +2,9 @@
     "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
     "data": {
         "code": "7d6713",
+        "has_password": false,
         "key": "CRdONS7988O2QdyndJs1",
-        "uri": "https://example.com",
-        "has_password": false
+        "uri": "https://example.com"
     },
     "from": "2126ea99-ca79-43ea-ad99-a59616468e8e",
     "qualified_conversation": {

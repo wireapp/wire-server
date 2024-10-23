@@ -72,9 +72,6 @@ textPlainMime = MIME.Text $ T.pack "plain"
 multipartMixedMime :: String
 multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
-mimeTypeToString :: MIME.MIMEType -> String
-mimeTypeToString = T.unpack . MIME.showMIMEType
-
 buildUploadAssetRequestBody ::
   (HasCallStack, MakesValue assetRetention) =>
   Bool ->

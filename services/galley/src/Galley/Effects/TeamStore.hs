@@ -90,6 +90,7 @@ import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Conversation
+import Wire.API.Team.Feature
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Permission
 import Wire.Sem.Paging
@@ -124,6 +125,8 @@ data TeamStore m a where
     Maybe (PagingState CassandraPaging TeamMember) ->
     PagingBounds CassandraPaging TeamMember ->
     TeamStore m (Page CassandraPaging TeamMember)
+  -- FUTUREWORK(mangoiv): this should be a single 'TeamId' (@'Maybe' 'TeamId'@), there's no way
+  -- a user could be part of multiple teams
   GetUserTeams :: UserId -> TeamStore m [TeamId]
   GetUsersTeams :: [UserId] -> TeamStore m (Map UserId TeamId)
   GetOneUserTeam :: UserId -> TeamStore m (Maybe TeamId)
@@ -135,7 +138,7 @@ data TeamStore m a where
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
   FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)
-  GetLegalHoldFlag :: TeamStore m FeatureLegalHold
+  GetLegalHoldFlag :: TeamStore m (FeatureDefaults LegalholdConfig)
   EnqueueTeamEvent :: E.TeamEvent -> TeamStore m ()
 
 makeSem ''TeamStore

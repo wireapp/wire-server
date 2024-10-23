@@ -7,6 +7,7 @@ import qualified Data.Set as Set
 import MLS.Util
 import Notifications
 import SetupHelpers
+import Test.MLS.One2One
 import Testlib.Prelude
 
 testJoinSubConv :: App ()
@@ -29,6 +30,60 @@ testJoinSubConv = do
   void
     $ createExternalCommit alice1 Nothing
     >>= sendAndConsumeCommitBundle
+
+testJoinOne2OneSubConv :: App ()
+testJoinOne2OneSubConv = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetOne2OneGroup alice1 one2OneConv
+
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  createOne2OneSubConv bob1 "conference" (one2OneConv %. "public_keys")
+
+  -- bob adds his first client to the subconversation
+  sub' <- getSubConversation bob (one2OneConv %. "conversation") "conference" >>= getJSON 200
+  do
+    tm <- sub' %. "epoch_timestamp"
+    assertBool "Epoch timestamp should not be null" (tm /= Null)
+
+  -- now alice joins with her own client
+  void
+    $ createExternalCommit alice1 Nothing
+    >>= sendAndConsumeCommitBundle
+
+testLeaveOne2OneSubConv :: One2OneScenario -> Leaver -> App ()
+testLeaveOne2OneSubConv scenario leaver = do
+  -- set up 1-1 conversation
+  alice <- randomUser OwnDomain def
+  let otherDomain = one2OneScenarioUserDomain scenario
+      convDomain = one2OneScenarioConvDomain scenario
+  bob <- createMLSOne2OnePartner otherDomain alice convDomain
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetOne2OneGroup alice1 one2OneConv
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  -- create and join subconversation
+  createOne2OneSubConv alice1 "conference" (one2OneConv %. "public_keys")
+  void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- one of the two clients leaves
+  let (leaverClient, leaverIndex, remainingClient) = case leaver of
+        Alice -> (alice1, 0, bob1)
+        Bob -> (bob1, 1, alice1)
+
+  withWebSocket remainingClient $ \ws -> do
+    leaveCurrentConv leaverClient
+
+    msg <- consumeMessage remainingClient Nothing ws
+    msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leaverIndex
+    msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+  -- the other client commits the pending proposal
+  void $ createPendingProposalCommit remainingClient >>= sendAndConsumeCommitBundle
 
 testDeleteParentOfSubConv :: (HasCallStack) => Domain -> App ()
 testDeleteParentOfSubConv secondDomain = do
@@ -205,7 +260,7 @@ testCreatorRemovesUserFromParent = do
     setMLSState childState
     let idxBob1 :: Int = 1
         idxBob2 :: Int = 2
-    for_ ((,) <$> [idxBob1, idxBob2] <*> [alice1, charlie1, charlie2] `zip` wss) \(idx, (consumer, ws)) -> do
+    for_ ((,) <$> [idxBob1, idxBob2] <*> wss) \(idx, ws) -> do
       msg <-
         awaitMatch
           do
@@ -222,9 +277,8 @@ testCreatorRemovesUserFromParent = do
                 lift do
                   (== idx) <$> (prop %. "Remove.removed" & asInt)
           ws
-      msg %. "payload.0.data"
-        & asByteString
-          >>= mlsCliConsume consumer
+      for_ ws.client $ \consumer ->
+        msg %. "payload.0.data" & asByteString >>= mlsCliConsume consumer
 
     -- remove bob from the child state
     modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}

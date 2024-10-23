@@ -41,18 +41,19 @@ import Imports
 import Network.Wai.Utilities.Error qualified as Error
 import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty hiding (Timeout)
-import Test.Tasty.Cannon hiding (Cannon)
+import Test.Tasty.Cannon hiding (Cannon, Timeout)
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Util.Timeout
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Handle
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =
   testGroup
     "handles"
@@ -69,6 +70,7 @@ tests _cl _at conf p b c g =
     ]
 
 -- The next line contains a mapping from the testHandleUpdate test to the following test standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test validates various updates to the user's handle. First, it attempts
 -- to set invalid handles. This fails. Then it successfully sets a valid handle.
@@ -139,6 +141,8 @@ testHandleUpdate brig cannon = do
   put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update)
     !!! const 200 === statusCode
 
+-- @END
+
 testHandleRace :: Brig -> Http ()
 testHandleRace brig = do
   us <- replicateM 10 (userId <$> randomUser brig)
@@ -193,7 +197,7 @@ testHandleQuery opts brig = do
   -- Usually, you can search outside your team
   assertCanFind brig user3 user4
   -- Usually, you can search outside your team but not if this config option is set
-  let newOpts = opts & ((Opt.optionSettings . Opt.searchSameTeamOnly) ?~ True)
+  let newOpts = opts & ((Opt.settingsLens . Opt.searchSameTeamOnlyLens) ?~ True)
   withSettingsOverrides newOpts $
     assertCannotFind brig user3 user4
 

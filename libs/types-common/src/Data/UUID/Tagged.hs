@@ -22,17 +22,14 @@ module Data.UUID.Tagged
     V5,
     Version (..),
     version,
-    variant,
     addv4,
     unpack,
-    create,
     mk,
   )
 where
 
 import Data.Bits
 import Data.UUID qualified as D
-import Data.UUID.V4 qualified as D4
 import Imports
 
 -- | Versioned UUID.
@@ -68,10 +65,6 @@ mk u = UUID $
         (retainVariant 2 x2)
         x3
 
--- | Create a fresh UUIDv4.
-create :: IO (UUID V4)
-create = UUID <$> D4.nextRandom
-
 -- | Extract the 'D.UUID' from a versioned UUID.
 unpack :: UUID v -> D.UUID
 unpack (UUID x) = x
@@ -99,12 +92,6 @@ version :: D.UUID -> Word32
 version u =
   let (_, x, _, _) = D.toWords u
    in (x .&. 0x0000F000) `shiftR` 12
-
--- | Tell the variant of a 'D.UUID' value.
-variant :: D.UUID -> Word32
-variant u =
-  let (_, _, x, _) = D.toWords u
-   in (x .&. 0xC0000000) `shiftR` 30
 
 -- Internal:
 

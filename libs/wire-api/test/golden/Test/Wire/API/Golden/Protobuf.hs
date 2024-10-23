@@ -57,6 +57,9 @@ tests =
             ( testObject_QualifiedNewOtrMessage_user_9,
               "testObject_QualifiedNewOtrMessage_user_9.protobuf"
             ),
+            ( testObject_QualifiedNewOtrMessage_user_10,
+              "testObject_QualifiedNewOtrMessage_user_10.protobuf"
+            ),
             ( testObject_QualifiedNewOtrMessage_user_11,
               "testObject_QualifiedNewOtrMessage_user_11.protobuf"
             ),

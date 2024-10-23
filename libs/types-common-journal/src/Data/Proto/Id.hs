@@ -17,13 +17,10 @@
 
 module Data.Proto.Id where
 
-import Data.ByteString.Lazy (fromStrict, toStrict)
+import Data.ByteString.Lazy (toStrict)
 import Data.Id
 import Data.UUID qualified as UUID
 import Imports
 
 toBytes :: Id a -> ByteString
 toBytes = toStrict . UUID.toByteString . toUUID
-
-fromBytes :: ByteString -> Maybe (Id a)
-fromBytes = fmap Id . UUID.fromByteString . fromStrict

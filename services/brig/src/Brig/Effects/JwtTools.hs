@@ -5,7 +5,6 @@ module Brig.Effects.JwtTools where
 import Brig.API.Types (CertEnrollmentError (..))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
-import Data.Either.Extra
 import Data.Handle (Handle, fromHandle)
 import Data.Id
 import Data.Jwt.Tools qualified as Jwt

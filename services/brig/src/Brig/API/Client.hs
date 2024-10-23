@@ -53,7 +53,6 @@ import Brig.App
 import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
-import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -69,13 +68,12 @@ import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra (MonadClient)
 import Control.Error
-import Control.Lens (view)
 import Control.Monad.Trans.Except (except)
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
-import Data.Either.Extra (mapLeft)
+import Data.HavePendingInvitations
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict qualified as Map
@@ -84,13 +82,10 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
-import Data.Time.Clock (UTCTime)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Input (Input)
-import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
@@ -107,15 +102,20 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.DeleteQueue
 import Wire.EmailSubsystem (EmailSubsystem, sendNewClientEmail)
+import Wire.Events (Events)
+import Wire.Events qualified as Events
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
-import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem qualified as User
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
@@ -163,17 +163,15 @@ lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r,
+    Member UserSubsystem r,
     Member DeleteQueue r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member AuthenticationSubsystem r,
+    Member VerificationCodeSubsystem r,
+    Member Events r
   ) =>
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   NewClient ->
   ExceptT ClientError (AppT r) Client
@@ -184,44 +182,43 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 addClientWithReAuthPolicy ::
   forall r.
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
     Member DeleteQueue r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
+    Member Events r,
+    Member UserSubsystem r,
+    Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   Data.ReAuthPolicy ->
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   NewClient ->
   ExceptT ClientError (AppT r) Client
-addClientWithReAuthPolicy policy u con new = do
-  acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) pure
-  verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
-  let caps :: Maybe (Set ClientCapability)
+addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
+  usr <-
+    (lift . liftSem $ User.getAccountNoFilter luid)
+      >>= maybe (throwE (ClientUserNotFound u)) pure
+  verifyCode (newClientVerificationCode new) luid
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
+  let caps :: Maybe ClientCapabilityList
       caps = updlhdev $ newClientCapabilities new
         where
+          updlhdev :: Maybe ClientCapabilityList -> Maybe ClientCapabilityList
           updlhdev =
             if newClientType new == LegalHoldClientType
-              then Just . maybe (Set.singleton lhcaps) (Set.insert lhcaps)
+              then Just . ClientCapabilityList . maybe (Set.singleton lhcaps) (Set.insert lhcaps . fromClientCapabilityList)
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
-    wrapClientE
-      (Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients caps)
+    Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients caps
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
-  let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
     liftSem $ GalleyAPIAccess.newClient u (clientId clt)
     liftSem $ Intra.onClientEvent u con (ClientAdded clt)
-    when (clientType clt == LegalHoldClientType) $ liftSem $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
+    when (clientType clt == LegalHoldClientType) $ liftSem $ Events.generateUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
       for_ (userEmail usr) $
         \email ->
@@ -232,12 +229,12 @@ addClientWithReAuthPolicy policy u con new = do
 
     verifyCode ::
       Maybe Code.Value ->
-      UserId ->
+      Local UserId ->
       ExceptT ClientError (AppT r) ()
-    verifyCode mbCode uid =
+    verifyCode mbCode luid1 =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
-      UserAuth.verifyCode mbCode Code.Login uid `catchE` \case
+      UserAuth.verifyCode mbCode Code.Login luid1 `catchE` \case
         VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
         VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
@@ -247,8 +244,7 @@ updateClient u c r = do
   client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
   for_ (updateClientCapabilities r) $ \caps' -> do
-    let ClientCapabilityList caps = clientCapabilities client
-    if caps `Set.isSubsetOf` caps'
+    if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps'.fromClientCapabilityList
       then lift . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
@@ -258,7 +254,9 @@ updateClient u c r = do
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 rmClient ::
-  (Member DeleteQueue r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -274,7 +272,9 @@ rmClient u con clt pw =
         -- Temporary clients don't need to re-auth
         TemporaryClientType -> pure ()
         -- All other clients must authenticate
-        _ -> wrapClientE (Data.reauthenticate u pw) !>> ClientDataError . ClientReAuthError
+        _ ->
+          (lift . liftSem $ Authentication.reauthenticateEither u pw)
+            >>= either (throwE . ClientDataError . ClientReAuthError) (const $ pure ())
       lift $ execDelete u (Just con) client
 
 claimPrekey ::
@@ -514,19 +514,9 @@ pubClient c =
       pubClientClass = clientClass c
     }
 
-legalHoldClientRequested ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  LegalHoldClientRequest ->
-  AppT r ()
+legalHoldClientRequested :: (Member Events r) => UserId -> LegalHoldClientRequest -> AppT r ()
 legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
-  liftSem $ Intra.onUserEvent targetUser Nothing lhClientEvent
+  liftSem $ Events.generateUserEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
     clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
@@ -535,24 +525,14 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
-removeLegalHoldClient ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member DeleteQueue r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  AppT r ()
+removeLegalHoldClient :: (Member DeleteQueue r, Member Events r) => UserId -> AppT r ()
 removeLegalHoldClient uid = do
   clients <- wrapClient $ Data.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list
   let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
   -- maybe log if this isn't the case
   forM_ legalHoldClients (execDelete uid Nothing)
-  liftSem $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+  liftSem $ Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
 createAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r) =>
@@ -585,12 +565,12 @@ createAccessToken luid cid method link proof = do
       note MisconfiguredRequestUrl $
         fromByteString $
           "https://" <> toByteString' domain <> "/" <> T.encodeUtf8 (toUrlPiece link)
-  maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
-  expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
+  maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> asks (.settings)
+  expiresIn <- Opt.dpopTokenExpirationTimeSecs <$> asks (.settings)
   now <- fromUTCTime <$> lift (liftSem Now.get)
   let expiresAt = now & addToEpoch expiresIn
   pubKeyBundle <- do
-    pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
+    pathToKeys <- ExceptT (note KeyBundleError <$> asks (.settings.publicKeyBundle))
     ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
   token <-
     ExceptT $

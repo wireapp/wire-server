@@ -29,7 +29,7 @@ where
 
 import Brig.Types.Intra
 import Control.Error
-import Control.Lens ((.~), (^.))
+import Control.Lens ((.~))
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -62,7 +62,7 @@ import Stern.App
 import Stern.Intra qualified as Intra
 import Stern.Options
 import Stern.Types
-import System.Logger.Class hiding (Error, name, trace, (.=))
+import System.Logger.Class hiding (Error, flush, name, trace, (.=))
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Internal.Notification (QueuedNotification)
@@ -70,7 +70,7 @@ import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named (Named (Named))
-import Wire.API.Team.Feature hiding (setStatus)
+import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
@@ -81,15 +81,15 @@ start :: Opts -> IO ()
 start o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  Server.runSettingsWithShutdown s (requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName $ servantApp e) Nothing
+  Server.runSettingsWithShutdown s (requestIdMiddleware e.appLogger defaultRequestIdHeaderName $ servantApp e) Nothing
   where
     server :: Env -> Server.Server
-    server e = Server.defaultServer (unpack $ stern o ^. host) (stern o ^. port) (e ^. applog)
+    server e = Server.defaultServer (unpack o.stern.host) o.stern.port e.appLogger
 
     servantApp :: Env -> Application
     servantApp e0 req cont = do
       let rid = getRequestId defaultRequestIdHeaderName req
-      let e = requestId .~ rid $ e0
+      let e = requestIdLens .~ rid $ e0
       Servant.serve
         ( Proxy
             @( SwaggerDocsAPI
@@ -184,7 +184,7 @@ sitemap' =
     :<|> Named @"put-sso-domain-redirect" Intra.putSsoDomainRedirect
     :<|> Named @"delete-sso-domain-redirect" Intra.deleteSsoDomainRedirect
     :<|> Named @"register-oauth-client" Intra.registerOAuthClient
-    :<|> Named @"get-oauth-client" Intra.getOAuthClient
+    :<|> Named @"stern-get-oauth-client" Intra.getOAuthClient
     :<|> Named @"update-oauth-client" Intra.updateOAuthClient
     :<|> Named @"delete-oauth-client" Intra.deleteOAuthClient
 
@@ -207,13 +207,13 @@ suspendUser uid = NoContent <$ Intra.putUserStatus Suspended uid
 unsuspendUser :: UserId -> Handler NoContent
 unsuspendUser uid = NoContent <$ Intra.putUserStatus Active uid
 
-usersByEmail :: Email -> Handler [UserAccount]
+usersByEmail :: EmailAddress -> Handler [User]
 usersByEmail = Intra.getUserProfilesByIdentity
 
-usersByIds :: [UserId] -> Handler [UserAccount]
+usersByIds :: [UserId] -> Handler [User]
 usersByIds = Intra.getUserProfiles . Left
 
-usersByHandles :: [Handle] -> Handler [UserAccount]
+usersByHandles :: [Handle] -> Handler [User]
 usersByHandles = Intra.getUserProfiles . Right
 
 ejpdInfoByHandles :: Maybe Bool -> [Handle] -> Handler EJPD.EJPDResponseBody
@@ -232,17 +232,17 @@ searchOnBehalf
   (fromMaybe (unsafeRange 10) . checked @1 @100 @Int32 . fromMaybe 10 -> s) =
     Intra.getContacts uid q (fromRange s)
 
-revokeIdentity :: Email -> Handler NoContent
+revokeIdentity :: EmailAddress -> Handler NoContent
 revokeIdentity e = NoContent <$ Intra.revokeIdentity e
 
 changeEmail :: UserId -> EmailUpdate -> Handler NoContent
 changeEmail uid upd = NoContent <$ Intra.changeEmail uid upd
 
-deleteUser :: UserId -> Email -> Handler NoContent
+deleteUser :: UserId -> EmailAddress -> Handler NoContent
 deleteUser uid email = do
   usrs <- Intra.getUserProfilesByIdentity email
   case usrs of
-    [accountUser -> u] ->
+    [u] ->
       if userId u == uid
         then do
           info $ userMsg uid . msg (val "Deleting account")
@@ -255,10 +255,10 @@ deleteUser uid email = do
 setTeamStatusH :: Team.TeamStatus -> TeamId -> Handler NoContent
 setTeamStatusH status tid = NoContent <$ Intra.setStatusBindingTeam tid status
 
-deleteTeam :: TeamId -> Maybe Bool -> Maybe Email -> Handler NoContent
+deleteTeam :: TeamId -> Maybe Bool -> Maybe EmailAddress -> Handler NoContent
 deleteTeam givenTid (fromMaybe False -> False) (Just email) = do
   acc <- Intra.getUserProfilesByIdentity email >>= handleNoUser . listToMaybe
-  userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
+  userTid <- (Intra.getUserBindingTeam . userId $ acc) >>= handleNoTeam
   when (givenTid /= userTid) $
     throwE bindingTeamMismatch
   tInfo <- Intra.getTeamInfo givenTid
@@ -276,25 +276,25 @@ deleteTeam tid (fromMaybe False -> True) _ = do
 deleteTeam _ _ _ =
   throwE $ mkError status400 "Bad Request" "either email or 'force=true' parameter is required"
 
-isUserKeyBlacklisted :: Email -> Handler NoContent
+isUserKeyBlacklisted :: EmailAddress -> Handler NoContent
 isUserKeyBlacklisted email = do
   bl <- Intra.isBlacklisted email
   if bl
     then throwE $ mkError status200 "blacklisted" "The given user key IS blacklisted"
     else throwE $ mkError status404 "not-blacklisted" "The given user key is NOT blacklisted"
 
-addBlacklist :: Email -> Handler NoContent
+addBlacklist :: EmailAddress -> Handler NoContent
 addBlacklist email = do
   NoContent <$ Intra.setBlacklistStatus True email
 
-deleteFromBlacklist :: Email -> Handler NoContent
+deleteFromBlacklist :: EmailAddress -> Handler NoContent
 deleteFromBlacklist email = do
   NoContent <$ Intra.setBlacklistStatus False email
 
-getTeamInfoByMemberEmail :: Email -> Handler TeamInfo
+getTeamInfoByMemberEmail :: EmailAddress -> Handler TeamInfo
 getTeamInfoByMemberEmail e = do
   acc <- Intra.getUserProfilesByIdentity e >>= handleUser . listToMaybe
-  tid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleTeam
+  tid <- (Intra.getUserBindingTeam . userId $ acc) >>= handleTeam
   Intra.getTeamInfo tid
   where
     handleUser = ifNothing (mkError status404 "no-user" "No such user with that email")
@@ -308,36 +308,25 @@ getTeamAdminInfo = fmap toAdminInfo . Intra.getTeamInfo
 
 mkFeatureGetRoute ::
   forall cfg.
-  ( IsFeatureConfig cfg,
-    ToSchema cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    Typeable cfg
-  ) =>
+  (IsFeatureConfig cfg, Typeable cfg) =>
   TeamId ->
-  Handler (WithStatus cfg)
+  Handler (LockableFeature cfg)
 mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 
 mkFeaturePutRoute ::
   forall cfg.
-  ( KnownSymbol (FeatureSymbol cfg),
-    ToJSON (WithStatusNoLock cfg)
-  ) =>
+  (IsFeatureConfig cfg) =>
   TeamId ->
-  WithStatusNoLock cfg ->
+  Feature cfg ->
   Handler NoContent
 mkFeaturePutRoute tid payload = NoContent <$ Intra.setTeamFeatureFlag @cfg tid payload
 
 type MkFeaturePutConstraints cfg =
-  ( MkFeaturePutLockConstraints cfg,
-    FeatureTrivialConfig cfg
-  )
-
-type MkFeaturePutLockConstraints cfg =
   ( IsFeatureConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
+    FromJSON (Feature cfg),
+    ToJSON (Feature cfg),
     Typeable cfg
   )
 
@@ -346,7 +335,7 @@ mkFeaturePutRouteTrivialConfigNoTTL ::
 mkFeaturePutRouteTrivialConfigNoTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status Nothing
 
 mkFeatureLockUnlockRouteTrivialConfigNoTTL ::
-  forall cfg. (MkFeaturePutLockConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
+  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
 mkFeatureLockUnlockRouteTrivialConfigNoTTL tid lstat = NoContent <$ Intra.setTeamFeatureLockStatus @cfg tid lstat
 
 mkFeaturePutRouteTrivialConfigWithTTL ::
@@ -355,9 +344,9 @@ mkFeaturePutRouteTrivialConfigWithTTL tid status = mkFeaturePutRouteTrivialConfi
 
 mkFeaturePutRouteTrivialConfig ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Maybe FeatureTTLDays -> Handler NoContent
-mkFeaturePutRouteTrivialConfig tid status (maybe FeatureTTLUnlimited convertFeatureTTLDaysToSeconds -> ttl) = do
-  let fullStatus = WithStatusNoLock status trivialConfig ttl
-  NoContent <$ Intra.setTeamFeatureFlag @cfg tid fullStatus
+mkFeaturePutRouteTrivialConfig tid status _ = do
+  let patch = LockableFeaturePatch (Just status) Nothing Nothing
+  NoContent <$ Intra.patchTeamFeatureFlag @cfg tid patch
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility = Intra.getSearchVisibility
@@ -402,7 +391,7 @@ setTeamBillingInfo tid billingInfo = do
   Intra.setTeamBillingInfo tid billingInfo
   getTeamBillingInfo tid
 
-getConsentLog :: Email -> Handler ConsentLogAndMarketo
+getConsentLog :: EmailAddress -> Handler ConsentLogAndMarketo
 getConsentLog e = do
   acc <- listToMaybe <$> Intra.getUserProfilesByIdentity e
   when (isJust acc) $
@@ -438,7 +427,7 @@ getUserData uid mMaxConvs mMaxNotifs = do
   consentLog <-
     (Intra.getUserConsentLog uid <&> toJSON @ConsentLog)
       `catchE` (pure . String . T.pack . show)
-  let em = userEmail $ accountUser account
+  let em = userEmail account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
     maybe

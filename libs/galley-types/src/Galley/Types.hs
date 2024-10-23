@@ -18,16 +18,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Types
-  ( foldrOtrRecipients,
-    Accept (..),
+  ( Accept (..),
   )
 where
 
 import Data.Aeson
-import Data.Id (ClientId, UserId)
-import Data.Map.Strict qualified as Map
+import Data.Id (UserId)
 import Imports
-import Wire.API.Message
 
 --------------------------------------------------------------------------------
 -- Accept
@@ -47,14 +44,3 @@ instance ToJSON Accept where
 instance FromJSON Accept where
   parseJSON = withObject "accept" $ \o ->
     Accept <$> o .: "user"
-
---------------------------------------------------------------------------------
--- utility functions
-
-foldrOtrRecipients :: (UserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
-foldrOtrRecipients f a =
-  Map.foldrWithKey go a
-    . userClientMap
-    . otrRecipientsMap
-  where
-    go u cs acc = Map.foldrWithKey (f u) acc cs

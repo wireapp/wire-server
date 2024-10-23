@@ -27,6 +27,7 @@ import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
 import Data.ByteString.Char8 qualified as BSChar8
+import Data.Id
 import Data.Misc (Milliseconds (..))
 import Data.Text qualified as Text
 import Data.Time.Clock
@@ -61,9 +62,6 @@ data Env = Env
   }
 
 makeLenses ''Env
-
-schemaVersion :: Int32
-schemaVersion = 7
 
 createEnv :: Opts -> IO ([Async ()], Env)
 createEnv o = do
@@ -103,7 +101,7 @@ createEnv o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") o l n p r rAdditional a io mtbs
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

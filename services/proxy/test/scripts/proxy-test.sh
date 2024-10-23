@@ -11,7 +11,8 @@ instance.  this replaces more thorough integration tests, since
 integration tests for just proxy without the proxied services
 installed is hard and inadequate.
 
-WIRE_BACKEND: $WIRE_BACKEND
+WIRE_BACKEND: $WIRE_BACKEND  (do not append a / to host:port!)
+
 WIRE_ADMIN: $WIRE_ADMIN
 WIRE_PASSWD: <not shown>
 "

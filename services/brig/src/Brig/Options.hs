@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 -- Disabling to stop errors on Getters
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -27,13 +28,12 @@ import Brig.Queue.Types (QueueOpts (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
-import Control.Lens qualified as Lens
-import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON)
-import Data.Aeson qualified as A
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Types (typeMismatch)
+import Control.Lens hiding (Level, element, enum)
+import Data.Aeson
+import Data.Aeson.Types qualified as A
 import Data.Char qualified as Char
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
@@ -41,37 +41,22 @@ import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
 import Data.Schema
-import Data.Scientific (toBoundedInteger)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
-import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
-import Data.Yaml qualified as Y
 import Database.Bloodhound.Types qualified as ES
-import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
 import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Util.SuffixNamer
+import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
-import Wire.API.Team.Feature qualified as Public
+import Wire.API.Team.Feature
 import Wire.API.User
-import Wire.Arbitrary (Arbitrary, arbitrary)
 import Wire.EmailSending.SMTP (SMTPConnType (..))
-
-newtype Timeout = Timeout
-  { timeoutDiff :: NominalDiffTime
-  }
-  deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
-
-instance Read Timeout where
-  readsPrec i s =
-    case readsPrec i s of
-      [(x :: Int, s')] -> [(Timeout (fromIntegral x), s')]
-      _ -> []
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
@@ -156,13 +141,11 @@ data EmailSMTPOpts = EmailSMTPOpts
 instance FromJSON EmailSMTPOpts
 
 data StompOpts = StompOpts
-  { stompHost :: !Text,
-    stompPort :: !Int,
-    stompTls :: !Bool
+  { host :: !Text,
+    port :: !Int,
+    tls :: !Bool
   }
   deriving (Show, Generic)
-
-instance FromJSON StompOpts
 
 data InternalEventsOpts = InternalEventsOpts
   { internalEventsQueue :: !QueueOpts
@@ -170,14 +153,14 @@ data InternalEventsOpts = InternalEventsOpts
   deriving (Show)
 
 instance FromJSON InternalEventsOpts where
-  parseJSON = Y.withObject "InternalEventsOpts" $ \o ->
-    InternalEventsOpts <$> parseJSON (Y.Object o)
+  parseJSON = withObject "InternalEventsOpts" $ \o ->
+    InternalEventsOpts <$> parseJSON (Object o)
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
   { -- | Email, SMS, ... template directory
     templateDir :: !FilePath,
     -- | Email sender address
-    emailSender :: !Email,
+    emailSender :: !EmailAddress,
     -- | Twilio sender identifier (sender phone number in E.104 format)
     --   or twilio messaging sender ID - see
     --   https://www.twilio.com/docs/sms/send-messages#use-an-alphanumeric-sender-id
@@ -229,7 +212,7 @@ data ProviderOpts = ProviderOpts
     -- | Approval URL template
     approvalUrl :: !Text,
     -- | Approval email recipient
-    approvalTo :: !Email,
+    approvalTo :: !EmailAddress,
     -- | Password reset URL template
     providerPwResetUrl :: !Text
   }
@@ -240,6 +223,8 @@ instance FromJSON ProviderOpts
 data TeamOpts = TeamOpts
   { -- | Team Invitation URL template
     tInvitationUrl :: !Text,
+    -- | Existing User Invitation URL template
+    tExistingUserInvitationUrl :: !Text,
     -- | Team Activation URL template
     tActivationUrl :: !Text,
     -- | Team Creator Welcome URL
@@ -327,12 +312,12 @@ data TurnOpts = TurnOpts
   deriving (Show)
 
 instance FromJSON TurnOpts where
-  parseJSON = A.withObject "TurnOpts" $ \o -> do
+  parseJSON = withObject "TurnOpts" $ \o -> do
     sourceName <- o .: "serversSource"
     source <-
       case sourceName of
-        "files" -> TurnSourceFiles <$> A.parseJSON (A.Object o)
-        "dns" -> TurnSourceDNS <$> A.parseJSON (A.Object o)
+        "files" -> TurnSourceFiles <$> parseJSON (Object o)
+        "dns" -> TurnSourceDNS <$> parseJSON (Object o)
         _ -> fail $ "TurnOpts: Invalid sourceType, expected one of [files, dns] but got: " <> Text.unpack sourceName
     TurnOpts source
       <$> o .: "secret"
@@ -351,7 +336,7 @@ data TurnServersFiles = TurnServersFiles
   deriving (Show)
 
 instance FromJSON TurnServersFiles where
-  parseJSON = A.withObject "TurnServersFiles" $ \o ->
+  parseJSON = withObject "TurnServersFiles" $ \o ->
     TurnServersFiles
       <$> o .: "servers"
       <*> o .: "serversV2"
@@ -363,7 +348,7 @@ data TurnDnsOpts = TurnDnsOpts
   deriving (Show)
 
 instance FromJSON TurnDnsOpts where
-  parseJSON = A.withObject "TurnDnsOpts" $ \o ->
+  parseJSON = withObject "TurnDnsOpts" $ \o ->
     TurnDnsOpts
       <$> (asciiOnly =<< o .: "baseDomain")
       <*> o .:? "discoveryIntervalSeconds"
@@ -404,13 +389,13 @@ data Opts = Opts
     -- | SFT Federation
     multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.
-    rabbitmq :: !(Maybe RabbitMqOpts),
+    rabbitmq :: !(Maybe AmqpEndpoint),
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
     randomPrekeys :: !(Maybe Bool),
     -- | STOMP broker settings
-    stomp :: !(Maybe StompOpts),
+    stompOptions :: !(Maybe StompOpts),
     -- Email & SMS
 
     -- | Email and SMS settings
@@ -442,80 +427,80 @@ data Opts = Opts
     -- | SFT Settings
     sft :: !(Maybe SFTOptions),
     -- | Runtime settings
-    optSettings :: !Settings
+    settings :: !Settings
   }
   deriving (Show, Generic)
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
   { -- | Activation timeout, in seconds
-    setActivationTimeout :: !Timeout,
+    activationTimeout :: !Timeout,
     -- | Default verification code timeout, in seconds
-    -- use `setVerificationTimeout` as the getter function which always provides a default value
-    setVerificationCodeTimeoutInternal :: !(Maybe Code.Timeout),
+    -- use `verificationTimeout` as the getter function which always provides a default value
+    verificationCodeTimeoutInternal :: !(Maybe Code.Timeout),
     -- | Team invitation timeout, in seconds
-    setTeamInvitationTimeout :: !Timeout,
+    teamInvitationTimeout :: !Timeout,
     -- | Check for expired users every so often, in seconds
-    setExpiredUserCleanupTimeout :: !(Maybe Timeout),
+    expiredUserCleanupTimeout :: !(Maybe Timeout),
     -- | STOMP broker credentials
-    setStomp :: !(Maybe FilePathSecrets),
+    stomp :: !(Maybe FilePathSecrets),
     -- | Whitelist of allowed emails/phones
-    setAllowlistEmailDomains :: !(Maybe AllowlistEmailDomains),
+    allowlistEmailDomains :: !(Maybe AllowlistEmailDomains),
     -- | Max. number of sent/accepted
     --   connections per user
-    setUserMaxConnections :: !Int64,
+    userMaxConnections :: !Int64,
     -- | Max. number of permanent clients per user
-    setUserMaxPermClients :: !(Maybe Int),
+    userMaxPermClients :: !(Maybe Int),
     -- | Whether to allow plain HTTP transmission
     --   of cookies (for testing purposes only)
-    setCookieInsecure :: !Bool,
+    cookieInsecure :: !Bool,
     -- | Minimum age of a user cookie before
     --   it is renewed during token refresh
-    setUserCookieRenewAge :: !Integer,
+    userCookieRenewAge :: !Integer,
     -- | Max. # of cookies per user and cookie type
-    setUserCookieLimit :: !Int,
-    -- | Throttling settings (not to be confused
+    userCookieLimit :: !Int,
+    -- | Throttling tings (not to be confused
     -- with 'LoginRetryOpts')
-    setUserCookieThrottle :: !CookieThrottle,
+    userCookieThrottle :: !CookieThrottle,
     -- | Block user from logging in
     -- for m minutes after n failed
     -- logins
-    setLimitFailedLogins :: !(Maybe LimitFailedLogins),
+    limitFailedLogins :: !(Maybe LimitFailedLogins),
     -- | If last cookie renewal is too long ago,
     -- suspend the user.
-    setSuspendInactiveUsers :: !(Maybe SuspendInactiveUsers),
+    suspendInactiveUsers :: !(Maybe SuspendInactiveUsers),
     -- | Max size of rich info (number of chars in
     --   field names and values), should be in sync
     --   with Spar
-    setRichInfoLimit :: !Int,
+    richInfoLimit :: !Int,
     -- | Default locale to use when selecting templates
-    -- use `setDefaultTemplateLocale` as the getter function which always provides a default value
-    setDefaultTemplateLocaleInternal :: !(Maybe Locale),
+    -- use `defaultTemplateLocale` as the getter function which always provides a default value
+    defaultTemplateLocaleInternal :: !(Maybe Locale),
     -- | Default locale to use for users
-    -- use `setDefaultUserLocale` as the getter function which always provides a default value
-    setDefaultUserLocaleInternal :: !(Maybe Locale),
+    -- use `defaultUserLocale` as the getter function which always provides a default value
+    defaultUserLocaleInternal :: !(Maybe Locale),
     -- | Max. # of members in a team.
     --   NOTE: This must be in sync with galley
-    setMaxTeamSize :: !Word32,
+    maxTeamSize :: !Word32,
     -- | Max. # of members in a conversation.
     --   NOTE: This must be in sync with galley
-    setMaxConvSize :: !Word16,
+    maxConvSize :: !Word16,
     -- | Filter ONLY services with
     --   the given provider id
-    setProviderSearchFilter :: !(Maybe ProviderId),
+    providerSearchFilter :: !(Maybe ProviderId),
     -- | Whether to expose user emails and to whom
-    setEmailVisibility :: !EmailVisibilityConfig,
-    setPropertyMaxKeyLen :: !(Maybe Int64),
-    setPropertyMaxValueLen :: !(Maybe Int64),
+    emailVisibility :: !EmailVisibilityConfig,
+    propertyMaxKeyLen :: !(Maybe Int64),
+    propertyMaxValueLen :: !(Maybe Int64),
     -- | How long, in milliseconds, to wait
     -- in between processing delete events
     -- from the internal delete queue
-    setDeleteThrottleMillis :: !(Maybe Int),
+    deleteThrottleMillis :: !(Maybe Int),
     -- | When true, search only
     -- returns users from the same team
-    setSearchSameTeamOnly :: !(Maybe Bool),
+    searchSameTeamOnly :: !(Maybe Bool),
     -- | FederationDomain is required, even when not wanting to federate with other backends
-    -- (in that case the 'setFederationStrategy' can be set to `allowNone` below, or to
+    -- (in that case the 'federationStrategy' can be set to `allowNone` below, or to
     -- `allowDynamic` while keeping the list of allowed domains empty, see
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
     -- Federation domain is used to qualify local IDs and handles,
@@ -524,20 +509,20 @@ data Settings = Settings
     -- >>>   _wire-server-federator._tcp.<federationDomain>
     -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working.
     -- Remember to keep it the same in all services.
-    setFederationDomain :: !Domain,
+    federationDomain :: !Domain,
     -- | See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     -- default: AllowNone
-    setFederationStrategy :: !(Maybe FederationStrategy),
-    -- | 'setFederationDomainConfigs' is introduced in
+    federationStrategy :: !(Maybe FederationStrategy),
+    -- | 'federationDomainConfigs' is introduced in
     -- https://github.com/wireapp/wire-server/pull/3260 for the sole purpose of transitioning
     -- to dynamic federation remote configuration.  See
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     -- for details.
     -- default: []
-    setFederationDomainConfigs :: !(Maybe [ImplicitNoFederationRestriction]),
+    federationDomainConfigs :: !(Maybe [ImplicitNoFederationRestriction]),
     -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-    setFederationDomainConfigsUpdateFreq :: !(Maybe Int),
+    federationDomainConfigsUpdateFreq :: !(Maybe Int),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
@@ -546,60 +531,62 @@ data Settings = Settings
     -- ensures that there is only one request every 20 seconds.
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)
-    setSqsThrottleMillis :: !(Maybe Int),
+    sqsThrottleMillis :: !(Maybe Int),
     -- | Do not allow certain user creation flows.
     -- docs/reference/user/registration.md {#RefRestrictRegistration}.
-    setRestrictUserCreation :: !(Maybe Bool),
-    -- | The analog to `Galley.Options.setFeatureFlags`.  See 'AccountFeatureConfigs'.
-    setFeatureFlags :: !(Maybe AccountFeatureConfigs),
+    restrictUserCreation :: !(Maybe Bool),
+    -- | The analog to `Galley.Options.featureFlags`.  See 'AccountFeatureConfigs'.
+    featureFlags :: !(Maybe UserFeatureFlags),
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
-    setCustomerExtensions :: !(Maybe CustomerExtensions),
+    customerExtensions :: !(Maybe CustomerExtensions),
     -- | When set; instead of using SRV lookups to discover SFTs the calls
     -- config will always return this entry. This is useful in Kubernetes
     -- where SFTs are deployed behind a load-balancer.  In the long-run the SRV
     -- fetching logic can go away completely
-    setSftStaticUrl :: !(Maybe HttpsUrl),
+    sftStaticUrl :: !(Maybe HttpsUrl),
     -- | When set the /calls/config/v2 endpoint will include all the
-    -- loadbalanced servers of `setSftStaticUrl` under the @sft_servers_all@
-    -- field. The default setting is to exclude and omit the field from the
+    -- loadbalanced servers of `sftStaticUrl` under the @sft_servers_all@
+    -- field. The default ting is to exclude and omit the field from the
     -- response.
-    setSftListAllServers :: Maybe ListAllSFTServers,
-    setEnableMLS :: Maybe Bool,
-    setKeyPackageMaximumLifetime :: Maybe NominalDiffTime,
+    sftListAllServers :: Maybe ListAllSFTServers,
+    enableMLS :: Maybe Bool,
+    keyPackageMaximumLifetime :: Maybe NominalDiffTime,
     -- | Disabled versions are not advertised and are completely disabled.
-    setDisabledAPIVersions :: !(Set VersionExp),
+    disabledAPIVersions :: !(Set VersionExp),
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
-    -- use `set2FACodeGenerationDelaySecs` as the getter function which always provides a default value
-    set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
+    -- use `2FACodeGenerationDelaySecs` as the getter function which always provides a default value
+    twoFACodeGenerationDelaySecsInternal :: !(Maybe Int),
     -- | The time-to-live of a nonce in seconds.
-    -- use `setNonceTtlSecs` as the getter function which always provides a default value
-    setNonceTtlSecsInternal :: !(Maybe NonceTtlSecs),
+    -- use `nonceTtlSecs` as the getter function which always provides a default value
+    nonceTtlSecsInternal :: !(Maybe NonceTtlSecs),
     -- | The maximum number of seconds of clock skew the implementation of generate_dpop_access_token in jwt-tools will allow
-    -- use `setDpopMaxSkewSecs` as the getter function which always provides a default value
-    setDpopMaxSkewSecsInternal :: !(Maybe Word16),
+    -- use `dpopMaxSkewSecs` as the getter function which always provides a default value
+    dpopMaxSkewSecsInternal :: !(Maybe Word16),
     -- | The expiration time of a JWT DPoP token in seconds.
-    -- use `setDpopTokenExpirationTimeSecs` as the getter function which always provides a default value
-    setDpopTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- use `dpopTokenExpirationTimeSecs` as the getter function which always provides a default value
+    dpopTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | Path to a .pem file containing the server's public key and private key
     -- e.g. to sign JWT tokens
-    setPublicKeyBundle :: !(Maybe FilePath),
+    publicKeyBundle :: !(Maybe FilePath),
     -- | Path to the public and private JSON web key pair used to sign OAuth access tokens
-    setOAuthJwkKeyPair :: !(Maybe FilePath),
+    oAuthJwkKeyPair :: !(Maybe FilePath),
     -- | The expiration time of an OAuth access token in seconds.
-    -- use `setOAuthAccessTokenExpirationTimeSecs` as the getter function which always provides a default value
-    setOAuthAccessTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- use `oAuthAccessTokenExpirationTimeSecs` as the getter function which always provides a default value
+    oAuthAccessTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The expiration time of an OAuth authorization code in seconds.
-    -- use `setOAuthAuthorizationCodeExpirationTimeSecs` as the getter function which always provides a default value
-    setOAuthAuthorizationCodeExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- use `oAuthAuthorizationCodeExpirationTimeSecs` as the getter function which always provides a default value
+    oAuthAuthorizationCodeExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | En-/Disable OAuth
-    -- use `setOAuthEnabled` as the getter function which always provides a default value
-    setOAuthEnabledInternal :: !(Maybe Bool),
+    -- use `oAuthEnabled` as the getter function which always provides a default value
+    oAuthEnabledInternal :: !(Maybe Bool),
     -- | The expiration time of an OAuth refresh token in seconds.
-    -- use `setOAuthRefreshTokenExpirationTimeSecs` as the getter function which always provides a default value
-    setOAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- use `oAuthRefreshTokenExpirationTimeSecs` as the getter function which always provides a default value
+    oAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
-    -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
-    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
+    -- use `oAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
+    oAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
+    -- | Options to override the default Argon2id settings for specific operators.
+    passwordHashingOptions :: !(PasswordHashingOptions)
   }
   deriving (Show, Generic)
 
@@ -609,155 +596,117 @@ newtype ImplicitNoFederationRestriction = ImplicitNoFederationRestriction
 
 instance FromJSON ImplicitNoFederationRestriction where
   parseJSON =
-    Aeson.withObject
+    withObject
       "ImplicitNoFederationRestriction"
       ( \obj -> do
-          domain <- obj Aeson..: "domain"
-          searchPolicy <- obj Aeson..: "search_policy"
+          domain <- obj .: "domain"
+          searchPolicy <- obj .: "search_policy"
           pure . ImplicitNoFederationRestriction $
             FederationDomainConfig domain searchPolicy FederationRestrictionAllowAll
       )
 
-defaultTemplateLocale :: Locale
-defaultTemplateLocale = Locale (Language EN) Nothing
+defaultLocale :: Locale
+defaultLocale = Locale (Language EN) Nothing
 
-defaultUserLocale :: Locale
-defaultUserLocale = defaultTemplateLocale
+defaultUserLocale :: Settings -> Locale
+defaultUserLocale = fromMaybe defaultLocale . defaultUserLocaleInternal
 
-setDefaultUserLocale :: Settings -> Locale
-setDefaultUserLocale = fromMaybe defaultUserLocale . setDefaultUserLocaleInternal
+defaultTemplateLocale :: Settings -> Locale
+defaultTemplateLocale = fromMaybe defaultLocale . defaultTemplateLocaleInternal
 
-defVerificationTimeout :: Code.Timeout
-defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
+verificationTimeout :: Settings -> Code.Timeout
+verificationTimeout = fromMaybe defVerificationTimeout . verificationCodeTimeoutInternal
+  where
+    defVerificationTimeout :: Code.Timeout
+    defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
 
-setVerificationTimeout :: Settings -> Code.Timeout
-setVerificationTimeout = fromMaybe defVerificationTimeout . setVerificationCodeTimeoutInternal
+twoFACodeGenerationDelaySecs :: Settings -> Int
+twoFACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . twoFACodeGenerationDelaySecsInternal
+  where
+    def2FACodeGenerationDelaySecs :: Int
+    def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
 
-setDefaultTemplateLocale :: Settings -> Locale
-setDefaultTemplateLocale = fromMaybe defaultTemplateLocale . setDefaultTemplateLocaleInternal
-
-def2FACodeGenerationDelaySecs :: Int
-def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
-
-set2FACodeGenerationDelaySecs :: Settings -> Int
-set2FACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . set2FACodeGenerationDelaySecsInternal
-
-defaultNonceTtlSecs :: NonceTtlSecs
-defaultNonceTtlSecs = NonceTtlSecs $ 5 * 60 -- 5 minutes
-
-setNonceTtlSecs :: Settings -> NonceTtlSecs
-setNonceTtlSecs = fromMaybe defaultNonceTtlSecs . setNonceTtlSecsInternal
-
-defaultDpopMaxSkewSecs :: Word16
-defaultDpopMaxSkewSecs = 1
+nonceTtlSecs :: Settings -> NonceTtlSecs
+nonceTtlSecs = fromMaybe defaultNonceTtlSecs . nonceTtlSecsInternal
+  where
+    defaultNonceTtlSecs :: NonceTtlSecs
+    defaultNonceTtlSecs = NonceTtlSecs $ 5 * 60 -- 5 minutes
 
 setDpopMaxSkewSecs :: Settings -> Word16
-setDpopMaxSkewSecs = fromMaybe defaultDpopMaxSkewSecs . setDpopMaxSkewSecsInternal
+setDpopMaxSkewSecs = fromMaybe defaultDpopMaxSkewSecs . dpopMaxSkewSecsInternal
+  where
+    defaultDpopMaxSkewSecs :: Word16
+    defaultDpopMaxSkewSecs = 1
 
-defaultDpopTokenExpirationTimeSecs :: Word64
-defaultDpopTokenExpirationTimeSecs = 30
+dpopTokenExpirationTimeSecs :: Settings -> Word64
+dpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . dpopTokenExpirationTimeSecsInternal
+  where
+    defaultDpopTokenExpirationTimeSecs :: Word64
+    defaultDpopTokenExpirationTimeSecs = 30
 
-setDpopTokenExpirationTimeSecs :: Settings -> Word64
-setDpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . setDpopTokenExpirationTimeSecsInternal
+oAuthAccessTokenExpirationTimeSecs :: Settings -> Word64
+oAuthAccessTokenExpirationTimeSecs = fromMaybe defaultOAuthAccessTokenExpirationTimeSecs . oAuthAccessTokenExpirationTimeSecsInternal
+  where
+    defaultOAuthAccessTokenExpirationTimeSecs :: Word64
+    defaultOAuthAccessTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 3 -- 3 weeks
 
-defaultOAuthAccessTokenExpirationTimeSecs :: Word64
-defaultOAuthAccessTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 3 -- 3 weeks
+oAuthAuthorizationCodeExpirationTimeSecs :: Settings -> Word64
+oAuthAuthorizationCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthorizationCodeExpirationTimeSecs . oAuthAuthorizationCodeExpirationTimeSecsInternal
+  where
+    defaultOAuthAuthorizationCodeExpirationTimeSecs :: Word64
+    defaultOAuthAuthorizationCodeExpirationTimeSecs = 300 -- 5 minutes
 
-setOAuthAccessTokenExpirationTimeSecs :: Settings -> Word64
-setOAuthAccessTokenExpirationTimeSecs = fromMaybe defaultOAuthAccessTokenExpirationTimeSecs . setOAuthAccessTokenExpirationTimeSecsInternal
+oAuthEnabled :: Settings -> Bool
+oAuthEnabled = fromMaybe defaultOAuthEnabled . oAuthEnabledInternal
+  where
+    defaultOAuthEnabled :: Bool
+    defaultOAuthEnabled = False
 
-defaultOAuthAuthorizationCodeExpirationTimeSecs :: Word64
-defaultOAuthAuthorizationCodeExpirationTimeSecs = 300 -- 5 minutes
+oAuthRefreshTokenExpirationTimeSecs :: Settings -> Word64
+oAuthRefreshTokenExpirationTimeSecs = fromMaybe defaultOAuthRefreshTokenExpirationTimeSecs . oAuthRefreshTokenExpirationTimeSecsInternal
+  where
+    defaultOAuthRefreshTokenExpirationTimeSecs :: Word64
+    defaultOAuthRefreshTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 4 * 6 -- 24 weeks
 
-setOAuthAuthorizationCodeExpirationTimeSecs :: Settings -> Word64
-setOAuthAuthorizationCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthorizationCodeExpirationTimeSecs . setOAuthAuthorizationCodeExpirationTimeSecsInternal
+oAuthMaxActiveRefreshTokens :: Settings -> Word32
+oAuthMaxActiveRefreshTokens = fromMaybe defaultOAuthMaxActiveRefreshTokens . oAuthMaxActiveRefreshTokensInternal
+  where
+    defaultOAuthMaxActiveRefreshTokens :: Word32
+    defaultOAuthMaxActiveRefreshTokens = 10
 
-defaultOAuthEnabled :: Bool
-defaultOAuthEnabled = False
-
-setOAuthEnabled :: Settings -> Bool
-setOAuthEnabled = fromMaybe defaultOAuthEnabled . setOAuthEnabledInternal
-
-defaultOAuthRefreshTokenExpirationTimeSecs :: Word64
-defaultOAuthRefreshTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 4 * 6 -- 24 weeks
-
-setOAuthRefreshTokenExpirationTimeSecs :: Settings -> Word64
-setOAuthRefreshTokenExpirationTimeSecs = fromMaybe defaultOAuthRefreshTokenExpirationTimeSecs . setOAuthRefreshTokenExpirationTimeSecsInternal
-
-defaultOAuthMaxActiveRefreshTokens :: Word32
-defaultOAuthMaxActiveRefreshTokens = 10
-
-setOAuthMaxActiveRefreshTokens :: Settings -> Word32
-setOAuthMaxActiveRefreshTokens = fromMaybe defaultOAuthMaxActiveRefreshTokens . setOAuthMaxActiveRefreshTokensInternal
-
--- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
--- express our current cloud business logic.
---
--- FUTUREWORK: it would be nice to have a system of feature configs that allows to coherently
--- express arbitrary logic across personal and team accounts, teams, and instances; including
--- default values for new records, default for records that have a NULL value (eg., because
--- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
--- messages).  For now, we have something quick & simple.
-data AccountFeatureConfigs = AccountFeatureConfigs
-  { afcConferenceCallingDefNew :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig),
-    afcConferenceCallingDefNull :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig)
+-- | The analog to `FeatureFlags`. At the moment, only status flags for
+-- conferenceCalling are stored.
+data UserFeatureFlags = UserFeatureFlags
+  { conferenceCalling :: UserFeature ConferenceCallingConfig
   }
-  deriving (Show, Eq, Generic)
+  deriving (Eq, Ord, Show)
 
-instance Arbitrary AccountFeatureConfigs where
-  arbitrary = AccountFeatureConfigs <$> fmap unlocked arbitrary <*> fmap unlocked arbitrary
-    where
-      unlocked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
-      unlocked = Public.ImplicitLockStatus . Public.setLockStatus Public.LockStatusUnlocked . Public._unImplicitLockStatus
+instance FromJSON UserFeatureFlags where
+  parseJSON = withObject "UserFeatureFlags" $ \obj -> do
+    UserFeatureFlags
+      <$> obj .:? "conferenceCalling" .!= def
 
-instance FromJSON AccountFeatureConfigs where
-  parseJSON =
-    Aeson.withObject
-      "AccountFeatureConfigs"
-      ( \obj -> do
-          confCallInit <- obj Aeson..: "conferenceCalling"
-          Aeson.withObject
-            "conferenceCalling"
-            ( \obj' -> do
-                AccountFeatureConfigs
-                  <$> obj' Aeson..: "defaultForNew"
-                  <*> obj' Aeson..: "defaultForNull"
-            )
-            confCallInit
-      )
+data family UserFeature cfg
 
-instance ToJSON AccountFeatureConfigs where
-  toJSON
-    AccountFeatureConfigs
-      { afcConferenceCallingDefNew,
-        afcConferenceCallingDefNull
-      } =
-      Aeson.object
-        [ "conferenceCalling"
-            Aeson..= Aeson.object
-              [ "defaultForNew" Aeson..= afcConferenceCallingDefNew,
-                "defaultForNull" Aeson..= afcConferenceCallingDefNull
-              ]
-        ]
+data instance UserFeature ConferenceCallingConfig = ConferenceCallingUserStatus
+  { -- | This will be set as the status of the feature for newly created users.
+    forNew :: Maybe FeatureStatus,
+    -- | How an unset status for this feature should be interpreted.
+    forNull :: FeatureStatus
+  }
+  deriving (Eq, Ord, Show)
 
-getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
-getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew . unImplicitLockStatus))
+instance Default (UserFeature ConferenceCallingConfig) where
+  def = ConferenceCallingUserStatus Nothing FeatureStatusEnabled
 
-getAfcConferenceCallingDefNullMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
-getAfcConferenceCallingDefNullMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNull . unImplicitLockStatus))
+instance FromJSON (UserFeature ConferenceCallingConfig) where
+  parseJSON = withObject "UserFeatureConferenceCalling" $ \obj -> do
+    ConferenceCallingUserStatus
+      <$> A.explicitParseFieldMaybe parseUserFeatureStatus obj "defaultForNew"
+      <*> A.explicitParseFieldMaybe parseUserFeatureStatus obj "defaultForNull" .!= forNull def
 
-getAfcConferenceCallingDefNew :: Lens.Getter Settings (Public.WithStatus Public.ConferenceCallingConfig)
-getAfcConferenceCallingDefNew = Lens.to (Public._unImplicitLockStatus . afcConferenceCallingDefNew . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
-
-getAfcConferenceCallingDefNull :: Lens.Getter Settings (Public.WithStatus Public.ConferenceCallingConfig)
-getAfcConferenceCallingDefNull = Lens.to (Public._unImplicitLockStatus . afcConferenceCallingDefNull . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
-
-defAccountFeatureConfigs :: AccountFeatureConfigs
-defAccountFeatureConfigs =
-  AccountFeatureConfigs
-    { afcConferenceCallingDefNew = Public.ImplicitLockStatus Public.defFeatureStatus,
-      afcConferenceCallingDefNull = Public.ImplicitLockStatus Public.defFeatureStatus
-    }
+parseUserFeatureStatus :: A.Value -> A.Parser FeatureStatus
+parseUserFeatureStatus = withObject "UserFeatureStatus" $ \obj -> obj .: "status"
 
 -- | Customer extensions naturally are covered by the AGPL like everything else, but use them
 -- at your own risk!  If you use the default server config and do not set
@@ -814,7 +763,7 @@ data SFTOptions = SFTOptions
   deriving (Show, Generic)
 
 instance FromJSON SFTOptions where
-  parseJSON = Y.withObject "SFTOptions" $ \o ->
+  parseJSON = withObject "SFTOptions" $ \o ->
     SFTOptions
       <$> (asciiOnly =<< o .: "sftBaseDomain")
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
@@ -829,12 +778,12 @@ data SFTTokenOptions = SFTTokenOptions
   deriving (Show, Generic)
 
 instance FromJSON SFTTokenOptions where
-  parseJSON = Y.withObject "SFTTokenOptions" $ \o ->
+  parseJSON = withObject "SFTTokenOptions" $ \o ->
     SFTTokenOptions
       <$> (o .: "ttl")
       <*> (o .: "secret")
 
-asciiOnly :: Text -> Y.Parser ByteString
+asciiOnly :: Text -> A.Parser ByteString
 asciiOnly t =
   if Text.all Char.isAscii t
     then pure $ Text.encodeUtf8 t
@@ -864,15 +813,10 @@ defSrvDiscoveryIntervalSeconds = secondsToDiffTime 10
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
 
-instance FromJSON Timeout where
-  parseJSON (Y.Number n) =
-    let defaultV = 3600
-        bounded = toBoundedInteger n :: Maybe Int64
-     in pure $
-          Timeout $
-            fromIntegral @Int $
-              maybe defaultV fromIntegral bounded
-  parseJSON v = typeMismatch "activationTimeout" v
+-- | Convert a word to title case by capitalising the first letter
+capitalise :: String -> String
+capitalise [] = []
+capitalise (c : cs) = toUpper c : cs
 
 instance FromJSON Settings where
   parseJSON = genericParseJSON customOptions
@@ -880,70 +824,44 @@ instance FromJSON Settings where
       customOptions =
         defaultOptions
           { fieldLabelModifier = \case
-              "setDefaultUserLocaleInternal" -> "setDefaultUserLocale"
-              "setDefaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
-              "setVerificationCodeTimeoutInternal" -> "setVerificationTimeout"
-              "set2FACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
-              "setNonceTtlSecsInternal" -> "setNonceTtlSecs"
-              "setDpopMaxSkewSecsInternal" -> "setDpopMaxSkewSecs"
-              "setDpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
-              "setOAuthAuthorizationCodeExpirationTimeSecsInternal" -> "setOAuthAuthorizationCodeExpirationTimeSecs"
-              "setOAuthAccessTokenExpirationTimeSecsInternal" -> "setOAuthAccessTokenExpirationTimeSecs"
-              "setOAuthEnabledInternal" -> "setOAuthEnabled"
-              "setOAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
-              "setOAuthMaxActiveRefreshTokensInternal" -> "setOAuthMaxActiveRefreshTokens"
+              "defaultUserLocaleInternal" -> "setDefaultUserLocale"
+              "defaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
+              "verificationCodeTimeoutInternal" -> "setVerificationTimeout"
+              "twoFACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
+              "nonceTtlSecsInternal" -> "setNonceTtlSecs"
+              "dpopMaxSkewSecsInternal" -> "setDpopMaxSkewSecs"
+              "dpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
+              "oAuthAuthorizationCodeExpirationTimeSecsInternal" -> "setOAuthAuthorizationCodeExpirationTimeSecs"
+              "oAuthAccessTokenExpirationTimeSecsInternal" -> "setOAuthAccessTokenExpirationTimeSecs"
+              "oAuthEnabledInternal" -> "setOAuthEnabled"
+              "oAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
+              "oAuthMaxActiveRefreshTokensInternal" -> "setOAuthMaxActiveRefreshTokens"
+              other -> "set" <> capitalise other
+          }
+
+instance FromJSON Opts where
+  parseJSON = genericParseJSON customOptions
+    where
+      customOptions =
+        defaultOptions
+          { fieldLabelModifier = \case
+              "settings" -> "optSettings"
+              "stompOptions" -> "stomp"
               other -> other
           }
 
-instance FromJSON Opts
+instance FromJSON StompOpts where
+  parseJSON = genericParseJSON customOptions
+    where
+      customOptions =
+        defaultOptions
+          { fieldLabelModifier = \a -> "stom" <> capitalise a
+          }
 
--- TODO: Does it make sense to generate lens'es for all?
-Lens.makeLensesFor
-  [ ("optSettings", "optionSettings"),
-    ("elasticsearch", "elasticsearchL"),
-    ("sft", "sftL"),
-    ("turn", "turnL"),
-    ("multiSFT", "multiSFTL")
-  ]
-  ''Opts
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Opts
 
-Lens.makeLensesFor
-  [ ("setEmailVisibility", "emailVisibility"),
-    ("setPropertyMaxKeyLen", "propertyMaxKeyLen"),
-    ("setPropertyMaxValueLen", "propertyMaxValueLen"),
-    ("setSearchSameTeamOnly", "searchSameTeamOnly"),
-    ("setUserMaxPermClients", "userMaxPermClients"),
-    ("setFederationDomain", "federationDomain"),
-    ("setSqsThrottleMillis", "sqsThrottleMillis"),
-    ("setSftStaticUrl", "sftStaticUrl"),
-    ("setSftListAllServers", "sftListAllServers"),
-    ("setFederationDomainConfigs", "federationDomainConfigs"),
-    ("setFederationStrategy", "federationStrategy"),
-    ("setRestrictUserCreation", "restrictUserCreation"),
-    ("setEnableMLS", "enableMLS"),
-    ("setOAuthEnabledInternal", "oauthEnabledInternal"),
-    ("setOAuthAuthorizationCodeExpirationTimeSecsInternal", "oauthAuthorizationCodeExpirationTimeSecsInternal"),
-    ("setOAuthAccessTokenExpirationTimeSecsInternal", "oauthAccessTokenExpirationTimeSecsInternal"),
-    ("setDisabledAPIVersions", "disabledAPIVersions"),
-    ("setOAuthRefreshTokenExpirationTimeSecsInternal", "oauthRefreshTokenExpirationTimeSecsInternal"),
-    ("setOAuthMaxActiveRefreshTokensInternal", "oauthMaxActiveRefreshTokensInternal"),
-    ("setAllowlistEmailDomains", "allowlistEmailDomains"),
-    ("setAllowlistPhonePrefixes", "allowlistPhonePrefixes")
-  ]
-  ''Settings
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Settings
 
-Lens.makeLensesFor
-  [ ("url", "urlL"),
-    ("index", "indexL"),
-    ("caCert", "caCertL"),
-    ("insecureSkipVerifyTls", "insecureSkipVerifyTlsL"),
-    ("additionalWriteIndex", "additionalWriteIndexL"),
-    ("additionalWriteIndexUrl", "additionalWriteIndexUrlL"),
-    ("additionalCaCert", "additionalCaCertL"),
-    ("additionalInsecureSkipVerifyTls", "additionalInsecureSkipVerifyTlsL")
-  ]
-  ''ElasticSearchOpts
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''ElasticSearchOpts
 
-Lens.makeLensesFor [("sftBaseDomain", "sftBaseDomainL")] ''SFTOptions
-
-Lens.makeLensesFor [("serversSource", "serversSourceL")] ''TurnOpts
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''TurnOpts

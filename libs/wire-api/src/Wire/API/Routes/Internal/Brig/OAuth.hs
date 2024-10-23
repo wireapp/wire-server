@@ -39,7 +39,7 @@ type OAuthAPI =
         :> Post '[JSON] OAuthClientCredentials
     )
     :<|> Named
-           "get-oauth-client"
+           "i-get-oauth-client"
            ( Summary "Get OAuth client by id"
                :> CanThrow 'OAuthFeatureDisabled
                :> CanThrow 'OAuthClientNotFound

@@ -19,7 +19,6 @@ module Galley.API.Public.TeamConversation where
 
 import Galley.API.Teams
 import Galley.App
-import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamConversation
 
@@ -28,4 +27,4 @@ teamConversationAPI =
   mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
     <@> mkNamedAPI @"get-team-conversations" getTeamConversations
     <@> mkNamedAPI @"get-team-conversation" getTeamConversation
-    <@> mkNamedAPI @"delete-team-conversation" (callsFed (exposeAnnotations deleteTeamConversation))
+    <@> mkNamedAPI @"delete-team-conversation" deleteTeamConversation

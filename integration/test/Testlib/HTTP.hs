@@ -4,6 +4,7 @@ import qualified Control.Exception as E
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import Data.Bifunctor (Bifunctor (bimap))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
@@ -11,21 +12,25 @@ import qualified Data.CaseInsensitive as CI
 import Data.Function
 import Data.List
 import Data.List.Split (splitOn)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.String
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Tuple.Extra
 import GHC.Generics
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types (hLocation)
 import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types.URI (parseQuery)
 import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
 import Testlib.Types
+import Web.Cookie
 import Prelude
 
 splitHttpPath :: String -> [String]
@@ -39,6 +44,18 @@ addJSONObject = addJSON . Aeson.object
 
 addJSON :: (Aeson.ToJSON a) => a -> HTTP.Request -> HTTP.Request
 addJSON obj = addBody (HTTP.RequestBodyLBS (Aeson.encode obj)) "application/json"
+
+addXML :: ByteString -> HTTP.Request -> HTTP.Request
+addXML xml = addBody (HTTP.RequestBodyBS xml) "application/xml"
+
+addUrlEncodedForm :: [(String, String)] -> HTTP.Request -> HTTP.Request
+addUrlEncodedForm form req =
+  req
+    { HTTP.requestBody = HTTP.RequestBodyLBS (L.fromStrict (HTTP.renderSimpleQuery False (both C8.pack <$> form))),
+      HTTP.requestHeaders =
+        (fromString "Content-Type", fromString "application/x-www-form-urlencoded")
+          : HTTP.requestHeaders req
+    }
 
 addBody :: HTTP.RequestBody -> String -> HTTP.Request -> HTTP.Request
 addBody body contentType req =
@@ -73,12 +90,14 @@ setCookie :: String -> HTTP.Request -> HTTP.Request
 setCookie c r =
   addHeader "Cookie" (cs c) r
 
+getCookie :: String -> Response -> Maybe String
+getCookie name resp = do
+  cookieHeader <- lookup (CI.mk $ cs "set-cookie") resp.headers
+  cs <$> lookup (cs name) (parseCookies cookieHeader)
+
 addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addQueryParams params req =
   HTTP.setQueryString (map (\(k, v) -> (cs k, Just (cs v))) params) req
-
-contentTypeJSON :: HTTP.Request -> HTTP.Request
-contentTypeJSON = addHeader "Content-Type" "application/json"
 
 contentTypeMixed :: HTTP.Request -> HTTP.Request
 contentTypeMixed = addHeader "Content-Type" "multipart/mixed"
@@ -120,8 +139,8 @@ assertLabel status label resp = do
 onFailureAddResponse :: (HasCallStack) => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
   e <- ask
-  liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
-    E.throw (AssertionFailure stack (Just r) msg)
+  liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ ctx msg) -> do
+    E.throw (AssertionFailure stack (Just r) ctx msg)
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
   deriving stock (Generic)
@@ -130,20 +149,29 @@ data Versioned = Versioned | Unversioned | ExplicitVersion Int
 -- OwnDomain ...`.
 rawBaseRequest :: (HasCallStack, MakesValue domain) => domain -> Service -> Versioned -> String -> App HTTP.Request
 rawBaseRequest domain service versioned path = do
+  domainV <- objDomain domain
+
   pathSegsPrefix <- case versioned of
     Versioned -> do
-      v <- asks (.defaultAPIVersion)
+      v <- getAPIVersionFor domainV
       pure ["v" <> show v]
     Unversioned -> pure []
     ExplicitVersion v -> do
       pure ["v" <> show v]
 
-  domainV <- objDomain domain
   serviceMap <- getServiceMap domainV
 
   liftIO . HTTP.parseRequest $
     let HostPort h p = serviceHostPort serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
+
+getAPIVersionFor :: (MakesValue domain) => domain -> App Int
+getAPIVersionFor domain = do
+  d <- asString domain
+  versionMap <- asks (.apiVersionByDomain)
+  case Map.lookup d versionMap of
+    Nothing -> asks (.defaultAPIVersion)
+    Just v -> pure v
 
 baseRequest :: (HasCallStack, MakesValue user) => user -> Service -> Versioned -> String -> App HTTP.Request
 baseRequest user service versioned path = do
@@ -201,3 +229,12 @@ locationHeader = findHeader hLocation
 
 findHeader :: HTTP.HeaderName -> Response -> Maybe (HTTP.HeaderName, ByteString)
 findHeader name resp = find (\(name', _) -> name == name') resp.headers
+
+getQueryParam :: String -> String -> Maybe (Maybe String)
+getQueryParam name url =
+  parseURI url
+    >>= lookup name
+      . fmap (bimap cs ((<$>) cs))
+      . parseQuery
+      . cs
+      . uriQuery

@@ -80,7 +80,7 @@ data EmailInfo = EmailInfo
   { userId :: UserId,
     status :: WithWritetime AccountStatus,
     -- | Email in the user table
-    userEmail :: WithWritetime Email,
+    userEmail :: WithWritetime EmailAddress,
     -- | Email in the user_keys table
     emailKey :: Maybe (WithWritetime UserId),
     inconsistencyCase :: Text
@@ -112,13 +112,13 @@ getUsers = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql :: PrepQuery R () UserDetailsRow
     cql = "SELECT id, status, writetime(status), email, writetime(email), activated from user"
 
-type UserDetailsRow = (UserId, Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Email, Maybe (Writetime Email), Bool)
+type UserDetailsRow = (UserId, Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe EmailAddress, Maybe (Writetime EmailAddress), Bool)
 
-insertMissingEmail :: Logger -> ClientState -> Email -> UserId -> IO ()
+insertMissingEmail :: Logger -> ClientState -> EmailAddress -> UserId -> IO ()
 insertMissingEmail l brig email uid = do
   runClient brig $ K.insertKey l uid (mkEmailKey email)
 
-userWithEmailAndStatus :: UserDetailsRow -> Maybe (UserId, AccountStatus, Writetime AccountStatus, Email, Writetime Email)
+userWithEmailAndStatus :: UserDetailsRow -> Maybe (UserId, AccountStatus, Writetime AccountStatus, EmailAddress, Writetime EmailAddress)
 userWithEmailAndStatus (uid, mStatus, mStatusWritetime, mEmail, mEmailWritetime, activated) = do
   let act = if activated then Just True else Nothing
   case (,,,,) <$> mStatus <*> mStatusWritetime <*> mEmail <*> mEmailWritetime <*> act of
@@ -133,7 +133,7 @@ repairUser l brig repairData uid = do
     Nothing -> pure Nothing
     Just x -> checkUser l brig repairData x
 
-checkUser :: Logger -> ClientState -> Bool -> (UserId, AccountStatus, Writetime AccountStatus, Email, Writetime Email) -> IO (Maybe EmailInfo)
+checkUser :: Logger -> ClientState -> Bool -> (UserId, AccountStatus, Writetime AccountStatus, EmailAddress, Writetime EmailAddress) -> IO (Maybe EmailInfo)
 checkUser l brig repairData (uid, statusValue, statusWritetime, userEmailValue, userEmailWriteTime) = do
   let status = WithWritetime statusValue statusWritetime
       userEmail = WithWritetime userEmailValue userEmailWriteTime

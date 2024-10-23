@@ -20,13 +20,13 @@
 -- FUTUREWORK: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
   ( -- * Pushing & Journaling Events
-    onUserEvent,
+    sendUserEvent,
     onConnectionEvent,
     onPropertyEvent,
     onClientEvent,
 
     -- * user subsystem interpretation for user events
-    runUserEvents,
+    runEvents,
 
     -- * Conversations
     createConnectConv,
@@ -61,7 +61,6 @@ import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
-import Brig.User.Search.Index qualified as Search
 import Control.Error (ExceptT, runExceptT)
 import Control.Lens (view, (.~), (?~), (^.), (^?))
 import Control.Monad.Catch
@@ -73,13 +72,10 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 (List1, singleton)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime)
-import Gundeck.Types.Push.V2 (RecipientClients (RecipientClientsAll))
-import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -92,6 +88,8 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
+import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
+import Wire.API.Push.V2 qualified as V2
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)
@@ -99,17 +97,17 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserEvent
+import Wire.Events
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Paging qualified as P
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserEvents
 
 -----------------------------------------------------------------------------
 -- Event Handlers
 
-onUserEvent ::
+sendUserEvent ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -121,12 +119,11 @@ onUserEvent ::
   Maybe ConnId ->
   UserEvent ->
   Sem r ()
-onUserEvent orig conn e =
-  updateSearchIndex orig e
-    *> dispatchNotifications orig conn e
+sendUserEvent orig conn e =
+  dispatchNotifications orig conn e
     *> embed (journalEvent orig e)
 
-runUserEvents ::
+runEvents ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -134,10 +131,11 @@ runUserEvents ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
-  InterpreterFor UserEvents r
-runUserEvents = interpret \case
+  InterpreterFor Events r
+runEvents = interpret \case
   -- FUTUREWORK(mangoiv): should this be in another module?
-  GenerateUserEvent uid mconnid event -> onUserEvent uid mconnid event
+  GenerateUserEvent uid mconnid event -> sendUserEvent uid mconnid event
+  GeneratePropertyEvent uid connid event -> onPropertyEvent uid connid event
 
 onConnectionEvent ::
   (Member NotificationSubsystem r) =>
@@ -151,7 +149,7 @@ onConnectionEvent ::
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
   notify
-    (singleton $ ConnectionEvent evt)
+    (ConnectionEvent evt)
     orig
     V2.RouteAny
     conn
@@ -167,7 +165,7 @@ onPropertyEvent ::
   Sem r ()
 onPropertyEvent orig conn e =
   notify
-    (singleton $ PropertyEvent e)
+    (PropertyEvent e)
     orig
     V2.RouteDirect
     (Just conn)
@@ -190,35 +188,6 @@ onClientEvent orig conn e = do
         & pushConn .~ conn
         & pushApsData .~ toApsData event
     ]
-
-updateSearchIndex ::
-  (Member (Embed HttpClientIO) r) =>
-  UserId ->
-  UserEvent ->
-  Sem r ()
-updateSearchIndex orig e = embed $ case e of
-  -- no-ops
-  UserCreated {} -> pure ()
-  UserIdentityUpdated UserIdentityUpdatedData {..} -> do
-    when (isJust eiuEmail) $ Search.reindex orig
-  UserIdentityRemoved {} -> pure ()
-  UserLegalHoldDisabled {} -> pure ()
-  UserLegalHoldEnabled {} -> pure ()
-  LegalHoldClientRequested {} -> pure ()
-  UserSuspended {} -> Search.reindex orig
-  UserResumed {} -> Search.reindex orig
-  UserActivated {} -> Search.reindex orig
-  UserDeleted {} -> Search.reindex orig
-  UserUpdated UserUpdatedData {..} -> do
-    let interesting =
-          or
-            [ isJust eupName,
-              isJust eupAccentId,
-              isJust eupHandle,
-              isJust eupManagedBy,
-              isJust eupSSOId || eupSSOIdRemoved
-            ]
-    when interesting $ Search.reindex orig
 
 journalEvent :: (MonadReader Env m, MonadIO m) => UserId -> UserEvent -> m ()
 journalEvent orig e = case e of
@@ -275,7 +244,7 @@ dispatchNotifications orig conn e = case e of
     notifyUserDeletionLocals orig conn event
     notifyUserDeletionRemotes orig
   where
-    event = singleton $ UserEvent e
+    event = UserEvent e
 
 notifyUserDeletionLocals ::
   forall r.
@@ -286,7 +255,7 @@ notifyUserDeletionLocals ::
   ) =>
   UserId ->
   Maybe ConnId ->
-  List1 Event ->
+  Event ->
   Sem r ()
 notifyUserDeletionLocals deleted conn event = do
   luid <- qualifyLocal' deleted
@@ -356,7 +325,7 @@ notifyUserDeletionRemotes deleted = do
           pure ()
         Just rangedUcs -> do
           luidDeleted <- qualifyLocal' deleted
-          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs ((fmap (fmap (qUnqualified . ucTo))) rangedUcs))
+          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs (mapRange (qUnqualified . ucTo) rangedUcs))
           -- also sent connection cancelled events to the connections that are pending
           let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
           forM_ remotePendingConnections $ sendCancelledEvent luidDeleted
@@ -374,7 +343,7 @@ notifyUserDeletionRemotes deleted = do
 -- | (Asynchronously) notifies other users of events.
 notify ::
   (Member NotificationSubsystem r) =>
-  List1 Event ->
+  Event ->
   -- | Origin user, TODO: Delete
   UserId ->
   -- | Push routing strategy.
@@ -384,18 +353,18 @@ notify ::
   -- | Users to notify.
   Sem r (NonEmpty UserId) ->
   Sem r ()
-notify (toList -> events) orig route conn recipients = do
+notify event orig route conn recipients = do
   rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
-  let pushes = flip map events $ \event ->
+  let push =
         newPush1 (Just orig) (toJSONObject event) rs
           & pushConn .~ conn
           & pushRoute .~ route
           & pushApsData .~ toApsData event
-  void $ pushNotificationsAsync pushes
+  void $ pushNotificationAsync push
 
 notifySelf ::
   (Member NotificationSubsystem r) =>
-  List1 Event ->
+  Event ->
   -- | Origin user.
   UserId ->
   -- | Push routing strategy.
@@ -403,8 +372,8 @@ notifySelf ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   Sem r ()
-notifySelf events orig route conn =
-  notify events orig route conn (pure (orig :| []))
+notifySelf event orig route conn =
+  notify event orig route conn (pure (orig :| []))
 
 notifyContacts ::
   forall r.
@@ -412,7 +381,7 @@ notifyContacts ::
     Member NotificationSubsystem r,
     Member TinyLog r
   ) =>
-  List1 Event ->
+  Event ->
   -- | Origin user.
   UserId ->
   -- | Push routing strategy.
@@ -420,8 +389,8 @@ notifyContacts ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   Sem r ()
-notifyContacts events orig route conn = do
-  notify events orig route conn $
+notifyContacts event orig route conn = do
+  notify event orig route conn $
     (:|) orig <$> liftA2 (++) contacts teamContacts
   where
     contacts :: Sem r [UserId]
@@ -563,7 +532,7 @@ blockConv lusr qcnv = do
 
 upsertOne2OneConversation ::
   ( MonadReader Env m,
-    MonadIO m,
+    MonadUnliftIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m

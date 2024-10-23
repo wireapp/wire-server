@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -17,27 +18,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- for Show UserRowInsert
-
--- TODO: Move to Brig.User.Account.DB
 module Brig.Data.User
-  ( AuthError (..),
-    ReAuthError (..),
-    newAccount,
+  ( newAccount,
     newAccountInviteViaScim,
     insertAccount,
-    authenticate,
-    reauthenticate,
-    filterActive,
-    isSamlUser,
 
     -- * Lookups
-    lookupAccount,
-    lookupAccounts,
     lookupUser,
     lookupUsers,
     lookupName,
-    lookupRichInfo,
     lookupRichInfoMultiUsers,
     lookupUserTeam,
     lookupServiceUsers,
@@ -73,9 +62,9 @@ import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
 import Data.Domain
 import Data.Handle (Handle)
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Misc
 import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
@@ -84,26 +73,10 @@ import Imports
 import Polysemy
 import Wire.API.Password
 import Wire.API.Provider.Service
-import Wire.API.Team.Feature qualified as ApiFt
+import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
-import Wire.PasswordStore
-
--- | Authentication errors.
-data AuthError
-  = AuthInvalidUser
-  | AuthInvalidCredentials
-  | AuthSuspended
-  | AuthEphemeral
-  | AuthPendingInvitation
-
--- | Re-authentication errors.
-data ReAuthError
-  = ReAuthError !AuthError
-  | ReAuthMissingPassword
-  | ReAuthCodeVerificationRequired
-  | ReAuthCodeVerificationNoPendingCode
-  | ReAuthCodeVerificationNoEmail
+import Wire.HashPassword
 
 -- | Preconditions:
 --
@@ -113,9 +86,15 @@ data ReAuthError
 -- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
-newAccount :: (MonadClient m, MonadReader Env m) => NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> m (UserAccount, Maybe Password)
+newAccount ::
+  (Member HashPassword r) =>
+  NewUser ->
+  Maybe InvitationId ->
+  Maybe TeamId ->
+  Maybe Handle ->
+  AppT r (User, Maybe Password)
 newAccount u inv tid mbHandle = do
-  defLoc <- setDefaultUserLocale <$> view settings
+  defLoc <- defaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
   uid <-
     Id <$> do
@@ -123,17 +102,17 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  passwd <- maybe (pure Nothing) (fmap Just . liftIO . mkSafePasswordScrypt) pass
+  passwd <- maybe (pure Nothing) (fmap Just . liftSem . hashPassword8) pass
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
-      e <- view zauthEnv
+      e <- asks (.zauthEnv)
       let ZAuth.SessionTokenTimeout defTTL = e ^. ZAuth.settings . ZAuth.sessionTokenTimeout
           ttl = maybe defTTL fromRange (newUserExpiresIn u)
-      now <- liftIO =<< view currentTime
+      now <- liftIO =<< asks (.currentTime)
       pure . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> pure Nothing
-  pure (UserAccount (user uid domain (locale defLoc) expiry) status, passwd)
+  pure (user uid domain (locale defLoc) expiry, passwd)
   where
     ident = newUserIdentity u
     pass = newUserPassword u
@@ -148,86 +127,35 @@ newAccount u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e = User (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy prots
+    user uid domain l e = User (Qualified uid domain) ident Nothing name Nothing pict assets colour status l Nothing mbHandle e tid managedBy prots
 
-newAccountInviteViaScim :: (MonadReader Env m) => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
-newAccountInviteViaScim uid tid locale name email = do
-  defLoc <- setDefaultUserLocale <$> view settings
+newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m User
+newAccountInviteViaScim uid externalId tid locale name email = do
+  defLoc <- defaultUserLocale <$> asks (.settings)
   let loc = fromMaybe defLoc locale
   domain <- viewFederationDomain
-  pure (UserAccount (user domain loc) PendingInvitation)
-  where
-    user domain loc =
-      User
-        (Qualified uid domain)
-        (Just $ EmailIdentity email)
-        name
-        (Pict [])
-        []
-        defaultAccentId
-        False
-        loc
-        Nothing
-        Nothing
-        Nothing
-        (Just tid)
-        ManagedByScim
-        defSupportedProtocols
-
--- | Mandatory password authentication.
-authenticate :: forall r. (Member PasswordStore r) => UserId -> PlainTextPassword6 -> ExceptT AuthError (AppT r) ()
-authenticate u pw =
-  lift (wrapHttp $ lookupAuth u) >>= \case
-    Nothing -> throwE AuthInvalidUser
-    Just (_, Deleted) -> throwE AuthInvalidUser
-    Just (_, Suspended) -> throwE AuthSuspended
-    Just (_, Ephemeral) -> throwE AuthEphemeral
-    Just (_, PendingInvitation) -> throwE AuthPendingInvitation
-    Just (Nothing, _) -> throwE AuthInvalidCredentials
-    Just (Just pw', Active) ->
-      case verifyPasswordWithStatus pw pw' of
-        (False, _) -> throwE AuthInvalidCredentials
-        (True, PasswordStatusNeedsUpdate) -> do
-          -- FUTUREWORK(elland): 6char pwd allowed for now
-          -- throwE AuthStalePassword in the future
-          for_ (plainTextPassword8 . fromPlainTextPassword $ pw) (lift . hashAndUpdatePwd u)
-        (True, _) -> pure ()
-  where
-    hashAndUpdatePwd :: UserId -> PlainTextPassword8 -> AppT r ()
-    hashAndUpdatePwd uid pwd = do
-      hashed <- mkSafePasswordScrypt pwd
-      liftSem $ upsertHashedPassword uid hashed
-
--- | Password reauthentication. If the account has a password, reauthentication
--- is mandatory. If the account has no password, or is an SSO user, and no password is given,
--- reauthentication is a no-op.
-reauthenticate :: (MonadClient m, MonadReader Env m) => UserId -> Maybe PlainTextPassword6 -> ExceptT ReAuthError m ()
-reauthenticate u pw =
-  lift (lookupAuth u) >>= \case
-    Nothing -> throwE (ReAuthError AuthInvalidUser)
-    Just (_, Deleted) -> throwE (ReAuthError AuthInvalidUser)
-    Just (_, Suspended) -> throwE (ReAuthError AuthSuspended)
-    Just (_, PendingInvitation) -> throwE (ReAuthError AuthPendingInvitation)
-    Just (Nothing, _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
-    Just (Just pw', Active) -> maybeReAuth pw'
-    Just (Just pw', Ephemeral) -> maybeReAuth pw'
-  where
-    maybeReAuth pw' = case pw of
-      Nothing -> unlessM (isSamlUser u) $ throwE ReAuthMissingPassword
-      Just p ->
-        unless (verifyPassword p pw') $
-          throwE (ReAuthError AuthInvalidCredentials)
-
-isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
-isSamlUser uid = do
-  account <- lookupAccount uid
-  case userIdentity . accountUser =<< account of
-    Just (SSOIdentity (UserSSOId _) _) -> pure True
-    _ -> pure False
+  pure $
+    User
+      (Qualified uid domain)
+      (Just $ SSOIdentity (UserScimExternalId externalId) (Just email))
+      Nothing
+      name
+      Nothing
+      (Pict [])
+      []
+      defaultAccentId
+      PendingInvitation
+      loc
+      Nothing
+      Nothing
+      Nothing
+      (Just tid)
+      ManagedByScim
+      defSupportedProtocols
 
 insertAccount ::
   (MonadClient m) =>
-  UserAccount ->
+  User ->
   -- | If a bot: conversation and team
   --   (if a team conversation)
   Maybe (ConvId, Maybe TeamId) ->
@@ -235,7 +163,7 @@ insertAccount ::
   -- | Whether the user is activated
   Bool ->
   m ()
-insertAccount (UserAccount u status) mbConv password activated = retry x5 . batch $ do
+insertAccount u mbConv password activated = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
   let Locale l c = userLocale u
@@ -243,6 +171,7 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
     userInsert
     ( userId u,
       userDisplayName u,
+      userTextStatus u,
       userPict u,
       userAssets u,
       userEmail u,
@@ -250,7 +179,7 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       userAccentId u,
       password,
       activated,
-      status,
+      userStatus u,
       userExpire u,
       l,
       c,
@@ -277,10 +206,10 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       "INSERT INTO service_team (provider, service, user, conv, team) \
       \VALUES (?, ?, ?, ?, ?)"
 
-updateEmail :: (MonadClient m) => UserId -> Email -> m ()
+updateEmail :: (MonadClient m) => UserId -> EmailAddress -> m ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
 
-updateEmailUnvalidated :: (MonadClient m) => UserId -> Email -> m ()
+updateEmailUnvalidated :: (MonadClient m) => UserId -> EmailAddress -> m ()
 updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
 
 updateSSOId :: (MonadClient m) => UserId -> Maybe UserSSOId -> m Bool
@@ -298,13 +227,11 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (
 updateRichInfo :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
-updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
-updateFeatureConferenceCalling uid mbStatus = do
-  let flag = ApiFt.wssStatus <$> mbStatus
-  retry x5 $ write update (params LocalQuorum (flag, uid))
-  pure mbStatus
+updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe FeatureStatus -> m ()
+updateFeatureConferenceCalling uid mStatus =
+  retry x5 $ write update (params LocalQuorum (mStatus, uid))
   where
-    update :: PrepQuery W (Maybe ApiFt.FeatureStatus, UserId) ()
+    update :: PrepQuery W (Maybe FeatureStatus, UserId) ()
     update = fromString "update user set feature_conference_calling = ? where id = ?"
 
 deleteEmail :: (MonadClient m) => UserId -> m ()
@@ -340,15 +267,6 @@ updateStatus u s =
 userExists :: (MonadClient m) => UserId -> m Bool
 userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
 
-filterActive :: (MonadClient m) => [UserId] -> m [UserId]
-filterActive us =
-  map (view _1) . filter isActiveUser
-    <$> retry x1 (query accountStateSelectAll (params LocalQuorum (Identity us)))
-  where
-    isActiveUser :: (UserId, Bool, Maybe AccountStatus) -> Bool
-    isActiveUser (_, True, Just Active) = True
-    isActiveUser _ = False
-
 lookupUser :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> UserId -> m (Maybe User)
 lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 
@@ -366,11 +284,6 @@ lookupName u =
   fmap runIdentity
     <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
 
-lookupRichInfo :: (MonadClient m) => UserId -> m (Maybe RichInfoAssocList)
-lookupRichInfo u =
-  fmap runIdentity
-    <$> retry x1 (query1 richInfoSelect (params LocalQuorum (Identity u)))
-
 -- | Returned rich infos are in the same order as users
 lookupRichInfoMultiUsers :: (MonadClient m) => [UserId] -> m [(UserId, RichInfo)]
 lookupRichInfoMultiUsers users = do
@@ -385,28 +298,14 @@ lookupUserTeam u =
   (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
 
-lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
-lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity u)))
-  where
-    f (pw, st) = (pw, fromMaybe Active st)
-
 -- | Return users with given IDs.
 --
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
 lookupUsers :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> [UserId] -> m [User]
 lookupUsers hpi usrs = do
-  loc <- setDefaultUserLocale <$> view settings
+  loc <- defaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
-
-lookupAccount :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe UserAccount)
-lookupAccount u = listToMaybe <$> lookupAccounts [u]
-
-lookupAccounts :: (MonadClient m, MonadReader Env m) => [UserId] -> m [UserAccount]
-lookupAccounts usrs = do
-  loc <- setDefaultUserLocale <$> view settings
-  domain <- viewFederationDomain
-  fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 
 lookupServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m (Maybe (ConvId, Maybe TeamId))
 lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
@@ -444,15 +343,12 @@ lookupServiceUsersForTeam pid sid tid =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"
 
-lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
+lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
 lookupFeatureConferenceCalling uid = do
   let q = query1 select (params LocalQuorum (Identity uid))
-  mStatusValue <- (>>= runIdentity) <$> retry x1 q
-  case mStatusValue of
-    Nothing -> pure Nothing
-    Just status -> pure $ Just $ ApiFt.defFeatureStatusNoLock {ApiFt.wssStatus = status}
+  (>>= runIdentity) <$> retry x1 q
   where
-    select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.FeatureStatus))
+    select :: PrepQuery R (Identity UserId) (Identity (Maybe FeatureStatus))
     select = fromString "select feature_conference_calling from user where id = ?"
 
 -------------------------------------------------------------------------------
@@ -460,11 +356,15 @@ lookupFeatureConferenceCalling uid = do
 
 type Activated = Bool
 
+-- UserRow is the same as AccountRow from the user subsystem.  when migrating this code there,
+-- consider eliminating it instead.
 type UserRow =
   ( UserId,
     Name,
+    Maybe TextStatus,
     Maybe Pict,
-    Maybe Email,
+    Maybe EmailAddress,
+    Maybe EmailAddress,
     Maybe UserSSOId,
     ColourId,
     Maybe [Asset],
@@ -484,9 +384,10 @@ type UserRow =
 type UserRowInsert =
   ( UserId,
     Name,
+    Maybe TextStatus,
     Pict,
     [Asset],
-    Maybe Email,
+    Maybe EmailAddress,
     Maybe UserSSOId,
     ColourId,
     Maybe Password,
@@ -505,12 +406,9 @@ type UserRowInsert =
 
 deriving instance Show UserRowInsert
 
--- Represents a 'UserAccount'
-type AccountRow = UserRow
-
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
-  "SELECT id, name, picture, email, sso_id, accent_id, assets, \
+  "SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id IN ?"
@@ -521,39 +419,23 @@ idSelect = "SELECT id FROM user WHERE id = ?"
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
 nameSelect = "SELECT name FROM user WHERE id = ?"
 
-authSelect :: PrepQuery R (Identity UserId) (Maybe Password, Maybe AccountStatus)
-authSelect = "SELECT password, status FROM user WHERE id = ?"
-
-accountStateSelectAll :: PrepQuery R (Identity [UserId]) (UserId, Bool, Maybe AccountStatus)
-accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
-
-richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
-richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
-
 richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
 richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
 
-accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect =
-  "SELECT id, name, picture, email, sso_id, accent_id, assets, \
-  \activated, status, expires, language, country, provider, \
-  \service, handle, team, managed_by, supported_protocols \
-  \FROM user WHERE id IN ?"
-
 userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
-  "INSERT INTO user (id, name, picture, assets, email, sso_id, \
+  "INSERT INTO user (id, name, text_status, picture, assets, email, sso_id, \
   \accent_id, password, activated, status, expires, language, \
   \country, provider, service, handle, team, managed_by, supported_protocols) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-userEmailUpdate :: PrepQuery W (Email, UserId) ()
+userEmailUpdate :: PrepQuery W (EmailAddress, UserId) ()
 userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
 
-userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) ()
+userEmailUnvalidatedUpdate :: PrepQuery W (EmailAddress, UserId) ()
 userEmailUnvalidatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = ? WHERE id = ?"
 
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
@@ -571,11 +453,11 @@ userStatusUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE use
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = false WHERE id = ?"
 
-userActivatedUpdate :: PrepQuery W (Maybe Email, UserId) ()
+userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
 userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"
 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
-userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null WHERE id = ?"
+userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null, write_time_bumper = 0 WHERE id = ?"
 
 userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
 userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE rich_info SET json = ? WHERE user = ?"
@@ -583,56 +465,8 @@ userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE r
 -------------------------------------------------------------------------------
 -- Conversions
 
--- | Construct a 'UserAccount' from a raw user record in the database.
-toUserAccount :: Domain -> Locale -> AccountRow -> UserAccount
-toUserAccount
-  domain
-  defaultLocale
-  ( uid,
-    name,
-    pict,
-    email,
-    ssoid,
-    accent,
-    assets,
-    activated,
-    status,
-    expires,
-    lan,
-    con,
-    pid,
-    sid,
-    handle,
-    tid,
-    managed_by,
-    prots
-    ) =
-    let ident = toIdentity activated email ssoid
-        deleted = Just Deleted == status
-        expiration = if status == Just Ephemeral then expires else Nothing
-        loc = toLocale defaultLocale (lan, con)
-        svc = newServiceRef <$> sid <*> pid
-     in UserAccount
-          ( User
-              (Qualified uid domain)
-              ident
-              name
-              (fromMaybe noPict pict)
-              (fromMaybe [] assets)
-              accent
-              deleted
-              loc
-              svc
-              handle
-              expiration
-              tid
-              (fromMaybe ManagedByWire managed_by)
-              (fromMaybe defSupportedProtocols prots)
-          )
-          (fromMaybe Active status)
-
 toUsers :: Domain -> Locale -> HavePendingInvitations -> [UserRow] -> [User]
-toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
+toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
   where
     fp :: UserRow -> Bool
     fp =
@@ -641,8 +475,10 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         NoPendingInvitations ->
           ( \( _uid,
                _name,
+               _textStatus,
                _pict,
                _email,
+               _emailUnvalidated,
                _ssoid,
                _accent,
                _assets,
@@ -664,8 +500,10 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
     mk
       ( uid,
         name,
+        textStatus,
         pict,
         email,
+        emailUnvalidated,
         ssoid,
         accent,
         assets,
@@ -682,18 +520,19 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         prots
         ) =
         let ident = toIdentity activated email ssoid
-            deleted = Just Deleted == status
             expiration = if status == Just Ephemeral then expires else Nothing
-            loc = toLocale defaultLocale (lan, con)
+            loc = toLocaleWithDefault defLocale (lan, con)
             svc = newServiceRef <$> sid <*> pid
          in User
               (Qualified uid domain)
               ident
+              emailUnvalidated
               name
+              textStatus
               (fromMaybe noPict pict)
               (fromMaybe [] assets)
               accent
-              deleted
+              (fromMaybe Active status)
               loc
               svc
               handle
@@ -702,9 +541,9 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
               (fromMaybe ManagedByWire managed_by)
               (fromMaybe defSupportedProtocols prots)
 
-toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
-toLocale _ (Just l, c) = Locale l c
-toLocale l _ = l
+    toLocaleWithDefault :: Locale -> (Maybe Language, Maybe Country) -> Locale
+    toLocaleWithDefault _ (Just l, c) = Locale l c
+    toLocaleWithDefault l _ = l
 
 -- | Construct a 'UserIdentity'.
 --
@@ -713,11 +552,11 @@ toLocale l _ = l
 -- activated.
 --
 -- The reason it's just a "precaution" is that we /also/ have an invariant that having an
--- email or phone in the database means the user has to be activated.
+-- email in the database means the user has to be activated.
 toIdentity ::
   -- | Whether the user is activated
   Bool ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   Maybe UserSSOId ->
   Maybe UserIdentity
 toIdentity True (Just e) Nothing = Just $! EmailIdentity e

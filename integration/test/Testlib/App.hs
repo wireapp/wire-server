@@ -63,11 +63,6 @@ instance MakesValue Domain where
   make OwnDomain = asks (String . T.pack . (.domain1))
   make OtherDomain = asks (String . T.pack . (.domain2))
 
-data FedDomain = FedV0Domain
-
-instance MakesValue FedDomain where
-  make FedV0Domain = asks (String . T.pack . (.federationV0Domain))
-
 -- | Run an action, `recoverAll`ing with exponential backoff (min step 8ms, total timeout
 -- ~15s).  Search this package for examples how to use it.
 --

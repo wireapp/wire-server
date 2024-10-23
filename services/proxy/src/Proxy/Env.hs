@@ -32,7 +32,7 @@ where
 import Control.Lens (makeLenses, (^.))
 import Data.Configurator
 import Data.Configurator.Types
-import Data.Id (RequestId (..))
+import Data.Id (RequestId (..), defRequestId)
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -62,7 +62,7 @@ createEnv o = do
         }
   let ac = AutoConfig 60 (reloadError g)
   (c, t) <- autoReload ac [Required $ o ^. secretsConfig]
-  let rid = RequestId "N/A"
+  let rid = RequestId defRequestId
   pure $! Env rid o g n c t
   where
     reloadError g x =

@@ -28,6 +28,13 @@ spec:
         checksum/aws-secret: {{ include (print .Template.BasePath "/aws-secret.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: galley
       serviceAccountName: {{ .Values.serviceAccount.name }}
       volumes:
         - name: "galley-config"
@@ -126,5 +133,10 @@ spec:
               scheme: HTTP
               path: /i/status
               port: {{ .Values.service.internalPort }}
+          {{- if .Values.preStop }}
+          lifecycle:
+            preStop:
+{{ toYaml .Values.preStop | indent 14 }}
+          {{- end }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}

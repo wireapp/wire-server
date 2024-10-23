@@ -41,13 +41,11 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import Brig.Data.User qualified as Data
-import Brig.Effects.FederationConfigStore
 import Brig.IO.Intra qualified as Intra
 import Brig.IO.Logging
 import Brig.Options
 import Brig.Types.Connection
 import Control.Error
-import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import Data.LegalHold qualified as LH
@@ -68,10 +66,12 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.UserStore
+import Wire.UserSubsystem
 
 ensureNotSameTeam :: (Member GalleyAPIAccess r) => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
@@ -86,6 +86,7 @@ createConnection ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
@@ -106,6 +107,7 @@ createConnectionToLocalUser ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
@@ -116,7 +118,7 @@ createConnectionToLocalUser self conn target = do
   ensureNotSameAndActivated self (tUntagged target)
   noteT (InvalidUser (tUntagged target)) $
     ensureIsActivated target
-  checkLegalholdPolicyConflict (tUnqualified self) (tUnqualified target)
+  checkLegalholdPolicyConflict self target
   ensureNotSameTeam self target
   s2o <- lift . wrapClient $ Data.lookupConnection self (tUntagged target)
   o2s <- lift . wrapClient $ Data.lookupConnection target (tUntagged self)
@@ -194,9 +196,9 @@ createConnectionToLocalUser self conn target = do
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
 checkLegalholdPolicyConflict ::
-  (Member GalleyAPIAccess r) =>
-  UserId ->
-  UserId ->
+  (Member GalleyAPIAccess r, Member UserSubsystem r) =>
+  Local UserId ->
+  Local UserId ->
   ExceptT ConnectionError (AppT r) ()
 checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
@@ -339,7 +341,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
       traverse_ (liftSem . Intra.blockConv self) (ucConvId s2o)
-      mlsEnabled <- view (settings . enableMLS)
+      mlsEnabled <- asks (.settings.enableMLS)
       liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
         isEstablished <- isMLSOne2OneEstablished self (tUntagged other)
@@ -355,7 +357,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
       cnv <- lift . liftSem $ traverse (unblockConversation self conn) (ucConvId s2o)
-      mlsEnabled <- view (settings . enableMLS)
+      mlsEnabled <- asks (.settings.enableMLS)
       lift . liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
         isEstablished <- isMLSOne2OneEstablished self (tUntagged other)

@@ -50,20 +50,20 @@ import Wire.API.User
 userActivate :: (MonadReader Env m, MonadIO m) => User -> m ()
 userActivate u@User {..} = journalEvent UserEvent'USER_ACTIVATE (userId u) (userEmail u) (Just userLocale) userTeam (Just userDisplayName)
 
-userUpdate :: (MonadReader Env m, MonadIO m) => UserId -> Maybe Email -> Maybe Locale -> Maybe Name -> m ()
+userUpdate :: (MonadReader Env m, MonadIO m) => UserId -> Maybe EmailAddress -> Maybe Locale -> Maybe Name -> m ()
 userUpdate uid em loc = journalEvent UserEvent'USER_UPDATE uid em loc Nothing
 
-userEmailRemove :: (MonadReader Env m, MonadIO m) => UserId -> Email -> m ()
+userEmailRemove :: (MonadReader Env m, MonadIO m) => UserId -> EmailAddress -> m ()
 userEmailRemove uid em = journalEvent UserEvent'USER_EMAIL_REMOVE uid (Just em) Nothing Nothing Nothing
 
 userDelete :: (MonadReader Env m, MonadIO m) => UserId -> m ()
 userDelete uid = journalEvent UserEvent'USER_DELETE uid Nothing Nothing Nothing Nothing
 
-journalEvent :: (MonadReader Env m, MonadIO m) => UserEvent'EventType -> UserId -> Maybe Email -> Maybe Locale -> Maybe TeamId -> Maybe Name -> m ()
+journalEvent :: (MonadReader Env m, MonadIO m) => UserEvent'EventType -> UserId -> Maybe EmailAddress -> Maybe Locale -> Maybe TeamId -> Maybe Name -> m ()
 journalEvent typ uid em loc tid nm =
   -- this may be the only place that uses awsEnv from brig Env.  refactor it to use the
   -- DeleteQueue effect instead?
-  view awsEnv >>= \env -> for_ (view AWS.userJournalQueue env) $ \queue -> do
+  asks (.awsEnv) >>= \env -> for_ (view AWS.userJournalQueue env) $ \queue -> do
     ts <- now
     rnd <- liftIO nextRandom
     let userEvent :: UserEvent =

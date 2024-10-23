@@ -1,9 +1,10 @@
-{ "qualified_user_client_prekeys" : {
-    "example.com" : {
-      "44f9c51e-0dce-4e7f-85ba-b4e5a545ce68" : {
-        "123456789abcef" : null
-      }
+{
+    "failed_to_list": [],
+    "qualified_user_client_prekeys": {
+        "example.com": {
+            "44f9c51e-0dce-4e7f-85ba-b4e5a545ce68": {
+                "123456789abcef": null
+            }
+        }
     }
-  }
-, "failed_to_list" : []
 }

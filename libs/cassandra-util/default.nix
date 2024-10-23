@@ -19,6 +19,7 @@
 , optparse-applicative
 , retry
 , split
+, template-haskell
 , text
 , time
 , tinylog
@@ -44,6 +45,7 @@ mkDerivation {
     optparse-applicative
     retry
     split
+    template-haskell
     text
     time
     tinylog

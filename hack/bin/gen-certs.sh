@@ -34,7 +34,7 @@ gen_cert() {
   if [ -n "$3" ]; then
     subj=(-subj "/CN=$3")
   fi
-  openssl x509 -req -in <(openssl req -nodes -newkey rsa:2048 -keyout "$1/key.pem" -out /dev/stdout -subj "/" 2>/dev/null) -CA "$1/ca.pem" -CAkey "$1/ca-key.pem" "${subj[@]}" -out "$1/cert.pem" -set_serial 0 -extfile <( echo "extendedKeyUsage = serverAuth, clientAuth"; echo "subjectAltName = critical, $2" ) 2>/dev/null
+  openssl x509 -req -in <(openssl req -nodes -newkey rsa:2048 -keyout "$1/key.pem" -out /dev/stdout -subj "/" 2>/dev/null) -CA "$1/ca.pem" -CAkey "$1/ca-key.pem" "${subj[@]}" -out "$1/cert.pem" -set_serial 0 -days 3650 -extfile <( echo "extendedKeyUsage = serverAuth, clientAuth"; echo "subjectAltName = critical, $2" ) 2>/dev/null
 }
 
 # usage: install_certs source_dir target_dir ca ca-key cert key
@@ -55,6 +55,8 @@ gen_cert "$TEMP/federation" "DNS:*.integration.example.com, DNS:host.docker.inte
 install_certs "$TEMP/federation" "$ROOT_DIR/services/nginz/integration-test/conf/nginz" \
     integration-ca integration-ca-key integration-leaf integration-leaf-key
 install_certs "$TEMP/federation" "$ROOT_DIR/deploy/dockerephemeral/federation-v0" \
+    integration-ca "" integration-leaf integration-leaf-key
+install_certs "$TEMP/federation" "$ROOT_DIR/deploy/dockerephemeral/federation-v1" \
     integration-ca "" integration-leaf integration-leaf-key
 
 # elasticsearch

@@ -1,17 +1,21 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.UserStore where
 
+import Cassandra (PageWithState (..), PagingState)
 import Data.Default
 import Data.Handle
 import Data.Id
+import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Error
+import Wire.API.Password
 import Wire.API.User
+import Wire.API.User.RichInfo
 import Wire.Arbitrary
 import Wire.StoredUser
+import Wire.UserStore.IndexUser
 
 -- | Update of any "simple" attributes (ones that do not involve locking, like handle, or
 -- validation protocols, like email).
@@ -19,6 +23,7 @@ import Wire.StoredUser
 -- | see 'UserProfileUpdate'.
 data StoredUserUpdate = MkStoredUserUpdate
   { name :: Maybe Name,
+    textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
@@ -29,7 +34,7 @@ data StoredUserUpdate = MkStoredUserUpdate
   deriving (Arbitrary) via GenericUniform StoredUserUpdate
 
 instance Default StoredUserUpdate where
-  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing
+  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Update user handle (this involves several http requests for locking the required handle).
 -- The old/previous handle (for deciding idempotency).
@@ -45,7 +50,9 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 -- | Effect containing database logic around 'StoredUser'.  (Example: claim handle lock is
 -- database logic; validate handle is application logic.)
 data UserStore m a where
-  GetUser :: UserId -> UserStore m (Maybe StoredUser)
+  GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
+  GetIndexUsersPaginated :: Int32 -> Maybe PagingState -> UserStore m (PageWithState IndexUser)
+  GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   DeleteUser :: User -> UserStore m ()
@@ -62,8 +69,15 @@ data UserStore m a where
   --   an email address or phone number.
   IsActivated :: UserId -> UserStore m Bool
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
+  UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
+  GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
+  GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
+  GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
 
 makeSem ''UserStore
+
+getUser :: (Member UserStore r) => UserId -> Sem r (Maybe StoredUser)
+getUser uid = listToMaybe <$> getUsers [uid]
 
 updateUserHandle ::
   (Member UserStore r, Member (Error StoredUserUpdateError) r) =>

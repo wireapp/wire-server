@@ -17,7 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.MLS where
 
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -26,7 +26,6 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -37,10 +36,6 @@ type MLSMessagingAPI =
     "mls-message"
     ( Summary "Post an MLS message"
         :> From 'V5
-        :> MakesFederatedCall 'Galley "on-mls-message-sent"
-        :> MakesFederatedCall 'Galley "send-mls-message"
-        :> MakesFederatedCall 'Galley "on-conversation-updated"
-        :> MakesFederatedCall 'Brig "get-mls-clients"
         :> CanThrow 'ConvAccessDenied
         :> CanThrow 'ConvMemberNotFound
         :> CanThrow 'ConvNotFound
@@ -72,33 +67,27 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
-               :> From 'V5
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "mls-welcome"
-               :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Brig "get-mls-clients"
-               :> MakesFederatedCall 'Brig "get-users-by-ids"
-               :> MakesFederatedCall 'Brig "api-version"
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'ConvMemberNotFound
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'LegalHoldNotEnabled
-               :> CanThrow 'MissingLegalholdConsent
-               :> CanThrow 'MLSClientMismatch
-               :> CanThrow 'MLSClientSenderUserMismatch
-               :> CanThrow 'MLSCommitMissingReferences
-               :> CanThrow 'MLSGroupConversationMismatch
-               :> CanThrow 'MLSInvalidLeafNodeIndex
-               :> CanThrow 'MLSNotEnabled
-               :> CanThrow 'MLSProposalNotFound
-               :> CanThrow 'MLSProtocolErrorTag
-               :> CanThrow 'MLSSelfRemovalNotAllowed
-               :> CanThrow 'MLSStaleMessage
-               :> CanThrow 'MLSSubConvClientNotInParent
-               :> CanThrow 'MLSUnsupportedMessage
-               :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'MLSWelcomeMismatch
+               :> From V5
+               :> CanThrow ConvAccessDenied
+               :> CanThrow ConvMemberNotFound
+               :> CanThrow ConvNotFound
+               :> CanThrow LegalHoldNotEnabled
+               :> CanThrow MissingLegalholdConsent
+               :> CanThrow MLSClientMismatch
+               :> CanThrow MLSClientSenderUserMismatch
+               :> CanThrow MLSCommitMissingReferences
+               :> CanThrow MLSGroupConversationMismatch
+               :> CanThrow MLSInvalidLeafNodeIndex
+               :> CanThrow MLSNotEnabled
+               :> CanThrow MLSProposalNotFound
+               :> CanThrow MLSProtocolErrorTag
+               :> CanThrow MLSSelfRemovalNotAllowed
+               :> CanThrow MLSStaleMessage
+               :> CanThrow MLSSubConvClientNotInParent
+               :> CanThrow MLSUnsupportedMessage
+               :> CanThrow MLSUnsupportedProposal
+               :> CanThrow MLSWelcomeMismatch
+               :> CanThrow MLSLegalholdIncompatible
                :> CanThrow MLSProposalFailure
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
@@ -107,26 +96,28 @@ type MLSMessagingAPI =
                :> ZClient
                :> ZConn
                :> ReqBody '[MLS] (RawMLS CommitBundle)
-               :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
-           )
-    :<|> Named
-           "mls-public-keys-v5"
-           ( Summary "Get public keys used by the backend to sign external proposals"
-               :> From 'V5
-               :> Until 'V6
-               :> CanThrow 'MLSNotEnabled
-               :> "public-keys"
-               :> ZLocalUser
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" (MLSKeysByPurpose MLSPublicKeys))
+               :> MultiVerb1 POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named
            "mls-public-keys"
            ( Summary "Get public keys used by the backend to sign external proposals"
-               :> From 'V6
+               :> Description
+                    "The format of the returned key is determined by the `format` query parameter:\n\
+                    \ - raw (default): base64-encoded raw public keys\n\
+                    \ - jwk: keys are nested objects in JWK format."
+               :> From 'V5
                :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> ZLocalUser
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" (MLSKeysByPurpose MLSPublicKeysJWK))
+               :> QueryParam "format" MLSPublicKeyFormat
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( Respond
+                        200
+                        "Public keys"
+                        (MLSKeysByPurpose (MLSKeys SomeKey))
+                    )
            )
 
 type MLSAPI = LiftNamed ("mls" :> MLSMessagingAPI)

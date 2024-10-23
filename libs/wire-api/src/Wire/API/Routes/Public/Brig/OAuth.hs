@@ -24,11 +24,14 @@ import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
+import Wire.API.Error.Brig
 import Wire.API.OAuth
+import Wire.API.Password
 import Wire.API.Routes.API
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 
 type OAuthAPI =
   Named
@@ -36,7 +39,7 @@ type OAuthAPI =
     ( Summary "Get OAuth client information"
         :> CanThrow 'OAuthFeatureDisabled
         :> CanThrow 'OAuthClientNotFound
-        :> ZUser
+        :> ZLocalUser
         :> "oauth"
         :> "clients"
         :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
@@ -52,7 +55,7 @@ type OAuthAPI =
            "create-oauth-auth-code"
            ( Summary "Create an OAuth authorization code"
                :> Description "Currently only supports the 'code' response type, which corresponds to the authorization code flow."
-               :> ZUser
+               :> ZLocalUser
                :> "oauth"
                :> "authorization"
                :> "codes"
@@ -96,7 +99,7 @@ type OAuthAPI =
            "get-oauth-applications"
            ( Summary "Get OAuth applications with account access"
                :> Description "Get all OAuth applications with active account access for a user."
-               :> ZUser
+               :> ZLocalUser
                :> "oauth"
                :> "applications"
                :> MultiVerb1
@@ -105,9 +108,10 @@ type OAuthAPI =
                     (Respond 200 "OAuth applications found" [OAuthApplication])
            )
     :<|> Named
-           "revoke-oauth-account-access"
+           "revoke-oauth-account-access-v6"
            ( Summary "Revoke account access from an OAuth application"
-               :> ZUser
+               :> ZLocalUser
+               :> Until 'V7
                :> "oauth"
                :> "applications"
                :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
@@ -116,6 +120,38 @@ type OAuthAPI =
                     '[JSON]
                     '[RespondEmpty 204 "OAuth application access revoked"]
                     ()
+           )
+    :<|> Named
+           "revoke-oauth-account-access"
+           ( Summary "Revoke account access from an OAuth application"
+               :> CanThrow 'AccessDenied
+               :> ZLocalUser
+               :> From 'V7
+               :> "oauth"
+               :> "applications"
+               :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
+               :> "sessions"
+               :> ReqBody '[JSON] PasswordReqBody
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[RespondEmpty 204 "OAuth application access revoked"]
+                    ()
+           )
+    :<|> Named
+           "delete-oauth-refresh-token"
+           ( Summary "Revoke an active OAuth session"
+               :> Description "Revoke an active OAuth session by providing the refresh token ID."
+               :> ZLocalUser
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'OAuthClientNotFound
+               :> "oauth"
+               :> "applications"
+               :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
+               :> "sessions"
+               :> Capture' '[Description "The ID of the refresh token"] "RefreshTokenId" OAuthRefreshTokenId
+               :> ReqBody '[JSON] PasswordReqBody
+               :> Delete '[JSON] ()
            )
 
 type CreateOAuthAuthorizationCodeHeaders = '[Header "Location" RedirectUrl]

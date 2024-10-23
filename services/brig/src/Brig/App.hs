@@ -1,6 +1,5 @@
 {-# LANGUAGE DeepSubsumption #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
@@ -27,44 +26,47 @@ module Brig.App
   ( schemaVersion,
 
     -- * App Environment
-    Env,
+    Env (..),
+    mkIndexEnv,
     newEnv,
     closeEnv,
-    awsEnv,
-    smtpEnv,
-    cargohold,
-    galley,
-    galleyEndpoint,
-    gundeckEndpoint,
-    cargoholdEndpoint,
-    federator,
-    casClient,
-    userTemplates,
-    usrTemplates,
-    providerTemplates,
-    teamTemplates,
-    templateBranding,
-    requestId,
-    httpManager,
-    http2Manager,
-    extGetManager,
-    settings,
-    currentTime,
-    zauthEnv,
-    digestSHA256,
-    digestMD5,
-    applog,
-    turnEnv,
-    sftEnv,
-    internalEvents,
-    emailSender,
-    randomPrekeyLocalLock,
-    keyPackageLocalLock,
-    rabbitmqChannel,
-    fsWatcher,
-    disabledVersions,
-    enableSFTFederation,
-    mkIndexEnv,
+    providerTemplatesWithLocale,
+    teamTemplatesWithLocale,
+    teamTemplatesNoLocale,
+    cargoholdLens,
+    galleyLens,
+    galleyEndpointLens,
+    gundeckEndpointLens,
+    cargoholdEndpointLens,
+    federatorLens,
+    casClientLens,
+    smtpEnvLens,
+    emailSenderLens,
+    awsEnvLens,
+    appLoggerLens,
+    internalEventsLens,
+    requestIdLens,
+    userTemplatesLens,
+    providerTemplatesLens,
+    teamTemplatesLens,
+    templateBrandingLens,
+    httpManagerLens,
+    http2ManagerLens,
+    extGetManagerLens,
+    settingsLens,
+    fsWatcherLens,
+    turnEnvLens,
+    sftEnvLens,
+    currentTimeLens,
+    zauthEnvLens,
+    digestSHA256Lens,
+    digestMD5Lens,
+    indexEnvLens,
+    randomPrekeyLocalLockLens,
+    keyPackageLocalLockLens,
+    rabbitmqChannelLens,
+    disabledVersionsLens,
+    enableSFTFederationLens,
 
     -- * App Monad
     AppT (..),
@@ -84,14 +86,12 @@ module Brig.App
     runHttpClientIO,
     liftSem,
     lowerAppT,
-    temporaryGetEnv,
     initHttpManagerWithTLSConfig,
     adhocUserKeyStoreInterpreter,
     adhocSessionStoreInterpreter,
   )
 where
 
-import Bilge (RequestId (..))
 import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
@@ -110,7 +110,7 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Brig.ZAuth qualified as ZAuth
-import Cassandra (MonadClient, runClient)
+import Cassandra (runClient)
 import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
@@ -121,6 +121,7 @@ import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
 import Data.Domain
+import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Text qualified as Text
@@ -139,6 +140,7 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
+import Polysemy.Fail
 import Polysemy.Final
 import Polysemy.Input (Input, input)
 import Prometheus
@@ -148,10 +150,11 @@ import System.Logger.Class hiding (Settings, settings)
 import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
 import Util.Options
+import Util.SuffixNamer
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
-import Wire.API.User.Identity (Email)
+import Wire.API.User.Identity
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
 import Wire.SessionStore
@@ -168,43 +171,43 @@ schemaVersion = Migrations.lastSchemaVersion
 -- Environment
 
 data Env = Env
-  { _cargohold :: RPC.Request,
-    _galley :: RPC.Request,
-    _galleyEndpoint :: Endpoint,
-    _gundeckEndpoint :: Endpoint,
-    _cargoholdEndpoint :: Endpoint,
-    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
-    _casClient :: Cas.ClientState,
-    _smtpEnv :: Maybe SMTP.SMTP,
-    _emailSender :: Email,
-    _awsEnv :: AWS.Env,
-    _applog :: Logger,
-    _internalEvents :: QueueEnv,
-    _requestId :: RequestId,
-    _usrTemplates :: Localised UserTemplates,
-    _provTemplates :: Localised ProviderTemplates,
-    _tmTemplates :: Localised TeamTemplates,
-    _templateBranding :: TemplateBranding,
-    _httpManager :: Manager,
-    _http2Manager :: Http2Manager,
-    _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
-    _settings :: Settings,
-    _fsWatcher :: FS.WatchManager,
-    _turnEnv :: Calling.TurnEnv,
-    _sftEnv :: Maybe Calling.SFTEnv,
-    _currentTime :: IO UTCTime,
-    _zauthEnv :: ZAuth.Env,
-    _digestSHA256 :: Digest,
-    _digestMD5 :: Digest,
-    _indexEnv :: IndexEnv,
-    _randomPrekeyLocalLock :: Maybe (MVar ()),
-    _keyPackageLocalLock :: MVar (),
-    _rabbitmqChannel :: Maybe (MVar Q.Channel),
-    _disabledVersions :: Set Version,
-    _enableSFTFederation :: Maybe Bool
+  { cargohold :: RPC.Request,
+    galley :: RPC.Request,
+    galleyEndpoint :: Endpoint,
+    gundeckEndpoint :: Endpoint,
+    cargoholdEndpoint :: Endpoint,
+    federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
+    casClient :: Cas.ClientState,
+    smtpEnv :: Maybe SMTP.SMTP,
+    emailSender :: EmailAddress,
+    awsEnv :: AWS.Env,
+    appLogger :: Logger,
+    internalEvents :: QueueEnv,
+    requestId :: RequestId,
+    userTemplates :: Localised UserTemplates,
+    providerTemplates :: Localised ProviderTemplates,
+    teamTemplates :: Localised TeamTemplates,
+    templateBranding :: TemplateBranding,
+    httpManager :: Manager,
+    http2Manager :: Http2Manager,
+    extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
+    settings :: Settings,
+    fsWatcher :: FS.WatchManager,
+    turnEnv :: Calling.TurnEnv,
+    sftEnv :: Maybe Calling.SFTEnv,
+    currentTime :: IO UTCTime,
+    zauthEnv :: ZAuth.Env,
+    digestSHA256 :: Digest,
+    digestMD5 :: Digest,
+    indexEnv :: IndexEnv,
+    randomPrekeyLocalLock :: Maybe (MVar ()),
+    keyPackageLocalLock :: MVar (),
+    rabbitmqChannel :: Maybe (MVar Q.Channel),
+    disabledVersions :: Set Version,
+    enableSFTFederation :: Maybe Bool
   }
 
-makeLenses ''Env
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 
 validateOptions :: Opts -> IO ()
 validateOptions o =
@@ -214,44 +217,43 @@ validateOptions o =
     _ -> pure ()
 
 newEnv :: Opts -> IO Env
-newEnv o = do
-  validateOptions o
+newEnv opts = do
+  validateOptions opts
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
-  lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
-  cas <- initCassandra o lgr
+  lgr <- Log.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
+  cas <- initCassandra opts lgr
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
   ext <- initExtGetManager
-  utp <- loadUserTemplates o
-  ptp <- loadProviderTemplates o
-  ttp <- loadTeamTemplates o
-  let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ o
-  (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
-  aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
-  zau <- initZAuth o
+  utp <- loadUserTemplates opts
+  ptp <- loadProviderTemplates opts
+  ttp <- loadTeamTemplates opts
+  let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
+  (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
+  aws <- AWS.mkEnv lgr (Opt.aws opts) emailAWSOpts mgr
+  zau <- initZAuth opts
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
   w <-
     FS.startManagerConf $
       FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
-  let turnOpts = Opt.turn o
+  let turnOpts = Opt.turn opts
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
   turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
-  let sett = Opt.optSettings o
-  eventsQueue :: QueueEnv <- case Opt.internalEventsQueue (Opt.internalEvents o) of
+  eventsQueue :: QueueEnv <- case opts.internalEvents.internalEventsQueue of
     StompQueueOpts q -> do
-      stomp :: Stomp.Env <- case (Opt.stomp o, Opt.setStomp sett) of
+      stomp :: Stomp.Env <- case (opts.stompOptions, opts.settings.stomp) of
         (Just s, Just c) -> Stomp.mkEnv s <$> initCredentials c
         (Just _, Nothing) -> error "STOMP is configured but 'setStomp' is not set"
         (Nothing, Just _) -> error "'setStomp' is present but STOMP is not configured"
         (Nothing, Nothing) -> error "stomp is selected for internal events, but not configured in 'setStomp', STOMP"
       pure (StompQueueEnv (Stomp.broker stomp) q)
     SqsQueueOpts q -> do
-      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis (view Opt.sqsThrottleMillis $ Opt.optSettings o)
+      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis opts.settings.sqsThrottleMillis
       SqsQueueEnv aws throttleMillis <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
-  mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
-  prekeyLocalLock <- case Opt.randomPrekeys o of
+  mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft opts
+  prekeyLocalLock <- case Opt.randomPrekeys opts of
     Just True -> do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: active")
       Just <$> newMVar ()
@@ -259,58 +261,58 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
-  let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
-  idxEnv <- mkIndexEnv o.elasticsearch lgr (Opt.galley o) mgr
+  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) opts.rabbitmq
+  let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
+  idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   pure $!
     Env
-      { _cargohold = mkEndpoint $ Opt.cargohold o,
-        _galley = mkEndpoint $ Opt.galley o,
-        _galleyEndpoint = Opt.galley o,
-        _gundeckEndpoint = Opt.gundeck o,
-        _cargoholdEndpoint = Opt.cargohold o,
-        _federator = Opt.federatorInternal o,
-        _casClient = cas,
-        _smtpEnv = emailSMTP,
-        _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
-        _awsEnv = aws, -- used by `journalEvent` directly
-        _applog = lgr,
-        _internalEvents = (eventsQueue :: QueueEnv),
-        _requestId = RequestId "N/A",
-        _usrTemplates = utp,
-        _provTemplates = ptp,
-        _tmTemplates = ttp,
-        _templateBranding = branding,
-        _httpManager = mgr,
-        _http2Manager = h2Mgr,
-        _extGetManager = ext,
-        _settings = sett,
-        _turnEnv = turn,
-        _sftEnv = mSFTEnv,
-        _fsWatcher = w,
-        _currentTime = clock,
-        _zauthEnv = zau,
-        _digestMD5 = md5,
-        _digestSHA256 = sha256,
-        _indexEnv = idxEnv,
-        _randomPrekeyLocalLock = prekeyLocalLock,
-        _keyPackageLocalLock = kpLock,
-        _rabbitmqChannel = rabbitChan,
-        _disabledVersions = allDisabledVersions,
-        _enableSFTFederation = Opt.multiSFT o
+      { cargohold = mkEndpoint $ opts.cargohold,
+        galley = mkEndpoint $ opts.galley,
+        galleyEndpoint = opts.galley,
+        gundeckEndpoint = opts.gundeck,
+        cargoholdEndpoint = opts.cargohold,
+        federator = opts.federatorInternal,
+        casClient = cas,
+        smtpEnv = emailSMTP,
+        emailSender = opts.emailSMS.general.emailSender,
+        awsEnv = aws, -- used by `journalEvent` directly
+        appLogger = lgr,
+        internalEvents = (eventsQueue :: QueueEnv),
+        requestId = RequestId defRequestId,
+        userTemplates = utp,
+        providerTemplates = ptp,
+        teamTemplates = ttp,
+        templateBranding = branding,
+        httpManager = mgr,
+        http2Manager = h2Mgr,
+        extGetManager = ext,
+        settings = opts.settings,
+        turnEnv = turn,
+        sftEnv = mSFTEnv,
+        fsWatcher = w,
+        currentTime = clock,
+        zauthEnv = zau,
+        digestMD5 = md5,
+        digestSHA256 = sha256,
+        indexEnv = idxEnv,
+        randomPrekeyLocalLock = prekeyLocalLock,
+        keyPackageLocalLock = kpLock,
+        rabbitmqChannel = rabbitChan,
+        disabledVersions = allDisabledVersions,
+        enableSFTFederation = opts.multiSFT
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
-      let h = Opt.smtpEndpoint s ^. host
-          p = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. port
+      let h = s.smtpEndpoint.host
+          p = Just . fromInteger . toInteger $ s.smtpEndpoint.port
       smtpCredentials <- case Opt.smtpCredentials s of
         Just (Opt.EmailSMTPCredentials u p') -> do
           Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials p'
         _ -> pure Nothing
       smtp <- SMTP.initSMTP lgr h p smtpCredentials (Opt.smtpConnType s)
       pure (Nothing, Just smtp)
-    mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
+    mkEndpoint service = RPC.host (encodeUtf8 service.host) . RPC.port service.port $ RPC.empty
 
 mkIndexEnv :: ElasticSearchOpts -> Logger -> Endpoint -> Manager -> IO IndexEnv
 mkIndexEnv esOpts logger galleyEp rpcHttpManager = do
@@ -437,21 +439,23 @@ initCassandra o g =
     (Just schemaVersion)
     g
 
-userTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, UserTemplates)
-userTemplates l = forLocale l <$> view usrTemplates
+teamTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
+teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)
 
-providerTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
-providerTemplates l = forLocale l <$> view provTemplates
+providerTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
+providerTemplatesWithLocale l = forLocale l <$> asks (.providerTemplates)
 
-teamTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
-teamTemplates l = forLocale l <$> view tmTemplates
+-- this works because team templates is not affected by `forLocale`; it is useful where we
+-- use the `TeamTemplates` only for finding invitation url templates (those are not localized).
+teamTemplatesNoLocale :: (MonadReader Env m) => m TeamTemplates
+teamTemplatesNoLocale = snd <$> teamTemplatesWithLocale Nothing
 
 closeEnv :: Env -> IO ()
 closeEnv e = do
-  Cas.shutdown $ e ^. casClient
-  FS.stopManager $ e ^. fsWatcher
-  Log.flush $ e ^. applog
-  Log.close $ e ^. applog
+  Cas.shutdown $ e.casClient
+  FS.stopManager $ e.fsWatcher
+  Log.flush $ e.appLogger
+  Log.close $ e.appLogger
 
 -------------------------------------------------------------------------------
 -- App Monad
@@ -467,9 +471,6 @@ newtype AppT r a = AppT
 
 lowerAppT :: (Member (Final IO) r) => Env -> AppT r a -> Sem r a
 lowerAppT env (AppT r) = runReaderT r env
-
-temporaryGetEnv :: AppT r Env
-temporaryGetEnv = AppT ask
 
 instance Functor (AppT r) where
   fmap fab (AppT x0) = AppT $ fmap fab x0
@@ -489,6 +490,9 @@ instance MonadMonitor (AppT r) where
 
 instance MonadThrow (AppT r) where
   throwM = liftIO . throwM
+
+instance (Member Fail r) => MonadFail (AppT r) where
+  fail = AppT . fail
 
 instance (Member (Final IO) r) => MonadThrow (Sem r) where
   throwM = embedFinal . throwM @IO
@@ -514,14 +518,14 @@ liftSem sem = AppT $ lift sem
 
 instance (MonadIO m) => MonadLogger (ReaderT Env m) where
   log l m = do
-    g <- view applog
-    r <- view requestId
+    g <- asks (.appLogger)
+    r <- asks (.requestId)
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
 instance MonadLogger (AppT r) where
   log l m = do
-    g <- view applog
-    r <- view requestId
+    g <- asks (.appLogger)
+    r <- asks (.requestId)
     AppT $
       lift $
         embedFinal @IO $
@@ -533,23 +537,22 @@ instance MonadLogger (ExceptT err (AppT r)) where
 
 instance MonadHttp (AppT r) where
   handleRequestWithCont req handler = do
-    manager <- view httpManager
+    manager <- asks (.httpManager)
     liftIO $ withResponse req manager handler
 
 instance MonadZAuth (AppT r) where
-  liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
+  liftZAuth za = asks (.zauthEnv) >>= \e -> runZAuth e za
 
 instance MonadZAuth (ExceptT err (AppT r)) where
-  liftZAuth za = lift (view zauthEnv) >>= flip runZAuth za
+  liftZAuth za = lift (asks (.zauthEnv)) >>= flip runZAuth za
 
 -- | The function serves as a crutch while Brig is being polysemised. Use it
 -- whenever the compiler complains that there is no instance of `MonadClient`
 -- for `AppT r`. It can be removed once there is no `AppT` anymore.
 wrapClient :: ReaderT Env Cas.Client a -> AppT r a
 wrapClient m = do
-  c <- view casClient
   env <- ask
-  runClient c $ runReaderT m env
+  runClient env.casClient $ runReaderT m env
 
 wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r) a
 wrapClientE = mapExceptT wrapClient
@@ -584,22 +587,22 @@ newtype HttpClientIO a = HttpClientIO
 
 runHttpClientIO :: (MonadIO m) => Env -> HttpClientIO a -> m a
 runHttpClientIO env =
-  runClient (env ^. casClient)
-    . runHttpT (env ^. httpManager)
+  runClient (env.casClient)
+    . runHttpT (env.httpManager)
     . flip runReaderT env
     . unHttpClientIO
 
 instance MonadZAuth HttpClientIO where
-  liftZAuth za = view zauthEnv >>= flip runZAuth za
+  liftZAuth za = asks (.zauthEnv) >>= flip runZAuth za
 
 instance HasRequestId HttpClientIO where
-  getRequestId = view requestId
+  getRequestId = asks (.requestId)
 
 instance Cas.MonadClient HttpClientIO where
   liftClient cl = do
     env <- ask
-    liftIO $ runClient (view casClient env) cl
-  localState f = local (casClient %~ f)
+    liftIO $ runClient (asks (.casClient) env) cl
+  localState f = local (casClientLens %~ f)
 
 instance MonadMonitor HttpClientIO where
   doIO = liftIO
@@ -613,38 +616,38 @@ wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r) a
 wrapHttpClientE = mapExceptT wrapHttpClient
 
 instance (MonadIO m) => MonadIndexIO (ReaderT Env m) where
-  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+  liftIndexIO m = asks (.indexEnv) >>= \e -> runIndexIO e m
 
 instance MonadIndexIO (AppT r) where
   liftIndexIO m = do
     AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
 
 instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
-  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+  liftIndexIO m = asks (.indexEnv) >>= \e -> runIndexIO e m
 
 instance HasRequestId (AppT r) where
-  getRequestId = view requestId
+  getRequestId = asks (.requestId)
 
 -------------------------------------------------------------------------------
 -- Ad hoc interpreters
 
 -- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
-adhocUserKeyStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[UserKeyStore, UserStore, Embed IO] a -> m a
+adhocUserKeyStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem '[UserKeyStore, UserStore, Embed IO] a -> m a
 adhocUserKeyStoreInterpreter action = do
-  clientState <- asks (view casClient)
+  clientState <- asks (.casClient)
   liftIO $ runM . interpretUserStoreCassandra clientState . interpretUserKeyStoreCassandra clientState $ action
 
 -- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
-adhocSessionStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
+adhocSessionStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
 adhocSessionStoreInterpreter action = do
-  clientState <- asks (view casClient)
+  clientState <- asks (.casClient)
   liftIO $ runM . interpretSessionStoreCassandra clientState $ action
 
 --------------------------------------------------------------------------------
 -- Federation
 
 viewFederationDomain :: (MonadReader Env m) => m Domain
-viewFederationDomain = view (settings . Opt.federationDomain)
+viewFederationDomain = asks (.settings.federationDomain)
 
 -- FUTUREWORK: rename to 'qualifyLocalMtl'
 qualifyLocal :: (MonadReader Env m) => a -> m (Local a)

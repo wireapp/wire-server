@@ -163,6 +163,8 @@ testSettings =
             assertFailure "expected failure for invalid private key, got success"
     ]
 
+-- @SF.Federation @TSFI.Federate @S3 @S7
+--
 failToStartWithInvalidServerCredentials :: IO ()
 failToStartWithInvalidServerCredentials = do
   let settings =
@@ -185,6 +187,8 @@ failToStartWithInvalidServerCredentials = do
           <> show e
     Right _ ->
       assertFailure "expected failure for invalid client certificate, got success"
+
+-- @END
 
 assertParsesAs :: (HasCallStack, Eq a, FromJSON a, Show a) => a -> ByteString -> Assertion
 assertParsesAs v bs =

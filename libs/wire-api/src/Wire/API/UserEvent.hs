@@ -146,6 +146,7 @@ data ClientEvent
 data UserUpdatedData = UserUpdatedData
   { eupId :: !UserId,
     eupName :: !(Maybe Name),
+    eupTextStatus :: !(Maybe TextStatus),
     -- | DEPRECATED
     eupPict :: !(Maybe Pict),
     eupAccentId :: !(Maybe ColourId),
@@ -155,20 +156,21 @@ data UserUpdatedData = UserUpdatedData
     eupManagedBy :: !(Maybe ManagedBy),
     eupSSOId :: !(Maybe UserSSOId),
     eupSSOIdRemoved :: Bool,
-    eupSupportedProtocols :: !(Maybe (Set BaseProtocolTag))
+    eupSupportedProtocols :: !(Maybe (Set BaseProtocolTag)),
+    eupTeam :: !(Maybe TeamId)
   }
   deriving stock (Eq, Show)
 
 data UserIdentityUpdatedData = UserIdentityUpdatedData
   { eiuId :: !UserId,
-    eiuEmail :: !(Maybe Email),
+    eiuEmail :: !(Maybe EmailAddress),
     eiuPhone :: !(Maybe Phone)
   }
   deriving stock (Eq, Show)
 
 data UserIdentityRemovedData = UserIdentityRemovedData
   { eirId :: !UserId,
-    eirEmail :: !(Maybe Email),
+    eirEmail :: !(Maybe EmailAddress),
     eirPhone :: !(Maybe Phone)
   }
   deriving stock (Eq, Show)
@@ -183,56 +185,23 @@ data LegalHoldClientRequestedData = LegalHoldClientRequestedData
   }
   deriving stock (Eq, Show)
 
-emailRemoved :: UserId -> Email -> UserEvent
+emailRemoved :: UserId -> EmailAddress -> UserEvent
 emailRemoved u e =
   UserIdentityRemoved $ UserIdentityRemovedData u (Just e) Nothing
 
-phoneRemoved :: UserId -> Phone -> UserEvent
-phoneRemoved u p =
-  UserIdentityRemoved $ UserIdentityRemovedData u Nothing (Just p)
-
-emailUpdated :: UserId -> Email -> UserEvent
+emailUpdated :: UserId -> EmailAddress -> UserEvent
 emailUpdated u e =
   UserIdentityUpdated $ UserIdentityUpdatedData u (Just e) Nothing
 
-phoneUpdated :: UserId -> Phone -> UserEvent
-phoneUpdated u p =
-  UserIdentityUpdated $ UserIdentityUpdatedData u Nothing (Just p)
-
-handleUpdated :: UserId -> Handle -> UserEvent
-handleUpdated u h =
-  UserUpdated $ (emptyUserUpdatedData u) {eupHandle = Just h}
-
-localeUpdate :: UserId -> Locale -> UserEvent
-localeUpdate u loc =
-  UserUpdated $ (emptyUserUpdatedData u) {eupLocale = Just loc}
-
-managedByUpdate :: UserId -> ManagedBy -> UserEvent
-managedByUpdate u mb =
-  UserUpdated $ (emptyUserUpdatedData u) {eupManagedBy = Just mb}
-
-supportedProtocolUpdate :: UserId -> Set BaseProtocolTag -> UserEvent
-supportedProtocolUpdate u prots =
-  UserUpdated $ (emptyUserUpdatedData u) {eupSupportedProtocols = Just prots}
-
-profileUpdated :: UserId -> UserUpdate -> UserEvent
-profileUpdated u UserUpdate {..} =
-  UserUpdated $
-    (emptyUserUpdatedData u)
-      { eupName = uupName,
-        eupPict = uupPict,
-        eupAccentId = uupAccentId,
-        eupAssets = uupAssets
-      }
-
-emptyUpdate :: UserId -> UserEvent
-emptyUpdate = UserUpdated . emptyUserUpdatedData
+teamUpdated :: UserId -> TeamId -> UserEvent
+teamUpdated u t = UserUpdated (emptyUserUpdatedData u) {eupTeam = Just t}
 
 emptyUserUpdatedData :: UserId -> UserUpdatedData
 emptyUserUpdatedData u =
   UserUpdatedData
     { eupId = u,
       eupName = Nothing,
+      eupTextStatus = Nothing,
       eupPict = Nothing,
       eupAccentId = Nothing,
       eupAssets = Nothing,
@@ -241,7 +210,8 @@ emptyUserUpdatedData u =
       eupManagedBy = Nothing,
       eupSSOId = Nothing,
       eupSSOIdRemoved = False,
-      eupSupportedProtocols = Nothing
+      eupSupportedProtocols = Nothing,
+      eupTeam = Nothing
     }
 
 -- Event schema
@@ -273,6 +243,7 @@ eventObjectSchema =
                           ( UserUpdatedData
                               <$> eupId .= field "id" schema
                               <*> eupName .= maybe_ (optField "name" schema)
+                              <*> eupTextStatus .= maybe_ (optField "text_status" schema)
                               <*> eupPict .= maybe_ (optField "picture" schema) -- DEPRECATED
                               <*> eupAccentId .= maybe_ (optField "accent_id" schema)
                               <*> eupAssets .= maybe_ (optField "assets" (array schema))
@@ -281,12 +252,8 @@ eventObjectSchema =
                               <*> eupManagedBy .= maybe_ (optField "managed_by" schema)
                               <*> eupSSOId .= maybe_ (optField "sso_id" genericToSchema)
                               <*> eupSSOIdRemoved .= field "sso_id_deleted" schema
-                              <*> eupSupportedProtocols
-                                .= maybe_
-                                  ( optField
-                                      "supported_protocols"
-                                      (set schema)
-                                  )
+                              <*> eupSupportedProtocols .= maybe_ (optField "supported_protocols" (set schema))
+                              <*> eupTeam .= maybe_ (optField "team" schema)
                           )
                       )
                   )
@@ -382,7 +349,7 @@ eventObjectSchema =
               _ClientEvent
               ( tag
                   _ClientAdded
-                  (field "client" (clientSchema (Just V5)))
+                  (field "client" (clientSchema (Just V6)))
               )
           EventTypeClientRemoved ->
             tag

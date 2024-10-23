@@ -38,7 +38,6 @@ module Util.Core
     it,
     pending,
     pendingWith,
-    xit,
     shouldRespondWith,
     module Test.Hspec,
     aFewTimes,
@@ -48,8 +47,6 @@ module Util.Core
     -- * HTTP
     call,
     endpointToReq,
-    endpointToSettings,
-    endpointToURL,
 
     -- * Other
     randomEmail,
@@ -60,7 +57,6 @@ module Util.Core
     updateProfileBrig,
     createUserWithTeam,
     createUserWithTeamDisableSSO,
-    getSSOEnabledInternal,
     putSSOEnabledInternal,
     inviteAndRegisterUser,
     createTeamMember,
@@ -95,7 +91,6 @@ module Util.Core
     loginSsoUserFirstTime,
     loginSsoUserFirstTime',
     loginCreatedSsoUser,
-    callAuthnReqPrecheck',
     callAuthnReq,
     callAuthnReq',
     callIdpGet,
@@ -164,14 +159,13 @@ import Data.String.Conversions
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy.Encoding as LT
+import Data.These
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
 import GHC.TypeLits
 import Imports hiding (head)
 import Network.HTTP.Client.MultipartFormData
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
 import Polysemy (Sem)
 import SAML2.WebSSO as SAML hiding ((<$$>))
@@ -186,6 +180,7 @@ import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import Spar.Run
+import Spar.Sem.BrigAccess (getAccount)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
@@ -203,7 +198,7 @@ import Util.Types
 import qualified Web.Cookie as Web
 import Wire.API.Team (Icon (..))
 import qualified Wire.API.Team as Galley
-import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL' (..), FeatureTrivialConfig (trivialConfig), SSOConfig, WithStatusNoLock (WithStatusNoLock))
+import Wire.API.Team.Feature
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.Team.Member (NewTeamMember, TeamMemberList, rolePermissions)
 import qualified Wire.API.Team.Member as Member
@@ -215,7 +210,7 @@ import Wire.API.User
 import qualified Wire.API.User as User
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
-import Wire.API.User.Scim (runValidExternalIdEither)
+import Wire.API.User.Scim
 import Wire.Sem.Logger.TinyLog
 
 -- | Call 'mkEnv' with options from config files.
@@ -298,15 +293,6 @@ it ::
   TestSpar () ->
   SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
-
-xit ::
-  (HasCallStack) =>
-  -- or, more generally:
-  -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
-  String ->
-  TestSpar () ->
-  SpecWith TestEnv
-xit msg bdy = Test.Hspec.xit msg $ runReaderT bdy
 
 pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending
@@ -396,18 +382,12 @@ createUserWithTeamDisableSSO brg gly = do
       pure ()
   pure (uid, tid)
 
-getSSOEnabledInternal :: (HasCallStack, MonadHttp m) => GalleyReq -> TeamId -> m ResponseLBS
-getSSOEnabledInternal gly tid = do
-  get $
-    gly
-      . paths ["i", "teams", toByteString' tid, "features", "sso"]
-
 putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> FeatureStatus -> m ()
 putSSOEnabledInternal gly tid enabled = do
   void . put $
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json (WithStatusNoLock @SSOConfig enabled trivialConfig FeatureTTLUnlimited)
+      . json (Feature enabled SSOConfig)
       . expect2xx
 
 -- | cloned from `/services/brig/test/integration/API/Team/Util.hs`.
@@ -416,12 +396,12 @@ inviteAndRegisterUser ::
   BrigReq ->
   UserId ->
   TeamId ->
-  Email ->
+  EmailAddress ->
   m User
 inviteAndRegisterUser brig u tid inviteeEmail = do
   let invite = stdInvitationRequest inviteeEmail
-  inv <- responseJsonError =<< postInvitation tid u invite
-  Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)
+  inv :: TeamInvitation.Invitation <- responseJsonError =<< postInvitation tid u invite
+  Just inviteeCode <- getInvitationCode tid inv.invitationId
   rspInvitee <-
     post
       ( brig
@@ -437,10 +417,10 @@ inviteAndRegisterUser brig u tid inviteeEmail = do
   unless (selfTeam == Just tid) $ error "Team ID in self profile and team table do not match"
   pure invitee
   where
-    accept' :: User.Email -> User.InvitationCode -> RequestBody
+    accept' :: EmailAddress -> User.InvitationCode -> RequestBody
     accept' email code = acceptWithName (User.Name "Bob") email code
     --
-    acceptWithName :: User.Name -> User.Email -> User.InvitationCode -> RequestBody
+    acceptWithName :: User.Name -> EmailAddress -> User.InvitationCode -> RequestBody
     acceptWithName name email code =
       RequestBodyLBS . Aeson.encode $
         object
@@ -627,13 +607,13 @@ getSelfProfile brg usr = do
 zAuthAccess :: UserId -> ByteString -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 
-newTeam :: Galley.BindingNewTeam
-newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
+newTeam :: Galley.NewTeam
+newTeam = Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
 
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = do
   uid <- liftIO nextRandom
-  pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ User.unsafeEmailAddress ("success+" <> UUID.toASCIIBytes uid) "simulator.amazonses.com"
 
 randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m User
 randomUser brig_ = do
@@ -686,22 +666,7 @@ zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
-endpointToReq ep = Bilge.host (ep ^. host . to cs) . Bilge.port (ep ^. port)
-
-endpointToSettings :: Endpoint -> Warp.Settings
-endpointToSettings ep =
-  Warp.defaultSettings
-    { Warp.settingsHost = Imports.fromString . cs $ ep ^. host,
-      Warp.settingsPort = fromIntegral $ ep ^. port
-    }
-
-endpointToURL :: (MonadIO m) => Endpoint -> Text -> m URI
-endpointToURL ep urlpath = either err pure url
-  where
-    url = parseURI' ("http://" <> urlhost <> ":" <> urlport) <&> (=/ urlpath)
-    urlhost = cs $ ep ^. host
-    urlport = cs . show $ ep ^. port
-    err = liftIO . throwIO . ErrorCall . show . (,(ep, url))
+endpointToReq ep = Bilge.host (cs ep.host) . Bilge.port ep.port
 
 -- spar specifics
 
@@ -793,8 +758,7 @@ getCookie proxy rsp = do
     then Right $ SimpleSetCookie web
     else Left $ "bad cookie name.  (found, expected) == " <> show (Web.setCookieName web, SAML.cookieName proxy)
 
--- | In 'setResponseCookie' we set an expiration date iff cookie is persistent.  So here we test for
--- expiration date.  Easier than parsing and inspecting the cookie value.
+-- |  we test for expiration date as it's asier than parsing and inspecting the cookie value.
 hasPersistentCookieHeader :: ResponseLBS -> Either String ()
 hasPersistentCookieHeader rsp = do
   cky <- getCookie (Proxy @"zuid") rsp
@@ -981,10 +945,6 @@ safeHead msg [] = throwError $ msg <> ": []"
 callAuthnReq' :: (MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReq' sparreq_ idpid = do
   get $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
-
-callAuthnReqPrecheck' :: (MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
-callAuthnReqPrecheck' sparreq_ idpid = do
-  head $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
 callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do
@@ -1186,15 +1146,17 @@ callDeleteDefaultSsoCode sparreq_ = do
 
 -- helpers talking to spar's cassandra directly
 
--- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
+-- | Look up 'UserId' under 'externalId', and if no email address is given, under the saml user ref.
+--
+-- This is a bit convoluted, don't try too hard to make sense of it. Better luck when
+-- rewriting this in /integration!  :-)
 ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> UserSSOId -> m (Maybe UserId)
 ssoToUidSpar tid ssoid = do
-  veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
+  veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid Nothing
   runSpar $
-    runValidExternalIdEither
-      SAMLUserStore.get
-      (ScimExternalIdStore.lookup tid)
-      veid
+    let doThat = SAMLUserStore.get
+        doThis _ = ScimExternalIdStore.lookup tid veid.validScimIdExternal
+     in these doThis doThat (const doThat) veid.validScimIdAuthInfo
 
 runSimpleSP :: (MonadReader TestEnv m, MonadIO m) => SAML.SimpleSP a -> m a
 runSimpleSP action = do
@@ -1225,7 +1187,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: (HasCallStack) => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
+  musr <- aFewTimes (runSpar $ getAccount Intra.NoPendingInvitations uid) isJust
   pure $ ssoIdentity =<< (userIdentity =<< musr)
 
 getUserIdViaRef :: (HasCallStack) => UserRef -> TestSpar UserId
@@ -1246,13 +1208,13 @@ checkErrHspec :: (HasCallStack) => Int -> TestErrorLabel -> ResponseLBS -> Bool
 checkErrHspec status label resp = status == statusCode resp && responseJsonEither resp == Right label
 
 -- | copied from brig integration tests
-stdInvitationRequest :: User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest :: EmailAddress -> TeamInvitation.InvitationRequest
 stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 
 -- | copied from brig integration tests
-stdInvitationRequest' :: Maybe User.Locale -> Maybe Role -> User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest' :: Maybe User.Locale -> Maybe Role -> EmailAddress -> TeamInvitation.InvitationRequest
 stdInvitationRequest' loc role email =
-  TeamInvitation.InvitationRequest loc role Nothing email Nothing
+  TeamInvitation.InvitationRequest loc role Nothing email
 
 setRandomHandleBrig :: (HasCallStack) => UserId -> TestSpar ()
 setRandomHandleBrig uid = do

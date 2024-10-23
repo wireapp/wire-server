@@ -11,6 +11,7 @@ license:       AGPL-3
 build-type:    Simple
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
     Polysemy.Testing
     Polysemy.TinyLog
@@ -23,6 +24,8 @@ library
     Wire.Sem.Logger
     Wire.Sem.Logger.Level
     Wire.Sem.Logger.TinyLog
+    Wire.Sem.Metrics
+    Wire.Sem.Metrics.IO
     Wire.Sem.Now
     Wire.Sem.Now.Input
     Wire.Sem.Now.IO
@@ -83,7 +86,7 @@ library
 
   build-depends:
       aeson
-    , base             >=4.6 && <5.0
+    , base               >=4.6 && <5.0
     , bytestring
     , cassandra-util
     , crypton
@@ -94,6 +97,7 @@ library
     , polysemy
     , polysemy-check
     , polysemy-plugin
+    , prometheus-client
     , QuickCheck
     , saml2-web-sso
     , time

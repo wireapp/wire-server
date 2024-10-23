@@ -19,13 +19,14 @@
 
 module Wire.API.Routes.Named where
 
-import Control.Lens ((%~))
+import Control.Lens ((%~), (?~))
 import Data.Kind
 import Data.Metrics.Servant
 import Data.OpenApi.Lens hiding (HasServer)
 import Data.OpenApi.Operation
 import Data.Proxy
 import Data.Text qualified as T
+import GHC.Generics
 import GHC.TypeLits
 import Imports
 import Servant
@@ -41,17 +42,34 @@ newtype Named name x = Named {unnamed :: x}
 -- types other than string literals in some places.
 class RenderableSymbol a where
   renderSymbol :: Text
+  renderOperationId :: Text
+  renderOperationId = renderSymbol @a
 
-instance {-# OVERLAPPABLE #-} (KnownSymbol a) => RenderableSymbol a where
+instance (KnownSymbol a) => RenderableSymbol a where
   renderSymbol = T.pack . show $ symbolVal (Proxy @a)
+  renderOperationId = T.pack $ symbolVal (Proxy @a)
 
-instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
+instance (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
+  renderOperationId = renderOperationId @a <> "_" <> renderOperationId @b
+
+newtype RenderableTypeName a = RenderableTypeName a
+
+instance (GRenderableSymbol (Rep a)) => RenderableSymbol (RenderableTypeName a) where
+  renderSymbol = grenderSymbol @(Rep a)
+  renderOperationId = grenderSymbol @(Rep a)
+
+class GRenderableSymbol f where
+  grenderSymbol :: Text
+
+instance (KnownSymbol tyName) => GRenderableSymbol (D1 (MetaData tyName modName pkg b) k) where
+  grenderSymbol = T.pack $ symbolVal (Proxy @tyName)
 
 instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (Named name api) where
   toOpenApi _ =
     toOpenApi (Proxy @api)
       & allOperations . description %~ (Just (dscr <> "\n\n") <>)
+      & allOperations . operationId ?~ renderOperationId @name
     where
       dscr :: Text
       dscr =
@@ -137,9 +155,14 @@ namedClient ::
   Client m endpoint
 namedClient = clientIn (Proxy @endpoint) (Proxy @m)
 
----------------------------------------------
--- Utility to add a combinator to a Named API
-
+-- | Utility to push a Servant combinator inside Named APIs.
+--
+-- For example:
+-- @@
+-- From 'V5 ::> (Named "foo" (Get '[JSON] Foo) :<|> Named "bar" (Post '[JSON] Bar))
+-- ==
+-- Named "foo" (From 'V5 :> Get '[JSON] Foo) :<|> Named "bar" (From 'V5 :> Post '[JSON] Bar)
+-- @@
 type family x ::> api
 
 infixr 4 ::>
@@ -147,3 +170,7 @@ infixr 4 ::>
 type instance
   x ::> (Named name api) =
     Named name (x :> api)
+
+type instance
+  x ::> (api1 :<|> api2) =
+    (x ::> api1) :<|> (x ::> api2)

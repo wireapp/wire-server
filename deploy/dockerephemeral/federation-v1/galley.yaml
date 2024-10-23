@@ -1,0 +1,107 @@
+galley:
+  host: 0.0.0.0
+  port: 8080
+
+cassandra:
+  endpoint:
+    host: demo_wire_cassandra
+    port: 9042
+  keyspace: galley_test_federation_v1
+  # filterNodesByDatacentre: datacenter1
+
+brig:
+  host: brig-federation-v1
+  port: 8080
+
+gundeck:
+  host: gundeck-federation-v1
+  port: 8080
+
+spar:
+  host: spar-federation-v1
+  port: 8080
+
+federator:
+  host: federator-federation-v1
+  port: 8080
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  vHost: federation-v1
+
+settings:
+  httpPoolSize: 128
+  maxTeamSize: 32
+  maxFanoutSize: 18
+  exposeInvitationURLsTeamAllowlist: []
+  maxConvSize: 16
+  intraListing: false
+  conversationCodeURI: https://account.wire.com/conversation-join/
+  concurrentDeletionEvents: 1024
+  deleteConvThrottleMillis: 0
+  #   Federation domain is used to qualify local IDs and handles,
+  #   e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+  #   It should also match the SRV DNS records under which other wire-server installations can find this backend:
+  #      _wire-server-federator._tcp.<federationDomain>
+  #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+  #   Remember to keep it the same in Brig
+  federationDomain: federation-v1.example.com
+  mlsPrivateKeyPaths:
+    removal:
+      ed25519: /etc/wire/galley/conf/mls-private-key-ed25519.pem
+  guestLinkTTLSeconds: 604800
+  disabledAPIVersions: []
+
+  featureFlags:  # see #RefConfigOptions in `/docs/reference`
+    sso: disabled-by-default
+    legalhold: whitelist-teams-and-implicit-consent
+    teamSearchVisibility: disabled-by-default
+    appLock:
+      defaults:
+        status: enabled
+        config:
+          enforceAppLock: false
+          inactivityTimeoutSecs: 60
+    classifiedDomains:
+      status: enabled
+      config:
+        domains: ["example.com"]
+    fileSharing:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+    conferenceCalling:
+      defaults:
+        status: enabled
+    outlookCalIntegration:
+      defaults:
+        status: disabled
+        lockStatus: locked
+    mlsE2EId:
+      defaults:
+        status: disabled
+        config:
+          verificationExpiration: 86400
+          acmeDiscoveryUrl: null
+        lockStatus: unlocked
+    mlsMigration:
+      defaults:
+        status: enabled
+        config:
+          startTime: "2029-05-16T10:11:12.123Z"
+          finaliseRegardlessAfter: "2029-10-17T00:00:00.000Z"
+          usersThreshold: 100
+          clientsThreshold: 50
+        lockStatus: locked
+    limitedEventFanout:
+      defaults:
+        status: disabled
+
+logLevel: Warn
+logNetStrings: false
+
+journal: # if set, journals; if not set, disables journaling
+  queueName: integration-team-events-federation-v1.fifo
+  endpoint: http://demo_wire_sqs:4568 # https://sqs.eu-west-1.amazonaws.com
+  region: eu-west-1

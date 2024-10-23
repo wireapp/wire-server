@@ -158,7 +158,7 @@ type Activated = Bool
 
 data UserRow = UserRow
   { id :: UserId,
-    email :: Maybe Email,
+    email :: Maybe EmailAddress,
     phone :: Maybe Phone,
     activated :: Activated,
     status :: Maybe AccountStatus,

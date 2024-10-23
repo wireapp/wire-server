@@ -430,10 +430,47 @@ testRemoteRemoveClient suite = do
     shouldMatch (nPayload n %. "conversation") (objId conv)
     shouldMatch (nPayload n %. "from") (objId bob)
 
-    msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
+    mlsMsg <- asByteString (nPayload n %. "data")
+
+    -- Checks that the remove proposal is consumable by alice
+    void $ mlsCliConsume alice1 mlsMsg
+    -- This doesn't work because `sendAndConsumeCommitBundle` doesn't like
+    -- remove proposals from the backend. We should fix that in future.
+    -- void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    parsedMsg <- showMessage alice1 mlsMsg
     let leafIndexBob = 1
-    msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
-    msg %. "message.content.sender.External" `shouldMatchInt` 0
+    parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
+    parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
+
+testRemoteRemoveCreatorClient :: (HasCallStack) => Ciphersuite -> App ()
+testRemoteRemoveCreatorClient suite = do
+  setMLSCiphersuite suite
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  void $ uploadNewKeyPackage bob1
+  (_, conv) <- createNewGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  withWebSocket bob $ \wsBob -> do
+    void $ deleteClient alice alice1.client >>= getBody 200
+    let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch predicate wsBob
+    shouldMatch (nPayload n %. "conversation") (objId conv)
+    shouldMatch (nPayload n %. "from") (objId alice)
+
+    mlsMsg <- asByteString (nPayload n %. "data")
+
+    -- Checks that the remove proposal is consumable by alice
+    void $ mlsCliConsume alice1 mlsMsg
+    -- This doesn't work because `sendAndConsumeCommitBundle` doesn't like
+    -- remove proposals from the backend. We should fix that in future.
+    -- void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    parsedMsg <- showMessage alice1 mlsMsg
+    let leafIndexAlice = 0
+    parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexAlice
+    parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
 
 testCreateSubConv :: (HasCallStack) => Ciphersuite -> App ()
 testCreateSubConv suite = do
@@ -492,6 +529,10 @@ testFirstCommitAllowsPartialAdds = do
     resp.status `shouldMatchInt` 409
     resp.json %. "label" `shouldMatch` "mls-client-mismatch"
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+--
+-- This test verifies that the server rejects a commit containing add proposals
+-- that only add a proper subset of the set of clients of a user.
 testAddUserPartial :: (HasCallStack) => App ()
 testAddUserPartial = do
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
@@ -518,6 +559,8 @@ testAddUserPartial = do
 
   err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
   err %. "label" `shouldMatch` "mls-client-mismatch"
+
+-- @END
 
 -- | admin removes user from a conversation but doesn't list all clients
 testRemoveClientsIncomplete :: (HasCallStack) => App ()
@@ -704,6 +747,10 @@ testPropExistingConv = do
   res <- createAddProposals alice1 [bob] >>= traverse sendAndConsumeMessage >>= assertOne
   shouldBeEmpty (res %. "events")
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+--
+-- This test verifies that the server rejects any commit that does not
+-- reference all pending proposals in an MLS group.
 testCommitNotReferencingAllProposals :: (HasCallStack) => App ()
 testCommitNotReferencingAllProposals = do
   users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
@@ -727,6 +774,8 @@ testCommitNotReferencingAllProposals = do
   bindResponse (postMLSCommitBundle alice1 (mkBundle commit)) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-commit-missing-references"
+
+-- @END
 
 testUnsupportedCiphersuite :: (HasCallStack) => App ()
 testUnsupportedCiphersuite = do

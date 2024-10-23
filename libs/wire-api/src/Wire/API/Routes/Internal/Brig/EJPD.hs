@@ -43,7 +43,7 @@ import Imports hiding (head)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Connection (Relation)
 import Wire.API.Team.Member (NewListType)
-import Wire.API.User.Identity (Email, Phone)
+import Wire.API.User.Identity (EmailAddress, Phone)
 import Wire.API.User.Profile (Name)
 import Wire.Arbitrary (GenericUniform (..))
 
@@ -62,7 +62,7 @@ data EJPDResponseItemRoot = EJPDResponseItemRoot
     ejpdResponseRootTeamId :: Maybe TeamId,
     ejpdResponseRootName :: Name,
     ejpdResponseRootHandle :: Maybe Handle,
-    ejpdResponseRootEmail :: Maybe Email,
+    ejpdResponseRootEmail :: Maybe EmailAddress,
     ejpdResponseRootPhone :: Maybe Phone,
     ejpdResponseRootPushTokens :: Set Text, -- 'Wire.API.Push.V2.Token.Token', but that would produce an orphan instance.
     ejpdResponseRootContacts :: Maybe (Set EJPDContact),
@@ -78,7 +78,7 @@ data EJPDResponseItemLeaf = EJPDResponseItemLeaf
     ejpdResponseLeafTeamId :: Maybe TeamId,
     ejpdResponseLeafName :: Name,
     ejpdResponseLeafHandle :: Maybe Handle,
-    ejpdResponseLeafEmail :: Maybe Email,
+    ejpdResponseLeafEmail :: Maybe EmailAddress,
     ejpdResponseLeafPhone :: Maybe Phone,
     ejpdResponseLeafPushTokens :: Set Text, -- 'Wire.API.Push.V2.Token.Token', but that would produce an orphan instance.
     ejpdResponseLeafConversations :: Maybe (Set EJPDConvInfo),

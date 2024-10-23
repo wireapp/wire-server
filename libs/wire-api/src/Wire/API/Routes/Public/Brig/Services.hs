@@ -129,6 +129,8 @@ type ServicesAPI =
            ( Summary "Get services tags"
                :> CanThrow 'AccessDenied
                :> ZUser
+               :> "services"
+               :> "tags"
                :> Get '[JSON] ServiceTagList
            )
     :<|> Named

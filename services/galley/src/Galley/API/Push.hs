@@ -37,13 +37,13 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Galley.Data.Services
 import Galley.Effects.ExternalAccess
-import Gundeck.Types.Push (RecipientClients (RecipientClientsSome), Route (..))
 import Imports
 import Polysemy
 import Polysemy.TinyLog
 import System.Logger.Class qualified as Log
 import Wire.API.Event.Conversation
 import Wire.API.Message
+import Wire.API.Push.V2 (RecipientClients (RecipientClientsSome), Route (..))
 import Wire.NotificationSubsystem
 
 data MessagePush
@@ -69,7 +69,7 @@ newMessagePush ::
   Event ->
   MessagePush
 newMessagePush botMap mconn mm userOrBots event =
-  let toPair r = case Map.lookup (_recipientUserId r) botMap of
+  let toPair r = case Map.lookup (recipientUserId r) botMap of
         Just botMember -> ([], [botMember])
         Nothing -> ([r], [])
       (recipients, botMembers) = foldMap (toPair . toRecipient) userOrBots

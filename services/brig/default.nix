@@ -29,8 +29,8 @@
 , conduit
 , containers
 , cookie
-, cql
 , cryptobox-haskell
+, crypton
 , currency-codes
 , data-default
 , data-timeout
@@ -49,8 +49,9 @@
 , fsnotify
 , galley-types
 , gitignoreSource
-, gundeck-types
 , hashable
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , hscim
 , HsOpenSSL
 , http-api-data
@@ -70,6 +71,7 @@
 , lens
 , lens-aeson
 , lib
+, memory
 , metrics-core
 , metrics-wai
 , mime
@@ -77,7 +79,6 @@
 , mmorph
 , MonadRandom
 , mtl
-, mwc-random
 , network
 , network-conduit-tls
 , network-uri
@@ -104,7 +105,6 @@
 , safe-exceptions
 , saml2-web-sso
 , schema-profunctor
-, scientific
 , servant
 , servant-client
 , servant-client-core
@@ -128,13 +128,11 @@
 , template-haskell
 , temporary
 , text
-, text-icu-translit
 , time
 , time-out
 , time-units
 , tinylog
 , transformers
-, transitive-anns
 , types-common
 , types-common-aws
 , types-common-journal
@@ -153,6 +151,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-otel
 , wire-subsystems
 , yaml
 , zauth
@@ -187,8 +186,8 @@ mkDerivation {
     conduit
     containers
     cookie
-    cql
     cryptobox-haskell
+    crypton
     currency-codes
     data-default
     dns
@@ -203,8 +202,9 @@ mkDerivation {
     filepath
     fsnotify
     galley-types
-    gundeck-types
     hashable
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     HsOpenSSL
     http-client
     http-client-openssl
@@ -219,6 +219,7 @@ mkDerivation {
     jwt-tools
     lens
     lens-aeson
+    memory
     metrics-core
     metrics-wai
     mime
@@ -226,7 +227,6 @@ mkDerivation {
     mmorph
     MonadRandom
     mtl
-    mwc-random
     network
     network-conduit-tls
     openapi3
@@ -243,9 +243,7 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
-    saml2-web-sso
     schema-profunctor
-    scientific
     servant
     servant-openapi3
     servant-server
@@ -258,13 +256,11 @@ mkDerivation {
     template
     template-haskell
     text
-    text-icu-translit
     time
     time-out
     time-units
     tinylog
     transformers
-    transitive-anns
     types-common
     types-common-aws
     types-common-journal
@@ -280,8 +276,8 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-otel
     wire-subsystems
-    yaml
     zauth
   ];
   executableHaskellDepends = [
@@ -397,6 +393,7 @@ mkDerivation {
     tasty
     tasty-hunit
     tasty-quickcheck
+    text
     time
     tinylog
     types-common

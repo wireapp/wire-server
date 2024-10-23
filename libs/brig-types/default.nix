@@ -4,9 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
-, attoparsec
 , base
-, bytestring
 , bytestring-conversion
 , cassandra-util
 , containers
@@ -16,9 +14,7 @@
 , openapi3
 , QuickCheck
 , tasty
-, tasty-hunit
 , tasty-quickcheck
-, text
 , types-common
 , wire-api
 }:
@@ -27,28 +23,22 @@ mkDerivation {
   version = "1.35.0";
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
-    aeson
-    attoparsec
     base
-    bytestring
     bytestring-conversion
     cassandra-util
     containers
     imports
     QuickCheck
-    text
     types-common
     wire-api
   ];
   testHaskellDepends = [
     aeson
     base
-    bytestring-conversion
     imports
     openapi3
     QuickCheck
     tasty
-    tasty-hunit
     tasty-quickcheck
     wire-api
   ];

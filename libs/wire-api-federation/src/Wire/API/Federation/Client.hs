@@ -27,6 +27,7 @@ module Wire.API.Federation.Client
     runVersionedFederatorClient,
     runFederatorClientToCodensity,
     runVersionedFederatorClientToCodensity,
+    getNegotiatedVersion,
     performHTTP2Request,
     consumeStreamingResponseWith,
     streamingResponseStrictBody,
@@ -117,6 +118,9 @@ instance VersionedMonad Version (FederatorClient c) where
     v <- asks cveVersion
     guard (maybe True p v)
 
+getNegotiatedVersion :: FederatorClient c (Maybe Version)
+getNegotiatedVersion = asks cveVersion
+
 liftCodensity :: Codensity IO a -> FederatorClient c a
 liftCodensity = FederatorClient . lift . lift . lift
 
@@ -134,8 +138,8 @@ withNewHttpRequest target req k = do
   sendReqMVar <- newEmptyMVar
   thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
   let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
-  H2Manager.sendRequestWithConnection newConn req $ \resp -> do
-    k resp <* newConn.disconnect
+  H2Manager.sendRequestWithConnection newConn req \resp ->
+    k resp `finally` newConn.disconnect
 
 performHTTP2Request ::
   Http2Manager ->

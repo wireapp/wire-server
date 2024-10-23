@@ -1,4 +1,4 @@
 dependencies:
 - name: rabbitmq
-  version: 11.13.0
+  version: 14.6.9
   repository: https://charts.bitnami.com/bitnami

@@ -19,7 +19,6 @@ module Brig.Version where
 
 import Brig.API.Handler
 import Brig.App
-import Control.Lens
 import Data.Set qualified as Set
 import Imports
 import Servant (ServerT)
@@ -28,9 +27,9 @@ import Wire.API.Routes.Version
 
 versionAPI :: ServerT VersionAPI (Handler r)
 versionAPI = Named $ do
-  fed <- view federator
+  fed <- asks (.federator)
   dom <- viewFederationDomain
-  disabled <- view disabledVersions
+  disabled <- asks (.disabledVersions)
   let allVersions = Set.difference (Set.fromList supportedVersions) disabled
       devVersions = Set.difference (Set.fromList developmentVersions) disabled
       supported = Set.difference allVersions devVersions

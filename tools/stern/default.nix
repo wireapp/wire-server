@@ -11,6 +11,7 @@
 , bytestring-conversion
 , containers
 , cookie
+, data-default
 , errors
 , exceptions
 , extended
@@ -41,6 +42,7 @@
 , tasty-ant-xml
 , tasty-hunit
 , text
+, time
 , tinylog
 , transformers
 , types-common
@@ -82,12 +84,12 @@ mkDerivation {
     servant-swagger-ui
     split
     text
+    time
     tinylog
     transformers
     types-common
     unliftio
     utf8-string
-    uuid
     wai
     wai-utilities
     wire-api
@@ -101,6 +103,7 @@ mkDerivation {
     bytestring-conversion
     containers
     cookie
+    data-default
     exceptions
     extra
     HsOpenSSL

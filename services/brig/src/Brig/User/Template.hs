@@ -28,6 +28,7 @@ module Brig.User.Template
     LoginCallTemplate (..),
     DeletionSmsTemplate (..),
     DeletionEmailTemplate (..),
+    UpgradePersonalToTeamEmailTemplate (..),
     NewClientEmailTemplate (..),
     SecondFactorVerificationEmailTemplate (..),
     loadUserTemplates,
@@ -109,6 +110,13 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
             <*> pure emailSender
             <*> readText fp "email/sender.txt"
         )
+    <*> ( UpgradePersonalToTeamEmailTemplate
+            <$> readTemplate fp "email/upgrade-subject.txt"
+            <*> readTemplate fp "email/upgrade.txt"
+            <*> readTemplate fp "email/upgrade.html"
+            <*> pure emailSender
+            <*> readText fp "email/sender.txt"
+        )
     <*> ( NewClientEmailTemplate
             <$> readTemplate fp "email/new-client-subject.txt"
             <*> readTemplate fp "email/new-client.txt"
@@ -138,17 +146,17 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
             <*> readText fp "email/sender.txt"
         )
   where
-    gOptions = Opt.general $ Opt.emailSMS o
-    uOptions = Opt.user $ Opt.emailSMS o
-    tOptions = Opt.team $ Opt.emailSMS o
-    emailSender = Opt.emailSender gOptions
-    smsSender = Opt.smsSender gOptions
-    smsActivationUrl = template $ Opt.smsActivationUrl uOptions
-    activationUrl = template $ Opt.activationUrl uOptions
-    teamActivationUrl = template $ Opt.tActivationUrl tOptions
-    passwordResetUrl = template $ Opt.passwordResetUrl uOptions
-    deletionUserUrl = template $ Opt.deletionUrl uOptions
-    defLocale = Opt.setDefaultTemplateLocale (Opt.optSettings o)
-    templateDir = Opt.templateDir gOptions
+    gOptions = o.emailSMS.general
+    uOptions = o.emailSMS.user
+    tOptions = o.emailSMS.team
+    emailSender = gOptions.emailSender
+    smsSender = gOptions.smsSender
+    smsActivationUrl = template uOptions.smsActivationUrl
+    activationUrl = template uOptions.activationUrl
+    teamActivationUrl = template tOptions.tActivationUrl
+    passwordResetUrl = template uOptions.passwordResetUrl
+    deletionUserUrl = template uOptions.deletionUrl
+    defLocale = Opt.defaultTemplateLocale o.settings
+    templateDir = gOptions.templateDir
     readTemplate = readTemplateWithDefault templateDir defLocale "user"
     readText = readTextWithDefault templateDir defLocale "user"

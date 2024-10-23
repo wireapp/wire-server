@@ -55,7 +55,7 @@ import qualified Web.Scim.Schema.User.Name as ScimN
 import Wire.API.User.RichInfo
 
 spec :: Spec
-spec = describe "toScimStoredUser'" $ do
+spec = describe "toScimStoredUser" $ do
   it "works" $ do
     let usr :: Scim.User SparTag
         usr =
@@ -115,7 +115,7 @@ spec = describe "toScimStoredUser'" $ do
             URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/v2/"
         uid = Id . fromJust . UUID.fromText $ "90b5ee1c-088e-11e9-9a16-73f80f483813"
         result :: ScimC.StoredUser SparTag
-        result = toScimStoredUser' now now baseuri uid usr
+        result = toScimStoredUser now now baseuri uid usr
     Scim.meta result `shouldBe` meta
     Scim.value (Scim.thing result) `shouldBe` usr
   it "roundtrips" . property $ do

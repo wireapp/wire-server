@@ -55,7 +55,6 @@ import Control.Lens hiding (Context, (<|))
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive qualified as CI
-import Data.Either.Combinators (leftToMaybe)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap, unionWith)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Kind
@@ -111,9 +110,9 @@ type RespondEmpty s desc = RespondAs '() s desc ()
 
 -- | A type to describe a streaming 'MultiVerb' response.
 --
--- Includes status code, description, framing strategy and content type. Note
--- that the handler return type is hardcoded to be 'SourceIO ByteString'.
-data RespondStreaming (s :: Nat) (desc :: Symbol) (framing :: Type) (ct :: Type)
+-- Includes status code, description and content type. Note that the handler
+-- return type is hardcoded to be 'SourceIO ByteString'.
+data RespondStreaming (s :: Nat) (desc :: Symbol) (ct :: Type)
 
 -- | The result of parsing a response as a union alternative of type 'a'.
 --
@@ -269,14 +268,14 @@ instance
       mempty
         & S.description .~ Text.pack (symbolVal (Proxy @desc))
 
-type instance ResponseType (RespondStreaming s desc framing ct) = SourceIO ByteString
+type instance ResponseType (RespondStreaming s desc ct) = SourceIO ByteString
 
 instance
   (Accept ct, KnownStatus s) =>
-  IsResponse cs (RespondStreaming s desc framing ct)
+  IsResponse cs (RespondStreaming s desc ct)
   where
-  type ResponseStatus (RespondStreaming s desc framing ct) = s
-  type ResponseBody (RespondStreaming s desc framing ct) = SourceIO ByteString
+  type ResponseStatus (RespondStreaming s desc ct) = s
+  type ResponseBody (RespondStreaming s desc ct) = SourceIO ByteString
   responseRender _ x =
     pure . addContentType @ct $
       Response
@@ -290,7 +289,7 @@ instance
     guard (responseStatusCode resp == statusVal (Proxy @s))
     pure $ responseBody resp
 
-instance (KnownSymbol desc) => IsSwaggerResponse (RespondStreaming s desc framing ct) where
+instance (KnownSymbol desc) => IsSwaggerResponse (RespondStreaming s desc ct) where
   responseSwagger =
     pure $
       mempty
@@ -543,9 +542,6 @@ instance (rs ~ ResponseTypes as) => AsUnion as (Union rs) where
 instance (ResponseType r ~ a) => AsUnion '[r] a where
   toUnion = Z . I
   fromUnion = unI . unZ
-
-_foo :: Union '[Int]
-_foo = toUnion @'[Respond 200 "test" Int] @Int 3
 
 class InjectAfter as bs where
   injectAfter :: Union bs -> Union (as .++ bs)

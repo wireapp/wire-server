@@ -18,16 +18,15 @@
 module Galley.Intra.Util
   ( IntraComponent (..),
     call,
-    asyncCall,
   )
 where
 
 import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge qualified as B
-import Bilge.RPC
+import Bilge.RPC (rpc)
 import Bilge.Retry
-import Control.Lens (view, (^.))
-import Control.Monad.Catch
+import Cassandra.Options (Endpoint (..))
+import Control.Lens (view)
 import Control.Retry
 import Data.ByteString.Lazy qualified as LB
 import Data.Misc (portNumber)
@@ -38,9 +37,6 @@ import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
-import System.Logger
-import System.Logger.Class qualified as LC
-import Util.Options
 
 data IntraComponent = Brig | Spar | Gundeck
   deriving (Show)
@@ -52,14 +48,14 @@ componentName Gundeck = "gundeck"
 
 componentRequest :: IntraComponent -> Opts -> Request -> Request
 componentRequest Brig o =
-  B.host (encodeUtf8 (o ^. brig . host))
-    . B.port (portNumber (fromIntegral (o ^. brig . port)))
+  B.host (encodeUtf8 . host $ o._brig)
+    . B.port (portNumber $ fromIntegral . port $ o._brig)
 componentRequest Spar o =
-  B.host (encodeUtf8 (o ^. spar . host))
-    . B.port (portNumber (fromIntegral (o ^. spar . port)))
+  B.host (encodeUtf8 o._spar.host)
+    . B.port (portNumber $ fromIntegral . port $ o._spar)
 componentRequest Gundeck o =
-  B.host (encodeUtf8 $ o ^. gundeck . host)
-    . B.port (portNumber $ fromIntegral (o ^. gundeck . port))
+  B.host (encodeUtf8 o._gundeck.host)
+    . B.port (portNumber $ fromIntegral . port $ o._gundeck)
     . method POST
     . path "/i/push/v2"
     . expect2xx
@@ -78,16 +74,6 @@ call comp r = do
   let r0 = componentRequest comp o
   let n = LT.pack (componentName comp)
   recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))
-
-asyncCall :: IntraComponent -> (Request -> Request) -> App ()
-asyncCall comp req = void $ do
-  let n = LT.pack (componentName comp)
-  forkIO $ catches (void (call comp req)) (handlers n)
-  where
-    handlers n =
-      [ Handler $ \(x :: RPCException) -> LC.err (rpcExceptionMsg x),
-        Handler $ \(x :: SomeException) -> LC.err $ "remote" .= n ~~ msg (show x)
-      ]
 
 x1 :: RetryPolicy
 x1 = limitRetries 1

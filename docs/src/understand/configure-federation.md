@@ -371,7 +371,7 @@ certificate.
 Read {ref}`choose-backend-domain` again, then
 set the backend domain three times to the same value in the subcharts
 cargohold, galley and brig. You also need to set `enableFederation` to
-`true`.
+`true` in background-worker in addition to those charts.
 
 ``` yaml
 # override values for wire-server
@@ -393,6 +393,10 @@ cargohold:
     enableFederation: true
     settings:
       federationDomain: example.com # your chosen "backend domain"
+
+background-worker:
+  config:
+    enableFederation: true
 ```
 
 (configure-federation-strategy-in-brig)=

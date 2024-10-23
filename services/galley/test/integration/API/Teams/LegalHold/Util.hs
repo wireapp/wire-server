@@ -54,6 +54,7 @@ import Test.Tasty.Runners
 import TestSetup
 import Wire.API.Internal.Notification (ntfPayload)
 import Wire.API.Provider.Service
+import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
@@ -256,7 +257,7 @@ putEnabledM' g extra tid enabled = do
   put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-      . json (Public.WithStatusNoLock enabled Public.LegalholdConfig Public.FeatureTTLUnlimited)
+      . json (Public.Feature enabled Public.LegalholdConfig)
       . extra
 
 postSettings :: (HasCallStack) => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
@@ -529,18 +530,6 @@ putLHWhitelistTeam' g tid = do
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
-_deleteLHWhitelistTeam :: (HasCallStack) => TeamId -> TestM ResponseLBS
-_deleteLHWhitelistTeam tid = do
-  galleyCall <- viewGalley
-  deleteLHWhitelistTeam' galleyCall tid
-
-deleteLHWhitelistTeam' :: (HasCallStack, MonadHttp m) => GalleyR -> TeamId -> m ResponseLBS
-deleteLHWhitelistTeam' g tid = do
-  delete
-    ( g
-        . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
-    )
-
 errWith :: (HasCallStack, Typeable a, FromJSON a) => Int -> (a -> Bool) -> ResponseLBS -> TestM ()
 errWith wantStatus wantBody rsp = liftIO $ do
   assertEqual "" wantStatus (statusCode rsp)
@@ -559,13 +548,13 @@ testOnlyIfLhWhitelisted :: IO TestSetup -> TestName -> TestM () -> TestTree
 testOnlyIfLhWhitelisted setupAction name testAction = do
   singleTest name $ LHTest FeatureLegalHoldWhitelistTeamsAndImplicitConsent setupAction testAction
 
-data LHTest = LHTest FeatureLegalHold (IO TestSetup) (TestM ())
+data LHTest = LHTest (FeatureDefaults LegalholdConfig) (IO TestSetup) (TestM ())
 
 instance IsTest LHTest where
   run :: OptionSet -> LHTest -> (Progress -> IO ()) -> IO Result
   run _ (LHTest expectedFlag setupAction testAction) _ = do
     setup <- setupAction
-    let featureLegalHold = setup ^. tsGConf . settings . featureFlags . flagLegalHold
+    let featureLegalHold = setup ^. tsGConf . settings . featureFlags . to npProject
     if featureLegalHold == expectedFlag
       then do
         hunitResult <- try $ void . flip runReaderT setup . runTestM $ testAction

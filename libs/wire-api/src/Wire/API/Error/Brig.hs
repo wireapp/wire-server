@@ -40,6 +40,7 @@ data BrigError
   | NotConnected
   | InvalidTransition
   | NoIdentity
+  | NoUser
   | HandleExists
   | InvalidHandle
   | HandleNotFound
@@ -62,14 +63,15 @@ data BrigError
   | AccountEphemeral
   | AccountPending
   | UserKeyExists
+  | EmailExists
   | NameManagedByScim
   | HandleManagedByScim
   | LocaleManagedByScim
   | LastIdentity
   | NoPassword
   | ChangePasswordMustDiffer
-  | PasswordAuthenticationFailed
   | TooManyTeamInvitations
+  | CannotJoinMultipleTeams
   | InsufficientTeamPermissions
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
@@ -94,6 +96,11 @@ data BrigError
   | ProviderNotFound
   | TeamsNotFederating
   | PasswordIsStale
+  | TooManyProperties
+  | PropertyKeyTooLarge
+  | PropertyValueTooLarge
+  | UserAlreadyInATeam
+  | MLSServicesNotAllowed
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -232,6 +239,8 @@ type instance MapError 'AccountPending = 'StaticError 403 "pending-activation" "
 
 type instance MapError 'UserKeyExists = 'StaticError 409 "key-exists" "The given e-mail address is in use."
 
+type instance MapError 'EmailExists = 'StaticError 409 "email-exists" "The given e-mail address is in use."
+
 type instance MapError 'NameManagedByScim = 'StaticError 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
 type instance MapError 'HandleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating handle is not allowed, because it is managed by SCIM, or E2EId is enabled"
@@ -244,9 +253,9 @@ type instance MapError 'NoPassword = 'StaticError 403 "no-password" "The user ha
 
 type instance MapError 'ChangePasswordMustDiffer = 'StaticError 409 "password-must-differ" "For password change, new and old password must be different."
 
-type instance MapError 'PasswordAuthenticationFailed = 'StaticError 403 "password-authentication-failed" "Password authentication failed."
-
 type instance MapError 'TooManyTeamInvitations = 'StaticError 403 "too-many-team-invitations" "Too many team invitations for this team"
+
+type instance MapError 'CannotJoinMultipleTeams = 'StaticError 403 "cannot-join-multiple-teams" "Cannot accept invitations from multiple teams"
 
 type instance MapError 'InsufficientTeamPermissions = 'StaticError 403 "insufficient-permissions" "Insufficient team permissions"
 
@@ -282,3 +291,13 @@ type instance MapError 'ConflictingInvitations = 'StaticError 409 "conflicting-i
 type instance MapError 'TeamsNotFederating = 'StaticError 403 "team-not-federating" "The target user is owned by a federated backend, but is not in an allow-listed team"
 
 type instance MapError 'PasswordIsStale = 'StaticError 403 "password-is-stale" "The password is too old, please update your password."
+
+type instance MapError 'TooManyProperties = 'StaticError 403 "too-many-properties" "Too many properties"
+
+type instance MapError 'PropertyKeyTooLarge = 'StaticError 403 "property-key-too-large" "The property key is too large."
+
+type instance MapError 'PropertyValueTooLarge = 'StaticError 403 "property-value-too-large" "The property value is too large"
+
+type instance MapError 'UserAlreadyInATeam = 'StaticError 403 "user-already-in-a-team" "Switching teams is not allowed"
+
+type instance MapError 'MLSServicesNotAllowed = 'StaticError 409 "mls-services-not-allowed" "Services not allowed in MLS"

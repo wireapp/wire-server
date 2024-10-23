@@ -41,34 +41,6 @@ unverifiedUser = errorToWai @'UnverifiedUser
 userNotFound :: Error
 userNotFound = errorToWai @'UserNotFound
 
-invalidMD5 :: Error
-invalidMD5 = mkError status400 "client-error" "Invalid MD5."
-
-requestTimeout :: Error
-requestTimeout =
-  mkError
-    status408
-    "request-timeout"
-    "The request timed out. The server was still expecting more data \
-    \but none was sent over an extended period of time. Idle connections \
-    \will be closed."
-
-uploadTooSmall :: Error
-uploadTooSmall =
-  mkError
-    status403
-    "client-error"
-    "The current chunk size is \
-    \smaller than the minimum allowed."
-
-uploadTooLarge :: Error
-uploadTooLarge =
-  mkError
-    status413
-    "client-error"
-    "The current chunk size + offset \
-    \is larger than the full upload size."
-
 noMatchingAssetEndpoint :: Error
 noMatchingAssetEndpoint = errorToWai @'NoMatchingAssetEndpoint
 

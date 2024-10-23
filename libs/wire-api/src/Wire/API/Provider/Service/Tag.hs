@@ -31,8 +31,6 @@ module Wire.API.Provider.Service.Tag
     -- * ServiceTag Matchers
     MatchAny (..),
     MatchAll (..),
-    (.||.),
-    (.&&.),
     matchAll,
     match1,
     match,
@@ -182,7 +180,7 @@ instance ToByteString ServiceTag where
   builder WeatherTag = "weather"
 
 instance ToSchema ServiceTag where
-  schema = enum @Text "" . mconcat $ (\a -> element (decodeUtf8With lenientDecode $ toStrict $ toByteString a) a) <$> [minBound ..]
+  schema = enum @Text "ServiceTag" . mconcat $ (\a -> element (decodeUtf8With lenientDecode $ toStrict $ toByteString a) a) <$> [minBound ..]
 
 instance S.ToParamSchema ServiceTag where
   toParamSchema _ =
@@ -304,12 +302,6 @@ newtype MatchAny = MatchAny
 newtype MatchAll = MatchAll
   {matchAllSet :: Set ServiceTag}
   deriving stock (Eq, Show, Ord)
-
-(.||.) :: MatchAny -> MatchAny -> MatchAny
-(.||.) (MatchAny a) (MatchAny b) = MatchAny (Set.union a b)
-
-(.&&.) :: MatchAll -> MatchAll -> MatchAll
-(.&&.) (MatchAll a) (MatchAll b) = MatchAll (Set.union a b)
 
 matchAll :: MatchAll -> MatchAny
 matchAll = MatchAny . Set.singleton

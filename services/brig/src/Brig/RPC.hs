@@ -22,7 +22,6 @@ import Bilge
 import Bilge.RPC
 import Bilge.Retry
 import Brig.App
-import Control.Lens
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
@@ -41,32 +40,32 @@ decodeBody :: (Typeable a, FromJSON a, MonadThrow m) => Text -> Response (Maybe 
 decodeBody ctx = responseJsonThrow (ParseException ctx)
 
 cargoholdRequest ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  (MonadReader Env m, MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   StdMethod ->
   (Request -> Request) ->
   m (Response (Maybe BL.ByteString))
 cargoholdRequest = serviceRequest "cargohold" cargohold
 
 galleyRequest ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  (MonadReader Env m, MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   StdMethod ->
   (Request -> Request) ->
   m (Response (Maybe BL.ByteString))
 galleyRequest = serviceRequest "galley" galley
 
 serviceRequest ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  (MonadReader Env m, MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   LT.Text ->
-  Control.Lens.Getting Request Env Request ->
+  (Env -> Request) ->
   StdMethod ->
   (Request -> Request) ->
   m (Response (Maybe BL.ByteString))
 serviceRequest nm svc m r = do
-  service <- view svc
+  service <- asks svc
   serviceRequestImpl nm service m r
 
 serviceRequestImpl ::
-  (MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  (MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   LT.Text ->
   Request ->
   StdMethod ->

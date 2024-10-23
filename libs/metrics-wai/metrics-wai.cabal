@@ -76,6 +76,7 @@ library
     , servant
     , servant-multipart
     , text                       >=0.11
+    , types-common
     , utf8-string
     , wai                        >=3
     , wai-middleware-prometheus

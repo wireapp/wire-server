@@ -35,6 +35,7 @@ import Data.ProtoLens.Labels ()
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import GHC.Stack
+import MLS.Util
 import Network.Wai (Request (pathInfo, requestMethod))
 import Notifications
 import Numeric.Lens (hex)
@@ -46,9 +47,9 @@ import Testlib.Prekeys
 import Testlib.Prelude
 import UnliftIO (Chan, readChan, timeout)
 
-testLHPreventAddingNonConsentingUsers :: App ()
-testLHPreventAddingNonConsentingUsers = do
-  withMockServer def lhMockApp $ \lhDomAndPort _chan -> do
+testLHPreventAddingNonConsentingUsers :: LhApiVersion -> App ()
+testLHPreventAddingNonConsentingUsers v = do
+  withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
     (owner, tid, [alice, alex]) <- createTeam OwnDomain 3
 
     legalholdWhitelistTeam tid owner >>= assertSuccess
@@ -277,8 +278,8 @@ testLHDeleteClientManually = do
     -- other unspecific client error.
     resp.json %. "message" `shouldMatch` "LegalHold clients cannot be deleted. LegalHold must be disabled on this user by an admin"
 
-testLHRequestDevice :: App ()
-testLHRequestDevice = do
+testLHRequestDevice :: LhApiVersion -> App ()
+testLHRequestDevice v = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   let reqNotEnabled requester requestee =
         requestLegalHoldDevice tid requester requestee
@@ -289,7 +290,7 @@ testLHRequestDevice = do
   lpk <- getLastPrekey
   pks <- replicateM 3 getPrekey
 
-  withMockServer def (lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppWithPrekeys v MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
     let statusShouldBe :: String -> App ()
         statusShouldBe status =
           legalholdUserStatus tid alice bob `bindResponse` \resp -> do
@@ -424,8 +425,8 @@ testLHApproveDevice = do
       outsiderClient <- objId $ addClient outsider def `bindResponse` getJSON 201
       assertNoNotifications outsider outsiderClient Nothing isUserLegalholdEnabledNotif
 
-testLHGetDeviceStatus :: App ()
-testLHGetDeviceStatus = do
+testLHGetDeviceStatus :: LhApiVersion -> App ()
+testLHGetDeviceStatus v = do
   -- team users
   -- alice (team owner) and bob (member)
   (alice, tid, [bob]) <- createTeam OwnDomain 2
@@ -439,7 +440,7 @@ testLHGetDeviceStatus = do
 
   withMockServer
     def
-    do lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}
+    do lhMockAppWithPrekeys v MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}
     \lhDomAndPort _chan -> do
       legalholdWhitelistTeam tid alice
         >>= assertStatus 200
@@ -526,8 +527,8 @@ testLHDisableForUser = do
 
     shouldBeEmpty lhClients
 
-testLHEnablePerTeam :: App ()
-testLHEnablePerTeam = do
+testLHEnablePerTeam :: LhApiVersion -> App ()
+testLHEnablePerTeam v = do
   -- team users
   -- alice (team owner) and bob (member)
   (alice, tid, [bob]) <- createTeam OwnDomain 2
@@ -536,7 +537,7 @@ testLHEnablePerTeam = do
     resp.json %. "lockStatus" `shouldMatch` "unlocked"
     resp.json %. "status" `shouldMatch` "disabled"
 
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     setUpLHDevice tid alice bob lhDomAndPort
 
     legalholdUserStatus tid alice bob `bindResponse` \resp -> do
@@ -551,8 +552,8 @@ testLHEnablePerTeam = do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "enabled"
 
-testLHGetMembersIncludesStatus :: App ()
-testLHGetMembersIncludesStatus = do
+testLHGetMembersIncludesStatus :: LhApiVersion -> App ()
+testLHGetMembersIncludesStatus v = do
   -- team users
   -- alice (team owner) and bob (member)
   (alice, tid, [bob]) <- createTeam OwnDomain 2
@@ -568,7 +569,7 @@ testLHGetMembersIncludesStatus = do
           bobMember %. "legalhold_status" `shouldMatch` status
 
   statusShouldBe "no_consent"
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     statusShouldBe "no_consent"
 
     legalholdWhitelistTeam tid alice
@@ -593,26 +594,8 @@ testLHGetMembersIncludesStatus = do
     -- bob has accepted the legalhold device
     statusShouldBe "enabled"
 
-type TB s = TaggedBool s
-
-enableLH :: (MakesValue tid, MakesValue teamAdmin, MakesValue targetUser, HasCallStack) => tid -> teamAdmin -> targetUser -> Bool -> App (Maybe String)
-enableLH tid teamAdmin targetUser approveLH = do
-  -- alice requests a legalhold device for herself
-  requestLegalHoldDevice tid teamAdmin targetUser
-    >>= assertStatus 201
-
-  when approveLH do
-    approveLegalHoldDevice tid targetUser defPassword
-      >>= assertStatus 200
-  legalholdUserStatus tid targetUser targetUser `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "status" `shouldMatch` if approveLH then "enabled" else "pending"
-  if approveLH
-    then Just <$> lhDeviceIdOf targetUser
-    else pure Nothing
-
-testLHConnectionsWithNonConsentingUsers :: App ()
-testLHConnectionsWithNonConsentingUsers = do
+testLHConnectionsWithNonConsentingUsers :: LhApiVersion -> App ()
+testLHConnectionsWithNonConsentingUsers v = do
   (alice, tid, []) <- createTeam OwnDomain 1
   bob <- randomUser OwnDomain def
   carl <- randomUser OwnDomain def
@@ -621,7 +604,7 @@ testLHConnectionsWithNonConsentingUsers = do
   legalholdWhitelistTeam tid alice
     >>= assertStatus 200
 
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort)
       >>= assertStatus 201
 
@@ -672,8 +655,8 @@ testLHConnectionsWithNonConsentingUsers = do
       resp.status `shouldMatchInt` 200
       resp.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject alice
 
-testLHConnectionsWithConsentingUsers :: App ()
-testLHConnectionsWithConsentingUsers = do
+testLHConnectionsWithConsentingUsers :: LhApiVersion -> App ()
+testLHConnectionsWithConsentingUsers v = do
   (alice, teamA, []) <- createTeam OwnDomain 1
   (bob, teamB, [barbara]) <- createTeam OwnDomain 2
 
@@ -682,7 +665,7 @@ testLHConnectionsWithConsentingUsers = do
   legalholdWhitelistTeam teamB bob
     >>= assertStatus 200
 
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     postLegalHoldSettings teamA alice (mkLegalHoldSettings lhDomAndPort)
       >>= assertStatus 201
 
@@ -782,8 +765,8 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
             LHApproved -> assertLabel 403 "access-denied"
             LHPending -> assertStatus 200
 
-testLHHappyFlow :: App ()
-testLHHappyFlow = do
+testLHHappyFlow :: LhApiVersion -> App ()
+testLHHappyFlow v = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   let statusShouldBe :: String -> App ()
       statusShouldBe status =
@@ -795,7 +778,7 @@ testLHHappyFlow = do
   lpk <- getLastPrekey
   pks <- replicateM 3 getPrekey
 
-  withMockServer def (lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppWithPrekeys v MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
 
     -- implicit consent
@@ -827,8 +810,8 @@ testLHHappyFlow = do
           >>= assertJust "client id is present"
       resp.json %. "last_prekey" `shouldMatch` lpk
 
-testLHGetStatus :: App ()
-testLHGetStatus = do
+testLHGetStatus :: LhApiVersion -> App ()
+testLHGetStatus v = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   (charlie, _tidCharlie, [debora]) <- createTeam OwnDomain 2
   emil <- randomUser OwnDomain def
@@ -843,7 +826,7 @@ testLHGetStatus = do
     check u bob "no_consent"
     check u emil "no_consent"
   legalholdWhitelistTeam tid alice >>= assertStatus 200
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     for_ [alice, bob, charlie, debora, emil] \u -> do
       check u bob "disabled"
@@ -852,14 +835,14 @@ testLHGetStatus = do
     approveLegalHoldDevice tid bob defPassword >>= assertStatus 200
     check debora bob "enabled"
 
-testLHCannotCreateGroupWithUsersInConflict :: App ()
-testLHCannotCreateGroupWithUsersInConflict = do
+testLHCannotCreateGroupWithUsersInConflict :: LhApiVersion -> App ()
+testLHCannotCreateGroupWithUsersInConflict v = do
   (alice, tidAlice, [bob]) <- createTeam OwnDomain 2
   (charlie, _tidCharlie, [debora]) <- createTeam OwnDomain 2
   legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
   connectTwoUsers bob charlie
   connectTwoUsers bob debora
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     postConversation bob defProteus {qualifiedUsers = [charlie, alice], newUsersRole = "wire_member", team = Just tidAlice}
       >>= assertStatus 201
@@ -873,8 +856,8 @@ testLHCannotCreateGroupWithUsersInConflict = do
     postConversation bob defProteus {qualifiedUsers = [debora, alice], newUsersRole = "wire_member", team = Just tidAlice}
       >>= assertLabel 403 "missing-legalhold-consent"
 
-testLHNoConsentCannotBeInvited :: (HasCallStack) => App ()
-testLHNoConsentCannotBeInvited = do
+testLHNoConsentCannotBeInvited :: (HasCallStack) => LhApiVersion -> App ()
+testLHNoConsentCannotBeInvited v = do
   -- team that is legalhold whitelisted
   (legalholder, tidLH, userLHNotActivated : _) <- createTeam OwnDomain 2
   legalholdWhitelistTeam tidLH legalholder >>= assertStatus 200
@@ -885,7 +868,7 @@ testLHNoConsentCannotBeInvited = do
   connectUsers [peer, userLHNotActivated]
   connectUsers [peer2, userLHNotActivated]
 
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     postLegalHoldSettings tidLH legalholder (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     cid <- postConversation userLHNotActivated defProteus {qualifiedUsers = [legalholder], newUsersRole = "wire_admin", team = Just tidLH} >>= getJSON 201
     addMembers userLHNotActivated cid (def {users = [peer], role = Just "wire_admin"}) >>= assertSuccess
@@ -905,12 +888,12 @@ testLHNoConsentCannotBeInvited = do
 
     addMembers userLHNotActivated cid (def {users = [peer3]}) >>= assertLabel 403 "not-connected"
 
-testLHDisableBeforeApproval :: (HasCallStack) => App ()
-testLHDisableBeforeApproval = do
+testLHDisableBeforeApproval :: (HasCallStack) => LhApiVersion -> App ()
+testLHDisableBeforeApproval v = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   legalholdWhitelistTeam tid alice >>= assertStatus 200
 
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
 
     -- alice requests a legalhold device for bob and sets his status to "pending"
@@ -922,3 +905,160 @@ testLHDisableBeforeApproval = do
     disableLegalHold tid alice bob defPassword
       >>= assertStatus 200
     getBob'sStatus `shouldMatch` "disabled"
+
+-- ---------
+-- WPB-10783
+-- ---------
+testBlockLHForMLSUsers :: (HasCallStack) => App ()
+testBlockLHForMLSUsers = do
+  -- scenario 1:
+  -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
+  (charlie, tid, []) <- createTeam OwnDomain 1
+  [charlie1] <- traverse (createMLSClient def) [charlie]
+  void $ createNewGroup charlie1
+  void $ createAddCommit charlie1 [charlie] >>= sendAndConsumeCommitBundle
+
+  legalholdWhitelistTeam tid charlie >>= assertStatus 200
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+    postLegalHoldSettings tid charlie (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+    requestLegalHoldDevice tid charlie charlie `bindResponse` do
+      assertLabel 409 "mls-legal-hold-not-allowed"
+
+-- ---------
+-- WPB-10772
+-- ---------
+
+--  | scenario 2.1:
+-- charlie first is put under legalhold and after that wants to join an MLS conversation
+-- claiming a keypackage of charlie to add them to a conversation should not be possible
+testBlockClaimingKeyPackageForLHUsers :: (HasCallStack) => App ()
+testBlockClaimingKeyPackageForLHUsers = do
+  (alice, tid, [charlie]) <- createTeam OwnDomain 2
+  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
+  _ <- uploadNewKeyPackage charlie1
+  _ <- createNewGroup alice1
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+    requestLegalHoldDevice tid alice charlie >>= assertSuccess
+    approveLegalHoldDevice tid (charlie %. "qualified_id") defPassword >>= assertSuccess
+    profile <- getUser alice charlie >>= getJSON 200
+    pStatus <- profile %. "legalhold_status" & asString
+    pStatus `shouldMatch` "enabled"
+
+    mls <- getMLSState
+    claimKeyPackages mls.ciphersuite alice1 charlie
+      `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"
+
+-- | scenario 2.2:
+-- charlie is put under legalhold but creates an MLS Group himself
+-- since he doesn't need to claim his own keypackage to do so, this would succeed
+-- we need to check upon group creation if the user is under legalhold and reject
+-- the operation if they are
+testBlockCreateMLSConvForLHUsers :: (HasCallStack) => LhApiVersion -> App ()
+testBlockCreateMLSConvForLHUsers v = do
+  (alice, tid, [charlie]) <- createTeam OwnDomain 2
+  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
+  _ <- uploadNewKeyPackage alice1
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+    requestLegalHoldDevice tid alice charlie >>= assertSuccess
+    approveLegalHoldDevice tid (charlie %. "qualified_id") defPassword >>= assertSuccess
+    profile <- getUser alice charlie >>= getJSON 200
+    pStatus <- profile %. "legalhold_status" & asString
+    pStatus `shouldMatch` "enabled"
+
+    -- charlie tries to create a group and should fail when POSTing the add commit
+    _ <- createNewGroup charlie1
+
+    void
+      -- we try to add alice since adding charlie himself would trigger 2.1
+      -- since he'd try to claim his own keypackages
+      $ createAddCommit charlie1 [alice]
+      >>= \mp ->
+        postMLSCommitBundle mp.sender (mkBundle mp)
+          `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"
+
+    -- (unsurprisingly) this same thing should also work in the one2one case
+
+    respJson <- getMLSOne2OneConversation alice charlie >>= getJSON 200
+    resetGroup alice1 (respJson %. "conversation")
+
+    void
+      -- we try to add alice since adding charlie himself would trigger 2.1
+      -- since he'd try to claim his own keypackages
+      $ createAddCommit charlie1 [alice]
+      >>= \mp ->
+        postMLSCommitBundle mp.sender (mkBundle mp)
+          `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"
+
+testLHApiV1 :: App ()
+testLHApiV1 = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  legalholdWhitelistTeam tid alice >>= assertSuccess
+
+  withMockServer def (lhMockAppV V1) \lhDomAndPort chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+
+    checkChan chan \(req, _) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "GET"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "status"])
+
+    requestLegalHoldDevice tid alice bob >>= assertStatus 201
+
+    checkChan chan \(req, _) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "GET"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "api-version"])
+
+    checkChan chan \(req, body) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "POST"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "v1", "initiate"])
+      let (Just (value :: Value)) = decode body
+      value %. "team_id" `shouldMatch` tid
+      value %. "qualified_user_id.id" `shouldMatch` objId bob
+      value %. "qualified_user_id.domain" `shouldMatch` objDomain bob
+
+    approveLegalHoldDevice tid (bob %. "qualified_id") defPassword >>= assertSuccess
+
+    checkChan chan \(req, _) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "GET"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "api-version"])
+
+    checkChan chan \(req, body) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "POST"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "v1", "confirm"])
+      let (Just (value :: Value)) = decode body
+      value %. "team_id" `shouldMatch` tid
+      value %. "qualified_user_id.id" `shouldMatch` objId bob
+      value %. "qualified_user_id.domain" `shouldMatch` objDomain bob
+      (isJust <$> value `lookupField` "client_id") `shouldMatch` True
+
+    disableLegalHold tid alice bob defPassword >>= assertStatus 200
+
+    checkChan chan \(req, _) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "GET"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "api-version"])
+
+    checkChan chan \(req, body) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "POST"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "v1", "remove"])
+      let (Just (value :: Value)) = decode body
+      value %. "team_id" `shouldMatch` tid
+      value %. "qualified_user_id.id" `shouldMatch` objId bob
+      value %. "qualified_user_id.domain" `shouldMatch` objDomain bob
+
+testNoCommonVersion :: App ()
+testNoCommonVersion = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  legalholdWhitelistTeam tid alice >>= assertSuccess
+
+  withMockServer def lhMockNoCommonVersion \lhDomAndPort _ -> do
+    legalholdWhitelistTeam tid alice >>= assertStatus 200
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertSuccess
+
+    bindResponse (requestLegalHoldDevice tid alice bob) $ \resp -> do
+      resp.status `shouldMatchInt` 500
+      resp.json %. "label" `shouldMatch` "server-error"

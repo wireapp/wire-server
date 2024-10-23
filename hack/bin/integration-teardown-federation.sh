@@ -12,6 +12,8 @@ export NAMESPACE_2="$NAMESPACE-fed2"
 # these don't matter for destruction but have to be set.
 export FEDERATION_DOMAIN_1="."
 export FEDERATION_DOMAIN_2="."
+export FEDERATION_DOMAIN_BASE_1="."
+export FEDERATION_DOMAIN_BASE_2="."
 
 KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
 KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"

@@ -13,8 +13,11 @@
             "domain": "foo.example.com",
             "id": "539d9183-32a5-4fc4-ba5c-4634454e7585"
         },
+        "status": "deleted",
         "supported_protocols": [
             "proteus"
-        ]
+        ],
+        "team": "bb843450-b2f5-4ec8-90bd-52c7d5f1d22e",
+        "text_status": "text status"
     }
 }

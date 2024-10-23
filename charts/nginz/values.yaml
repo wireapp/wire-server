@@ -410,6 +410,9 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+    - path: /teams/invitations/accept$
+      envs:
+      - all
     - path: /i/teams/invitation-code
       envs:
       - staging

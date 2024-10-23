@@ -757,43 +757,6 @@ readWelcome fp = runMaybeT $ do
   guard $ fileSize stat > 0
   liftIO $ BS.readFile fp
 
-createRemoveCommit :: (HasCallStack) => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
-createRemoveCommit cid targets = do
-  bd <- State.gets mlsBaseDir
-  welcomeFile <- liftIO $ emptyTempFile bd "welcome"
-  pgsFile <- liftIO $ emptyTempFile bd "pgs"
-
-  g <- getClientGroupState cid
-
-  let groupStateMap = Map.fromList (readGroupState g)
-  let indices = map (fromMaybe (error "could not find target") . flip Map.lookup groupStateMap) targets
-  commit <-
-    mlscli
-      cid
-      ( [ "member",
-          "remove",
-          "--group",
-          "<group-in>",
-          "--group-out",
-          "<group-out>",
-          "--welcome-out",
-          welcomeFile,
-          "--group-info-out",
-          pgsFile
-        ]
-          <> map show indices
-      )
-      Nothing
-  welcome <- liftIO $ readWelcome welcomeFile
-  pgs <- liftIO $ BS.readFile pgsFile
-  pure
-    MessagePackage
-      { mpSender = cid,
-        mpMessage = commit,
-        mpWelcome = welcome,
-        mpGroupInfo = Just pgs
-      }
-
 createExternalAddProposal :: (HasCallStack) => ClientIdentity -> MLSTest MessagePackage
 createExternalAddProposal joiner = do
   groupId <-

@@ -14,7 +14,6 @@
 , data-default
 , errors
 , exceptions
-, extra
 , gitignoreSource
 , hspec
 , hspec-discover
@@ -25,7 +24,6 @@
 , lib
 , metrics-wai
 , monad-control
-, optparse-applicative
 , resourcet
 , retry
 , servant
@@ -59,14 +57,12 @@ mkDerivation {
     data-default
     errors
     exceptions
-    extra
     http-client
     http-client-tls
     http-types
     imports
     metrics-wai
     monad-control
-    optparse-applicative
     resourcet
     retry
     servant

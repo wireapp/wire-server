@@ -29,7 +29,7 @@ import Control.Monad.Catch
 import Data.Aeson hiding (Error, Key, (.=))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.Id (ClientId)
+import Data.Id
 import Data.Text.Lazy qualified as Text
 import Data.Timeout
 import Imports hiding (threadDelay)
@@ -155,7 +155,7 @@ rejectOnError :: PendingConnection -> HandshakeException -> IO a
 rejectOnError p x = do
   let f lb mg = toStrict . encode $ mkError status400 lb mg
   case x of
-    NotSupported -> rejectRequest p (f "protocol not supported" "N/A")
+    NotSupported -> rejectRequest p (f "protocol not supported" defRequestId)
     MalformedRequest _ m -> rejectRequest p (f "malformed-request" (Text.pack m))
     OtherHandshakeException m -> rejectRequest p (f "other-error" (Text.pack m))
     _ -> pure ()

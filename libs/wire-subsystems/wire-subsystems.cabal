@@ -65,14 +65,18 @@ common common-all
 
 library
   import:           common-all
-  ghc-options:      -fplugin=Polysemy.Plugin -fplugin=TransitiveAnns.Plugin
+  ghc-options:      -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.ActivationCodeStore
+    Wire.ActivationCodeStore.Cassandra
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
     Wire.AWS
+    Wire.BlockListStore
+    Wire.BlockListStore.Cassandra
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.EmailSending
@@ -82,13 +86,24 @@ library
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
     Wire.Error
+    Wire.Events
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
+    Wire.FederationConfigStore
+    Wire.FederationConfigStore.Cassandra
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
     Wire.HashPassword
+    Wire.IndexedUserStore
+    Wire.IndexedUserStore.Bulk
+    Wire.IndexedUserStore.Bulk.ElasticSearch
+    Wire.IndexedUserStore.ElasticSearch
+    Wire.IndexedUserStore.MigrationStore
+    Wire.IndexedUserStore.MigrationStore.ElasticSearch
     Wire.InternalEvent
+    Wire.InvitationStore
+    Wire.InvitationStore.Cassandra
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
@@ -96,15 +111,25 @@ library
     Wire.PasswordResetCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
+    Wire.PropertyStore
+    Wire.PropertyStore.Cassandra
+    Wire.PropertySubsystem
+    Wire.PropertySubsystem.Interpreter
     Wire.Rpc
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.StoredUser
-    Wire.UserEvents
+    Wire.TeamInvitationSubsystem
+    Wire.TeamInvitationSubsystem.Error
+    Wire.TeamInvitationSubsystem.Interpreter
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
+    Wire.UserSearch.Metrics
+    Wire.UserSearch.Migration
+    Wire.UserSearch.Types
     Wire.UserStore
     Wire.UserStore.Cassandra
+    Wire.UserStore.IndexUser
     Wire.UserStore.Unique
     Wire.UserSubsystem
     Wire.UserSubsystem.Error
@@ -124,12 +149,16 @@ library
     , amazonka-core
     , amazonka-ses
     , async
+    , attoparsec
     , base
     , base16-bytestring
     , bilge
+    , bloodhound
     , bytestring
     , bytestring-conversion
+    , case-insensitive
     , cassandra-util
+    , conduit
     , containers
     , cql
     , crypton
@@ -140,7 +169,6 @@ library
     , exceptions
     , extended
     , extra
-    , gundeck-types
     , HaskellNet
     , HaskellNet-SSL
     , HsOpenSSL
@@ -161,28 +189,34 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , prometheus-client
     , QuickCheck
     , resource-pool
     , resourcet
     , retry
+    , saml2-web-sso
+    , schema-profunctor
     , servant
     , servant-client-core
     , stomp-queue
     , template
     , text
+    , text-icu-translit
     , time
     , time-out
     , time-units
     , tinylog
     , transformers
-    , transitive-anns
     , types-common
     , unliftio
     , unordered-containers
+    , uri-bytestring
     , uuid
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , wire-otel
+    , witherable
 
   default-language: GHC2021
 
@@ -200,21 +234,29 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
+    Wire.MockInterpreters.ActivationCodeStore
+    Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
+    Wire.MockInterpreters.Events
+    Wire.MockInterpreters.FederationConfigStore
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword
+    Wire.MockInterpreters.IndexedUserStore
+    Wire.MockInterpreters.InvitationStore
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
     Wire.MockInterpreters.PasswordStore
+    Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
     Wire.MockInterpreters.SessionStore
-    Wire.MockInterpreters.UserEvents
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
+    Wire.PropertySubsystem.InterpreterSpec
+    Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
     Wire.VerificationCodeSubsystem.InterpreterSpec
@@ -226,12 +268,12 @@ test-suite wire-subsystems-tests
     , base
     , bilge
     , bytestring
+    , cassandra-util
     , containers
     , crypton
     , data-default
     , errors
     , extended
-    , gundeck-types
     , hspec
     , imports
     , iso639
@@ -247,6 +289,7 @@ test-suite wire-subsystems-tests
     , QuickCheck
     , quickcheck-instances
     , random
+    , scientific
     , servant-client-core
     , streaming-commons
     , string-conversions

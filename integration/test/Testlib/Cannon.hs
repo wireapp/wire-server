@@ -53,7 +53,7 @@ import qualified Control.Monad.Catch as Catch
 import Control.Monad.IO.Class
 import Control.Monad.Reader (asks)
 import Control.Monad.STM
-import Data.Aeson (Value (..), decodeStrict')
+import Data.Aeson hiding ((.=))
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion (fromByteString)
 import Data.ByteString.Conversion.To
@@ -94,6 +94,13 @@ instance HasField "client" WebSocket (Maybe ClientIdentity) where
           user = ws.wsConnect.user,
           client = c
         }
+
+instance HasField "user" WebSocket Value where
+  getField ws =
+    object
+      [ "domain" .= ws.wsConnect.domain,
+        "id" .= ws.wsConnect.user
+      ]
 
 -- Specifies how a Websocket at cannon should be opened
 data WSConnect = WSConnect
@@ -219,7 +226,7 @@ run wsConnect app = do
                   headers = mempty,
                   request = request
                 }
-        throwIO (AssertionFailure callStack (Just r) (displayException ex))
+        throwIO (AssertionFailure callStack (Just r) Nothing (displayException ex))
 
   liftIO $ race_ waitForPresence waitForException
   pure wsapp
@@ -421,7 +428,11 @@ awaitNMatches ::
   App [Value]
 awaitNMatches nExpected checkMatch ws = do
   res <- awaitNMatchesResult nExpected checkMatch ws
-  assertAwaitResult res
+  withWebSocketFailureContext ws $
+    assertAwaitResult res
+
+withWebSocketFailureContext :: WebSocket -> App a -> App a
+withWebSocketFailureContext ws = addFailureContext ("on websocket for user: " <> ws.wsConnect.user <> "@" <> ws.wsConnect.domain)
 
 assertAwaitResult :: (HasCallStack) => AwaitResult -> App [Value]
 assertAwaitResult res = do
@@ -481,7 +492,7 @@ assertNoEvent ::
   Int ->
   WebSocket ->
   App ()
-assertNoEvent to ws = do
+assertNoEvent to ws = withWebSocketFailureContext ws $ do
   mEvent <- awaitAnyEvent to ws
   case mEvent of
     Just event -> assertFailure $ "Expected no event, but got: " <> show event

@@ -26,6 +26,7 @@
 , uri-bytestring
 , wai
 , wai-extra
+, wire-otel
 }:
 mkDerivation {
   pname = "bilge";
@@ -53,6 +54,7 @@ mkDerivation {
     uri-bytestring
     wai
     wai-extra
+    wire-otel
   ];
   description = "Library for composing HTTP requests";
   license = lib.licenses.agpl3Only;

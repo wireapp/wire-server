@@ -1,3 +1,4 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -33,11 +34,9 @@ data PRQueryData f = PRQueryData
     prqdTimeout :: f UTCTime
   }
 
-deriving instance Show (PRQueryData Identity)
+deriving instance (forall a. (Show a) => Show (f a)) => Show (PRQueryData f)
 
-deriving instance Eq (PRQueryData Maybe)
-
-deriving instance Show (PRQueryData Maybe)
+deriving instance (forall a. (Eq a) => Eq (f a)) => Eq (PRQueryData f)
 
 mapPRQueryData :: (forall a. (f1 a -> f2 a)) -> PRQueryData f1 -> PRQueryData f2
 mapPRQueryData f prqd = prqd {prqdRetries = f prqd.prqdRetries, prqdTimeout = f prqd.prqdTimeout}

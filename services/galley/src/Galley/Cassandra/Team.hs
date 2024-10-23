@@ -60,6 +60,7 @@ import UnliftIO qualified
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Conversation
+import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
 import Wire.Sem.Paging.Cassandra
@@ -70,7 +71,7 @@ interpretTeamStoreToCassandra ::
     Member (Input ClientState) r,
     Member TinyLog r
   ) =>
-  FeatureLegalHold ->
+  FeatureDefaults LegalholdConfig ->
   Sem (TeamStore ': r) a ->
   Sem r a
 interpretTeamStoreToCassandra lh = interpret $ \case
@@ -154,7 +155,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
     embedApp (currentFanoutLimit <$> view options)
   GetLegalHoldFlag -> do
     logEffect "TeamStore.GetLegalHoldFlag"
-    view (options . settings . featureFlags . flagLegalHold) <$> input
+    view (options . settings . featureFlags . to npProject) <$> input
   EnqueueTeamEvent e -> do
     logEffect "TeamStore.EnqueueTeamEvent"
     menv <- inputs (view aEnv)
@@ -197,7 +198,7 @@ interpretTeamMemberStoreToCassandra ::
     Member (Input ClientState) r,
     Member TinyLog r
   ) =>
-  FeatureLegalHold ->
+  FeatureDefaults LegalholdConfig ->
   Sem (TeamMemberStore InternalPaging ': r) a ->
   Sem r a
 interpretTeamMemberStoreToCassandra lh = interpret $ \case
@@ -214,7 +215,7 @@ interpretTeamMemberStoreToCassandraWithPaging ::
     Member (Input ClientState) r,
     Member TinyLog r
   ) =>
-  FeatureLegalHold ->
+  FeatureDefaults LegalholdConfig ->
   Sem (TeamMemberStore CassandraPaging ': r) a ->
   Sem r a
 interpretTeamMemberStoreToCassandraWithPaging lh = interpret $ \case
@@ -277,7 +278,7 @@ teamIdsForPagination usr range (fromRange -> max) =
     Just c -> paginate Cql.selectUserTeamsFrom (paramsP LocalQuorum (usr, c) max)
     Nothing -> paginate Cql.selectUserTeams (paramsP LocalQuorum (Identity usr) max)
 
-teamMember :: FeatureLegalHold -> TeamId -> UserId -> Client (Maybe TeamMember)
+teamMember :: FeatureDefaults LegalholdConfig -> TeamId -> UserId -> Client (Maybe TeamMember)
 teamMember lh t u =
   newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (params LocalQuorum (t, u)))
   where
@@ -325,7 +326,7 @@ updateTeamMember oldPerms tid uid newPerms = do
     addPrepQuery Cql.updatePermissions (newPerms, tid, uid)
 
     -- update billing_team_member table
-    let permDiff = Set.difference `on` view self
+    let permDiff = Set.difference `on` self
         acquiredPerms = newPerms `permDiff` oldPerms
         lostPerms = oldPerms `permDiff` newPerms
 
@@ -368,7 +369,7 @@ teamIdsOf usr tids =
   map runIdentity <$> retry x1 (query Cql.selectUserTeamsIn (params LocalQuorum (usr, toList tids)))
 
 teamMembersWithLimit ::
-  FeatureLegalHold ->
+  FeatureDefaults LegalholdConfig ->
   TeamId ->
   Range 1 HardTruncationLimit Int32 ->
   Client TeamMemberList
@@ -383,7 +384,7 @@ teamMembersWithLimit lh t (fromRange -> limit) = do
 
 -- NOTE: Use this function with care... should only be required when deleting a team!
 --       Maybe should be left explicitly for the caller?
-teamMembersCollectedWithPagination :: FeatureLegalHold -> TeamId -> Client [TeamMember]
+teamMembersCollectedWithPagination :: FeatureDefaults LegalholdConfig -> TeamId -> Client [TeamMember]
 teamMembersCollectedWithPagination lh tid = do
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   collectTeamMembersPaginated [] mems
@@ -397,7 +398,7 @@ teamMembersCollectedWithPagination lh tid = do
 -- Lookup only specific team members: this is particularly useful for large teams when
 -- needed to look up only a small subset of members (typically 2, user to perform the action
 -- and the target user)
-teamMembersLimited :: FeatureLegalHold -> TeamId -> [UserId] -> Client [TeamMember]
+teamMembersLimited :: FeatureDefaults LegalholdConfig -> TeamId -> [UserId] -> Client [TeamMember]
 teamMembersLimited lh t u =
   mapM (newTeamMember' lh t)
     =<< retry x1 (query Cql.selectTeamMembers' (params LocalQuorum (t, u)))
@@ -499,7 +500,7 @@ updateTeam tid u = retry x5 . batch $ do
 -- Throw an exception if one of invitation timestamp and inviter is 'Nothing' and the
 -- other is 'Just', which can only be caused by inconsistent database content.
 newTeamMember' ::
-  FeatureLegalHold ->
+  FeatureDefaults LegalholdConfig ->
   TeamId ->
   (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
   Client TeamMember
@@ -550,7 +551,7 @@ teamMembersForPagination tid start (fromRange -> max) =
     Nothing -> paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity tid) max)
 
 teamMembersPageFrom ::
-  FeatureLegalHold ->
+  FeatureDefaults LegalholdConfig ->
   TeamId ->
   Maybe PagingState ->
   Range 1 HardTruncationLimit Int32 ->
@@ -561,7 +562,7 @@ teamMembersPageFrom lh tid pagingState (fromRange -> max) = do
   pure $ PageWithState members (pwsState page)
 
 selectSomeTeamMembersPaginated ::
-  FeatureLegalHold ->
+  FeatureDefaults LegalholdConfig ->
   TeamId ->
   [UserId] ->
   Maybe PagingState ->

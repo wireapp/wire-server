@@ -15,6 +15,13 @@ spec:
       labels:
         app: {{ include "outlook.fullname" . }}
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ include "outlook.fullname" . }}
       containers:
         - name: {{ include "outlook.fullname" . }}
           image: {{ .Values.containerImage }}

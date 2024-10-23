@@ -67,7 +67,7 @@ spec = do
                 path = "/on-user-deleted-connections",
                 body = RawJson $ Aeson.encode notifContent,
                 bodyVersions = Nothing,
-                requestId = Just $ RequestId "N/A"
+                requestId = Just $ RequestId defRequestId
               }
       envelope <- newMockEnvelope
       let msg =
@@ -104,7 +104,7 @@ spec = do
       notifContent <-
         generate $
           ClientRemovedRequest <$> arbitrary <*> arbitrary <*> arbitrary
-      let bundle = toBundle @'OnClientRemovedTag (RequestId "N/A") origDomain notifContent
+      let bundle = toBundle @'OnClientRemovedTag (RequestId defRequestId) origDomain notifContent
       envelope <- newMockEnvelope
       let msg =
             Q.newMsg
@@ -148,8 +148,8 @@ spec = do
             }
       let update0 = conversationUpdateToV0 update
       let bundle =
-            toBundle (RequestId "N/A") origDomain update
-              <> toBundle (RequestId "N/A") origDomain update0
+            toBundle (RequestId defRequestId) origDomain update
+              <> toBundle (RequestId defRequestId) origDomain update0
       envelope <- newMockEnvelope
       let msg =
             Q.newMsg
@@ -158,7 +158,7 @@ spec = do
               }
       runningFlag <- newMVar ()
       (env, fedReqs) <-
-        withTempMockFederator def {versions = [0, 2]} . runTestAppT $ do
+        withTempMockFederator def {versions = [0, 999999]} . runTestAppT $ do
           wait =<< pushNotification runningFlag targetDomain (msg, envelope)
           ask
 
@@ -215,7 +215,7 @@ spec = do
                 path = "/on-user-deleted-connections",
                 body = RawJson $ Aeson.encode notifContent,
                 bodyVersions = Nothing,
-                requestId = Just $ RequestId "N/A"
+                requestId = Just $ RequestId defRequestId
               }
       envelope <- newMockEnvelope
       let msg =
@@ -270,13 +270,13 @@ spec = do
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
-          rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
+          rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
-      domains <- runAppT Env {..} getRemoteDomains
+      domains <- runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
       readTVarIO mockAdmin.listQueuesVHostCalls `shouldReturn` ["test-vhost"]
 
@@ -287,12 +287,12 @@ spec = do
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
-          rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
+          rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
       backendNotificationMetrics <- mkBackendNotificationMetrics
-      domainsThread <- async $ runAppT Env {..} getRemoteDomains
+      domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
 
       -- Wait for first call
       untilM (readTVarIO mockAdmin.listQueuesVHostCalls >>= \calls -> pure $ not $ null calls)

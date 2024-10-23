@@ -104,8 +104,8 @@ deriving instance ToJSON TimeUuid
 
 deriving instance FromJSON TimeUuid
 
-instance (ToJSON a, ToJSON b, ToJSON c, ToJSON d, ToJSON e, ToJSON f, ToJSON g, ToJSON h, ToJSON i, ToJSON j, ToJSON k, ToJSON l, ToJSON m, ToJSON n, ToJSON o, ToJSON p, ToJSON q, ToJSON r, ToJSON s, ToJSON t, ToJSON u) => ToJSON ((,,,,,,,,,,,,,,,,,,,,) a b c d e f g h i j k l m n o p q r s t u) where
-  toJSON (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u) =
+instance (ToJSON a, ToJSON b, ToJSON c, ToJSON d, ToJSON e, ToJSON f, ToJSON g, ToJSON h, ToJSON i, ToJSON j, ToJSON k, ToJSON l, ToJSON m, ToJSON n, ToJSON o, ToJSON p, ToJSON q, ToJSON r, ToJSON s, ToJSON t) => ToJSON ((,,,,,,,,,,,,,,,,,,,) a b c d e f g h i j k l m n o p q r s t) where
+  toJSON (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t) =
     Array $
       V.fromList
         [ toJSON a,
@@ -127,14 +127,13 @@ instance (ToJSON a, ToJSON b, ToJSON c, ToJSON d, ToJSON e, ToJSON f, ToJSON g, 
           toJSON q,
           toJSON r,
           toJSON s,
-          toJSON t,
-          toJSON u
+          toJSON t
         ]
 
-instance (FromJSON a, FromJSON b, FromJSON c, FromJSON d, FromJSON e, FromJSON f, FromJSON g, FromJSON h, FromJSON i, FromJSON j, FromJSON k, FromJSON l, FromJSON m, FromJSON n, FromJSON o, FromJSON p, FromJSON q, FromJSON r, FromJSON s, FromJSON t, FromJSON u) => FromJSON ((,,,,,,,,,,,,,,,,,,,,) a b c d e f g h i j k l m n o p q r s t u) where
+instance (FromJSON a, FromJSON b, FromJSON c, FromJSON d, FromJSON e, FromJSON f, FromJSON g, FromJSON h, FromJSON i, FromJSON j, FromJSON k, FromJSON l, FromJSON m, FromJSON n, FromJSON o, FromJSON p, FromJSON q, FromJSON r, FromJSON s, FromJSON t) => FromJSON ((,,,,,,,,,,,,,,,,,,,) a b c d e f g h i j k l m n o p q r s t) where
   parseJSON = withArray "Tuple" $ \case
-    (toList -> [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u]) ->
-      (,,,,,,,,,,,,,,,,,,,,)
+    (toList -> [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t]) ->
+      (,,,,,,,,,,,,,,,,,,,)
         <$> parseJSON a
         <*> parseJSON b
         <*> parseJSON c
@@ -155,5 +154,4 @@ instance (FromJSON a, FromJSON b, FromJSON c, FromJSON d, FromJSON e, FromJSON f
         <*> parseJSON r
         <*> parseJSON s
         <*> parseJSON t
-        <*> parseJSON u
     _ -> fail "Expected array of length 21"

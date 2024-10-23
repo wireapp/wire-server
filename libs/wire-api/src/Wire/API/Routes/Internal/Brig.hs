@@ -55,7 +55,7 @@ import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports hiding (head)
 import Network.HTTP.Client qualified as HTTP
-import Servant hiding (Handler, WithStatus, addHeader, respond)
+import Servant hiding (Handler, addHeader, respond)
 import Servant.Client qualified as Servant
 import Servant.Client.Core qualified as Servant
 import Servant.OpenApi (HasOpenApi (toOpenApi))
@@ -65,16 +65,17 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
+import Wire.API.Routes.Internal.LegalHold qualified as LegalHoldInternalAPI
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
+import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation (Invitation)
 import Wire.API.Team.LegalHold.Internal
@@ -113,7 +114,7 @@ type GetAccountConferenceCallingConfig =
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Get '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
+    :> Get '[Servant.JSON] (Feature ConferenceCallingConfig)
 
 type PutAccountConferenceCallingConfig =
   Summary
@@ -122,7 +123,7 @@ type PutAccountConferenceCallingConfig =
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Servant.ReqBody '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
+    :> Servant.ReqBody '[Servant.JSON] (Feature ConferenceCallingConfig)
     :> Put '[Servant.JSON] NoContent
 
 type DeleteAccountConferenceCallingConfig =
@@ -168,8 +169,6 @@ type AccountAPI =
            -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
            -- - UserIdentityUpdated event to created user, if email or phone get activated
            ( "users"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[Servant.JSON] NewUser
                :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
            )
@@ -177,18 +176,15 @@ type AccountAPI =
            "createUserNoVerifySpar"
            ( "users"
                :> "spar"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
     :<|> Named
            "putSelfEmail"
            ( Summary
-               "internal email activation (used in tests and in spar for validating emails obtained as \
-               \SAML user identifiers).  if the validate query parameter is false or missing, only set \
-               \the activation timeout, but do not send an email, and do not do anything about \
-               \activating the email."
+               "Internal email update and activation. Used in tests and in spar for validating emails \
+               \obtained via scim or saml implicit user creation. If the `validate` query parameter is \
+               \false or missing, only update the email and do not activate."
                :> ZUser
                :> "self"
                :> "email"
@@ -240,7 +236,7 @@ type AccountAPI =
            ( "users"
                :> QueryParam' [Optional, Strict] "ids" (CommaSeparatedList UserId)
                :> QueryParam' [Optional, Strict] "handles" (CommaSeparatedList Handle)
-               :> QueryParam' [Optional, Strict] "email" (CommaSeparatedList Email) -- don't rename to `emails`, for backwards compat!
+               :> QueryParam' [Optional, Strict] "email" (CommaSeparatedList EmailAddress) -- don't rename to `emails`, for backwards compat!
                :> QueryParam'
                     [ Optional,
                       Strict,
@@ -248,7 +244,7 @@ type AccountAPI =
                     ]
                     "includePendingInvitations"
                     Bool
-               :> Get '[Servant.JSON] [UserAccount]
+               :> Get '[Servant.JSON] [User]
            )
     :<|> Named
            "iGetUserContacts"
@@ -261,14 +257,14 @@ type AccountAPI =
            "iGetUserActivationCode"
            ( "users"
                :> "activation-code"
-               :> QueryParam' [Required, Strict] "email" Email
+               :> QueryParam' [Required, Strict] "email" EmailAddress
                :> Get '[Servant.JSON] GetActivationCodeResp
            )
     :<|> Named
            "iGetUserPasswordResetCode"
            ( "users"
                :> "password-reset-code"
-               :> QueryParam' [Required, Strict] "email" Email
+               :> QueryParam' [Required, Strict] "email" EmailAddress
                :> Get '[Servant.JSON] GetPasswordResetCodeResp
            )
     :<|> Named
@@ -276,14 +272,14 @@ type AccountAPI =
            ( Summary "This endpoint can lead to the following events being sent: UserIdentityRemoved event to target user"
                :> "users"
                :> "revoke-identity"
-               :> QueryParam' [Required, Strict] "email" Email
+               :> QueryParam' [Required, Strict] "email" EmailAddress
                :> Post '[Servant.JSON] NoContent
            )
     :<|> Named
            "iHeadBlacklist"
            ( "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict] "email" Email
+               :> QueryParam' [Required, Strict] "email" EmailAddress
                :> MultiVerb
                     'GET
                     '[Servant.JSON]
@@ -296,14 +292,14 @@ type AccountAPI =
            "iDeleteBlacklist"
            ( "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict] "email" Email
+               :> QueryParam' [Required, Strict] "email" EmailAddress
                :> Delete '[Servant.JSON] NoContent
            )
     :<|> Named
            "iPostBlacklist"
            ( "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict] "email" Email
+               :> QueryParam' [Required, Strict] "email" EmailAddress
                :> Post '[Servant.JSON] NoContent
            )
     :<|> Named
@@ -533,7 +529,7 @@ type InvitationByEmail =
     ( "teams"
         :> "invitations"
         :> "by-email"
-        :> QueryParam' [Required, Strict] "email" Email
+        :> QueryParam' [Required, Strict] "email" EmailAddress
         :> Get '[Servant.JSON] Invitation
     )
 
@@ -594,13 +590,21 @@ type TeamInvitations =
         :> Capture "tid" TeamId
         :> "invitations"
         :> Servant.ReqBody '[JSON] NewUserScimInvitation
-        :> Post '[JSON] UserAccount
+        :> Post '[JSON] User
     )
 
 type UserAPI =
   UpdateUserLocale
     :<|> DeleteUserLocale
     :<|> GetDefaultLocale
+    :<|> Named
+           "get-user-export-data"
+           ( Summary "Get user export data"
+               :> "users"
+               :> Capture "uid" UserId
+               :> "export-data"
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "User export data" (Maybe TeamExportUser))
+           )
 
 type UpdateUserLocale =
   Summary
@@ -640,16 +644,12 @@ type AuthAPI =
   Named
     "legalhold-login"
     ( "legalhold-login"
-        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-        :> MakesFederatedCall 'Brig "send-connection-action"
         :> ReqBody '[JSON] LegalHoldLogin
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
            "sso-login"
            ( "sso-login"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[JSON] SsoLogin
                :> QueryParam' [Optional, Strict] "persist" Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse
@@ -737,7 +737,7 @@ type ProviderAPI =
       ( Summary "Retrieve activation code via api instead of email (for testing only)"
           :> "provider"
           :> "activation-code"
-          :> QueryParam' '[Required, Strict] "email" Email
+          :> QueryParam' '[Required, Strict] "email" EmailAddress
           :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
       )
   )
@@ -747,8 +747,14 @@ type FederationRemotesAPIDescription =
 
 swaggerDoc :: OpenApi
 swaggerDoc =
-  toOpenApi (Proxy @API)
-    & info . title .~ "Wire-Server internal brig API"
+  brigSwaggerDoc
+    <> LegalHoldInternalAPI.swaggerDoc
+
+brigSwaggerDoc :: OpenApi
+brigSwaggerDoc =
+  ( toOpenApi (Proxy @API)
+      & info . title .~ "Wire-Server internal brig API"
+  )
 
 newtype BrigInternalClient a = BrigInternalClient (Servant.ClientM a)
   deriving newtype (Functor, Applicative, Monad, Servant.RunClient)

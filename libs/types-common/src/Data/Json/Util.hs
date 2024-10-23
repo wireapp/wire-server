@@ -43,7 +43,6 @@ module Data.Json.Util
     base64Schema,
     base64URLSchema,
     Base64ByteStringL (..),
-    base64SchemaL,
     fromBase64TextLenient,
     fromBase64Text,
     toBase64Text,
@@ -268,9 +267,6 @@ instance S.ToParamSchema Base64ByteStringL where
 
 base64SchemaLN :: ValueSchema NamedSwaggerDoc LByteString
 base64SchemaLN = L.toStrict .= fmap L.fromStrict base64SchemaN
-
-base64SchemaL :: ValueSchema SwaggerDoc LByteString
-base64SchemaL = unnamed base64SchemaLN
 
 --------------------------------------------------------------------------------
 -- Utilities

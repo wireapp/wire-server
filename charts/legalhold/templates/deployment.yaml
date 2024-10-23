@@ -17,6 +17,13 @@ spec:
       labels:
         name: "{{ .Release.Name }}-hold"
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              name: "{{ .Release.Name }}-hold"
       restartPolicy: Always
       containers:
         - name: hold

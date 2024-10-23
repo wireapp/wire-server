@@ -14,6 +14,7 @@
 , servant
 , servant-multipart
 , text
+, types-common
 , utf8-string
 , wai
 , wai-middleware-prometheus
@@ -32,6 +33,7 @@ mkDerivation {
     servant
     servant-multipart
     text
+    types-common
     utf8-string
     wai
     wai-middleware-prometheus

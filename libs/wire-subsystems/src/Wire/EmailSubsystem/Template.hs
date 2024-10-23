@@ -18,30 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.EmailSubsystem.Template
-  ( Localised (..),
-    TemplateBranding,
-    forLocale,
-
-    -- * templates
-    UserTemplates (..),
-    ActivationSmsTemplate (..),
-    VerificationEmailTemplate (..),
-    ActivationEmailTemplate (..),
-    TeamActivationEmailTemplate (..),
-    ActivationCallTemplate (..),
-    PasswordResetSmsTemplate (..),
-    PasswordResetEmailTemplate (..),
-    LoginSmsTemplate (..),
-    LoginCallTemplate (..),
-    DeletionSmsTemplate (..),
-    DeletionEmailTemplate (..),
-    NewClientEmailTemplate (..),
-    SecondFactorVerificationEmailTemplate (..),
+  ( module Wire.EmailSubsystem.Template,
 
     -- * Re-exports
     Template,
-    renderTextWithBranding,
-    renderHtmlWithBranding,
   )
 where
 
@@ -105,6 +85,7 @@ data UserTemplates = UserTemplates
     loginCall :: LoginCallTemplate,
     deletionSms :: DeletionSmsTemplate,
     deletionEmail :: DeletionEmailTemplate,
+    upgradePersonalToTeamEmail :: UpgradePersonalToTeamEmailTemplate,
     newClientEmail :: NewClientEmailTemplate,
     verificationLoginEmail :: SecondFactorVerificationEmailTemplate,
     verificationScimTokenEmail :: SecondFactorVerificationEmailTemplate,
@@ -126,7 +107,7 @@ data VerificationEmailTemplate = VerificationEmailTemplate
     verificationEmailSubject :: Template,
     verificationEmailBodyText :: Template,
     verificationEmailBodyHtml :: Template,
-    verificationEmailSender :: Email,
+    verificationEmailSender :: EmailAddress,
     verificationEmailSenderName :: Text
   }
 
@@ -135,7 +116,7 @@ data ActivationEmailTemplate = ActivationEmailTemplate
     activationEmailSubject :: Template,
     activationEmailBodyText :: Template,
     activationEmailBodyHtml :: Template,
-    activationEmailSender :: Email,
+    activationEmailSender :: EmailAddress,
     activationEmailSenderName :: Text
   }
 
@@ -144,7 +125,7 @@ data TeamActivationEmailTemplate = TeamActivationEmailTemplate
     teamActivationEmailSubject :: Template,
     teamActivationEmailBodyText :: Template,
     teamActivationEmailBodyHtml :: Template,
-    teamActivationEmailSender :: Email,
+    teamActivationEmailSender :: EmailAddress,
     teamActivationEmailSenderName :: Text
   }
 
@@ -153,8 +134,16 @@ data DeletionEmailTemplate = DeletionEmailTemplate
     deletionEmailSubject :: Template,
     deletionEmailBodyText :: Template,
     deletionEmailBodyHtml :: Template,
-    deletionEmailSender :: Email,
+    deletionEmailSender :: EmailAddress,
     deletionEmailSenderName :: Text
+  }
+
+data UpgradePersonalToTeamEmailTemplate = UpgradePersonalToTeamEmailTemplate
+  { upgradePersonalToTeamEmailSubject :: Template,
+    upgradePersonalToTeamEmailBodyText :: Template,
+    upgradePersonalToTeamEmailBodyHtml :: Template,
+    upgradePersonalToTeamEmailSender :: EmailAddress,
+    upgradePersonalToTeamEmailSenderName :: Text
   }
 
 data PasswordResetEmailTemplate = PasswordResetEmailTemplate
@@ -162,7 +151,7 @@ data PasswordResetEmailTemplate = PasswordResetEmailTemplate
     passwordResetEmailSubject :: Template,
     passwordResetEmailBodyText :: Template,
     passwordResetEmailBodyHtml :: Template,
-    passwordResetEmailSender :: Email,
+    passwordResetEmailSender :: EmailAddress,
     passwordResetEmailSenderName :: Text
   }
 
@@ -191,7 +180,7 @@ data NewClientEmailTemplate = NewClientEmailTemplate
   { newClientEmailSubject :: Template,
     newClientEmailBodyText :: Template,
     newClientEmailBodyHtml :: Template,
-    newClientEmailSender :: Email,
+    newClientEmailSender :: EmailAddress,
     newClientEmailSenderName :: Text
   }
 
@@ -199,6 +188,40 @@ data SecondFactorVerificationEmailTemplate = SecondFactorVerificationEmailTempla
   { sndFactorVerificationEmailSubject :: Template,
     sndFactorVerificationEmailBodyText :: Template,
     sndFactorVerificationEmailBodyHtml :: Template,
-    sndFactorVerificationEmailSender :: Email,
+    sndFactorVerificationEmailSender :: EmailAddress,
     sndFactorVerificationEmailSenderName :: Text
+  }
+
+data InvitationEmailTemplate = InvitationEmailTemplate
+  { invitationEmailUrl :: !Template,
+    invitationEmailSubject :: !Template,
+    invitationEmailBodyText :: !Template,
+    invitationEmailBodyHtml :: !Template,
+    invitationEmailSender :: !EmailAddress,
+    invitationEmailSenderName :: !Text
+  }
+
+data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
+  { creatorWelcomeEmailUrl :: !Text,
+    creatorWelcomeEmailSubject :: !Template,
+    creatorWelcomeEmailBodyText :: !Template,
+    creatorWelcomeEmailBodyHtml :: !Template,
+    creatorWelcomeEmailSender :: !EmailAddress,
+    creatorWelcomeEmailSenderName :: !Text
+  }
+
+data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
+  { memberWelcomeEmailUrl :: !Text,
+    memberWelcomeEmailSubject :: !Template,
+    memberWelcomeEmailBodyText :: !Template,
+    memberWelcomeEmailBodyHtml :: !Template,
+    memberWelcomeEmailSender :: !EmailAddress,
+    memberWelcomeEmailSenderName :: !Text
+  }
+
+data TeamTemplates = TeamTemplates
+  { invitationEmail :: !InvitationEmailTemplate,
+    existingUserInvitationEmail :: !InvitationEmailTemplate,
+    creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
+    memberWelcomeEmail :: !MemberWelcomeEmailTemplate
   }

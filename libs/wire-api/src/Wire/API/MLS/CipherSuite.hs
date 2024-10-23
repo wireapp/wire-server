@@ -30,9 +30,7 @@ module Wire.API.MLS.CipherSuite
     IsSignatureScheme,
     SignatureSchemeTag (..),
     SignatureSchemeCurve,
-    signatureScheme,
     signatureSchemeName,
-    signatureSchemeTag,
     csSignatureScheme,
 
     -- * Key pairs
@@ -282,9 +280,6 @@ newtype SignatureScheme = SignatureScheme {unSignatureScheme :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS, Arbitrary)
 
-signatureScheme :: SignatureSchemeTag -> SignatureScheme
-signatureScheme = SignatureScheme . signatureSchemeNumber
-
 data SignatureSchemeTag
   = Ed25519
   | Ecdsa_secp256r1_sha256
@@ -330,22 +325,11 @@ instance Cql SignatureSchemeTag where
       signatureSchemeFromName name
   fromCql _ = Left "SignatureScheme: Text expected"
 
-signatureSchemeNumber :: SignatureSchemeTag -> Word16
-signatureSchemeNumber Ed25519 = 0x807
-signatureSchemeNumber Ecdsa_secp256r1_sha256 = 0x403
-signatureSchemeNumber Ecdsa_secp384r1_sha384 = 0x503
-signatureSchemeNumber Ecdsa_secp521r1_sha512 = 0x603
-
 signatureSchemeName :: SignatureSchemeTag -> Text
 signatureSchemeName Ed25519 = "ed25519"
 signatureSchemeName Ecdsa_secp256r1_sha256 = "ecdsa_secp256r1_sha256"
 signatureSchemeName Ecdsa_secp384r1_sha384 = "ecdsa_secp384r1_sha384"
 signatureSchemeName Ecdsa_secp521r1_sha512 = "ecdsa_secp521r1_sha512"
-
-signatureSchemeTag :: SignatureScheme -> Maybe SignatureSchemeTag
-signatureSchemeTag (SignatureScheme n) = getAlt $
-  flip foldMap [minBound .. maxBound] $ \s ->
-    guard (signatureSchemeNumber s == n) $> s
 
 signatureSchemeFromName :: Text -> Maybe SignatureSchemeTag
 signatureSchemeFromName name = getAlt $

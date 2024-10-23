@@ -21,13 +21,11 @@ module Stern.API.Routes
     SwaggerDocsAPI,
     swaggerDocs,
     UserConnectionGroups (..),
-    doubleMaybeToEither,
     RedirectToSwaggerDocsAPI,
   )
 where
 
 import Control.Lens
-import Control.Monad.Trans.Except
 import Data.Aeson qualified as A
 import Data.Handle
 import Data.Id
@@ -35,8 +33,6 @@ import Data.Kind
 import Data.OpenApi qualified as S
 import Data.Schema qualified as Schema
 import Imports hiding (head)
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities
 import Servant hiding (Handler, WithStatus (..), addHeader, respond)
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.OpenApi.Internal.Orphans ()
@@ -88,8 +84,8 @@ type SternAPI =
            ( Summary "Displays user's info given an email address"
                :> "users"
                :> "by-email"
-               :> QueryParam' [Required, Strict, Description "Email address"] "email" Email
-               :> Get '[JSON] [UserAccount]
+               :> QueryParam' [Required, Strict, Description "Email address"] "email" EmailAddress
+               :> Get '[JSON] [User]
            )
     :<|> Named
            "get-users-by-ids"
@@ -97,7 +93,7 @@ type SternAPI =
                :> "users"
                :> "by-ids"
                :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" [UserId]
-               :> Get '[JSON] [UserAccount]
+               :> Get '[JSON] [User]
            )
     :<|> Named
            "get-users-by-handles"
@@ -105,7 +101,7 @@ type SternAPI =
                :> "users"
                :> "by-handles"
                :> QueryParam' [Required, Strict, Description "List of Handles of the users, without '@', separated by comma"] "handles" [Handle]
-               :> Get '[JSON] [UserAccount]
+               :> Get '[JSON] [User]
            )
     :<|> Named
            "get-user-connections"
@@ -145,7 +141,7 @@ type SternAPI =
                     \If the given identity is not taken / verified, this is a no-op."
                :> "users"
                :> "revoke-identity"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Post '[JSON] NoContent
            )
     :<|> Named
@@ -165,7 +161,7 @@ type SternAPI =
                     "Email must match UserId's (to prevent copy/paste mistakes)."
                :> "users"
                :> Capture "uid" UserId
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Delete '[JSON] NoContent
            )
     :<|> Named
@@ -195,7 +191,7 @@ type SternAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> QueryParam' [Optional, Strict, Description "THIS WILL PERMANENTLY DELETE ALL TEAM MEMBERS! CHECK TEAM MEMBER LIST (SEE ABOVE OR BELOW) IF YOU ARE UNCERTAIN THAT'S WHAT YOU WANT."] "force" Bool
-               :> QueryParam' [Optional, Strict, Description "Matching verified remaining user address"] "email" Email
+               :> QueryParam' [Optional, Strict, Description "Matching verified remaining user address"] "email" EmailAddress
                :> Delete '[JSON] NoContent
            )
     :<|> Named
@@ -211,7 +207,7 @@ type SternAPI =
            ( Summary "Fetch blacklist information on a email (200: blacklisted; 404: not blacklisted)"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Verb 'GET 200 '[JSON] NoContent
            )
     :<|> Named
@@ -219,7 +215,7 @@ type SternAPI =
            ( Summary "Add the email to our blacklist"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Post '[JSON] NoContent
            )
     :<|> Named
@@ -227,14 +223,14 @@ type SternAPI =
            ( Summary "Remove the email from our blacklist"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Delete '[JSON] NoContent
            )
     :<|> Named
            "get-team-info-by-member-email"
            ( Summary "Fetch a team information given a member's email"
                :> "teams"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Get '[JSON] TeamInfo
            )
     :<|> Named
@@ -253,20 +249,20 @@ type SternAPI =
                :> Get '[JSON] TeamAdminInfo
            )
     :<|> Named "get-route-legalhold-config" (MkFeatureGetRoute LegalholdConfig)
-    :<|> Named "put-route-legalhold-config" (MkFeaturePutRouteTrivialConfigNoTTL LegalholdConfig)
+    :<|> Named "put-route-legalhold-config" (MkFeaturePutRouteNoTTL LegalholdConfig)
     :<|> Named "get-route-sso-config" (MkFeatureGetRoute SSOConfig)
-    :<|> Named "put-route-sso-config" (MkFeaturePutRouteTrivialConfigNoTTL SSOConfig)
+    :<|> Named "put-route-sso-config" (MkFeaturePutRouteNoTTL SSOConfig)
     :<|> Named "get-route-search-visibility-available-config" (MkFeatureGetRoute SearchVisibilityAvailableConfig)
-    :<|> Named "put-route-search-visibility-available-config" (MkFeaturePutRouteTrivialConfigNoTTL SearchVisibilityAvailableConfig)
+    :<|> Named "put-route-search-visibility-available-config" (MkFeaturePutRouteNoTTL SearchVisibilityAvailableConfig)
     :<|> Named "get-route-validate-saml-emails-config" (MkFeatureGetRoute ValidateSAMLEmailsConfig)
-    :<|> Named "put-route-validate-saml-emails-config" (MkFeaturePutRouteTrivialConfigNoTTL ValidateSAMLEmailsConfig)
+    :<|> Named "put-route-validate-saml-emails-config" (MkFeaturePutRouteNoTTL ValidateSAMLEmailsConfig)
     :<|> Named "get-route-digital-signatures-config" (MkFeatureGetRoute DigitalSignaturesConfig)
-    :<|> Named "put-route-digital-signatures-config" (MkFeaturePutRouteTrivialConfigNoTTL DigitalSignaturesConfig)
+    :<|> Named "put-route-digital-signatures-config" (MkFeaturePutRouteNoTTL DigitalSignaturesConfig)
     :<|> Named "get-route-file-sharing-config" (MkFeatureGetRoute FileSharingConfig)
-    :<|> Named "put-route-file-sharing-config" (MkFeaturePutRouteTrivialConfigNoTTL FileSharingConfig)
+    :<|> Named "put-route-file-sharing-config" (MkFeaturePutRouteNoTTL FileSharingConfig)
     :<|> Named "get-route-classified-domains-config" (MkFeatureGetRoute ClassifiedDomainsConfig)
     :<|> Named "get-route-conference-calling-config" (MkFeatureGetRoute ConferenceCallingConfig)
-    :<|> Named "put-route-conference-calling-config" (MkFeaturePutRouteTrivialConfigWithTTL ConferenceCallingConfig)
+    :<|> Named "put-route-conference-calling-config" (MkFeaturePutRouteWithTTL ConferenceCallingConfig)
     :<|> Named "get-route-applock-config" (MkFeatureGetRoute AppLockConfig)
     :<|> Named "put-route-applock-config" (MkFeaturePutRoute AppLockConfig)
     :<|> Named "get-route-mls-config" (MkFeatureGetRoute MLSConfig)
@@ -297,8 +293,8 @@ type SternAPI =
                :> Put '[JSON] NoContent
            )
     :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
-    :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
-    :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
+    :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteNoTTL OutlookCalIntegrationConfig)
+    :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteNoTTL OutlookCalIntegrationConfig)
     :<|> Named
            "get-route-enforce-file-download-location"
            ( Description
@@ -309,7 +305,7 @@ type SternAPI =
            "lock-unlock-route-enforce-file-download-location"
            ( Description
                "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
-               :> MkFeatureLockUnlockRouteTrivialConfigNoTTL EnforceFileDownloadLocationConfig
+               :> MkFeatureLockUnlockRouteNoTTL EnforceFileDownloadLocationConfig
            )
     :<|> Named
            "put-route-enforce-file-download-location"
@@ -364,7 +360,7 @@ type SternAPI =
                :> Description "Relevant only internally at Wire"
                :> "i"
                :> "consent"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Get '[JSON] ConsentLogAndMarketo
            )
     :<|> Named
@@ -415,7 +411,7 @@ type SternAPI =
                :> Post '[JSON] OAuthClientCredentials
            )
     :<|> Named
-           "get-oauth-client"
+           "stern-get-oauth-client"
            ( Summary "Get OAuth client by id"
                :> "i"
                :> "oauth"
@@ -482,20 +478,15 @@ instance Schema.ToSchema UserConnectionGroups where
         <*> ucgMissingLegalholdConsent Schema..= Schema.field "ucgMissingLegalholdConsent" Schema.schema
         <*> ucgTotal Schema..= Schema.field "ucgTotal" Schema.schema
 
-doubleMaybeToEither :: (Monad m) => LText -> Maybe a -> Maybe b -> ExceptT Error m (Either a b)
-doubleMaybeToEither _ (Just a) Nothing = pure $ Left a
-doubleMaybeToEither _ Nothing (Just b) = pure $ Right b
-doubleMaybeToEither msg _ _ = throwE $ mkError status400 "either-params" ("Must use exactly one of two query params: " <> msg)
-
 type MkFeatureGetRoute (feature :: Type) =
   Summary "Shows whether a feature flag is enabled or not for a given team."
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol feature
-    :> Get '[JSON] (WithStatus feature)
+    :> Get '[JSON] (LockableFeature feature)
 
-type MkFeaturePutRouteTrivialConfigNoTTL (feature :: Type) =
+type MkFeaturePutRouteNoTTL (feature :: Type) =
   Summary "Disable / enable status for a given feature / team"
     :> "teams"
     :> Capture "tid" TeamId
@@ -504,7 +495,7 @@ type MkFeaturePutRouteTrivialConfigNoTTL (feature :: Type) =
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> Put '[JSON] NoContent
 
-type MkFeaturePutRouteTrivialConfigWithTTL (feature :: Type) =
+type MkFeaturePutRouteWithTTL (feature :: Type) =
   Summary "Disable / enable status for a given feature / team"
     :> Description "team feature time to live, given in days, or 'unlimited' (default).  only available on *some* features!"
     :> "teams"
@@ -515,7 +506,7 @@ type MkFeaturePutRouteTrivialConfigWithTTL (feature :: Type) =
     :> QueryParam' [Required, Strict, Description "team feature time to live, given in days, or 'unlimited' (default)."] "ttl" FeatureTTLDays
     :> Put '[JSON] NoContent
 
-type MkFeatureLockUnlockRouteTrivialConfigNoTTL (feature :: Type) =
+type MkFeatureLockUnlockRouteNoTTL (feature :: Type) =
   Summary "Lock / unlock status for a given feature / team (en-/disable should happen in team settings)"
     :> "teams"
     :> Capture "tid" TeamId
@@ -531,5 +522,5 @@ type MkFeaturePutRoute (feature :: Type) =
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol feature
-    :> ReqBody '[JSON] (WithStatusNoLock feature)
+    :> ReqBody '[JSON] (Feature feature)
     :> Put '[JSON] NoContent

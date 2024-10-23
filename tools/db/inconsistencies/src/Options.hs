@@ -20,7 +20,6 @@
 module Options where
 
 import Cassandra qualified as C
-import Data.Id
 import Data.Text qualified as Text
 import Imports
 import Options.Applicative
@@ -95,15 +94,6 @@ inconsistenciesFileParser =
     ( long "inconsistencies-file"
         <> help "File to output the found inconsistencies"
         <> metavar "FILEPATH"
-    )
-
-teamIdParser :: Parser TeamId
-teamIdParser =
-  option
-    (eitherReader (parseIdFromText . Text.pack))
-    ( long "team-id"
-        <> help "Team id to search into"
-        <> metavar "TEAM_ID"
     )
 
 cassandraSettingsParser :: String -> Parser CassandraSettings

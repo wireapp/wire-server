@@ -1,8 +1,8 @@
 {
     "accent_id": -3,
     "created_at": "1864-05-06T18:23:32.240Z",
-    "email": "</o@C31",
-    "email_unvalidated": "foobar@example.com",
+    "email": "some@example",
+    "email_unvalidated": "some@example",
     "handle": "0􈿛󹘉",
     "id": "00000001-0000-0001-0000-000100000000",
     "managed_by": "scim",

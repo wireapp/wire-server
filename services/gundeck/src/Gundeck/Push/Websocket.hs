@@ -41,7 +41,6 @@ import Data.Set qualified as Set
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
 import Gundeck.Presence.Data qualified as Presence
-import Gundeck.Types.Presence
 import Gundeck.Util
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
@@ -54,6 +53,7 @@ import System.Logger.Class qualified as Log
 import UnliftIO (handleAny, mapConcurrently)
 import Wire.API.Internal.BulkPush
 import Wire.API.Internal.Notification
+import Wire.API.Presence
 
 class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
   mbpBulkSend :: URI -> BulkPushRequest -> m (URI, Either SomeException BulkPushResponse)
@@ -165,7 +165,7 @@ bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Lef
 
 bulkSend' ::
   forall m.
-  ( MonadIO m,
+  ( MonadUnliftIO m,
     MonadMask m,
     HasRequestId m,
     MonadHttp m,

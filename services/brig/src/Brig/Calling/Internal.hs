@@ -20,6 +20,7 @@ module Brig.Calling.Internal where
 import Control.Lens ((?~))
 import Data.ByteString.Char8 qualified as BS
 import Data.Misc (ensureHttpsUrl)
+import Data.Text qualified as T
 import Imports
 import URI.ByteString qualified as URI
 import URI.ByteString.QQ qualified as URI
@@ -40,3 +41,13 @@ sftServerFromSrvTarget (SrvTarget host port) =
       if BS.last bs == '.'
         then BS.init bs
         else bs
+
+base26 :: Integer -> Text
+base26 0 = "a"
+base26 num = T.pack $ go [] num
+  where
+    go :: String -> Integer -> String
+    go acc 0 = acc
+    go acc n =
+      let (q, r) = divMod n 26
+       in go (chr (fromIntegral r + ord 'a') : acc) q

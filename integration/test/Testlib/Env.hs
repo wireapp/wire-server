@@ -11,8 +11,6 @@ import Data.Functor
 import Data.IORef
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Traversable (for)
 import qualified Data.Yaml as Yaml
 import qualified Database.CQL.IO as Cassandra
@@ -88,7 +86,8 @@ mkGlobalEnv cfgFile = do
         Map.fromList $
           [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
             (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap),
-            (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap)
+            (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap),
+            (intConfig.federationV1.originDomain, intConfig.federationV1.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
   tempDir <- Codensity $ withSystemTempDirectory "test"
@@ -102,11 +101,11 @@ mkGlobalEnv cfgFile = do
         gDomain2 = intConfig.backendTwo.originDomain,
         gIntegrationTestHostName = intConfig.integrationTestHostName,
         gFederationV0Domain = intConfig.federationV0.originDomain,
+        gFederationV1Domain = intConfig.federationV1.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
-        gDefaultAPIVersion = 6,
+        gDefaultAPIVersion = 7,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
-        gRemovalKeyPaths = mempty,
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
         gTempDir = tempDir,
@@ -141,11 +140,19 @@ mkEnv ge = do
           domain2 = gDomain2 ge,
           integrationTestHostName = gIntegrationTestHostName ge,
           federationV0Domain = gFederationV0Domain ge,
+          federationV1Domain = gFederationV1Domain ge,
           dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
+          -- hardcode API versions for federated domains because they don't have
+          -- latest things. Ensure we do not use development API versions in
+          -- those domains.
+          apiVersionByDomain =
+            Map.fromList
+              [ (gFederationV0Domain ge, 4),
+                (gFederationV1Domain ge, 5)
+              ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
-          removalKeyPaths = gRemovalKeyPaths ge,
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
@@ -153,18 +160,6 @@ mkEnv ge = do
           rabbitMQConfig = ge.gRabbitMQConfig,
           timeOutSeconds = ge.gTimeOutSeconds
         }
-
-destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
-destroy ioRef = modifyIORef' ioRef . Set.insert
-
-create :: IORef (Set.Set BackendResource) -> IO BackendResource
-create ioRef =
-  atomicModifyIORef
-    ioRef
-    $ \s ->
-      case Set.minView s of
-        Nothing -> error "No resources available"
-        Just (r, s') -> (s', r)
 
 allCiphersuites :: [Ciphersuite]
 -- FUTUREWORK: add 0x0005 to this list once openmls supports it

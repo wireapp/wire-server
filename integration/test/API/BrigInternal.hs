@@ -148,9 +148,13 @@ deleteOAuthClient user cid = do
 getInvitationCode :: (HasCallStack, MakesValue user, MakesValue inv) => user -> inv -> App Response
 getInvitationCode user inv = do
   tid <- user %. "team" & asString
+  getInvitationCodeForTeam user tid inv
+
+getInvitationCodeForTeam :: (HasCallStack, MakesValue domain, MakesValue inv) => domain -> String -> inv -> App Response
+getInvitationCodeForTeam domain tid inv = do
   invId <- inv %. "id" & asString
   req <-
-    baseRequest user Brig Unversioned $
+    baseRequest domain Brig Unversioned $
       "i/teams/invitation-code?team=" <> tid <> "&invitation_id=" <> invId
   submit "GET" req
 
@@ -158,17 +162,6 @@ refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
 refreshIndex domain = do
   req <- baseRequest domain Brig Unversioned "i/index/refresh"
   res <- submit "POST" req
-  res.status `shouldMatchInt` 200
-
-connectWithRemoteUser :: (MakesValue userFrom, MakesValue userTo) => userFrom -> userTo -> App ()
-connectWithRemoteUser userFrom userTo = do
-  userFromId <- objId userFrom
-  qUserTo <- make userTo
-  let body = ["tag" .= "CreateConnectionForTest", "user" .= userFromId, "other" .= qUserTo]
-  req <-
-    baseRequest userFrom Brig Unversioned $
-      joinHttpPath ["i", "connections", "connection-update"]
-  res <- submit "PUT" (req & addJSONObject body)
   res.status `shouldMatchInt` 200
 
 addFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
@@ -255,10 +248,84 @@ getEJPDInfo dom handles mode = do
         bad -> error $ show bad
   submit "POST" $ req & addJSONObject ["EJPDRequest" .= handles] & addQueryParams query
 
--- https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users__uid__verification_code__action_
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users__uid__verification_code__action_
 getVerificationCode :: (HasCallStack, MakesValue user) => user -> String -> App Response
 getVerificationCode user action = do
   uid <- objId user
   domain <- objDomain user
   req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "users", uid, "verification-code", action]
   submit "GET" req
+
+-- | http://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users__uid__features_conferenceCalling
+getFeatureForUser :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getFeatureForUser user featureName = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "features", featureName]
+  submit "GET" req
+
+-- | http://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/put_i_users__uid__features_conferenceCalling
+putFeatureForUser ::
+  (HasCallStack, MakesValue user, MakesValue config) =>
+  user ->
+  String ->
+  config ->
+  App Response
+putFeatureForUser user featureName config = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "features", featureName]
+  configValue <- make config
+  submit "PUT" $ req & addJSON configValue
+
+-- | http://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_users__uid__features_conferenceCalling
+deleteFeatureForUser :: (HasCallStack, MakesValue user) => user -> String -> App Response
+deleteFeatureForUser user featureName = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "features", featureName]
+  submit "DELETE" req
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_oauth_clients
+createOAuthClient :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+createOAuthClient user name url = do
+  req <- baseRequest user Brig Unversioned "i/oauth/clients"
+  submit "POST" $ req & addJSONObject ["application_name" .= name, "redirect_url" .= url]
+
+getInvitationByEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getInvitationByEmail domain email = do
+  req <- baseRequest domain Brig Unversioned "i/teams/invitations/by-email"
+  submit "GET" $ req & addQueryParams [("email", email)]
+
+getActivationCode :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getActivationCode domain email = do
+  req <- baseRequest domain Brig Unversioned "i/users/activation-code"
+  submit "GET" $ req & addQueryParams [("email", email)]
+
+getPasswordResetCode :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getPasswordResetCode domain email = do
+  req <- baseRequest domain Brig Unversioned "i/users/password-reset-code"
+  submit "GET" $ req & addQueryParams [("email", email)]
+
+data PutSSOId = PutSSOId
+  { scimExternalId :: Maybe String,
+    subject :: Maybe String,
+    tenant :: Maybe String
+  }
+
+instance Default PutSSOId where
+  def =
+    PutSSOId
+      { scimExternalId = Nothing,
+        subject = Nothing,
+        tenant = Nothing
+      }
+
+putSSOId :: (HasCallStack, MakesValue user) => user -> PutSSOId -> App Response
+putSSOId user args = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned (joinHttpPath ["i", "users", uid, "sso-id"])
+  submit "PUT" $
+    req
+      & addJSONObject
+        [ "scim_external_id" .= args.scimExternalId,
+          "subject" .= args.subject,
+          "tenant" .= args.tenant
+        ]

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -22,6 +23,7 @@ module Wire.API.Team.Invitation
     Invitation (..),
     InvitationList (..),
     InvitationLocation (..),
+    AcceptTeamInvitation (..),
     HeadInvitationByEmailResult (..),
     HeadInvitationsResponses,
   )
@@ -32,6 +34,7 @@ import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
+import Data.Misc
 import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
@@ -41,22 +44,19 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import URI.ByteString
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.Locale (Locale)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User.Identity (Email, Phone)
-import Wire.API.User.Profile (Name)
+import Wire.API.User
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- InvitationRequest
 
 data InvitationRequest = InvitationRequest
-  { irLocale :: Maybe Locale,
-    irRole :: Maybe Role,
-    irInviteeName :: Maybe Name,
-    irInviteeEmail :: Email,
-    irInviteePhone :: Maybe Phone
+  { locale :: Maybe Locale,
+    role :: Maybe Role,
+    inviteeName :: Maybe Name,
+    inviteeEmail :: EmailAddress
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
@@ -66,32 +66,29 @@ instance ToSchema InvitationRequest where
   schema =
     objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
       InvitationRequest
-        <$> irLocale
+        <$> locale
           .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
-        <*> irRole
+        <*> (.role)
           .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
-        <*> irInviteeName
+        <*> (.inviteeName)
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
-        <*> irInviteeEmail
+        <*> (.inviteeEmail)
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
-        <*> irInviteePhone
-          .= optFieldWithDocModifier "phone" (description ?~ "Phone number of the invitee, in the E.164 format.") (maybeWithDefault A.Null schema)
 
 --------------------------------------------------------------------------------
 -- Invitation
 
 data Invitation = Invitation
-  { inTeam :: TeamId,
-    inRole :: Role,
-    inInvitation :: InvitationId,
-    inCreatedAt :: UTCTimeMillis,
+  { team :: TeamId,
+    role :: Role,
+    invitationId :: InvitationId,
+    createdAt :: UTCTimeMillis,
     -- | this is always 'Just' for new invitations, but for
     -- migration it is allowed to be 'Nothing'.
-    inCreatedBy :: Maybe UserId,
-    inInviteeEmail :: Email,
-    inInviteeName :: Maybe Name,
-    inInviteePhone :: Maybe Phone,
-    inInviteeUrl :: Maybe (URIRef Absolute)
+    createdBy :: Maybe UserId,
+    inviteeEmail :: EmailAddress,
+    inviteeName :: Maybe Name,
+    inviteeUrl :: Maybe (URIRef Absolute)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)
@@ -99,29 +96,29 @@ data Invitation = Invitation
 
 instance ToSchema Invitation where
   schema =
-    objectWithDocModifier "Invitation" (description ?~ "An invitation to join a team on Wire") $
-      Invitation
-        <$> inTeam
+    objectWithDocModifier
+      "Invitation"
+      (description ?~ "An invitation to join a team on Wire")
+      $ Invitation
+        <$> (.team)
           .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
-        <*> inRole
+        <*> (.role)
           -- clients, when leaving "role" empty, can leave the default role choice to us
           .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
-        <*> inInvitation
+        <*> (.invitationId)
           .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
-        <*> inCreatedAt
+        <*> (.createdAt)
           .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
-        <*> inCreatedBy
+        <*> (.createdBy)
           .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
-        <*> inInviteeEmail
+        <*> (.inviteeEmail)
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
-        <*> inInviteeName
+        <*> (.inviteeName)
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
-        <*> inInviteePhone
-          .= optFieldWithDocModifier "phone" (description ?~ "Phone number of the invitee, in the E.164 format") (maybeWithDefault A.Null schema)
-        <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inInviteeUrl)
+        <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inviteeUrl)
           .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
     where
-      urlSchema = parsedText "URIRef Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
+      urlSchema = parsedText "URIRef_Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
 
 newtype InvitationLocation = InvitationLocation
   { unInvitationLocation :: ByteString
@@ -182,3 +179,20 @@ instance ToSchema InvitationList where
           .= field "invitations" (array schema)
         <*> ilHasMore
           .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more invitations than returned.") schema
+
+--------------------------------------------------------------------------------
+-- AcceptTeamInvitation
+
+data AcceptTeamInvitation = AcceptTeamInvitation
+  { code :: InvitationCode,
+    password :: PlainTextPassword6
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema AcceptTeamInvitation)
+
+instance ToSchema AcceptTeamInvitation where
+  schema =
+    objectWithDocModifier "AcceptTeamInvitation" (description ?~ "Accept an invitation to join a team on Wire.") $
+      AcceptTeamInvitation
+        <$> code .= fieldWithDocModifier "code" (description ?~ "Invitation code to accept.") schema
+        <*> password .= fieldWithDocModifier "password" (description ?~ "The user account password.") schema

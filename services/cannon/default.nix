@@ -17,8 +17,9 @@
 , extended
 , extra
 , gitignoreSource
-, gundeck-types
 , hashable
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , http-types
 , imports
 , lens
@@ -50,6 +51,7 @@
 , warp
 , websockets
 , wire-api
+, wire-otel
 }:
 mkDerivation {
   pname = "cannon";
@@ -70,8 +72,9 @@ mkDerivation {
     exceptions
     extended
     extra
-    gundeck-types
     hashable
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     http-types
     imports
     lens
@@ -96,6 +99,7 @@ mkDerivation {
     warp
     websockets
     wire-api
+    wire-otel
   ];
   executableHaskellDepends = [ base imports types-common ];
   testHaskellDepends = [

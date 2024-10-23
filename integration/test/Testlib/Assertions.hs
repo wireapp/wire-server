@@ -84,21 +84,6 @@ shouldMatchWithMsg msg a b = do
         else pure ""
     assertFailure $ (maybe "" (<> "\n") msg) <> "Actual:\n" <> pa <> "\nExpected:\n" <> pb <> diff
 
--- | apply some canonicalization transformations that *usually* do not change semantics before
--- comparing.
-shouldMatchLeniently :: (MakesValue a, MakesValue b, HasCallStack) => a -> b -> App ()
-shouldMatchLeniently = shouldMatchWithRules [EmptyArrayIsNull, RemoveNullFieldsFromObjects] (const $ pure Nothing)
-
--- | apply *all* canonicalization transformations before comparing.  some of these may not be
--- valid on your input, see 'LenientMatchRule' for details.
-shouldMatchSloppily :: (MakesValue a, MakesValue b, HasCallStack) => a -> b -> App ()
-shouldMatchSloppily = shouldMatchWithRules [minBound ..] (const $ pure Nothing)
-
--- | apply *all* canonicalization transformations before comparing.  some of these may not be
--- valid on your input, see 'LenientMatchRule' for details.
-shouldMatchALittle :: (MakesValue a, MakesValue b, HasCallStack) => (Aeson.Value -> App (Maybe Aeson.Value)) -> a -> b -> App ()
-shouldMatchALittle = shouldMatchWithRules [minBound ..]
-
 data LenientMatchRule
   = EmptyArrayIsNull
   | ArraysAreSets
@@ -195,6 +180,15 @@ shouldMatchInt ::
   App ()
 shouldMatchInt = shouldMatch
 
+shouldNotMatchInt ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  Int ->
+  App ()
+shouldNotMatchInt = shouldNotMatch
+
 shouldMatchRange ::
   (MakesValue a, HasCallStack) =>
   -- | The actual value
@@ -220,6 +214,9 @@ shouldMatchSet a b = do
 
 shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
 shouldBeEmpty a = a `shouldMatch` (mempty :: [Value])
+
+shouldBeNull :: (MakesValue a, HasCallStack) => a -> App ()
+shouldBeNull a = a `shouldMatch` Aeson.Null
 
 shouldMatchOneOf ::
   (MakesValue a, MakesValue b, HasCallStack) =>
@@ -255,13 +252,21 @@ super `shouldContain` sub = do
     assertFailure $ "String or List:\n" <> show super <> "\nDoes not contain:\n" <> show sub
 
 printFailureDetails :: AssertionFailure -> IO String
-printFailureDetails (AssertionFailure stack mbResponse msg) = do
+printFailureDetails (AssertionFailure stack mbResponse ctx msg) = do
   s <- prettierCallStack stack
   pure . unlines $
     colored yellow "assertion failure:"
       : colored red msg
       : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
+        <> toList (fmap prettyContext ctx)
+
+prettyContext :: String -> String
+prettyContext ctx = do
+  unlines
+    [ colored yellow "context:",
+      colored blue ctx
+    ]
 
 printExceptionDetails :: SomeException -> IO String
 printExceptionDetails e = do

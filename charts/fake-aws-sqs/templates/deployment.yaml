@@ -19,6 +19,13 @@ spec:
       annotations:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ template "fullname" . }}
       containers:
       - name: fake-aws-sqs
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

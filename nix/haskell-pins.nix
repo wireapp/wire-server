@@ -63,14 +63,6 @@ let
     # maintained by us
     # ----------------
 
-    transitive-anns = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/transitive-anns";
-        rev = "5e0cad1f411a0c92e6445404c205ddd4a0229c4d";
-        hash = "sha256-/P4KJ4yZgqhZhzmg1GcE+Ti4kdsWUQX8q++RhgCUDKI=";
-      };
-    };
-
     cryptobox-haskell = {
       src = fetchgit {
         url = "https://github.com/wireapp/cryptobox-haskell";
@@ -270,6 +262,35 @@ let
       };
     };
 
+    # this contains an important fix to the initialization of the window size
+    # and should be switched to upstream as soon as we can
+    # version = "5.2.5";
+    # This patch also includes suppressing ConnectionIsClosed
+    http2 = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/http2";
+        rev = "45653e3caab0642e539fab2681cb09402aae29ca";
+        hash = "sha256-L90PQtDw/JFwyltSVFvmfjTAb0ZLhFt9Hl0jbzn+cFQ=";
+      };
+    };
+
+    # hs-opentelemetry-* has not been released for a while on hackage
+    hs-opentelemetry = {
+      src = fetchgit {
+        url = "https://github.com/iand675/hs-opentelemetry";
+        rev = "0b3c854a88113fc18df8561202a76357e593a294";
+        hash = "sha256-N5FzKz6T1sE9xffGCeWa+iTW8a1GCLsy2TlAjzIed34=";
+      };
+      packages = {
+        hs-opentelemetry-sdk = "sdk";
+        hs-opentelemetry-api = "api";
+        hs-opentelemetry-propagator-datadog = "propagators/datadog";
+        hs-opentelemetry-instrumentation-http-client = "instrumentation/http-client";
+        hs-opentelemetry-instrumentation-wai = "instrumentation/wai";
+        hs-opentelemetry-exporter-otlp = "exporters/otlp";
+      };
+    };
+
   };
 
   hackagePins = {
@@ -281,14 +302,6 @@ let
     };
 
     # start pinned dependencies for http2
-
-    # this contains an important fix to the initialization of the window size
-    # and should be switched to upstream as soon as we can
-    http2 = {
-      version = "5.2.5";
-      sha256 = "sha256-FCd4lPydwWqm2lrhgYtPW+BuXGqmmA8KFrB87SYEowY=";
-    };
-
     http-semantics = {
       version = "0.1.2";
       sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
@@ -312,13 +325,6 @@ let
       sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
     };
     # end pinned dependencies for http2
-
-    # pinned for warp
-    warp-tls = {
-      version = "3.4.5";
-      sha256 = "sha256-3cDi/+n7wHfcWT/iFWAsGdLYXtKYXmvzolDt+ACJnaM=";
-    };
-    # end pinned for warp
 
     # PR: https://github.com/wireapp/wire-server/pull/4027
     HsOpenSSL = {

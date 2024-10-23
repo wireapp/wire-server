@@ -38,7 +38,6 @@ module Data.Text.Ascii
     -- * Standard Characters
     Standard (..),
     Ascii,
-    validateStandard,
 
     -- * Printable Characters
     Printable (..),
@@ -67,10 +66,6 @@ module Data.Text.Ascii
     encodeBase16,
     decodeBase16,
 
-    -- * Safe Widening
-    widen,
-    widenChar,
-
     -- * Unsafe Construction
     unsafeFromText,
     unsafeFromByteString,
@@ -80,6 +75,7 @@ where
 import Cassandra hiding (Ascii)
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import Data.Attoparsec.ByteString (Parser)
+import Data.Bifunctor (first)
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Base64.URL qualified as B64Url
@@ -104,11 +100,9 @@ newtype AsciiText c = AsciiText {toText :: Text}
       Monoid,
       NFData,
       ToByteString,
-      FromJSONKey,
       ToJSONKey,
       Hashable,
-      ToHttpApiData,
-      FromHttpApiData
+      ToHttpApiData
     )
 
 newtype AsciiChar c = AsciiChar {toChar :: Char}
@@ -141,6 +135,9 @@ class AsciiChars c where
 instance (AsciiChars c) => FromByteString (AsciiText c) where
   parser = parseBytes validate
 
+instance (AsciiChars c) => FromHttpApiData (AsciiText c) where
+  parseUrlPiece = first Text.pack . validate
+
 -- | Note: 'fromString' is a partial function that will 'error' when given
 -- a string containing characters not in the set @c@. It is only intended to be used
 -- via the @OverloadedStrings@ extension, i.e. for known ASCII string literals.
@@ -155,6 +152,8 @@ instance (AsciiChars c) => ToJSON (AsciiText c) where
 
 instance (AsciiChars c) => FromJSON (AsciiText c) where
   parseJSON = schemaParseJSON
+
+instance (FromJSON (AsciiText c)) => FromJSONKey (AsciiText c)
 
 instance (Typeable c, AsciiChars c) => S.ToSchema (AsciiText c) where
   declareNamedSchema = schemaToSwagger
@@ -193,9 +192,6 @@ instance AsciiChars Standard where
   validate = check "Invalid ASCII characters" (contains Standard)
   contains Standard = isAscii
   {-# INLINE contains #-}
-
-validateStandard :: Text -> Either String Ascii
-validateStandard = validate
 
 --------------------------------------------------------------------------------
 -- Printable
@@ -359,19 +355,6 @@ encodeBase16 = unsafeFromByteString . B16.encode
 -- Decoding only succeeds if the text is a multiple of 2 bytes in length.
 decodeBase16 :: AsciiBase16 -> Maybe ByteString
 decodeBase16 t = either (const Nothing) Just (B16.decode (toByteString' t))
-
---------------------------------------------------------------------------------
--- Safe Widening
-
--- | Safely widen an ASCII text into another ASCII text with a larger
--- character set.
-widen :: (Subset c c' ~ 'True) => AsciiText c -> AsciiText c'
-widen (AsciiText t) = AsciiText t
-
--- | Safely widen an ASCII character into another ASCII character with a larger
--- character set.
-widenChar :: (Subset c c' ~ 'True) => AsciiChar c -> AsciiChar c'
-widenChar (AsciiChar t) = AsciiChar t
 
 --------------------------------------------------------------------------------
 -- Unsafe Construction

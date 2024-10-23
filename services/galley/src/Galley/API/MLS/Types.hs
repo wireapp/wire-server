@@ -207,9 +207,3 @@ instance HasField "id" ConvOrSubConv ConvOrSubConvId where
 instance HasField "migrationState" ConvOrSubConv MLSMigrationState where
   getField (Conv c) = c.mcMigrationState
   getField (SubConv _ _) = MLSMigrationMLS
-
-convOrSubConvActivate :: ActiveMLSConversationData -> ConvOrSubConv -> ConvOrSubConv
-convOrSubConvActivate activeData (Conv c) =
-  Conv $ c {mcMLSData = (mcMLSData c) {cnvmlsActiveData = Just activeData}}
-convOrSubConvActivate activeData (SubConv c s) =
-  SubConv c $ s {scMLSData = (scMLSData s) {cnvmlsActiveData = Just activeData}}

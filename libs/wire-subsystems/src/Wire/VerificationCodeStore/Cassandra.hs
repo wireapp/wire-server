@@ -31,7 +31,7 @@ insertCodeImpl c = do
   let t = round (codeTTL c)
   retry x5 (write cql (params LocalQuorum (k, s, v, r, e, a, t)))
   where
-    cql :: PrepQuery W (Key, Scope, Value, Retries, Email, Maybe UUID, Int32) ()
+    cql :: PrepQuery W (Key, Scope, Value, Retries, EmailAddress, Maybe UUID, Int32) ()
     cql =
       "INSERT INTO vcodes (key, scope, value, retries, email, account) \
       \VALUES (?, ?, ?, ?, ?, ?) USING TTL ?"
@@ -40,12 +40,12 @@ insertCodeImpl c = do
 lookupCodeImpl :: (MonadClient m) => Key -> Scope -> m (Maybe Code)
 lookupCodeImpl k s = toCode <$$> retry x1 (query1 cql (params LocalQuorum (k, s)))
   where
-    cql :: PrepQuery R (Key, Scope) (Value, Int32, Retries, Email, Maybe UUID)
+    cql :: PrepQuery R (Key, Scope) (Value, Int32, Retries, EmailAddress, Maybe UUID)
     cql =
       "SELECT value, ttl(value), retries, email, account \
       \FROM vcodes WHERE key = ? AND scope = ?"
 
-    toCode :: (Value, Int32, Retries, Email, Maybe UUID) -> Code
+    toCode :: (Value, Int32, Retries, EmailAddress, Maybe UUID) -> Code
     toCode (val, ttl, retries, email, account) =
       Code
         { codeKey = k,

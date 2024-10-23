@@ -24,7 +24,7 @@ import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
 import Brig.Options (Opts (galley))
 import Brig.Options qualified as BrigOpts
-import Control.Lens ((.~), (^.))
+import Control.Lens ((.~))
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
@@ -49,7 +49,7 @@ spec brigOpts =
 
 testCreateIndexWhenNotPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenNotPresent brigOpts = do
-  let (ES.Server esURL) = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
+  let (ES.Server esURL) = brigOpts.elasticsearch.url
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
@@ -90,7 +90,7 @@ testCreateIndexWhenNotPresent brigOpts = do
 
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
-  let (ES.Server esURL) = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
+  let (ES.Server esURL) = brigOpts.elasticsearch.url
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do

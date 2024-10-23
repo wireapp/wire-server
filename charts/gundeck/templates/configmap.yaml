@@ -68,7 +68,6 @@ data:
     settings:
       httpPoolSize: 1024
       notificationTTL: {{ required "config.notificationTTL" .notificationTTL }}
-      bulkPush: {{ .bulkPush }}
       {{- if hasKey . "perNativePushConcurrency" }}
       perNativePushConcurrency: {{ .perNativePushConcurrency }}
       {{- end }}

@@ -18,6 +18,8 @@
 module Wire.API.Routes.LowLevelStream where
 
 import Control.Lens (at, (.~), (?~), _Just)
+import Control.Monad.Codensity
+import Control.Monad.Trans.Resource
 import Data.ByteString.Char8 as B8
 import Data.CaseInsensitive qualified as CI
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
@@ -38,6 +40,10 @@ import Servant.OpenApi.Internal as S
 import Servant.Server hiding (respond)
 import Servant.Server.Internal
 import Wire.API.Routes.Version
+
+-- | Used as the return type of a streaming handler. The 'Codensity' wrapper
+-- makes it possible to add finalisation logic to the streaming action.
+type LowLevelStreamingBody = Codensity IO StreamingBody
 
 -- FUTUREWORK: make it possible to generate headers at runtime
 data LowLevelStream method status (headers :: [(Symbol, Symbol)]) desc ctype
@@ -63,7 +69,9 @@ instance
   (ReflectMethod method, KnownNat status, RenderHeaders headers, Accept ctype) =>
   HasServer (LowLevelStream method status headers desc ctype) context
   where
-  type ServerT (LowLevelStream method status headers desc ctype) m = m StreamingBody
+  type
+    ServerT (LowLevelStream method status headers desc ctype) m =
+      m LowLevelStreamingBody
   hoistServerWithContext _ _ nt s = nt s
 
   route Proxy _ action = leafRouter $ \env request respond ->
@@ -71,15 +79,25 @@ instance
         cmediatype = HTTP.matchAccept [contentType (Proxy @ctype)] accH
         accCheck = when (isNothing cmediatype) $ delayedFail err406
         contentHeader = (hContentType, HTTP.renderHeader . maybeToList $ cmediatype)
-     in runAction
-          ( action
-              `addMethodCheck` methodCheck method request
-              `addAcceptCheck` accCheck
-          )
-          env
-          request
-          respond
-          $ Route . responseStream status (contentHeader : extraHeaders)
+     in runResourceT $ do
+          r <-
+            runDelayed
+              ( action
+                  `addMethodCheck` methodCheck method request
+                  `addAcceptCheck` accCheck
+              )
+              env
+              request
+          liftIO $ case r of
+            Route h ->
+              runHandler h >>= \case
+                Left e -> respond $ FailFatal e
+                Right getStreamingBody -> lowerCodensity $ do
+                  body <- getStreamingBody
+                  let resp = responseStream status (contentHeader : extraHeaders) body
+                  lift $ respond $ Route resp
+            Fail e -> respond $ Fail e
+            FailFatal e -> respond $ FailFatal e
     where
       method = reflectMethod (Proxy :: Proxy method)
       status = statusFromNat (Proxy :: Proxy status)

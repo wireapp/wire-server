@@ -8,7 +8,7 @@ import Testlib.Assertions
 import Testlib.Prelude
 
 existingVersions :: Set Int
-existingVersions = Set.fromList [0, 1, 2, 3, 4, 5, 6]
+existingVersions = Set.fromList [0, 1, 2, 3, 4, 5, 6, 7]
 
 internalApis :: Set String
 internalApis = Set.fromList ["brig", "cannon", "cargohold", "cannon", "spar"]
@@ -79,4 +79,4 @@ testSwaggerToc = do
     get path = rawBaseRequest OwnDomain Brig Unversioned path >>= submit "GET"
 
     html :: String
-    html = "<html><head></head><body><h2>please pick an api version</h2><a href=\"/v0/api/swagger-ui/\">/v0/api/swagger-ui/</a><br><a href=\"/v1/api/swagger-ui/\">/v1/api/swagger-ui/</a><br><a href=\"/v2/api/swagger-ui/\">/v2/api/swagger-ui/</a><br><a href=\"/v3/api/swagger-ui/\">/v3/api/swagger-ui/</a><br><a href=\"/v4/api/swagger-ui/\">/v4/api/swagger-ui/</a><br><a href=\"/v5/api/swagger-ui/\">/v5/api/swagger-ui/</a><br><a href=\"/v6/api/swagger-ui/\">/v6/api/swagger-ui/</a><br></body>"
+    html = "<html><head></head><body><h2>please pick an api version</h2><a href=\"/v0/api/swagger-ui/\">/v0/api/swagger-ui/</a><br><a href=\"/v1/api/swagger-ui/\">/v1/api/swagger-ui/</a><br><a href=\"/v2/api/swagger-ui/\">/v2/api/swagger-ui/</a><br><a href=\"/v3/api/swagger-ui/\">/v3/api/swagger-ui/</a><br><a href=\"/v4/api/swagger-ui/\">/v4/api/swagger-ui/</a><br><a href=\"/v5/api/swagger-ui/\">/v5/api/swagger-ui/</a><br><a href=\"/v6/api/swagger-ui/\">/v6/api/swagger-ui/</a><br><a href=\"/v7/api/swagger-ui/\">/v7/api/swagger-ui/</a><br></body>"

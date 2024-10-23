@@ -1,5 +1,5 @@
 {
-    "email": "𨠞\rZ\u0007\u001b@p𠋁",
+    "email": "some@example",
     "first": false,
     "sso_id": {
         "subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">me@example.com</NameID>",

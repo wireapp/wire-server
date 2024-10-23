@@ -27,7 +27,6 @@ module Brig.Data.Client
     addClientWithReAuthPolicy,
     addClient,
     rmClient,
-    hasClient,
     lookupClient,
     lookupClients,
     lookupPubClientsBulk,
@@ -56,8 +55,6 @@ import Amazonka.DynamoDB.Lens qualified as AWS
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
 import Brig.App
-import Brig.Data.User (AuthError (..), ReAuthError (..))
-import Brig.Data.User qualified as User
 import Brig.Types.Instances ()
 import Cassandra as C hiding (Client)
 import Cassandra.Settings as C hiding (Client)
@@ -74,11 +71,13 @@ import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Map qualified as Map
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
+import Polysemy (Member)
 import Prometheus qualified as Prom
 import System.CryptoBox (Result (Success))
 import System.CryptoBox qualified as CryptoBox
@@ -90,6 +89,9 @@ import Wire.API.User.Auth
 import Wire.API.User.Client hiding (UpdateClient (..))
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (UserMap (..))
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error
 
 data ClientDataError
   = TooManyClients
@@ -116,36 +118,39 @@ reAuthForNewClients :: ReAuthPolicy
 reAuthForNewClients count upsert = count > 0 && not upsert
 
 addClient ::
-  (MonadClient m, MonadReader Brig.App.Env m) =>
-  UserId ->
+  ( Member AuthenticationSubsystem r
+  ) =>
+  Local UserId ->
   ClientId ->
   NewClient ->
   Int ->
-  Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError m (Client, [Client], Word)
+  Maybe ClientCapabilityList ->
+  ExceptT ClientDataError (AppT r) (Client, [Client], Word)
 addClient = addClientWithReAuthPolicy reAuthForNewClients
 
 addClientWithReAuthPolicy ::
-  (MonadClient m, MonadReader Brig.App.Env m) =>
+  ( MonadReader Brig.App.Env (AppT r),
+    Member AuthenticationSubsystem r
+  ) =>
   ReAuthPolicy ->
-  UserId ->
+  Local UserId ->
   ClientId ->
   NewClient ->
   Int ->
-  Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError m (Client, [Client], Word)
-addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
-  clients <- lookupClients u
+  Maybe ClientCapabilityList ->
+  ExceptT ClientDataError (AppT r) (Client, [Client], Word)
+addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients caps = do
+  clients <- wrapClientE $ lookupClients (tUnqualified u)
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
   let upsert = any exists typed
-  when (reAuthPolicy count upsert) $
-    fmapLT ClientReAuthError $
-      User.reauthenticate u (newClientPassword c)
+  when (reAuthPolicy count upsert) do
+    (lift . liftSem $ Authentication.reauthenticateEither (tUnqualified u) (newClientPassword c))
+      >>= either (throwE . ClientReAuthError) pure
   let capacity = fmap (+ (-count)) limit
   unless (maybe True (> 0) capacity || upsert) $
     throwE TooManyClients
-  new <- insert
+  new <- wrapClientE $ insert (tUnqualified u)
   let !total = fromIntegral (length clients + if upsert then 0 else 1)
   let old = maybe (filter (not . exists) typed) (const []) limit
   pure (new, old, total)
@@ -159,16 +164,16 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
     exists :: Client -> Bool
     exists = (==) newId . clientId
 
-    insert :: (MonadClient m, MonadReader Brig.App.Env m) => ExceptT ClientDataError m Client
-    insert = do
+    insert :: (MonadClient m, MonadReader Brig.App.Env m) => UserId -> ExceptT ClientDataError m Client
+    insert uid = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
-      now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
+      now <- toUTCTimeMillis <$> (liftIO =<< asks (.currentTime))
       let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
-      updatePrekeys u newId keys
+      updatePrekeys uid newId keys
       let mdl = newClientModel c
-          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, mdl, C.Set . Set.toList <$> cps)
+          prm = (uid, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, mdl, C.Set . Set.toList . fromClientCapabilityList <$> caps)
       retry x5 $ write insertClient (params LocalQuorum prm)
-      addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
+      addMLSPublicKeys uid newId (Map.assocs (newClientMLSPublicKeys c))
       pure $!
         Client
           { clientId = newId,
@@ -178,7 +183,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
             clientLabel = newClientLabel c,
             clientCookie = newClientCookie c,
             clientModel = mdl,
-            clientCapabilities = ClientCapabilityList (fromMaybe mempty cps),
+            clientCapabilities = fromMaybe mempty caps,
             clientMLSPublicKeys = mempty,
             clientLastActive = Nothing
           }
@@ -238,9 +243,6 @@ lookupPrekeyIds u c =
   map runIdentity
     <$> retry x1 (query selectPrekeyIds (params LocalQuorum (u, c)))
 
-hasClient :: (MonadClient m) => UserId -> ClientId -> m Bool
-hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, d)))
-
 rmClient ::
   ( MonadClient m,
     MonadReader Brig.App.Env m,
@@ -252,13 +254,13 @@ rmClient ::
 rmClient u c = do
   retry x5 $ write removeClient (params LocalQuorum (u, c))
   retry x5 $ write removeClientKeys (params LocalQuorum (u, c))
-  unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
+  unlessM (isJust <$> asks (.randomPrekeyLocalLock)) $ deleteOptLock u c
 
 updateClientLabel :: (MonadClient m) => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
 
-updateClientCapabilities :: (MonadClient m) => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
-updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
+updateClientCapabilities :: (MonadClient m) => UserId -> ClientId -> Maybe ClientCapabilityList -> m ()
+updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList . fromClientCapabilityList <$> fs, u, c))
 
 -- | If the update fails, which can happen if device does not exist, then ignore the error silently.
 updateClientLastActive :: (MonadClient m) => UserId -> ClientId -> UTCTime -> m ()
@@ -295,7 +297,7 @@ claimPrekey ::
   ClientId ->
   m (Maybe ClientPrekey)
 claimPrekey u c =
-  view randomPrekeyLocalLock >>= \case
+  asks (.randomPrekeyLocalLock) >>= \case
     -- Use random prekey selection strategy
     Just localLock -> withLocalLock localLock $ do
       prekeys <- retry x1 $ query userPrekeys (params LocalQuorum (u, c))
@@ -416,9 +418,6 @@ selectPrekeyIds = "SELECT key FROM prekeys where user = ? and client = ?"
 removePrekey :: PrepQuery W (UserId, ClientId, PrekeyId) ()
 removePrekey = "DELETE FROM prekeys where user = ? and client = ? and key = ?"
 
-checkClient :: PrepQuery R (UserId, ClientId) (Identity ClientId)
-checkClient = "SELECT client from clients where user = ? and client = ?"
-
 selectMLSPublicKey :: PrepQuery R (UserId, ClientId, SignatureSchemeTag) (Identity Blob)
 selectMLSPublicKey = "SELECT key from mls_public_keys where user = ? and client = ? and sig_scheme = ?"
 
@@ -490,8 +489,8 @@ deleteOptLock ::
   ClientId ->
   m ()
 deleteOptLock u c = do
-  t <- view (awsEnv . prekeyTable)
-  e <- view (awsEnv . amazonkaEnv)
+  t <- asks ((.awsEnv) <&> view prekeyTable)
+  e <- asks ((.awsEnv) <&> view amazonkaEnv)
   void $ exec e (AWS.newDeleteItem t & AWS.deleteItem_key .~ key u c)
 
 withOptLock ::
@@ -561,8 +560,8 @@ withOptLock u c ma = go (10 :: Int)
       (Text -> r) ->
       m (Maybe x)
     execDyn cnv mkCmd = do
-      cmd <- mkCmd <$> view (awsEnv . prekeyTable)
-      e <- view (awsEnv . amazonkaEnv)
+      cmd <- mkCmd <$> asks ((.awsEnv) <&> view prekeyTable)
+      e <- asks ((.awsEnv) <&> view amazonkaEnv)
       liftIO $ execDyn' e cnv cmd
       where
         execDyn' ::

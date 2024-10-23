@@ -19,23 +19,17 @@
 
 module Test.Wire.API.Golden.Generated.UserUpdate_user where
 
-import Data.Id (Id (Id))
-import Data.UUID qualified as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust)
+import Data.Id
+import Data.UUID qualified as UUID
+import Imports
 import Wire.API.Asset
 import Wire.API.User
-  ( Asset (ImageAsset),
-    AssetSize (AssetComplete),
-    ColourId (ColourId, fromColourId),
-    Name (Name, fromName),
-    Pict (Pict, fromPict),
-    UserUpdate (..),
-  )
 
 testObject_UserUpdate_user_1 :: UserUpdate
 testObject_UserUpdate_user_1 =
   UserUpdate
     { uupName = Nothing,
+      uupTextStatus = Nothing,
       uupPict = Nothing,
       uupAssets = Nothing,
       uupAccentId = Nothing
@@ -45,6 +39,7 @@ testObject_UserUpdate_user_2 :: UserUpdate
 testObject_UserUpdate_user_2 =
   UserUpdate
     { uupName = Just (Name {fromName = "~\RSK\1033973w\EMd\156648\59199g"}),
+      uupTextStatus = rightToMaybe $ mkTextStatus "text status",
       uupPict = Just (Pict {fromPict = []}),
       uupAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
       uupAccentId = Just (ColourId {fromColourId = 3})

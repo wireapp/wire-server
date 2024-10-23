@@ -28,7 +28,6 @@ import Cassandra.CQL
 import Cassandra.Options
 import Cassandra.Schema
 import Cassandra.Settings (dcFilterPolicyIfConfigured, initialContactsDisco, initialContactsPlain, mkLogger)
-import Control.Lens
 import Data.Aeson
 import Data.Fixed
 import Data.List.NonEmpty qualified as NE
@@ -46,12 +45,12 @@ defInitCassandra :: CassandraOpts -> Log.Logger -> IO ClientState
 defInitCassandra opts logger = do
   let basicCasSettings =
         setLogger (CT.mkLogger logger)
-          . setPortNumber (fromIntegral (opts ^. endpoint . port))
-          . setContacts (unpack (opts ^. endpoint . host)) []
-          . setKeyspace (Keyspace (opts ^. keyspace))
+          . setPortNumber (fromIntegral opts.endpoint.port)
+          . setContacts (unpack opts.endpoint.host) []
+          . setKeyspace (Keyspace opts.keyspace)
           . setProtocolVersion V4
           $ defSettings
-  initCassandra basicCasSettings (opts ^. tlsCa) logger
+  initCassandra basicCasSettings opts.tlsCa logger
 
 -- | Create Cassandra `ClientState` ("connection") for a service
 initCassandraForService ::
@@ -64,22 +63,22 @@ initCassandraForService ::
 initCassandraForService opts serviceName discoUrl mbSchemaVersion logger = do
   c <-
     maybe
-      (initialContactsPlain (opts ^. endpoint . host))
+      (initialContactsPlain opts.endpoint.host)
       (initialContactsDisco ("cassandra_" ++ serviceName) . unpack)
       discoUrl
   let basicCasSettings =
         setLogger (mkLogger (Log.clone (Just (pack ("cassandra." ++ serviceName))) logger))
           . setContacts (NE.head c) (NE.tail c)
-          . setPortNumber (fromIntegral (opts ^. endpoint . port))
-          . setKeyspace (Keyspace (opts ^. keyspace))
+          . setPortNumber (fromIntegral opts.endpoint.port)
+          . setKeyspace (Keyspace opts.keyspace)
           . setMaxConnections 4
           . setPoolStripes 4
           . setSendTimeout 3
           . setResponseTimeout 10
           . setProtocolVersion V4
-          . setPolicy (dcFilterPolicyIfConfigured logger (opts ^. filterNodesByDatacentre))
+          . setPolicy (dcFilterPolicyIfConfigured logger opts.filterNodesByDatacentre)
           $ defSettings
-  p <- initCassandra basicCasSettings (opts ^. tlsCa) logger
+  p <- initCassandra basicCasSettings opts.tlsCa logger
   maybe (pure ()) (\v -> runClient p $ (versionCheck v)) mbSchemaVersion
   pure p
 
@@ -109,6 +108,7 @@ initCassandra settings Nothing logger = do
 -- | Read cassandra's writetimes https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
 -- as UTCTime values without any loss of precision
 newtype Writetime a = Writetime {writetimeToUTC :: UTCTime}
+  deriving (Eq, Show, Functor)
 
 instance Cql (Writetime a) where
   ctype = Tagged BigIntColumn

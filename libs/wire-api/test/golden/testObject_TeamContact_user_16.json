@@ -1,8 +1,8 @@
 {
     "accent_id": -1,
     "created_at": "1864-05-08T15:43:05.866Z",
-    "email": "@j",
-    "email_unvalidated": "foobar@example.com",
+    "email": "some@example",
+    "email_unvalidated": "some@example",
     "handle": null,
     "id": "00000001-0000-0000-0000-000000000002",
     "managed_by": "wire",

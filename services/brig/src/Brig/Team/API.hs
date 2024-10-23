@@ -21,47 +21,42 @@ module Brig.Team.API
     getInvitationCode,
     suspendTeam,
     unsuspendTeam,
-    teamSize,
     createInvitationViaScim,
   )
 where
 
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
+import Brig.API.User (createUserInviteViaScim)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
-import Brig.App
-import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.BlacklistStore qualified as BlacklistStore
-import Brig.Effects.ConnectionStore (ConnectionStore)
+import Brig.App as App
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
-import Brig.Team.DB qualified as DB
-import Brig.Team.Email
-import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Team (TeamSize)
-import Brig.User.Search.TeamSize qualified as TeamSize
 import Control.Lens (view, (^.))
-import Control.Monad.Trans.Except (mapExceptT)
-import Data.ByteString.Conversion (toByteString, toByteString')
+import Control.Monad.Trans.Except
+import Data.ByteString.Conversion (toByteString)
 import Data.Id
 import Data.List1 qualified as List1
-import Data.Qualified (Local)
+import Data.Qualified
 import Data.Range
+import Data.Text.Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock (UTCTime)
+import Data.Text.Lazy qualified as Text
 import Imports hiding (head)
-import Network.Wai.Utilities hiding (code, message)
+import Network.Wai.Utilities hiding (Error, code, message)
 import Polysemy
-import Polysemy.Input (Input)
+import Polysemy.Error
+import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
 import Servant hiding (Handler, JSON, addHeader)
-import System.Logger.Class qualified as Log
 import System.Logger.Message as Log
+import URI.ByteString (Absolute, URIRef, laxURIParserOptions, parseURI)
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
-import Wire.API.Error.Brig qualified as E
+import Wire.API.Error.Brig
 import Wire.API.Routes.Internal.Brig (FoundInvitationCode (FoundInvitationCode))
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
@@ -73,127 +68,95 @@ import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Role
-import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
-import Wire.API.User qualified as Public
-import Wire.API.User.Identity qualified as Email
-import Wire.EmailSending (EmailSending)
+import Wire.BlockListStore
+import Wire.EmailSubsystem.Template
 import Wire.Error
+import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.NotificationSubsystem
+import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
+import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
+import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
-import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem.Error
 
 servantAPI ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
-    Member UserKeyStore r,
+  ( Member GalleyAPIAccess r,
+    Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
-    Member EmailSending r
+    Member Store.InvitationStore r,
+    Member TinyLog r,
+    Member (Input TeamTemplates) r,
+    Member (Input (Local ())) r,
+    Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
-  Named @"send-team-invitation" createInvitationPublicH
-    :<|> Named @"get-team-invitations" listInvitations
-    :<|> Named @"get-team-invitation" getInvitation
-    :<|> Named @"delete-team-invitation" deleteInvitation
-    :<|> Named @"get-team-invitation-info" getInvitationByCode
-    :<|> Named @"head-team-invitations" headInvitationByEmail
-    :<|> Named @"get-team-size" teamSizePublic
+  Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
+    :<|> Named @"get-team-invitations" (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
+    :<|> Named @"get-team-invitation" (\u t inv -> lift . liftSem $ getInvitation u t inv)
+    :<|> Named @"delete-team-invitation" (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
+    :<|> Named @"get-team-invitation-info" (lift . liftSem . getInvitationByCode)
+    :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
+    :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
+    :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
 
-teamSizePublic :: (Member GalleyAPIAccess r) => UserId -> TeamId -> (Handler r) TeamSize
-teamSizePublic uid tid = do
-  ensurePermissions uid tid [AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
-  teamSize tid
-
-teamSize :: TeamId -> (Handler r) TeamSize
-teamSize t = lift $ TeamSize.teamSize t
-
-getInvitationCode :: TeamId -> InvitationId -> (Handler r) FoundInvitationCode
-getInvitationCode t r = do
-  code <- lift . wrapClient $ DB.lookupInvitationCode t r
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . FoundInvitationCode) code
-
-createInvitationPublicH ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
-    Member UserKeyStore r,
-    Member UserSubsystem r,
-    Member EmailSending r
+teamSizePublic ::
+  ( Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r
   ) =>
   UserId ->
   TeamId ->
-  Public.InvitationRequest ->
-  Handler r (Public.Invitation, Public.InvitationLocation)
-createInvitationPublicH uid tid body = do
-  inv <- createInvitationPublic uid tid body
-  pure (inv, loc inv)
-  where
-    loc :: Invitation -> InvitationLocation
-    loc inv =
-      InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' (inInvitation inv)
+  Sem r TeamSize
+teamSizePublic uid tid = do
+  -- limit this to team admins to reduce risk of involuntary DOS attacks
+  ensurePermissions uid tid [AddTeamMember]
+  getTeamSize tid
+
+getInvitationCode ::
+  ( Member Store.InvitationStore r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  TeamId ->
+  InvitationId ->
+  Sem r FoundInvitationCode
+getInvitationCode t r = do
+  inv <- Store.lookupInvitation t r
+  maybe (throw UserSubsystemInvalidInvitationCode) (pure . FoundInvitationCode . (.code)) inv
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,
-    inviterEmail :: Email
+    inviterEmail :: EmailAddress
   }
   deriving (Eq, Show)
 
-createInvitationPublic ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
-    Member UserKeyStore r,
-    Member UserSubsystem r,
-    Member EmailSending r
-  ) =>
-  UserId ->
-  TeamId ->
-  Public.InvitationRequest ->
-  Handler r Public.Invitation
-createInvitationPublic uid tid body = do
-  let inviteeRole = fromMaybe defaultRole . irRole $ body
-  inviter <- do
-    let inviteePerms = Teams.rolePermissions inviteeRole
-    idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
-    from <- maybe (throwStd (errorToWai @'E.NoEmail)) pure (emailIdentity idt)
-    ensurePermissionToAddUser uid tid inviteePerms
-    pure $ CreateInvitationInviter uid from
-
-  let context =
-        logFunction "Brig.Team.API.createInvitationPublic"
-          . logTeam tid
-          . logEmail (irInviteeEmail body)
-
-  fst
-    <$> logInvitationRequest
-      context
-      (createInvitation' tid Nothing inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
-
 createInvitationViaScim ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
+  ( Member BlockListStore r,
     Member UserKeyStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
-    Member EmailSending r
+    Member TeamInvitationSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
-  (Handler r) UserAccount
-createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid loc name email role) = do
+  Handler r User
+createInvitationViaScim tid newUser@(NewUserScimInvitation _tid _uid@(Id (Id -> invId)) _eid loc name email role) = do
   env <- ask
   let inviteeRole = role
-      fromEmail = env ^. emailSender
+      fromEmail = env.emailSender
       invreq =
         InvitationRequest
-          { irLocale = loc,
-            irRole = Nothing, -- (unused, it's in the type for 'createInvitationPublicH')
-            irInviteeName = Just name,
-            irInviteeEmail = email,
-            irInviteePhone = Nothing
+          { locale = loc,
+            role = Nothing, -- (unused, it's in the type for 'createInvitationV5')
+            inviteeName = Just name,
+            inviteeEmail = email
           }
 
       context =
@@ -201,152 +164,257 @@ createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid loc name ema
           . logTeam tid
           . logEmail email
 
+  localNothing <- lift . liftSem $ qualifyLocal' Nothing
   void $
     logInvitationRequest context $
-      createInvitation' tid (Just uid) inviteeRole Nothing fromEmail invreq
+      lift $
+        liftSem $
+          internalCreateInvitation tid (Just invId) inviteeRole localNothing fromEmail invreq
 
   createUserInviteViaScim newUser
 
-logInvitationRequest :: (Msg -> Msg) -> (Handler r) (Invitation, InvitationCode) -> (Handler r) (Invitation, InvitationCode)
+logInvitationRequest :: (Member TinyLog r) => (Msg -> Msg) -> (Handler r) (Invitation, InvitationCode) -> Handler r (Invitation, InvitationCode)
 logInvitationRequest context action =
-  flip mapExceptT action $ \action' -> do
+  flip mapExceptT action \action' -> do
     eith <- action'
     case eith of
       Left err' -> do
-        Log.warn $
-          context
-            . Log.msg @Text
-              ( "Failed to create invitation, label: "
-                  <> (LT.toStrict . errorLabel) err'
-              )
+        liftSem $
+          Log.warn $
+            context
+              . Log.msg @Text
+                ( "Failed to create invitation, label: "
+                    <> (LT.toStrict . errorLabel) err'
+                )
         pure (Left err')
-      Right result@(_, code) -> do
+      Right result@(_, code) -> liftSem do
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
-createInvitation' ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
-    Member UserKeyStore r,
-    Member EmailSending r
+deleteInvitation ::
+  ( Member GalleyAPIAccess r,
+    Member InvitationStore r,
+    Member (Error UserSubsystemError) r
   ) =>
+  UserId ->
   TeamId ->
-  Maybe UserId ->
-  Public.Role ->
-  Maybe UserId ->
-  Email ->
-  Public.InvitationRequest ->
-  Handler r (Public.Invitation, Public.InvitationCode)
-createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
-  -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
-  --             sendActivationCode. Refactor this to a single place
-
-  -- Validate e-mail
-  inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (irInviteeEmail body))
-  let uke = mkEmailKey inviteeEmail
-  blacklistedEm <- lift $ liftSem $ BlacklistStore.exists uke
-  when blacklistedEm $
-    throwStd blacklistedEmail
-  emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
-  when emailTaken $
-    throwStd emailExists
-
-  maxSize <- setMaxTeamSize <$> view settings
-  pending <- lift $ wrapClient $ DB.countInvitations tid
-  when (fromIntegral pending >= maxSize) $
-    throwStd (errorToWai @'E.TooManyTeamInvitations)
-
-  let locale = irLocale body
-  let inviteeName = irInviteeName body
-  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
-
-  lift $ do
-    iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
-    now <- liftIO =<< view currentTime
-    timeout <- setTeamInvitationTimeout <$> view settings
-    (newInv, code) <-
-      wrapClient $
-        DB.insertInvitation
-          showInvitationUrl
-          iid
-          tid
-          inviteeRole
-          now
-          mbInviterUid
-          inviteeEmail
-          inviteeName
-          Nothing -- ignore phone
-          timeout
-    (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
-
-deleteInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) ()
+  InvitationId ->
+  Sem r ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  lift $ wrapClient $ DB.deleteInvitation tid iid
+  Store.deleteInvitation tid iid
 
-listInvitations :: (Member GalleyAPIAccess r) => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
-listInvitations uid tid start mSize = do
+listInvitations ::
+  forall r.
+  ( Member GalleyAPIAccess r,
+    Member TinyLog r,
+    Member InvitationStore r,
+    Member (Input TeamTemplates) r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  Maybe InvitationId ->
+  Maybe (Range 1 500 Int32) ->
+  Sem r Public.InvitationList
+listInvitations uid tid startingId mSize = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
-  rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
-  pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
+  showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
+  let toInvitations is = mapM (toInvitationHack showInvitationUrl) is
+  Store.lookupInvitationsPaginated mSize tid startingId >>= \case
+    PaginatedResultHasMore storedInvs -> do
+      invs <- toInvitations storedInvs
+      pure $ InvitationList invs True
+    PaginatedResult storedInvs -> do
+      invs <- toInvitations storedInvs
+      pure $ InvitationList invs False
+  where
+    -- To create the correct team invitation URL, we need to detect whether the invited account already exists.
+    -- Optimization: if url is not to be shown, do not check for existing personal user.
+    toInvitationHack :: ShowOrHideInvitationUrl -> StoredInvitation -> Sem r Invitation
+    toInvitationHack HideInvitationUrl si = toInvitation False HideInvitationUrl si -- isPersonalUserMigration is always ignored here
+    toInvitationHack ShowInvitationUrl si = do
+      isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
+      toInvitation isPersonalUserMigration ShowInvitationUrl si
 
-getInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
+-- | brig used to not store the role, so for migration we allow this to be empty and fill in the
+-- default here.
+toInvitation ::
+  ( Member TinyLog r,
+    Member (Input TeamTemplates) r
+  ) =>
+  Bool ->
+  ShowOrHideInvitationUrl ->
+  StoredInvitation ->
+  Sem r Invitation
+toInvitation isPersonalUserMigration showUrl storedInv = do
+  url <-
+    if isPersonalUserMigration
+      then mkInviteUrlPersonalUser showUrl storedInv.teamId storedInv.code
+      else mkInviteUrl showUrl storedInv.teamId storedInv.code
+  pure $
+    Invitation
+      { team = storedInv.teamId,
+        role = fromMaybe defaultRole storedInv.role,
+        invitationId = storedInv.invitationId,
+        createdAt = storedInv.createdAt,
+        createdBy = storedInv.createdBy,
+        inviteeEmail = storedInv.email,
+        inviteeName = storedInv.name,
+        inviteeUrl = url
+      }
+
+getInviteUrl ::
+  forall r.
+  (Member TinyLog r) =>
+  InvitationEmailTemplate ->
+  TeamId ->
+  AsciiText Base64Url ->
+  Sem r (Maybe (URIRef Absolute))
+getInviteUrl (invitationEmailUrl -> template) team code = do
+  let branding = id -- url is not branded
+  let url = Text.toStrict $ renderTextWithBranding template replace branding
+  parseHttpsUrl url
+  where
+    replace "team" = idToText team
+    replace "code" = toText code
+    replace x = x
+
+    parseHttpsUrl :: Text -> Sem r (Maybe (URIRef Absolute))
+    parseHttpsUrl url =
+      either (\e -> Nothing <$ logError url e) (pure . Just) $
+        parseURI laxURIParserOptions (encodeUtf8 url)
+
+    logError url e =
+      Log.err $
+        Log.msg @Text "Unable to create invitation url. Please check configuration."
+          . Log.field "url" url
+          . Log.field "error" (show e)
+
+mkInviteUrl ::
+  ( Member TinyLog r,
+    Member (Input TeamTemplates) r
+  ) =>
+  ShowOrHideInvitationUrl ->
+  TeamId ->
+  InvitationCode ->
+  Sem r (Maybe (URIRef Absolute))
+mkInviteUrl HideInvitationUrl _ _ = pure Nothing
+mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
+  template <- invitationEmail <$> input
+  getInviteUrl template team c
+
+mkInviteUrlPersonalUser ::
+  ( Member TinyLog r,
+    Member (Input TeamTemplates) r
+  ) =>
+  ShowOrHideInvitationUrl ->
+  TeamId ->
+  InvitationCode ->
+  Sem r (Maybe (URIRef Absolute))
+mkInviteUrlPersonalUser HideInvitationUrl _ _ = pure Nothing
+mkInviteUrlPersonalUser ShowInvitationUrl team (InvitationCode c) = do
+  template <- existingUserInvitationEmail <$> input
+  getInviteUrl template team c
+
+getInvitation ::
+  ( Member GalleyAPIAccess r,
+    Member InvitationStore r,
+    Member TinyLog r,
+    Member (Input TeamTemplates) r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  InvitationId ->
+  Sem r (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
-  lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
 
-getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
+  invitationM <- Store.lookupInvitation tid iid
+  case invitationM of
+    Nothing -> pure Nothing
+    Just invitation -> do
+      showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
+      maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
+      pure $ Just (Store.invitationFromStored maybeUrl invitation)
+
+isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
+isPersonalUser uke = do
+  mAccount <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
+  pure $ case mAccount of
+    -- this can e.g. happen if the key is claimed but the account is not yet created
+    Nothing -> False
+    Just account -> account.userStatus == Active && isNothing account.userTeam
+
+getInvitationByCode ::
+  ( Member Store.InvitationStore r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  InvitationCode ->
+  Sem r Public.Invitation
 getInvitationByCode c = do
-  inv <- lift . wrapClient $ DB.lookupInvitationByCode HideInvitationUrl c
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
+  inv <- Store.lookupInvitationByCode c
+  maybe (throw UserSubsystemInvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
 
-headInvitationByEmail :: Email -> (Handler r) Public.HeadInvitationByEmailResult
-headInvitationByEmail e = do
-  lift $
-    wrapClient $
-      DB.lookupInvitationInfoByEmail e <&> \case
-        DB.InvitationByEmail _ -> Public.InvitationByEmail
-        DB.InvitationByEmailNotFound -> Public.InvitationByEmailNotFound
-        DB.InvitationByEmailMoreThanOne -> Public.InvitationByEmailMoreThanOne
+headInvitationByEmail ::
+  (Member InvitationStore r, Member TinyLog r) =>
+  EmailAddress ->
+  Sem r Public.HeadInvitationByEmailResult
+headInvitationByEmail email =
+  Store.lookupInvitationsByEmail email >>= \case
+    [] -> pure Public.InvitationByEmailNotFound
+    [_code] -> pure Public.InvitationByEmail
+    (_ : _ : _) -> do
+      Log.info $
+        Log.msg (Log.val "team_invitation_email: multiple pending invites from different teams for the same email")
+          . Log.field "email" (show email)
+      pure Public.InvitationByEmailMoreThanOne
 
--- | FUTUREWORK: This should also respond with status 409 in case of
--- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
--- 'getInvitationByEmailH' are almost the same thing.
-getInvitationByEmail :: Email -> (Handler r) Public.Invitation
+-- | FUTUREWORK: Refactor so that 'headInvitationByEmail' and
+-- 'getInvitationByEmail' are almost the same thing.
+getInvitationByEmail ::
+  (Member Store.InvitationStore r) =>
+  EmailAddress ->
+  (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
-  maybe (throwStd (notFound "Invitation not found")) pure inv
+  inv <- do
+    invs <- lift . liftSem $ Store.lookupInvitationsByEmail email
+    case invs of
+      [] -> pure Nothing
+      [inv] -> pure . Just $ inv
+      (_ : _ : _) -> throwStd $ errorToWai @'ConflictingInvitations
+  maybe (throwStd (notFound "Invitation not found")) (pure . Store.invitationFromStored Nothing) inv
 
 suspendTeam ::
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
+    Member UserSubsystem r,
+    Member Events r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member InvitationStore r
   ) =>
   TeamId ->
   (Handler r) NoContent
 suspendTeam tid = do
-  Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
+  lift $ liftSem $ Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
+  -- Update the status of all users from the given team
   changeTeamAccountStatuses tid Suspended
-  lift $ wrapClient $ DB.deleteInvitations tid
-  lift $ liftSem $ GalleyAPIAccess.changeTeamStatus tid Team.Suspended Nothing
+  lift . liftSem $ do
+    Store.deleteAllTeamInvitations tid
+    -- RPC to galley to change team status there
+    GalleyAPIAccess.changeTeamStatus tid Team.Suspended Nothing
   pure NoContent
 
 unsuspendTeam ::
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -360,13 +428,10 @@ unsuspendTeam tid = do
 
 changeTeamAccountStatuses ::
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   TeamId ->
   AccountStatus ->

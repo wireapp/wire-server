@@ -215,9 +215,6 @@ mailStoringApp receivedMailRef mail = do
 mailRejectingApp :: Postie.Application
 mailRejectingApp = const (pure Postie.Rejected)
 
-mailAcceptingApp :: Postie.Application
-mailAcceptingApp = const (pure Postie.Accepted)
-
 delayingApp :: (TimeUnit t) => t -> Postie.Application
 delayingApp delay =
   const

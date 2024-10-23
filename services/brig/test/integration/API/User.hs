@@ -26,8 +26,6 @@ import API.User.Auth qualified
 import API.User.Client qualified
 import API.User.Connection qualified
 import API.User.Handles qualified
-import API.User.PasswordReset qualified
-import API.User.Property qualified
 import API.User.RichInfo qualified
 import API.User.Util
 import Bilge hiding (accept, timeout)
@@ -57,8 +55,8 @@ tests ::
   UserJournalWatcher ->
   IO TestTree
 tests conf fbc p b c ch g n aws db userJournalWatcher = do
-  let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
-  let at = Opt.setActivationTimeout (Opt.optSettings conf)
+  let cl = ConnectionLimit conf.settings.userMaxConnections
+  let at = conf.settings.activationTimeout
   z <- mkZAuthEnv (Just conf)
   pure $
     testGroup
@@ -68,8 +66,6 @@ tests conf fbc p b c ch g n aws db userJournalWatcher = do
         API.User.Auth.tests conf p z db b g n,
         API.User.Connection.tests cl at p b c g fbc db,
         API.User.Handles.tests cl at conf p b c g,
-        API.User.PasswordReset.tests db cl at conf p b c g,
-        API.User.Property.tests cl at conf p b c g,
         API.User.RichInfo.tests cl at conf p b c g
       ]
 

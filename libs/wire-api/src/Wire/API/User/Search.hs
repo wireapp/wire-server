@@ -1,7 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -35,13 +34,12 @@ where
 
 import Cassandra qualified as C
 import Control.Error
-import Control.Lens (makePrisms, (?~))
+import Control.Lens ((?~))
 import Data.Aeson hiding (object, (.=))
 import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
-import Data.Either.Combinators (mapLeft)
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi (ToParamSchema (..))
@@ -56,7 +54,7 @@ import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
-import Wire.API.User.Identity (Email (..))
+import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -------------------------------------------------------------------------------
@@ -184,14 +182,14 @@ data TeamContact = TeamContact
     teamContactColorId :: Maybe Int,
     teamContactHandle :: Maybe Text,
     teamContactTeam :: Maybe TeamId,
-    teamContactEmail :: Maybe Email,
+    teamContactEmail :: Maybe EmailAddress,
     teamContactCreatedAt :: Maybe UTCTimeMillis,
     teamContactManagedBy :: Maybe ManagedBy,
     teamContactSAMLIdp :: Maybe Text,
     teamContactRole :: Maybe Role,
     teamContactScimExternalId :: Maybe Text,
     teamContactSso :: Maybe Sso,
-    teamContactEmailUnvalidated :: Maybe Email
+    teamContactEmailUnvalidated :: Maybe EmailAddress
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
@@ -329,5 +327,3 @@ instance C.Cql FederatedUserSearchPolicy where
   fromCql (C.CqlInt 1) = pure ExactHandleSearch
   fromCql (C.CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
-
-makePrisms ''FederatedUserSearchPolicy

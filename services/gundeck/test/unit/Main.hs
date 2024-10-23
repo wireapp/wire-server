@@ -21,19 +21,14 @@ module Main
 where
 
 import Aws.Arn qualified
-import Data.Metrics.Test (pathsConsistencyCheck)
-import Data.Metrics.WaiRoute (treeToPaths)
 import DelayQueue qualified
-import Gundeck.API qualified
 import Imports
 import Json qualified
 import Native qualified
-import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import ParseExistsError qualified
 import Push qualified
 import Test.Tasty
-import Test.Tasty.HUnit
 import ThreadBudget qualified
 
 main :: IO ()
@@ -41,12 +36,7 @@ main =
   withOpenSSL . defaultMain $
     testGroup
       "Main"
-      [ testCase "sitemap" $
-          assertEqual
-            "inconcistent sitemap"
-            mempty
-            (pathsConsistencyCheck . treeToPaths . compile $ Gundeck.API.sitemap),
-        DelayQueue.tests,
+      [ DelayQueue.tests,
         Json.tests,
         Native.tests,
         Push.tests,

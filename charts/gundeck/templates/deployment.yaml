@@ -28,6 +28,13 @@ spec:
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: gundeck
       volumes:
         - name: "gundeck-config"
           configMap:

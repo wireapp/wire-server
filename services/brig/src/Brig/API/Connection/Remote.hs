@@ -28,13 +28,11 @@ import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
-import Brig.Effects.FederationConfigStore
 import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
 import Brig.Options
 import Control.Comonad
 import Control.Error.Util ((??))
-import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.Qualified
@@ -51,6 +49,7 @@ import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.UserStore
@@ -195,7 +194,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
           $ ucConvId connection
       desiredMem = desiredMembership actor rel
   lift $ updateOne2OneConv self Nothing other proteusConvId desiredMem actor
-  mlsEnabled <- view (settings . enableMLS)
+  mlsEnabled <- asks (.settings.enableMLS)
   when (fromMaybe False mlsEnabled) $ do
     let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
     isEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)

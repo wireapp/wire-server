@@ -33,7 +33,6 @@ import Data.Time
 import Galley.API.Push
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
@@ -52,6 +51,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
+import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.NotificationSubsystem
 
 sendWelcomes ::

@@ -65,7 +65,12 @@ createCodeOverwritePreviousImpl gen scope retries timeout mId = do
   code <- generateVerificationCode gen scope retries timeout mId
   maybe (pure code) (throw . VerificationCodeThrottled) =<< insert code
 
-insert :: (Member VerificationCodeStore r, Member (Input VerificationCodeThrottleTTL) r) => Code -> Sem r (Maybe RetryAfter)
+insert ::
+  ( Member VerificationCodeStore r,
+    Member (Input VerificationCodeThrottleTTL) r
+  ) =>
+  Code ->
+  Sem r (Maybe RetryAfter)
 insert code = do
   VerificationCodeThrottleTTL ttl <- input
   mRetryAfter <- lookupThrottle (codeKey code) (codeScope code)

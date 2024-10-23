@@ -3,10 +3,10 @@ module ParseExistsError where
 import Amazonka.Types
 import Gundeck.Aws
 import Gundeck.Aws.Arn
-import Gundeck.Types.Push.V2 (Transport (APNS))
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.Push.V2 (Transport (APNS))
 
 tests :: TestTree
 tests =

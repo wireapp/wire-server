@@ -256,6 +256,8 @@ requestNoCertificate =
       assertEqual "no calls to any service should be made" [] serviceCalls
       pure Wai.ResponseReceived
 
+-- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
+-- Reject request if the client certificate for federator is invalid
 requestInvalidCertificate :: TestTree
 requestInvalidCertificate =
   testCase "testRequestInvalidCertificate - should fail with a 404 when an invalid certificate is given" $ do
@@ -273,6 +275,8 @@ requestInvalidCertificate =
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
       assertEqual "no calls to any service should be made" [] serviceCalls
       pure Wai.ResponseReceived
+
+-- @END
 
 testInvalidPaths :: TestTree
 testInvalidPaths = do

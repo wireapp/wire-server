@@ -37,7 +37,6 @@ aws:
 settings:
   httpPoolSize: 1024
   notificationTTL: 24192200
-  bulkPush: true
   perNativePushConcurrency: 32
   sqsThrottleMillis: 1000
   maxConcurrentNativePushes:

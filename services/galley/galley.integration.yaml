@@ -52,11 +52,16 @@ settings:
   federationDomain: example.com
   mlsPrivateKeyPaths:
     removal:
-      ed25519: test/resources/ed25519.pem
-      ecdsa_secp256r1_sha256: test/resources/ecdsa_secp256r1_sha256.pem
-      ecdsa_secp384r1_sha384: test/resources/ecdsa_secp384r1_sha384.pem
-      ecdsa_secp521r1_sha512: test/resources/ecdsa_secp521r1_sha512.pem
+      ed25519: test/resources/backendA/ed25519.pem
+      ecdsa_secp256r1_sha256: test/resources/backendA/ecdsa_secp256r1_sha256.pem
+      ecdsa_secp384r1_sha384: test/resources/backendA/ecdsa_secp384r1_sha384.pem
+      ecdsa_secp521r1_sha512: test/resources/backendA/ecdsa_secp521r1_sha512.pem
   guestLinkTTLSeconds: 604800
+  passwordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
+    iterations: 1
+    memory: 128
+    parallelism: 1
+  
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: []
@@ -75,13 +80,20 @@ settings:
       status: enabled
       config:
         domains: ["example.com"]
+    enforceFileDownloadLocation:
+      defaults:
+        status: disabled
+        lockStatus: unlocked
+        config:
+          enforcedDownloadLocation: "downloads"
     fileSharing:
       defaults:
         status: enabled
         lockStatus: unlocked
     conferenceCalling:
       defaults:
-        status: enabled
+        status: disabled
+        lockStatus: locked
     outlookCalIntegration:
       defaults:
         status: disabled
@@ -92,6 +104,7 @@ settings:
         config:
           verificationExpiration: 86400
           acmeDiscoveryUrl: null
+          crlProxy: https://crlproxy.example.com
         lockStatus: unlocked
     mlsMigration:
       defaults:

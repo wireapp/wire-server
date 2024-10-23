@@ -1,0 +1,16 @@
+{
+    "type": "user.update",
+    "user": {
+        "accent_id": 1,
+        "assets": [],
+        "id": "539d9183-32a5-4fc4-ba5c-4634454e7585",
+        "locale": "tn-SB",
+        "managed_by": "wire",
+        "name": "alice",
+        "picture": [],
+        "sso_id_deleted": false,
+        "supported_protocols": [],
+        "team": "bb843450-b2f5-4ec8-90bd-52c7d5f1d22e",
+        "text_status": "text status"
+    }
+}

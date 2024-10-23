@@ -87,6 +87,7 @@ import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim
+import qualified Web.Scim.Schema.User.Email as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData, rolePermissions)
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
@@ -94,7 +95,7 @@ import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.IdentityProvider
-import Wire.API.User.Scim
+import Wire.API.User.Scim hiding (handle)
 
 spec :: SpecWith TestEnv
 spec = do
@@ -293,6 +294,7 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       -- Do not authenticate if SSO IdP response is for different team
       context "rejectsSAMLResponseInWrongTeam" $ do
         it "fails" $ do
@@ -318,6 +320,8 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp2
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
             loginFailure =<< submitAuthnResponse tid2 authnresp
+
+      -- @END
 
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
@@ -516,7 +520,7 @@ specCRUDIdentityProvider = do
           (owner :: UserId, _teamid :: TeamId) <-
             call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpGetAll (env ^. teSpar) (Just owner)
-            `shouldRespondWith` (null . _providers)
+            `shouldRespondWith` (null . providers)
     context "some idps are registered" $ do
       context "client is team owner with email" $ do
         it "returns a non-empty empty list" $ do
@@ -525,7 +529,7 @@ specCRUDIdentityProvider = do
           (owner, _tid) <- callCreateUserWithTeam
           _ <- registerTestIdPFrom metadata (env ^. teMgr) owner (env ^. teSpar)
           callIdpGetAll (env ^. teSpar) (Just owner)
-            `shouldRespondWith` (not . null . _providers)
+            `shouldRespondWith` (not . null . providers)
       context "client is team owner without email" $ do
         it "returns a non-empty empty list" $ do
           env <- ask
@@ -534,7 +538,7 @@ specCRUDIdentityProvider = do
           idp <- registerTestIdPFrom metadata (env ^. teMgr) firstOwner (env ^. teSpar)
           ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
           callIdpGetAll (env ^. teSpar) (Just ssoOwner)
-            `shouldRespondWith` (not . null . _providers)
+            `shouldRespondWith` (not . null . providers)
   describe "DELETE /identity-providers/:idp" $ do
     testGetPutDelete (\o t i _ -> callIdpDelete' o t i)
     context "zuser has wrong team" $ do
@@ -1053,8 +1057,19 @@ specCRUDIdentityProvider = do
                 respId <- listUsers tok (Just (filterBy "externalId" externalId))
                 respHandle <- listUsers tok (Just (filterBy "userName" handle'))
                 liftIO $ do
-                  respId `shouldBe` [target]
-                  respHandle `shouldBe` [target]
+                  let patched = case target of
+                        Scim.WithMeta _m (Scim.WithId i u) ->
+                          let u' :: Scim.User SparTag
+                              u' = case emailAddress (cs externalId) of
+                                -- if the externalId is an email, and the email field was
+                                -- empty, the scim response from spar contains the externalId
+                                -- (parsed) in the emails field.
+                                Just e -> u {Scim.emails = [Scim.Email Nothing (Scim.EmailAddress e) Nothing]}
+                                Nothing -> u
+                           in -- don't compare meta, or you need to update the ETag in version because email may have changed.
+                              Scim.WithId i u'
+                  (Scim.thing <$> respId) `shouldBe` [patched]
+                  (Scim.thing <$> respHandle) `shouldBe` [patched]
 
           checkScimSearch scimStoredUser scimUser
           updateOrReplaceIdps (owner1, idp1, idpmeta1)
@@ -1271,7 +1286,7 @@ specScimAndSAML = do
     userid' <- getUserIdViaRef' userref
     liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
     userssoid <- getSsoidViaSelf' userid
-    liftIO $ ('r', preview veidUref <$$> (Intra.veidFromUserSSOId <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
+    liftIO $ ('r', veidUref <$$> ((`Intra.veidFromUserSSOId` Nothing) <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
     -- login a user for the first time with the scim-supplied credentials
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata tid
@@ -1513,7 +1528,7 @@ getSsoidViaAuthResp :: (HasCallStack) => SignedAuthnResponse -> TestSpar UserSSO
 getSsoidViaAuthResp aresp = do
   parsed :: AuthnResponse <-
     either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-  either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
+  either error (pure . UserSSOId) $ getUserRef parsed
 
 specSparUserMigration :: SpecWith TestEnv
 specSparUserMigration = do
@@ -1662,6 +1677,7 @@ specReAuthSsoUserWithPassword =
 ----------------------------------------------------------------------
 -- tests for bsi audit
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
 testRejectsSAMLResponseSayingAccessNotGranted :: TestSpar ()
 testRejectsSAMLResponseSayingAccessNotGranted = do
   (user, tid) <- callCreateUserWithTeam
@@ -1683,6 +1699,10 @@ testRejectsSAMLResponseSayingAccessNotGranted = do
     bdy `shouldContain` "}, receiverOrigin)"
     hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
 -- Do not authenticate if SSO IdP response is for unknown issuer
 testRejectsSAMLResponseFromWrongIssuer :: TestSpar ()
 testRejectsSAMLResponseFromWrongIssuer = do
@@ -1707,6 +1727,10 @@ testRejectsSAMLResponseFromWrongIssuer = do
     submitaresp
     checkresp
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
 -- Do not authenticate if SSO IdP response is signed with wrong key
 testRejectsSAMLResponseSignedWithWrongKey :: TestSpar ()
 testRejectsSAMLResponseSignedWithWrongKey = do
@@ -1724,6 +1748,10 @@ testRejectsSAMLResponseSignedWithWrongKey = do
       checkresp sparresp = statusCode sparresp `shouldBe` 400
   checkSamlFlow mkareq mkaresp submitaresp checkresp
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
 -- Do not authenticate if SSO IdP response has no corresponding request anymore
 testRejectsSAMLResponseIfRequestIsStale :: TestSpar ()
 testRejectsSAMLResponseIfRequestIsStale = do
@@ -1739,6 +1767,10 @@ testRejectsSAMLResponseIfRequestIsStale = do
         (cs . fromJust . responseBody $ sparresp) `shouldContain` "bad InResponseTo attribute(s)"
   checkSamlFlow mkareq mkaresp submitaresp checkresp
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
 -- Do not authenticate if SSO IdP response is gone missing
 testRejectsSAMLResponseIfResponseIsStale :: TestSpar ()
 testRejectsSAMLResponseIfResponseIsStale = do
@@ -1751,6 +1783,8 @@ testRejectsSAMLResponseIfResponseIsStale = do
         statusCode sparresp `shouldBe` 200
         (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
   checkSamlFlow mkareq mkaresp submitaresp checkresp
+
+-- @END
 
 ----------------------------------------------------------------------
 -- Helpers

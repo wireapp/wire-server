@@ -17,13 +17,96 @@ config:
     dynamic-backend-1:
       federatorExternalHostPrefix: dynamic-backend-1
       federatorExternalPort: 10098
+      mlsPrivateKeys:
+        removal:
+          ed25519: |
+            -----BEGIN PRIVATE KEY-----
+            MC4CAQAwBQYDK2VwBCIEIJrGRHzIwjc5byivY2l+/MqbH3ty1yetYG8d5p4GGHhk
+            -----END PRIVATE KEY-----
+          ecdsa_secp256r1_sha256: |
+            -----BEGIN PRIVATE KEY-----
+            MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgaeLidXfwi/RVvWZ4
+            OHoQhicePLIfyDZI7gMVsyXtec6hRANCAARM6EWywmjaCXtvsQ1M2edrbMescC+j
+            GSIhBrlE7igzhookThDBvOGAL67vf8xz+hw7tE8NqfzbdJQBL8NQik2L
+            -----END PRIVATE KEY-----
+          ecdsa_secp384r1_sha384: |
+            -----BEGIN PRIVATE KEY-----
+            MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDD1rK50pFsZmOomBiNQ
+            QFRRwAmed8Ox+nFseYbKzjLIAgWH0sMQ5DU8SAK8ks+GROShZANiAATyX0XQ6x6A
+            pi+HKz+ReWV9iIUOttxJv9u2aTY5ZrQ42IJs3fV1AGz1BE52uDvhbILOD9WfqZ9d
+            6MqCjF6OqYT9nmnPkQ+CKC2XPzSVBpqJtuHXiMfFrc7n05E8CdIHOkI=
+            -----END PRIVATE KEY-----
+          ecdsa_secp521r1_sha512: |
+            -----BEGIN PRIVATE KEY-----
+            MIHuAgEAMBAGByqGSM49AgEGBSuBBAAjBIHWMIHTAgEBBEIAQnVcp85/mC6r91yB
+            XjhiHOp4j450UcThSmDBdva4Pj9ihXvAScEFabus7CeECvUT3auqXKY9iSR45vQq
+            JuFI/0uhgYkDgYYABAG1paU01rRuYG4K2PWaIIbB9RuiYg5GVsu5mu6VHjYEH+7c
+            1AGuCPEsUoM542cn3T1utv0EMtoj4yFPvf0xBs7AowHW04JsgMFzpWm8T1e/91n1
+            IEkT5xOnq8obn7p4je9Ui95ojEA/n49gsTKsuO1qv2n79PnStLfn2yT5lAtcTcva
+            6Q==
+            -----END PRIVATE KEY-----
     dynamic-backend-2:
       federatorExternalHostPrefix: dynamic-backend-2
       federatorExternalPort: 11098
+      mlsPrivateKeys:
+        removal:
+          ed25519: |
+            -----BEGIN PRIVATE KEY-----
+            MC4CAQAwBQYDK2VwBCIEIDgG4Dhqfq6KRyGKtEFiPeP+Nq1DBsTY31q3f/tC/lnk
+            -----END PRIVATE KEY-----
+          ecdsa_secp256r1_sha256: |
+            -----BEGIN PRIVATE KEY-----
+            MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgz0IEyU4GYrpkVH2y
+            iR87BMD1VAfBgl69WedewvA/Vl+hRANCAASTYYD2BF2E1zqPKYZtpHW1quo+YBsv
+            SAeznMX1bOeoOLD8zyFDHEGb3I9S90iGjYKTUogY+QfbbiqAiBIuSig7
+            -----END PRIVATE KEY-----
+          ecdsa_secp384r1_sha384: |
+            -----BEGIN PRIVATE KEY-----
+            MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDA43epgPhtj4s0G3aXQ
+            TPXjnQHhiQ7Hfze+K8HgDSUL+Ds31v+g+Ko/OZrAA7povdWhZANiAATXd/dKoFvA
+            wlISC4MAbBsDV6g2oezzZt0nXUq4uysANJ24s+BNey7tYpB36qAOUhqmCzJW5IFJ
+            22ttorUXSTaJeUIUdRiwD7xJ54z3NV5Wj8CUskvp0DIf/ILkOpbxdQY=
+            -----END PRIVATE KEY-----
+          ecdsa_secp521r1_sha512: |
+            -----BEGIN PRIVATE KEY-----
+            MIHuAgEAMBAGByqGSM49AgEGBSuBBAAjBIHWMIHTAgEBBEIAjGOdWinAUUopQCYW
+            6Ch4UuwdHhTERbUS90bQiQyoPdnTrTT8+NsYsB8DmPLltxls6h28q0IGCKUmO9ph
+            8gFT0l6hgYkDgYYABAD3l73lFiVckI4V8BhR2x83o44dhjZA26d8SVSUBt9iuRbR
+            Lh0vP+zghhDQZLFLpfcL0Fo0K9H4HdQwe2cMxbOyQwDUC76ot9BdZjfsjKiRK6+k
+            ZNlnHSWx15yg8gF0dpt2eVn1LBLB0JvRcauYVMfKNox1IU8DY0ZiuO4DJNXRDVEI
+            7w==
+            -----END PRIVATE KEY-----
     dynamic-backend-3:
       federatorExternalHostPrefix: dynamic-backend-3
       federatorExternalPort: 12098
-
+      mlsPrivateKeys:
+        removal:
+          ed25519: |
+            -----BEGIN PRIVATE KEY-----
+            MC4CAQAwBQYDK2VwBCIEIB/Jddpef01pYWQXUEFmJ+k6dDQE7fVSKfk7/AyQaOnU
+            -----END PRIVATE KEY-----
+          ecdsa_secp256r1_sha256: |
+            -----BEGIN PRIVATE KEY-----
+            MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgIkeTuHoMtzsuaN3f
+            zug+mp/IlejrG1W4z/lOU9yGNqKhRANCAASLReHnUMJfSs0pDFxVYIgCOThRsiCD
+            Fq/6oKzWYnvX+taJgNUCVm7QND7Q9ll+Vy4ymZmE9YH1QuNW4FbVe1X6
+            -----END PRIVATE KEY-----
+          ecdsa_secp384r1_sha384: |
+            -----BEGIN PRIVATE KEY-----
+            MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDB0dp/epJB3XhCeRcYJ
+            C76Ll50HHb/H2GR/UBFyAWYtQ8mbaXWis8NPjvYmqrqd5VWhZANiAARoOjIYWdAP
+            Y910LsLGcihvmnoFx7atJbOhaGTem57P/DOkYqcYohUcz6WaCuqzk/ZEj8NZtdvF
+            4AYt0mnxkl9L5pt2a6i2HWW+4puR+JMmWD9qj0lRc5AQeEtmbuohIfg=
+            -----END PRIVATE KEY-----
+          ecdsa_secp521r1_sha512: |
+            -----BEGIN PRIVATE KEY-----
+            MIHuAgEAMBAGByqGSM49AgEGBSuBBAAjBIHWMIHTAgEBBEIBfyz5LCeeA0seQo1O
+            jlQiUKxL4tWX23mD5G5Y5nra3Ju/7mNYp/sIX5BS81iWno5N6KfEdgUtgEffa4Xj
+            nuyF2QqhgYkDgYYABAF3eFOMjqpO7hDdVua9WgquGdFRRd3LWLhY0fyeyiQn/7yr
+            vLIb01f8dX9UVFKMxw77ZMMcfF+uW5Enxa8kadDcmwHIiIh/6jW0oGlFxkmwmecr
+            MwfpR6lZMbtQMD4rm8AwQAsFCBCRyPyK8bWanzMYusbnCdS/nBB5YB8x0ejjYFlU
+            RQ==
+            -----END PRIVATE KEY-----
   cassandra:
     host: cassandra-ephemeral
     port: 9042

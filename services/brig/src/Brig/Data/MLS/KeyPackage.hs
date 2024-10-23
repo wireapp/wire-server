@@ -26,11 +26,10 @@ where
 
 import Brig.API.MLS.KeyPackages.Validation
 import Brig.App
-import Brig.Options hiding (Timeout)
+import Brig.Options
 import Cassandra
 import Control.Arrow
 import Control.Error
-import Control.Lens
 import Control.Monad.Random (randomRIO)
 import Data.Functor
 import Data.Id
@@ -70,7 +69,7 @@ claimKeyPackage ::
   MaybeT m (KeyPackageRef, KeyPackageData)
 claimKeyPackage u c suite = do
   -- FUTUREWORK: investigate better locking strategies
-  lock <- lift $ view keyPackageLocalLock
+  lock <- lift $ asks (.keyPackageLocalLock)
   -- get a random key package and delete it
   (ref, kpd) <- MaybeT . withMVar lock . const $ do
     kps <- getNonClaimedKeyPackages u c suite
@@ -98,7 +97,7 @@ getNonClaimedKeyPackages u c suite = do
   let decodedKps = foldMap (keepDecoded . (decodeKp &&& id)) kps
 
   now <- liftIO getPOSIXTime
-  mMaxLifetime <- setKeyPackageMaximumLifetime <$> view settings
+  mMaxLifetime <- asks (.settings.keyPackageMaximumLifetime)
 
   let (kpsExpired, kpsNonExpired) =
         partition (hasExpired now mMaxLifetime) decodedKps
@@ -145,10 +144,10 @@ deleteKeyPackages u c suite refs =
     deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ? AND ref in ?"
 
 deleteAllKeyPackages ::
-  (MonadClient m, MonadUnliftIO m) =>
+  (MonadClient m, MonadUnliftIO m, Foldable f) =>
   UserId ->
   ClientId ->
-  [CipherSuiteTag] ->
+  f CipherSuiteTag ->
   m ()
 deleteAllKeyPackages u c suites =
   pooledForConcurrentlyN_ 16 suites $ \suite ->

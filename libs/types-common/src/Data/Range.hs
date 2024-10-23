@@ -26,6 +26,7 @@
 module Data.Range
   ( Range,
     toRange,
+    mapRange,
     Within,
     Bounds (..),
     checked,
@@ -98,7 +99,10 @@ import Test.QuickCheck qualified as QC
 newtype Range (n :: Nat) (m :: Nat) a = Range
   { fromRange :: a
   }
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Show)
+
+mapRange :: forall (n :: Nat) (m :: Nat) a b. (a -> b) -> Range n m [a] -> Range n m [b]
+mapRange f (Range as) = Range (f `map` as)
 
 toRange :: (n <= x, x <= m, KnownNat x, Num a) => Proxy x -> Range n m a
 toRange = Range . fromIntegral . natVal
@@ -221,20 +225,20 @@ instance (ToParamSchema a, KnownNat n, KnownNat m) => ToParamSchema (Range n m [
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m String) where
   toParamSchema _ =
     toParamSchema (Proxy @String)
-      & S.maxLength ?~ fromKnownNat (Proxy @n)
-      & S.minLength ?~ fromKnownNat (Proxy @m)
+      & S.minLength ?~ fromKnownNat (Proxy @n)
+      & S.maxLength ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m T.Text) where
   toParamSchema _ =
     toParamSchema (Proxy @T.Text)
-      & S.maxLength ?~ fromKnownNat (Proxy @n)
-      & S.minLength ?~ fromKnownNat (Proxy @m)
+      & S.minLength ?~ fromKnownNat (Proxy @n)
+      & S.maxLength ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m TL.Text) where
   toParamSchema _ =
     toParamSchema (Proxy @TL.Text)
-      & S.maxLength ?~ fromKnownNat (Proxy @n)
-      & S.minLength ?~ fromKnownNat (Proxy @m)
+      & S.minLength ?~ fromKnownNat (Proxy @n)
+      & S.maxLength ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, S.ToSchema a, KnownNat m) => S.ToSchema (Range n m a) where
   declareNamedSchema _ =

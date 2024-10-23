@@ -1,15 +1,41 @@
 module Test.MLS.Keys where
 
 import API.Galley
+import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Base64.URL as B64U
 import qualified Data.ByteString.Char8 as B8
 import SetupHelpers
 import Testlib.Prelude
 
-testPublicKeys :: (HasCallStack) => App ()
-testPublicKeys = do
+testRawPublicKeys :: (HasCallStack) => App ()
+testRawPublicKeys = do
   u <- randomUserId OwnDomain
   keys <- getMLSPublicKeys u >>= getJSON 200
+
+  do
+    pubkeyS <- keys %. "removal.ed25519" & asString
+    pubkey <- assertOne . toList . B64.decode $ B8.pack pubkeyS
+    B8.length pubkey `shouldMatchInt` 32
+
+  do
+    pubkeyS <- keys %. "removal.ecdsa_secp256r1_sha256" & asString
+    pubkey <- assertOne . toList . B64.decode $ B8.pack pubkeyS
+    B8.length pubkey `shouldMatchInt` 65
+
+  do
+    pubkeyS <- keys %. "removal.ecdsa_secp384r1_sha384" & asString
+    pubkey <- assertOne . toList . B64.decode $ B8.pack pubkeyS
+    B8.length pubkey `shouldMatchInt` 97
+
+  do
+    pubkeyS <- keys %. "removal.ecdsa_secp521r1_sha512" & asString
+    pubkey <- assertOne . toList . B64.decode $ B8.pack pubkeyS
+    B8.length pubkey `shouldMatchInt` 133
+
+testJWKPublicKeys :: (HasCallStack) => App ()
+testJWKPublicKeys = do
+  u <- randomUserId OwnDomain
+  keys <- getMLSPublicKeysJWK u >>= getJSON 200
 
   do
     keys %. "removal.ed25519.crv" `shouldMatch` "Ed25519"

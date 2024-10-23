@@ -21,6 +21,7 @@ import Imports
 import Test.Hspec
 import Test.Wire.API.Federation.Golden.ConversationCreated qualified as ConversationCreated
 import Test.Wire.API.Federation.Golden.ConversationUpdate qualified as ConversationUpdate
+import Test.Wire.API.Federation.Golden.GetOne2OneConversationResponse qualified as GetOne2OneConversationResponse
 import Test.Wire.API.Federation.Golden.LeaveConversationRequest qualified as LeaveConversationRequest
 import Test.Wire.API.Federation.Golden.LeaveConversationResponse qualified as LeaveConversationResponse
 import Test.Wire.API.Federation.Golden.MLSMessageSendingStatus qualified as MLSMessageSendingStatus
@@ -73,4 +74,14 @@ spec =
     testObjects
       [ (ConversationCreated.testObject_ConversationCreated1, "testObject_ConversationCreated1.json"),
         (ConversationCreated.testObject_ConversationCreated2, "testObject_ConversationCreated2.json")
+      ]
+    testObjects
+      [ (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseV2Ok, "testObject_GetOne2OneConversationResponseV2Ok.json"),
+        (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseV2BackendMismatch, "testObject_GetOne2OneConversationResponseV2BackendMismatch.json"),
+        (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseV2NotConnected, "testObject_GetOne2OneConversationResponseV2NotConnected.json")
+      ]
+    testObjects
+      [ (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseOk, "testObject_GetOne2OneConversationResponseOk.json"),
+        (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseBackendMismatch, "testObject_GetOne2OneConversationResponseBackendMismatch.json"),
+        (GetOne2OneConversationResponse.testObject_GetOne2OneConversationResponseNotConnected, "testObject_GetOne2OneConversationResponseNotConnected.json")
       ]

@@ -21,7 +21,6 @@ module Brig.API.Handler
     toServantHandler,
 
     -- * Utilities
-    parseJsonBody,
     checkAllowlist,
     checkAllowlistWithError,
     isAllowlisted,
@@ -34,23 +33,19 @@ import Brig.API.Error
 import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
-import Brig.Options (setAllowlistEmailDomains)
+import Brig.Options (allowlistEmailDomains)
 import Control.Error
 import Control.Exception (throwIO)
-import Control.Lens (view)
 import Control.Monad.Catch (catches, throwM)
 import Control.Monad.Catch qualified as Catch
 import Control.Monad.Except (MonadError, throwError)
-import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.ZAuth.Validation qualified as ZV
 import Imports
 import Network.HTTP.Types (Status (statusCode, statusMessage))
-import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as WaiError
-import Network.Wai.Utilities.Request (JsonRequest, parseBody)
 import Network.Wai.Utilities.Server qualified as Server
 import Servant qualified
 import System.Logger qualified as Log
@@ -58,7 +53,7 @@ import System.Logger.Class (Logger)
 import Wire.API.Allowlists qualified as Allowlists
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.User (Email)
+import Wire.API.User
 import Wire.Error
 
 -------------------------------------------------------------------------------
@@ -68,8 +63,8 @@ type Handler r = ExceptT HttpError (AppT r)
 
 toServantHandler :: Env -> (Handler BrigCanonicalEffects) a -> Servant.Handler a
 toServantHandler env action = do
-  let logger = view applog env
-      reqId = unRequestId $ view requestId env
+  let logger = env.appLogger
+      reqId = unRequestId $ env.requestId
   a <-
     liftIO $
       (runBrigToIO env (runExceptT action))
@@ -122,22 +117,16 @@ brigErrorHandlers logger reqId =
 -------------------------------------------------------------------------------
 -- Utilities
 
--- This could go to libs/wai-utilities.  There is a `parseJson'` in
--- "Network.Wai.Utilities.Request", but adding `parseJsonBody` there would require to move
--- more code out of brig.
-parseJsonBody :: (FromJSON a, MonadIO m) => JsonRequest a -> ExceptT HttpError m a
-parseJsonBody req = parseBody req !>> StdError . badRequest
-
 -- | If an Allowlist is configured, consult it, otherwise a no-op. {#RefActivationAllowlist}
-checkAllowlist :: Email -> Handler r ()
+checkAllowlist :: EmailAddress -> Handler r ()
 checkAllowlist = wrapHttpClientE . checkAllowlistWithError (StdError allowlistError)
 
-checkAllowlistWithError :: (MonadReader Env m, MonadError e m) => e -> Email -> m ()
+checkAllowlistWithError :: (MonadReader Env m, MonadError e m) => e -> EmailAddress -> m ()
 checkAllowlistWithError e key = do
   ok <- isAllowlisted key
   unless ok (throwError e)
 
-isAllowlisted :: (MonadReader Env m) => Email -> m Bool
+isAllowlisted :: (MonadReader Env m) => EmailAddress -> m Bool
 isAllowlisted key = do
-  env <- view settings
-  pure $ Allowlists.verify (setAllowlistEmailDomains env) key
+  env <- asks (.settings)
+  pure $ Allowlists.verify env.allowlistEmailDomains key

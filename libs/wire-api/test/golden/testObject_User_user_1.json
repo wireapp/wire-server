@@ -11,6 +11,7 @@
         "domain": "s-f4.s",
         "id": "00000002-0000-0001-0000-000200000002"
     },
+    "status": "deleted",
     "supported_protocols": [
         "proteus"
     ]

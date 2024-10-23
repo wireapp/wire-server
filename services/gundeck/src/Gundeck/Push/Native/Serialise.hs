@@ -32,8 +32,8 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LTB
 import Gundeck.Push.Native.Types
-import Gundeck.Types
 import Imports
+import Wire.API.Push.V2
 
 serialise :: (HasCallStack) => NativePush -> UserId -> Transport -> Either Failure LT.Text
 serialise (NativePush nid prio _aps) uid transport = do

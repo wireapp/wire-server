@@ -32,7 +32,6 @@ module Gundeck.Monad
     runDirect,
     runGundeck,
     fromJsonBody,
-    ifNothing,
     posixTime,
 
     -- * Select which redis to target
@@ -205,10 +204,6 @@ lookupReqId l r = case lookup requestIdName (requestHeaders r) of
 fromJsonBody :: (FromJSON a) => JsonRequest a -> Gundeck a
 fromJsonBody r = exceptT (throwM . mkError status400 "bad-request") pure (parseBody r)
 {-# INLINE fromJsonBody #-}
-
-ifNothing :: Error -> Maybe a -> Gundeck a
-ifNothing e = maybe (throwM e) pure
-{-# INLINE ifNothing #-}
 
 posixTime :: Gundeck Milliseconds
 posixTime = view time >>= liftIO

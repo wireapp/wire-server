@@ -5,11 +5,11 @@ module Wire.GundeckAPIAccess where
 import Bilge
 import Data.ByteString.Conversion
 import Data.Id
-import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Network.HTTP.Types
 import Polysemy
 import Util.Options
+import Wire.API.Push.V2 qualified as V2
 import Wire.Rpc
 
 data GundeckAPIAccess m a where

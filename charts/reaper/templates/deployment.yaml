@@ -20,6 +20,13 @@ spec:
         release: {{ .Release.Name }}
     spec:
       serviceAccountName: reaper-role
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: reaper
       containers:
       - name: reaper
         image: bitnami/kubectl:1.24.12

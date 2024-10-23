@@ -104,6 +104,10 @@ data GalleyError
   | MLSSubConvUnsupportedConvType
   | MLSSubConvClientNotInParent
   | MLSMigrationCriteriaNotSatisfied
+  | MLSFederatedOne2OneNotSupported
+  | -- | MLS and federation are incompatible with legalhold - this error is thrown if a user
+    -- tries to create an MLS group while being under legalhold
+    MLSLegalholdIncompatible
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -253,6 +257,10 @@ type instance MapError 'MLSSubConvClientNotInParent = 'StaticError 403 "mls-subc
 
 type instance MapError 'MLSMigrationCriteriaNotSatisfied = 'StaticError 400 "mls-migration-criteria-not-satisfied" "The migration criteria for mixed to MLS protocol transition are not satisfied for this conversation"
 
+type instance MapError 'MLSFederatedOne2OneNotSupported = 'StaticError 400 "mls-federated-one2one-not-supported" "Federated One2One MLS conversations are only supported in API version >= 6"
+
+type instance MapError MLSLegalholdIncompatible = 'StaticError 409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
+
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
 type instance MapError 'NoBindingTeam = 'StaticError 403 "no-binding-team" "Operation allowed only on binding teams"
@@ -367,50 +375,41 @@ data TeamFeatureError
   | FeatureLocked
   | MLSProtocolMismatch
   | MLSE2EIDMissingCrlProxy
+  | EmptyDownloadLocation
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
   addToOpenApi = id
 
-type instance MapError 'AppLockInactivityTimeoutTooLow = 'StaticError 400 "inactivity-timeout-too-low" "Applock inactivity timeout must be at least 30 seconds"
-
-type instance MapError 'LegalHoldFeatureFlagNotEnabled = 'StaticError 403 "legalhold-not-enabled" "Legal hold is not enabled for this wire instance"
-
-type instance MapError 'LegalHoldWhitelistedOnly = 'StaticError 403 "legalhold-whitelisted-only" "Legal hold is enabled for teams via server config and cannot be changed here"
-
-type instance
-  MapError 'DisableSsoNotImplemented =
-    'StaticError
-      403
-      "not-implemented"
-      "The SSO feature flag is disabled by default.  It can only be enabled once for any team, never disabled.\n\
-      \\n\
-      \Rationale: there are two services in the backend that need to keep their status in sync: galley (teams),\n\
-      \and spar (SSO).  Galley keeps track of team features.  If galley creates an idp, the feature flag is\n\
-      \checked.  For authentication, spar avoids this expensive check and assumes that the idp can only have\n\
-      \been created if the SSO is enabled.  This assumption does not hold any more if the switch is turned off\n\
-      \again, so we do not support this.\n\
-      \\n\
-      \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
-      \open an issue on https://github.com/wireapp/wire-server."
-
-type instance MapError 'FeatureLocked = 'StaticError 409 "feature-locked" "Feature config cannot be updated (e.g. because it is configured to be locked, or because you need to upgrade your plan)"
-
-type instance MapError 'MLSProtocolMismatch = 'StaticError 400 "mls-protocol-mismatch" "The default protocol needs to be part of the supported protocols"
-
-type instance MapError 'MLSE2EIDMissingCrlProxy = 'StaticError 400 "mls-e2eid-missing-crl-proxy" "The field 'crlProxy' is missing in the request payload"
-
-type instance ErrorEffect TeamFeatureError = Error TeamFeatureError
-
 instance (Member (Error DynError) r) => ServerEffect (Error TeamFeatureError) r where
   interpretServerEffect = mapError $ \case
-    AppLockInactivityTimeoutTooLow -> dynError @(MapError 'AppLockInactivityTimeoutTooLow)
-    LegalHoldFeatureFlagNotEnabled -> dynError @(MapError 'LegalHoldFeatureFlagNotEnabled)
-    LegalHoldWhitelistedOnly -> dynError @(MapError 'LegalHoldWhitelistedOnly)
-    DisableSsoNotImplemented -> dynError @(MapError 'DisableSsoNotImplemented)
-    FeatureLocked -> dynError @(MapError 'FeatureLocked)
-    MLSProtocolMismatch -> dynError @(MapError 'MLSProtocolMismatch)
-    MLSE2EIDMissingCrlProxy -> dynError @(MapError 'MLSE2EIDMissingCrlProxy)
+    AppLockInactivityTimeoutTooLow ->
+      DynError
+        400
+        "inactivity-timeout-too-low"
+        "Applock inactivity timeout must be at least 30 seconds"
+    LegalHoldFeatureFlagNotEnabled -> DynError 403 "legalhold-not-enabled" "Legal hold is not enabled for this wire instance"
+    LegalHoldWhitelistedOnly -> DynError 403 "legalhold-whitelisted-only" "Legal hold is enabled for teams via server config and cannot be changed here"
+    DisableSsoNotImplemented ->
+      DynError
+        403
+        "not-implemented"
+        "The SSO feature flag is disabled by default.  It can only be enabled once for any team, never disabled.\n\
+        \\n\
+        \Rationale: there are two services in the backend that need to keep their status in sync: galley (teams),\n\
+        \and spar (SSO).  Galley keeps track of team features.  If galley creates an idp, the feature flag is\n\
+        \checked.  For authentication, spar avoids this expensive check and assumes that the idp can only have\n\
+        \been created if the SSO is enabled.  This assumption does not hold any more if the switch is turned off\n\
+        \again, so we do not support this.\n\
+        \\n\
+        \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
+        \open an issue on https://github.com/wireapp/wire-server."
+    FeatureLocked -> DynError 409 "feature-locked" "Feature config cannot be updated (e.g. because it is configured to be locked, or because you need to upgrade your plan)"
+    MLSProtocolMismatch -> DynError 400 "mls-protocol-mismatch" "The default protocol needs to be part of the supported protocols"
+    MLSE2EIDMissingCrlProxy -> DynError 400 "mls-e2eid-missing-crl-proxy" "The field 'crlProxy' is missing in the request payload"
+    EmptyDownloadLocation -> DynError 400 "empty-download-location" "Download location cannot be empty"
+
+type instance ErrorEffect TeamFeatureError = Error TeamFeatureError
 
 --------------------------------------------------------------------------------
 -- Proposal failure

@@ -18,3 +18,4 @@ _wire-server-federator._tcp.d1  IN SRV 0 0 10443 localhost.
 _wire-server-federator._tcp.d2  IN SRV 0 0 11443 localhost.
 _wire-server-federator._tcp.d3  IN SRV 0 0 12443 localhost.
 _wire-server-federator._tcp.federation-v0  IN SRV 0 0 21443 localhost.
+_wire-server-federator._tcp.federation-v1  IN SRV 0 0 22443 localhost.

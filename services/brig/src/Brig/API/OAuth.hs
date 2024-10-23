@@ -29,14 +29,16 @@ import Brig.App
 import Brig.Options qualified as Opt
 import Cassandra hiding (Set)
 import Cassandra qualified as C
-import Control.Error (assertMay, failWith, failWithM)
-import Control.Lens (view, (?~), (^?))
-import Control.Monad.Except
+import Control.Error
+import Control.Lens ((?~), (^?))
 import Crypto.JWT hiding (params, uri)
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
+import Data.Map qualified as Map
 import Data.Misc
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
@@ -46,11 +48,18 @@ import OpenSSL.Random (randBytes)
 import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import Wire.API.Error
+import Wire.API.Error.Brig (BrigError (AccessDenied))
 import Wire.API.OAuth as OAuth
-import Wire.API.Password (Password, mkSafePasswordScrypt)
+import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.OAuth qualified as I
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.OAuth
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error
+import Wire.Error
+import Wire.HashPassword (HashPassword)
+import Wire.HashPassword qualified as HashPassword
 import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
 import Wire.Sem.Now (Now)
@@ -59,48 +68,61 @@ import Wire.Sem.Now qualified as Now
 --------------------------------------------------------------------------------
 -- API Internal
 
-internalOauthAPI :: ServerT I.OAuthAPI (Handler r)
+internalOauthAPI :: (Member HashPassword r) => ServerT I.OAuthAPI (Handler r)
 internalOauthAPI =
   Named @"create-oauth-client" registerOAuthClient
-    :<|> Named @"get-oauth-client" getOAuthClientById
+    :<|> Named @"i-get-oauth-client" getOAuthClientById
     :<|> Named @"update-oauth-client" updateOAuthClient
     :<|> Named @"delete-oauth-client" deleteOAuthClient
 
 --------------------------------------------------------------------------------
 -- API Public
 
-oauthAPI :: (Member Now r, Member Jwk r) => ServerT OAuthAPI (Handler r)
+oauthAPI ::
+  ( Member Now r,
+    Member Jwk r,
+    Member AuthenticationSubsystem r
+  ) =>
+  ServerT OAuthAPI (Handler r)
 oauthAPI =
   Named @"get-oauth-client" getOAuthClient
     :<|> Named @"create-oauth-auth-code" createNewOAuthAuthorizationCode
     :<|> Named @"create-oauth-access-token" createAccessTokenWith
     :<|> Named @"revoke-oauth-refresh-token" revokeRefreshToken
     :<|> Named @"get-oauth-applications" getOAuthApplications
+    :<|> Named @"revoke-oauth-account-access-v6" revokeOAuthAccountAccessV6
     :<|> Named @"revoke-oauth-account-access" revokeOAuthAccountAccess
+    :<|> Named @"delete-oauth-refresh-token" deleteOAuthRefreshTokenById
 
 --------------------------------------------------------------------------------
 -- Handlers
 
-registerOAuthClient :: OAuthClientConfig -> (Handler r) OAuthClientCredentials
+registerOAuthClient :: (Member HashPassword r) => OAuthClientConfig -> (Handler r) OAuthClientCredentials
 registerOAuthClient (OAuthClientConfig name uri) = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  guardOAuthEnabled
   credentials@(OAuthClientCredentials cid secret) <- OAuthClientCredentials <$> randomId <*> createSecret
-  safeSecret <- liftIO $ hashClientSecret secret
+  safeSecret <- hashClientSecret secret
   lift $ wrapClient $ insertOAuthClient cid name uri safeSecret
   pure credentials
   where
     createSecret :: (MonadIO m) => m OAuthClientPlainTextSecret
     createSecret = OAuthClientPlainTextSecret <$> rand32Bytes
 
-    hashClientSecret :: (MonadIO m) => OAuthClientPlainTextSecret -> m Password
-    hashClientSecret = mkSafePasswordScrypt . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
+    hashClientSecret :: (Member HashPassword r) => OAuthClientPlainTextSecret -> (Handler r) Password
+    hashClientSecret =
+      lift
+        . liftSem
+        . HashPassword.hashPassword8
+        . plainTextPassword8Unsafe
+        . toText
+        . unOAuthClientPlainTextSecret
 
 rand32Bytes :: (MonadIO m) => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
 getOAuthClientById :: OAuthClientId -> (Handler r) OAuthClient
 getOAuthClientById cid = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  guardOAuthEnabled
   mClient <- lift $ wrapClient $ lookupOauthClient cid
   maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure mClient
 
@@ -115,16 +137,20 @@ deleteOAuthClient cid = do
   void $ getOAuthClientById cid
   lift $ wrapClient $ deleteOAuthClient' cid
 
---------------------------------------------------------------------------------
-
-getOAuthClient :: UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
+getOAuthClient :: Local UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
 getOAuthClient _ cid = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  guardOAuthEnabled
   lift $ wrapClient $ lookupOauthClient cid
 
-createNewOAuthAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> (Handler r) CreateOAuthCodeResponse
-createNewOAuthAuthorizationCode uid code = do
-  runExceptT (validateAndCreateAuthorizationCode uid code) >>= \case
+guardOAuthEnabled :: Handler r ()
+guardOAuthEnabled = do
+  settings <- asks (.settings)
+  unless (Opt.oAuthEnabled settings) do
+    throwStd (errorToWai @'OAuthFeatureDisabled)
+
+createNewOAuthAuthorizationCode :: Local UserId -> CreateOAuthAuthorizationCodeRequest -> (Handler r) CreateOAuthCodeResponse
+createNewOAuthAuthorizationCode luid code = do
+  runExceptT (validateAndCreateAuthorizationCode luid code) >>= \case
     Right oauthCode ->
       pure $
         CreateOAuthCodeSuccess $
@@ -169,26 +195,24 @@ data CreateNewOAuthCodeError
   | CreateNewOAuthCodeErrorUnsupportedResponseType
   | CreateNewOAuthCodeErrorRedirectUrlMissMatch
 
-validateAndCreateAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
-validateAndCreateAuthorizationCode uid (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state _ chal) = do
-  failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
+validateAndCreateAuthorizationCode :: Local UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
+validateAndCreateAuthorizationCode luid@(tUnqualified -> uid) (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state _ chal) = do
+  failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.oAuthEnabled <$> asks (.settings))
   failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
-  client <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
+  client <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient luid cid
   failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ client.redirectUrl == redirectUrl)
   lift mkAuthorizationCode
   where
     mkAuthorizationCode :: (Handler r) OAuthAuthorizationCode
     mkAuthorizationCode = do
       oauthCode <- OAuthAuthorizationCode <$> rand32Bytes
-      ttl <- Opt.setOAuthAuthorizationCodeExpirationTimeSecs <$> view settings
+      ttl <- Opt.oAuthAuthorizationCodeExpirationTimeSecs <$> asks (.settings)
       lift $ wrapClient $ insertOAuthAuthorizationCode ttl oauthCode cid uid scope redirectUrl chal
       pure oauthCode
 
---------------------------------------------------------------------------------
-
 createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWith req = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  guardOAuthEnabled
   case req of
     Left reqAC -> createAccessTokenWithAuthorizationCode reqAC
     Right reqRT -> createAccessTokenWithRefreshToken reqRT
@@ -198,7 +222,8 @@ createAccessTokenWithRefreshToken req = do
   unless (req.grantType == OAuthGrantTypeRefreshToken) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   key <- signingKey
   (OAuthRefreshTokenInfo _ cid uid scope _) <- lookupVerifyAndDeleteToken key req.refreshToken
-  void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  luid <- qualifyLocal uid
+  void $ getOAuthClient luid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
   unless (cid == req.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   createAccessToken key uid cid scope
 
@@ -223,7 +248,8 @@ createAccessTokenWithAuthorizationCode req = do
   (cid, uid, scope, uri, mChal) <-
     lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode req.code)
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
-  oauthClient <- getOAuthClient uid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  luid <- qualifyLocal uid
+  oauthClient <- getOAuthClient luid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unless (uri == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
   unless (oauthClient.redirectUrl == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
@@ -234,18 +260,18 @@ createAccessTokenWithAuthorizationCode req = do
 
 signingKey :: (Member Jwk r) => (Handler r) JWK
 signingKey = do
-  fp <- view settings >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure . Opt.setOAuthJwkKeyPair
+  fp <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure =<< asks (.settings.oAuthJwkKeyPair)
   lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure
 
 createAccessToken :: (Member Now r) => JWK -> UserId -> OAuthClientId -> OAuthScopes -> (Handler r) OAuthAccessTokenResponse
 createAccessToken key uid cid scope = do
-  exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
+  exp <- fromIntegral . Opt.oAuthAccessTokenExpirationTimeSecs <$> asks (.settings)
   accessToken <- mkAccessToken
   (rid, refreshToken) <- mkRefreshToken
   now <- lift (liftSem Now.get)
   let refreshTokenInfo = OAuthRefreshTokenInfo rid cid uid scope now
-  refreshTokenExpiration <- Opt.setOAuthRefreshTokenExpirationTimeSecs <$> view settings
-  maxActiveTokens <- Opt.setOAuthMaxActiveRefreshTokens <$> view settings
+  refreshTokenExpiration <- Opt.oAuthRefreshTokenExpirationTimeSecs <$> asks (.settings)
+  maxActiveTokens <- Opt.oAuthMaxActiveRefreshTokens <$> asks (.settings)
   lift $ wrapClient $ insertOAuthRefreshToken maxActiveTokens refreshTokenExpiration refreshTokenInfo
   pure $ OAuthAccessTokenResponse accessToken OAuthAccessTokenTypeBearer exp refreshToken
   where
@@ -258,8 +284,8 @@ createAccessToken key uid cid scope = do
 
     mkAccessToken :: (Member Now r) => (Handler r) OAuthAccessToken
     mkAccessToken = do
-      domain <- Opt.setFederationDomain <$> view settings
-      exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
+      domain <- asks (.settings.federationDomain)
+      exp <- fromIntegral . Opt.oAuthAccessTokenExpirationTimeSecs <$> asks (.settings)
       claims <- mkAccessTokenClaims uid domain scope exp
       OAuthToken <$> signAccessToken claims
 
@@ -298,14 +324,13 @@ createAccessToken key uid cid scope = do
           algo <- bestJWSAlg key
           signClaims key (newJWSHeader ((), algo)) claims
 
---------------------------------------------------------------------------------
-
 revokeRefreshToken :: (Member Jwk r) => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
 revokeRefreshToken req = do
   key <- signingKey
   info <- lookupAndVerifyToken key req.refreshToken
-  void $ getOAuthClient info.userId info.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
-  lift $ wrapClient $ deleteOAuthRefreshToken info
+  luid <- qualifyLocal info.userId
+  void $ getOAuthClient luid info.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  lift $ wrapClient $ deleteOAuthRefreshToken info.userId info.refreshTokenId
 
 lookupAndVerifyToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
 lookupAndVerifyToken key =
@@ -315,22 +340,58 @@ lookupAndVerifyToken key =
     . lookupOAuthRefreshTokenInfo
     >=> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure
 
---------------------------------------------------------------------------------
-
-getOAuthApplications :: UserId -> (Handler r) [OAuthApplication]
-getOAuthApplications uid = do
+getOAuthApplications :: Local UserId -> (Handler r) [OAuthApplication]
+getOAuthApplications (tUnqualified -> uid) = do
   activeRefreshTokens <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
-  nub . catMaybes <$> for activeRefreshTokens oauthApp
+  toApplications activeRefreshTokens
   where
-    oauthApp :: OAuthRefreshTokenInfo -> (Handler r) (Maybe OAuthApplication)
-    oauthApp info = (OAuthApplication info.clientId . (.name)) <$$> getOAuthClient info.userId info.clientId
+    toApplications :: [OAuthRefreshTokenInfo] -> (Handler r) [OAuthApplication]
+    toApplications infos = do
+      let grouped = Map.fromListWith (<>) $ (\info -> (info.clientId, [info])) <$> infos
+      mApps <- for (Map.toList grouped) $ \(cid, tokens) -> do
+        let luid = undefined uid
+        mClient <- getOAuthClient luid cid
+        pure $ (\client -> OAuthApplication cid client.name ((\i -> OAuthSession i.refreshTokenId (toUTCTimeMillis i.createdAt)) <$> tokens)) <$> mClient
+      pure $ catMaybes mApps
 
---------------------------------------------------------------------------------
-
-revokeOAuthAccountAccess :: UserId -> OAuthClientId -> (Handler r) ()
-revokeOAuthAccountAccess uid cid = do
+revokeOAuthAccountAccessV6 :: Local UserId -> OAuthClientId -> (Handler r) ()
+revokeOAuthAccountAccessV6 (tUnqualified -> uid) cid = do
   rts <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
-  for_ rts $ \rt -> when (rt.clientId == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken rt
+  for_ rts $ \rt -> when (rt.clientId == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken uid rt.refreshTokenId
+
+revokeOAuthAccountAccess ::
+  (Member AuthenticationSubsystem r) =>
+  Local UserId ->
+  OAuthClientId ->
+  PasswordReqBody ->
+  (Handler r) ()
+revokeOAuthAccountAccess luid@(tUnqualified -> uid) cid req = do
+  (lift . liftSem $ Authentication.reauthenticateEither uid req.fromPasswordReqBody)
+    >>= either (throwE . toAccessDenied) (const $ pure ())
+  revokeOAuthAccountAccessV6 luid cid
+  where
+    toAccessDenied :: ReAuthError -> HttpError
+    toAccessDenied _ = StdError $ errorToWai @'AccessDenied
+
+deleteOAuthRefreshTokenById ::
+  (Member AuthenticationSubsystem r) =>
+  Local UserId ->
+  OAuthClientId ->
+  OAuthRefreshTokenId ->
+  PasswordReqBody ->
+  (Handler r) ()
+deleteOAuthRefreshTokenById (tUnqualified -> uid) cid tokenId req = do
+  (lift . liftSem $ Authentication.reauthenticateEither uid req.fromPasswordReqBody)
+    >>= either (throwE . toAccessDenied) (const $ pure ())
+  mInfo <- lift $ wrapClient $ lookupOAuthRefreshTokenInfo tokenId
+  case mInfo of
+    Nothing -> pure ()
+    Just info -> do
+      when (info.clientId /= cid) $ throwStd $ errorToWai @'OAuthClientNotFound
+      lift $ wrapClient $ deleteOAuthRefreshToken uid tokenId
+  where
+    toAccessDenied :: ReAuthError -> HttpError
+    toAccessDenied _ = StdError $ errorToWai @'AccessDenied
 
 --------------------------------------------------------------------------------
 -- DB
@@ -390,7 +451,7 @@ insertOAuthRefreshToken :: (MonadClient m) => Word32 -> Word64 -> OAuthRefreshTo
 insertOAuthRefreshToken maxActiveTokens ttl info = do
   let rid = info.refreshTokenId
   oldTokes <- determineOldestTokensToBeDeleted <$> lookupOAuthRefreshTokens info.userId
-  for_ oldTokes deleteOAuthRefreshToken
+  for_ oldTokes (\t -> deleteOAuthRefreshToken t.userId t.refreshTokenId)
   retry x5 . write qInsertId $ params LocalQuorum (info.userId, rid, fromIntegral ttl)
   retry x5 . write qInsertInfo $ params LocalQuorum (rid, info.clientId, info.userId, C.Set (Set.toList (unOAuthScopes info.scopes)), info.createdAt, fromIntegral ttl)
   where
@@ -404,7 +465,7 @@ insertOAuthRefreshToken maxActiveTokens ttl info = do
     determineOldestTokensToBeDeleted tokens =
       take (length sorted - fromIntegral maxActiveTokens + 1) sorted
       where
-        sorted = sortOn createdAt tokens
+        sorted = sortOn (.createdAt) tokens
 
 lookupOAuthRefreshTokens :: (MonadClient m) => UserId -> m [OAuthRefreshTokenInfo]
 lookupOAuthRefreshTokens uid = do
@@ -422,10 +483,9 @@ lookupOAuthRefreshTokenInfo rid = do
     q :: PrepQuery R (Identity OAuthRefreshTokenId) (OAuthClientId, UserId, C.Set OAuthScope, UTCTime)
     q = "SELECT client, user, scope, created_at FROM oauth_refresh_token WHERE id = ?"
 
-deleteOAuthRefreshToken :: (MonadClient m) => OAuthRefreshTokenInfo -> m ()
-deleteOAuthRefreshToken info = do
-  let rid = info.refreshTokenId
-  retry x5 . write qDeleteId $ params LocalQuorum (info.userId, rid)
+deleteOAuthRefreshToken :: (MonadClient m) => UserId -> OAuthRefreshTokenId -> m ()
+deleteOAuthRefreshToken uid rid = do
+  retry x5 . write qDeleteId $ params LocalQuorum (uid, rid)
   retry x5 . write qDeleteInfo $ params LocalQuorum (Identity rid)
   where
     qDeleteId :: PrepQuery W (UserId, OAuthRefreshTokenId) ()
@@ -437,4 +497,4 @@ deleteOAuthRefreshToken info = do
 lookupAndDeleteOAuthRefreshToken :: (MonadClient m) => OAuthRefreshTokenId -> m (Maybe OAuthRefreshTokenInfo)
 lookupAndDeleteOAuthRefreshToken rid = do
   mInfo <- lookupOAuthRefreshTokenInfo rid
-  for_ mInfo deleteOAuthRefreshToken $> mInfo
+  for_ mInfo (\info -> deleteOAuthRefreshToken info.userId info.refreshTokenId) $> mInfo

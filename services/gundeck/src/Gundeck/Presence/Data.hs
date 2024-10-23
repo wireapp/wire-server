@@ -35,10 +35,10 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (Milliseconds)
 import Database.Redis
 import Gundeck.Monad (Gundeck, posixTime, runWithAdditionalRedis)
-import Gundeck.Types
 import Gundeck.Util.Redis
 import Imports
 import System.Logger.Class (MonadLogger)
+import Wire.API.Presence
 
 -- Note [Migration] ---------------------------------------------------------
 --

@@ -7,19 +7,17 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Gundeck.Types hiding (Push (..), Recipient, newPush)
 import Imports
 import Polysemy
+import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.Arbitrary
 
 data Recipient = Recipient
-  { _recipientUserId :: UserId,
-    _recipientClients :: RecipientClients
+  { recipientUserId :: UserId,
+    recipientClients :: RecipientClients
   }
   deriving stock (Show, Ord, Eq, Generic)
   deriving (Arbitrary) via GenericUniform Recipient
-
-makeLenses ''Recipient
 
 data Push = Push
   { _pushConn :: Maybe ConnId,
@@ -47,7 +45,7 @@ data NotificationSubsystem m a where
   -- send notifications is not critical.
   --
   -- See 'Polysemy.Async' to know more about the 'Maybe'
-  PushNotificationsAsync :: [Push] -> NotificationSubsystem m (Async (Maybe ()))
+  PushNotificationAsync :: Push -> NotificationSubsystem m (Async (Maybe ()))
   CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]

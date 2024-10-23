@@ -23,17 +23,16 @@ where
 
 import CargoHold.App
 import Control.Error
-import Control.Lens
 import Data.Qualified
 import Imports
 import Wire.API.Federation.Error
 
 ensureLocal :: Qualified a -> Handler (Local a)
 ensureLocal value = do
-  loc <- view localUnit
+  loc <- asks (.localUnit)
   foldQualified loc pure (\_ -> throwE federationNotImplemented) value
 
 qualifyLocal :: a -> Handler (Local a)
 qualifyLocal x = do
-  loc <- view localUnit
+  loc <- asks (.localUnit)
   pure (qualifyAs loc x)

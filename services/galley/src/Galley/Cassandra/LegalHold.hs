@@ -54,6 +54,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Ssl.Util qualified as SSL
 import Wire.API.Provider.Service
+import Wire.API.Team.Feature
 import Wire.API.User.Client.Prekey
 
 interpretLegalHoldStoreToCassandra ::
@@ -62,7 +63,7 @@ interpretLegalHoldStoreToCassandra ::
     Member (Input Env) r,
     Member TinyLog r
   ) =>
-  FeatureLegalHold ->
+  FeatureDefaults LegalholdConfig ->
   Sem (LegalHoldStore ': r) a ->
   Sem r a
 interpretLegalHoldStoreToCassandra lh = interpret $ \case
@@ -159,7 +160,7 @@ unsetTeamLegalholdWhitelisted :: (MonadClient m) => TeamId -> m ()
 unsetTeamLegalholdWhitelisted tid =
   retry x5 (write Q.removeLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid)))
 
-isTeamLegalholdWhitelisted :: FeatureLegalHold -> TeamId -> Client Bool
+isTeamLegalholdWhitelisted :: FeatureDefaults LegalholdConfig -> TeamId -> Client Bool
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledByDefault _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid =
