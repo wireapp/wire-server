@@ -87,7 +87,9 @@ main = do
   let f = testFilter opts
       cfg = opts.configFile
 
-  allTests <- mkAllTests
+  allTests <- case opts.testSuite of
+    IntegrationSuite -> mkAllTests
+    PerformanceSuite -> mkAllPerfTests
   let tests =
         filter (\(qname, _, _, _) -> f qname)
           . sortOn (\(qname, _, _, _) -> qname)
