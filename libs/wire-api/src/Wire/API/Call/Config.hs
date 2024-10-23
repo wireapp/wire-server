@@ -466,7 +466,7 @@ mkSFTUsername shared expires rnd =
     }
 
 instance ToSchema SFTUsername where
-  schema = toText .= parsedText "" fromText
+  schema = toText .= parsedText "SFTUsername" fromText
     where
       fromText :: Text -> Either String SFTUsername
       fromText = parseOnly (parseSFTUsername <* endOfInput)
@@ -543,7 +543,7 @@ turnUsername expires rnd =
     }
 
 instance ToSchema TurnUsername where
-  schema = toText .= parsedText "" fromText
+  schema = toText .= parsedText "TurnUsername" fromText
     where
       fromText :: Text -> Either String TurnUsername
       fromText = parseOnly (parseTurnUsername <* endOfInput)

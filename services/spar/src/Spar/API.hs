@@ -103,6 +103,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Spar
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
@@ -183,13 +184,13 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing)
-    :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
-    :<|> authreqPrecheck
-    :<|> authreq (maxttlAuthreqDiffTime opts)
-    :<|> authresp Nothing
-    :<|> authresp . Just
-    :<|> ssoSettings
+  Named @"sso-metadata" (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
+    :<|> Named @"sso-team-metadata" (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
+    :<|> Named @"auth-req-precheck" authreqPrecheck
+    :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
+    :<|> Named @"auth-resp-legacy" (authresp Nothing)
+    :<|> Named @"auth-resp" (authresp . Just)
+    :<|> Named @"sso-settings" ssoSettings
 
 apiIDP ::
   ( Member Random r,
@@ -204,12 +205,12 @@ apiIDP ::
   ) =>
   ServerT APIIDP (Sem r)
 apiIDP =
-  idpGet -- get, json, captures idp id
-    :<|> idpGetRaw -- get, raw xml, capture idp id
-    :<|> idpGetAll -- get, json
-    :<|> idpCreate -- post, created
-    :<|> idpUpdate -- put, okay
-    :<|> idpDelete -- delete, no content
+  Named @"idp-get" idpGet -- get, json, captures idp id
+    :<|> Named @"idp-get-raw" idpGetRaw -- get, raw xml, capture idp id
+    :<|> Named @"idp-get-all" idpGetAll -- get, json
+    :<|> Named @"idp-create" idpCreate -- post, created
+    :<|> Named @"idp-update" idpUpdate -- put, okay
+    :<|> Named @"idp-delete" idpDelete -- delete, no content
 
 apiINTERNAL ::
   ( Member ScimTokenStore r,

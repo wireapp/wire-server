@@ -35,6 +35,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Spar
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.SwaggerServant
 import Wire.API.User.IdentityProvider
@@ -58,8 +59,8 @@ type DeprecateSSOAPIV1 =
     \Details: https://docs.wire.com/understand/single-sign-on/trouble-shooting.html#can-i-use-the-same-sso-login-code-for-multiple-teams"
 
 type APISSO =
-  DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta
-    :<|> "metadata" :> Capture "team" TeamId :> SAML.APIMeta
+  Named "sso-metadata" (DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta)
+    :<|> Named "sso-team-metadata" ("metadata" :> Capture "team" TeamId :> SAML.APIMeta)
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
     :<|> APIAuthRespLegacy
@@ -69,40 +70,52 @@ type APISSO =
 type CheckOK = Verb 'HEAD 200
 
 type APIAuthReqPrecheck =
-  QueryParam "success_redirect" URI.URI
-    :> QueryParam "error_redirect" URI.URI
-    :> Capture "idp" SAML.IdPId
-    :> CheckOK '[PlainText] NoContent
+  Named
+    "auth-req-precheck"
+    ( QueryParam "success_redirect" URI.URI
+        :> QueryParam "error_redirect" URI.URI
+        :> Capture "idp" SAML.IdPId
+        :> CheckOK '[PlainText] NoContent
+    )
 
 type APIAuthReq =
-  QueryParam "success_redirect" URI.URI
-    :> QueryParam "error_redirect" URI.URI
-    -- (SAML.APIAuthReq from here on, except for the cookies)
-    :> Capture "idp" SAML.IdPId
-    :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
+  Named
+    "auth-req"
+    ( QueryParam "success_redirect" URI.URI
+        :> QueryParam "error_redirect" URI.URI
+        -- (SAML.APIAuthReq from here on, except for the cookies)
+        :> Capture "idp" SAML.IdPId
+        :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
+    )
 
 type APIAuthRespLegacy =
-  DeprecateSSOAPIV1
-    :> Deprecated
-    :> "finalize-login"
-    -- (SAML.APIAuthResp from here on, except for response)
-    :> MultipartForm Mem SAML.AuthnResponseBody
-    :> Post '[PlainText] Void
+  Named
+    "auth-resp-legacy"
+    ( DeprecateSSOAPIV1
+        :> Deprecated
+        :> "finalize-login"
+        -- (SAML.APIAuthResp from here on, except for response)
+        :> MultipartForm Mem SAML.AuthnResponseBody
+        :> Post '[PlainText] Void
+    )
 
 type APIAuthResp =
-  "finalize-login"
-    :> Capture "team" TeamId
-    -- (SAML.APIAuthResp from here on, except for response)
-    :> MultipartForm Mem SAML.AuthnResponseBody
-    :> Post '[PlainText] Void
+  Named
+    "auth-resp"
+    ( "finalize-login"
+        :> Capture "team" TeamId
+        -- (SAML.APIAuthResp from here on, except for response)
+        :> MultipartForm Mem SAML.AuthnResponseBody
+        :> Post '[PlainText] Void
+    )
 
 type APIIDP =
-  ZOptUser :> IdpGet
-    :<|> ZOptUser :> IdpGetRaw
-    :<|> ZOptUser :> IdpGetAll
-    :<|> ZOptUser :> IdpCreate
-    :<|> ZOptUser :> IdpUpdate
-    :<|> ZOptUser :> IdpDelete
+  Named "idp-get" (ZOptUser :> IdpGet)
+    :<|> Named "idp-get-raw" (ZOptUser :> IdpGetRaw)
+    :<|> Named "idp-get-all" (ZOptUser :> IdpGetAll)
+    :<|> Named "idp-create" (ZOptUser :> IdpCreate)
+    :<|> Named "idp-update" (ZOptUser :> IdpUpdate)
+    :<|> Named "idp-delete" (ZOptUser :> IdpDelete)
 
 type IdpGetRaw = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
 
@@ -132,7 +145,10 @@ type IdpDelete =
     :> DeleteNoContent
 
 type SsoSettingsGet =
-  Get '[JSON] SsoSettings
+  Named
+    "sso-settings"
+    ( Get '[JSON] SsoSettings
+    )
 
 sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m SAML.Issuer
 sparSPIssuer Nothing =
@@ -172,9 +188,9 @@ data ScimSite tag route = ScimSite
   deriving (Generic)
 
 type APIScimToken =
-  ZOptUser :> APIScimTokenCreate
-    :<|> ZOptUser :> APIScimTokenDelete
-    :<|> ZOptUser :> APIScimTokenList
+  Named "auth-tokens-create" (ZOptUser :> APIScimTokenCreate)
+    :<|> Named "auth-tokens-delete" (ZOptUser :> APIScimTokenDelete)
+    :<|> Named "auth-tokens-list" (ZOptUser :> APIScimTokenList)
 
 type APIScimTokenCreate =
   ReqBody '[JSON] CreateScimToken

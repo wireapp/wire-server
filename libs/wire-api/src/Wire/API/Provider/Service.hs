@@ -282,7 +282,7 @@ data ServiceProfilePage = ServiceProfilePage
 
 instance ToSchema ServiceProfilePage where
   schema =
-    object "ServiceProfile" $
+    object "ServiceProfilePage" $
       ServiceProfilePage
         <$> serviceProfilePageHasMore .= field "has_more" schema
         <*> serviceProfilePageResults .= field "services" (array schema)

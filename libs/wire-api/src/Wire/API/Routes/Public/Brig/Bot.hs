@@ -52,7 +52,7 @@ type BotAPI =
         :> ZAccess
         :> ZConn
         :> "conversations"
-        :> Capture "Conversation ID" ConvId
+        :> Capture "conv" ConvId
         :> "bots"
         :> ReqBody '[JSON] AddBot
         :> MultiVerb1 'POST '[JSON] (Respond 201 "" AddBotResponse)
@@ -65,9 +65,9 @@ type BotAPI =
                :> ZAccess
                :> ZConn
                :> "conversations"
-               :> Capture "Conversation ID" ConvId
+               :> Capture "conv" ConvId
                :> "bots"
-               :> Capture "Bot ID" BotId
+               :> Capture "bot" BotId
                :> MultiVerb 'DELETE '[JSON] DeleteResponses (Maybe RemoveBotResponse)
            )
     :<|> Named
@@ -178,7 +178,7 @@ type BotAPI =
                :> ZBot
                :> "bot"
                :> "users"
-               :> Capture "User ID" UserId
+               :> Capture "user" UserId
                :> "clients"
                :> Get '[JSON] [PubClient]
            )
