@@ -46,7 +46,7 @@ ensureMigrationIndexImpl env = do
     logAndThrow :: (Member TinyLog r, Member (Error MigrationException) r, Show e) => (String -> MigrationException) -> e -> Sem r a
     logAndThrow mkErr errMsg = do
       Log.warn $
-        Log.msg (Log.val ("An OpenSearch/ElasticSearch error appeared: " `BS.append` (encodeUtf8 . Text.pack . show) errMsg))
+        Log.msg (Log.val ("An OpenSearch/ElasticSearch error occurred: " `BS.append` (encodeUtf8 . Text.pack . show) errMsg))
       throw $
         mkErr (show errMsg)
 
