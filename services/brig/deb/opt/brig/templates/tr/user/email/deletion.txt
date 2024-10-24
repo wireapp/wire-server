@@ -7,8 +7,8 @@ ${brand} hesabınızı silmek için bir istek aldık. Tüm konuşmalarınızı,
 içeriğinizi ve bağlantılarınızı silmek için 10 dakika içinde aşağıdaki düğmeyi
 tıklayın.
 
-Hesabı Sil [${url}]Düğmeyi tıklayamıyorsanız, bu bağlantıyı kopyalayıp
-tarayıcınıza yapıştırın:
+Hesabı Sil [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

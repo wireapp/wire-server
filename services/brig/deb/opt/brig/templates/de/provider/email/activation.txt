@@ -14,8 +14,8 @@ E-Mail-Adresse noch durch uns freigeschaltet werden muss. Dies geschieht
 üblicherweise innerhalb von 24 Stunden. Sie werden in einer separaten E-Mail
 über die Freischaltung informiert.
 
-Bestätigen [${url}]Falls Sie nicht auf den Button klicken können, kopieren Sie
-diesen Link und fügen Sie ihn in Ihren Browser ein:
+Bestätigen [${url}]Wenn Sie die Schaltfläche nicht auswählen können, kopieren
+Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 

@@ -6,8 +6,8 @@ PATVIRTINKITE SAVO EL. PAŠTĄ
 ${email} buvo užregistruotas kaip naujas „${brand}“ el. pašto adresas. Norėdami
 patvirtinti savo adresą, spustelėkite mygtuką žemiau.
 
-Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
-įdėkite šią nuorodą į savo naršyklę:
+Patvirtinti [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

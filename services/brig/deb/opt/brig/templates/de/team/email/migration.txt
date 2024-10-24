@@ -1,0 +1,33 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+EINLADUNG ZUM TEAM
+${inviter} hat Sie auf ${brand} zu einem Team eingeladen.
+
+Wenn Sie dem Team beitreten, wird Ihr persönliches Wire Benutzerkonto in ein
+Team-Konto umgewandelt.
+
+Wählen Sie die folgende Schaltfläche, um mit der Einladung fortzufahren.
+
+Team beitreten [${url}]Wenn Sie die Schaltfläche nicht auswählen können,
+kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
+
+${url}
+
+Missbräuchlichen Einladungslink melden [${support}]
+
+Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
+
+Was ist Wire?
+Wire ist die sicherste Plattform für Ihre Kommunikation. Wo auch immer Sie sind,
+arbeiten Sie mit Ihrem Team und externen Partnern zusammen – mittels
+Nachrichten, Videokonferenzen und Dateiaustausch, alles mit
+Ende-zu-Ende-Verschlüsselung. Mehr erfahren [https://wire.com/].
+
+
+--------------------------------------------------------------------------------
+
+Datenschutzrichtlinien und Nutzungsbedingungen [${legal}] · Missbrauch melden
+[${misuse}]
+${copyright}. ALLE RECHTE VORBEHALTEN.

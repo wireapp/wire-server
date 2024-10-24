@@ -6,8 +6,8 @@ XÁC MINH ĐỊA CHỈ EMAL CỦA BẠN
 ${email} đã được dùng để đăng ký ${brand}.
 Nhấp vào nút để xác minh địa chỉ của bạn.
 
-Xác minh [${url}]Nếu bạn không thể nhấp vào nút, sao chép và gán đường dẫn này
-vào trình duyệt của bạn:
+Xác minh [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

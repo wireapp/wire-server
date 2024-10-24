@@ -7,7 +7,7 @@ Wir haben eine Anfrage zur Löschung Ihrer ${brand}-Benutzerkontos erhalten.
 Klicken Sie innerhalb der nächsten 10 Minuten auf den folgenden Link, um alle
 Ihre Unterhaltungen, Nachrichten und Kontakte zu löschen.
 
-Benutzerkonto löschen [${url}]Falls Sie nicht auf den Button klicken können,
+Benutzerkonto löschen [${url}]Wenn Sie die Schaltfläche nicht auswählen können,
 kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
