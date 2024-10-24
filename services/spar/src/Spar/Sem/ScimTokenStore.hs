@@ -37,7 +37,7 @@ data ScimTokenStore m a where
   Insert :: ScimToken -> ScimTokenInfo -> ScimTokenStore m ()
   Lookup :: ScimToken -> ScimTokenStore m (Maybe ScimTokenInfo)
   LookupByTeam :: TeamId -> ScimTokenStore m [ScimTokenInfo]
-  UpdateName ::TeamId -> ScimTokenId -> Text -> ScimTokenStore m ()
+  UpdateName :: TeamId -> ScimTokenId -> Text -> ScimTokenStore m ()
   Delete :: TeamId -> ScimTokenId -> ScimTokenStore m ()
   DeleteByTeam :: TeamId -> ScimTokenStore m ()
 
