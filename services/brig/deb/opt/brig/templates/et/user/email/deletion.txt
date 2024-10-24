@@ -6,8 +6,8 @@ KUSTUTA KONTO
 We’ve received a request to delete your ${brand} account. Kogu kontoga seotud
 info kustutamise kinnitamiseks kliki kümne minuti jooksul alloleval lingil.
 
-Kustuta konto [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
-aadress veebibrauserisse:
+Kustuta konto [${url}]If you can’t select the button, copy and paste this link
+to your browser:
 
 ${url}
 

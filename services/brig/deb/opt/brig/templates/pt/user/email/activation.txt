@@ -6,8 +6,8 @@ VERIFIQUE SEU E-MAIL
 ${email} foi usado para se registrar no ${brand}.
 Clique no botão para verificar seu e-mail.
 
-Verificar [${url}]Se você não conseguir clicar no botão, copie e cole este link
-no seu navegador:
+Verificar [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

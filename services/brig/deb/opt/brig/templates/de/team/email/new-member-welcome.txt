@@ -10,7 +10,7 @@ ${brand} vereint sichere Verschlüsselung mit reichhaltigem Funktionsumfang und
 einfacher Bedienung in einer einzigen App. Unterstützt alle gängigen
 Plattformen.
 
-${brand} herunterladen [${url}]Falls Sie nicht auf den Button klicken können,
+${brand} herunterladen [${url}]Wenn Sie die Schaltfläche nicht auswählen können,
 kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}

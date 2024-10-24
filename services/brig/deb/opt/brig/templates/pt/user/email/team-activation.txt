@@ -2,12 +2,12 @@
 
 ${brand_label_url} [${brand_url}]
 
-SUA NOVA CONTA EM ${BRAND}
+SUA NOVA CONTA EM ${brand}
 Um nova conta na equipe ${brand} foi criada com ${email}. Por favor, verifique
 seu e-mail.
 
-Verificar [${url}]Se você não conseguir clicar no botão, copie e cole este link
-no seu navegador:
+Verificar [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

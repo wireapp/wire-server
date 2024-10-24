@@ -2,12 +2,12 @@
 
 ${brand_label_url} [${brand_url}]
 
-TWOJE NOWE KONTO NA ${BRAND}
+TWOJE NOWE KONTO NA ${brand}
 Nowy zespół ${brand} został utworzony z ${email}. Prosimy, zweryfikuj swój adres
 email.
 
-Zweryfikuj [${url}]Jeśli nie możesz kliknąć przycisku, skopiuj i wklej ten link
-do swojej przeglądarki:
+Zweryfikuj [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

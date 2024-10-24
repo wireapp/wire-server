@@ -3,13 +3,18 @@
 ${brand_label_url} [${brand_url}]
 
 TEAM INVITATION
-${inviter} has invited you to join a team on ${brand}. Select the button below
-to accept the invitation.
+${inviter} has invited you to join a team on ${brand}.
+
+By joining Wire migrates your personal account into a team account.
+
+Select the button below to proceed with the invitation.
 
 Join team [${url}]If you can’t select the button, copy and paste this link to
 your browser:
 
 ${url}
+
+Report abusive invitation link [${support}]
 
 If you have any questions, please contact us [${support}].
 

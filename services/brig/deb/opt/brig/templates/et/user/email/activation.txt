@@ -6,8 +6,8 @@ KINNITA OMA E-POSTI AADRESS
 ${email} was used to register on ${brand}.
 Click the button to verify your address.
 
-Kinnita [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
-aadress veebibrauserisse:
+Kinnita [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 

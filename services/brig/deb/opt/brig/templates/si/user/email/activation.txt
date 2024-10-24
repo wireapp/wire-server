@@ -6,8 +6,8 @@ ${brand_label_url} [${brand_url}]
 ${brand} හි ලියාපදිංචියට ${email} භාවිතා කර ඇත.
 ඔබගේ ලිපිනය සත්‍යාපනයට පහත බොත්තම ඔබන්න.
 
-සත්‍යාපනය [${url}]බොත්තම එබීමට නොහැකි නම් මෙම සබැඳිය පිටපත් කර ඔබගේ
-අතිරික්සුවෙහි අලවන්න:
+සත්‍යාපනය [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

@@ -7,8 +7,8 @@ ${email} a été enregistré comme votre nouvelle adresse email sur ${brand}.
 Veuillez vérifier votre email s’il vous plaît. Cliquez sur le bouton ci-dessous
 pour vérifier votre adresse email.
 
-Vérifier [${url}]Si vous ne pouvez pas cliquer sur le bouton, copiez et collez
-ce lien dans votre navigateur :
+Vérifier [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 
