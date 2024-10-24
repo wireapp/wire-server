@@ -51,9 +51,6 @@ spec:
 {{- if .Values.webapp.enabled }}
       - {{ .Values.config.dns.webapp }}
 {{- end }}
-{{- if .Values.fakeS3.enabled }}
-      - {{ .Values.config.dns.fakeS3 }}
-{{- end }}
 {{- if .Values.teamSettings.enabled }}
       - {{ .Values.config.dns.teamSettings }}
 {{- end }}
@@ -115,25 +112,6 @@ spec:
               {{- else }}
               serviceName: webapp-http
               servicePort: {{ .Values.service.webapp.externalPort }}
-              {{- end }}
-{{- end }}
-{{- if .Values.fakeS3.enabled }}
-    - host: {{ .Values.config.dns.fakeS3 }}
-      http:
-        paths:
-          - path: /
-            {{- if $ingressSupportsPathType }}
-            pathType: Prefix
-            {{- end }}
-            backend:
-              {{- if $apiIsStable }}
-              service:
-                name: {{ .Values.service.s3.serviceName }}
-                port:
-                  number: {{ .Values.service.s3.externalPort }}
-              {{- else }}
-              serviceName: {{ .Values.service.s3.serviceName }}
-              servicePort: {{ .Values.service.s3.externalPort }}
               {{- end }}
 {{- end }}
 {{- if .Values.teamSettings.enabled }}

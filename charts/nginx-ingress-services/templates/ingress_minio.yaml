@@ -1,0 +1,45 @@
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressFieldNotAnnotation := eq (include "ingress.FieldNotAnnotation" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+{{- if .Values.fakeS3.enabled }}
+# We use a separate ingress for minio because we want to restrict access to /minio/ path
+# for security reasons
+apiVersion: {{ include "ingress.apiVersion" . }}
+kind: Ingress
+metadata:
+  name: minio-ingress
+  annotations:
+    {{- if not $ingressFieldNotAnnotation }}
+    kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
+    {{- end }}
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location /minio/ {
+        return 403;
+      }
+spec:
+  {{- if $ingressFieldNotAnnotation }}
+  ingressClassName: "{{ .Values.config.ingressClass }}"
+  {{- end }}
+  tls:
+  - hosts:
+      - {{ .Values.config.dns.fakeS3 }}
+    secretName: {{ include "nginx-ingress-services.getCertificateSecretName" . | quote }}
+  rules:
+    - host: {{ .Values.config.dns.fakeS3 }}
+      http:
+        paths:
+          - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
+            backend:
+              {{- if $apiIsStable }}
+              service:
+                name: {{ .Values.service.s3.serviceName }}
+                port:
+                  number: {{ .Values.service.s3.externalPort }}
+              {{- else }}
+              serviceName: {{ .Values.service.s3.serviceName }}
+              servicePort: {{ .Values.service.s3.externalPort }}
+              {{- end }}
+{{- end }}
