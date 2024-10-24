@@ -34,13 +34,14 @@ module Wire.API.Routes.Internal.Brig
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
+    GetRichInfoMultiResponse (..),
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
   )
 where
 
-import Control.Lens ((.~))
+import Control.Lens ((.~), (?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -373,7 +374,7 @@ type AccountAPI =
            ( "users"
                :> "rich-info"
                :> QueryParam' '[Optional, Strict] "ids" (CommaSeparatedList UserId)
-               :> Get '[Servant.JSON] [(UserId, RichInfo)]
+               :> Get '[Servant.JSON] GetRichInfoMultiResponse
            )
     :<|> Named
            "iHeadHandle"
@@ -744,6 +745,17 @@ type ProviderAPI =
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
+
+newtype GetRichInfoMultiResponse
+  = GetRichInfoMultiResponse
+      [(UserId, RichInfo)]
+  deriving newtype (FromJSON, ToJSON)
+
+instance S.ToSchema GetRichInfoMultiResponse where
+  declareNamedSchema _ =
+    pure $
+      S.NamedSchema (Just $ "GetRichInfoMultiResponse") $
+        mempty & S.description ?~ "List of pairs of UserId and RichInfo"
 
 swaggerDoc :: OpenApi
 swaggerDoc =
