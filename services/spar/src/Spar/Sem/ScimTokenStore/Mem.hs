@@ -37,5 +37,9 @@ scimTokenStoreToMem = (runState mempty .) $
     Insert st sti -> modify $ M.insert st sti
     Lookup st -> gets $ M.lookup st
     LookupByTeam tid -> gets $ filter ((== tid) . (.stiTeam)) . M.elems
+    UpdateName tid stid name -> modify $ M.map $ \sti ->
+      if (.stiTeam) sti == tid && (.stiId) sti == stid
+        then sti {stiName = name}
+        else sti
     Delete tid stid -> modify $ M.filter $ \sti -> not $ (.stiTeam) sti == tid && (.stiId) sti == stid
     DeleteByTeam tid -> modify $ M.filter ((/= tid) . (.stiTeam))

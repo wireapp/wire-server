@@ -48,8 +48,9 @@ scimTokenStoreToCassandra =
         Insert st sti -> insertScimToken st sti
         Lookup st -> lookupScimToken st
         LookupByTeam tid -> getScimTokens tid
-        Delete tid ur -> deleteScimToken tid ur
-        DeleteByTeam tid -> deleteTeamScimTokens tid
+        UpdateName team token name -> updateScimTokenName team token name
+        Delete team token -> deleteScimToken team token
+        DeleteByTeam team -> deleteTeamScimTokens team
 
 ----------------------------------------------------------------------
 -- SCIM auth
@@ -168,13 +169,13 @@ deleteScimToken team tokenid = do
     addPrepQuery delById (team, tokenid)
     for_ mbToken $ \(Identity key) ->
       addPrepQuery delByTokenLookup (Identity key)
-  where
-    selById :: PrepQuery R (TeamId, ScimTokenId) (Identity ScimTokenLookupKey)
-    selById =
-      [r|
-      SELECT token_ FROM team_provisioning_by_team
-        WHERE team = ? AND id = ?
-    |]
+
+selById :: PrepQuery R (TeamId, ScimTokenId) (Identity ScimTokenLookupKey)
+selById =
+  [r|
+  SELECT token_ FROM team_provisioning_by_team
+    WHERE team = ? AND id = ?
+|]
 
 delById :: PrepQuery W (TeamId, ScimTokenId) ()
 delById =
@@ -207,6 +208,32 @@ deleteTeamScimTokens team = do
     sel = "SELECT token_ FROM team_provisioning_by_team WHERE team = ?"
     delByTeam :: PrepQuery W (Identity TeamId) ()
     delByTeam = "DELETE FROM team_provisioning_by_team WHERE team = ?"
+
+updateScimTokenName :: (HasCallStack, MonadClient m) => TeamId -> ScimTokenId -> Text -> m ()
+updateScimTokenName team tokenid name = do
+  mbToken <- retry x1 . query1 selById $ params LocalQuorum (team, tokenid)
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery updateNameById (name, team, tokenid)
+    for_ mbToken $ \(Identity key) ->
+      addPrepQuery updateNameByTokenLookup (name, key)
+  where
+    updateNameById :: PrepQuery W (Text, TeamId, ScimTokenId) ()
+    updateNameById =
+      [r|
+        UPDATE team_provisioning_by_team
+          SET name = ?
+          WHERE team = ? AND id = ?
+      |]
+
+    updateNameByTokenLookup :: PrepQuery W (Text, ScimTokenLookupKey) ()
+    updateNameByTokenLookup =
+      [r|
+        UPDATE team_provisioning_by_token
+          SET name = ?
+          WHERE token_ = ?
+      |]
 
 type ScimTokenRow = (ScimTokenLookupKey, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text, Maybe Text)
 

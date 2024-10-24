@@ -54,6 +54,9 @@ instance Arbitrary ScimTokenList where
 instance Arbitrary ScimTokenListV6 where
   arbitrary = ScimTokenListV6 <$> arbitrary
 
+instance Arbitrary ScimTokenName where
+  arbitrary = ScimTokenName <$> arbitrary
+
 instance Arbitrary NoContent where
   arbitrary = pure NoContent
 

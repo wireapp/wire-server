@@ -191,9 +191,15 @@ data ScimSite tag route = ScimSite
 type APIScimToken =
   Named "auth-tokens-create@v6" (Until 'V7 :> ZOptUser :> APIScimTokenCreateV6)
     :<|> Named "auth-tokens-create" (From 'V7 :> ZOptUser :> APIScimTokenCreate)
+    :<|> Named "auth-tokens-put-name" (From 'V7 :> ZUser :> APIScimTokenPutName)
     :<|> Named "auth-tokens-delete" (ZOptUser :> APIScimTokenDelete)
     :<|> Named "auth-tokens-list@v6" (Until 'V7 :> ZOptUser :> APIScimTokenListV6)
     :<|> Named "auth-tokens-list" (From 'V7 :> ZOptUser :> APIScimTokenList)
+
+type APIScimTokenPutName =
+  Capture "id" ScimTokenId
+    :> ReqBody '[JSON] ScimTokenName
+    :> Put '[JSON] ()
 
 type APIScimTokenCreateV6 =
   VersionedReqBody 'V6 '[JSON] CreateScimToken

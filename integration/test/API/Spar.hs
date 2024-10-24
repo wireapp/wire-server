@@ -24,6 +24,11 @@ createScimTokenWithName caller name = do
   req <- baseRequest caller Spar Versioned "/scim/auth-tokens"
   submit "POST" $ req & addJSONObject ["password" .= defPassword, "description" .= "integration test", "name" .= name]
 
+putScimTokenName :: (HasCallStack, MakesValue caller) => caller -> String -> String -> App Response
+putScimTokenName caller token name = do
+  req <- baseRequest caller Spar Versioned $ joinHttpPath ["scim", "auth-tokens", token]
+  submit "PUT" $ req & addJSONObject ["name" .= name]
+
 createScimUser :: (HasCallStack, MakesValue domain, MakesValue scimUser) => domain -> String -> scimUser -> App Response
 createScimUser domain token scimUser = do
   req <- baseRequest domain Spar Versioned "/scim/v2/Users"

@@ -100,9 +100,24 @@ apiScimToken ::
 apiScimToken =
   Named @"auth-tokens-create@v6" createScimTokenV6
     :<|> Named @"auth-tokens-create" createScimToken
+    :<|> Named @"auth-tokens-put-name" updateScimTokenName
     :<|> Named @"auth-tokens-delete" deleteScimToken
     :<|> Named @"auth-tokens-list@v6" listScimTokensV6
     :<|> Named @"auth-tokens-list" listScimTokens
+
+updateScimTokenName ::
+  ( Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member (Error E.SparError) r,
+    Member GalleyAccess r
+  ) =>
+  UserId ->
+  ScimTokenId ->
+  ScimTokenName ->
+  Sem r ()
+updateScimTokenName lusr tokenId name = do
+  teamid <- Intra.Brig.authorizeScimTokenManagement (Just lusr)
+  ScimTokenStore.updateName teamid tokenId name.fromScimTokenName
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
 --

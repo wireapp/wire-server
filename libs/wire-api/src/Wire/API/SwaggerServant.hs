@@ -44,4 +44,5 @@ instance (RoutesToPaths api) => RoutesToPaths (OmitDocs :> api) where
   getRoutes = getRoutes @api
 
 type instance
-  SpecialiseToVersion v (OmitDocs :> api) = EmptyAPI
+  SpecialiseToVersion v (OmitDocs :> api) =
+    EmptyAPI

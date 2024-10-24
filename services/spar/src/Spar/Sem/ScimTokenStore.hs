@@ -22,13 +22,14 @@ module Spar.Sem.ScimTokenStore
     insert,
     lookup,
     lookupByTeam,
+    updateName,
     delete,
     deleteByTeam,
   )
 where
 
 import Data.Id
-import Imports (Maybe)
+import Imports hiding (lookup)
 import Polysemy
 import Wire.API.User.Scim
 
@@ -36,6 +37,7 @@ data ScimTokenStore m a where
   Insert :: ScimToken -> ScimTokenInfo -> ScimTokenStore m ()
   Lookup :: ScimToken -> ScimTokenStore m (Maybe ScimTokenInfo)
   LookupByTeam :: TeamId -> ScimTokenStore m [ScimTokenInfo]
+  UpdateName ::TeamId -> ScimTokenId -> Text -> ScimTokenStore m ()
   Delete :: TeamId -> ScimTokenId -> ScimTokenStore m ()
   DeleteByTeam :: TeamId -> ScimTokenStore m ()
 

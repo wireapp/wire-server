@@ -314,11 +314,25 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
 
 testSparCreateScimTokenNoName :: (HasCallStack) => App ()
 testSparCreateScimTokenNoName = do
-  (owner, _tid, _) <- createTeam OwnDomain 1
+  (owner, _tid, mem : _) <- createTeam OwnDomain 2
   createScimToken owner >>= assertSuccess
-  tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
+  createScimToken owner >>= assertSuccess
+  tokens <- bindResponse (getScimTokens owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    tokens <- resp.json %. "tokens" >>= asList
+    for_ tokens $ \token -> do
+      token %. "name" `shouldMatch` (token %. "id")
+    pure tokens
   for_ tokens $ \token -> do
-    token %. "name" `shouldMatch` (token %. "id")
+    tokenId <- token %. "id" >>= asString
+    putScimTokenName mem tokenId "new name" >>= assertStatus 403
+    putScimTokenName owner tokenId ("token:" <> tokenId) >>= assertSuccess
+  bindResponse (getScimTokens owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    updatedTokens <- resp.json %. "tokens" >>= asList
+    for_ updatedTokens $ \token -> do
+      tokenId <- token %. "id" >>= asString
+      token %. "name" `shouldMatch` ("token:" <> tokenId)
 
 testSparCreateScimTokenWithName :: (HasCallStack) => App ()
 testSparCreateScimTokenWithName = do

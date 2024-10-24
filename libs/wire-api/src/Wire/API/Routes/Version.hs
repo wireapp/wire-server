@@ -68,14 +68,14 @@ import Data.Text.Encoding as Text
 import GHC.TypeLits
 import Imports hiding ((\\))
 import Servant
+import Servant.API.Extended (ReqBodyCustomError)
 import Servant.API.Extended.RawM qualified as RawM
+import Servant.Multipart (MultipartForm)
 import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named hiding (unnamed)
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
-import Servant.API.Extended (ReqBodyCustomError)
-import Servant.Multipart (MultipartForm)
 
 -- | Version of the public API.  Serializes to `"v<n>"`.  See 'VersionNumber' below for one
 -- that serializes to `<n>`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs`
