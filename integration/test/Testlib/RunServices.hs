@@ -31,8 +31,30 @@ findProjectRoot path = do
       Nothing -> pure Nothing
       Just p -> findProjectRoot p
 
+data Mode
+  = IntegrationTesting
+  | ManualTesting
+  | PerformanceTesting
+  deriving (Show)
+
+parseMode :: String -> Either String Mode
+parseMode = \case
+  "integration" -> Right IntegrationTesting
+  "int" -> Right IntegrationTesting
+  "manual" -> Right ManualTesting
+  "man" -> Right ManualTesting
+  "performance" -> Right PerformanceTesting
+  "perf" -> Right PerformanceTesting
+  x -> Left $ "Invalid mode: " <> x
+
+showMode :: Mode -> String
+showMode = \case
+  IntegrationTesting -> "integration"
+  PerformanceTesting -> "performance"
+  ManualTesting -> "manual"
+
 data Opts = Opts
-  { withManualTestingOverrides :: Bool,
+  { mode :: Mode,
     runSubprocess :: [String]
   }
   deriving (Show)
@@ -40,10 +62,13 @@ data Opts = Opts
 optsParser :: Parser Opts
 optsParser =
   Opts
-    <$> switch
-      ( long "with-manual-testing-overrides"
+    <$> option
+      (eitherReader parseMode)
+      ( long "mode"
           <> short 'm'
-          <> help "Run services with settings tuned for manual app usage (not recommended for running integration tests)"
+          <> value IntegrationTesting
+          <> showDefaultWith showMode
+          <> help "Run services with settings tuned for particular type of testing"
       )
     <*> many
       ( strArgument
@@ -77,11 +102,12 @@ main = do
       $ do
         _modifyEnv <-
           traverseConcurrentlyCodensity
-            ( \r ->
-                void
-                  $ if opts.withManualTestingOverrides
-                    then startDynamicBackend r manualTestingOverrides
-                    else startDynamicBackend r mempty
+            ( \r -> do
+                let overrides = case opts.mode of
+                      IntegrationTesting -> mempty
+                      PerformanceTesting -> performanceTestingOverrides
+                      ManualTesting -> manualTestingOverrides
+                void $ startDynamicBackend r overrides
             )
             [backendA, backendB]
         liftIO run
@@ -110,4 +136,36 @@ manualTestingOverrides =
               >=> setField @_ @Int "optSettings.setTeamInvitationTimeout" 3600
               >=> setField @_ @Int "optSettings.setUserCookieRenewAge" 1209600
               >=> removeField "optSettings.setSuspendInactiveUsers"
+        }
+
+performanceTestingOverrides :: ServiceOverrides
+performanceTestingOverrides =
+  let authSettings =
+        object
+          [ "userTokenTimeout" .= (4838400 :: Int),
+            "sessionTokenTimeout" .= (86400 :: Int),
+            "accessTokenTimeout" .= (900 :: Int),
+            "providerTokenTimeout" .= (900 :: Int),
+            "legalHoldUserTokenTimeout" .= (4838400 :: Int),
+            "legalHoldAccessTokenTimeout" .= (900 :: Int)
+          ]
+      maxTeamSize = 2000
+      maxConvSize = 2000
+      maxFanoutSize = 2000
+   in def
+        { brigCfg =
+            -- Ensure that users don't get logged out quickly, as the tests
+            -- might need them for longer and logging them out automatically
+            -- just makes the tests do more annoying things.
+            mergeField "zauth.authSettings" authSettings
+              >=> setField @_ @Int "optSettings.setUserCookieRenewAge" 1209600
+              >=> removeField "optSettings.setSuspendInactiveUsers"
+              -- Ensure that big teams and conversations can be created.
+              >=> setField @_ @Int "optSettings.setMaxTeamSize" maxTeamSize
+              >=> setField @_ @Int "optSettings.setMaxConvSize" maxConvSize,
+          galleyCfg =
+            -- Ensure that big teams and conversations can be created.
+            setField @_ @Int "settings.maxTeamSize" maxTeamSize
+              >=> setField @_ @Int "settings.maxFanoutSize" maxFanoutSize
+              >=> setField @_ @Int "settings.maxConvSize" maxConvSize
         }
