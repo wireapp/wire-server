@@ -54,7 +54,7 @@ testKeyPackageMultipleCiphersuites = do
 testKeyPackageUploadNoKey :: App ()
 testKeyPackageUploadNoKey = do
   alice <- randomUser OwnDomain def
-  alice1 <- createWireClient alice
+  alice1 <- createWireClient alice def
 
   (kp, _) <- generateKeyPackage alice1
 
