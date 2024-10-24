@@ -189,7 +189,7 @@ createNewGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App (String
 createNewGroup cs cid = do
   conv <- postConversation cid defMLS >>= getJSON 201
   groupId <- conv %. "group_id" & asString
-  convId <- objSubConvObject conv
+  convId <- objConvId conv
   createGroup cs cid conv
   pure (groupId, convId)
 
@@ -208,8 +208,15 @@ createGroup cs cid conv = resetGroup cs cid conv
 createSubConv :: (HasCallStack) => Ciphersuite -> ConvId -> ClientIdentity -> String -> App ()
 createSubConv cs convId cid subId = do
   sub <- getSubConversation cid convId subId >>= getJSON 200
+  subConvId <- objConvId sub
   resetGroup cs cid sub
-  void $ createPendingProposalCommit convId cid >>= sendAndConsumeCommitBundle
+  void $ createPendingProposalCommit subConvId cid >>= tap "Pending Proposal Commit" >>= sendAndConsumeCommitBundle
+
+tap :: String -> MessagePackage -> App MessagePackage
+tap tag x = do
+  j <- prettyJSON x.convId
+  putStrLn $ "Tap: " <> tag <> "\n" <> j
+  pure x
 
 createOne2OneSubConv :: (HasCallStack, MakesValue keys) => Ciphersuite -> ConvId -> ClientIdentity -> String -> keys -> App ()
 createOne2OneSubConv cs convId cid subId keys = do
@@ -219,14 +226,15 @@ createOne2OneSubConv cs convId cid subId keys = do
 
 resetGroup :: (HasCallStack, MakesValue conv) => Ciphersuite -> ClientIdentity -> conv -> App ()
 resetGroup cs cid conv = do
-  convId <- objSubConvObject conv
-  groupId <- conv %. "group_id" & asString
+  convId <- objConvId conv
+  putStrLn =<< prettyJSON convId
+  let Just groupId = convId.groupId
   modifyMLSState $ \s ->
     let mlsConv =
           MLSConv
             { members = Set.singleton cid,
               newMembers = mempty,
-              groupId = groupId,
+              groupId,
               convId = convId,
               epoch = 0,
               ciphersuite = cs
@@ -242,7 +250,7 @@ resetOne2OneGroup cs cid one2OneConv =
 -- | Useful when keys are to be taken from main conv and the conv here is the subconv
 resetOne2OneGroupGeneric :: (HasCallStack, MakesValue conv, MakesValue keys) => Ciphersuite -> ClientIdentity -> conv -> keys -> App ()
 resetOne2OneGroupGeneric cs cid conv keys = do
-  convId <- objSubConvObject conv
+  convId <- objConvId conv
   groupId <- conv %. "group_id" & asString
   modifyMLSState $ \s ->
     let newMLSConv =
@@ -558,18 +566,6 @@ createExternalCommit convId cid mgi = do
 data MLSNotificationTag = MLSNotificationMessageTag | MLSNotificationWelcomeTag
   deriving (Show, Eq, Ord)
 
--- | Extract a conversation ID (including an optional subconversation) from an
--- event object.
-eventSubConv :: (HasCallStack) => (MakesValue event) => event -> App ConvId
-eventSubConv event = do
-  sub <- lookupField event "subconv"
-  conv <- event %. "qualified_conversation"
-  objSubConvObject $
-    object
-      [ "parent_qualified_id" .= conv,
-        "subconv_id" .= sub
-      ]
-
 consumingMessages :: (HasCallStack) => MessagePackage -> Codensity App ()
 consumingMessages mp = Codensity $ \k -> do
   conv <- getMLSConv mp.convId
@@ -583,11 +579,11 @@ consumingMessages mp = Codensity $ \k -> do
         map (,MLSNotificationMessageTag) (toList oldClients)
           <> map (,MLSNotificationWelcomeTag) (toList newClients)
 
-  let newUsers =
-        Set.delete mp.sender.user $
-          Set.difference
-            (Set.map (.user) newClients)
-            (Set.map (.user) oldClients)
+  -- let newUsers =
+  --       Set.delete mp.sender.user $
+  --         Set.difference
+  --           (Set.map (.user) newClients)
+  --           (Set.map (.user) oldClients)
   withWebSockets (map fst clients) $ \wss -> do
     r <- k ()
 
@@ -595,14 +591,14 @@ consumingMessages mp = Codensity $ \k -> do
     -- each new user and wait for its join event
     -- when (mls.protocol == MLSProtocolMLS) $
 
-    traverse_
-      (awaitMatch isMemberJoinNotif)
-      ( flip Map.restrictKeys newUsers
-          . Map.mapKeys ((.user) . fst)
-          . Map.fromList
-          . toList
-          $ zip clients wss
-      )
+    -- traverse_
+    --   (awaitMatch (\n -> (||) <$> isMemberJoinNotif n <*> isWelcomeNotif n))
+    --   ( flip Map.restrictKeys newUsers
+    --       . Map.mapKeys ((.user) . fst)
+    --       . Map.fromList
+    --       . toList
+    --       $ zip clients wss
+    --   )
 
     -- at this point we know that every new user has been added to the
     -- conversation
@@ -617,9 +613,10 @@ consumeMessageWithPredicate p cs cid mmp ws = do
   event <- notif %. "payload.0"
 
   for_ mmp $ \mp -> do
-    shouldMatch (eventSubConv event) mp.convId
-    shouldMatch (event %. "from") mp.sender.user
-    shouldMatch (event %. "data") (B8.unpack (Base64.encode mp.message))
+    event %. "qualified_conversation" `shouldMatch` objQidObject mp.convId
+    lookupField event "subconv" `shouldMatch` mp.convId.subconvId
+    event %. "from" `shouldMatch` mp.sender.user
+    event %. "data" `shouldMatch` (B8.unpack (Base64.encode mp.message))
 
   msgData <- event %. "data" & asByteString
   _ <- mlsCliConsume cs cid msgData
@@ -711,9 +708,11 @@ consumeWelcome cid mp ws = do
   notif <- awaitMatch isWelcomeNotif ws
   event <- notif %. "payload.0"
 
-  shouldMatch (eventSubConv event) mp.convId
-  shouldMatch (event %. "from") mp.sender.user
-  shouldMatch (event %. "data") (fmap (B8.unpack . Base64.encode) mp.welcome)
+  -- eventSubConv event `shouldMatch` mp.convId
+  event %. "qualified_conversation" `shouldMatch` objQidObject mp.convId
+  lookupField event "subconv" `shouldMatch` mp.convId.subconvId
+  event %. "from" `shouldMatch` mp.sender.user
+  event %. "data" `shouldMatch` (fmap (B8.unpack . Base64.encode) mp.welcome)
 
   welcome <- event %. "data" & asByteString
   gs <- getClientGroupState cid
@@ -857,4 +856,4 @@ getSubConvId :: (MakesValue user, HasCallStack) => user -> ConvId -> String -> A
 getSubConvId user convId subConvName =
   getSubConversation user convId subConvName
     >>= getJSON 200
-    >>= objSubConvObject
+    >>= objConvId

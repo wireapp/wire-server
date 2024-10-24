@@ -280,6 +280,7 @@ data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
 data ConvId = ConvId
   { domain :: String,
     id_ :: String,
+    groupId :: Maybe String,
     subconvId :: Maybe String
   }
   deriving (Show, Eq, Ord)
@@ -292,7 +293,14 @@ instance ToJSON ConvId where
             [ fromString "id" .= c.id_,
               fromString "domain" .= c.domain
             ],
-        fromString "subconv_id" .= c.subconvId
+        fromString "subconv_id" .= c.subconvId,
+        fromString "qualified_id"
+          .= object
+            [ fromString "id" .= c.id_,
+              fromString "domain" .= c.domain
+            ],
+        fromString "id" .= c.id_,
+        fromString "group_id" .= c.groupId
       ]
 
 data MLSState = MLSState

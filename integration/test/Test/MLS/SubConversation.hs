@@ -23,7 +23,7 @@ testJoinSubConv = do
 
   -- bob adds his first client to the subconversation
   sub' <- getSubConversation bob convId "conference" >>= getJSON 200
-  subConvId <- objSubConvObject sub'
+  subConvId <- objConvId sub'
   do
     tm <- sub' %. "epoch_timestamp"
     assertBool "Epoch timestamp should not be null" (tm /= Null)
@@ -39,7 +39,7 @@ testJoinOne2OneSubConv = do
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objSubConvObject one2OneConv
+  one2OneConvId <- objConvId one2OneConv
   resetOne2OneGroup def alice1 one2OneConv
 
   void $ createAddCommit alice1 one2OneConvId [bob] >>= sendAndConsumeCommitBundle
@@ -47,7 +47,7 @@ testJoinOne2OneSubConv = do
 
   -- bob adds his first client to the subconversation
   sub' <- getSubConversation bob (one2OneConv %. "conversation") "conference" >>= getJSON 200
-  subConvId <- objSubConvObject sub'
+  subConvId <- objConvId sub'
   do
     tm <- sub' %. "epoch_timestamp"
     assertBool "Epoch timestamp should not be null" (tm /= Null)
@@ -67,7 +67,7 @@ testLeaveOne2OneSubConv scenario leaver = do
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objSubConvObject one2OneConv
+  one2OneConvId <- objConvId one2OneConv
   resetOne2OneGroup def alice1 one2OneConv
   void $ createAddCommit alice1 one2OneConvId [bob] >>= sendAndConsumeCommitBundle
 

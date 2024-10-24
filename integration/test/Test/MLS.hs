@@ -178,7 +178,7 @@ testMixedProtocolAddUsers secondDomain suite = do
     resp.status `shouldMatchInt` 200
     resp.json %. "epoch" `shouldMatchInt` 0
     createGroup suite alice1 resp.json
-    objSubConvObject resp.json
+    objConvId resp.json
 
   void $ uploadNewKeyPackage suite bob1
 
@@ -215,7 +215,7 @@ testMixedProtocolUserLeaves secondDomain = do
   convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     createGroup def alice1 resp.json
-    objSubConvObject resp.json
+    objConvId resp.json
 
   void $ uploadNewKeyPackage def bob1
 
@@ -253,7 +253,7 @@ testMixedProtocolAddPartialClients secondDomain = do
   convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     createGroup def alice1 resp.json
-    objSubConvObject resp.json
+    objConvId resp.json
 
   traverse_ (uploadNewKeyPackage def) [bob1, bob1, bob2, bob2]
 
@@ -293,7 +293,7 @@ testMixedProtocolRemovePartialClients secondDomain = do
   convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     createGroup def alice1 resp.json
-    objSubConvObject resp.json
+    objConvId resp.json
 
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
@@ -322,7 +322,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
   convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     createGroup def alice1 resp.json
-    objSubConvObject resp.json
+    objConvId resp.json
 
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
@@ -405,7 +405,7 @@ testAddUserSimple suite ctype = do
 
   -- check that bob can now see the conversation
   convs <- getAllConvs bob
-  convIds <- traverse objSubConvObject convs
+  convIds <- traverse objConvId convs
   void
     $ assertBool
       "Users added to an MLS group should find it when listing conversations"
@@ -512,7 +512,7 @@ testSelfConversation v = withVersion5 v $ do
   creator : others <- traverse (createMLSClient def def) (replicate 3 alice)
   traverse_ (uploadNewKeyPackage def) others
   (_, conv) <- createSelfGroup def creator
-  convId <- objSubConvObject conv
+  convId <- objConvId conv
   conv %. "epoch" `shouldMatchInt` 0
   case v of
     Version5 -> conv %. "cipher_suite" `shouldMatchInt` 1
@@ -613,7 +613,7 @@ testAdminRemovesUserFromConv suite = do
 
   do
     convs <- getAllConvs bob
-    convIds <- traverse objSubConvObject convs
+    convIds <- traverse objConvId convs
     clients <- bindResponse (getGroupClients alice gid) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "client_ids" & asList
@@ -745,7 +745,7 @@ testAddUserBareProposalCommit = do
 
   -- check that bob can now see the conversation
   convs <- getAllConvs bob
-  convIds <- traverse objSubConvObject convs
+  convIds <- traverse objConvId convs
   void
     $ assertBool
       "Users added to an MLS group should find it when listing conversations"
