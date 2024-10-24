@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-ambiguous-fields #-}
-{-# OPTIONS_GHC -fmax-errors=10 #-}
 
 module Test.MLS where
 

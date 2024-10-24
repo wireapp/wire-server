@@ -846,11 +846,15 @@ leaveConv convId cid = do
           { convs = Map.adjust (\conv -> conv {members = Set.delete cid conv.members}) convId s.convs
           }
 
--- getCurrentConv :: (HasCallStack) => ClientIdentity -> App Value
--- getCurrentConv cid = do
---   mls <- getMLSState
---   (conv, mSubId) <- objSubConv mls.convId
---   resp <- case mSubId of
---     Nothing -> getConversation cid conv
---     Just sub -> getSubConversation cid conv sub
---   getJSON 200 resp
+getConv :: (HasCallStack) => ConvId -> ClientIdentity -> App Value
+getConv convId cid = do
+  resp <- case convId.subconvId of
+    Nothing -> getConversation cid convId
+    Just sub -> getSubConversation cid convId sub
+  getJSON 200 resp
+
+getSubConvId :: (MakesValue user, HasCallStack) => user -> ConvId -> String -> App ConvId
+getSubConvId user convId subConvName =
+  getSubConversation user convId subConvName
+    >>= getJSON 200
+    >>= objSubConvObject
