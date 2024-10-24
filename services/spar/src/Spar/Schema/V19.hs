@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,28 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimTokenStore
-  ( ScimTokenStore (..),
-    insert,
-    lookup,
-    lookupByTeam,
-    updateName,
-    delete,
-    deleteByTeam,
+module Spar.Schema.V19
+  ( migration,
   )
 where
 
-import Data.Id
-import Imports hiding (lookup)
-import Polysemy
-import Wire.API.User.Scim
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-data ScimTokenStore m a where
-  Insert :: ScimToken -> ScimTokenInfo -> ScimTokenStore m ()
-  Lookup :: ScimToken -> ScimTokenStore m (Maybe ScimTokenInfo)
-  LookupByTeam :: TeamId -> ScimTokenStore m [ScimTokenInfo]
-  UpdateName :: TeamId -> ScimTokenId -> Text -> ScimTokenStore m ()
-  Delete :: TeamId -> ScimTokenId -> ScimTokenStore m ()
-  DeleteByTeam :: TeamId -> ScimTokenStore m ()
-
-makeSem ''ScimTokenStore
+migration :: Migration
+migration = Migration 19 "Add name column to scim token info" $ do
+  schema'
+    [r|
+        ALTER TABLE team_provisioning_by_team ADD (name text);
+      |]
+  schema'
+    [r|
+        ALTER TABLE team_provisioning_by_token  ADD (name text);
+      |]

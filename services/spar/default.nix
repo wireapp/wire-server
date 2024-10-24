@@ -174,6 +174,7 @@ mkDerivation {
     lens-aeson
     MonadRandom
     mtl
+    network-uri
     optparse-applicative
     polysemy
     polysemy-plugin

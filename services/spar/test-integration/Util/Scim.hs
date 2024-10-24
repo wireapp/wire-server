@@ -114,7 +114,8 @@ registerScimToken teamid midpid = do
           stiId = scimTokenId,
           stiCreatedAt = now,
           stiIdP = midpid,
-          stiDescr = "test token"
+          stiDescr = "test token",
+          stiName = "test token"
         }
   pure tok
 
@@ -626,7 +627,7 @@ class IsUser u where
 instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just <$> handle)
-  maybeName = Just (Just <$> name)
+  maybeName = Just (Just <$> (.name))
   maybeTenant = Just (fmap SAML._uidTenant . veidUref . externalId)
   maybeSubject = Just (fmap SAML._uidSubject . veidUref . externalId)
   maybeScimExternalId = Just (runValidScimIdEither Intra.urefToExternalId (Just . fromEmail) . externalId)

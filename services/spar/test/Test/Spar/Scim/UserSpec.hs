@@ -79,7 +79,7 @@ deleteUserAndAssertDeletionInSpar ::
   ScimTokenInfo ->
   Sem r (Either ScimError ())
 deleteUserAndAssertDeletionInSpar acc tokenInfo = do
-  let tid = stiTeam tokenInfo
+  let tid = tokenInfo.stiTeam
       email = (fromJust . emailIdentity . fromJust . userIdentity) acc
       uid = userId acc
   ScimExternalIdStore.insert tid (fromEmail email) uid
@@ -150,5 +150,5 @@ someActiveUser tokenInfo = do
         userAssets = [],
         userHandle = parseHandle "some-handle",
         userIdentity = (Just . EmailIdentity . fromJust . emailAddressText) "someone@wire.com",
-        userTeam = Just $ stiTeam tokenInfo
+        userTeam = Just $ tokenInfo.stiTeam
       }

@@ -48,8 +48,9 @@ scimTokenStoreToCassandra =
         Insert st sti -> insertScimToken st sti
         Lookup st -> lookupScimToken st
         LookupByTeam tid -> getScimTokens tid
-        Delete tid ur -> deleteScimToken tid ur
-        DeleteByTeam tid -> deleteTeamScimTokens tid
+        UpdateName team token name -> updateScimTokenName team token name
+        Delete team token -> deleteScimToken team token
+        DeleteByTeam team -> deleteTeamScimTokens team
 
 ----------------------------------------------------------------------
 -- SCIM auth
@@ -67,25 +68,25 @@ insertScimToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
   let tokenHash = hashScimToken token
-  addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
-  addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, Just stiName)
+  addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, Just stiName)
 
 insByToken, insByTeam :: PrepQuery W ScimTokenRow ()
 insByToken =
   [r|
     INSERT INTO team_provisioning_by_token
-      (token_, team, id, created_at, idp, descr)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (token_, team, id, created_at, idp, descr, name)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
   |]
 insByTeam =
   [r|
     INSERT INTO team_provisioning_by_team
-      (token_, team, id, created_at, idp, descr)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (token_, team, id, created_at, idp, descr, name)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
   |]
 
 scimTokenLookupKey :: ScimTokenRow -> ScimTokenLookupKey
-scimTokenLookupKey (key, _, _, _, _, _) = key
+scimTokenLookupKey (key, _, _, _, _, _, _) = key
 
 -- | Check whether a token exists and if yes, what team and IdP are
 -- associated with it.
@@ -110,7 +111,7 @@ lookupScimToken token = do
     sel :: PrepQuery R (ScimTokenHash, ScimToken) ScimTokenRow
     sel =
       [r|
-      SELECT token_, team, id, created_at, idp, descr
+      SELECT token_, team, id, created_at, idp, descr, name
         FROM team_provisioning_by_token WHERE token_ in (?, ?)
       |]
 
@@ -130,9 +131,9 @@ connvertPlaintextToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setConsistency LocalQuorum
   let tokenHash = hashScimToken token
   -- enter by new lookup key
-  addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, Just stiName)
   -- update info table
-  addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, Just stiName)
   -- remove old lookup key
   addPrepQuery delByTokenLookup (Identity (ScimTokenLookupKeyPlaintext token))
 
@@ -145,12 +146,12 @@ getScimTokens team = do
   -- We don't need pagination here because the limit should be pretty low
   -- (e.g. 16). If the limit grows, we might have to introduce pagination.
   rows <- retry x1 . query sel $ params LocalQuorum (Identity team)
-  pure $ sortOn stiCreatedAt $ map fromScimTokenRow rows
+  pure $ sortOn (.stiCreatedAt) $ map fromScimTokenRow rows
   where
     sel :: PrepQuery R (Identity TeamId) ScimTokenRow
     sel =
       [r|
-      SELECT token_, team, id, created_at, idp, descr
+      SELECT token_, team, id, created_at, idp, descr, name
         FROM team_provisioning_by_team WHERE team = ?
       |]
 
@@ -168,13 +169,13 @@ deleteScimToken team tokenid = do
     addPrepQuery delById (team, tokenid)
     for_ mbToken $ \(Identity key) ->
       addPrepQuery delByTokenLookup (Identity key)
-  where
-    selById :: PrepQuery R (TeamId, ScimTokenId) (Identity ScimTokenLookupKey)
-    selById =
-      [r|
-      SELECT token_ FROM team_provisioning_by_team
-        WHERE team = ? AND id = ?
-    |]
+
+selById :: PrepQuery R (TeamId, ScimTokenId) (Identity ScimTokenLookupKey)
+selById =
+  [r|
+  SELECT token_ FROM team_provisioning_by_team
+    WHERE team = ? AND id = ?
+|]
 
 delById :: PrepQuery W (TeamId, ScimTokenId) ()
 delById =
@@ -208,8 +209,41 @@ deleteTeamScimTokens team = do
     delByTeam :: PrepQuery W (Identity TeamId) ()
     delByTeam = "DELETE FROM team_provisioning_by_team WHERE team = ?"
 
-type ScimTokenRow = (ScimTokenLookupKey, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text)
+updateScimTokenName :: (HasCallStack, MonadClient m) => TeamId -> ScimTokenId -> Text -> m ()
+updateScimTokenName team tokenid name = do
+  mbToken <- retry x1 . query1 selById $ params LocalQuorum (team, tokenid)
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery updateNameById (name, team, tokenid)
+    for_ mbToken $ \(Identity key) ->
+      addPrepQuery updateNameByTokenLookup (name, key)
+  where
+    updateNameById :: PrepQuery W (Text, TeamId, ScimTokenId) ()
+    updateNameById =
+      [r|
+        UPDATE team_provisioning_by_team
+          SET name = ?
+          WHERE team = ? AND id = ?
+      |]
+
+    updateNameByTokenLookup :: PrepQuery W (Text, ScimTokenLookupKey) ()
+    updateNameByTokenLookup =
+      [r|
+        UPDATE team_provisioning_by_token
+          SET name = ?
+          WHERE token_ = ?
+      |]
+
+type ScimTokenRow = (ScimTokenLookupKey, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text, Maybe Text)
 
 fromScimTokenRow :: ScimTokenRow -> ScimTokenInfo
-fromScimTokenRow (_, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr) =
-  ScimTokenInfo {..}
+fromScimTokenRow (_, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr, stiName) =
+  ScimTokenInfo
+    { stiId,
+      stiTeam,
+      stiCreatedAt,
+      stiIdP,
+      stiDescr,
+      stiName = fromMaybe (idToText stiId) stiName
+    }

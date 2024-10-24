@@ -32,6 +32,7 @@ import Test.Wire.API.Golden.Manual.ConversationRemoveMembers
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
+import Test.Wire.API.Golden.Manual.CreateScimTokenResponse
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.FederationDomainConfig
 import Test.Wire.API.Golden.Manual.FederationRestriction
@@ -152,6 +153,10 @@ tests =
             (testObject_CreateScimToken_2, "testObject_CreateScimToken_2.json"),
             (testObject_CreateScimToken_3, "testObject_CreateScimToken_3.json"),
             (testObject_CreateScimToken_4, "testObject_CreateScimToken_4.json")
+          ],
+      testGroup "CreateScimTokenResponse" $
+        testObjects
+          [ (testObject_CreateScimTokenResponse_1, "testObject_CreateScimTokenResponse_1.json")
           ],
       testGroup "Contact" $
         testObjects

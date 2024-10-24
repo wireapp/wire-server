@@ -40,6 +40,7 @@ library
     Spar.Schema.V16
     Spar.Schema.V17
     Spar.Schema.V18
+    Spar.Schema.V19
     Spar.Schema.V2
     Spar.Schema.V3
     Spar.Schema.V4
@@ -368,6 +369,7 @@ executable spar-integration
     , lens-aeson
     , MonadRandom
     , mtl
+    , network-uri
     , optparse-applicative
     , polysemy
     , polysemy-plugin
