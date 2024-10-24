@@ -117,7 +117,7 @@ testMLSOne2OneOtherMember scenario = do
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objSubConvObject one2OneConv
+  one2OneConvId <- objConvId one2OneConv
   do
     convId <- one2OneConv %. "conversation.qualified_id"
     bobOne2OneConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
@@ -156,7 +156,7 @@ testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   resetGroup def alice1 conv
-  convId <- objSubConvObject conv
+  convId <- objConvId conv
 
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
@@ -201,7 +201,7 @@ testMLSOne2OneBlockedAfterConnected scenario = do
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objSubConvObject one2OneConv
+  one2OneConvId <- objConvId one2OneConv
   convId <- one2OneConv %. "conversation.qualified_id"
   do
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
@@ -241,7 +241,7 @@ testMLSOne2OneUnblocked scenario = do
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objSubConvObject one2OneConv
+  one2OneConvId <- objConvId one2OneConv
   do
     convId <- one2OneConv %. "conversation.qualified_id"
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
@@ -330,7 +330,7 @@ testMLSOne2One suite scenario = do
   void $ uploadNewKeyPackage suite bob1
 
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objSubConvObject one2OneConv
+  one2OneConvId <- objConvId one2OneConv
   resetOne2OneGroup suite alice1 one2OneConv
 
   commit <- createAddCommit alice1 one2OneConvId [bob]
@@ -369,7 +369,7 @@ testMLSGhostOne2OneConv = do
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objSubConvObject one2OneConv
+  one2OneConvId <- objConvId one2OneConv
   resetOne2OneGroup def alice1 one2OneConv
 
   doneVar <- liftIO $ newEmptyMVar
@@ -424,7 +424,7 @@ testMLSFederationV1ConvOnOldBackend = do
     fedError %. "label" `shouldMatch` "federation-version-error"
 
   conv <- getMLSOne2OneConversationLegacy bob alice >>= getJSON 200
-  convId <- objSubConvObject conv
+  convId <- objConvId conv
   keys <- getMLSPublicKeys bob >>= getJSON 200
   resetOne2OneGroupGeneric def bob1 conv keys
 
@@ -477,7 +477,7 @@ testMLSFederationV1ConvOnNewBackend = do
     fedError %. "label" `shouldMatch` "federation-remote-error"
 
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objSubConvObject one2OneConv
+  one2OneConvId <- objConvId one2OneConv
   conv <- one2OneConv %. "conversation"
   resetOne2OneGroup def alice1 one2OneConv
 

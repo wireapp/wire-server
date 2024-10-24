@@ -83,7 +83,7 @@ testAccessUpdateGuestRemoved proto = do
       traverse_ (uploadNewKeyPackage def) clients
 
       conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201
-      convId <- objSubConvObject conv
+      convId <- objConvId conv
       createGroup def alice1 conv
 
       void $ createAddCommit alice1 convId [bob, charlie, dee] >>= sendAndConsumeCommitBundle

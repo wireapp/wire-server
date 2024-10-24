@@ -145,7 +145,7 @@ simpleMixedConversationSetup secondDomain = do
   bindResponse (putConversationProtocol bob conv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-  conv' <- getConversation alice conv >>= getJSON 200 >>= objSubConvObject
+  conv' <- getConversation alice conv >>= getJSON 200 >>= objConvId
 
   pure (alice, bob, conv')
 
