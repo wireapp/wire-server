@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fmax-errors=10 #-}
+
 module Test.MLS.SubConversation where
 
 import API.Galley
