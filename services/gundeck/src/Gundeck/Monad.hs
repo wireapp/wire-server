@@ -31,7 +31,6 @@ module Gundeck.Monad
     Gundeck,
     runDirect,
     runGundeck,
-    fromJsonBody,
     posixTime,
     getRabbitMqChan,
 
@@ -45,11 +44,9 @@ import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
 import Control.Concurrent.Async (AsyncCancelled)
-import Control.Error
 import Control.Exception (throwIO)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch hiding (tryJust)
-import Data.Aeson (FromJSON)
 import Data.Misc (Milliseconds (..))
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -60,7 +57,7 @@ import Imports
 import Network.AMQP
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Utilities
+import Network.Wai.Utilities.Error
 import Prometheus
 import System.Logger (Logger)
 import System.Logger qualified as Logger
@@ -200,10 +197,6 @@ lookupReqId l r = case lookup requestIdName (requestHeaders r) of
         . Log.field "path" (rawPathInfo r)
         . Log.msg (Log.val "generated a new request id for local request")
     pure localRid
-
-fromJsonBody :: (FromJSON a) => JsonRequest a -> Gundeck a
-fromJsonBody r = exceptT (throwM . mkError status400 "bad-request") pure (parseBody r)
-{-# INLINE fromJsonBody #-}
 
 posixTime :: Gundeck Milliseconds
 posixTime = view time >>= liftIO

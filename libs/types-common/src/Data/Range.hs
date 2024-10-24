@@ -230,20 +230,20 @@ instance (ToParamSchema a, KnownNat n, KnownNat m) => ToParamSchema (Range n m [
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m String) where
   toParamSchema _ =
     toParamSchema (Proxy @String)
-      & S.maxLength ?~ fromKnownNat (Proxy @n)
-      & S.minLength ?~ fromKnownNat (Proxy @m)
+      & S.minLength ?~ fromKnownNat (Proxy @n)
+      & S.maxLength ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m T.Text) where
   toParamSchema _ =
     toParamSchema (Proxy @T.Text)
-      & S.maxLength ?~ fromKnownNat (Proxy @n)
-      & S.minLength ?~ fromKnownNat (Proxy @m)
+      & S.minLength ?~ fromKnownNat (Proxy @n)
+      & S.maxLength ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m TL.Text) where
   toParamSchema _ =
     toParamSchema (Proxy @TL.Text)
-      & S.maxLength ?~ fromKnownNat (Proxy @n)
-      & S.minLength ?~ fromKnownNat (Proxy @m)
+      & S.minLength ?~ fromKnownNat (Proxy @n)
+      & S.maxLength ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, S.ToSchema a, KnownNat m) => S.ToSchema (Range n m a) where
   declareNamedSchema _ =

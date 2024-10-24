@@ -24,7 +24,6 @@
 , gitignoreSource
 , hashable
 , http-api-data
-, http-types
 , imports
 , iproute
 , iso3166-country-codes
@@ -84,7 +83,6 @@ mkDerivation {
     generic-random
     hashable
     http-api-data
-    http-types
     imports
     iproute
     iso3166-country-codes
@@ -123,6 +121,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cereal
+    email-validate
     imports
     protobuf
     string-conversions
@@ -132,6 +131,7 @@ mkDerivation {
     text
     time
     unordered-containers
+    utf8-string
     uuid
   ];
   description = "Shared type definitions";

@@ -88,6 +88,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
+import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
@@ -146,7 +147,9 @@ servantSitemap ::
     Member (Input (Local ())) r,
     Member IndexedUserStore r,
     Member (Polysemy.Error UserSubsystemError) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Embed IO) r,
+    Member ActivationCodeStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -199,7 +202,9 @@ accountAPI ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
-    Member InvitationStore r
+    Member InvitationStore r,
+    Member (Embed IO) r,
+    Member ActivationCodeStore r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -597,9 +602,14 @@ listActivatedAccountsH
               }
       pure $ others <> byEmails
 
-getActivationCode :: EmailAddress -> Handler r GetActivationCodeResp
+getActivationCode ::
+  ( Member ActivationCodeStore r,
+    Member (Embed IO) r
+  ) =>
+  EmailAddress ->
+  Handler r GetActivationCodeResp
 getActivationCode email = do
-  apair <- lift . wrapClient $ API.lookupActivationCode email
+  apair <- lift . liftSem $ API.lookupActivationCode email
   maybe (throwStd activationKeyNotFound) (pure . GetActivationCodeResp) apair
 
 getPasswordResetCodeH ::

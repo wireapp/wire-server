@@ -67,7 +67,6 @@ module Stern.Intra
     getOAuthClient,
     updateOAuthClient,
     deleteOAuthClient,
-    getActivityTimestamp,
   )
 where
 
@@ -94,7 +93,6 @@ import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy as LT (pack)
 import Data.Text.Lazy.Encoding qualified as TL
-import Data.Time.Clock
 import Imports
 import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
@@ -1037,20 +1035,6 @@ deleteOAuthClient cid = do
         b
         ( method DELETE
             . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
-            . expect2xx
-        )
-  parseResponse (mkError status502 "bad-upstream") r
-
-getActivityTimestamp :: UserId -> Handler (Maybe UTCTime)
-getActivityTimestamp uid = do
-  b <- asks (.brig)
-  r <-
-    catchRpcErrors $
-      rpc'
-        "brig"
-        b
-        ( method GET
-            . Bilge.paths ["i", "users", toByteString' uid, "activity"]
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r

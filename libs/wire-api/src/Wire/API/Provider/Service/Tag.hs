@@ -180,7 +180,7 @@ instance ToByteString ServiceTag where
   builder WeatherTag = "weather"
 
 instance ToSchema ServiceTag where
-  schema = enum @Text "" . mconcat $ (\a -> element (decodeUtf8With lenientDecode $ toStrict $ toByteString a) a) <$> [minBound ..]
+  schema = enum @Text "ServiceTag" . mconcat $ (\a -> element (decodeUtf8With lenientDecode $ toStrict $ toByteString a) a) <$> [minBound ..]
 
 instance S.ToParamSchema ServiceTag where
   toParamSchema _ =

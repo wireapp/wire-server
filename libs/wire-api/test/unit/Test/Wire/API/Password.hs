@@ -31,7 +31,8 @@ tests =
   testGroup "Password" $
     [ testCase "hash password argon2id" testHashPasswordArgon2id,
       testCase "update pwd hash" testUpdateHash,
-      testCase "verify old scrypt password still works" testHashingOldScrypt
+      testCase "verify old scrypt password still works" testHashingOldScrypt,
+      testCase "test hash scrypt" testHashPasswordScrypt
     ]
 
 defaultOptions :: Argon2.Options

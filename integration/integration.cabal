@@ -100,7 +100,6 @@ library
     API.GundeckInternal
     API.Nginz
     API.Spar
-    API.Stern
     MLS.Util
     Notifications
     RunAllTests

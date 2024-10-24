@@ -48,6 +48,7 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.BlockListStore
@@ -101,6 +102,7 @@ login ::
     Member Events r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
+    Member ActivationCodeStore r,
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r
   ) =>

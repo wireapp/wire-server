@@ -19,7 +19,7 @@
 
 module Wire.API.Routes.Named where
 
-import Control.Lens ((%~))
+import Control.Lens ((%~), (?~))
 import Data.Kind
 import Data.Metrics.Servant
 import Data.OpenApi.Lens hiding (HasServer)
@@ -42,17 +42,22 @@ newtype Named name x = Named {unnamed :: x}
 -- types other than string literals in some places.
 class RenderableSymbol a where
   renderSymbol :: Text
+  renderOperationId :: Text
+  renderOperationId = renderSymbol @a
 
 instance (KnownSymbol a) => RenderableSymbol a where
   renderSymbol = T.pack . show $ symbolVal (Proxy @a)
+  renderOperationId = T.pack $ symbolVal (Proxy @a)
 
 instance (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
+  renderOperationId = renderOperationId @a <> "_" <> renderOperationId @b
 
 newtype RenderableTypeName a = RenderableTypeName a
 
 instance (GRenderableSymbol (Rep a)) => RenderableSymbol (RenderableTypeName a) where
   renderSymbol = grenderSymbol @(Rep a)
+  renderOperationId = grenderSymbol @(Rep a)
 
 class GRenderableSymbol f where
   grenderSymbol :: Text
@@ -64,6 +69,7 @@ instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (Named name api) 
   toOpenApi _ =
     toOpenApi (Proxy @api)
       & allOperations . description %~ (Just (dscr <> "\n\n") <>)
+      & allOperations . operationId ?~ renderOperationId @name
     where
       dscr :: Text
       dscr =

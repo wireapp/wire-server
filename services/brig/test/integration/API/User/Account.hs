@@ -50,6 +50,7 @@ import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (singleton)
+import Data.Mailbox
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
@@ -462,8 +463,8 @@ testCreateUserBlacklist _ brig aws =
     publishMessage :: Text -> EmailAddress -> Text -> Http ()
     publishMessage typ em queue = do
       let bdy = encode $ case typ of
-            "bounce" -> MailBounce BouncePermanent [em]
-            "complaint" -> MailComplaint [em]
+            "bounce" -> MailBounce BouncePermanent [Mailbox Nothing em]
+            "complaint" -> MailComplaint [Mailbox Nothing em]
             x -> error ("Unsupported message type: " ++ show x)
       void . AWS.execute aws $ AWS.enqueueStandard queue bdy
     awaitBlacklist :: Int -> EmailAddress -> Http ()

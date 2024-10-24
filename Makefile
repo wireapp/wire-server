@@ -61,10 +61,10 @@ clean-rabbit:
 # Clean
 .PHONY: full-clean
 full-clean: clean
+	make rabbit-clean
 	rm -rf ~/.cache/hie-bios
 	rm -rf ./dist-newstyle ./.env
 	direnv reload
-	make rabbit-clean
 	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
 .PHONY: clean
@@ -143,6 +143,7 @@ devtest:
 
 .PHONY: sanitize-pr
 sanitize-pr:
+	./hack/bin/check-weed.sh
 	make lint-all-shallow
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
@@ -178,7 +179,7 @@ lint-all: formatc hlint-check-all lint-common
 # The extra 'hlint-check-pr' has been witnessed to be necessary due to
 # some bu in `hlint-inplace-pr`.  Details got lost in history.
 .PHONY: lint-all-shallow
-lint-all-shallow: lint-common formatf hlint-inplace-pr hlint-check-pr 
+lint-all-shallow: lint-common formatf hlint-inplace-pr hlint-check-pr
 
 .PHONY: lint-common
 lint-common: check-local-nix-derivations treefmt-check # weeder (does not work on CI yet)
@@ -607,3 +608,8 @@ upload-bombon:
 		--project-version $(HELM_SEMVER) \
 		--api-key $(DEPENDENCY_TRACK_API_KEY) \
 		--auto-create
+
+.PHONY: openapi-validate
+openapi-validate:
+	@echo -e "Make sure you are running the backend in another terminal (make cr)\n"
+	vacuum lint -a -d -w <(curl http://localhost:8082/v7/api/swagger.json)

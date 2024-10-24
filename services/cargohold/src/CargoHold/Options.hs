@@ -44,7 +44,6 @@ data CloudFrontOpts = CloudFrontOpts
   deriving (Show, Generic)
 
 deriveFromJSON defaultOptions ''CloudFrontOpts
-makeLensesWith (lensRules & lensField .~ suffixNamer) ''CloudFrontOpts
 
 newtype OptS3AddressingStyle = OptS3AddressingStyle
   { unwrapS3AddressingStyle :: S3AddressingStyle
@@ -123,8 +122,12 @@ instance FromJSON S3Compatibility where
 
 deriveFromJSON defaultOptions ''AWSOpts
 
-makeLenses ''AWSOpts
-makeLensesWith (lensRules & lensField .~ suffixNamer) ''AWSOpts
+makeLensesFor
+  [ ("multiIngress", "multiIngressLens"),
+    ("s3DownloadEndpoint", "s3DownloadEndpointLens"),
+    ("cloudFront", "cloudFrontLens")
+  ]
+  ''AWSOpts
 
 data Settings = Settings
   { -- | Maximum allowed size for uploads, in bytes
@@ -147,8 +150,6 @@ data Settings = Settings
   deriving (Show, Generic)
 
 deriveFromJSON defaultOptions ''Settings
-
-makeLensesWith (lensRules & lensField .~ suffixNamer) ''Settings
 
 -- | Options consist of information the server needs to operate, and 'Settings'
 -- modify the behavior.

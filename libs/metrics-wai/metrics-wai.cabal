@@ -81,7 +81,6 @@ library
     , wai                        >=3
     , wai-middleware-prometheus
     , wai-route                  >=0.3
-    , wai-routing
 
   default-language:   GHC2021
 

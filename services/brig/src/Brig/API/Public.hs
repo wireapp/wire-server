@@ -144,6 +144,7 @@ import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
+import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
@@ -296,6 +297,7 @@ servantSitemap ::
     Member SFT r,
     Member TinyLog r,
     Member UserKeyStore r,
+    Member ActivationCodeStore r,
     Member UserStore r,
     Member (Input TeamTemplates) r,
     Member UserSubsystem r,
@@ -1070,7 +1072,8 @@ sendActivationCode ::
   ( Member BlockListStore r,
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member ActivationCodeStore r
   ) =>
   Public.SendActivationCode ->
   Handler r ()
