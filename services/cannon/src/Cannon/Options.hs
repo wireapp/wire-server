@@ -30,6 +30,7 @@ module Cannon.Options
     logNetStrings,
     logFormat,
     drainOpts,
+    rabbitmq,
     Opts,
     gracePeriodSeconds,
     millisecondsBetweenBatches,
@@ -40,8 +41,10 @@ module Cannon.Options
 where
 
 import Control.Lens (makeFields)
+import Data.Aeson
 import Data.Aeson.APIFieldJsonTH
 import Imports
+import Network.AMQP.Extended (AmqpEndpoint)
 import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
 
@@ -87,6 +90,7 @@ deriveApiFieldJSON ''DrainOpts
 data Opts = Opts
   { _optsCannon :: !Cannon,
     _optsGundeck :: !Gundeck,
+    _optsRabbitmq :: !AmqpEndpoint,
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
@@ -97,4 +101,14 @@ data Opts = Opts
 
 makeFields ''Opts
 
-deriveApiFieldJSON ''Opts
+instance FromJSON Opts where
+  parseJSON = withObject "CannonOpts" $ \o ->
+    Opts
+      <$> o .: "cannon"
+      <*> o .: "gundeck"
+      <*> o .: "rabbitmq"
+      <*> o .: "logLevel"
+      <*> o .:? "logNetStrings"
+      <*> o .:? "logFormat"
+      <*> o .: "drainOpts"
+      <*> o .: "disabledAPIVersions"

@@ -47,6 +47,8 @@ module Brig.API.Client
   )
 where
 
+import Brig.API.Error (clientError)
+import Brig.API.Handler (Handler)
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
@@ -76,13 +78,14 @@ import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
-import Data.Map.Strict qualified as Map
+import Data.Map.Strict qualified as Map hiding ((\\))
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
+import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
-import Imports
+import Imports hiding ((\\))
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy
@@ -201,8 +204,8 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
       >>= maybe (throwE (ClientUserNotFound u)) pure
   verifyCode (newClientVerificationCode new) luid
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
-  let caps :: Maybe ClientCapabilityList
-      caps = updlhdev $ newClientCapabilities new
+  let mCaps :: Maybe ClientCapabilityList
+      mCaps = updlhdev $ newClientCapabilities new
         where
           updlhdev :: Maybe ClientCapabilityList -> Maybe ClientCapabilityList
           updlhdev =
@@ -211,12 +214,14 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
-    Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients caps
+    (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients mCaps)
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
+  when (ClientSupportsConsumableNotifications `Set.member` (foldMap fromClientCapabilityList mCaps)) $ lift $ liftSem $ do
+    setupConsumableNotifications u clt.clientId
   lift $ do
     for_ old $ execDelete u con
-    liftSem $ GalleyAPIAccess.newClient u (clientId clt)
+    liftSem $ GalleyAPIAccess.newClient u clt.clientId
     liftSem $ Intra.onClientEvent u con (ClientAdded clt)
     when (clientType clt == LegalHoldClientType) $ liftSem $ Events.generateUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
@@ -239,17 +244,32 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
         VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
 
-updateClient :: (MonadClient m) => UserId -> ClientId -> UpdateClient -> ExceptT ClientError m ()
-updateClient u c r = do
-  client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
-  for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
-  for_ (updateClientCapabilities r) $ \caps' -> do
-    if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps'.fromClientCapabilityList
-      then lift . Data.updateClientCapabilities u c . Just $ caps'
-      else throwE ClientCapabilitiesCannotBeRemoved
-  let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
-  Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
-  Data.addMLSPublicKeys u c (Map.assocs (updateClientMLSPublicKeys r)) !>> ClientDataError
+updateClient ::
+  (Member NotificationSubsystem r) =>
+  UserId ->
+  ClientId ->
+  UpdateClient ->
+  (Handler r) ()
+updateClient uid cid req = do
+  client <- wrapClientE (lift (Data.lookupClient uid cid) >>= maybe (throwE ClientNotFound) pure) !>> clientError
+  wrapClientE $ for_ req.updateClientLabel $ lift . Data.updateClientLabel uid cid . Just
+  for_ req.updateClientCapabilities $ \caps -> do
+    if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps.fromClientCapabilityList
+      then do
+        -- first set up the notification queues then save the data is more robust than the other way around
+        let addedCapabilities = caps.fromClientCapabilityList \\ client.clientCapabilities.fromClientCapabilityList
+        when (ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ lift $ liftSem $ do
+          setupConsumableNotifications uid cid
+        wrapClientE $ lift . Data.updateClientCapabilities uid cid . Just $ caps
+      else throwE $ clientError ClientCapabilitiesCannotBeRemoved
+  let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)
+  wrapClientE
+    ( do
+        Data.updatePrekeys uid cid (lk ++ req.updateClientPrekeys)
+        Data.addMLSPublicKeys uid cid (Map.assocs req.updateClientMLSPublicKeys)
+    )
+    !>> ClientDataError
+    !>> clientError
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

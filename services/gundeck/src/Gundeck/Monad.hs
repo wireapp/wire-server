@@ -32,6 +32,7 @@ module Gundeck.Monad
     runDirect,
     runGundeck,
     posixTime,
+    getRabbitMqChan,
 
     -- * Select which redis to target
     runWithDefaultRedis,
@@ -53,11 +54,15 @@ import Database.Redis qualified as Redis
 import Gundeck.Env
 import Gundeck.Redis qualified as Redis
 import Imports
+import Network.AMQP
+import Network.HTTP.Types
 import Network.Wai
+import Network.Wai.Utilities.Error
 import Prometheus
-import System.Logger qualified as Log
+import System.Logger (Logger)
 import System.Logger qualified as Logger
-import System.Logger.Class
+import System.Logger.Class qualified as Log
+import System.Timeout
 import UnliftIO (async)
 
 -- | TODO: 'Client' already has an 'Env'.  Why do we need two?  How does this even work?  We should
@@ -99,7 +104,7 @@ newtype WithDefaultRedis a = WithDefaultRedis {runWithDefaultRedis :: Gundeck a}
       MonadReader Env,
       MonadClient,
       MonadUnliftIO,
-      MonadLogger
+      Log.MonadLogger
     )
 
 instance Redis.MonadRedis WithDefaultRedis where
@@ -128,7 +133,7 @@ newtype WithAdditionalRedis a = WithAdditionalRedis {runWithAdditionalRedis :: G
       MonadReader Env,
       MonadClient,
       MonadUnliftIO,
-      MonadLogger
+      Log.MonadLogger
     )
 
 instance Redis.MonadRedis WithAdditionalRedis where
@@ -148,7 +153,7 @@ instance Redis.RedisCtx WithAdditionalRedis (Either Redis.Reply) where
   returnDecode :: (Redis.RedisResult a) => Redis.Reply -> WithAdditionalRedis (Either Redis.Reply a)
   returnDecode = Redis.liftRedis . Redis.returnDecode
 
-instance MonadLogger Gundeck where
+instance Log.MonadLogger Gundeck where
   log l m = do
     e <- ask
     Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
@@ -173,7 +178,7 @@ runDirect e m =
     `catch` ( \(exception :: SomeException) -> do
                 case fromException exception of
                   Nothing ->
-                    Log.err (e ^. applog) $
+                    Logger.err (e ^. applog) $
                       Log.msg ("IO Exception occurred" :: ByteString)
                         . Log.field "message" (displayException exception)
                         . Log.field "request" (unRequestId (e ^. reqId))
@@ -186,16 +191,23 @@ lookupReqId l r = case lookup requestIdName (requestHeaders r) of
   Just rid -> pure $ RequestId rid
   Nothing -> do
     localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
-    Log.info l $
-      "request-id"
-        .= localRid
-        ~~ "method"
-        .= requestMethod r
-        ~~ "path"
-        .= rawPathInfo r
-        ~~ msg (val "generated a new request id for local request")
+    Logger.info l $
+      Log.field "request-id" localRid
+        . Log.field "method" (requestMethod r)
+        . Log.field "path" (rawPathInfo r)
+        . Log.msg (Log.val "generated a new request id for local request")
     pure localRid
 
 posixTime :: Gundeck Milliseconds
 posixTime = view time >>= liftIO
 {-# INLINE posixTime #-}
+
+getRabbitMqChan :: Gundeck Channel
+getRabbitMqChan = do
+  chanMVar <- view rabbitMqChannel
+  mChan <- liftIO $ System.Timeout.timeout 1_000_000 $ readMVar chanMVar
+  case mChan of
+    Nothing -> do
+      Log.err $ Log.msg (Log.val "Could not retrieve RabbitMQ channel")
+      throwM $ mkError status500 "internal-server-error" "Could not retrieve RabbitMQ channel"
+    Just chan -> pure chan

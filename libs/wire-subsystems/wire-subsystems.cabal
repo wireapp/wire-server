@@ -148,6 +148,7 @@ library
     , amazonka
     , amazonka-core
     , amazonka-ses
+    , amqp
     , async
     , attoparsec
     , base

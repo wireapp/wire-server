@@ -17,6 +17,9 @@ data GundeckAPIAccess m a where
   UserDeleted :: UserId -> GundeckAPIAccess m ()
   UnregisterPushClient :: UserId -> ClientId -> GundeckAPIAccess m ()
   GetPushTokens :: UserId -> GundeckAPIAccess m [V2.PushToken]
+  RegisterConsumableNotifcationsClient :: UserId -> ClientId -> GundeckAPIAccess m ()
+
+deriving instance Show (GundeckAPIAccess m a)
 
 makeSem ''GundeckAPIAccess
 
@@ -50,3 +53,8 @@ runGundeckAPIAccess ep = interpret $ \case
           . zUser uid
           . expect2xx
     responseJsonMaybe rsp & maybe (pure []) (pure . V2.pushTokens)
+  RegisterConsumableNotifcationsClient uid cid -> do
+    void . rpcWithRetries "gundeck" ep $
+      method POST
+        . paths ["i", "users", toByteString' uid, "clients", toByteString' cid, "consumable-notifications"]
+        . expect2xx

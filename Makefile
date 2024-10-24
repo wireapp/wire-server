@@ -49,9 +49,14 @@ install: init
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
 
-.PHONY: rabbit-clean
-rabbit-clean:
-	rabbitmqadmin -f pretty_json list queues vhost name messages | jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' | bash
+.PHONY: clean-rabbit
+clean-rabbit:
+	rabbitmqadmin -f pretty_json list queues vhost name \
+		| jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' \
+		| bash
+	rabbitmqadmin -f pretty_json list exchanges name vhost \
+		| jq -r '.[] |select(.name | startswith("amq") | not) | select (.name != "") | "rabbitmqadmin delete exchange name=\(.name) --vhost=\(.vhost)"' \
+		| bash
 
 # Clean
 .PHONY: full-clean
