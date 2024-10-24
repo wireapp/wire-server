@@ -22,7 +22,7 @@ custom-setup
 common common-all
   default-language:   GHC2021
   ghc-options:
-    -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
+    -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns -fmax-errors=1
 
   default-extensions:
     AllowAmbiguousTypes
