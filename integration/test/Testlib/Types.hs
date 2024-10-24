@@ -252,7 +252,7 @@ instance Default Ciphersuite where
   def = Ciphersuite "0x0001"
 
 data ClientGroupState = ClientGroupState
-  { group :: Maybe ByteString,
+  { groups :: Map ConvId ByteString,
     -- | mls-test-cli stores by signature scheme
     keystore :: Map String ByteString,
     credType :: CredentialType
@@ -262,7 +262,7 @@ data ClientGroupState = ClientGroupState
 instance Default ClientGroupState where
   def =
     ClientGroupState
-      { group = Nothing,
+      { groups = mempty,
         keystore = mempty,
         credType = BasicCredentialType
       }
@@ -277,17 +277,47 @@ csSignatureScheme (Ciphersuite code) = case code of
 data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
   deriving (Eq, Show)
 
+data ConvId = ConvId
+  { domain :: String,
+    id_ :: String,
+    groupId :: Maybe String,
+    subconvId :: Maybe String
+  }
+  deriving (Show, Eq, Ord)
+
+instance ToJSON ConvId where
+  toJSON c =
+    object
+      [ fromString "parent_qualified_id"
+          .= object
+            [ fromString "id" .= c.id_,
+              fromString "domain" .= c.domain
+            ],
+        fromString "subconv_id" .= c.subconvId,
+        fromString "qualified_id"
+          .= object
+            [ fromString "id" .= c.id_,
+              fromString "domain" .= c.domain
+            ],
+        fromString "id" .= c.id_,
+        fromString "group_id" .= c.groupId
+      ]
+
 data MLSState = MLSState
   { baseDir :: FilePath,
-    members :: Set ClientIdentity,
+    convs :: Map ConvId MLSConv,
+    clientGroupState :: Map ClientIdentity ClientGroupState
+  }
+  deriving (Show)
+
+data MLSConv = MLSConv
+  { members :: Set ClientIdentity,
     -- | users expected to receive a welcome message after the next commit
     newMembers :: Set ClientIdentity,
-    groupId :: Maybe String,
-    convId :: Maybe Value,
-    clientGroupState :: Map ClientIdentity ClientGroupState,
+    groupId :: String,
+    convId :: ConvId,
     epoch :: Word64,
-    ciphersuite :: Ciphersuite,
-    protocol :: MLSProtocol
+    ciphersuite :: Ciphersuite
   }
   deriving (Show)
 
