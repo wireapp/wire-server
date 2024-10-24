@@ -437,15 +437,17 @@ objSubConv x = do
   pure (obj, sub)
 
 -- | Turn an object parseable by 'objSubConv' into a canonical flat representation.
-objSubConvObject :: (HasCallStack, MakesValue a) => a -> App Value
+-- TODO: Rename this function
+objSubConvObject :: (HasCallStack, MakesValue a) => a -> App ConvId
 objSubConvObject x = do
   (convId, mSubConvId) <- objSubConv x
   (domain, id_) <- objQid convId
-  pure . object $
-    [ "domain" .= domain,
-      "id" .= id_
-    ]
-      <> ["subconv_id" .= sub | sub <- toList mSubConvId]
+  pure $
+    ConvId
+      { domain = domain,
+        id_ = id_,
+        subconvId = mSubConvId
+      }
 
 instance MakesValue ClientIdentity where
   make cid =

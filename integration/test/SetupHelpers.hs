@@ -28,6 +28,7 @@ import Data.Vector (fromList)
 import GHC.Stack
 import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
+import UnliftIO (pooledForConcurrentlyN)
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
 randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
@@ -43,7 +44,7 @@ createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, 
 createTeam domain memberCount = do
   owner <- createUser domain def {team = True} >>= getJSON 201
   tid <- owner %. "team" & asString
-  members <- for [2 .. memberCount] $ \_ -> createTeamMember owner def
+  members <- pooledForConcurrentlyN 64 [2 .. memberCount] $ \_ -> createTeamMember owner def
   pure (owner, tid, members)
 
 data CreateTeamMember = CreateTeamMember
@@ -131,7 +132,7 @@ getAllConvs u = do
 simpleMixedConversationSetup ::
   (HasCallStack, MakesValue domain) =>
   domain ->
-  App (Value, Value, Value)
+  App (Value, Value, ConvId)
 simpleMixedConversationSetup secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
@@ -144,9 +145,7 @@ simpleMixedConversationSetup secondDomain = do
   bindResponse (putConversationProtocol bob conv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
-
-  conv' <- getConversation alice conv >>= getJSON 200
+  conv' <- getConversation alice conv >>= getJSON 200 >>= objSubConvObject
 
   pure (alice, bob, conv')
 
