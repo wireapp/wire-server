@@ -156,6 +156,10 @@ nginx_conf:
       envs:
       - all
       doc: true
+    - path: /handles
+      envs:
+      - all
+      doc: true
     - path: /list-users
       envs:
       - all
@@ -289,9 +293,6 @@ nginx_conf:
       envs:
       - all
     - path: /bot/users
-      envs:
-      - all
-    - path: /conversations/([^/]*)/bots
       envs:
       - all
     - path: /invitations/info
@@ -479,7 +480,7 @@ nginx_conf:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
-    - path: /conversations/one2one/
+    - path: /one2one-conversations/
       envs:
       - all
       # During MLS migration, this endpoint gets called _a lot_.

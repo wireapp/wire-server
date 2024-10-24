@@ -34,13 +34,14 @@ module Wire.API.Routes.Internal.Brig
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
+    GetRichInfoMultiResponse (..),
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
   )
 where
 
-import Control.Lens ((.~))
+import Control.Lens ((.~), (?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -71,7 +72,6 @@ import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
-import Wire.API.Routes.Internal.LegalHold qualified as LegalHoldInternalAPI
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
@@ -90,22 +90,25 @@ import Wire.API.User.Client
 import Wire.API.User.RichInfo
 
 type EJPDRequest =
-  Summary
-    "Identify users for law enforcement.  Wire has legal requirements to cooperate \
-    \with the authorities.  The wire backend operations team uses this to answer \
-    \identification requests manually.  It is our best-effort representation of the \
-    \minimum required information we need to hand over about targets and (in some \
-    \cases) their communication peers.  For more information, consult ejpd.admin.ch."
-    :> "ejpd-request"
-    :> QueryParam'
-         [ Optional,
-           Strict,
-           Description "Also provide information about all contacts of the identified users"
-         ]
-         "include_contacts"
-         Bool
-    :> Servant.ReqBody '[Servant.JSON] EJPDRequestBody
-    :> Post '[Servant.JSON] EJPDResponseBody
+  Named
+    "ejpd-request"
+    ( Summary
+        "Identify users for law enforcement.  Wire has legal requirements to cooperate \
+        \with the authorities.  The wire backend operations team uses this to answer \
+        \identification requests manually.  It is our best-effort representation of the \
+        \minimum required information we need to hand over about targets and (in some \
+        \cases) their communication peers.  For more information, consult ejpd.admin.ch."
+        :> "ejpd-request"
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Also provide information about all contacts of the identified users"
+             ]
+             "include_contacts"
+             Bool
+        :> Servant.ReqBody '[Servant.JSON] EJPDRequestBody
+        :> Post '[Servant.JSON] EJPDResponseBody
+    )
 
 type GetAccountConferenceCallingConfig =
   Summary
@@ -159,10 +162,10 @@ type GetAllConnections =
 
 type AccountAPI =
   Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
-    :<|> PutAccountConferenceCallingConfig
-    :<|> DeleteAccountConferenceCallingConfig
-    :<|> GetAllConnectionsUnqualified
-    :<|> GetAllConnections
+    :<|> Named "i-put-account-conference-calling-config" PutAccountConferenceCallingConfig
+    :<|> Named "i-delete-account-conference-calling-config" DeleteAccountConferenceCallingConfig
+    :<|> Named "i-get-all-connections-unqualified" GetAllConnectionsUnqualified
+    :<|> Named "i-get-all-connections" GetAllConnections
     :<|> Named
            "createUserNoVerify"
            -- This endpoint can lead to the following events being sent:
@@ -373,12 +376,11 @@ type AccountAPI =
            ( "users"
                :> "rich-info"
                :> QueryParam' '[Optional, Strict] "ids" (CommaSeparatedList UserId)
-               :> Get '[Servant.JSON] [(UserId, RichInfo)]
+               :> Get '[Servant.JSON] GetRichInfoMultiResponse
            )
     :<|> Named
            "iHeadHandle"
            ( CanThrow 'InvalidHandle
-               :> "users"
                :> "handles"
                :> Capture "handle" Handle
                :> MultiVerb
@@ -466,23 +468,29 @@ instance ToSchema NewKeyPackageRef where
 type MLSAPI = "mls" :> GetMLSClients
 
 type GetMLSClients =
-  Summary "Return all clients and all MLS-capable clients of a user"
-    :> "clients"
-    :> CanThrow 'UserNotFound
-    :> Capture "user" UserId
-    :> QueryParam' '[Required, Strict] "ciphersuite" CipherSuite
-    :> MultiVerb1
-         'GET
-         '[Servant.JSON]
-         (Respond 200 "MLS clients" (Set ClientInfo))
+  Named
+    "get-mls-clients"
+    ( Summary "Return all clients and all MLS-capable clients of a user"
+        :> "clients"
+        :> CanThrow 'UserNotFound
+        :> Capture "user" UserId
+        :> QueryParam' '[Required, Strict] "ciphersuite" CipherSuite
+        :> MultiVerb1
+             'GET
+             '[Servant.JSON]
+             (Respond 200 "MLS clients" (Set ClientInfo))
+    )
 
 type GetVerificationCode =
-  Summary "Get verification code for a given email and action"
-    :> "users"
-    :> Capture "uid" UserId
-    :> "verification-code"
-    :> Capture "action" VerificationAction
-    :> Get '[Servant.JSON] (Maybe Code.Value)
+  Named
+    "get-verification-code"
+    ( Summary "Get verification code for a given email and action"
+        :> "users"
+        :> Capture "uid" UserId
+        :> "verification-code"
+        :> Capture "action" VerificationAction
+        :> Get '[Servant.JSON] (Maybe Code.Value)
+    )
 
 type API =
   "i"
@@ -594,9 +602,9 @@ type TeamInvitations =
     )
 
 type UserAPI =
-  UpdateUserLocale
-    :<|> DeleteUserLocale
-    :<|> GetDefaultLocale
+  Named "i-update-user-locale" UpdateUserLocale
+    :<|> Named "i-delete-user-locale" DeleteUserLocale
+    :<|> Named "i-get-default-locale" GetDefaultLocale
     :<|> Named
            "get-user-export-data"
            ( Summary "Get user export data"
@@ -745,10 +753,19 @@ type ProviderAPI =
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
 
+newtype GetRichInfoMultiResponse
+  = GetRichInfoMultiResponse
+      [(UserId, RichInfo)]
+  deriving newtype (FromJSON, ToJSON)
+
+instance S.ToSchema GetRichInfoMultiResponse where
+  declareNamedSchema _ =
+    pure $
+      S.NamedSchema (Just $ "GetRichInfoMultiResponse") $
+        mempty & S.description ?~ "List of pairs of UserId and RichInfo"
+
 swaggerDoc :: OpenApi
-swaggerDoc =
-  brigSwaggerDoc
-    <> LegalHoldInternalAPI.swaggerDoc
+swaggerDoc = brigSwaggerDoc
 
 brigSwaggerDoc :: OpenApi
 brigSwaggerDoc =

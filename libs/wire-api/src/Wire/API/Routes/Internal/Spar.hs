@@ -23,15 +23,16 @@ import Data.OpenApi
 import Imports
 import Servant
 import Servant.OpenApi
+import Wire.API.Routes.Named
 import Wire.API.User
 import Wire.API.User.Saml
 
 type InternalAPI =
   "i"
-    :> ( "status" :> Get '[JSON] NoContent
-           :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent
-           :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
-           :<|> "scim" :> "userinfo" :> Capture "user" UserId :> Post '[JSON] ScimUserInfo
+    :> ( Named "i_status" ("status" :> Get '[JSON] NoContent)
+           :<|> Named "i_delete_team" ("teams" :> Capture "team" TeamId :> DeleteNoContent)
+           :<|> Named "i_put_sso_settings" ("sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent)
+           :<|> Named "i_post_scim_user_info" ("scim" :> "userinfo" :> Capture "user" UserId :> Post '[JSON] ScimUserInfo)
        )
 
 swaggerDoc :: OpenApi

@@ -293,6 +293,7 @@ let
       pkgs.nginz
       pkgs.mls-test-cli
       pkgs.awscli2
+      pkgs.vacuum-go
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-ses

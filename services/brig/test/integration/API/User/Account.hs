@@ -1530,7 +1530,7 @@ execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete
   usr <- postUserInternal o brig
   Util.assertUserActivateJournaled userJournalWatcher usr "user activate execAndAssertUserDeletion"
   -- Handle is available again
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode
   where
     assertDeletedProfileSelf = do

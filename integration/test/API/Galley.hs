@@ -327,6 +327,18 @@ deleteTeamConv team conv user = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", teamId, "conversations", convId])
   submit "DELETE" req
 
+getMLSOne2OneConversationLegacy ::
+  (HasCallStack, MakesValue self, MakesValue other) =>
+  self ->
+  other ->
+  App Response
+getMLSOne2OneConversationLegacy self other = do
+  (domain, uid) <- objQid other
+  req <-
+    baseRequest self Galley Versioned
+      $ joinHttpPath ["conversations", "one2one", domain, uid]
+  submit "GET" req
+
 getMLSOne2OneConversation ::
   (HasCallStack, MakesValue self, MakesValue other) =>
   self ->
@@ -336,7 +348,7 @@ getMLSOne2OneConversation self other = do
   (domain, uid) <- objQid other
   req <-
     baseRequest self Galley Versioned
-      $ joinHttpPath ["conversations", "one2one", domain, uid]
+      $ joinHttpPath ["one2one-conversations", domain, uid]
   submit "GET" req
 
 getGroupClients ::

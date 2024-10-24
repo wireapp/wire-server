@@ -682,7 +682,7 @@ getCallsConfigV2 user = do
 
 addBot :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
 addBot user providerId serviceId convId = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["conversations", convId, "bots"]
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["bot", "conversations", convId]
   submit "POST" $
     req
       & zType "access"

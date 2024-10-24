@@ -62,8 +62,8 @@ tests _cl _at conf p b c g =
       test p "handles/query" $ testHandleQuery conf b,
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
       test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g,
-      test p "GET /users/handles/<handle> 200" $ testGetUserByUnqualifiedHandle b,
-      test p "GET /users/handles/<handle> 404" $ testGetUserByUnqualifiedHandleFailure b,
+      test p "GET /handles/<handle> 200" $ testGetUserByUnqualifiedHandle b,
+      test p "GET /handles/<handle> 404" $ testGetUserByUnqualifiedHandleFailure b,
       test p "GET /users/by-handle/<domain>/<handle> : 200" $ testGetUserByQualifiedHandle b,
       test p "GET /users/by-handle/<domain>/<handle> : 404" $ testGetUserByQualifiedHandleFailure b,
       test p "GET /users/by-handle/<domain>/<handle> : no federation" $ testGetUserByQualifiedHandleNoFederation conf b
@@ -105,7 +105,7 @@ testHandleUpdate brig cannon = do
   -- The owner of the handle can always retry the update
   put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
     !!! const 200 === statusCode
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 200 === statusCode
   -- For other users, the handle is unavailable
   uid2 <- userId <$> randomUser brig
@@ -120,7 +120,7 @@ testHandleUpdate brig cannon = do
   let update2 = RequestBodyLBS . encode $ HandleUpdate hdl2
   put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update2)
     !!! const 200 === statusCode
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", "users", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode
   -- The owner appears by the new handle in search
   Search.refreshIndex brig
@@ -163,7 +163,7 @@ testHandleQuery opts brig = do
   uid <- userId <$> randomUser brig
   hdl <- randomHandle
   -- Query for the handle availability (must be free)
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode
   -- Set handle
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
@@ -174,7 +174,7 @@ testHandleQuery opts brig = do
     const 200 === statusCode
     const (Just (fromJust $ parseHandle hdl)) === (userHandle <=< responseJsonMaybe)
   -- Query for the handle availability (must be taken)
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 200 === statusCode
   -- Query user profiles by handles
   get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do

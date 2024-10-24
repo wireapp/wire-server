@@ -93,8 +93,8 @@ servantSitemap =
 
 internalSitemap :: ServerT InternalAPI Handler
 internalSitemap =
-  pure ()
-    :<|> Named @"iGetAsset" iDownloadAssetV3
+  Named @"i_status" (pure ())
+    :<|> Named @"i_get_asset" iDownloadAssetV3
 
 -- | Like 'downloadAssetV3' below, but it works without user session token, and has a
 -- different route type.

@@ -146,7 +146,6 @@ onBotCreate chan _headers _req k = do
 onBotMessage chan _headers req k = do
   body <- liftIO $ Wai.strictRequestBody req
   writeChan chan (BotMessage (cs body))
-  liftIO $ putStrLn $ cs body
   k (responseLBS status200 mempty mempty)
 onBotAlive _chan _headers _req k = do
   k (responseLBS status200 mempty (cs "success"))

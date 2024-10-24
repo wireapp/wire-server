@@ -41,7 +41,7 @@ testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
         conv %. "cipher_suite" `shouldMatchInt` 1
 
   convId <-
-    getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+    getMLSOne2OneConversationLegacy alice bob `bindResponse` \resp -> do
       conv <- getJSON 200 resp
       conv %. "type" `shouldMatchInt` 2
       shouldBeEmpty (conv %. "members.others")
@@ -53,7 +53,7 @@ testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
       conv %. "qualified_id"
 
   -- check that the conversation has the same ID on the other side
-  conv2 <- bindResponse (getMLSOne2OneConversation bob alice) $ \resp -> do
+  conv2 <- bindResponse (getMLSOne2OneConversationLegacy bob alice) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
 
@@ -64,11 +64,11 @@ testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
 testGetMLSOne2OneRemoteV5 :: (HasCallStack) => App ()
 testGetMLSOne2OneRemoteV5 = withVersion5 Version5 $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
-  getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+  getMLSOne2OneConversationLegacy alice bob `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.jsonBody %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
 
-  getMLSOne2OneConversation bob alice `bindResponse` \resp -> do
+  getMLSOne2OneConversationLegacy bob alice `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.jsonBody %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
 
@@ -149,7 +149,7 @@ testMLSOne2OneOtherMember scenario = do
 testMLSOne2OneRemoveClientLocalV5 :: App ()
 testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  conv <- getMLSOne2OneConversationLegacy alice bob >>= getJSON 200
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
@@ -416,7 +416,7 @@ testMLSFederationV1ConvOnOldBackend = do
     fedError <- getJSON 533 resp
     fedError %. "label" `shouldMatch` "federation-version-error"
 
-  conv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+  conv <- getMLSOne2OneConversationLegacy bob alice >>= getJSON 200
   keys <- getMLSPublicKeys bob >>= getJSON 200
   resetOne2OneGroupGeneric bob1 conv keys
 
@@ -464,7 +464,7 @@ testMLSFederationV1ConvOnNewBackend = do
 
   -- Bob cannot start this conversation because it would exist on Alice's
   -- backend and Bob cannot get the MLS public keys of that backend.
-  getMLSOne2OneConversation bob alice `bindResponse` \resp -> do
+  getMLSOne2OneConversationLegacy bob alice `bindResponse` \resp -> do
     fedError <- getJSON 533 resp
     fedError %. "label" `shouldMatch` "federation-remote-error"
 

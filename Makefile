@@ -607,4 +607,10 @@ upload-bombon:
 .PHONY: openapi-validate
 openapi-validate:
 	@echo -e "Make sure you are running the backend in another terminal (make cr)\n"
-	vacuum lint -a -d -w <(curl http://localhost:8082/v7/api/swagger.json)
+	vacuum lint -a -d -e <(curl http://localhost:8082/v7/api/swagger.json)
+#	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/cannon-swagger.json)
+#	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/cargohold-swagger.json)
+#	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/spar-swagger.json)
+#	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/gundeck-swagger.json)
+#	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/brig-swagger.json)
+#	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/galley-swagger.json)

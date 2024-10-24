@@ -222,10 +222,10 @@ apiINTERNAL ::
   ) =>
   ServerT InternalAPI (Sem r)
 apiINTERNAL =
-  internalStatus
-    :<|> internalDeleteTeam
-    :<|> internalPutSsoSettings
-    :<|> internalGetScimUserInfo
+  Named @"i_status" internalStatus
+    :<|> Named @"i_delete_team" internalDeleteTeam
+    :<|> Named @"i_put_sso_settings" internalPutSsoSettings
+    :<|> Named @"i_post_scim_user_info" internalGetScimUserInfo
 
 appName :: Text
 appName = "spar"
