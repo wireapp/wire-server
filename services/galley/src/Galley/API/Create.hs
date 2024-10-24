@@ -160,6 +160,7 @@ createGroupConversation ::
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr conn newConv = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   cnv <-
     createGroupConversationGeneric
