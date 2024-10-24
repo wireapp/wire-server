@@ -321,7 +321,7 @@ deleteTeamConv ::
   App Response
 deleteTeamConv team conv user = do
   teamId <- objId team
-  convId <- objId conv
+  convId <- objId $ objQidObject conv
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", teamId, "conversations", convId])
   submit "DELETE" req
 
