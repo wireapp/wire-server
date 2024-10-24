@@ -72,7 +72,6 @@ import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
-import Wire.API.Routes.Internal.LegalHold qualified as LegalHoldInternalAPI
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
@@ -766,9 +765,7 @@ instance S.ToSchema GetRichInfoMultiResponse where
         mempty & S.description ?~ "List of pairs of UserId and RichInfo"
 
 swaggerDoc :: OpenApi
-swaggerDoc =
-  brigSwaggerDoc
-    <> LegalHoldInternalAPI.swaggerDoc
+swaggerDoc = brigSwaggerDoc
 
 brigSwaggerDoc :: OpenApi
 brigSwaggerDoc =

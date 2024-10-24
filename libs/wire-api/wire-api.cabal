@@ -169,7 +169,6 @@ library
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
     Wire.API.Routes.Internal.Galley.TeamsIntra
     Wire.API.Routes.Internal.Gundeck
-    Wire.API.Routes.Internal.LegalHold
     Wire.API.Routes.Internal.Spar
     Wire.API.Routes.LowLevelStream
     Wire.API.Routes.MultiTablePaging
