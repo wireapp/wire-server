@@ -379,7 +379,6 @@ type AccountAPI =
     :<|> Named
            "iHeadHandle"
            ( CanThrow 'InvalidHandle
-               :> "users"
                :> "handles"
                :> Capture "handle" Handle
                :> MultiVerb

@@ -244,7 +244,7 @@ testGetUserByUnqualifiedHandle brig = do
   get
     ( apiVersion "v1"
         . brig
-        . paths ["users", "handles", toByteString' handle]
+        . paths ["handles", toByteString' handle]
         . zUser requestingUser
     )
     !!! do
@@ -258,7 +258,7 @@ testGetUserByUnqualifiedHandleFailure brig = do
   get
     ( apiVersion "v1"
         . brig
-        . paths ["users", "handles", toByteString' handle]
+        . paths ["handles", toByteString' handle]
         . zUser requestingUser
     )
     !!! do
@@ -338,7 +338,7 @@ assertCanFind brig from target = do
     const 200 === statusCode
     const (userHandle target) === (responseJsonMaybe >=> listToMaybe >=> profileHandle)
 
-  get (apiVersion "v1" . brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
+  get (apiVersion "v1" . brig . paths ["handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 200 === statusCode
     const (Just (UserHandleInfo $ userQualifiedId target)) === responseJsonMaybe
 
@@ -348,5 +348,5 @@ assertCannotFind brig from target = do
   let targetHandle = fromMaybe (error "Impossible") (userHandle target)
   get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
     const 404 === statusCode
-  get (apiVersion "v1" . brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
+  get (apiVersion "v1" . brig . paths ["handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 404 === statusCode
