@@ -91,22 +91,25 @@ import Wire.API.User.Client
 import Wire.API.User.RichInfo
 
 type EJPDRequest =
-  Summary
-    "Identify users for law enforcement.  Wire has legal requirements to cooperate \
-    \with the authorities.  The wire backend operations team uses this to answer \
-    \identification requests manually.  It is our best-effort representation of the \
-    \minimum required information we need to hand over about targets and (in some \
-    \cases) their communication peers.  For more information, consult ejpd.admin.ch."
-    :> "ejpd-request"
-    :> QueryParam'
-         [ Optional,
-           Strict,
-           Description "Also provide information about all contacts of the identified users"
-         ]
-         "include_contacts"
-         Bool
-    :> Servant.ReqBody '[Servant.JSON] EJPDRequestBody
-    :> Post '[Servant.JSON] EJPDResponseBody
+  Named
+    "ejpd-request"
+    ( Summary
+        "Identify users for law enforcement.  Wire has legal requirements to cooperate \
+        \with the authorities.  The wire backend operations team uses this to answer \
+        \identification requests manually.  It is our best-effort representation of the \
+        \minimum required information we need to hand over about targets and (in some \
+        \cases) their communication peers.  For more information, consult ejpd.admin.ch."
+        :> "ejpd-request"
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Also provide information about all contacts of the identified users"
+             ]
+             "include_contacts"
+             Bool
+        :> Servant.ReqBody '[Servant.JSON] EJPDRequestBody
+        :> Post '[Servant.JSON] EJPDResponseBody
+    )
 
 type GetAccountConferenceCallingConfig =
   Summary
@@ -466,23 +469,29 @@ instance ToSchema NewKeyPackageRef where
 type MLSAPI = "mls" :> GetMLSClients
 
 type GetMLSClients =
-  Summary "Return all clients and all MLS-capable clients of a user"
-    :> "clients"
-    :> CanThrow 'UserNotFound
-    :> Capture "user" UserId
-    :> QueryParam' '[Required, Strict] "ciphersuite" CipherSuite
-    :> MultiVerb1
-         'GET
-         '[Servant.JSON]
-         (Respond 200 "MLS clients" (Set ClientInfo))
+  Named
+    "get-mls-clients"
+    ( Summary "Return all clients and all MLS-capable clients of a user"
+        :> "clients"
+        :> CanThrow 'UserNotFound
+        :> Capture "user" UserId
+        :> QueryParam' '[Required, Strict] "ciphersuite" CipherSuite
+        :> MultiVerb1
+             'GET
+             '[Servant.JSON]
+             (Respond 200 "MLS clients" (Set ClientInfo))
+    )
 
 type GetVerificationCode =
-  Summary "Get verification code for a given email and action"
-    :> "users"
-    :> Capture "uid" UserId
-    :> "verification-code"
-    :> Capture "action" VerificationAction
-    :> Get '[Servant.JSON] (Maybe Code.Value)
+  Named
+    "get-verification-code"
+    ( Summary "Get verification code for a given email and action"
+        :> "users"
+        :> Capture "uid" UserId
+        :> "verification-code"
+        :> Capture "action" VerificationAction
+        :> Get '[Servant.JSON] (Maybe Code.Value)
+    )
 
 type API =
   "i"

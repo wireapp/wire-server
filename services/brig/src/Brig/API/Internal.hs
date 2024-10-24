@@ -157,7 +157,7 @@ servantSitemap =
     :<|> ejpdAPI
     :<|> accountAPI
     :<|> mlsAPI
-    :<|> getVerificationCode
+    :<|> Named @"get-verification-code" getVerificationCode
     :<|> teamsAPI
     :<|> userAPI
     :<|> clientAPI
@@ -177,11 +177,10 @@ ejpdAPI ::
     Member Rpc r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
-ejpdAPI =
-  Brig.User.EJPD.ejpdRequest
+ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = getMLSClients
+mlsAPI = Named @"get-mls-clients" getMLSClients
 
 accountAPI ::
   ( Member BlockListStore r,
