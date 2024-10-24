@@ -15,7 +15,7 @@ import UnliftIO.Temporary
 
 testCreateBigMLSConversation :: App ()
 testCreateBigMLSConversation = do
-  (owner, _tid, members) <- createTeam OwnDomain 20
+  (owner, _tid, members) <- createTeam OwnDomain 2000
   let genPrekeyInBox box i = do
         pk <- assertCrytoboxSuccess =<< liftIO (Cryptobox.newPrekey box i)
         pkBS <- liftIO $ Cryptobox.copyBytes pk.prekey
@@ -36,12 +36,12 @@ testCreateBigMLSConversation = do
                         lastPrekey = Just lastPrekey
                       }
                 }
-        createMLSClient mlsClientOpts user
+        createMLSClient def mlsClientOpts user
   ownerClient <- createClient owner
   _memClients <- pooledMapConcurrentlyN 64 createClient members
   createConv <- appToIO $ do
-    (_, _) <- createNewGroup ownerClient
-    void $ sendAndConsumeCommitBundle =<< createAddCommit ownerClient members
+    (_, convId) <- createNewGroup def ownerClient
+    void $ sendAndConsumeCommitBundle =<< createAddCommit ownerClient convId members
   let benchmarkable = toBenchmarkable (\n -> replicateM_ (fromIntegral n) createConv)
   liftIO $ benchmarkWith (defaultConfig {resamples = 5}) benchmarkable
 

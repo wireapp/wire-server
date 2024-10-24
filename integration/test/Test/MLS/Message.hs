@@ -42,59 +42,59 @@ testApplicationMessage = do
 
   clients@[alice1, _alice2, alex1, _alex2, bob1, _bob2, _, _] <-
     traverse
-      (createMLSClient def)
+      (createMLSClient def def)
       [alice, alice, alex, alex, bob, bob, betty, betty]
-  traverse_ uploadNewKeyPackage clients
-  void $ createNewGroup alice1
+  traverse_ (uploadNewKeyPackage def) clients
+  (_, convId) <- createNewGroup def alice1
 
   withWebSockets [alice, alex, bob, betty] $ \wss -> do
     -- alice adds all other users (including her own client)
-    void $ createAddCommit alice1 [alice, alex, bob, betty] >>= sendAndConsumeCommitBundle
+    void $ createAddCommit alice1 convId [alice, alex, bob, betty] >>= sendAndConsumeCommitBundle
     traverse_ (awaitMatch isMemberJoinNotif) wss
 
     -- alex sends a message
-    void $ createApplicationMessage alex1 "hello" >>= sendAndConsumeMessage
+    void $ createApplicationMessage convId alex1 "hello" >>= sendAndConsumeMessage
     traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
     -- bob sends a message
-    void $ createApplicationMessage bob1 "hey" >>= sendAndConsumeMessage
+    void $ createApplicationMessage convId bob1 "hey" >>= sendAndConsumeMessage
     traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
 -- @END
 
 testAppMessageSomeReachable :: (HasCallStack) => App ()
 testAppMessageSomeReachable = do
-  alice1 <- startDynamicBackends [mempty] $ \[thirdDomain] -> do
+  (alice1, convId) <- startDynamicBackends [mempty] $ \[thirdDomain] -> do
     ownDomain <- make OwnDomain & asString
     otherDomain <- make OtherDomain & asString
     [alice, bob, charlie] <- createAndConnectUsers [ownDomain, otherDomain, thirdDomain]
 
-    [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
-    traverse_ uploadNewKeyPackage [bob1, charlie1]
-    void $ createNewGroup alice1
+    [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
+    traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+    (_, convId) <- createNewGroup def alice1
     void $ withWebSocket charlie $ \ws -> do
-      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
+      void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
       awaitMatch isMemberJoinNotif ws
-    pure alice1
+    pure (alice1, convId)
 
   -- charlie isn't able to receive this message, so we make sure we can post it
   -- successfully, but not attempt to consume it
-  mp <- createApplicationMessage alice1 "hi, bob!"
+  mp <- createApplicationMessage convId alice1 "hi, bob!"
   void $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
 testMessageNotifications :: (HasCallStack) => Domain -> App ()
 testMessageNotifications bobDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, bobDomain]
 
-  [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def) [alice, alice, bob, bob]
+  [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def def) [alice, alice, bob, bob]
   bobClient <- bob1 %. "client_id" & asString
 
-  traverse_ uploadNewKeyPackage [alice1, alice2, bob1, bob2]
+  traverse_ (uploadNewKeyPackage def) [alice1, alice2, bob1, bob2]
 
-  void $ createNewGroup alice1
+  (_, convId) <- createNewGroup def alice1
 
   void $ withWebSocket bob $ \ws -> do
-    void $ createAddCommit alice1 [alice, bob] >>= sendAndConsumeCommitBundle
+    void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
     awaitMatch isMemberJoinNotif ws
 
   let get (opts :: GetNotifications) = do
@@ -106,7 +106,7 @@ testMessageNotifications bobDomain = do
   numNotifsClient <- get def {client = Just bobClient}
 
   void $ withWebSocket bob $ \ws -> do
-    void $ createApplicationMessage alice1 "hi bob" >>= sendAndConsumeMessage
+    void $ createApplicationMessage convId alice1 "hi bob" >>= sendAndConsumeMessage
     awaitMatch isNewMLSMessageNotif ws
 
   get def `shouldMatchInt` (numNotifs + 1)
@@ -115,16 +115,16 @@ testMessageNotifications bobDomain = do
 testMultipleMessages :: (HasCallStack) => App ()
 testMultipleMessages = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ uploadNewKeyPackage [alice1, bob1]
-  void $ createNewGroup alice1
+  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  (_, convId) <- createNewGroup def alice1
 
   withWebSockets [bob] $ \wss -> do
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
     traverse_ (awaitMatch isMemberJoinNotif) wss
 
-    void $ createApplicationMessage alice1 "hello" >>= sendAndConsumeMessage
+    void $ createApplicationMessage convId alice1 "hello" >>= sendAndConsumeMessage
     traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
-    void $ createApplicationMessage alice1 "world" >>= sendAndConsumeMessage
+    void $ createApplicationMessage convId alice1 "world" >>= sendAndConsumeMessage
     traverse_ (awaitMatch isNewMLSMessageNotif) wss

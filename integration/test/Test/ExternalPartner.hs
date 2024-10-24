@@ -60,7 +60,7 @@ testExternalPartnerPermissionsMls = do
   -- external partners should not be able to create (MLS) conversations
   (owner, _, _) <- createTeam OwnDomain 2
   bobExt <- createTeamMember owner def {role = "partner"}
-  bobExtClient <- createMLSClient def bobExt
+  bobExtClient <- createMLSClient def def bobExt
   bindResponse (postConversation bobExtClient defMLS) $ \resp -> do
     resp.status `shouldMatchInt` 403
 
