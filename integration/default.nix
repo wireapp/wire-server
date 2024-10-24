@@ -22,6 +22,8 @@
 , cookie
 , cql
 , cql-io
+, criterion
+, cryptobox-haskell
 , crypton
 , crypton-x509
 , cryptostore
@@ -119,6 +121,8 @@ mkDerivation {
     cookie
     cql
     cql-io
+    criterion
+    cryptobox-haskell
     crypton
     crypton-x509
     cryptostore

@@ -278,16 +278,14 @@ mkProteusRecipients dom userClients msg = do
         & #text .~ fromString msg
 
 getGroupInfo ::
-  (HasCallStack, MakesValue user, MakesValue conv) =>
+  (HasCallStack, MakesValue user) =>
   user ->
-  conv ->
+  ConvId ->
   App Response
 getGroupInfo user conv = do
-  (qcnv, mSub) <- objSubConv conv
-  (convDomain, convId) <- objQid qcnv
-  let path = joinHttpPath $ case mSub of
-        Nothing -> ["conversations", convDomain, convId, "groupinfo"]
-        Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
+  let path = joinHttpPath $ case conv.subconvId of
+        Nothing -> ["conversations", conv.domain, conv.id_, "groupinfo"]
+        Just sub -> ["conversations", conv.domain, conv.id_, "subconversations", sub, "groupinfo"]
   req <- baseRequest user Galley Versioned path
   submit "GET" req
 
@@ -323,7 +321,7 @@ deleteTeamConv ::
   App Response
 deleteTeamConv team conv user = do
   teamId <- objId team
-  convId <- objId conv
+  convId <- objId $ objQidObject conv
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", teamId, "conversations", convId])
   submit "DELETE" req
 
