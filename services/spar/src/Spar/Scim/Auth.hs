@@ -166,7 +166,6 @@ createScimToken ::
   CreateScimToken ->
   Sem r CreateScimTokenResponse
 createScimToken zusr Api.CreateScimToken {..} = do
-  let descr = description
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   BrigAccess.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
   tokenNumber <- length <$> ScimTokenStore.lookupByTeam teamid
@@ -192,7 +191,7 @@ createScimToken zusr Api.CreateScimToken {..} = do
                   stiTeam = teamid,
                   stiCreatedAt = now,
                   stiIdP = midpid,
-                  stiDescr = descr,
+                  stiDescr = description,
                   stiName = fromMaybe (idToText tokenid) name
                 }
         ScimTokenStore.insert token info
