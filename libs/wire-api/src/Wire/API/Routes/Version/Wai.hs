@@ -74,8 +74,8 @@ looksLikeVersion version = case T.splitAt 1 version of (h, t) -> h == "v" && T.a
 -- | swagger-delivering end-points are not disableable: they should work for all versions.
 requestIsDisableable :: Request -> Bool
 requestIsDisableable (pathInfo -> path) = case path of
-  ["api", "swagger-ui"] -> False
-  ["api", "swagger.json"] -> False
+  ("api" : "swagger-ui" : _) -> False
+  ("api" : "swagger.json" : _) -> False
   _ -> True
 
 removeVersionHeader :: Request -> Request

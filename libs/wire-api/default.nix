@@ -83,6 +83,7 @@
 , servant-client-core
 , servant-conduit
 , servant-multipart
+, servant-multipart-api
 , servant-openapi3
 , servant-server
 , singletons
@@ -188,6 +189,7 @@ mkDerivation {
     servant-client-core
     servant-conduit
     servant-multipart
+    servant-multipart-api
     servant-openapi3
     servant-server
     singletons
