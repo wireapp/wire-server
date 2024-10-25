@@ -263,7 +263,7 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
-internalEndpointsSwaggerDocsAPI _ _ _ (Just _) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just _) = emptySwagger "Internal APIs are not versioned!"
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
   swaggerSchemaUIServer $
     swagger
