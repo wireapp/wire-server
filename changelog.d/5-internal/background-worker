@@ -1,1 +1,0 @@
-charts/wire-server: Deploy background-worker even when tags.federation is `false` (#4342, #4248)

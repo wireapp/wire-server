@@ -1,1 +1,0 @@
-Users with SAML-SSO are allowed to delete their email address on the rest api. If they do that, the search indices are not updated correctly, and finding the user by the removed email address is still possible.
