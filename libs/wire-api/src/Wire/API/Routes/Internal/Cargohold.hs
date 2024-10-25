@@ -28,8 +28,8 @@ import Wire.API.Routes.Named
 
 type InternalAPI =
   "i"
-    :> ( "status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
-           :<|> Named "iGetAsset" ("assets" :> Capture "key" AssetKey :> Get '[Servant.JSON] Text)
+    :> ( Named "i_status" ("status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ())
+           :<|> Named "i_get_asset" ("assets" :> Capture "key" AssetKey :> Get '[Servant.JSON] Text)
        )
 
 swaggerDoc :: OpenApi
