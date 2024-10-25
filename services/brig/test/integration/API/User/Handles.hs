@@ -120,7 +120,7 @@ testHandleUpdate brig cannon = do
   let update2 = RequestBodyLBS . encode $ HandleUpdate hdl2
   put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update2)
     !!! const 200 === statusCode
-  Bilge.head (brig . paths ["handles", "users", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode
   -- The owner appears by the new handle in search
   Search.refreshIndex brig
