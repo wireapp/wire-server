@@ -43,9 +43,9 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <*> readText fp "email/sender.txt"
         )
     <*> ( InvitationEmailTemplate tExistingUrl
-            <$> readTemplate fp "email/existing-invitation-subject.txt"
-            <*> readTemplate fp "email/existing-invitation.txt"
-            <*> readTemplate fp "email/existing-invitation.html"
+            <$> readTemplate fp "email/migration-subject.txt"
+            <*> readTemplate fp "email/migration.txt"
+            <*> readTemplate fp "email/migration.html"
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )
