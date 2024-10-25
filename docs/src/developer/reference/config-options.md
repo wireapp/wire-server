@@ -464,6 +464,18 @@ federator:
     clientPrivateKey: client-key.pem
 ```
 
+### Federation protocols
+
+A backend can restrict creation of new federated conversations according to the protocol used (Proteus or MLS). This is controlled by the `federationProtocols` setting. For example:
+
+```yaml
+galley:
+  settings:
+    federationProtocols: ["mls"]
+```
+
+will prevent the creation of a Proteus conversation containing federated users, and will prevent federated users from joining a Proteus conversation on this backend. However, existing Proteus conversations with federated users will continue to function, and users of this backend will be allowed to join new and existing Proteus conversations on federated backends.
+
 ### Outlook calendar integration
 
 This feature setting only applies to the Outlook Calendar extension for Wire. As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
