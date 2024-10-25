@@ -931,3 +931,5 @@ testNoFederationWithProteus = do
       bindResponse (postConversation alice defProteus {qualifiedUsers = [bob]}) $ \resp -> do
         resp.status `shouldMatchInt` 409
         resp.json %. "label" `shouldMatch` "federation-disabled-for-protocol"
+
+      void $ postConversation bob defProteus {qualifiedUsers = [alice]} >>= getJSON 201
