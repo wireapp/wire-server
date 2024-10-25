@@ -1,0 +1,1 @@
+Add `federationProtocols` setting to galley, which can be used to disable the creation of federated conversations with a given protocol
