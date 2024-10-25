@@ -104,9 +104,10 @@ createScimToken spar' owner = do
   CreateScimTokenResponse tok _ <-
     createToken spar' owner $
       CreateScimToken
-        { createScimTokenDescr = "testCreateToken",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testCreateToken",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   pure tok
 

@@ -68,7 +68,9 @@ import Data.Text.Encoding as Text
 import GHC.TypeLits
 import Imports hiding ((\\))
 import Servant
+import Servant.API.Extended (ReqBodyCustomError)
 import Servant.API.Extended.RawM qualified as RawM
+import Servant.Multipart (MultipartForm)
 import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named hiding (unnamed)
@@ -293,11 +295,23 @@ type instance
   SpecialiseToVersion v (MultiVerb m t r x) =
     MultiVerb m t r x
 
+type instance
+  SpecialiseToVersion v (NoContentVerb m) =
+    NoContentVerb m
+
 type instance SpecialiseToVersion v RawM.RawM = RawM.RawM
 
 type instance
   SpecialiseToVersion v (ReqBody t x :> api) =
     ReqBody t x :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (ReqBodyCustomError t l x :> api) =
+    ReqBodyCustomError t l x :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (MultipartForm x b :> api) =
+    MultipartForm x b :> SpecialiseToVersion v api
 
 type instance
   SpecialiseToVersion v (QueryParam' mods l x :> api) =

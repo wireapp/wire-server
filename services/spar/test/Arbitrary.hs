@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -45,25 +44,17 @@ instance Arbitrary IdPList where
 instance Arbitrary WireIdP where
   arbitrary = WireIdP <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-deriving instance Arbitrary ScimToken
-
 instance Arbitrary ScimTokenHash where
   arbitrary = hashScimToken <$> arbitrary
 
-instance Arbitrary ScimTokenInfo where
-  arbitrary =
-    ScimTokenInfo
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-
-instance Arbitrary CreateScimTokenResponse where
-  arbitrary = CreateScimTokenResponse <$> arbitrary <*> arbitrary
-
 instance Arbitrary ScimTokenList where
   arbitrary = ScimTokenList <$> arbitrary
+
+instance Arbitrary ScimTokenListV6 where
+  arbitrary = ScimTokenListV6 <$> arbitrary
+
+instance Arbitrary ScimTokenName where
+  arbitrary = ScimTokenName <$> arbitrary
 
 instance Arbitrary NoContent where
   arbitrary = pure NoContent

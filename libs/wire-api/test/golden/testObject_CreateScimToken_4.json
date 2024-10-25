@@ -1,5 +1,6 @@
 {
     "description": "description4",
     "password": null,
-    "verification_code": null
+    "verification_code": null,
+    "name": "scim connection name"
 }

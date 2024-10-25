@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,28 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.ScimTokenStore
-  ( ScimTokenStore (..),
-    insert,
-    lookup,
-    lookupByTeam,
-    updateName,
-    delete,
-    deleteByTeam,
-  )
-where
+module Test.Wire.API.Golden.Manual.CreateScimTokenResponse where
 
-import Data.Id
-import Imports hiding (lookup)
-import Polysemy
+import Data.Id (Id (Id))
+import Data.Time (Day (ModifiedJulianDay))
+import Data.Time.Clock (UTCTime (UTCTime, utctDay, utctDayTime))
+import Data.UUID qualified as UUID
+import Imports
 import Wire.API.User.Scim
 
-data ScimTokenStore m a where
-  Insert :: ScimToken -> ScimTokenInfo -> ScimTokenStore m ()
-  Lookup :: ScimToken -> ScimTokenStore m (Maybe ScimTokenInfo)
-  LookupByTeam :: TeamId -> ScimTokenStore m [ScimTokenInfo]
-  UpdateName :: TeamId -> ScimTokenId -> Text -> ScimTokenStore m ()
-  Delete :: TeamId -> ScimTokenId -> ScimTokenStore m ()
-  DeleteByTeam :: TeamId -> ScimTokenStore m ()
-
-makeSem ''ScimTokenStore
+testObject_CreateScimTokenResponse_1 :: CreateScimTokenResponse
+testObject_CreateScimTokenResponse_1 =
+  CreateScimTokenResponse
+    (ScimToken "token")
+    ( ScimTokenInfo
+        (Id (fromJust (UUID.fromString "2853751e-9fb6-4425-b1bd-bd8aa2640c69")))
+        (Id (fromJust (UUID.fromString "e25faea1-ee2d-4fd8-bf25-e6748d392b23")))
+        (UTCTime {utctDay = ModifiedJulianDay 60605, utctDayTime = 65090})
+        Nothing
+        "description"
+        "token name"
+    )
