@@ -170,7 +170,7 @@ testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by alice
-    void $ mlsCliConsume def alice1 mlsMsg
+    void $ mlsCliConsume convId def alice1 mlsMsg
 
     parsedMsg <- showMessage def alice1 mlsMsg
     let leafIndexBob = 1
@@ -447,7 +447,7 @@ testMLSFederationV1ConvOnOldBackend = do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by bob
-    void $ mlsCliConsume def bob1 mlsMsg
+    void $ mlsCliConsume convId def bob1 mlsMsg
 
     parsedMsg <- showMessage def bob1 mlsMsg
     let leafIndexAlice = 1
@@ -500,7 +500,7 @@ testMLSFederationV1ConvOnNewBackend = do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by bob
-    void $ mlsCliConsume def alice1 mlsMsg
+    void $ mlsCliConsume one2OneConvId def alice1 mlsMsg
 
     parsedMsg <- showMessage def alice1 mlsMsg
     let leafIndexBob = 1

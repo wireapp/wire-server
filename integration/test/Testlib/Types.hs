@@ -252,7 +252,7 @@ instance Default Ciphersuite where
   def = Ciphersuite "0x0001"
 
 data ClientGroupState = ClientGroupState
-  { group :: Maybe ByteString,
+  { groups :: Map ConvId ByteString,
     -- | mls-test-cli stores by signature scheme
     keystore :: Map String ByteString,
     credType :: CredentialType
@@ -262,7 +262,7 @@ data ClientGroupState = ClientGroupState
 instance Default ClientGroupState where
   def =
     ClientGroupState
-      { group = Nothing,
+      { groups = mempty,
         keystore = mempty,
         credType = BasicCredentialType
       }

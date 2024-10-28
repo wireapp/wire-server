@@ -447,7 +447,7 @@ testRemoteRemoveClient suite = do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by alice
-    void $ mlsCliConsume suite alice1 mlsMsg
+    void $ mlsCliConsume conv suite alice1 mlsMsg
     -- This doesn't work because `sendAndConsumeCommitBundle` doesn't like
     -- remove proposals from the backend. We should fix that in future.
     -- void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
@@ -476,7 +476,7 @@ testRemoteRemoveCreatorClient suite = do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by alice
-    void $ mlsCliConsume suite alice1 mlsMsg
+    void $ mlsCliConsume conv suite alice1 mlsMsg
     -- This doesn't work because `sendAndConsumeCommitBundle` doesn't like
     -- remove proposals from the backend. We should fix that in future.
     -- void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
@@ -823,7 +823,7 @@ testBackendRemoveProposal suite domain = do
   withWebSocket alice1 \ws -> do
     deleteUser bob
     for_ (zip [1 ..] bobClients) \(index, _) -> do
-      void $ consumeMessageWithPredicate (isRemoveProposalFor index) suite alice1 Nothing ws
+      void $ consumeMessageWithPredicate (isRemoveProposalFor index) convId suite alice1 Nothing ws
 
   bobUser <- asString $ bob %. "id"
   modifyMLSState $ \mls ->

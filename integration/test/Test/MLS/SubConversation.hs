@@ -84,7 +84,7 @@ testLeaveOne2OneSubConv scenario leaver = do
 
   withWebSocket remainingClient $ \ws -> do
     leaveConv subConvId leaverClient
-    msg <- consumeMessage def remainingClient Nothing ws
+    msg <- consumeMessage subConvId def remainingClient Nothing ws
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leaverIndex
     msg %. "message.content.sender.External" `shouldMatchInt` 0
 
@@ -195,7 +195,7 @@ testLeaveSubConv leaver = do
     leaveConv subConvId firstLeaver
 
     for_ (zip others wss) $ \(cid, ws) -> do
-      msg <- consumeMessage def cid Nothing ws
+      msg <- consumeMessage subConvId def cid Nothing ws
       msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` idxFirstLeaver
       msg %. "message.content.sender.External" `shouldMatchInt` 0
 
@@ -220,7 +220,7 @@ testLeaveSubConv leaver = do
     leaveConv subConvId charlie1
 
     for_ (zip others' wss) $ \(cid, ws) -> do
-      msg <- consumeMessage def cid Nothing ws
+      msg <- consumeMessage subConvId def cid Nothing ws
       msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` idxCharlie1
       msg %. "message.content.sender.External" `shouldMatchInt` 0
 
@@ -295,7 +295,7 @@ testCreatorRemovesUserFromParent = do
                     (== idx) <$> (prop %. "Remove.removed" & asInt)
             ws
         for_ ws.client $ \consumer ->
-          msg %. "payload.0.data" & asByteString >>= mlsCliConsume def consumer
+          msg %. "payload.0.data" & asByteString >>= mlsCliConsume subConvId def consumer
 
       -- remove bob from the child state
       modifyMLSState $ \s ->
@@ -349,7 +349,7 @@ testResendingProposals = do
     -- consume proposals after backend resends them
     for_ wss \ws -> do
       replicateM 3 do
-        msg <- consumeMessage def (fromJust ws.client) Nothing ws
+        msg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
         msg %. "message.content.sender.External" `shouldMatchInt` 0
 
   void $ createPendingProposalCommit subConvId alice1 >>= sendAndConsumeCommitBundle

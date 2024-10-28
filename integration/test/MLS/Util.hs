@@ -40,6 +40,7 @@ import Testlib.Assertions
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Prelude
+import Testlib.Printing
 
 mkClientIdentity :: (MakesValue u, MakesValue c) => u -> c -> App ClientIdentity
 mkClientIdentity u c = do
@@ -69,15 +70,15 @@ randomFileName = do
   bd <- getBaseDir
   (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
 
-mlscli :: (HasCallStack) => Ciphersuite -> ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
-mlscli cs cid args mbstdin = do
+mlscli :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
+mlscli mConvId cs cid args mbstdin = do
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
   let scheme = csSignatureScheme cs
 
   gs <- getClientGroupState cid
 
-  substIn <- case gs.group of
+  substIn <- case flip Map.lookup gs.groups =<< mConvId of
     Nothing -> pure id
     Just groupData -> do
       fn <- toRandomFile groupData
@@ -102,11 +103,15 @@ mlscli cs cid args mbstdin = do
   out <- runCli store args' mbstdin
   setGroup <- do
     groupOutWritten <- liftIO $ doesFileExist groupOut
-    if groupOutWritten
-      then do
+    case (groupOutWritten, mConvId) of
+      (True, Just convId) -> do
         groupData <- liftIO (BS.readFile groupOut)
-        pure $ \x -> x {group = Just groupData}
-      else pure id
+        pure $ \x -> x {groups = Map.insert convId groupData x.groups}
+      (True, Nothing) -> do
+        print $ colored red "mls-test-cli: Group was written but no convId was provided, this probably indicates something is going to go wrong in this test."
+        print =<< liftIO (prettierCallStack callStack)
+        pure id
+      _ -> pure id
   setStore <- do
     storeData <- liftIO (BS.readFile store)
     pure $ \x -> x {keystore = Map.insert scheme storeData x.keystore}
@@ -151,7 +156,7 @@ createMLSClient ciphersuite opts u = do
   setClientGroupState cid def {credType = opts.credType}
 
   -- set public key
-  pkey <- mlscli ciphersuite cid ["public-key"] Nothing
+  pkey <- mlscli Nothing ciphersuite cid ["public-key"] Nothing
   bindResponse
     ( updateClient
         cid
@@ -176,8 +181,8 @@ uploadNewKeyPackage suite cid = do
 
 generateKeyPackage :: (HasCallStack) => ClientIdentity -> Ciphersuite -> App (ByteString, String)
 generateKeyPackage cid suite = do
-  kp <- mlscli suite cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
-  ref <- B8.unpack . Base64.encode <$> mlscli suite cid ["key-package", "ref", "-"] (Just kp)
+  kp <- mlscli Nothing suite cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
+  ref <- B8.unpack . Base64.encode <$> mlscli Nothing suite cid ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile cid ref
   liftIO $ BS.writeFile fp kp
   pure (kp, ref)
@@ -229,7 +234,6 @@ createOne2OneSubConv cs convId cid subId keys = do
 resetGroup :: (HasCallStack, MakesValue conv) => Ciphersuite -> ClientIdentity -> conv -> App ()
 resetGroup cs cid conv = do
   convId <- objConvId conv
-  putStrLn =<< prettyJSON convId
   let Just groupId = convId.groupId
   modifyMLSState $ \s ->
     let mlsConv =
@@ -243,7 +247,7 @@ resetGroup cs cid conv = do
             }
      in s {convs = Map.insert convId mlsConv s.convs}
   keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
-  resetClientGroup cs cid groupId keys
+  resetClientGroup cs cid groupId convId keys
 
 resetOne2OneGroup :: (HasCallStack, MakesValue one2OneConv) => Ciphersuite -> ClientIdentity -> one2OneConv -> App ()
 resetOne2OneGroup cs cid one2OneConv =
@@ -274,13 +278,14 @@ resetOne2OneGroupGeneric cs cid conv keys = do
             }
      in s {convs = Map.insertWith resetConv convId newMLSConv s.convs}
 
-  resetClientGroup cs cid groupId keys
+  resetClientGroup cs cid groupId convId keys
 
-resetClientGroup :: (HasCallStack, MakesValue keys) => Ciphersuite -> ClientIdentity -> String -> keys -> App ()
-resetClientGroup cs cid gid keys = do
+resetClientGroup :: (HasCallStack, MakesValue keys) => Ciphersuite -> ClientIdentity -> String -> ConvId -> keys -> App ()
+resetClientGroup cs cid gid convId keys = do
   removalKey <- asByteString $ keys %. ("removal." <> csSignatureScheme cs)
   void $
     mlscli
+      (Just convId)
       cs
       cid
       [ "group",
@@ -357,6 +362,7 @@ createAddCommitWithKeyPackages cid convId clientsAndKeyPackages = do
 
   commit <- runContT (traverse (withTempKeyPackageFile . snd) clientsAndKeyPackages) $ \kpFiles ->
     mlscli
+      (Just convId)
       conv.ciphersuite
       cid
       ( [ "member",
@@ -404,7 +410,7 @@ createRemoveCommit cid convId targets = do
 
   groupStateMap <- do
     gs <- getClientGroupState cid
-    groupData <- assertJust "Group state not initialised" gs.group
+    groupData <- assertJust "Group state not initialised" (Map.lookup convId gs.groups)
     Map.fromList <$> readGroupState groupData
   let indices = map (fromMaybe (error "could not find target") . flip Map.lookup groupStateMap) targets
 
@@ -412,6 +418,7 @@ createRemoveCommit cid convId targets = do
 
   commit <-
     mlscli
+      (Just convId)
       conv.ciphersuite
       cid
       ( [ "member",
@@ -453,6 +460,7 @@ createReInitProposal convId cid = do
   conv <- getMLSConv convId
   prop <-
     mlscli
+      (Just convId)
       conv.ciphersuite
       cid
       ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "re-init"]
@@ -475,6 +483,7 @@ createAddProposalWithKeyPackage convId cid (_, kp) = do
   conv <- getMLSConv convId
   prop <- runContT (withTempKeyPackageFile kp) $ \kpFile ->
     mlscli
+      (Just convId)
       conv.ciphersuite
       cid
       ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "add", kpFile]
@@ -496,6 +505,7 @@ createPendingProposalCommit convId cid = do
   conv <- getMLSConv convId
   commit <-
     mlscli
+      (Just convId)
       conv.ciphersuite
       cid
       [ "commit",
@@ -536,6 +546,7 @@ createExternalCommit convId cid mgi = do
   conv <- getMLSConv convId
   commit <-
     mlscli
+      (Just convId)
       conv.ciphersuite
       cid
       [ "external-commit",
@@ -609,29 +620,30 @@ consumingMessages mp = Codensity $ \k -> do
       MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
     pure r
 
-consumeMessageWithPredicate :: (HasCallStack) => (Value -> App Bool) -> Ciphersuite -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
-consumeMessageWithPredicate p cs cid mmp ws = do
+consumeMessageWithPredicate :: (HasCallStack) => (Value -> App Bool) -> ConvId -> Ciphersuite -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
+consumeMessageWithPredicate p convId cs cid mmp ws = do
   notif <- awaitMatch p ws
   event <- notif %. "payload.0"
 
+  event %. "qualified_conversation" `shouldMatch` objQidObject convId
+  lookupField event "subconv" `shouldMatch` convId.subconvId
+
   for_ mmp $ \mp -> do
-    event %. "qualified_conversation" `shouldMatch` objQidObject mp.convId
-    lookupField event "subconv" `shouldMatch` mp.convId.subconvId
     event %. "from" `shouldMatch` mp.sender.user
     event %. "data" `shouldMatch` (B8.unpack (Base64.encode mp.message))
 
   msgData <- event %. "data" & asByteString
-  _ <- mlsCliConsume cs cid msgData
+  _ <- mlsCliConsume convId cs cid msgData
   showMessage cs cid msgData
 
 -- | Get a single MLS message from a websocket and consume it. Return a JSON
 -- representation of the message.
-consumeMessage :: (HasCallStack) => Ciphersuite -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
+consumeMessage :: (HasCallStack) => ConvId -> Ciphersuite -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
 consumeMessage = consumeMessageWithPredicate isNewMLSMessageNotif
 
 -- | like 'consumeMessage' but will not consume a message where the sender is the backend
 consumeMessageNoExternal :: (HasCallStack) => Ciphersuite -> ClientIdentity -> MessagePackage -> WebSocket -> App Value
-consumeMessageNoExternal cs cid mp = consumeMessageWithPredicate isNewMLSMessageNotifButNoProposal cs cid (Just mp)
+consumeMessageNoExternal cs cid mp = consumeMessageWithPredicate isNewMLSMessageNotifButNoProposal mp.convId cs cid (Just mp)
   where
     -- the backend (correctly) reacts to a commit removing someone from a parent conversation with a
     -- remove proposal, however, we don't want to consume this here
@@ -646,9 +658,10 @@ consumeMessageNoExternal cs cid mp = consumeMessageWithPredicate isNewMLSMessage
           pure $ sender /= Just backendSender
         else pure False
 
-mlsCliConsume :: (HasCallStack) => Ciphersuite -> ClientIdentity -> ByteString -> App ByteString
-mlsCliConsume cs cid msgData =
+mlsCliConsume :: (HasCallStack) => ConvId -> Ciphersuite -> ClientIdentity -> ByteString -> App ByteString
+mlsCliConsume convId cs cid msgData =
   mlscli
+    (Just convId)
     cs
     cid
     [ "consume",
@@ -684,7 +697,7 @@ sendAndConsumeCommitBundle mp = do
       do
         conv <- getMLSConv mp.convId
         when (Set.member mp.sender conv.newMembers) $
-          traverse_ (fromWelcome conv.ciphersuite mp.sender) mp.welcome
+          traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
 
       -- increment epoch and add new clients
       modifyMLSState $ \mls ->
@@ -720,14 +733,15 @@ consumeWelcome cid mp ws = do
   gs <- getClientGroupState cid
   assertBool
     "Existing clients in a conversation should not consume welcomes"
-    (isNothing gs.group)
+    (not $ Map.member mp.convId gs.groups)
   conv <- getMLSConv mp.convId
-  fromWelcome conv.ciphersuite cid welcome
+  fromWelcome mp.convId conv.ciphersuite cid welcome
 
-fromWelcome :: Ciphersuite -> ClientIdentity -> ByteString -> App ()
-fromWelcome cs cid welcome =
+fromWelcome :: ConvId -> Ciphersuite -> ClientIdentity -> ByteString -> App ()
+fromWelcome convId cs cid welcome =
   void $
     mlscli
+      (Just convId)
       cs
       cid
       [ "group",
@@ -780,7 +794,7 @@ setClientGroupState cid g =
 
 showMessage :: (HasCallStack) => Ciphersuite -> ClientIdentity -> ByteString -> App Value
 showMessage cs cid msg = do
-  bs <- mlscli cs cid ["show", "message", "-"] (Just msg)
+  bs <- mlscli Nothing cs cid ["show", "message", "-"] (Just msg)
   assertOne (Aeson.decode (BS.fromStrict bs))
 
 readGroupState :: (HasCallStack) => ByteString -> App [(ClientIdentity, Word32)]
@@ -813,6 +827,7 @@ createApplicationMessage convId cid messageContent = do
   conv <- getMLSConv convId
   message <-
     mlscli
+      (Just convId)
       conv.ciphersuite
       cid
       ["message", "--group-in", "<group-in>", messageContent, "--group-out", "<group-out>"]
