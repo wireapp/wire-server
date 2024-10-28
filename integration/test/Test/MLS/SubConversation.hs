@@ -236,86 +236,87 @@ testLeaveSubConv leaver = do
 testCreatorRemovesUserFromParent :: App ()
 testCreatorRemovesUserFromParent = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
-  [alice1, bob1, bob2, charlie1, charlie2] <- traverse (createMLSClient def def) [alice, bob, bob, charlie, charlie]
-  traverse_ (uploadNewKeyPackage def) [bob1, bob2, charlie1, charlie2]
-  (_, convId) <- createNewGroup def alice1
+  addUsersToFailureContext [("alice", alice), ("bob", bob), ("charlie", charlie)] $ do
+    [alice1, bob1, bob2, charlie1, charlie2] <- traverse (createMLSClient def def) [alice, bob, bob, charlie, charlie]
+    traverse_ (uploadNewKeyPackage def) [bob1, bob2, charlie1, charlie2]
+    (_, convId) <- createNewGroup def alice1
 
-  _ <- createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
+    _ <- createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
 
-  -- save the state of the parent group
-  -- parentState <- getMLSState
-  -- switch to the subgroup
-  let subConvName = "conference"
-  createSubConv def convId alice1 subConvName
-  subConvId <- getSubConvId alice convId "conference"
+    -- save the state of the parent group
+    -- parentState <- getMLSState
+    -- switch to the subgroup
+    let subConvName = "conference"
+    createSubConv def convId alice1 subConvName
+    subConvId <- getSubConvId alice convId "conference"
 
-  for_ [bob1, bob2, charlie1, charlie2] \c ->
-    createExternalCommit subConvId c Nothing >>= sendAndConsumeCommitBundle
-  -- save the state of the subgroup and switch to the parent context
-  -- childState <- getMLSState <* setMLSState parentState
-  withWebSockets [alice1, charlie1, charlie2] \wss -> do
-    removeCommitEvents <- createRemoveCommit alice1 convId [bob1, bob2] >>= sendAndConsumeCommitBundle
-    modifyMLSState $ \s ->
-      s
-        { convs =
-            Map.adjust
-              (\conv -> conv {members = conv.members Set.\\ Set.fromList [bob1, bob2]})
-              convId
-              s.convs
-        }
+    for_ [bob1, bob2, charlie1, charlie2] \c ->
+      createExternalCommit subConvId c Nothing >>= sendAndConsumeCommitBundle
+    -- save the state of the subgroup and switch to the parent context
+    -- childState <- getMLSState <* setMLSState parentState
+    withWebSockets [alice1, charlie1, charlie2] \wss -> do
+      removeCommitEvents <- createRemoveCommit alice1 convId [bob1, bob2] >>= sendAndConsumeCommitBundle
+      modifyMLSState $ \s ->
+        s
+          { convs =
+              Map.adjust
+                (\conv -> conv {members = conv.members Set.\\ Set.fromList [bob1, bob2]})
+                convId
+                s.convs
+          }
 
-    removeCommitEvents %. "events.0.type" `shouldMatch` "conversation.member-leave"
-    removeCommitEvents %. "events.0.data.reason" `shouldMatch` "removed"
-    removeCommitEvents %. "events.0.from" `shouldMatch` alice1.user
+      removeCommitEvents %. "events.0.type" `shouldMatch` "conversation.member-leave"
+      removeCommitEvents %. "events.0.data.reason" `shouldMatch` "removed"
+      removeCommitEvents %. "events.0.from" `shouldMatch` alice1.user
 
-    for_ wss \ws -> do
-      n <- awaitMatch isConvLeaveNotif ws
-      n %. "payload.0.data.reason" `shouldMatch` "removed"
-      n %. "payload.0.from" `shouldMatch` alice1.user
+      for_ wss \ws -> do
+        n <- awaitMatch isConvLeaveNotif ws
+        n %. "payload.0.data.reason" `shouldMatch` "removed"
+        n %. "payload.0.from" `shouldMatch` alice1.user
 
-    -- setMLSState childState
-    let idxBob1 :: Int = 1
-        idxBob2 :: Int = 2
-    for_ ((,) <$> [idxBob1, idxBob2] <*> wss) \(idx, ws) -> do
-      msg <-
-        awaitMatch
-          do
-            \n ->
-              isJust <$> runMaybeT do
-                msg <- lift $ n %. "payload.0.data" & asByteString >>= showMessage def alice1
-                guard =<< lift do
-                  isNewMLSMessageNotif n
+      -- setMLSState childState
+      let idxBob1 :: Int = 1
+          idxBob2 :: Int = 2
+      for_ ((,) <$> [idxBob1, idxBob2] <*> wss) \(idx, ws) -> do
+        msg <-
+          awaitMatch
+            do
+              \n ->
+                isJust <$> runMaybeT do
+                  msg <- lift $ n %. "payload.0.data" & asByteString >>= showMessage def alice1
+                  guard =<< lift do
+                    isNewMLSMessageNotif n
 
-                prop <-
-                  maybe mzero pure =<< lift do
-                    lookupField msg "message.content.body.Proposal"
+                  prop <-
+                    maybe mzero pure =<< lift do
+                      lookupField msg "message.content.body.Proposal"
 
-                lift do
-                  (== idx) <$> (prop %. "Remove.removed" & asInt)
-          ws
-      for_ ws.client $ \consumer ->
-        msg %. "payload.0.data" & asByteString >>= mlsCliConsume def consumer
+                  lift do
+                    (== idx) <$> (prop %. "Remove.removed" & asInt)
+            ws
+        for_ ws.client $ \consumer ->
+          msg %. "payload.0.data" & asByteString >>= mlsCliConsume def consumer
 
-    -- remove bob from the child state
-    modifyMLSState $ \s ->
-      s
-        { convs =
-            Map.adjust
-              (\conv -> conv {members = conv.members Set.\\ Set.fromList [bob1, bob2]})
-              subConvId
-              s.convs
-        }
+      -- remove bob from the child state
+      modifyMLSState $ \s ->
+        s
+          { convs =
+              Map.adjust
+                (\conv -> conv {members = conv.members Set.\\ Set.fromList [bob1, bob2]})
+                subConvId
+                s.convs
+          }
 
-    _ <- createPendingProposalCommit subConvId alice1 >>= sendAndConsumeCommitBundle
+      _ <- createPendingProposalCommit subConvId alice1 >>= sendAndConsumeCommitBundle
 
-    getSubConversation bob convId subConvName >>= flip withResponse \resp ->
-      assertBool "access to the conversation for bob should be denied" (resp.status == 403)
+      getSubConversation bob convId subConvName >>= flip withResponse \resp ->
+        assertBool "access to the conversation for bob should be denied" (resp.status == 403)
 
-    for_ [charlie, alice] \m -> do
-      resp <- getSubConversation m convId subConvName
-      assertBool "alice and charlie should have access to the conversation" (resp.status == 200)
-      mems <- resp.jsonBody %. "members" & asList
-      mems `shouldMatchSet` ((renameField "id" "user_id" <=< make) `traverse` [alice1, charlie1, charlie2])
+      for_ [charlie, alice] \m -> do
+        resp <- getSubConversation m convId subConvName
+        assertBool "alice and charlie should have access to the conversation" (resp.status == 200)
+        mems <- resp.jsonBody %. "members" & asList
+        mems `shouldMatchSet` ((renameField "id" "user_id" <=< make) `traverse` [alice1, charlie1, charlie2])
 
 testResendingProposals :: (HasCallStack) => App ()
 testResendingProposals = do

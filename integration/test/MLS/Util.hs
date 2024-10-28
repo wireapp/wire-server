@@ -185,6 +185,8 @@ generateKeyPackage cid suite = do
 -- | Create conversation and corresponding group.
 --
 -- returns (groupId, convId)
+--
+-- TODO: Don't return groupId as it is already part of ConvId or remove it from ConvID.
 createNewGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App (String, ConvId)
 createNewGroup cs cid = do
   conv <- postConversation cid defMLS >>= getJSON 201
@@ -603,7 +605,7 @@ consumingMessages mp = Codensity $ \k -> do
     -- at this point we know that every new user has been added to the
     -- conversation
     for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid (Just mp) ws
+      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
       MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
     pure r
 
@@ -628,15 +630,15 @@ consumeMessage :: (HasCallStack) => Ciphersuite -> ClientIdentity -> Maybe Messa
 consumeMessage = consumeMessageWithPredicate isNewMLSMessageNotif
 
 -- | like 'consumeMessage' but will not consume a message where the sender is the backend
-consumeMessageNoExternal :: (HasCallStack) => Ciphersuite -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
-consumeMessageNoExternal cs cid = consumeMessageWithPredicate isNewMLSMessageNotifButNoProposal cs cid
+consumeMessageNoExternal :: (HasCallStack) => Ciphersuite -> ClientIdentity -> MessagePackage -> WebSocket -> App Value
+consumeMessageNoExternal cs cid mp = consumeMessageWithPredicate isNewMLSMessageNotifButNoProposal cs cid (Just mp)
   where
     -- the backend (correctly) reacts to a commit removing someone from a parent conversation with a
     -- remove proposal, however, we don't want to consume this here
     isNewMLSMessageNotifButNoProposal :: Value -> App Bool
     isNewMLSMessageNotifButNoProposal n = do
-      isNotif <- isNewMLSMessageNotif n
-      if isNotif
+      isRelevantNotif <- isNewMLSMessageNotif n &&~ isNotifConvId mp.convId n
+      if isRelevantNotif
         then do
           msg <- n %. "payload.0.data" & asByteString >>= showMessage cs cid
           sender <- msg `lookupField` "message.content.sender" `catch` \(_ :: AssertionFailure) -> pure Nothing

@@ -402,3 +402,11 @@ uploadDownloadProfilePicture :: (HasCallStack, MakesValue usr) => usr -> App (St
 uploadDownloadProfilePicture usr = do
   (dom, key, _payload) <- uploadProfilePicture usr
   downloadProfilePicture usr dom key
+
+addUsersToFailureContext :: (MakesValue user) => [(String, user)] -> App a -> App a
+addUsersToFailureContext namesAndUsers action = do
+  let mkLine (name, user) = do
+        (domain, id_) <- objQid user
+        pure $ name <> ": " <> id_ <> "@" <> domain
+  allLines <- unlines <$> (mapM mkLine namesAndUsers)
+  addFailureContext allLines action
