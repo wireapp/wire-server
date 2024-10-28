@@ -395,7 +395,8 @@ testAddUserSimple suite ctype = do
   events <- resp %. "events" & asList
   do
     event <- assertOne events
-    shouldMatch (event %. "qualified_conversation") qcnv
+    shouldMatch (event %. "qualified_conversation.id") qcnv.id_
+    shouldMatch (event %. "qualified_conversation.domain") qcnv.domain
     shouldMatch (event %. "type") "conversation.member-join"
     shouldMatch (event %. "from") (objId alice)
     members <- event %. "data" %. "users" & asList
