@@ -86,6 +86,20 @@ testSwaggerToc = do
     html :: String
     html = "<html><head></head><body><h2>please pick an api version</h2><a href=\"/v0/api/swagger-ui/\">/v0/api/swagger-ui/</a><br><a href=\"/v1/api/swagger-ui/\">/v1/api/swagger-ui/</a><br><a href=\"/v2/api/swagger-ui/\">/v2/api/swagger-ui/</a><br><a href=\"/v3/api/swagger-ui/\">/v3/api/swagger-ui/</a><br><a href=\"/v4/api/swagger-ui/\">/v4/api/swagger-ui/</a><br><a href=\"/v5/api/swagger-ui/\">/v5/api/swagger-ui/</a><br><a href=\"/v6/api/swagger-ui/\">/v6/api/swagger-ui/</a><br><a href=\"/v7/api/swagger-ui/\">/v7/api/swagger-ui/</a><br></body>"
 
+data Swagger = SwaggerPublic | SwaggerInternal Service
+
+instance TestCases Swagger where
+  mkTestCases =
+    pure
+      [ MkTestCase "[swagger=ibrig]" (SwaggerInternal Brig),
+        MkTestCase "[swagger=icannon]" (SwaggerInternal Cannon),
+        MkTestCase "[swagger=icargohold]" (SwaggerInternal Cargohold),
+        MkTestCase "[swagger=igalley]" (SwaggerInternal Galley),
+        MkTestCase "[swagger=igundeck]" (SwaggerInternal Gundeck),
+        MkTestCase "[swagger=ispar]" (SwaggerInternal Spar),
+        MkTestCase "[swagger=public]" SwaggerPublic
+      ]
+
 -- | This runs the swagger linter [vacuum](https://quobix.com/vacuum/).
 --
 -- The reason for adding the linter in the integration tests, and not in the lint job, is that
@@ -93,10 +107,20 @@ testSwaggerToc = do
 --
 -- There is also a make rule that does this, for convenience in your develop
 -- flow. Make sure that brig is running before using the make rule.
-testSwaggerLint :: (HasCallStack) => App ()
-testSwaggerLint = do
+testSwaggerLint :: (HasCallStack) => Swagger -> App ()
+testSwaggerLint sw = do
   withSystemTempDirectory "swagger" $ \tmp -> do
-    req <- baseRequest OwnDomain Brig Versioned $ joinHttpPath ["api", "swagger.json"]
+    req <- case sw of
+      SwaggerPublic ->
+        baseRequest OwnDomain Brig Versioned
+          $ joinHttpPath ["api", "swagger.json"]
+      (SwaggerInternal service) ->
+        baseRequest OwnDomain Brig Unversioned
+          $ joinHttpPath
+            [ "api-internal",
+              "swagger-ui",
+              serviceName service <> "-swagger.json"
+            ]
     swagger <- submit "GET" req >>= getBody 200
     liftIO $ B.writeFile (tmp </> "swagger.json") swagger
     let cmd = shell $ "vacuum lint -a -d -e " <> (tmp </> "swagger.json")
