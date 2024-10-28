@@ -583,11 +583,11 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
         map (,MLSNotificationMessageTag) (toList oldClients)
           <> map (,MLSNotificationWelcomeTag) (toList newClients)
 
-  -- let newUsers =
-  --       Set.delete mp.sender.user $
-  --         Set.difference
-  --           (Set.map (.user) newClients)
-  --           (Set.map (.user) oldClients)
+  let newUsers =
+        Set.delete mp.sender.user $
+          Set.difference
+            (Set.map (.user) newClients)
+            (Set.map (.user) oldClients)
   withWebSockets (map fst clients) $ \wss -> do
     r <- k ()
 

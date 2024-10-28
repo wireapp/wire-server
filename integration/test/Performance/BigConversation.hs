@@ -40,7 +40,7 @@ testCreateBigMLSConversation = do
   ownerClient <- createClient owner
   _memClients <- pooledMapConcurrentlyN 64 createClient members
   createConv <- appToIO $ do
-    (_, convId) <- createNewGroup def ownerClient
+    convId <- createNewGroup def ownerClient
     void $ sendAndConsumeCommitBundle =<< createAddCommit ownerClient convId members
   let benchmarkable = toBenchmarkable (\n -> replicateM_ (fromIntegral n) createConv)
   liftIO $ benchmarkWith (defaultConfig {resamples = 5}) benchmarkable

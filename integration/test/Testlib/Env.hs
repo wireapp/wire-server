@@ -22,7 +22,6 @@ import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp
-import Testlib.JSON
 import Testlib.Prekeys
 import Testlib.ResourcePool
 import Testlib.Types
