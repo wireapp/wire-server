@@ -470,8 +470,7 @@ type IConversationAPI =
            "conversation-mls-one-to-one"
            ( CanThrow 'NotConnected
                :> CanThrow 'MLSNotEnabled
-               :> "conversations"
-               :> "mls-one2one"
+               :> "mls-one2one-conversations"
                :> ZLocalUser
                :> QualifiedCapture "user" UserId
                :> Get '[JSON] Conversation
@@ -481,8 +480,7 @@ type IConversationAPI =
            ( CanThrow 'NotConnected
                :> CanThrow 'MLSNotEnabled
                :> ZLocalUser
-               :> "conversations"
-               :> "mls-one2one"
+               :> "mls-one2one-conversations"
                :> QualifiedCapture "user" UserId
                :> "established"
                :> Get '[JSON] Bool
