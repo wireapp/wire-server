@@ -228,8 +228,9 @@ tap tag x = do
 createOne2OneSubConv :: (HasCallStack, MakesValue keys) => Ciphersuite -> ConvId -> ClientIdentity -> String -> keys -> App ()
 createOne2OneSubConv cs convId cid subId keys = do
   sub <- getSubConversation cid convId subId >>= getJSON 200
+  subConvId <- objConvId sub
   resetOne2OneGroupGeneric cs cid sub keys
-  void $ createPendingProposalCommit convId cid >>= sendAndConsumeCommitBundle
+  void $ createPendingProposalCommit subConvId cid >>= sendAndConsumeCommitBundle
 
 resetGroup :: (HasCallStack, MakesValue conv) => Ciphersuite -> ClientIdentity -> conv -> App ()
 resetGroup cs cid conv = do
