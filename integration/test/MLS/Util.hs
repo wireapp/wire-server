@@ -267,7 +267,7 @@ resetOne2OneGroupGeneric cs cid conv keys = do
               groupId = groupId,
               convId = convId,
               epoch = 0,
-              ciphersuite = def
+              ciphersuite = cs
             }
         resetConv old new =
           old
