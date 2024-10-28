@@ -2067,10 +2067,19 @@ postRepeatConnectConvCancel = do
   where
     cancel u c = do
       g <- viewGalley
-      let cnvId = qUnqualified . cnvQualifiedId
-      put (g . paths ["/i/conversations", toByteString' (cnvId c), "block"] . zUser u)
+      let qConvId = cnvQualifiedId c
+      put
+        ( g
+            . paths
+              [ "/i/conversations",
+                toByteString' (qDomain qConvId),
+                toByteString' (qUnqualified qConvId),
+                "block"
+              ]
+            . zUser u
+        )
         !!! const 200 === statusCode
-      getConv u (cnvId c) !!! const 403 === statusCode
+      getConv u (qUnqualified qConvId) !!! const 403 === statusCode
 
 putBlockConvOk :: TestM ()
 putBlockConvOk = do
@@ -2082,23 +2091,59 @@ putBlockConvOk = do
   let convId = qUnqualified qconvId
   getConvQualified alice qconvId !!! const 200 === statusCode
   getConvQualified bob qconvId !!! const 403 === statusCode
-  put (g . paths ["/i/conversations", toByteString' convId, "block"] . zUser bob)
+  put
+    ( g
+        . paths
+          [ "/i/conversations",
+            toByteString' (qDomain qconvId),
+            toByteString' convId,
+            "block"
+          ]
+        . zUser bob
+    )
     !!! const 200 === statusCode
   -- A is still the only member of the 1-1
   getConvQualified alice qconvId !!! do
     const 200 === statusCode
     const (cnvMembers conv) === cnvMembers . responseJsonUnsafeWithMsg "conversation"
   -- B accepts the conversation by unblocking
-  put (g . paths ["/i/conversations", toByteString' convId, "unblock"] . zUser bob)
+  put
+    ( g
+        . paths
+          [ "/i/conversations",
+            toByteString' (qDomain qconvId),
+            toByteString' convId,
+            "unblock"
+          ]
+        . zUser bob
+    )
     !!! const 200 === statusCode
   getConvQualified bob qconvId !!! const 200 === statusCode
   -- B blocks A in the 1-1
-  put (g . paths ["/i/conversations", toByteString' convId, "block"] . zUser bob)
+  put
+    ( g
+        . paths
+          [ "/i/conversations",
+            toByteString' (qDomain qconvId),
+            toByteString' convId,
+            "block"
+          ]
+        . zUser bob
+    )
     !!! const 200 === statusCode
   -- B no longer sees the 1-1
   getConvQualified bob qconvId !!! const 403 === statusCode
   -- B unblocks A in the 1-1
-  put (g . paths ["/i/conversations", toByteString' convId, "unblock"] . zUser bob)
+  put
+    ( g
+        . paths
+          [ "/i/conversations",
+            toByteString' (qDomain qconvId),
+            toByteString' convId,
+            "unblock"
+          ]
+        . zUser bob
+    )
     !!! const 200 === statusCode
   -- B sees the blocked 1-1 again
   getConvQualified bob qconvId !!! do
