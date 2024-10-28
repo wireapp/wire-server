@@ -39,7 +39,7 @@ testJoinOne2OneSubConv = do
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objConvId one2OneConv
+  one2OneConvId <- objConvId (one2OneConv %. "conversation")
   resetOne2OneGroup def alice1 one2OneConv
 
   void $ createAddCommit alice1 one2OneConvId [bob] >>= sendAndConsumeCommitBundle
@@ -67,7 +67,7 @@ testLeaveOne2OneSubConv scenario leaver = do
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objConvId one2OneConv
+  one2OneConvId <- objConvId $ one2OneConv %. "conversation"
   resetOne2OneGroup def alice1 one2OneConv
   void $ createAddCommit alice1 one2OneConvId [bob] >>= sendAndConsumeCommitBundle
 
@@ -75,7 +75,7 @@ testLeaveOne2OneSubConv scenario leaver = do
   createOne2OneSubConv def one2OneConvId alice1 "conference" (one2OneConv %. "public_keys")
   subConvId <- getSubConvId bob one2OneConvId "conference"
 
-  void $ createExternalCommit one2OneConvId bob1 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit subConvId bob1 Nothing >>= sendAndConsumeCommitBundle
 
   -- one of the two clients leaves
   let (leaverClient, leaverIndex, remainingClient) = case leaver of
@@ -180,9 +180,9 @@ testLeaveSubConv leaver = do
 
   createSubConv def convId bob1 "conference"
   subConvId <- getSubConvId bob convId "conference"
-  void $ createExternalCommit convId alice1 Nothing >>= sendAndConsumeCommitBundle
-  void $ createExternalCommit convId bob2 Nothing >>= sendAndConsumeCommitBundle
-  void $ createExternalCommit convId charlie1 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit subConvId alice1 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit subConvId bob2 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit subConvId charlie1 Nothing >>= sendAndConsumeCommitBundle
 
   -- a member leaves the subconversation
   let (firstLeaver, idxFirstLeaver) = case leaver of

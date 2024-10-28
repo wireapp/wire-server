@@ -33,6 +33,7 @@ import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO hiding (print, putStrLn)
+import System.IO.Error (isAlreadyExistsError)
 import System.IO.Temp
 import System.Posix.Files
 import System.Process
@@ -86,7 +87,7 @@ mlscli mConvId cs cid args mbstdin = do
   store <- case Map.lookup scheme gs.keystore of
     Nothing -> do
       bd <- getBaseDir
-      liftIO $ createDirectory (bd </> cid2Str cid)
+      liftIO (createDirectory (bd </> cid2Str cid)) `catch` \e -> if (isAlreadyExistsError e) then assertFailure "Fasdfa" else throwM e
 
       -- initialise new keystore
       path <- randomFileName
@@ -220,10 +221,12 @@ createSubConv cs convId cid subId = do
   void $ createPendingProposalCommit subConvId cid >>= tap "Pending Proposal Commit" >>= sendAndConsumeCommitBundle
 
 tap :: String -> MessagePackage -> App MessagePackage
-tap tag x = do
-  j <- prettyJSON x.convId
-  putStrLn $ "Tap: " <> tag <> "\n" <> j
-  pure x
+tap _ x = pure x
+
+-- tap tag x = do
+--   j <- prettyJSON x.convId
+--   putStrLn $ "Tap: " <> tag <> "\n" <> j
+--   pure x
 
 createOne2OneSubConv :: (HasCallStack, MakesValue keys) => Ciphersuite -> ConvId -> ClientIdentity -> String -> keys -> App ()
 createOne2OneSubConv cs convId cid subId keys = do
@@ -852,8 +855,7 @@ leaveConv ::
   ClientIdentity ->
   App ()
 leaveConv convId cid = do
-  (_, mSubId) <- objSubConv convId
-  case mSubId of
+  case convId.subconvId of
     -- FUTUREWORK: implement leaving main conversation as well
     Nothing -> assertFailure "Leaving conversations is not supported"
     Just _ -> do

@@ -330,7 +330,7 @@ testMLSOne2One suite scenario = do
   void $ uploadNewKeyPackage suite bob1
 
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  one2OneConvId <- objConvId one2OneConv
+  one2OneConvId <- objConvId $ one2OneConv %. "conversation"
   resetOne2OneGroup suite alice1 one2OneConv
 
   commit <- createAddCommit alice1 one2OneConvId [bob]
