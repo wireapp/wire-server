@@ -92,7 +92,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
           Left eBN -> do
             Log.err $
               Log.msg
-                ( Log.val "Cannot parse a queued message as s notification "
+                ( Log.val "Cannot parse a queued message as a notification "
                     <> "nor as a bundle; the message will be ignored"
                 )
                 . Log.field "domain" (domainText targetDomain)
@@ -201,9 +201,9 @@ pairedMaximumOn f = maximumBy (compare `on` snd) . map (id &&& f)
 -- Consumers is passed in explicitly so that cleanup code has a reference to the consumer tags.
 startPusher :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO) -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
 startPusher adminClient consumersRef chan = do
+  markAsWorking BackendNotificationPusher
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
-  markAsWorking BackendNotificationPusher
   lift $ Q.qos chan 0 1 False
   -- Make sure threads aren't dangling if/when this async thread is killed
   let cleanup :: (Exception e, MonadThrow m, MonadIO m) => e -> m ()
@@ -291,6 +291,7 @@ getRemoteDomains adminClient = do
           . Log.field "queue" ("backend-notifications." <> d)
           . Log.field "error" e
 
+-- TODO: abstract this instead of copy-pasting
 startWorker :: AmqpEndpoint -> AppT IO (IORef (Maybe Q.Channel), IORef (Map Domain (Q.ConsumerTag, MVar ())))
 startWorker rabbitmqOpts = do
   env <- ask

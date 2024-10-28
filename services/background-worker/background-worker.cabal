@@ -12,6 +12,7 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.BackendDeadUserNotificationWatcher
     Wire.BackendNotificationPusher
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
@@ -30,7 +31,10 @@ library
       aeson
     , amqp
     , base
+    , bytestring-conversion
+    , cassandra-util
     , containers
+    , errors
     , exceptions
     , extended
     , HsOpenSSL
@@ -45,6 +49,7 @@ library
     , servant-server
     , text
     , tinylog
+    , transformers
     , transformers-base
     , types-common
     , unliftio

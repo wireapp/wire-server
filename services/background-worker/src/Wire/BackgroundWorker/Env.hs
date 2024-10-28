@@ -3,6 +3,8 @@
 
 module Wire.BackgroundWorker.Env where
 
+import Cassandra (ClientState)
+import Cassandra.Util (defInitCassandra)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
@@ -27,6 +29,7 @@ type IsWorking = Bool
 -- | Eventually this will be a sum type of all the types of workers
 data Worker
   = BackendNotificationPusher
+  | BackendDeadUserNoticationWatcher
   deriving (Show, Eq, Ord)
 
 data Env = Env
@@ -39,7 +42,8 @@ data Env = Env
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
-    statuses :: IORef (Map Worker IsWorking)
+    statuses :: IORef (Map Worker IsWorking),
+    cassandra :: ClientState
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -57,8 +61,9 @@ mkBackendNotificationMetrics =
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
-  http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
+  cassandra <- defInitCassandra opts.cassandraOpts logger
+  http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal
       defederationTimeout =
