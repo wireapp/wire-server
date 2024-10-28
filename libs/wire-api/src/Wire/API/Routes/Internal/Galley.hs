@@ -387,7 +387,7 @@ type IConversationAPI =
   Named
     "conversation-get-member"
     ( "conversations"
-        :> Capture "cnv" ConvId
+        :> QualifiedCapture "cnv" ConvId
         :> "members"
         :> Capture "usr" UserId
         :> Get '[JSON] (Maybe Member)
