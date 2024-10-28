@@ -46,6 +46,7 @@ library
     Gundeck.Schema.V1
     Gundeck.Schema.V10
     Gundeck.Schema.V11
+    Gundeck.Schema.V12
     Gundeck.Schema.V2
     Gundeck.Schema.V3
     Gundeck.Schema.V4
