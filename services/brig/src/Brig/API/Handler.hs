@@ -21,6 +21,7 @@ module Brig.API.Handler
     toServantHandler,
 
     -- * Utilities
+    liftUserSubsystemError,
     checkAllowlist,
     checkAllowlistWithError,
     isAllowlisted,
@@ -47,6 +48,8 @@ import Imports
 import Network.HTTP.Types (Status (statusCode, statusMessage))
 import Network.Wai.Utilities.Error qualified as WaiError
 import Network.Wai.Utilities.Server qualified as Server
+import Polysemy (Sem)
+import Polysemy.Error qualified as P
 import Servant qualified
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
@@ -55,6 +58,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.User
 import Wire.Error
+import Wire.UserSubsystem.Error
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
@@ -116,6 +120,13 @@ brigErrorHandlers logger reqId =
 
 -------------------------------------------------------------------------------
 -- Utilities
+
+-- | Run a 'UserSubsystemError' error and lift to the handler type.
+liftUserSubsystemError ::
+  Sem ((P.Error UserSubsystemError) : r) a ->
+  Handler r a
+liftUserSubsystemError =
+  withExceptT userSubsystemErrorToHttpError . ExceptT . liftSem . P.runError
 
 -- | If an Allowlist is configured, consult it, otherwise a no-op. {#RefActivationAllowlist}
 checkAllowlist :: EmailAddress -> Handler r ()

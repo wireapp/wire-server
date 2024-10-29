@@ -26,6 +26,7 @@ interpretUserStoreCassandra casClient =
       GetIndexUser uid -> getIndexUserImpl uid
       GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
       UpdateUser uid update -> updateUserImpl uid update
+      UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid email
       UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
       DeleteUser user -> deleteUserImpl user
       LookupHandle hdl -> lookupHandleImpl LocalQuorum hdl
@@ -104,6 +105,13 @@ updateUserImpl uid update =
     for_ update.locale \a -> addPrepQuery userLocaleUpdate (a.lLanguage, a.lCountry, uid)
     for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
     for_ update.supportedProtocols \a -> addPrepQuery userSupportedProtocolsUpdate (a, uid)
+
+updateEmailUnvalidatedImpl :: UserId -> EmailAddress -> Client ()
+updateEmailUnvalidatedImpl u e =
+  retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
+  where
+    userEmailUnvalidatedUpdate :: PrepQuery W (EmailAddress, UserId) ()
+    userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?"
 
 updateUserHandleEitherImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
 updateUserHandleEitherImpl uid update =

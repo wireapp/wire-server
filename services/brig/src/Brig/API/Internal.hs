@@ -477,7 +477,8 @@ createUserNoVerify ::
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member HashPassword r,
-    Member PasswordResetCodeStore r
+    Member PasswordResetCodeStore r,
+    Member ActivationCodeStore r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -538,7 +539,9 @@ changeSelfEmailMaybeSendH ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r
   ) =>
   UserId ->
   EmailUpdate ->
@@ -554,7 +557,9 @@ changeSelfEmailMaybeSend ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r
   ) =>
   UserId ->
   MaybeSendEmail ->
@@ -562,9 +567,14 @@ changeSelfEmailMaybeSend ::
   UpdateOriginType ->
   (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
-  API.changeSelfEmail u email allowScim
+  lusr <- qualifyLocal u
+  timeout <- asks (.settings.activationTimeout)
+  liftUserSubsystemError $
+    UserSubsystem.changeSelfEmail timeout lusr email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
-  API.changeEmail u email allowScim !>> changeEmailError >>= \case
+  lusr <- qualifyLocal u
+  timeout <- asks (.settings.activationTimeout)
+  liftUserSubsystemError (UserSubsystem.changeEmail timeout lusr email allowScim) >>= \case
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 

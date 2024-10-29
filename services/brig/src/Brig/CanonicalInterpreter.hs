@@ -176,7 +176,8 @@ runBrigToIO e (AppT ma) = do
           { emailVisibilityConfig = e.settings.emailVisibility,
             defaultLocale = Opt.defaultUserLocale e.settings,
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
-            maxTeamSize = e.settings.maxTeamSize
+            maxTeamSize = e.settings.maxTeamSize,
+            activationCodeTimeout = e.settings.activationTimeout
           }
       teamInvitationSubsystemConfig =
         TeamInvitationSubsystemConfig

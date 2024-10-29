@@ -21,10 +21,19 @@ module Wire.ActivationCodeStore where
 import Data.Id
 import Imports
 import Polysemy
+import Util.Timeout
 import Wire.API.User.Activation
 import Wire.UserKeyStore
 
 data ActivationCodeStore :: Effect where
   LookupActivationCode :: EmailKey -> ActivationCodeStore m (Maybe (Maybe UserId, ActivationCode))
+  -- | Create a new pending activation for a given 'EmailKey'.
+  NewActivation ::
+    EmailKey ->
+    -- | The timeout for the activation code.
+    Timeout ->
+    -- | The user with whom to associate the activation code.
+    Maybe UserId ->
+    ActivationCodeStore m Activation
 
 makeSem ''ActivationCodeStore

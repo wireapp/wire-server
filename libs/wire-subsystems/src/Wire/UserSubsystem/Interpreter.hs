@@ -32,6 +32,7 @@ import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import Servant.Client.Core
 import System.Logger.Message qualified as Log
+import Util.Timeout
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
@@ -81,7 +82,8 @@ data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
     defaultLocale :: Locale,
     searchSameTeamOnly :: Bool,
-    maxTeamSize :: Word32
+    maxTeamSize :: Word32,
+    activationCodeTimeout :: Timeout
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)

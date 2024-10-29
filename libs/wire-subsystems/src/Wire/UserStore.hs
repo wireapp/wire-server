@@ -54,6 +54,7 @@ data UserStore m a where
   GetIndexUsersPaginated :: Int32 -> Maybe PagingState -> UserStore m (PageWithState IndexUser)
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
+  UpdateEmailUnvalidated :: UserId -> EmailAddress -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   DeleteUser :: User -> UserStore m ()
   -- | This operation looks up a handle but is guaranteed to not give you stale locks.

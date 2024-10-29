@@ -511,7 +511,7 @@ servantSitemap =
         :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH
-        :<|> Named @"change-self-email" changeSelfEmailH
+        :<|> Named @"change-self-email" Brig.API.Auth.changeSelfEmail
         :<|> Named @"list-cookies" listCookies
         :<|> Named @"remove-cookies" removeCookies
 
@@ -811,7 +811,8 @@ createUser ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member ActivationCodeStore r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -1336,7 +1337,9 @@ updateUserEmail ::
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r
   ) =>
   UserId ->
   UserId ->
@@ -1347,7 +1350,10 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  void $ API.changeSelfEmail emailOwnerId email UpdateOriginWireClient
+  acTimeout <- asks (.settings.activationTimeout)
+  lEmailOwnerId <- qualifyLocal emailOwnerId
+  void . liftUserSubsystemError $
+    User.changeSelfEmail acTimeout lEmailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =

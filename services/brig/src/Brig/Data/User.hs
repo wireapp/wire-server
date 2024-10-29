@@ -36,7 +36,6 @@ module Brig.Data.User
 
     -- * Updates
     updateEmail,
-    updateEmailUnvalidated,
     updateSSOId,
     updateManagedBy,
     activateUser,
@@ -208,9 +207,6 @@ insertAccount u mbConv password activated = retry x5 . batch $ do
 
 updateEmail :: (MonadClient m) => UserId -> EmailAddress -> m ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
-
-updateEmailUnvalidated :: (MonadClient m) => UserId -> EmailAddress -> m ()
-updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
 
 updateSSOId :: (MonadClient m) => UserId -> Maybe UserSSOId -> m Bool
 updateSSOId u ssoid = do
@@ -434,9 +430,6 @@ userInsert =
 
 userEmailUpdate :: PrepQuery W (EmailAddress, UserId) ()
 userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
-
-userEmailUnvalidatedUpdate :: PrepQuery W (EmailAddress, UserId) ()
-userEmailUnvalidatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = ? WHERE id = ?"
 
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
 userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = null WHERE id = ?"
