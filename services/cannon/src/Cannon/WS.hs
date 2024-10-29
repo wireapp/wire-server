@@ -52,6 +52,7 @@ import Bilge.Retry
 import Cannon.Dict (Dict)
 import Cannon.Dict qualified as D
 import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
+import Cassandra (ClientState)
 import Conduit
 import Control.Concurrent.Timeout
 import Control.Lens ((^.))
@@ -147,7 +148,8 @@ data Env = Env
     rand :: !GenIO,
     clock :: !Clock,
     drainOpts :: DrainOpts,
-    rabbitmq :: !AmqpEndpoint
+    rabbitmq :: !AmqpEndpoint,
+    cassandra :: ClientState
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -194,6 +196,7 @@ env ::
   Clock ->
   DrainOpts ->
   AmqpEndpoint ->
+  ClientState ->
   Env
 env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
 

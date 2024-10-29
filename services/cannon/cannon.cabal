@@ -98,6 +98,7 @@ library
     , hs-opentelemetry-sdk
     , http-types                            >=0.8
     , imports
+    , kan-extensions
     , lens                                  >=4.4
     , lens-family-core                      >=1.1
     , metrics-wai                           >=0.4

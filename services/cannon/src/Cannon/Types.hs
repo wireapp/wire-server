@@ -54,7 +54,6 @@ import System.Random.MWC (GenIO)
 
 data Env = Env
   { opts :: !Opts,
-    cassandra :: ClientState,
     applog :: !Logger,
     dict :: !(Dict Key Websocket),
     reqId :: !RequestId,
@@ -102,8 +101,8 @@ mkEnv ::
   AmqpEndpoint ->
   Env
 mkEnv external o cs l d p g t rabbitmqOpts =
-  Env o cs l d (RequestId defRequestId) $
-    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts) rabbitmqOpts
+  Env o l d (RequestId defRequestId) $
+    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts) rabbitmqOpts cs
 
 runCannon :: Env -> Cannon a -> IO a
 runCannon e c = runReaderT (unCannon c) e

@@ -68,6 +68,7 @@ import Data.Text.Encoding.Error (lenientDecode)
 import Data.Text.Lazy.Encoding qualified as LT
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
+import Debug.Trace
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -230,6 +231,7 @@ catchErrorsWithRequestId getRequestId l app req k =
 
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
+      traceM $ "exception: " <> displayException ex
       er <- runHandlers ex errorHandlers
       onError l mReqId req k er
 
@@ -348,7 +350,7 @@ rethrow5xx getRequestId logger app req k = app req k'
     k' resp@WaiInt.ResponseRaw {} = do
       -- See Note [Raw Response]
       let logMsg =
-            field "canoncalpath" (show $ pathInfo req)
+            field "canonicalpath" (show $ pathInfo req)
               . field "rawpath" (rawPathInfo req)
               . field "request" (fromMaybe defRequestId $ getRequestId req)
               . msg (val "ResponseRaw - cannot collect metrics or log info on errors")
