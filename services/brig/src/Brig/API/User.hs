@@ -83,7 +83,7 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), User
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
-import Brig.Team.Email (sendMemberWelcomeMail)
+import Brig.Team.Email
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
@@ -133,7 +133,6 @@ import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BlockListStore as BlockListStore
 import Wire.DeleteQueue
-import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.Error
 import Wire.Events (Events)
@@ -267,8 +266,7 @@ upgradePersonalToTeam ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member EmailSending r
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
   BindingNewTeamUser ->
@@ -300,7 +298,7 @@ upgradePersonalToTeam luid bNewTeam = do
 
     -- send confirmation email
     for_ (userEmail user) $ \email -> do
-      sendMemberWelcomeMail
+      sendPersonalUserCreatorWelcomeMail
         email
         tid
         bNewTeam.bnuTeam.newTeamName.fromRange

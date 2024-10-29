@@ -201,7 +201,6 @@ data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
     creatorWelcomeEmailSenderName :: !Text
   }
 
--- | Email template for welcoming a new member to a team or a personal user who created a team and became the owner.
 data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
   { memberWelcomeEmailUrl :: !Text,
     memberWelcomeEmailSubject :: !Template,
@@ -211,9 +210,29 @@ data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
     memberWelcomeEmailSenderName :: !Text
   }
 
+data PersonalUserMemberWelcomeEmailTemplate = PersonalUserMemberWelcomeEmailTemplate
+  { personalUserMemberWelcomeEmailUrl :: !Text,
+    personalUserMemberWelcomeEmailSubject :: !Template,
+    personalUserMemberWelcomeEmailBodyText :: !Template,
+    personalUserMemberWelcomeEmailBodyHtml :: !Template,
+    personalUserMemberWelcomeEmailSender :: !EmailAddress,
+    personalUserMemberWelcomeEmailSenderName :: !Text
+  }
+
+data PersonalUserCreatorWelcomeEmailTemplate = PersonalUserCreatorWelcomeEmailTemplate
+  { personalUserCreatorWelcomeEmailUrl :: !Text,
+    personalUserCreatorWelcomeEmailSubject :: !Template,
+    personalUserCreatorWelcomeEmailBodyText :: !Template,
+    personalUserCreatorWelcomeEmailBodyHtml :: !Template,
+    personalUserCreatorWelcomeEmailSender :: !EmailAddress,
+    personalUserCreatorWelcomeEmailSenderName :: !Text
+  }
+
 data TeamTemplates = TeamTemplates
   { invitationEmail :: !InvitationEmailTemplate,
     existingUserInvitationEmail :: !InvitationEmailTemplate,
     creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
-    memberWelcomeEmail :: !MemberWelcomeEmailTemplate
+    memberWelcomeEmail :: !MemberWelcomeEmailTemplate,
+    personalUserMemberWelcomeEmail :: !PersonalUserMemberWelcomeEmailTemplate,
+    personalUserCreatorWelcomeEmail :: !PersonalUserCreatorWelcomeEmailTemplate
   }
