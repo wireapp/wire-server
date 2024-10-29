@@ -36,6 +36,5 @@ noopEmailSubsystemInterpreter = interpret \case
   SendAccountDeletionEmail {} -> pure ()
   SendTeamActivationMail {} -> pure ()
   SendTeamDeletionVerificationMail {} -> pure ()
-  SendUpgradePersonalToTeamConfirmationEmail {} -> pure ()
   SendTeamInvitationMail {} -> pure ""
   SendTeamInvitationMailPersonalUser {} -> pure ""

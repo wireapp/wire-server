@@ -85,7 +85,6 @@ data UserTemplates = UserTemplates
     loginCall :: LoginCallTemplate,
     deletionSms :: DeletionSmsTemplate,
     deletionEmail :: DeletionEmailTemplate,
-    upgradePersonalToTeamEmail :: UpgradePersonalToTeamEmailTemplate,
     newClientEmail :: NewClientEmailTemplate,
     verificationLoginEmail :: SecondFactorVerificationEmailTemplate,
     verificationScimTokenEmail :: SecondFactorVerificationEmailTemplate,
@@ -136,14 +135,6 @@ data DeletionEmailTemplate = DeletionEmailTemplate
     deletionEmailBodyHtml :: Template,
     deletionEmailSender :: EmailAddress,
     deletionEmailSenderName :: Text
-  }
-
-data UpgradePersonalToTeamEmailTemplate = UpgradePersonalToTeamEmailTemplate
-  { upgradePersonalToTeamEmailSubject :: Template,
-    upgradePersonalToTeamEmailBodyText :: Template,
-    upgradePersonalToTeamEmailBodyHtml :: Template,
-    upgradePersonalToTeamEmailSender :: EmailAddress,
-    upgradePersonalToTeamEmailSenderName :: Text
   }
 
 data PasswordResetEmailTemplate = PasswordResetEmailTemplate
@@ -210,6 +201,7 @@ data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
     creatorWelcomeEmailSenderName :: !Text
   }
 
+-- | Email template for welcoming a new member to a team or a personal user who created a team and became the owner.
 data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
   { memberWelcomeEmailUrl :: !Text,
     memberWelcomeEmailSubject :: !Template,

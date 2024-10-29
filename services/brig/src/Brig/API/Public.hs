@@ -726,7 +726,7 @@ createAccessToken method luid cid proof = do
 upgradePersonalToTeam ::
   ( Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
-    Member EmailSubsystem r,
+    Member EmailSending r,
     Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
