@@ -31,6 +31,7 @@ module Cannon.Options
     logFormat,
     drainOpts,
     rabbitmq,
+    cassandraOpts,
     Opts,
     gracePeriodSeconds,
     millisecondsBetweenBatches,
@@ -40,6 +41,7 @@ module Cannon.Options
   )
 where
 
+import Cassandra.Options (CassandraOpts)
 import Control.Lens (makeFields)
 import Data.Aeson
 import Data.Aeson.APIFieldJsonTH
@@ -95,9 +97,10 @@ data Opts = Opts
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
     _optsDrainOpts :: DrainOpts,
-    _optsDisabledAPIVersions :: !(Set VersionExp)
+    _optsDisabledAPIVersions :: !(Set VersionExp),
+    _optsCassandraOpts :: !CassandraOpts
   }
-  deriving (Eq, Show, Generic)
+  deriving (Show, Generic)
 
 makeFields ''Opts
 
@@ -112,3 +115,4 @@ instance FromJSON Opts where
       <*> o .:? "logFormat"
       <*> o .: "drainOpts"
       <*> o .: "disabledAPIVersions"
+      <*> o .: "cassandra"

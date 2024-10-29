@@ -15,7 +15,7 @@ data Opts = Opts
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig,
-    cassandraOpts :: CassandraOpts
+    cassandra :: CassandraOpts
   }
   deriving (Show, Generic)
 

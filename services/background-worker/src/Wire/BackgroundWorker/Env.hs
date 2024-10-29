@@ -62,7 +62,7 @@ mkBackendNotificationMetrics =
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
-  cassandra <- defInitCassandra opts.cassandraOpts logger
+  cassandra <- defInitCassandra opts.cassandra logger
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal

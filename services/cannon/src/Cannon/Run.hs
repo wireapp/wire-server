@@ -29,6 +29,7 @@ import Cannon.Dict qualified as D
 import Cannon.Options
 import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon, runCannonToServant)
 import Cannon.WS hiding (drainOpts, env)
+import Cassandra.Util (defInitCassandra)
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
 import Control.Exception qualified as E
@@ -72,8 +73,9 @@ run o = withTracer \tracer -> do
     error "drainOpts.gracePeriodSeconds must not be set to 0."
   ext <- loadExternal
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
+  cassandra <- defInitCassandra (o ^. cassandraOpts) g
   e <-
-    mkEnv ext o g
+    mkEnv ext o cassandra g
       <$> D.empty 128
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom

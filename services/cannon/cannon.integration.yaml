@@ -12,6 +12,12 @@ cannon:
   externalHost: 127.0.0.1
   #externalHostFile: /etc/wire/cannon/cannon-host.txt
 
+cassandra:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: gundeck_test
+
 gundeck:
   host: 127.0.0.1
   port: 8086

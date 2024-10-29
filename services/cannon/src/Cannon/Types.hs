@@ -18,11 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Cannon.Types
-  ( Env,
-    opts,
-    applog,
-    dict,
-    env,
+  ( Env (..),
     Cannon,
     mapConcurrentlyCannon,
     mkEnv,
@@ -39,6 +35,7 @@ import Cannon.Dict (Dict)
 import Cannon.Options
 import Cannon.WS (Clock, Key, Websocket)
 import Cannon.WS qualified as WS
+import Cassandra (ClientState)
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens ((^.))
 import Control.Monad.Catch
@@ -57,6 +54,7 @@ import System.Random.MWC (GenIO)
 
 data Env = Env
   { opts :: !Opts,
+    cassandra :: ClientState,
     applog :: !Logger,
     dict :: !(Dict Key Websocket),
     reqId :: !RequestId,
@@ -95,6 +93,7 @@ instance HasRequestId Cannon where
 mkEnv ::
   ByteString ->
   Opts ->
+  ClientState ->
   Logger ->
   Dict Key Websocket ->
   Manager ->
@@ -102,8 +101,8 @@ mkEnv ::
   Clock ->
   AmqpEndpoint ->
   Env
-mkEnv external o l d p g t rabbitmqOpts =
-  Env o l d (RequestId defRequestId) $
+mkEnv external o cs l d p g t rabbitmqOpts =
+  Env o cs l d (RequestId defRequestId) $
     WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts) rabbitmqOpts
 
 runCannon :: Env -> Cannon a -> IO a
