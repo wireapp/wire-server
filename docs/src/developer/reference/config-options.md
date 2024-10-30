@@ -719,22 +719,11 @@ optSettings:
   setOAuthMaxActiveRefreshTokens: 10
 ```
 
-#### Argon2id password hashing parameters
+#### Password hashing options
 
-Since release 5.6.0, wire-server hashes passwords with
-[argon2id](https://datatracker.ietf.org/doc/html/rfc9106) at rest.  If
-you do not do anything, the default parameters will be used, which
-are:
-
-```yaml
-    setPasswordHashingOptions:
-      iterations: 1
-      memory: 180224 # memory needed in kibibytes (1 kibibyte is 2^10 bytes)
-      parallelism: 32
-```
-
-The default will be adjusted to new developments in hashing algorithm
-security from time to time.
+Since release 5.6.0, wire-server can hash passwords with
+[argon2id](https://datatracker.ietf.org/doc/html/rfc9106) to be stored at rest.
+If you do not do anything, the deployment will still use use scrypt.
 
 The password hashing options are set for brig and galley:
 
@@ -742,29 +731,34 @@ The password hashing options are set for brig and galley:
 brig:
   optSettings:
     setPasswordHashingOptions:
+      algorithm: # argon2id or scrypt
+      # These options only apply to argon2id
       iterations: ...
       memory: ... # memory needed in KiB
       parallelism: ...
 galley:
   settings:
     passwordHashingOptions:
+      algorithm: # argon2id or scrypt
+      # These options only apply to argon2id
       iterations: ...
       memory: ... # memory needed in KiB
       parallelism: ...
 ```
 
-**Performance implications:** scrypt takes ~80ms on a realistic test
-system, and argon2id with default settings takes ~500ms. This is a
-runtime increase by a factor of ~6.  This happens every time a
-password is entered by the user: during login, password reset,
-deleting a device, etc. (It does **NOT** happen during any other
-cryptographic operations like session key update or message
-de-/encryption.)
+**Performance implications:** argon2id typically takes longer and uses more
+memory than scrypt. So when migrating to it brig and galley pods must be
+allocated more resouces according to the chosen paramters.
 
-The settings are a trade-off between resilience against brute force
-attacks and password secrecy.  For most systems this should be safe
-and not need more hardware resources for brig, but you may want to
-form your own opinion.
+When configured to use argon2id, the DB will be migrated slowly over time as the
+users enter their passwords (either to login or to do other operations which
+require explicit password entry). This migration is **NOT** done in reverse,
+i.e., if a deployment started with argon2id as the algorithm then chose to move
+to scrypt, the passwords already stored will not get rehashed automatically,
+however the users will still be able to use them to login.
+
+**NOTE** It is highly recommended to move to argon2id as it will be made the
+  only available choice for the `algorithm` config option in future.
 
 #### Disabling API versions
 
