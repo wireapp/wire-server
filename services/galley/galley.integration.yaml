@@ -59,10 +59,11 @@ settings:
       ecdsa_secp521r1_sha512: test/resources/backendA/ecdsa_secp521r1_sha512.pem
   guestLinkTTLSeconds: 604800
   passwordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
+    algorithm: argon2id
     iterations: 1
     memory: 128
     parallelism: 1
-  
+
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: []

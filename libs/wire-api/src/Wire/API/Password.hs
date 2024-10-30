@@ -130,8 +130,8 @@ fromScrypt scryptParams =
       outputLength = 64
     }
 
-argon2OptsFromHashingOpts :: PasswordHashingOptions -> Argon2.Options
-argon2OptsFromHashingOpts PasswordHashingOptions {..} =
+argon2OptsFromHashingOpts :: Argon2idOptions -> Argon2.Options
+argon2OptsFromHashingOpts Argon2idOptions {..} =
   Argon2.Options
     { variant = Argon2.Argon2id,
       version = Argon2.Version13,

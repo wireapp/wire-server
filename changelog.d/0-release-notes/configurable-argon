@@ -1,18 +1,33 @@
-Password hashing is now done using argon2id instead of scrypt. The argon2id parameters can be configured using these options:
+Password hashing can now be done using argon2id instead of scrypt. The argon2id parameters can be configured using these options:
 
 ```yaml
 brig:
   optSettings:
     setPasswordHashingOptions:
+      algorithm: argon2id
       iterations: ...
       memory: ... # memory needed in KiB
       parallelism: ...
 galley:
   settings:
     passwordHashingOptions:
+      algorithm: argon2id
       iterations: ...
       memory: ... # memory needed in KiB
       parallelism: ...
 ```
 
-These have default values, which should work for most deployments. Please see documentation on config-options for more. 
+The default option is still to use scrypt as moving to argon2id might require
+allocating more resources according to configured parameters.
+
+When configured to use argon2id, the DB will be migrated slowly over time as the
+users enter their passwords (either to login or to do other operations which
+require explicit password entry). This migration is **NOT** done in reverse,
+i.e., if a deployment started with argon2id as the algorithm then chose to move
+to scrypt, the passwords will not get rehashed automatically, instead the users
+will have to reset their passwords if that is desired.
+
+**NOTE** It is highly recommended to move to argon2id as it will be made the
+  only available choice for the `algorithm` config option in future.
+
+(#4291, ##)

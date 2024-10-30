@@ -136,7 +136,8 @@ brig:
       setOAuthMaxActiveRefreshTokens: 10
       # These values are insecure, against anyone getting hold of the hash, 
       # but its not a concern for the integration tests.
-      setPasswordHashingOptions: 
+      setPasswordHashingOptions:
+        algorithm: argon2id
         iterations: 1
         parallelism: 4
         memory: 32 # This needs to be at least 8 * parallelism.
@@ -266,7 +267,8 @@ galley:
 
       # These values are insecure, against anyone getting hold of the hash, 
       # but its not a concern for the integration tests.
-      passwordHashingOptions: 
+      passwordHashingOptions:
+        algorithm: argon2id
         iterations: 1
         parallelism: 4
         memory: 32 # This needs to be at least 8 * parallelism.
