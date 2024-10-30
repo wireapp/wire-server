@@ -57,8 +57,10 @@ versionHeader = CI.mk . B8.pack $ symbolVal (Proxy @VersionHeader)
 --------------------------------------------------------------------------------
 -- Servant combinators
 
+-- | Exclusive range ('Until V5' means '[.. V4]')
 data Until v
 
+-- | Inclusive range ('From V5' means '[V5 ..]')
 data From v
 
 instance
