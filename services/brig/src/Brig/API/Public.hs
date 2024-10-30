@@ -106,6 +106,7 @@ import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
 import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
@@ -244,17 +245,72 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 
     listAllVersionsHTML :: LByteString
     listAllVersionsHTML =
-      "<html><head></head><body><h2>please pick an api version</h2>"
-        <> mconcat
-          [ let url = "/" <> toQueryParam v <> "/api/swagger-ui/"
-             in "<a href=\""
-                  <> (fromStrict . Text.encodeUtf8 $ url)
-                  <> "\">"
-                  <> (fromStrict . Text.encodeUtf8 $ url)
-                  <> "</a><br>"
-            | v <- [minBound :: Version ..]
+      LBS.unlines $
+        [ "<html><head></head><body><h1>OpenAPI 3.0 docs for all Wire APIs</h1>",
+          intro,
+          LBS.unlines public,
+          LBS.unlines internal,
+          LBS.unlines federated,
+          "</body></html>"
+        ]
+      where
+        intro =
+          "<p>This wire-server system provides <a href=\"https://swagger.io/resources/open-api/\">OpenAPI 3.0</a> \
+          \documentation of our HTTP REST API.</p> \
+          \<p>The openapi docs are correct by construction (compiled from the server code), and more or less \
+          \complete.</p> \
+          \<p>Some endpoints are version-controlled. </a href=\"/api-version\">Show all supported versions.</a> \
+          \<a href=\"https://docs.wire.com/developer/developer/api-versioning.html\">find out more.</a>"
+
+        public :: [LByteString]
+        public =
+          ["<h2>Public (all available versions)</h2>"]
+            <> mconcat
+              [ [ v <> ": ",
+                  renderLink "swagger-ui" ("/" <> v <> "/api/swagger-ui") <> "; ",
+                  renderLink "swagger.json" ("/" <> v <> "/api/swagger.json"),
+                  "<br>"
+                ]
+                | v <- versionToLByteString <$> [minBound :: Version ..]
+              ]
+
+        internal :: [LByteString]
+        internal =
+          [ "<h2>Internal (not versioned)</h2>",
+            "<p>Openapi docs for internal endpoints are served per service. I.e. there's one for `brig`, one for `cannon`, \
+            \etc..  This is because Openapi doesn't play well with multiple actions having the same combination of HTTP \
+            \method and URL path.</p>"
           ]
-        <> "</body>"
+            <> mconcat
+              [ [ s <> ":<br>",
+                  renderLink "swagger-ui" ("/api-internal/swagger-ui/" <> s) <> "; ",
+                  renderLink "swagger.json" ("/api-internal/swagger-ui/" <> s <> "-swagger.json"),
+                  "<br>"
+                ]
+                | s <- ["brig", "galley", "spar", "cargohold", "gundeck", "cannon", "proxy"]
+              ]
+
+        federated :: [LByteString]
+        federated =
+          ["<h2>Federated API (backend-to-backend)</h2>"]
+            <> [ mconcat
+                   [ mconcat
+                       [ s <> " (" <> v <> "):<br>",
+                         renderLink "swagger-ui" ("/" <> v <> "/api-federation/swagger-ui/" <> s) <> "; ",
+                         renderLink "swagger.json" ("/" <> v <> "/api-federation/swagger-ui/" <> s <> "-swagger.json"),
+                         "<br>"
+                       ]
+                     | v <- versionToLByteString <$> [minBound :: Fed.Version ..]
+                   ]
+                   <> "<br>"
+                 | s <- ["brig", "galley", "cargohold"]
+               ]
+
+        versionToLByteString :: (ToHttpApiData v) => v -> LByteString
+        versionToLByteString = fromStrict . Text.encodeUtf8 . toQueryParam
+
+        renderLink :: LByteString -> LByteString -> LByteString
+        renderLink caption url = "<a href=\"" <> url <> "\">" <> caption <> "</a>"
 
 -- | Serves Swagger docs for internal endpoints.
 internalEndpointsSwaggerDocsAPI ::
