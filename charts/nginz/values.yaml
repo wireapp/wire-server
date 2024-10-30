@@ -295,6 +295,9 @@ nginx_conf:
     - path: /bot/users
       envs:
       - all
+    - path: /conversations/([^/]*)/bots
+      envs:
+      - all
     - path: /invitations/info
       envs:
       - all
