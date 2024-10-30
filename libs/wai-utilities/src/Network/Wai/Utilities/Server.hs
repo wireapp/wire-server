@@ -68,7 +68,6 @@ import Data.Text.Encoding.Error (lenientDecode)
 import Data.Text.Lazy.Encoding qualified as LT
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
-import Debug.Trace
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -231,7 +230,6 @@ catchErrorsWithRequestId getRequestId l app req k =
 
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
-      traceM $ "exception: " <> displayException ex
       er <- runHandlers ex errorHandlers
       onError l mReqId req k er
 

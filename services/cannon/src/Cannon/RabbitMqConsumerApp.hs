@@ -5,12 +5,13 @@ module Cannon.RabbitMqConsumerApp where
 import Cannon.App (rejectOnError)
 import Cannon.WS
 import Cassandra as C
+import Control.Concurrent.Async
 import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
 import Control.Monad.Codensity
 import Data.Aeson
 import Data.Id
 import Imports
-import Network.AMQP qualified as Amqp
+import Network.AMQP qualified as Q
 import Network.AMQP.Extended (withConnection)
 import Network.WebSockets
 import Network.WebSockets qualified as WS
@@ -20,11 +21,14 @@ import Wire.API.Notification
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
-  bracket openWebSocket closeWebSocket $ \wsConn ->
+  wsVar <- newEmptyMVar
+  msgVar <- newEmptyMVar
+
+  bracket (openWebSocket wsVar) closeWebSocket $ \(wsConn, _) ->
     catches
       ( do
           sendFullSyncMessageIfNeeded wsConn uid cid e
-          sendNotifications wsConn
+          sendNotifications wsConn msgVar wsVar
       )
       [ -- handle client misbehaving
         Handler $ \(err :: WebSocketServerError) -> do
@@ -41,7 +45,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString),
         -- handle web socket exception
         Handler $
-          \err -> case err of
+          \(err :: WS.ConnectionException) -> case err of
             CloseRequest code reason ->
               Log.debug e.logg $
                 Log.msg (Log.val "Client requested to close connection")
@@ -64,20 +68,36 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
       Log.field "user" (idToText uid)
         . Log.field "client" (clientToText cid)
 
-    openWebSocket =
-      acceptRequest pendingConn
-        `catch` rejectOnError pendingConn
+    openWebSocket wsVar = do
+      wsConn <-
+        acceptRequest pendingConn
+          `catch` rejectOnError pendingConn
+      -- start a reader thread for client messages
+      -- this needs to run asynchronously in order to promptly react to
+      -- client-side connection termination
+      a <- async $ forever $ do
+        catch
+          ( do
+              msg <- getClientMessage wsConn
+              putMVar wsVar (Right msg)
+          )
+          $ \err -> putMVar wsVar (Left err)
+      pure (wsConn, a)
 
     -- this is only needed in case of asynchronous exceptions
-    closeWebSocket wsConn = do
+    closeWebSocket (wsConn, a) = do
+      cancel a
       logCloseWebsocket
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
 
     -- Create a rabbitmq consumer that receives messages and saves them into an MVar
-    createConsumer :: Amqp.Channel -> MVar EventData -> IO Amqp.ConsumerTag
+    createConsumer ::
+      Q.Channel ->
+      MVar (Either Q.AMQPException EventData) ->
+      IO Q.ConsumerTag
     createConsumer chan msgVar = do
-      Amqp.consumeMsgs chan (clientNotificationQueueName uid cid) Amqp.Ack $
+      Q.consumeMsgs chan (clientNotificationQueueName uid cid) Q.Ack $
         \(msg, envelope) -> case eitherDecode @QueuedNotification msg.msgBody of
           Left err -> do
             logParseError err
@@ -89,35 +109,56 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
             -- en masse, if at some point we decide that Events should not be
             -- pushed as JSONs, hopefully we think of the parsing side if/when
             -- that happens.
-            Amqp.rejectEnv envelope False
+            Q.rejectEnv envelope False
           Right notif ->
-            putMVar msgVar $
+            putMVar msgVar . Right $
               EventData notif envelope.envDeliveryTag
 
-    sendNotifications :: WS.Connection -> IO ()
-    sendNotifications wsConn = lowerCodensity $ do
+    sendNotifications ::
+      WS.Connection ->
+      MVar (Either Q.AMQPException EventData) ->
+      MVar (Either ConnectionException MessageClientToServer) ->
+      IO ()
+    sendNotifications wsConn msgVar wsVar = lowerCodensity $ do
+      -- create rabbitmq connection
       conn <- Codensity $ withConnection e.logg e.rabbitmq
-      amqpChan <- Codensity $ bracket (Amqp.openChannel conn) Amqp.closeChannel
-      msgVar <- lift newEmptyMVar
 
+      -- create rabbitmq channel
+      amqpChan <- Codensity $ bracket (Q.openChannel conn) Q.closeChannel
+
+      -- propagate rabbitmq connection failure
+      lift $ Q.addConnectionClosedHandler conn True $ do
+        putMVar msgVar $
+          Left (Q.ConnectionClosedException Q.Normal "")
+
+      -- register consumer that pushes rabbitmq messages into msgVar
       void $
         Codensity $
           bracket
             (createConsumer amqpChan msgVar)
-            (Amqp.cancelConsumer amqpChan)
+            (Q.cancelConsumer amqpChan)
 
-      lift $ forever $ do
-        eventData <- takeMVar msgVar
-        logEvent eventData.event
-        catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
-          \(err :: SomeException) -> do
-            logSendFailure err
-            throwIO err
-        getClientMessage wsConn >>= \case
-          AckFullSync -> throwIO UnexpectedAck
-          AckMessage ackData -> do
-            logAckReceived ackData
-            void $ Amqp.ackMsg amqpChan ackData.deliveryTag ackData.multiple
+      -- get data from msgVar and push to client
+      let consumeRabbitMq = forever $ do
+            eventData <- takeMVar msgVar >>= either throwIO pure
+            logEvent eventData.event
+            catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
+              \(err :: SomeException) -> do
+                logSendFailure err
+                throwIO err
+
+      -- get ack from wsVar and forward to rabbitmq
+      let consumeWebsocket = forever $ do
+            takeMVar wsVar >>= either throwIO pure >>= \case
+              AckFullSync -> throwIO UnexpectedAck
+              AckMessage ackData -> do
+                logAckReceived ackData
+                void $ Q.ackMsg amqpChan ackData.deliveryTag ackData.multiple
+
+      -- run both loops concurrently, so that
+      --  - notifications are delivered without having to wait for acks
+      --  - exceptions on either side do not cause a deadlock
+      lift $ concurrently_ consumeRabbitMq consumeWebsocket
 
     logParseError :: String -> IO ()
     logParseError err =

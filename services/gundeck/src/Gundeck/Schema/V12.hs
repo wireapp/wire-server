@@ -26,7 +26,7 @@ migration = Migration 12 "Create table `missed_notifications`" $ do
   schema'
     [r|
         CREATE TABLE missed_notifications (
-            user_id int,
+            user_id uuid,
             client_id text,
             PRIMARY KEY (user_id, client_id)
         );
