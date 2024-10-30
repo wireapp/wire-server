@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 
+# To start the federation v0, v1 backends, set ENABLE_FEDERATION_V0=1, ENABLE_FEDERATION_V1=1
+# in the env where this script is run
+
 set -e
 
 # run.sh should work no matter what is the current directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_FILE="$SCRIPT_DIR/docker-compose.yaml"
 FED_VERSIONS=(0 1)
 
-opts=( "--file" "$DOCKER_FILE" )
+opts=("--file" "$DOCKER_FILE")
 for v in "${FED_VERSIONS[@]}"; do
   var="ENABLE_FEDERATION_V$v"
   if [[ "${!var}" == 1 ]]; then
-    opts+=( "--file" "$SCRIPT_DIR/federation-v$v.yaml" )
+    opts+=("--file" "$SCRIPT_DIR/federation-v$v.yaml")
   fi
 done
 
@@ -19,7 +22,7 @@ dc() {
   docker-compose "${opts[@]}" "$@"
 }
 
-cleanup () {
+cleanup() {
   dc down
 }
 
