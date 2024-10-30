@@ -723,7 +723,7 @@ optSettings:
 
 Since release 5.6.0, wire-server can hash passwords with
 [argon2id](https://datatracker.ietf.org/doc/html/rfc9106) to be stored at rest.
-If you do not do anything, the deployment will still use use scrypt.
+If you do not do anything, the deployment will still use scrypt.
 
 The password hashing options are set for brig and galley:
 
