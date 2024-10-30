@@ -83,6 +83,9 @@ data:
       {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
       {{- end }}
       federationDomain: {{ .settings.federationDomain }}
+      {{- if .settings.federationProtocols }}
+      federationProtocols: {{ .settings.federationProtocols }}
+      {{- end }}
       {{- if $.Values.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:
         removal:

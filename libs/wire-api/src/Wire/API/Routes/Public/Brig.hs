@@ -425,8 +425,9 @@ type SelfAPI =
 
 type UserHandleAPI =
   Named
-    "check-user-handles"
+    "check-user-handles@v6"
     ( Summary "Check availability of user handles"
+        :> Until V7
         :> ZUser
         :> "users"
         :> "handles"
@@ -438,12 +439,41 @@ type UserHandleAPI =
              [Handle]
     )
     :<|> Named
-           "check-user-handle"
+           "check-user-handles"
+           ( Summary "Check availability of user handles"
+               :> From V7
+               :> ZUser
+               :> "handles"
+               :> ReqBody '[JSON] CheckHandles
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[Respond 200 "List of free handles" [Handle]]
+                    [Handle]
+           )
+    :<|> Named
+           "check-user-handle@v6"
            ( Summary "Check whether a user handle can be taken"
+               :> Until V7
                :> CanThrow 'InvalidHandle
                :> CanThrow 'HandleNotFound
                :> ZUser
                :> "users"
+               :> "handles"
+               :> Capture "handle" Text
+               :> MultiVerb
+                    'HEAD
+                    '[JSON]
+                    '[Respond 200 "Handle is taken" ()]
+                    ()
+           )
+    :<|> Named
+           "check-user-handle"
+           ( Summary "Check whether a user handle can be taken"
+               :> From V7
+               :> CanThrow 'InvalidHandle
+               :> CanThrow 'HandleNotFound
+               :> ZUser
                :> "handles"
                :> Capture "handle" Text
                :> MultiVerb

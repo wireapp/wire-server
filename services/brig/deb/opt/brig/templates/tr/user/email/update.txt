@@ -6,8 +6,8 @@ E-POSTANIZI DOĞRULAYIN
 ${email}, ${brand}'daki yeni e-posta adresiniz olarak kaydedildi. Adresinizi
 doğrulamak için aşağıdaki düğmeye tıklayın.
 
-Doğrula [${url}]Düğmeyi tıklayamıyorsanız, bu bağlantıyı kopyalayıp tarayıcınıza
-yapıştırın:
+Doğrula [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 

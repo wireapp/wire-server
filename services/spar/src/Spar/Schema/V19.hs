@@ -15,31 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.Internal.LegalHold where
+module Spar.Schema.V19
+  ( migration,
+  )
+where
 
-import Control.Lens
-import Data.Id
-import Data.OpenApi (OpenApi)
-import Data.OpenApi.Lens
-import Data.Proxy
+import Cassandra.Schema
 import Imports
-import Servant.API
-import Servant.OpenApi
-import Wire.API.Team.Feature
+import Text.RawString.QQ
 
-type InternalLegalHoldAPI =
-  "i"
-    :> "teams"
-    :> ( Capture "tid" TeamId
-           :> "legalhold"
-           :> Get '[JSON] (LockableFeature LegalholdConfig)
-           :<|> Capture "tid" TeamId
-             :> "legalhold"
-             :> ReqBody '[JSON] (Feature LegalholdConfig)
-             :> Put '[] NoContent
-       )
-
-swaggerDoc :: OpenApi
-swaggerDoc =
-  toOpenApi (Proxy @InternalLegalHoldAPI)
-    & info . title .~ "Wire-Server internal legalhold API"
+migration :: Migration
+migration = Migration 19 "Add name column to scim token info" $ do
+  schema'
+    [r|
+        ALTER TABLE team_provisioning_by_team ADD (name text);
+      |]
+  schema'
+    [r|
+        ALTER TABLE team_provisioning_by_token  ADD (name text);
+      |]

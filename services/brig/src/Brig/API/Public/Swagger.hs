@@ -123,12 +123,9 @@ adjustSwaggerForFederationEndpoints service swagger =
     tag :: InsOrdSet.InsOrdHashSet S.TagName
     tag = InsOrdSet.singleton @S.TagName (T.pack service)
 
-emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
-emptySwagger =
-  swaggerSchemaUIServer $
-    mempty @S.OpenApi
-      & S.info . S.description
-        ?~ "There is no Swagger documentation for this version. Please refer to v5 or later."
+emptySwagger :: Text -> Servant.Server (ServiceSwaggerDocsAPIBase a)
+emptySwagger msg =
+  swaggerSchemaUIServer $ mempty @S.OpenApi & S.info . S.description ?~ msg
 
 eventNotificationSchemas :: [S.Definitions S.Schema]
 eventNotificationSchemas = fst . (`S.runDeclare` mempty) <$> renderAll

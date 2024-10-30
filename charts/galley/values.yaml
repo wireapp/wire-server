@@ -75,6 +75,10 @@ config:
       iterations: 1
       parallelism: 32
       memory: 180224 # 176 MiB
+
+    # To disable proteus for new federated conversations:
+    # federationProtocols: ["mls"]
+
     featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
       appLock:
         defaults:

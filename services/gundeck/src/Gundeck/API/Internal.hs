@@ -36,20 +36,21 @@ import Servant
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Push.V2
 import Wire.API.Routes.Internal.Gundeck
+import Wire.API.Routes.Named
 
 servantSitemap :: ServerT InternalAPI Gundeck
 servantSitemap =
-  statusH
-    :<|> pushH
-    :<|> ( Presence.listAllH
-             :<|> Presence.listH
-             :<|> Presence.addH
-             :<|> Presence.removeH
+  Named @"i-status" statusH
+    :<|> Named @"i-push" pushH
+    :<|> ( Named @"i-presences-get-for-users" Presence.listAllH
+             :<|> Named @"i-presences-get-for-user" Presence.listH
+             :<|> Named @"i-presences-post" Presence.addH
+             :<|> Named @"i-presences-delete" Presence.removeH
          )
-    :<|> unregisterClientH
-    :<|> removeUserH
-    :<|> getPushTokensH
-    :<|> registerConsumableNotifcationsClient
+    :<|> Named @"i-clients-delete" unregisterClientH
+    :<|> Named @"i-user-delete" removeUserH
+    :<|> Named @"i-push-tokens-get" getPushTokensH
+    :<|> Named @"i-reg-consumable-notifs" registerConsumableNotifcationsClient
 
 statusH :: (Applicative m) => m NoContent
 statusH = pure NoContent

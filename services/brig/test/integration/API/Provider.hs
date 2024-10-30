@@ -1397,7 +1397,7 @@ addBot ::
 addBot brig uid pid sid cid =
   post $
     brig
-      . paths ["conversations", toByteString' cid, "bots"]
+      . paths ["bot", "conversations", toByteString' cid]
       . header "Z-Type" "access"
       . header "Z-User" (toByteString' uid)
       . header "Z-Connection" "conn"
@@ -1413,7 +1413,7 @@ removeBot ::
 removeBot brig uid cid bid =
   delete $
     brig
-      . paths ["conversations", toByteString' cid, "bots", toByteString' bid]
+      . paths ["bot", "conversations", toByteString' cid, toByteString' bid]
       . header "Z-Type" "access"
       . header "Z-User" (toByteString' uid)
       . header "Z-Connection" "conn"

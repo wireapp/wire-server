@@ -50,6 +50,7 @@ settings:
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Brig
   federationDomain: example.com
+  federationProtocols: ["mls", "proteus"]
   mlsPrivateKeyPaths:
     removal:
       ed25519: test/resources/backendA/ed25519.pem

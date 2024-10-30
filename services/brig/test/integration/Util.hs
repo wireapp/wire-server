@@ -748,7 +748,14 @@ isMember g usr cnv = do
   res <-
     get $
       g
-        . paths ["i", "conversations", toByteString' cnv, "members", toByteString' (tUnqualified usr)]
+        . paths
+          [ "i",
+            "conversations",
+            toByteString' (tDomain usr),
+            toByteString' cnv,
+            "members",
+            toByteString' (tUnqualified usr)
+          ]
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> pure False

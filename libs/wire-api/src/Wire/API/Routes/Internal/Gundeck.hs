@@ -22,6 +22,7 @@ import Servant.Server.Internal.ErrorFormatter
 import Wire.API.CannonId
 import Wire.API.Presence
 import Wire.API.Push.V2
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 
 -- | this can be replaced by `ReqBody '[JSON] Presence` once the fix in cannon from
@@ -82,19 +83,27 @@ instance (HasOpenApi sub) => HasOpenApi (ReqBodyHack :> sub) where
 
 type InternalAPI =
   "i"
-    :> ( ("status" :> Get '[JSON] NoContent)
-           :<|> ("push" :> "v2" :> ReqBody '[JSON] [Push] :> Post '[JSON] NoContent)
+    :> ( Named "i-status" ("status" :> Get '[JSON] NoContent)
+           :<|> Named "i-push" ("push" :> "v2" :> ReqBody '[JSON] [Push] :> Post '[JSON] NoContent)
            :<|> ( "presences"
-                    :> ( (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
-                           :<|> (Capture "uid" UserId :> Get '[JSON] [Presence])
-                           :<|> (ReqBodyHack :> Verb 'POST 201 '[JSON] (Headers '[Header "Location" URI] NoContent))
-                           :<|> (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
+                    :> ( Named "i-presences-get-for-users" (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
+                           :<|> Named "i-presences-get-for-user" (Capture "uid" UserId :> Get '[JSON] [Presence])
+                           :<|> Named "i-presences-post" (ReqBodyHack :> Verb 'POST 201 '[JSON] (Headers '[Header "Location" URI] NoContent))
+                           :<|> Named "i-presences-delete" (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
                        )
                 )
-           :<|> (ZUser :> "clients" :> Capture "cid" ClientId :> Delete '[JSON] NoContent)
-           :<|> (ZUser :> "user" :> Delete '[JSON] NoContent)
-           :<|> ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
-           :<|> ("users" :> Capture "uid" UserId :> "clients" :> Capture "cid" ClientId :> "consumable-notifications" :> PostNoContent)
+           :<|> Named "i-clients-delete" (ZUser :> "clients" :> Capture "cid" ClientId :> Delete '[JSON] NoContent)
+           :<|> Named "i-user-delete" (ZUser :> "user" :> Delete '[JSON] NoContent)
+           :<|> Named "i-push-tokens-get" ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
+           :<|> Named
+                  "i-reg-consumable-notifs"
+                  ( "users"
+                      :> Capture "uid" UserId
+                      :> "clients"
+                      :> Capture "cid" ClientId
+                      :> "consumable-notifications"
+                      :> PostNoContent
+                  )
        )
 
 swaggerDoc :: S.OpenApi

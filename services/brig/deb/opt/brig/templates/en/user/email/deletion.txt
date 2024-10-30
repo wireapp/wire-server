@@ -6,7 +6,7 @@ DELETE YOUR ACCOUNT
 We’ve received a request to delete your ${brand} account. Click the button below
 within 10 minutes to delete all your conversations, content and connections.
 
-Delete account [${url}]If you can’t click the button, copy and paste this link
+Delete account [${url}]If you can’t select the button, copy and paste this link
 to your browser:
 
 ${url}

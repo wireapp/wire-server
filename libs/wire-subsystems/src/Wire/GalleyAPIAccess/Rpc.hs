@@ -575,8 +575,7 @@ checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
       method GET
         . paths
           [ "i",
-            "conversations",
-            "mls-one2one",
+            "mls-one2one-conversations",
             toByteString' otherDomain,
             toByteString' other,
             "established"

@@ -590,15 +590,17 @@ iterateConversations luid pageSize handleConvs = go Nothing
 
 internalGetMember ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member MemberStore r
   ) =>
-  ConvId ->
+  Qualified ConvId ->
   UserId ->
   Sem r (Maybe Public.Member)
-internalGetMember cnv usr = do
+internalGetMember qcnv usr = do
   lusr <- qualifyLocal usr
-  getLocalSelf lusr cnv
+  lcnv <- ensureLocal lusr qcnv
+  getLocalSelf lusr (tUnqualified lcnv)
 
 getLocalSelf ::
   ( Member ConversationStore r,

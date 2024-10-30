@@ -21,7 +21,7 @@ registering services that ${brand} users can add to their conversations.
 If the request seems dubious, please contact the provider for clarifications
 before proceeding.
 
-Approve [${url}]If you can’t click the button, copy and paste this link to your
+Approve [${url}]If you can’t select the button, copy and paste this link to your
 browser:
 
 ${url}

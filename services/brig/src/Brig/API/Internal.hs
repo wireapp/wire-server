@@ -157,7 +157,7 @@ servantSitemap =
     :<|> ejpdAPI
     :<|> accountAPI
     :<|> mlsAPI
-    :<|> getVerificationCode
+    :<|> Named @"get-verification-code" getVerificationCode
     :<|> teamsAPI
     :<|> userAPI
     :<|> clientAPI
@@ -177,11 +177,10 @@ ejpdAPI ::
     Member Rpc r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
-ejpdAPI =
-  Brig.User.EJPD.ejpdRequest
+ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = getMLSClients
+mlsAPI = Named @"get-mls-clients" getMLSClients
 
 accountAPI ::
   ( Member BlockListStore r,
@@ -209,10 +208,10 @@ accountAPI ::
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
-    :<|> putAccountConferenceCallingConfig
-    :<|> deleteAccountConferenceCallingConfig
-    :<|> getConnectionsStatusUnqualified
-    :<|> getConnectionsStatus
+    :<|> Named @"i-put-account-conference-calling-config" putAccountConferenceCallingConfig
+    :<|> Named @"i-delete-account-conference-calling-config" deleteAccountConferenceCallingConfig
+    :<|> Named @"i-get-all-connections-unqualified" getConnectionsStatusUnqualified
+    :<|> Named @"i-get-all-connections" getConnectionsStatus
     :<|> Named @"createUserNoVerify" createUserNoVerify
     :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
     :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
@@ -271,9 +270,9 @@ teamsAPI =
 
 userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
-  updateLocale
-    :<|> deleteLocale
-    :<|> getDefaultUserLocale
+  Named @"i-update-user-locale" updateLocale
+    :<|> Named @"i-delete-user-locale" deleteLocale
+    :<|> Named @"i-get-default-locale" getDefaultUserLocale
     :<|> Named @"get-user-export-data" getUserExportDataH
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
@@ -783,9 +782,9 @@ getRichInfoH uid =
   RichInfo . fromMaybe mempty
     <$> lift (liftSem $ UserStore.getRichInfo uid)
 
-getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, RichInfo)]
+getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> Handler r BrigIRoutes.GetRichInfoMultiResponse
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
-  lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
+  lift $ wrapClient $ BrigIRoutes.GetRichInfoMultiResponse <$> API.lookupRichInfoMultiUsers uids
 
 updateHandleH ::
   (Member UserSubsystem r) =>

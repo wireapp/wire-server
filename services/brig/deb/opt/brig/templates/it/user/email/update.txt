@@ -6,8 +6,8 @@ VERIFICA IL TUO INDIRIZZO E-MAIL
 ${email} è stato registrato come tuo nuovo indirizzo email su ${brand}. Clicca
 il pulsante sotto per verificare il tuo indirizzo.
 
-Verifica [${url}]Se non puoi fare clic sul pulsante, copia e incolla questo link
-nel tuo browser:
+Verifica [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

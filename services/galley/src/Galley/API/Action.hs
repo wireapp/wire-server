@@ -39,6 +39,7 @@ module Galley.API.Action
     addLocalUsersToRemoteConv,
     ConversationUpdate,
     getFederationStatus,
+    enforceFederationProtocol,
     checkFederationStatus,
     firstConflictOrFullyConnected,
   )
@@ -121,7 +122,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
-import Wire.API.User qualified as User
+import Wire.API.User as User
 import Wire.NotificationSubsystem
 
 data NoChanges = NoChanges
@@ -327,6 +328,19 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'TeamNotFound
      ]
 
+enforceFederationProtocol ::
+  ( Member (Error FederationError) r,
+    Member (Input Opts) r
+  ) =>
+  ProtocolTag ->
+  [Remote ()] ->
+  Sem r ()
+enforceFederationProtocol proto domains = do
+  unless (null domains) $ do
+    mAllowedProtos <- view (settings . federationProtocols) <$> input
+    unless (maybe True (elem proto) mAllowedProtos) $
+      throw FederationDisabledForProtocol
+
 checkFederationStatus ::
   ( Member (Error UnreachableBackends) r,
     Member (Error NonFederatingBackends) r,
@@ -521,6 +535,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   ensureMemberLimit (convProtocolTag conv) (toList (convLocalMembers conv)) newMembers
   ensureAccess conv InviteAccess
   checkLocals lusr (convTeam conv) (ulLocals newMembers)
+  enforceFederationProtocol (protocolTag conv.convProtocol) (fmap void (ulRemotes newMembers))
   checkRemotes lusr (ulRemotes newMembers)
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))

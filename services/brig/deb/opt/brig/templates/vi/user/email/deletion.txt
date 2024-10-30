@@ -7,8 +7,8 @@ Chúng tôi nhận được một yêu cầu xoá tài khoản ${brand} của b�
 phía bên dưới trong vòng 10 phút để xoá toàn bộ cuộc hội thoại, nội dung và mọi
 kết nối của bạn.
 
-Xoá tài khoản [${url}]Nếu bạn không thể nhấp vào nút, sao chép và gán đường dẫn
-này vào trình duyệt của bạn:
+Xoá tài khoản [${url}]If you can’t select the button, copy and paste this link
+to your browser:
 
 ${url}
 

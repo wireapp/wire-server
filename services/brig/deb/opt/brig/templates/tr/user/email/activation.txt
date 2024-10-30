@@ -6,8 +6,8 @@ E-POSTANIZI DOĞRULAYIN
 ${brand}} a kaydolmak için ${email} kullanıldı.
 Adresinizi doğrulamak için düğmeyi tıklayın.
 
-Doğrula [${url}]Düğmeyi tıklayamıyorsanız, bu bağlantıyı kopyalayıp tarayıcınıza
-yapıştırın:
+Doğrula [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 

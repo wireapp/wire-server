@@ -22,8 +22,8 @@ Unterhaltungen hinzufügen können.
 Falls die Anfrage zweifelhaft scheint, wenden Sie sich bitte an den Anbieter zur
 Klärung, bevor Sie fortfahren.
 
-Genehmigen [${url}]Falls Sie nicht auf den Button klicken können, kopieren Sie
-diesen Link und fügen Sie ihn in Ihren Browser ein:
+Genehmigen [${url}]Wenn Sie die Schaltfläche nicht auswählen können, kopieren
+Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 

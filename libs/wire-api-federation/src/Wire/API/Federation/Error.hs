@@ -150,6 +150,8 @@ data FederationError
   | -- | No federator endpoint has been set, so no call to federator client can
     -- be made.
     FederationNotConfigured
+  | -- | Federation is disabled for the given protocol
+    FederationDisabledForProtocol
   | -- | An error occurred while invoking federator client (see
     -- 'FederatorClientError' for more details).
     FederationCallFailure FederatorClientError
@@ -188,6 +190,7 @@ instance APIError FederationError where
 federationErrorToWai :: FederationError -> Wai.Error
 federationErrorToWai FederationNotImplemented = federationNotImplemented
 federationErrorToWai FederationNotConfigured = federationNotConfigured
+federationErrorToWai FederationDisabledForProtocol = federationDisabledForProtocol
 federationErrorToWai (FederationCallFailure err) = federationClientErrorToWai err
 federationErrorToWai (FederationUnexpectedBody s) = federationUnexpectedBody s
 federationErrorToWai (FederationUnexpectedError t) = federationUnexpectedError t
@@ -357,6 +360,13 @@ federationNotConfigured =
     HTTP.status400
     "federation-not-enabled"
     "no federator configured"
+
+federationDisabledForProtocol :: Wai.Error
+federationDisabledForProtocol =
+  Wai.mkError
+    HTTP.status409
+    "federation-disabled-for-protocol"
+    "Federation is disabled for the given protocol"
 
 federationUnavailable :: Text -> Wai.Error
 federationUnavailable err =

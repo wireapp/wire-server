@@ -5,8 +5,8 @@ ${brand_label_url} [${brand_url}]
 YOUR NEW ACCOUNT ON ${brand}
 A new ${brand} team was created with ${email}. Palun kinnita oma meiliaadress.
 
-Kinnita [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
-aadress veebibrauserisse:
+Kinnita [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 
