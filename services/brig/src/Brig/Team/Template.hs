@@ -63,6 +63,22 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )
+    <*> ( PersonalUserMemberWelcomeEmailTemplate
+            ""
+            (template "")
+            (template "")
+            (template "")
+            (emailSender gOptions)
+            <$> readText fp "email/sender.txt"
+        )
+    <*> ( PersonalUserCreatorWelcomeEmailTemplate
+            ""
+            (template "")
+            (template "")
+            (template "")
+            (emailSender gOptions)
+            <$> readText fp "email/sender.txt"
+        )
   where
     gOptions = o.emailSMS.general
     tOptions = o.emailSMS.team

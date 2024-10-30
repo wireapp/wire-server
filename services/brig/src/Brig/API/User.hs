@@ -83,6 +83,7 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), User
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
+import Brig.Team.Email
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
@@ -258,7 +259,6 @@ createUserSpar new = do
 upgradePersonalToTeam ::
   forall r.
   ( Member GalleyAPIAccess r,
-    Member EmailSubsystem r,
     Member UserStore r,
     Member UserSubsystem r,
     Member TinyLog r,
@@ -298,12 +298,11 @@ upgradePersonalToTeam luid bNewTeam = do
 
     -- send confirmation email
     for_ (userEmail user) $ \email -> do
-      liftSem $
-        sendUpgradePersonalToTeamConfirmationEmail
-          email
-          user.userDisplayName
-          bNewTeam.bnuTeam.newTeamName.fromRange
-          user.userLocale
+      sendPersonalUserCreatorWelcomeMail
+        email
+        tid
+        bNewTeam.bnuTeam.newTeamName.fromRange
+        (Just user.userLocale)
 
     pure $! createUserTeam
 
