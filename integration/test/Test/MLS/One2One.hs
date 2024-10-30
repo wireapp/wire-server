@@ -395,6 +395,8 @@ testMLSGhostOne2OneConv = do
 -- still be created but only by the user whose backend hosts this conversation.
 
 -- | See Note: [Federated 1:1 MLS Conversations]
+-- To run locally this test requires federation-v1 docker containers to be up and running.
+-- See `deploy/dockerephemeral/run.sh` and comment on `StaticFedDomain` in `Testlib/VersionedFed.hs` for more details.
 testMLSFederationV1ConvOnOldBackend :: App ()
 testMLSFederationV1ConvOnOldBackend = do
   alice <- randomUser OwnDomain def
@@ -447,6 +449,8 @@ testMLSFederationV1ConvOnOldBackend = do
     parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
 
 -- | See Note: Federated 1:1 MLS Conversations
+-- To run locally this test requires federation-v1 docker containers to be up and running.
+-- See `deploy/dockerephemeral/run.sh` and comment on `StaticFedDomain` in `Testlib/VersionedFed.hs` for more details.
 testMLSFederationV1ConvOnNewBackend :: App ()
 testMLSFederationV1ConvOnNewBackend = do
   alice <- randomUser OwnDomain def
