@@ -276,7 +276,7 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 
         internal :: [LByteString]
         internal =
-          [ "<h2>Internal (not version-controlled)</h2>",
+          [ "<h2>Internal (not versioned)</h2>",
             "<p>Openapi docs for internal endpoints are served per service. I.e. there's one for `brig`, one for `cannon`, \
             \etc..  This is because Openapi doesn't play well with multiple actions having the same combination of HTTP \
             \method and URL path.</p>"
