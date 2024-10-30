@@ -1,1 +1,0 @@
-Remove the ability to set the TTL of a feature flag. Existing TTLs are still retrieved and returned as before. Note that this only applies to the conferenceCalling feature, as none of the others supported TTL anyway.

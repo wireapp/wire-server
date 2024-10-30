@@ -1,1 +1,0 @@
-Factored out our Email type in favour of EmailAddress from email-validate.
