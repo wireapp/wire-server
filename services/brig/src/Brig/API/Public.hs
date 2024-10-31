@@ -173,7 +173,7 @@ import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
-import Wire.UserSubsystem hiding (checkHandle, checkHandles)
+import Wire.UserSubsystem hiding (changeSelfEmail, checkHandle, checkHandles, removeEmail)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 import Wire.VerificationCode
@@ -511,7 +511,7 @@ servantSitemap =
         :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH
-        :<|> Named @"change-self-email" Brig.API.Auth.changeSelfEmail
+        :<|> Named @"change-self-email" changeSelfEmail
         :<|> Named @"list-cookies" listCookies
         :<|> Named @"remove-cookies" removeCookies
 
@@ -1025,21 +1025,12 @@ removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
 removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
-  ( Member UserKeyStore r,
-    Member UserStore r,
-    Member UserSubsystem r,
-    Member Events r
+  ( Member UserSubsystem r
   ) =>
   Local UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
-removeEmail self =
-  (lift . liftSem)
-    ( (runError @Public.RemoveIdentityError . runError @UserProfileNotFound)
-        (API.removeEmail self)
-    )
-    >>= \case
-      Left e -> pure . Just $ e
-      Right v -> either throwM (const $ pure Nothing) v
+removeEmail =
+  lift . liftSem . fmap leftToMaybe . User.removeEmailEither
 
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword

@@ -106,7 +106,6 @@ import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Error qualified as P
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
@@ -549,35 +548,6 @@ checkRestrictedUserCreation new = do
         && not (isNewUserEphemeral new)
     )
     $ throwE RegisterErrorUserCreationRestricted
-
--------------------------------------------------------------------------------
--- Remove Email
-
-removeEmail ::
-  ( Member UserKeyStore r,
-    Member UserStore r,
-    Member UserSubsystem r,
-    Member Events r,
-    Member (P.Error RemoveIdentityError) r,
-    Member (P.Error UserProfileNotFound) r
-  ) =>
-  Local UserId ->
-  Sem r ()
-removeEmail lusr = do
-  let uid = tUnqualified lusr
-  ident <- do
-    getSelfProfile lusr
-      >>= maybe
-        (P.throw $ UserProfileNotFound uid)
-        (pure . userIdentity . selfUser)
-  case ident of
-    Just (SSOIdentity (UserSSOId _) (Just e)) -> do
-      deleteKey $ mkEmailKey e
-      deleteEmail uid
-      Events.generateUserEvent uid Nothing (emailRemoved uid e)
-      User.internalUpdateSearchIndex uid
-    Just _ -> P.throw LastIdentity
-    Nothing -> P.throw NoIdentity
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
