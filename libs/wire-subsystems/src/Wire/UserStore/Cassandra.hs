@@ -38,6 +38,7 @@ interpretUserStoreCassandra casClient =
       GetActivityTimestamps uid -> getActivityTimestampsImpl uid
       GetRichInfo uid -> getRichInfoImpl uid
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
+      DeleteEmail uid -> deleteEmailImpl uid
 
 getUserAuthenticationInfoImpl :: UserId -> Client (Maybe (Maybe Password, AccountStatus))
 getUserAuthenticationInfoImpl uid = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity uid)))
@@ -208,6 +209,9 @@ getRichInfoImpl uid =
     q :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
     q = "SELECT json FROM rich_info WHERE user = ?"
 
+deleteEmailImpl :: UserId -> Client ()
+deleteEmailImpl u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
+
 --------------------------------------------------------------------------------
 -- Queries
 
@@ -267,3 +271,6 @@ activatedSelect = "SELECT activated FROM user WHERE id = ?"
 
 localeSelect :: PrepQuery R (Identity UserId) (Maybe Language, Maybe Country)
 localeSelect = "SELECT language, country FROM user WHERE id = ?"
+
+userEmailDelete :: PrepQuery W (Identity UserId) ()
+userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null, write_time_bumper = 0 WHERE id = ?"

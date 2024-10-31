@@ -74,6 +74,7 @@ data UserStore m a where
   GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
   GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
+  DeleteEmail :: UserId -> UserStore m ()
 
 makeSem ''UserStore
 

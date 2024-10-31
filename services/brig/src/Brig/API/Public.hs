@@ -1026,12 +1026,20 @@ removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
   ( Member UserKeyStore r,
+    Member UserStore r,
     Member UserSubsystem r,
     Member Events r
   ) =>
   Local UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
-removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
+removeEmail self =
+  (lift . liftSem)
+    ( (runError @Public.RemoveIdentityError . runError @UserProfileNotFound)
+        (API.removeEmail self)
+    )
+    >>= \case
+      Left e -> pure . Just $ e
+      Right v -> either throwM (const $ pure Nothing) v
 
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword

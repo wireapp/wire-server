@@ -45,7 +45,6 @@ module Brig.Data.User
     updateFeatureConferenceCalling,
 
     -- * Deletions
-    deleteEmail,
     deleteEmailUnvalidated,
     deleteServiceUser,
   )
@@ -229,9 +228,6 @@ updateFeatureConferenceCalling uid mStatus =
   where
     update :: PrepQuery W (Maybe FeatureStatus, UserId) ()
     update = fromString "update user set feature_conference_calling = ? where id = ?"
-
-deleteEmail :: (MonadClient m) => UserId -> m ()
-deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
 
 deleteEmailUnvalidated :: (MonadClient m) => UserId -> m ()
 deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
@@ -448,9 +444,6 @@ userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDAT
 
 userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
 userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"
-
-userEmailDelete :: PrepQuery W (Identity UserId) ()
-userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null, write_time_bumper = 0 WHERE id = ?"
 
 userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
 userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE rich_info SET json = ? WHERE user = ?"

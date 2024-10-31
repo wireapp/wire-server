@@ -81,6 +81,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
   GetActivityTimestamps _ -> pure []
   GetRichInfo _ -> error "rich info not implemented"
   GetUserAuthenticationInfo _uid -> error "Not implemented"
+  DeleteEmail _uid -> error "Not implemented"
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =
