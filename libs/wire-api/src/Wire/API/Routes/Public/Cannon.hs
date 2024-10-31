@@ -17,8 +17,13 @@
 
 module Wire.API.Routes.Public.Cannon where
 
+import Data.Aeson qualified as A
 import Data.Id
+import Data.OpenApi qualified as O
+import Data.Schema as S
+import Imports
 import Servant
+import Servant.API.Extended
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
@@ -41,6 +46,26 @@ type CannonAPI =
         -- FUTUREWORK: Consider higher-level web socket combinator
         :> WebSocketPending
     )
+    :<|> Named
+           "config-options-cannon"
+           ( Summary "Establish websocket connection"
+               :> "config-options-cannon"
+               :> Get '[JSON, YAML] JsonObject
+           )
+
+-- | Arbitrary aeson object value with helpful {to,from}json instances and schema.
+newtype JsonObject = JsonObject {unJsonObject :: A.Object}
+  deriving newtype (Eq, Ord, Show)
+  deriving (O.ToSchema) via (Schema JsonObject)
+
+instance A.FromJSON JsonObject where
+  parseJSON = A.withObject "Object" (pure . JsonObject)
+
+instance A.ToJSON JsonObject where
+  toJSON (JsonObject obj) = A.Object obj
+
+instance S.ToSchema JsonObject where
+  schema = named "Object" $ unJsonObject .= (JsonObject <$> S.jsonObject)
 
 data CannonAPITag
 

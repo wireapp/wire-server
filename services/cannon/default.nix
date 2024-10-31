@@ -4,13 +4,13 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
-, api-field-json-th
 , async
 , base
 , bilge
 , bytestring
 , bytestring-conversion
 , conduit
+, containers
 , criterion
 , data-timeout
 , exceptions
@@ -27,11 +27,13 @@
 , lib
 , metrics-wai
 , mwc-random
+, openapi3
 , prometheus-client
 , QuickCheck
 , random
 , retry
 , safe-exceptions
+, schema-profunctor
 , servant-conduit
 , servant-server
 , strict
@@ -61,13 +63,13 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
-    api-field-json-th
     async
     base
     bilge
     bytestring
     bytestring-conversion
     conduit
+    containers
     data-timeout
     exceptions
     extended
@@ -81,9 +83,11 @@ mkDerivation {
     lens-family-core
     metrics-wai
     mwc-random
+    openapi3
     prometheus-client
     retry
     safe-exceptions
+    schema-profunctor
     servant-conduit
     servant-server
     strict

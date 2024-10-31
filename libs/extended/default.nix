@@ -19,6 +19,7 @@
 , hspec-discover
 , http-client
 , http-client-tls
+, http-media
 , http-types
 , imports
 , lib
@@ -26,6 +27,7 @@
 , monad-control
 , resourcet
 , retry
+, schema-profunctor
 , servant
 , servant-client
 , servant-client-core
@@ -40,6 +42,7 @@
 , transformers
 , unliftio
 , wai
+, yaml
 }:
 mkDerivation {
   pname = "extended";
@@ -59,12 +62,14 @@ mkDerivation {
     exceptions
     http-client
     http-client-tls
+    http-media
     http-types
     imports
     metrics-wai
     monad-control
     resourcet
     retry
+    schema-profunctor
     servant
     servant-client
     servant-client-core
@@ -77,6 +82,7 @@ mkDerivation {
     transformers
     unliftio
     wai
+    yaml
   ];
   testHaskellDepends = [
     aeson
