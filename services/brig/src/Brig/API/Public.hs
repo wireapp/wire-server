@@ -1102,7 +1102,12 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
+changeHandle ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  ConnId ->
+  Public.HandleUpdate ->
+  Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
   User.updateHandle u (Just conn) UpdateOriginWireClient h
 
