@@ -150,11 +150,12 @@ config:
     setDisabledAPIVersions: [ development ]
     setFederationStrategy: allowNone
     setFederationDomainConfigsUpdateFreq: 10
-    # Options for Argon2id version 19
     setPasswordHashingOptions:
-      iterations: 1
-      parallelism: 32
-      memory: 180224 # 176 MiB
+      algorithm: scrypt # or argon2id
+      # When algorithm is argon2id, these can be configured:
+      # iterations: <iterations>
+      # parallelism: <paralellism>
+      # memory: <memory used in KiB>
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

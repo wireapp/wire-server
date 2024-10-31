@@ -42,16 +42,22 @@ where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.ByteString.Char8 qualified as BS
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Imports
+import Servant.API (ToHttpApiData (..))
 
 data Version = V0 | V1 | V2
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
+
+instance ToHttpApiData Version where
+  toHeader = versionByteString
+  toUrlPiece = versionText
 
 versionInt :: Version -> Int
 versionInt V0 = 0
@@ -60,6 +66,9 @@ versionInt V2 = 2
 
 versionText :: Version -> Text
 versionText = ("v" <>) . Text.pack . show . versionInt
+
+versionByteString :: Version -> ByteString
+versionByteString = ("v" <>) . BS.pack . show . versionInt
 
 intToVersion :: Int -> Maybe Version
 intToVersion intV = find (\v -> versionInt v == intV) [minBound ..]

@@ -1,1 +1,0 @@
-Return HTTP 400 instead of 500 when property key is not printable ASCII

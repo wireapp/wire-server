@@ -148,7 +148,12 @@ getOptions desc mp defaultPath = do
 parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString
 
-data PasswordHashingOptions = PasswordHashingOptions
+data PasswordHashingOptions
+  = PasswordHashingArgon2id Argon2idOptions
+  | PasswordHashingScrypt
+  deriving (Show, Generic)
+
+data Argon2idOptions = Argon2idOptions
   { iterations :: !Word32,
     memory :: !Word32,
     parallelism :: !Word32
@@ -157,11 +162,14 @@ data PasswordHashingOptions = PasswordHashingOptions
 
 instance FromJSON PasswordHashingOptions where
   parseJSON =
-    withObject
-      "PasswordHashingOptions"
-      ( \obj -> do
+    withObject "PasswordHashingOptions" $ \obj -> do
+      algo :: String <- obj .: "algorithm"
+      case algo of
+        "argon2id" -> do
           iterations <- obj .: "iterations"
           memory <- obj .: "memory"
           parallelism <- obj .: "parallelism"
-          pure (PasswordHashingOptions {..})
-      )
+          pure . PasswordHashingArgon2id $ Argon2idOptions {..}
+        "scrypt" ->
+          pure PasswordHashingScrypt
+        x -> fail $ "Unknown password hashing algorithm: " <> x
