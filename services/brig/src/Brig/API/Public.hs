@@ -1029,7 +1029,7 @@ removeEmail ::
     Member UserSubsystem r,
     Member Events r
   ) =>
-  UserId ->
+  Local UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
 removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
 

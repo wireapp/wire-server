@@ -557,10 +557,15 @@ removeEmail ::
     Member UserSubsystem r,
     Member Events r
   ) =>
-  UserId ->
+  Local UserId ->
   ExceptT RemoveIdentityError (AppT r) ()
-removeEmail uid = do
-  ident <- lift $ fetchUserIdentity uid
+removeEmail lusr = do
+  let uid = tUnqualified lusr
+  ident <- lift $ do
+    liftSem (getSelfProfile lusr)
+      >>= maybe
+        (throwM $ UserProfileNotFound uid)
+        (pure . userIdentity . selfUser)
   case ident of
     Just (SSOIdentity (UserSSOId _) (Just e)) -> lift $ do
       liftSem $ deleteKey $ mkEmailKey e
