@@ -1,1 +1,0 @@
-New variant in API version 7 of endpoints for creating and listing SCIM tokens that support a `name` field. New endpoint in version 7 for updating a SCIM token name.
