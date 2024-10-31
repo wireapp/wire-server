@@ -30,17 +30,19 @@ library
   build-depends:
       aeson
     , amqp
+    , async
     , base
+    , bytestring
     , bytestring-conversion
     , cassandra-util
     , containers
-    , errors
     , exceptions
     , extended
     , HsOpenSSL
     , http-client
     , http2-manager
     , imports
+    , kan-extensions
     , metrics-wai
     , monad-control
     , prometheus-client

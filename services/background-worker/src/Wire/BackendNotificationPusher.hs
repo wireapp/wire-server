@@ -71,7 +71,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
   -- does cause problems when trying to deregister consumers from the channel. This is because
   -- the internal mechanism to remove a consumer goes via the same notification handling code
   -- as messages from the Rabbit server. If the thread is tied up in the recovery code we
-  -- can't cancel the consumer, and the calling code will block until the cancelation message
+  -- can't cancel the consumer, and the calling code will block until the cancellation message
   -- can be processed.
   -- Luckily, we can async this loop and carry on as usual due to how we have the channel setup.
   async $

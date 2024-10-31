@@ -198,7 +198,7 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
 
 testEventExpiration :: (HasCallStack) => App ()
 testEventExpiration = do
-  let notifTTL = 2 # Second
+  let notifTTL = 1 # Second
   withModifiedBackend (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}) $ \domain -> do
     alice <- randomUser domain def
     client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
@@ -206,6 +206,37 @@ testEventExpiration = do
 
     Timeout.threadDelay (notifTTL + 1 # Second)
     withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
+      assertNoEvent eventsChan
+
+testEventsDeadLettered :: (HasCallStack) => App ()
+testEventsDeadLettered = do
+  let notifTTL = 2 # Second
+  withModifiedBackend (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}) $ \domain -> do
+    alice <- randomUser domain def
+    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    clientId <- objId client
+
+    -- We expire the add client event by waiting it out
+    Timeout.threadDelay (notifTTL + 150 # MilliSecond)
+
+    -- Generate another event
+    handle1 <- randomHandle
+    putHandle alice handle1 >>= assertSuccess
+
+    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
+      assertEvent eventsChan $ \e -> do
+        e %. "type" `shouldMatch` "notifications.missed"
+
+      -- Until we ack the full sync, we can't get new events
+      ackFullSync ackChan
+
+      -- Now we can see the next event
+      assertEvent eventsChan $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+        e %. "data.event.payload.0.user.handle" `shouldMatch` handle1
+        ackEvent ackChan e
+
+      -- We've consumed the whole queue.
       assertNoEvent eventsChan
 
 testTransientEvents :: (HasCallStack) => App ()
@@ -291,6 +322,11 @@ withEventsWebSocket uid cid k = do
 
 sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
 sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
+
+ackFullSync :: (HasCallStack) => TChan Value -> App ()
+ackFullSync ackChan = do
+  sendMsg ackChan
+    $ object ["type" .= "ack_full_sync"]
 
 ackEvent :: (HasCallStack) => TChan Value -> Value -> App ()
 ackEvent ackChan event = do

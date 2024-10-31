@@ -18,6 +18,12 @@ config:
   logLevel: Info
   logFormat: StructuredJSON
   logNetStrings: false
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    vHost: /
+    enableTls: false
+    insecureSkipVerifyTls: false
   cassandra:
     host: aws-cassandra
     # To enable TLS provide a CA:

@@ -3,13 +3,15 @@
 module Cannon.RabbitMqConsumerApp where
 
 import Cannon.App (rejectOnError)
-import Cannon.WS
+import Cannon.WS hiding (env)
 import Cassandra as C
 import Control.Concurrent.Async
 import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
+import Control.Monad.Catch (catchAll)
 import Control.Monad.Codensity
 import Data.Aeson
 import Data.Id
+import Debug.Trace
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended (withConnection)
@@ -198,10 +200,10 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 -- | Check if client has missed messages. If so, send a full synchronisation
 -- message and wait for the corresponding ack.
 sendFullSyncMessageIfNeeded :: WS.Connection -> UserId -> ClientId -> Env -> IO ()
-sendFullSyncMessageIfNeeded wsConn uid cid e = do
-  row <- C.runClient e.cassandra $ do
+sendFullSyncMessageIfNeeded wsConn uid cid env = do
+  row <- C.runClient env.cassandra do
     retry x5 $ query1 q (params LocalQuorum (uid, cid))
-  for_ row $ \_ -> sendFullSyncMessage wsConn
+  for_ row $ \_ -> sendFullSyncMessage uid cid wsConn env
   where
     q :: PrepQuery R (UserId, ClientId) (Identity (Maybe UserId))
     q =
@@ -209,19 +211,44 @@ sendFullSyncMessageIfNeeded wsConn uid cid e = do
             WHERE user_id = ? and client_id = ?
         |]
 
-sendFullSyncMessage :: WS.Connection -> IO ()
-sendFullSyncMessage wsConn = do
-  WS.sendBinaryData wsConn $ encode EventFullSync
-  getClientMessage wsConn >>= \case
-    AckMessage _ -> throwIO UnexpectedAck
-    AckFullSync -> pure ()
+sendFullSyncMessage :: UserId -> ClientId -> WS.Connection -> Env -> IO ()
+sendFullSyncMessage uid cid wsConn env = do
+  let event = encode EventFullSync
+  WS.sendBinaryData wsConn event
+  res <-
+    (getClientMessage wsConn)
+      `catchAll` ( \e -> do
+                     traceM $ "\n we just got excepted " <> displayException e
+                     throwIO e
+                 )
+  traceM $ "\n dethunk this res! " <> show res
+  case res of
+    AckMessage _ -> do
+      traceM "\n => Whacky ack!"
+      throwIO UnexpectedAck
+    AckFullSync -> do
+      traceM "\n =>    Got our ack!"
+      C.runClient env.cassandra do
+        retry x1 $ write delete (params LocalQuorum (uid, cid))
+  where
+    delete :: PrepQuery W (UserId, ClientId) ()
+    delete =
+      [sql|
+          DELETE FROM missed_notifications
+          WHERE user_id = ? and client_id = ?
+        |]
 
 getClientMessage :: WS.Connection -> IO MessageClientToServer
 getClientMessage wsConn = do
   msg <- WS.receiveData wsConn
+  traceM $ "\n msg received " <> show msg
   case eitherDecode msg of
-    Left err -> throwIO (FailedToParseClientMessage err)
-    Right m -> pure m
+    Left err -> do
+      traceM $ "oh no we crash! " <> show err
+      throwIO (FailedToParseClientMessage err)
+    Right m -> do
+      traceM $ "\n decoded!! " <> show m
+      pure m
 
 data WebSocketServerError
   = FailedToParseClientMessage String

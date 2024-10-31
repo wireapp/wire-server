@@ -10,6 +10,9 @@ module Network.AMQP.Extended
     mkRabbitMqChannelMVar,
     demoteOpts,
     RabbitMqTlsOpts (..),
+    ------ TODO:
+    readCredsFromEnv,
+    mkTLSSettings,
   )
 where
 
