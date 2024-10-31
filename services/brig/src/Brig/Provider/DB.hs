@@ -29,7 +29,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Imports
 import UnliftIO (mapConcurrently)
-import Wire.API.Password
+import Wire.API.Password as Password
 import Wire.API.Provider
 import Wire.API.Provider.Service hiding (updateServiceTags)
 import Wire.API.Provider.Service.Tag
@@ -81,10 +81,10 @@ updateAccountProfile p name url descr = retry x5 . batch $ do
 lookupAccountData ::
   (MonadClient m) =>
   ProviderId ->
-  m (Maybe (Name, Maybe Email, HttpsUrl, Text))
+  m (Maybe (Name, Maybe EmailAddress, HttpsUrl, Text))
 lookupAccountData p = retry x1 $ query1 cql $ params LocalQuorum (Identity p)
   where
-    cql :: PrepQuery R (Identity ProviderId) (Name, Maybe Email, HttpsUrl, Text)
+    cql :: PrepQuery R (Identity ProviderId) (Name, Maybe EmailAddress, HttpsUrl, Text)
     cql = "SELECT name, email, url, descr FROM provider WHERE id = ?"
 
 lookupAccount ::
@@ -93,7 +93,7 @@ lookupAccount ::
   m (Maybe Provider)
 lookupAccount p = (>>= mk) <$> lookupAccountData p
   where
-    mk :: (Name, Maybe Email, HttpsUrl, Text) -> Maybe Provider
+    mk :: (Name, Maybe EmailAddress, HttpsUrl, Text) -> Maybe Provider
     mk (_, Nothing, _, _) = Nothing
     mk (n, Just e, u, d) = Just $! Provider p n e u d
 
@@ -102,19 +102,6 @@ lookupAccountProfile ::
   ProviderId ->
   m (Maybe ProviderProfile)
 lookupAccountProfile p = fmap ProviderProfile <$> lookupAccount p
-
-lookupPassword ::
-  (MonadClient m) =>
-  ProviderId ->
-  m (Maybe Password)
-lookupPassword p =
-  fmap (fmap runIdentity) $
-    retry x1 $
-      query1 cql $
-        params LocalQuorum (Identity p)
-  where
-    cql :: PrepQuery R (Identity ProviderId) (Identity Password)
-    cql = "SELECT password FROM provider WHERE id = ?"
 
 deleteAccount ::
   (MonadClient m) =>
@@ -128,14 +115,13 @@ deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
 updateAccountPassword ::
   (MonadClient m) =>
   ProviderId ->
-  PlainTextPassword6 ->
+  Password ->
   m ()
 updateAccountPassword pid pwd = do
-  p <- liftIO $ mkSafePasswordScrypt pwd
-  retry x5 $ write cql $ params LocalQuorum (p, pid)
+  retry x5 $ write cql $ params LocalQuorum (pwd, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()
-    cql = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET password = ? where id = ?"
+    cql = "UPDATE provider SET password = ? where id = ?"
 
 --------------------------------------------------------------------------------
 -- Unique (Natural) Keys
@@ -159,7 +145,7 @@ insertKey p old new = retry x5 . batch $ do
     cqlKeyDelete :: PrepQuery W (Identity Text) ()
     cqlKeyDelete = "DELETE FROM provider_keys WHERE key = ?"
 
-    cqlEmail :: PrepQuery W (Email, ProviderId) ()
+    cqlEmail :: PrepQuery W (EmailAddress, ProviderId) ()
     cqlEmail = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET email = ? WHERE id = ?"
 
 lookupKey ::

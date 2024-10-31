@@ -22,36 +22,35 @@ where
 
 import Brig.AWS.Types
 import Brig.App
-import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.BlacklistStore qualified as BlacklistStore
+import Data.Mailbox
 import Imports
 import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.User.Identity
-import Wire.UserKeyStore
+import Wire.UserSubsystem
 
-onEvent :: (Member BlacklistStore r) => SESNotification -> AppT r ()
-onEvent (MailBounce BouncePermanent es) = onPermanentBounce es
-onEvent (MailBounce BounceTransient es) = onTransientBounce es
-onEvent (MailBounce BounceUndetermined es) = onUndeterminedBounce es
-onEvent (MailComplaint es) = onComplaint es
+onEvent :: (Member UserSubsystem r) => SESNotification -> AppT r ()
+onEvent (MailBounce BouncePermanent recipients) = onPermanentBounce recipients
+onEvent (MailBounce BounceTransient recipients) = onTransientBounce recipients
+onEvent (MailBounce BounceUndetermined recipients) = onUndeterminedBounce recipients
+onEvent (MailComplaint recipients) = onComplaint recipients
 
-onPermanentBounce :: (Member BlacklistStore r) => [Email] -> AppT r ()
-onPermanentBounce = mapM_ $ \e -> do
-  logEmailEvent "Permanent bounce" e
-  liftSem $ BlacklistStore.insert (mkEmailKey e)
+onPermanentBounce :: (Member UserSubsystem r) => [Mailbox] -> AppT r ()
+onPermanentBounce = mapM_ $ \mailbox -> do
+  logEmailEvent "Permanent bounce" mailbox.address
+  liftSem $ blockListInsert mailbox.address
 
-onTransientBounce :: [Email] -> AppT r ()
-onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
+onTransientBounce :: [Mailbox] -> AppT r ()
+onTransientBounce = mapM_ (logEmailEvent "Transient bounce" . (.address))
 
-onUndeterminedBounce :: [Email] -> AppT r ()
-onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
+onUndeterminedBounce :: [Mailbox] -> AppT r ()
+onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce" . (.address))
 
-onComplaint :: (Member BlacklistStore r) => [Email] -> AppT r ()
-onComplaint = mapM_ $ \e -> do
-  logEmailEvent "Complaint" e
-  liftSem $ BlacklistStore.insert (mkEmailKey e)
+onComplaint :: (Member UserSubsystem r) => [Mailbox] -> AppT r ()
+onComplaint = mapM_ $ \mailbox -> do
+  logEmailEvent "Complaint" mailbox.address
+  liftSem $ blockListInsert mailbox.address
 
-logEmailEvent :: Text -> Email -> AppT r ()
+logEmailEvent :: Text -> EmailAddress -> AppT r ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t

@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -37,7 +38,6 @@ import Imports
 import Options.Applicative
 import Options.Applicative.Types
 import URI.ByteString
-import Util.Options.Common
 
 data AWSEndpoint = AWSEndpoint
   { _awsHost :: !ByteString,
@@ -148,9 +148,28 @@ getOptions desc mp defaultPath = do
 parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString
 
-discoUrlParser :: Parser Text
-discoUrlParser =
-  textOption $
-    long "disco-url"
-      <> metavar "URL"
-      <> help "klabautermann url"
+data PasswordHashingOptions
+  = PasswordHashingArgon2id Argon2idOptions
+  | PasswordHashingScrypt
+  deriving (Show, Generic)
+
+data Argon2idOptions = Argon2idOptions
+  { iterations :: !Word32,
+    memory :: !Word32,
+    parallelism :: !Word32
+  }
+  deriving (Show, Generic)
+
+instance FromJSON PasswordHashingOptions where
+  parseJSON =
+    withObject "PasswordHashingOptions" $ \obj -> do
+      algo :: String <- obj .: "algorithm"
+      case algo of
+        "argon2id" -> do
+          iterations <- obj .: "iterations"
+          memory <- obj .: "memory"
+          parallelism <- obj .: "parallelism"
+          pure . PasswordHashingArgon2id $ Argon2idOptions {..}
+        "scrypt" ->
+          pure PasswordHashingScrypt
+        x -> fail $ "Unknown password hashing algorithm: " <> x

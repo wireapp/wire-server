@@ -30,10 +30,10 @@ import Data.ByteString.Conversion
 import Data.Id (ClientId, ConnId, UserId)
 import Gundeck.Instances ()
 import Gundeck.Push.Native.Types
-import Gundeck.Types hiding (token)
 import Imports hiding (lookup)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import System.Logger.Class qualified as Log
+import Wire.API.Push.V2 hiding (token)
 
 lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address]
 lookup u c = foldM mk [] =<< retry x1 (query q (params c (Identity u)))

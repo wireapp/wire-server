@@ -26,9 +26,8 @@ where
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Options (Settings (setUserMaxConnections))
+import Brig.Options (Settings (userMaxConnections))
 import Control.Error (MaybeT, noteT)
-import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id (UserId)
 import Data.Qualified
@@ -44,7 +43,7 @@ type ConnectionM r = ExceptT ConnectionError (AppT r)
 checkLimit :: Local UserId -> ExceptT ConnectionError (AppT r) ()
 checkLimit u = noteT (TooManyConnections (tUnqualified u)) $ do
   n <- lift . wrapClient $ Data.countConnections u [Accepted, Sent]
-  l <- setUserMaxConnections <$> view settings
+  l <- asks (.settings.userMaxConnections)
   guard (n < l)
 
 ensureNotSameAndActivated :: (Member UserStore r) => Local UserId -> Qualified UserId -> ConnectionM r ()

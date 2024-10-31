@@ -92,14 +92,14 @@ mkApp sparCtxOpts = do
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- Bilge.newManager Bilge.defaultManagerSettings
   let sparCtxHttpBrig =
-        Bilge.host (sparCtxOpts ^. to brig . host . to encodeUtf8)
-          . Bilge.port (sparCtxOpts ^. to brig . port)
+        Bilge.host (sparCtxOpts ^. to brig . to host . to encodeUtf8)
+          . Bilge.port (sparCtxOpts ^. to brig . to port)
           $ Bilge.empty
   let sparCtxHttpGalley =
-        Bilge.host (sparCtxOpts ^. to galley . host . to encodeUtf8)
-          . Bilge.port (sparCtxOpts ^. to galley . port)
+        Bilge.host (sparCtxOpts ^. to galley . to host . to encodeUtf8)
+          . Bilge.port (sparCtxOpts ^. to galley . to port)
           $ Bilge.empty
-  let sparCtxRequestId = RequestId "N/A"
+  let sparCtxRequestId = RequestId defRequestId
   let ctx0 = Env {..}
   let heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
       heavyLogOnly out@(req, _) =

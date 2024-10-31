@@ -43,14 +43,14 @@ import URI.ByteString
       ),
   )
 import Wire.API.Provider (NewProvider (..))
-import Wire.API.User.Identity (Email (Email, emailDomain, emailLocal))
+import Wire.API.User.Identity
 import Wire.API.User.Profile (Name (Name, fromName))
 
 testObject_NewProvider_provider_1 :: NewProvider
 testObject_NewProvider_provider_1 =
   NewProvider
     { newProviderName = Name {fromName = "\1017845\&8\1098296\58272:(\DLE\1000399f\1005296\a\13015\1080816\&4K\42948L"},
-      newProviderEmail = Email {emailLocal = "Y", emailDomain = "\1109538>\SI_\SUB0"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -82,7 +82,7 @@ testObject_NewProvider_provider_2 =
   NewProvider
     { newProviderName =
         Name {fromName = "Tx\47851q\1065280@\SUB\1025401\aW\FSG\DC4\DLE$\DEL\63098\DC4$`\vO?\"Z\1046679\1083355\&5K"},
-      newProviderEmail = Email {emailLocal = "S\999953k\RS\49099G", emailDomain = "T,"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -117,7 +117,7 @@ testObject_NewProvider_provider_3 =
           { fromName =
               "!\STXOF\1038347\1063280\1099707\1025890\162780\97458+|\RS\DC2NYwPo\\%\181456vWF\48577\DC4\FSk\1059188\8605\RSCQv\1054931\1007187b\162434\152999(\139131_\48010\r\1080015\1097027r\ENQ\1051284\997772\1025219A,y%|\10517\USR\"\1008217w*\1067361B8\1001156k!{\19881M|e"
           },
-      newProviderEmail = Email {emailLocal = "y\SO\DEL\120818", emailDomain = " e"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -152,7 +152,7 @@ testObject_NewProvider_provider_4 =
           { fromName =
               "\22553\ETB\SOH\r\n\1065785:\DLEr\1198N[9T#p\1074919\1000932=Ltw\170949\fQ\65194,&JG8I#!8\16806'Y0Q\1051894^\"'u2\DC4\EM_\n\48528\USD\ESC\FS9 QF\EMbh;O|\1049800'2\1091629\1091090#D?\SYNK\1112422"
           },
-      newProviderEmail = Email {emailLocal = "\993799'g\n", emailDomain = "\1046285Z\1045773\GS"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -183,7 +183,7 @@ testObject_NewProvider_provider_5 :: NewProvider
 testObject_NewProvider_provider_5 =
   NewProvider
     { newProviderName = Name {fromName = "\169186\DC24)\1066115\ENQv7\r\ETXp\DLEeI\62252\184208\&4SD^\68867;9*"},
-      newProviderEmail = Email {emailLocal = "\1086513", emailDomain = ""},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -218,7 +218,7 @@ testObject_NewProvider_provider_6 =
           { fromName =
               "\nLY-\1041348\1053736`\r\STX\36143`\rBa\DC2jv*m\n\DC2\SUBpp\DLE\EOT+pq=P\1006208\185123c~\42806Qp5\38725\&5\1051474X \993515*%\1058138&QNA\SO6\17381e\"K\20379B\ETX=\1095143\179544\&2\59383a\1060828\1036355\1047984\ACK\159657.\SOH\fP\194727f\ETB\134004\&2h\1111875t\73697\1109301i\984751x]cx\nC\53880\ETB9;\65505${\1002225v\1057050#SNKZ@\95712-\DC3E\ACK{\GS"
           },
-      newProviderEmail = Email {emailLocal = "\1111012\149049\1059090\137222\NAK", emailDomain = "\ETX\1058787\ENQ-H"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -245,7 +245,7 @@ testObject_NewProvider_provider_7 :: NewProvider
 testObject_NewProvider_provider_7 =
   NewProvider
     { newProviderName = Name {fromName = "^\1061540\ENQMSO\1061583\&0\STX"},
-      newProviderEmail = Email {emailLocal = "e\DC1\8331c[i", emailDomain = "2CTG\US\r"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -280,7 +280,7 @@ testObject_NewProvider_provider_8 =
           { fromName =
               "\14918\RSh\1071695;Io2:\NAK^e3\NAK\152781Vq=\EM\1090805\ETX\1076024\1111879\DC1h5Zqc\1082985vz\bV\DLE\SYNZh-\vZ4\1008751\&5/KI\1017195\14775\NAK\DC39\24480:q5Oe\1084323\&9\v:xx'U\1106866\SUBt|\DC1O-}\SOH\DC4Zz\1021791z[,F{\1074628\v\2561\SUB4\DLE0-\r\b\USw\SI\DC3a\1074460mv\DC1;\39901W&e|\1009415\1081200;\DELo\128316\140382\SOHds\30510\\\1044298\SI.\54580J.1"
           },
-      newProviderEmail = Email {emailLocal = "\SUB#\EMdlb", emailDomain = "\ETB\985485\NAK^"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -315,7 +315,7 @@ testObject_NewProvider_provider_9 =
           { fromName =
               "h{k\7076\162133\99501.t\1011685\DC1K\SYN>O\SI\SOH\49104pJ\SOH\nh(\1058570E\29145\&9\18179\NAK\FS\1819\vD\995637\SOg6F\1054281qUD\53666\1028850hn]f\53775$kZg\984559\t~;\1017416\1007006k\989140\&5\161421r\RS\ACK[\RS\1018346\183709\38751\a33\147504\&6\1069673$#{\GS\DLE\EOTX\FS=N\EM\180147\&6<0%\DC2cdm\174481b\14332\ENQ=9F2:\182353~\EM\ETB\47916k!Q\153214\1110656[\NULeld"
           },
-      newProviderEmail = Email {emailLocal = "8-\SYN\\", emailDomain = "\EOT\50704~#"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -346,7 +346,7 @@ testObject_NewProvider_provider_10 =
           { fromName =
               "?\990628\58645\50907Ykp*V~z8xa\ETX`6^\SOT\1104197\US\1104107\175563z\995556P\an/\1021466{/O\40639f\993031-OG{\DC3\20273\1025488\DLEz\DLE\US\1043327c\RS\147510j\120360A\1109443\1059885\&2Wc\DEL\120607\1018480P\50798m{\FS'9Hi\1063626hMB\1075646\1050859Nl&\46118\&8}\141343\9870'\ETXg\ENQ\1034698\1006401%Ps)C\178746\US\"G.\1034816I "
           },
-      newProviderEmail = Email {emailLocal = "_e_v\SUBL", emailDomain = "\v4"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -381,7 +381,7 @@ testObject_NewProvider_provider_11 =
           { fromName =
               "\983133\999447-\a%~\19798\DC4v4@yim\12033\US37\17431\STX\133604#@\1103392a}mE\DC3\172859Es3C\40960TZaTUy\182080\983082u\SO\159200n\EOT[\ETX\164033\51273_\SOHd\SUB \67980\\#\160768{@\DC1%8s\19295\992711,!D<\92708KM\DC15T\n\CAN@sl\NUL*\a\SYNxZ\ACK\6422 ei:V+y\NAK\SOA\17849dX\991225\991020\r\1057765\EOT\1102945"
           },
-      newProviderEmail = Email {emailLocal = "\a*\RS_", emailDomain = "6\1030075\a\f#9"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -408,7 +408,7 @@ testObject_NewProvider_provider_12 :: NewProvider
 testObject_NewProvider_provider_12 =
   NewProvider
     { newProviderName = Name {fromName = "E\DEL\DC3MNO\33205\EOTZ\1042578\NULI\9109\&5e3"},
-      newProviderEmail = Email {emailLocal = "", emailDomain = "d*\1049690jA}"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -439,7 +439,7 @@ testObject_NewProvider_provider_13 =
           { fromName =
               "\146808\25949\&7\DC2\1076199Y<\1069016+Babu\r\189492\132668\EOTGo\163930:\1052561z\1061137\167675\6623\1091167tIid\156982CR+\1076183\1035056\DC3h+Wju\SI'\ESCc|\1043334?y4L\147691Z\FS\nQ*\r\24905\ACKan\1096641Sw\53656\996906\SI\SOHZ\17777I\26208Nm\SI>\SO\ENQ\b\SYN\STX\1104514\173928\RS,@+Fm,;(cl"
           },
-      newProviderEmail = Email {emailLocal = "B\RSvq\1063673\&7", emailDomain = "\44409"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -474,7 +474,7 @@ testObject_NewProvider_provider_14 =
           { fromName =
               "\a3\1030411\1108909\145052W\DLE\ETXf\SUBW\1041360\DC26\1032094\174641^5]b\SUBS\986449\f\1100960|=\1079519\fYu\"\f\44824V\11068\SUB4S\ETB\983122\1069918\&9DD\DLE\1076534\1055217.M0p)\1036040>\140974.\ACK$z,\127809s\1044091P\1053904<M\995309\EMs<"
           },
-      newProviderEmail = Email {emailLocal = "%a\1037687", emailDomain = "\SI\"{"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -509,7 +509,7 @@ testObject_NewProvider_provider_15 =
           { fromName =
               "\NULA]\185634Yw\"TOP[f\EOTw\992458W\45093C=m\194863@s\995207Z\1101799\52271\&1 \161939(\DLE\26641[\ETXV\b*\185267\ENQ\DEL\997636"
           },
-      newProviderEmail = Email {emailLocal = "\177675-\\", emailDomain = ""},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -544,7 +544,7 @@ testObject_NewProvider_provider_16 =
           { fromName =
               "\SYN\t\ETB\DELS,gN\ACK+mK\994302>Yz\SYN^jl\988007\1032810/@Up`\EOT\19406\ENQ!\59584\1044424Q\GSH~\60784?@=b\STX_x\3136\"\175451cfF\1049641]\13325XP\63382\b\DLE\"\SO\1055893P'Z\rC]\1033580\68368\DEL\1066018#\1004304Cq\1012973s\EOT\1088815=\SYN\SO\1022969(%\157404rU_~\999971\SYNo|v<\r\185761\179093"
           },
-      newProviderEmail = Email {emailLocal = "\ESC\SOFk2", emailDomain = ";"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -575,7 +575,7 @@ testObject_NewProvider_provider_17 :: NewProvider
 testObject_NewProvider_provider_17 =
   NewProvider
     { newProviderName = Name {fromName = "\DC4*43\1113144Xg\NAK\SO;\NAKJ}\1043632wZJ\1028947.=c_\f\DLEI\83112\bmU\SInT"},
-      newProviderEmail = Email {emailLocal = "lW6/", emailDomain = "fD\1093349"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -610,7 +610,7 @@ testObject_NewProvider_provider_18 =
           { fromName =
               "\USZ\986527,`g\1091894E\nY\186037 h\985676r\185228\NULxh{\69688\r2L\b\11555\11451\&3\1028095Q;\rzJ*J\173085L\RSu%\983397\EOT\r\1078571\DC3!\DC2l\t\DC3\48324\SOx\1058847B1o\1015110\SUBD+\n`\122902)\1036058[\1090272"
           },
-      newProviderEmail = Email {emailLocal = "=\DLE", emailDomain = "m"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -642,7 +642,7 @@ testObject_NewProvider_provider_19 =
   NewProvider
     { newProviderName =
         Name {fromName = "\DC3-\CAN\ETX\64721\t/\13387T\1058411\r\EM\1080490XNiu\\LB.+\1084178\132410\DC2\1002277"},
-      newProviderEmail = Email {emailLocal = "\1104111\CANOe\\\b", emailDomain = "\1081997\EOT\1104647*\ETB("},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI
@@ -675,7 +675,7 @@ testObject_NewProvider_provider_20 =
           { fromName =
               "s\141535\FS4,v2\DLEE\STXF\SYNf\SYN\v$\127079\DEL\1037853C\1058568\1098731\134544*2K[\1084006\&2?\GS^1` \162115\&6?!\1056733!\\\STX\12449W/\19460\1066195\RS=\USM\ETX~.W"
           },
-      newProviderEmail = Email {emailLocal = "", emailDomain = "\DC4:"},
+      newProviderEmail = unsafeEmailAddress "some" "example",
       newProviderUrl =
         coerce
           URI

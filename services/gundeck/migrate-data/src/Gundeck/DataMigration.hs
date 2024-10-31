@@ -40,10 +40,10 @@ data CassandraSettings = CassandraSettings
 toCassandraOpts :: CassandraSettings -> CassandraOpts
 toCassandraOpts cas =
   CassandraOpts
-    { _endpoint = Endpoint (Text.pack (cas.cHost)) (cas.cPort),
-      _keyspace = C.unKeyspace (cas.cKeyspace),
-      _filterNodesByDatacentre = Nothing,
-      _tlsCa = cas.cTlsCa
+    { endpoint = Endpoint (Text.pack (cas.cHost)) (cas.cPort),
+      keyspace = C.unKeyspace (cas.cKeyspace),
+      filterNodesByDatacentre = Nothing,
+      tlsCa = cas.cTlsCa
     }
 
 cassandraSettingsParser :: Parser CassandraSettings

@@ -6,8 +6,8 @@ IHR NEUES ${brand}-BENUTZERKONTO
 Ein neues ${brand} Team wurde mit ${email} erstellt. Bitte bestätigen Sie Ihre
 E-Mail-Adresse.
 
-Bestätigen [${url}]Falls Sie nicht auf den Button klicken können, kopieren Sie
-diesen Link und fügen Sie ihn in Ihren Browser ein:
+Bestätigen [${url}]Wenn Sie die Schaltfläche nicht auswählen können, kopieren
+Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 

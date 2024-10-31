@@ -30,7 +30,7 @@ import Wire.API.User.Identity
 getActivationCode ::
   (MonadHttp m, MonadIO m) =>
   BrigReq ->
-  Email ->
+  EmailAddress ->
   m (Maybe (ActivationKey, ActivationCode))
 getActivationCode brig e = do
   let qry = queryItem "email" . toByteString' $ e

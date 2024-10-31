@@ -24,7 +24,6 @@ module Wire.API.Message.Proto
     userId,
     fromUserId,
     ClientId,
-    clientId,
     newClientId,
     fromClientId,
     toClientId,
@@ -85,9 +84,6 @@ instance Decode ClientId
 
 newClientId :: Word64 -> ClientId
 newClientId c = ClientId {_client = putField c}
-
-clientId :: (Functor f) => (Word64 -> f Word64) -> ClientId -> f ClientId
-clientId f c = (\x -> c {_client = x}) <$> field f (_client c)
 
 toClientId :: ClientId -> Id.ClientId
 toClientId c = Id.ClientId $ getField (_client c)
@@ -150,6 +146,7 @@ userEntryClients f c = (\x -> c {_userVal = x}) <$> field f (_userVal c)
 --------------------------------------------------------------------------------
 -- Priority
 
+-- | See also `Wire.API.Message.Priority`
 data Priority = LowPriority | HighPriority
   deriving stock (Eq, Show, Ord, Generic)
 

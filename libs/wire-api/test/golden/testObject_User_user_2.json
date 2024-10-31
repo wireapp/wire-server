@@ -17,7 +17,7 @@
         }
     ],
     "deleted": true,
-    "email": "foo@example.com",
+    "email": "some@example",
     "expires_at": "1864-05-11T17:06:58.936Z",
     "id": "00000000-0000-0001-0000-000200000001",
     "locale": "da-TN",
@@ -32,5 +32,7 @@
         "id": "00000000-0000-0000-0000-000000000001",
         "provider": "00000000-0000-0000-0000-000100000000"
     },
-    "supported_protocols": []
+    "status": "deleted",
+    "supported_protocols": [],
+    "text_status": "text status"
 }

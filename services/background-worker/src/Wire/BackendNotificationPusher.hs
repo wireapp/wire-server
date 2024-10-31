@@ -17,8 +17,10 @@ import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
-import Network.RabbitMqAdmin
+import Network.RabbitMqAdmin hiding (adminClient)
+import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import Prometheus
+import Servant.Client qualified as Servant
 import System.Logger.Class qualified as Log
 import UnliftIO
 import Wire.API.Federation.API
@@ -114,7 +116,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             ceHttp2Manager <- asks http2Manager
             let ceOriginDomain = notif.ownDomain
                 ceTargetDomain = targetDomain
-                ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
+                ceOriginRequestId = fromMaybe (RequestId defRequestId) notif.requestId
                 cveEnv = FederatorClientEnv {..}
                 cveVersion = Just V0 -- V0 is assumed for non-versioned queue messages
                 fcEnv = FederatorClientVersionedEnv {..}
@@ -133,7 +135,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                   ceFederator = federator,
                   ceHttp2Manager = manager,
                   ceOriginRequestId =
-                    fromMaybe (RequestId "N/A") . (.requestId) . NE.head $ bundle.notifications
+                    fromMaybe (RequestId defRequestId) . (.requestId) . NE.head $ bundle.notifications
                 }
         remoteVersions :: Set Int <-
           liftIO
@@ -164,7 +166,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             ceHttp2Manager <- asks http2Manager
             let ceOriginDomain = notif.ownDomain
                 ceTargetDomain = targetDomain
-                ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
+                ceOriginRequestId = fromMaybe (RequestId defRequestId) notif.requestId
                 cveEnv = FederatorClientEnv {..}
                 fcEnv = FederatorClientVersionedEnv {..}
             sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
@@ -197,8 +199,8 @@ pairedMaximumOn f = maximumBy (compare `on` snd) . map (id &&& f)
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
 -- Consumers is passed in explicitly so that cleanup code has a reference to the consumer tags.
-startPusher :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
-startPusher consumersRef chan = do
+startPusher :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO) -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
+startPusher adminClient consumersRef chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
   markAsWorking BackendNotificationPusher
@@ -221,7 +223,7 @@ startPusher consumersRef chan = do
     ]
     $ forever
     $ do
-      remotes <- getRemoteDomains
+      remotes <- getRemoteDomains adminClient
       ensureConsumers consumersRef chan remotes
       threadDelay timeBeforeNextRefresh
 
@@ -259,8 +261,8 @@ ensureConsumer consumers chan domain = do
     -- let us come down this path if there is an old consumer.
     liftIO $ forM_ oldTag $ Q.cancelConsumer chan . fst
 
-getRemoteDomains :: AppT IO [Domain]
-getRemoteDomains = do
+getRemoteDomains :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO) -> AppT IO [Domain]
+getRemoteDomains adminClient = do
   -- Jittered exponential backoff with 10ms as starting delay and 60s as max
   -- cumulative delay. When this is reached, the operation fails.
   --
@@ -279,9 +281,8 @@ getRemoteDomains = do
   where
     go :: AppT IO [Domain]
     go = do
-      client <- asks rabbitmqAdminClient
       vhost <- asks rabbitmqVHost
-      queues <- liftIO $ listQueuesByVHost client vhost
+      queues <- liftIO $ listQueuesByVHost adminClient vhost
       let notifQueuesSuffixes = mapMaybe (\q -> Text.stripPrefix "backend-notifications." q.name) queues
       catMaybes <$> traverse (\d -> either (\e -> logInvalidDomain d e >> pure Nothing) (pure . Just) $ mkDomain d) notifQueuesSuffixes
     logInvalidDomain d e =
@@ -290,7 +291,7 @@ getRemoteDomains = do
           . Log.field "queue" ("backend-notifications." <> d)
           . Log.field "error" e
 
-startWorker :: RabbitMqAdminOpts -> AppT IO (IORef (Maybe Q.Channel), IORef (Map Domain (Q.ConsumerTag, MVar ())))
+startWorker :: AmqpEndpoint -> AppT IO (IORef (Maybe Q.Channel), IORef (Map Domain (Q.ConsumerTag, MVar ())))
 startWorker rabbitmqOpts = do
   env <- ask
   -- These are used in the POSIX signal handlers, so we need to make
@@ -304,22 +305,28 @@ startWorker rabbitmqOpts = do
       clearRefs = do
         atomicWriteIORef chanRef Nothing
         atomicWriteIORef consumersRef mempty
-  -- We can fire and forget this thread because it keeps respawning itself using the 'onConnectionClosedHandler'.
-  void $
-    async $
-      liftIO $
-        openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
-          RabbitMqHooks
-            { -- The exception handling in `openConnectionWithRetries` won't open a new
-              -- connection on an explicit close call.
-              onNewChannel = \chan -> do
-                atomicWriteIORef chanRef $ pure chan
-                runAppT env $ startPusher consumersRef chan,
-              onChannelException = \_ -> do
-                clearRefs
-                runAppT env $ markAsNotWorking BackendNotificationPusher,
-              onConnectionClose = do
-                clearRefs
-                runAppT env $ markAsNotWorking BackendNotificationPusher
-            }
+  case env.rabbitmqAdminClient of
+    Nothing ->
+      Log.info $
+        Log.msg $
+          Log.val "RabbitMQ admin client not available, skipping backend notification pusher."
+    Just client ->
+      -- We can fire and forget this thread because it keeps respawning itself using the 'onConnectionClosedHandler'.
+      void $
+        async $
+          liftIO $
+            openConnectionWithRetries env.logger rabbitmqOpts $
+              RabbitMqHooks
+                { -- The exception handling in `openConnectionWithRetries` won't open a new
+                  -- connection on an explicit close call.
+                  onNewChannel = \chan -> do
+                    atomicWriteIORef chanRef $ pure chan
+                    runAppT env $ startPusher client consumersRef chan,
+                  onChannelException = \_ -> do
+                    clearRefs
+                    runAppT env $ markAsNotWorking BackendNotificationPusher,
+                  onConnectionClose = do
+                    clearRefs
+                    runAppT env $ markAsNotWorking BackendNotificationPusher
+                }
   pure (chanRef, consumersRef)

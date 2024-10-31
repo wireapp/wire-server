@@ -19,7 +19,6 @@
 
 module Test.Wire.API.Golden.Generated.NewConv_user where
 
-import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Set qualified as Set (fromList)
@@ -28,9 +27,6 @@ import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.User
-
-testDomain :: Domain
-testDomain = Domain "testdomain.example.com"
 
 testObject_NewConv_user_1 :: NewConv
 testObject_NewConv_user_1 =

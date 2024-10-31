@@ -21,9 +21,8 @@
 module Push where
 
 import Data.Aeson qualified as Aeson
-import Gundeck.Push (pushAll, pushAny)
+import Gundeck.Push (pushAll)
 import Gundeck.Push.Websocket as Web (bulkPush)
-import Gundeck.Types
 import Imports
 import MockGundeck
 import Test.QuickCheck
@@ -31,6 +30,8 @@ import Test.QuickCheck.Instances ()
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.Internal.Notification
+import Wire.API.Presence
+import Wire.API.Push.V2
 
 tests :: TestTree
 tests =
@@ -82,11 +83,8 @@ pushAllProp env (Pretty pushes) =
   where
     ((), realst) = runMockGundeck env (pushAll pushes)
     ((), mockst) = runMockGundeck env (mockPushAll pushes)
-    (errs, oldst) = runMockGundeck env (pushAny pushes)
     props =
       [ (Aeson.eitherDecode . Aeson.encode) pushes === Right pushes,
         (Aeson.eitherDecode . Aeson.encode) env === Right env,
-        counterexample "real vs. mock:" $ realst === mockst,
-        counterexample "real vs. old:" $ realst === oldst,
-        counterexample "old errors:" $ isRight errs === True
+        counterexample "real vs. mock:" $ realst === mockst
       ]

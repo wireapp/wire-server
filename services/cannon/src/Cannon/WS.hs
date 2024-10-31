@@ -62,11 +62,10 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
 import Data.Hashable
-import Data.Id (ClientId, ConnId (..), UserId)
+import Data.Id (ClientId, ConnId (..), UserId, defRequestId)
 import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
-import Gundeck.Types
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -76,6 +75,7 @@ import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
 import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)
+import Wire.API.Presence
 
 -----------------------------------------------------------------------------
 -- Key
@@ -192,7 +192,7 @@ env ::
   Clock ->
   DrainOpts ->
   Env
-env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId "N/A")
+env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId defRequestId)
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e
@@ -329,7 +329,7 @@ regInfo k c = do
   let h = externalHostname e
       p = portnum e
       r = "http://" <> h <> ":" <> pack (show p) <> "/i/push/"
-  pure . lbytes . encode . object $
+  pure . Bilge.json . object $
     [ "user_id" .= decodeUtf8 (keyUserBytes k),
       "device_id" .= decodeUtf8 (keyConnBytes k),
       "resource" .= decodeUtf8 (r <> keyUserBytes k <> "/" <> keyConnBytes k),

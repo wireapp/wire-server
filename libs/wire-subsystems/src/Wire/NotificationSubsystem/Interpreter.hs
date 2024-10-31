@@ -11,8 +11,6 @@ import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
 import Data.Time.Clock.DiffTime
-import Gundeck.Types hiding (Push (..), Recipient, newPush)
-import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
@@ -22,6 +20,8 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
+import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
+import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.Member
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
@@ -42,7 +42,7 @@ runNotificationSubsystemGundeck ::
 runNotificationSubsystemGundeck cfg = interpret $ \case
   PushNotifications ps -> runInputConst cfg $ pushImpl ps
   PushNotificationsSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
-  PushNotificationsAsync ps -> runInputConst cfg $ pushAsyncImpl ps
+  PushNotificationAsync ps -> runInputConst cfg $ pushAsyncImpl ps
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
@@ -75,11 +75,11 @@ pushAsyncImpl ::
     Member (Final IO) r,
     Member P.TinyLog r
   ) =>
-  [Push] ->
+  Push ->
   Sem r (Async (Maybe ()))
-pushAsyncImpl ps = async $ do
+pushAsyncImpl p = async $ do
   reqId <- inputs requestId
-  errorToIOFinal @SomeException (fromExceptionSem @SomeException $ pushImpl ps) >>= \case
+  errorToIOFinal @SomeException (fromExceptionSem @SomeException $ pushImpl [p]) >>= \case
     Left e ->
       P.err $
         Log.msg (Log.val "Error while pushing notifications")
@@ -128,8 +128,8 @@ toV2Push p =
     recipients = map toRecipient $ toList p._pushRecipients
     toRecipient :: Recipient -> V2.Recipient
     toRecipient r =
-      (recipient r._recipientUserId p._pushRoute)
-        { V2._recipientClients = r._recipientClients
+      (recipient r.recipientUserId p._pushRoute)
+        { V2._recipientClients = r.recipientClients
         }
 
 {-# INLINE [1] chunkPushes #-}

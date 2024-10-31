@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
+import Data.Vector (fromList)
 import GHC.Stack
 import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
@@ -40,49 +41,45 @@ deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
 -- | returns (owner, team id, members)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
 createTeam domain memberCount = do
-  res <- createUser domain def {team = True}
-  owner <- res.json
+  owner <- createUser domain def {team = True} >>= getJSON 201
   tid <- owner %. "team" & asString
-  members <- for [2 .. memberCount] $ \_ -> createTeamMember owner tid
+  members <- for [2 .. memberCount] $ \_ -> createTeamMember owner def
   pure (owner, tid, members)
+
+data CreateTeamMember = CreateTeamMember
+  { role :: String
+  }
+
+instance Default CreateTeamMember where
+  def = CreateTeamMember {role = "member"}
 
 createTeamMember ::
   (HasCallStack, MakesValue inviter) =>
   inviter ->
-  String ->
+  CreateTeamMember ->
   App Value
-createTeamMember inviter tid = createTeamMemberWithRole inviter tid "member"
-
-createTeamMemberWithRole ::
-  (HasCallStack, MakesValue inviter) =>
-  inviter ->
-  String ->
-  String ->
-  App Value
-createTeamMemberWithRole inviter tid role = do
+createTeamMember inviter args = do
   newUserEmail <- randomEmail
-  let invitationJSON = ["role" .= role, "email" .= newUserEmail]
-  invitationReq <-
-    baseRequest inviter Brig Versioned $
-      joinHttpPath ["teams", tid, "invitations"]
-  invitation <- getJSON 201 =<< submit "POST" (addJSONObject invitationJSON invitationReq)
-  invitationId <- objId invitation
-  invitationCodeReq <-
-    rawBaseRequest inviter Brig Unversioned "/i/teams/invitation-code"
-      <&> addQueryParams [("team", tid), ("invitation_id", invitationId)]
-  invitationCode <- bindResponse (submit "GET" invitationCodeReq) $ \res -> do
-    res.status `shouldMatchInt` 200
-    res.json %. "code" & asString
-  let registerJSON =
-        [ "name" .= newUserEmail,
-          "email" .= newUserEmail,
-          "password" .= defPassword,
-          "team_code" .= invitationCode
-        ]
-  registerReq <-
-    rawBaseRequest inviter Brig Versioned "/register"
-      <&> addJSONObject registerJSON
-  getJSON 201 =<< submit "POST" registerReq
+  invitation <-
+    postInvitation
+      inviter
+      def
+        { email = Just newUserEmail,
+          role = Just args.role
+        }
+      >>= getJSON 201
+  invitationCode <-
+    (getInvitationCode inviter invitation >>= getJSON 200)
+      %. "code"
+      & asString
+  let body =
+        AddUser
+          { name = Just newUserEmail,
+            email = Just newUserEmail,
+            password = Just defPassword,
+            teamCode = Just invitationCode
+          }
+  addUser inviter body >>= getJSON 201
 
 connectTwoUsers ::
   ( HasCallStack,
@@ -173,13 +170,22 @@ addUserToTeam u = do
 
 -- | Create a user on the given domain, such that the 1-1 conversation with
 -- 'other' resides on 'convDomain'. This connects the two users as a side-effect.
-createMLSOne2OnePartner :: (MakesValue user) => Domain -> user -> Domain -> App Value
+createMLSOne2OnePartner ::
+  (MakesValue user, MakesValue domain, MakesValue convDomain, HasCallStack) =>
+  domain ->
+  user ->
+  convDomain ->
+  App Value
 createMLSOne2OnePartner domain other convDomain = loop
   where
     loop = do
       u <- randomUser domain def
       connectTwoUsers u other
-      conv <- getMLSOne2OneConversation other u >>= getJSON 200
+      apiVersion <- getAPIVersionFor domain
+      conv <-
+        if apiVersion < 6
+          then getMLSOne2OneConversation other u >>= getJSON 200
+          else getMLSOne2OneConversation other u >>= getJSON 200 >>= (%. "conversation")
 
       desiredConvDomain <- make convDomain & asString
       actualConvDomain <- conv %. "qualified_id.domain" & asString
@@ -227,14 +233,15 @@ withFederatingBackendsAllowDynamic k = do
 
 -- | Create two users on different domains such that the one-to-one
 -- conversation, once finalised, will be hosted on the backend given by the
--- input domain.
-createOne2OneConversation :: (HasCallStack) => Domain -> App (Value, Value, Value)
-createOne2OneConversation owningDomain = do
+-- first domain.
+createOne2OneConversation ::
+  (HasCallStack, MakesValue domain1, MakesValue domain2) =>
+  domain1 ->
+  domain2 ->
+  App (Value, Value, Value)
+createOne2OneConversation owningDomain otherDomain = do
   owningUser <- randomUser owningDomain def
   domainName <- owningUser %. "qualified_id.domain"
-  let otherDomain = case owningDomain of
-        OwnDomain -> OtherDomain
-        OtherDomain -> OwnDomain
   let go = do
         otherUser <- randomUser otherDomain def
         otherUserId <- otherUser %. "qualified_id"
@@ -341,11 +348,16 @@ lhDeviceIdOf bob = do
 randomScimUser :: App Value
 randomScimUser = do
   email <- randomEmail
+  randomScimUserWith email email
+
+randomScimUserWith :: (HasCallStack) => String -> String -> App Value
+randomScimUserWith extId email = do
   handle <- randomHandleWithRange 12 128
   pure $
     object
       [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "externalId" .= email,
+        "externalId" .= extId,
+        "emails" .= Array (fromList [object ["value" .= email]]),
         "userName" .= handle,
         "displayName" .= handle
       ]

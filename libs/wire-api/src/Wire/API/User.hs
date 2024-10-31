@@ -28,23 +28,28 @@ module Wire.API.User
     qualifiedUserIdListObjectSchema,
     LimitedQualifiedUserIdList (..),
     ScimUserInfo (..),
-    ScimUserInfos (..),
     UserSet (..),
     -- Profiles
     UserProfile (..),
     SelfProfile (..),
     -- User (should not be here)
     User (..),
+    isSamlUser,
     userId,
+    userDeleted,
     userEmail,
     userSSOId,
     userIssuer,
-    userSCIMExternalId,
     scimExternalId,
     ssoIssuerAndNameId,
     mkUserProfile,
     mkUserProfileWithEmail,
     userObjectSchema,
+
+    -- * UpgradePersonalToTeam
+    CreateUserTeam (..),
+    UpgradePersonalToTeamResponses,
+    UpgradePersonalToTeamError (..),
 
     -- * NewUser
     NewUserPublic (..),
@@ -59,10 +64,7 @@ module Wire.API.User
     CreateUserSparInternalResponses,
     newUserFromSpar,
     urefToExternalId,
-    urefToExternalIdUnsafe,
-    urefToEmail,
     ExpiresIn,
-    newUserInvitationCode,
     newUserTeam,
     newUserEmail,
     newUserSSOId,
@@ -99,7 +101,6 @@ module Wire.API.User
     DeleteUser (..),
     mkDeleteUser,
     VerifyDeleteUser (..),
-    mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
     DeleteUserResponse (..),
     DeleteUserResult (..),
@@ -108,9 +109,6 @@ module Wire.API.User
     AccountStatus (..),
     AccountStatusUpdate (..),
     AccountStatusResp (..),
-
-    -- * Account
-    UserAccount (..),
 
     -- * Scim invitations
     NewUserScimInvitation (..),
@@ -123,7 +121,6 @@ module Wire.API.User
     GetPasswordResetCodeResp (..),
     CheckBlacklistResponse (..),
     ManagedByUpdate (..),
-    HavePendingInvitations (..),
     RichInfoUpdate (..),
     PasswordResetPair,
     UpdateSSOIdResponse (..),
@@ -156,7 +153,7 @@ import Cassandra qualified as C
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
-import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
+import Control.Lens (makePrisms, over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
@@ -194,7 +191,6 @@ import GHC.TypeLits
 import Generics.SOP qualified as GSOP
 import Imports
 import SAML2.WebSSO qualified as SAML
-import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import Test.QuickCheck qualified as QC
 import URI.ByteString (serializeURIRef)
@@ -206,13 +202,13 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Locale
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
-import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
+import Wire.API.Team
 import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth (CookieLabel)
-import Wire.API.User.Identity
+import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
@@ -309,11 +305,6 @@ instance ToSchema ManagedByUpdate where
     object "ManagedByUpdate" $
       ManagedByUpdate
         <$> mbuManagedBy .= field "managed_by" schema
-
-data HavePendingInvitations
-  = WithPendingInvitations
-  | NoPendingInvitations
-  deriving (Eq, Show, Generic)
 
 newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList}
   deriving (Eq, Show, Generic)
@@ -479,6 +470,7 @@ instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
 data UserProfile = UserProfile
   { profileQualifiedId :: Qualified UserId,
     profileName :: Name,
+    profileTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     profilePict :: Pict,
     profileAssets :: [Asset],
@@ -490,7 +482,7 @@ data UserProfile = UserProfile
     profileHandle :: Maybe Handle,
     profileExpire :: Maybe UTCTimeMillis,
     profileTeam :: Maybe TeamId,
-    profileEmail :: Maybe Email,
+    profileEmail :: Maybe EmailAddress,
     profileLegalholdStatus :: UserLegalHoldStatus,
     profileSupportedProtocols :: Set BaseProtocolTag
   }
@@ -508,6 +500,8 @@ instance ToSchema UserProfile where
           .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> profileName
           .= field "name" schema
+        <*> profileTextStatus
+          .= maybe_ (optField "text_status" schema)
         <*> profilePict
           .= (field "picture" schema <|> pure noPict)
         <*> profileAssets
@@ -560,13 +554,16 @@ data User = User
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
     userIdentity :: Maybe UserIdentity,
+    userEmailUnvalidated :: Maybe EmailAddress,
     -- | required; non-unique
     userDisplayName :: Name,
+    -- | text status
+    userTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     userPict :: Pict,
     userAssets :: [Asset],
     userAccentId :: ColourId,
-    userDeleted :: Bool,
+    userStatus :: AccountStatus,
     userLocale :: Locale,
     -- | Set if the user represents an external service,
     -- i.e. it is a "bot".
@@ -582,12 +579,21 @@ data User = User
     userManagedBy :: ManagedBy,
     userSupportedProtocols :: Set BaseProtocolTag
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
 
+isSamlUser :: User -> Bool
+isSamlUser usr = do
+  case usr.userIdentity of
+    Just (SSOIdentity (UserSSOId _) _) -> True
+    _ -> False
+
 userId :: User -> UserId
 userId = qUnqualified . userQualifiedId
+
+userDeleted :: User -> Bool
+userDeleted u = userStatus u == Deleted
 
 -- -- FUTUREWORK:
 -- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
@@ -601,39 +607,33 @@ userObjectSchema =
       .= field "qualified_id" schema
     <* userId
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-    <*> userIdentity
-      .= maybeUserIdentityObjectSchema
+    <*> userIdentity .= maybeUserIdentityObjectSchema
+    <*> userEmailUnvalidated .= maybe_ (optField "email_unvalidated" schema)
     <*> userDisplayName
       .= field "name" schema
+    <*> userTextStatus
+      .= maybe_ (optField "text_status" schema)
     <*> userPict
       .= (fromMaybe noPict <$> optField "picture" schema)
     <*> userAssets
       .= (fromMaybe [] <$> optField "assets" (array schema))
-    <*> userAccentId
-      .= field "accent_id" schema
-    <*> (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
-    <*> userLocale
-      .= field "locale" schema
-    <*> userService
-      .= maybe_ (optField "service" schema)
-    <*> userHandle
-      .= maybe_ (optField "handle" schema)
-    <*> userExpire
-      .= maybe_ (optField "expires_at" schema)
-    <*> userTeam
-      .= maybe_ (optField "team" schema)
+    <*> userAccentId .= field "accent_id" schema
+    <*> userStatus .= field "status" schema
+    <*> userLocale .= field "locale" schema
+    <*> userService .= maybe_ (optField "service" schema)
+    <*> userHandle .= maybe_ (optField "handle" schema)
+    <*> userExpire .= maybe_ (optField "expires_at" schema)
+    <*> userTeam .= maybe_ (optField "team" schema)
     <*> userManagedBy
       .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
     <*> userSupportedProtocols .= supportedProtocolsObjectSchema
+    <* (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
 
-userEmail :: User -> Maybe Email
+userEmail :: User -> Maybe EmailAddress
 userEmail = emailIdentity <=< userIdentity
 
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
-
-userSCIMExternalId :: User -> Maybe Text
-userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
 
 -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
@@ -684,7 +684,7 @@ instance FromJSON (EmailVisibility ()) where
     "visible_to_self" -> pure EmailVisibleToSelf
     _ -> fail "unexpected value for EmailVisibility settings"
 
-mkUserProfileWithEmail :: Maybe Email -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfileWithEmail :: Maybe EmailAddress -> User -> UserLegalHoldStatus -> UserProfile
 mkUserProfileWithEmail memail u legalHoldStatus =
   -- This profile would be visible to any other user. When a new field is
   -- added, please make sure it is OK for other users to have access to it.
@@ -692,6 +692,7 @@ mkUserProfileWithEmail memail u legalHoldStatus =
     { profileQualifiedId = userQualifiedId u,
       profileHandle = userHandle u,
       profileName = userDisplayName u,
+      profileTextStatus = userTextStatus u,
       profilePict = userPict u,
       profileAssets = userAssets u,
       profileAccentId = userAccentId u,
@@ -774,6 +775,47 @@ isNewUserTeamMember u = case newUserTeam u of
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
+data CreateUserTeam = CreateUserTeam
+  { createdTeamId :: !TeamId,
+    createdTeamName :: !Text
+  }
+  deriving (Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateUserTeam
+
+instance ToSchema CreateUserTeam where
+  schema =
+    object "CreateUserTeam" $
+      CreateUserTeam
+        <$> createdTeamId .= field "team_id" schema
+        <*> createdTeamName .= field "team_name" schema
+
+data UpgradePersonalToTeamError
+  = UpgradePersonalToTeamErrorAlreadyInATeam
+  | UpgradePersonalToTeamErrorUserNotFound
+  deriving (Show)
+
+type UpgradePersonalToTeamResponses =
+  '[ ErrorResponse UserAlreadyInATeam,
+     ErrorResponse UserNotFound,
+     Respond 200 "Team created" CreateUserTeam
+   ]
+
+instance
+  AsUnion
+    UpgradePersonalToTeamResponses
+    (Either UpgradePersonalToTeamError CreateUserTeam)
+  where
+  toUnion (Left UpgradePersonalToTeamErrorAlreadyInATeam) =
+    Z (I (dynError @(MapError UserAlreadyInATeam)))
+  toUnion (Left UpgradePersonalToTeamErrorUserNotFound) =
+    S (Z (I (dynError @(MapError UserNotFound))))
+  toUnion (Right x) = S (S (Z (I x)))
+
+  fromUnion (Z (I _)) = Left UpgradePersonalToTeamErrorAlreadyInATeam
+  fromUnion (S (Z (I _))) = Left UpgradePersonalToTeamErrorAlreadyInATeam
+  fromUnion (S (S (Z (I x)))) = Right x
+  fromUnion (S (S (S x))) = case x of {}
+
 data RegisterError
   = RegisterErrorAllowlistError
   | RegisterErrorInvalidInvitationCode
@@ -843,14 +885,6 @@ instance (res ~ RegisterInternalResponses) => AsUnion res (Either RegisterError 
 
 urefToExternalId :: SAML.UserRef -> Maybe Text
 urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubject
-
-urefToEmail :: SAML.UserRef -> Maybe Email
-urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
-  SAML.UNameIDEmail email -> parseEmail . SAMLEmail.render . CI.original $ email
-  _ -> Nothing
-
-urefToExternalIdUnsafe :: SAML.UserRef -> Text
-urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
 data CreateUserSparError
   = CreateUserSparHandleError ChangeHandleError
@@ -941,12 +975,10 @@ newUserFromSpar new =
     { newUserDisplayName = newUserSparDisplayName new,
       newUserUUID = Just $ newUserSparUUID new,
       newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing,
-      newUserPhone = Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
       newUserEmailCode = Nothing,
-      newUserPhoneCode = Nothing,
       newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ newUserSparTeamId new,
       newUserLabel = Nothing,
       newUserPassword = Nothing,
@@ -961,13 +993,11 @@ data NewUser = NewUser
     -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
     newUserUUID :: Maybe UUID,
     newUserIdentity :: Maybe UserIdentity,
-    newUserPhone :: Maybe Phone,
     -- | DEPRECATED
     newUserPict :: Maybe Pict,
     newUserAssets :: [Asset],
     newUserAccentId :: Maybe ColourId,
     newUserEmailCode :: Maybe ActivationCode,
-    newUserPhoneCode :: Maybe ActivationCode,
     newUserOrigin :: Maybe NewUserOrigin,
     newUserLabel :: Maybe CookieLabel,
     newUserLocale :: Maybe Locale,
@@ -985,12 +1015,10 @@ emptyNewUser name =
     { newUserDisplayName = name,
       newUserUUID = Nothing,
       newUserIdentity = Nothing,
-      newUserPhone = Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
       newUserEmailCode = Nothing,
-      newUserPhoneCode = Nothing,
       newUserOrigin = Nothing,
       newUserLabel = Nothing,
       newUserLocale = Nothing,
@@ -1007,17 +1035,13 @@ type ExpiresIn = Range 1 604800 Integer
 data NewUserRaw = NewUserRaw
   { newUserRawDisplayName :: Name,
     newUserRawUUID :: Maybe UUID,
-    newUserRawEmail :: Maybe Email,
-    -- | This is deprecated and it should always be 'Nothing'.
-    newUserRawPhone :: Maybe Phone,
+    newUserRawEmail :: Maybe EmailAddress,
     newUserRawSSOId :: Maybe UserSSOId,
     -- | DEPRECATED
     newUserRawPict :: Maybe Pict,
     newUserRawAssets :: [Asset],
     newUserRawAccentId :: Maybe ColourId,
     newUserRawEmailCode :: Maybe ActivationCode,
-    -- | This is deprecated and it should always be 'Nothing'.
-    newUserRawPhoneCode :: Maybe ActivationCode,
     newUserRawInvitationCode :: Maybe InvitationCode,
     newUserRawTeamCode :: Maybe InvitationCode,
     newUserRawTeam :: Maybe BindingNewTeamUser,
@@ -1039,8 +1063,6 @@ newUserRawObjectSchema =
       .= maybe_ (optField "uuid" genericToSchema)
     <*> newUserRawEmail
       .= maybe_ (optField "email" schema)
-    <*> newUserRawPhone
-      .= maybe_ (optField "phone" schema)
     <*> newUserRawSSOId
       .= maybe_ (optField "sso_id" genericToSchema)
     <*> newUserRawPict
@@ -1051,8 +1073,6 @@ newUserRawObjectSchema =
       .= maybe_ (optField "accent_id" schema)
     <*> newUserRawEmailCode
       .= maybe_ (optField "email_code" schema)
-    <*> newUserRawPhoneCode
-      .= maybe_ (optField "phone_code" schema)
     <*> newUserRawInvitationCode
       .= maybe_ (optField "invitation_code" schema)
     <*> newUserRawTeamCode
@@ -1085,13 +1105,11 @@ newUserToRaw NewUser {..} =
         { newUserRawDisplayName = newUserDisplayName,
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
-          newUserRawPhone = newUserPhone,
           newUserRawSSOId = ssoIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
           newUserRawAccentId = newUserAccentId,
           newUserRawEmailCode = newUserEmailCode,
-          newUserRawPhoneCode = newUserPhoneCode,
           newUserRawInvitationCode = newUserOriginInvitationCode =<< newUserOrigin,
           newUserRawTeamCode = newTeamUserCode =<< maybeOriginNTU,
           newUserRawTeam = newTeamUserCreator =<< maybeOriginNTU,
@@ -1124,12 +1142,10 @@ newUserFromRaw NewUserRaw {..} = do
       { newUserDisplayName = newUserRawDisplayName,
         newUserUUID = newUserRawUUID,
         newUserIdentity = identity,
-        newUserPhone = newUserRawPhone,
         newUserPict = newUserRawPict,
         newUserAssets = newUserRawAssets,
         newUserAccentId = newUserRawAccentId,
         newUserEmailCode = newUserRawEmailCode,
-        newUserPhoneCode = newUserRawPhoneCode,
         newUserOrigin = origin,
         newUserLabel = newUserRawLabel,
         newUserLocale = newUserRawLocale,
@@ -1143,7 +1159,6 @@ newUserFromRaw NewUserRaw {..} = do
 instance Arbitrary NewUser where
   arbitrary = do
     newUserIdentity <- arbitrary
-    newUserPhone <- arbitrary
     newUserOrigin <- genUserOrigin newUserIdentity
     newUserDisplayName <- arbitrary
     newUserUUID <- QC.elements [Just nil, Nothing]
@@ -1151,7 +1166,6 @@ instance Arbitrary NewUser where
     newUserAssets <- arbitrary
     newUserAccentId <- arbitrary
     newUserEmailCode <- arbitrary
-    newUserPhoneCode <- arbitrary
     newUserLabel <- arbitrary
     newUserLocale <- arbitrary
     newUserPassword <- genUserPassword newUserIdentity newUserOrigin
@@ -1182,17 +1196,12 @@ instance Arbitrary NewUser where
       genUserExpiresIn newUserIdentity =
         if isJust newUserIdentity then pure Nothing else arbitrary
 
-newUserInvitationCode :: NewUser -> Maybe InvitationCode
-newUserInvitationCode nu = case newUserOrigin nu of
-  Just (NewUserOriginInvitationCode ic) -> Just ic
-  _ -> Nothing
-
 newUserTeam :: NewUser -> Maybe NewTeamUser
 newUserTeam nu = case newUserOrigin nu of
   Just (NewUserOriginTeamUser tu) -> Just tu
   _ -> Nothing
 
-newUserEmail :: NewUser -> Maybe Email
+newUserEmail :: NewUser -> Maybe EmailAddress
 newUserEmail = emailIdentity <=< newUserIdentity
 
 newUserSSOId :: NewUser -> Maybe UserSSOId
@@ -1244,7 +1253,7 @@ maybeNewUserOriginFromComponents hasPassword hasSSO (invcode, teamcode, team, te
 -- | A random invitation code for use during registration
 newtype InvitationCode = InvitationCode
   {fromInvitationCode :: AsciiBase64Url}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToSchema, ToByteString, FromByteString, Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema InvitationCode
 
@@ -1294,7 +1303,7 @@ newTeamUserTeamId = \case
   NewTeamMemberSSO tid -> Just tid
 
 data BindingNewTeamUser = BindingNewTeamUser
-  { bnuTeam :: BindingNewTeam,
+  { bnuTeam :: NewTeam,
     bnuCurrency :: Maybe Currency.Alpha
     -- FUTUREWORK:
     -- Remove Currency selection once billing supports currency changes after team creation
@@ -1308,7 +1317,7 @@ instance ToSchema BindingNewTeamUser where
     object "BindingNewTeamUser" $
       BindingNewTeamUser
         <$> bnuTeam
-          .= bindingNewTeamObjectSchema
+          .= newTeamObjectSchema
         <*> bnuCurrency
           .= maybe_ (optField "currency" genericToSchema)
 
@@ -1331,18 +1340,6 @@ instance ToSchema ScimUserInfo where
           .= field "id" schema
         <*> suiCreatedOn
           .= maybe_ (optField "created_on" schema)
-
-newtype ScimUserInfos = ScimUserInfos {scimUserInfos :: [ScimUserInfo]}
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ScimUserInfos)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ScimUserInfos)
-
-instance ToSchema ScimUserInfos where
-  schema =
-    object "ScimUserInfos" $
-      ScimUserInfos
-        <$> scimUserInfos
-          .= field "scim_user_infos" (array schema)
 
 -------------------------------------------------------------------------------
 -- UserSet
@@ -1368,6 +1365,7 @@ instance ToSchema UserSet where
 
 data UserUpdate = UserUpdate
   { uupName :: Maybe Name,
+    uupTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     uupPict :: Maybe Pict,
     uupAssets :: Maybe [Asset],
@@ -1383,6 +1381,8 @@ instance ToSchema UserUpdate where
       UserUpdate
         <$> uupName
           .= maybe_ (optField "name" schema)
+        <*> uupTextStatus
+          .= maybe_ (optField "text_status" schema)
         <*> uupPict
           .= maybe_ (optField "picture" schema)
         <*> uupAssets
@@ -1408,8 +1408,8 @@ instance (res ~ PutSelfResponses) => AsUnion res (Maybe UpdateProfileError) wher
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
-  { cpOldPassword :: Maybe PlainTextPassword6,
-    cpNewPassword :: PlainTextPassword8
+  { oldPassword :: Maybe PlainTextPassword6,
+    newPassword :: PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
@@ -1425,9 +1425,9 @@ instance ToSchema PasswordChange where
       )
       . object "PasswordChange"
       $ PasswordChange
-        <$> cpOldPassword
+        <$> oldPassword
           .= maybe_ (optField "old_password" schema)
-        <*> cpNewPassword
+        <*> newPassword
           .= field "new_password" schema
 
 data ChangePasswordError
@@ -1464,7 +1464,7 @@ instance ToSchema LocaleUpdate where
         <$> luLocale
           .= field "locale" schema
 
-newtype EmailUpdate = EmailUpdate {euEmail :: Email}
+newtype EmailUpdate = EmailUpdate {euEmail :: EmailAddress}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (S.ToSchema) via (Schema EmailUpdate)
@@ -1639,9 +1639,6 @@ data VerifyDeleteUser = VerifyDeleteUser
   deriving (Arbitrary) via (GenericUniform VerifyDeleteUser)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifyDeleteUser)
 
-mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
-mkVerifyDeleteUser = VerifyDeleteUser
-
 instance ToSchema VerifyDeleteUser where
   schema =
     objectWithDocModifier "VerifyDeleteUser" (description ?~ "Data for verifying an account deletion.") $
@@ -1802,24 +1799,6 @@ instance Schema.ToSchema AccountStatusUpdate where
 -------------------------------------------------------------------------------
 -- UserAccount
 
--- | A UserAccount is targeted to be used by our \"backoffice\" and represents
--- all the data related to a user in our system, regardless of whether they
--- are active or not, their status, etc.
-data UserAccount = UserAccount
-  { accountUser :: !User,
-    accountStatus :: !AccountStatus
-  }
-  deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserAccount)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
-
-instance Schema.ToSchema UserAccount where
-  schema =
-    Schema.object "UserAccount" $
-      UserAccount
-        <$> accountUser Schema..= userObjectSchema
-        <*> accountStatus Schema..= Schema.field "status" Schema.schema
-
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation
 
@@ -1827,9 +1806,10 @@ data NewUserScimInvitation = NewUserScimInvitation
   -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvUserId :: UserId,
+    newUserScimExternalId :: Text,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
-    newUserScimInvEmail :: Email,
+    newUserScimInvEmail :: EmailAddress,
     newUserScimInvRole :: Role
   }
   deriving (Eq, Show, Generic)
@@ -1842,6 +1822,7 @@ instance Schema.ToSchema NewUserScimInvitation where
       NewUserScimInvitation
         <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
         <*> newUserScimInvUserId Schema..= Schema.field "user_id" Schema.schema
+        <*> newUserScimExternalId Schema..= field "external_id" schema
         <*> newUserScimInvLocale Schema..= maybe_ (optField "locale" Schema.schema)
         <*> newUserScimInvName Schema..= Schema.field "name" Schema.schema
         <*> newUserScimInvEmail Schema..= Schema.field "email" Schema.schema
@@ -1900,7 +1881,7 @@ instance ToHttpApiData VerificationAction where
 
 data SendVerificationCode = SendVerificationCode
   { svcAction :: VerificationAction,
-    svcEmail :: Email
+    svcEmail :: EmailAddress
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SendVerificationCode)

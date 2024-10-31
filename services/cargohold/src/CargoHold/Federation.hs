@@ -21,7 +21,6 @@ import CargoHold.App
 import CargoHold.Options
 import Control.Error
 import Control.Exception (throw)
-import Control.Lens
 import Control.Monad.Codensity
 import Data.Id
 import Data.Qualified
@@ -75,12 +74,12 @@ downloadRemoteAsset usr rkey tok = do
 
 mkFederatorClientEnv :: Remote x -> Handler FederatorClientEnv
 mkFederatorClientEnv remote = do
-  loc <- view localUnit
+  loc <- asks (.localUnit)
   endpoint <-
-    view (options . federator)
+    asks (.options.federator)
       >>= maybe (throwE federationNotConfigured) pure
-  mgr <- view http2Manager
-  rid <- view requestId
+  mgr <- asks (.http2Manager)
+  rid <- asks (.requestId)
   pure
     FederatorClientEnv
       { ceOriginDomain = tDomain loc,

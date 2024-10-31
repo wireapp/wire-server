@@ -14,6 +14,10 @@ resources:
 metrics:
   serviceMonitor:
     enabled: false
+# This is not supported for production use, only here for testing:
+# preStop:
+#  exec:
+#   command: ["sh", "-c", "curl http://acme.example"]
 config:
   logLevel: Info
   logFormat: StructuredJSON
@@ -63,7 +67,7 @@ config:
   useSES: true
   multiSFT:
     enabled: false # keep multiSFT default in sync with sft chart's multiSFT.enabled
-  enableFederation: false # keep enableFederation default in sync with galley and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
+  enableFederation: false # keep in sync with background-worker, cargohold and galley charts' config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
   rabbitmq:
     host: rabbitmq
@@ -95,6 +99,14 @@ config:
     providerTokenTimeout: 900
     legalholdUserTokenTimeout: 4838400
     legalholdAccessTokenTimeout: 900
+  # sft:
+  #   sftBaseDomain: sft.wire.example.com
+  #   sftSRVServiceName: sft
+  #   sftDiscoveryIntervalSeconds: 10
+  #   sftListLength: 20
+  #   sftToken:
+  #     ttl: 120
+  #     secret: /etc/wire/brig/secrets/sftTokenSecret # this is the default path for secret.sftTokenSecret
   optSettings:
     setActivationTimeout: 1209600
     setTeamInvitationTimeout: 1814400
@@ -138,6 +150,12 @@ config:
     setDisabledAPIVersions: [ development ]
     setFederationStrategy: allowNone
     setFederationDomainConfigsUpdateFreq: 10
+    setPasswordHashingOptions:
+      algorithm: scrypt # or argon2id
+      # When algorithm is argon2id, these can be configured:
+      # iterations: <iterations>
+      # parallelism: <paralellism>
+      # memory: <memory used in KiB>
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

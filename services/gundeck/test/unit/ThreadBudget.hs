@@ -30,7 +30,6 @@ import Control.Concurrent.Async
 import Control.Lens
 import Control.Monad.Catch (MonadCatch, catch)
 import Data.String.Conversions
-import Data.Time
 import GHC.Generics
 import Gundeck.Options
 import Gundeck.ThreadBudget.Internal
@@ -53,18 +52,11 @@ newtype NumberOfThreads = NumberOfThreads {fromNumberOfThreads :: Int}
 
 -- | 'microseconds' determines how long one unit lasts.  there is a trade-off of fast
 -- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.
+--
+-- There is also `Milliseconds` (with small `s` after `Milli`) in "Data.Misc".  maybe this
+-- should be cleaned up...
 newtype MilliSeconds = MilliSeconds {fromMilliSeconds :: Int}
   deriving (Eq, Ord, Show, Generic, ToExpr)
-
--- toMillisecondsCeiling 0.03      == MilliSeconds 30
--- toMillisecondsCeiling 0.003     == MilliSeconds 3
--- toMillisecondsCeiling 0.0003    == MilliSeconds 1
--- toMillisecondsCeiling 0.0000003 == MilliSeconds 1
-toMillisecondsCeiling :: NominalDiffTime -> MilliSeconds
-toMillisecondsCeiling = MilliSeconds . ceiling . (* 1000) . toRational
-
-milliSecondsToNominalDiffTime :: MilliSeconds -> NominalDiffTime
-milliSecondsToNominalDiffTime = fromRational . (/ 1000) . toRational . fromMilliSeconds
 
 instance Arbitrary NumberOfThreads where
   arbitrary = NumberOfThreads <$> choose (1, 30)
@@ -112,9 +104,6 @@ instance LC.MonadLogger (ReaderT LogHistory IO) where
 delayms :: (MonadCatch m, MonadIO m) => MilliSeconds -> m ()
 delayms = delay' . (* 1000) . fromMilliSeconds
 
-delayndt :: (MonadCatch m, MonadIO m) => NominalDiffTime -> m ()
-delayndt = delay' . round . (* 1000) . (* 1000) . toRational
-
 delay' :: (MonadCatch m, MonadIO m) => Int -> m ()
 delay' microsecs = threadDelay microsecs `catch` \AsyncCancelled -> pure ()
 
@@ -146,14 +135,15 @@ tests =
     "thread budgets"
     [ -- flaky test case as described in https://wearezeta.atlassian.net/browse/BE-527
       -- testCase "unit test" testThreadBudgets,
-      testProperty "qc stm (sequential)" propSequential
+      testProperty "qc stm (sequential)" propSequential,
+      testCase "thread buckets" testThreadBudgets
     ]
 
 ----------------------------------------------------------------------
 -- deterministic unit test
 
-_testThreadBudgets :: Assertion
-_testThreadBudgets = do
+testThreadBudgets :: Assertion
+testThreadBudgets = do
   let timeUnits n = MilliSeconds $ lengthOfTimeUnit * n
       lengthOfTimeUnit = 5 -- if you make this larger, the test will run more slowly, and be
       -- less likely to have timing issues.  if you make it too small, some of the calls to

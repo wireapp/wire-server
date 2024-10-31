@@ -520,7 +520,7 @@ testSearchSameTeamOnly brig opts = do
   nonTeamMember <- setRandomHandle brig nonTeamMember'
   (_, _, [teamMember]) <- createPopulatedBindingTeam brig 1
   refreshIndex brig
-  let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly ?~ True
+  let newOpts = opts & Opt.settingsLens . Opt.searchSameTeamOnlyLens ?~ True
   withSettingsOverrides newOpts $ do
     assertCan'tFind brig (userId teamMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
     let nonTeamMemberHandle = fromMaybe (error "nonTeamMember must have a handle") (userHandle nonTeamMember)
@@ -613,8 +613,8 @@ testMigrationToNewIndex opts brig = do
   withOldESProxy opts $ \oldESUrl oldESIndex -> do
     let optsOldIndex =
           opts
-            & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName oldESIndex)
-            & Opt.elasticsearchL . Opt.urlL .~ (ES.Server oldESUrl)
+            & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName oldESIndex)
+            & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server oldESUrl)
     -- Phase 1: Using old index only
     (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides optsOldIndex $ do
       nonTeamUser <- randomUser brig
@@ -624,10 +624,10 @@ testMigrationToNewIndex opts brig = do
     -- Phase 2: Using old index for search, writing to both indices, migrations have not run
     let phase2OptsWhile =
           optsOldIndex
-            & Opt.elasticsearchL . Opt.additionalWriteIndexL ?~ (opts ^. Opt.elasticsearchL . Opt.indexL)
-            & Opt.elasticsearchL . Opt.additionalWriteIndexUrlL ?~ (opts ^. Opt.elasticsearchL . Opt.urlL)
-            & Opt.elasticsearchL . Opt.additionalCaCertL .~ (opts ^. Opt.elasticsearchL . Opt.caCertL)
-            & Opt.elasticsearchL . Opt.additionalInsecureSkipVerifyTlsL .~ (opts ^. Opt.elasticsearchL . Opt.insecureSkipVerifyTlsL)
+            & Opt.elasticsearchLens . Opt.additionalWriteIndexLens ?~ (opts ^. Opt.elasticsearchLens . Opt.indexLens)
+            & Opt.elasticsearchLens . Opt.additionalWriteIndexUrlLens ?~ (opts ^. Opt.elasticsearchLens . Opt.urlLens)
+            & Opt.elasticsearchLens . Opt.additionalCaCertLens .~ (opts ^. Opt.elasticsearchLens . Opt.caCertLens)
+            & Opt.elasticsearchLens . Opt.additionalInsecureSkipVerifyTlsLens .~ (opts ^. Opt.elasticsearchLens . Opt.insecureSkipVerifyTlsLens)
     (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
       phase2NonTeamUser <- randomUser brig
       phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
@@ -652,7 +652,7 @@ testMigrationToNewIndex opts brig = do
     assertCanFindByName brig phase1TeamUser1 phase2TeamUser
 
     -- Run Migrations
-    let newIndexName = opts ^. Opt.elasticsearchL . Opt.indexL
+    let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
     taskNodeId <- assertRight =<< runBH opts (ES.reindexAsync $ ES.mkReindexRequest (ES.IndexName oldESIndex) newIndexName)
     runBH opts $ waitForTaskToComplete @ES.ReindexResponse taskNodeId
 
@@ -746,14 +746,14 @@ withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m 
 withOldIndex opts f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
-  let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName indexName)
+  let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName)
   withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
 optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
-  pure (opts & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName indexName), indexName)
+  pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName), indexName)
 
 createIndexWithMapping :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> Value -> m ()
 createIndexWithMapping opts name val = do
@@ -773,7 +773,7 @@ deleteIndex opts name = do
 
 runBH :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
-  let (ES.Server esURL) = opts ^. Opt.elasticsearchL . Opt.urlL
+  let (ES.Server esURL) = opts ^. Opt.elasticsearchLens . Opt.urlLens
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action

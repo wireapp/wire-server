@@ -77,9 +77,7 @@ newTeamConversation = TeamConversation
 --------------------------------------------------------------------------------
 -- TeamConversationList
 
-newtype TeamConversationList = TeamConversationList
-  { _teamConversations :: [TeamConversation]
-  }
+newtype TeamConversationList = TeamConversationList {teamConversations :: [TeamConversation]}
   deriving (Generic)
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
@@ -91,10 +89,9 @@ instance ToSchema TeamConversationList where
       "TeamConversationList"
       (description ?~ "Team conversation list")
       $ TeamConversationList
-        <$> _teamConversations .= field "conversations" (array schema)
+        <$> teamConversations .= field "conversations" (array schema)
 
 newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
 
 makeLenses ''TeamConversation
-makeLenses ''TeamConversationList

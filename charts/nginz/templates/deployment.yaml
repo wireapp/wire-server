@@ -29,6 +29,13 @@ spec:
         fluentbit.io/parser-nginz: nginz
     spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: nginz
       containers:
       - name: nginz-disco
         image: "{{ .Values.images.nginzDisco.repository }}:{{ .Values.images.nginzDisco.tag }}"

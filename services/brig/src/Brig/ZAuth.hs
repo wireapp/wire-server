@@ -77,7 +77,6 @@ module Brig.ZAuth
     userTokenRand,
     tokenExpires,
     tokenExpiresUTC,
-    tokenKeyIndex,
     zauthType,
 
     -- * Re-exports
@@ -443,9 +442,6 @@ userTokenRand' t = t ^. body . rand
 
 legalHoldUserTokenRand :: Token LegalHoldUser -> Word32
 legalHoldUserTokenRand t = t ^. body . legalHoldUser . rand
-
-tokenKeyIndex :: Token a -> Int
-tokenKeyIndex t = t ^. header . key
 
 tokenExpires :: Token a -> POSIXTime
 tokenExpires t = fromIntegral (t ^. header . time)

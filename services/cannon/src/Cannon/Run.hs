@@ -27,7 +27,7 @@ import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import Cannon.Dict qualified as D
 import Cannon.Options
-import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon', runCannonToServant)
+import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon, runCannonToServant)
 import Cannon.WS hiding (env)
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
@@ -45,6 +45,9 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Middleware.Gzip qualified as Gzip
 import Network.Wai.Utilities.Server
+import OpenTelemetry.Instrumentation.Wai
+import OpenTelemetry.Trace hiding (Server)
+import OpenTelemetry.Trace qualified as Otel
 import Prometheus qualified as Prom
 import Servant
 import System.IO.Strict qualified as Strict
@@ -57,11 +60,12 @@ import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import Wire.OpenTelemetry (withTracer)
 
 type CombinedAPI = CannonAPI :<|> Internal.API
 
 run :: Opts -> IO ()
-run o = do
+run o = withTracer \tracer -> do
   when (o ^. drainOpts . millisecondsBetweenBatches == 0) $
     error "drainOpts.millisecondsBetweenBatches must not be set to 0."
   when (o ^. drainOpts . gracePeriodSeconds == 0) $
@@ -74,14 +78,16 @@ run o = do
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom
       <*> mkClock
-  refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
+  refreshMetricsThread <- Async.async $ runCannon e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 
+  otelMiddleWare <- newOpenTelemetryWaiMiddleware
   let middleware :: Wai.Middleware
       middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
           . requestIdMiddleware g defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @CombinedAPI)
+          . otelMiddleWare
           . Gzip.gzip Gzip.def
           . catchErrors g defaultRequestIdHeaderName
       app :: Application
@@ -94,7 +100,7 @@ run o = do
   E.handle uncaughtExceptionHandler $ do
     void $ installHandler sigTERM (signalHandler (env e) tid) Nothing
     void $ installHandler sigINT (signalHandler (env e) tid) Nothing
-    runSettings s app `finally` do
+    inSpan tracer "cannon" defaultSpanArguments {kind = Otel.Server} (runSettings s app) `finally` do
       -- FUTUREWORK(@akshaymankar, @fisx): we may want to call `runSettingsWithShutdown` here,
       -- but it's a sensitive change, and it looks like this is closing all the websockets at
       -- the same time and then calling the drain script. I suspect this might be due to some

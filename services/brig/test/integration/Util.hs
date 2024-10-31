@@ -25,15 +25,15 @@ module Util where
 import Bilge hiding (host, port)
 import Bilge.Assert
 import Brig.AWS.Types
-import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
+import Brig.App (Env (..))
 import Brig.Calling as Calling
-import Brig.Options qualified as Opt
+import Brig.Options as Opt
 import Brig.Run qualified as Run
 import Brig.Types.Activation
 import Brig.ZAuth qualified as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
-import Control.Lens ((^.), (^?), (^?!))
+import Control.Lens ((^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Catch qualified as Catch
 import Control.Monad.State qualified as State
@@ -56,9 +56,10 @@ import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import Data.List1 qualified as List1
+import Data.Mailbox
 import Data.Misc
 import Data.Proxy
-import Data.Qualified hiding (isLocal)
+import Data.Qualified
 import Data.Range
 import Data.Sequence qualified as Seq
 import Data.String.Conversions
@@ -84,7 +85,6 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Test (Session)
 import Network.Wai.Test qualified as WaiTest
-import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import Servant.Client (ClientError (FailureResponse))
 import Servant.Client qualified as Servant
@@ -104,7 +104,6 @@ import Test.Tasty.Pending (flakyTestCase)
 import Text.Printf (printf)
 import UnliftIO.Async qualified as Async
 import Util.Options
-import Web.Internal.HttpApiData
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
@@ -112,7 +111,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Federation.Version
 import Wire.API.Internal.Notification
-import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User hiding (AccountStatus (..))
@@ -187,8 +185,8 @@ runFedClient (FedClient mgr ep) domain =
   where
     servantClientMToHttp :: Domain -> Servant.ClientM a -> Http a
     servantClientMToHttp originDomain action = liftIO $ do
-      let brigHost = Text.unpack $ ep ^. host
-          brigPort = fromInteger . toInteger $ ep ^. port
+      let brigHost = Text.unpack ep.host
+          brigPort = fromInteger . toInteger $ ep.port
           baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort "/federation"
           clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain)
       eitherRes <- Servant.runClientM action clientEnv
@@ -232,6 +230,12 @@ instance ToJSON SESNotification where
             ]
       ]
 
+instance ToJSON Mailbox where
+  toJSON (Mailbox mName addr) =
+    case mName of
+      Nothing -> toJSON addr
+      Just ns -> String $ "\"" <> T.unwords ns <> "\" <" <> T.decodeUtf8 (toByteString' addr) <> ">"
+
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
 
@@ -265,8 +269,8 @@ localAndRemoteUserWithConvId brig shouldBeLocal = do
   let go = do
         other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
         let convId = one2OneConvId BaseProtocolProteusTag quid other
-            isLocal = qDomain quid == qDomain convId
-        if shouldBeLocal == isLocal
+            isLocalUntagged = qDomain quid == qDomain convId
+        if shouldBeLocal == isLocalUntagged
           then pure (qUnqualified quid, other, convId)
           else go
   go
@@ -311,7 +315,7 @@ createUser' hasPwd name brig = do
       <!! const 201 === statusCode
   responseJsonError r
 
-createUserWithEmail :: (HasCallStack) => Text -> Email -> Brig -> Http User
+createUserWithEmail :: (HasCallStack) => Text -> EmailAddress -> Brig -> Http User
 createUserWithEmail name email brig = do
   r <-
     postUserWithEmail True True name (Just email) False Nothing Nothing brig
@@ -332,7 +336,7 @@ createAnonUserExpiry expires name brig = do
   r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
   responseJsonError r
 
-requestActivationCode :: (HasCallStack) => Brig -> Int -> Either Email Phone -> Http ()
+requestActivationCode :: (HasCallStack) => Brig -> Int -> Either EmailAddress Phone -> Http ()
 requestActivationCode brig expectedStatus ep =
   post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep))
     !!! const expectedStatus === statusCode
@@ -343,7 +347,7 @@ requestActivationCode brig expectedStatus ep =
 getActivationCode ::
   (MonadCatch m, MonadHttp m, HasCallStack) =>
   Brig ->
-  Either Email Phone ->
+  Either EmailAddress Phone ->
   m (Maybe (ActivationKey, ActivationCode))
 getActivationCode brig ep = do
   let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
@@ -353,12 +357,6 @@ getActivationCode brig ep = do
   let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
   pure $ (,) <$> akey <*> acode
 
-getPhoneLoginCode :: Brig -> Phone -> Http (Maybe LoginCode)
-getPhoneLoginCode brig p = do
-  r <- get $ brig . path "/i/users/login-code" . queryItem "phone" (toByteString' p)
-  let lbs = fromMaybe "" $ responseBody r
-  pure (LoginCode <$> (lbs ^? key "code" . _String))
-
 assertUpdateNotification :: (HasCallStack) => WS.WebSocket -> UserId -> UserUpdate -> IO ()
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let j = Object $ List1.head (ntfPayload n)
@@ -366,6 +364,7 @@ assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let u = j ^?! key "user"
   u ^? key "id" . _String @?= Just (UUID.toText (toUUID uid))
   u ^? key "name" . _String @?= fromName <$> uupName upd
+  u ^? key "text_status" . _String @?= fromTextStatus <$> uupTextStatus upd
   u ^? key "accent_id" . _Integral @?= fromColourId <$> uupAccentId upd
   u ^? key "assets" @?= Just (toJSON (uupAssets upd))
 
@@ -411,7 +410,7 @@ postUserWithEmail ::
   Bool ->
   Bool ->
   Text ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   Bool ->
   Maybe UserSSOId ->
   Maybe TeamId ->
@@ -536,23 +535,6 @@ decodeToken' r = fromMaybe (error "invalid access_token") $ do
 data LoginCodeType = LoginCodeSMS | LoginCodeVoice
   deriving (Eq)
 
-sendLoginCode :: Brig -> Phone -> LoginCodeType -> Bool -> Http ResponseLBS
-sendLoginCode b p typ force =
-  post $
-    b
-      . path "/login/send"
-      . contentJson
-      . body js
-  where
-    js =
-      RequestBodyLBS
-        . encode
-        $ object
-          [ "phone" .= fromPhone p,
-            "voice_call" .= (typ == LoginCodeVoice),
-            "force" .= force
-          ]
-
 postConnection :: Brig -> UserId -> UserId -> (MonadHttp m) => m ResponseLBS
 postConnection brig from to =
   post $
@@ -641,23 +623,6 @@ createUserWithHandle brig = do
   -- when using this function.
   pure (handle, userWithHandle)
 
-getUserInfoFromHandle ::
-  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
-  Brig ->
-  Domain ->
-  Handle ->
-  m UserProfile
-getUserInfoFromHandle brig domain handle = do
-  u <- randomId
-  responseJsonError
-    =<< get
-      ( apiVersion "v1"
-          . brig
-          . paths ["users", "by-handle", toByteString' (domainText domain), toByteString' handle]
-          . zUser u
-          . expect2xx
-      )
-
 addClient ::
   (MonadHttp m, HasCallStack) =>
   Brig ->
@@ -732,47 +697,6 @@ getConversationQualified galley usr cnv =
       . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
       . zAuthAccess usr "conn"
 
-createMLSConversation :: (MonadHttp m) => Galley -> UserId -> ClientId -> m ResponseLBS
-createMLSConversation galley zusr c = do
-  let conv =
-        NewConv
-          []
-          mempty
-          (checked "gossip")
-          mempty
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          roleNameWireAdmin
-          BaseProtocolMLSTag
-  post $
-    galley
-      . path "/conversations"
-      . zUser zusr
-      . zConn "conn"
-      . zClient c
-      . json conv
-
-createMLSSubConversation ::
-  (MonadIO m, MonadHttp m) =>
-  Galley ->
-  UserId ->
-  Qualified ConvId ->
-  SubConvId ->
-  m ResponseLBS
-createMLSSubConversation galley zusr qcnv sconv =
-  get $
-    galley
-      . paths
-        [ "conversations",
-          toByteString' (qDomain qcnv),
-          toByteString' (qUnqualified qcnv),
-          "subconversations",
-          toHeader sconv
-        ]
-      . zUser zusr
-
 createConversation :: (MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
   let conv =
@@ -824,7 +748,14 @@ isMember g usr cnv = do
   res <-
     get $
       g
-        . paths ["i", "conversations", toByteString' cnv, "members", toByteString' (tUnqualified usr)]
+        . paths
+          [ "i",
+            "conversations",
+            toByteString' (tDomain usr),
+            toByteString' cnv,
+            "members",
+            toByteString' (tUnqualified usr)
+          ]
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> pure False
@@ -883,27 +814,31 @@ zClient = header "Z-Client" . toByteString'
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
-mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m Email
+mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m EmailAddress
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
-  case parseEmail e of
-    Just (Email loc dom) -> pure $ Email (loc <> "+" <> UUID.toText uid) dom
+  case emailAddressText e of
+    Just mail ->
+      pure $
+        unsafeEmailAddress
+          ((localPart mail) <> "+" <> UUID.toASCIIBytes uid)
+          (domainPart mail)
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
 -- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
 -- disambiguation.  See also: 'Brig.Email.mkEmailKey'.
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = mkSimulatorEmail "success"
 
 -- | To test the behavior of email addresses with untrusted domains (two emails are equal even if
 -- their local part after @+@ differs), we need to generate them.
-randomUntrustedEmail :: (MonadIO m) => m Email
+randomUntrustedEmail :: (MonadIO m) => m EmailAddress
 randomUntrustedEmail = do
   -- NOTE: local part cannot be longer than 64 octets
   rd <- liftIO (randomIO :: IO Integer)
-  pure $ Email (Text.pack $ show rd) "zinfra.io"
+  pure $ unsafeEmailAddress (pack $ show rd) "zinfra.io"
 
-mkSimulatorEmail :: (MonadIO m) => Text -> m Email
+mkSimulatorEmail :: (MonadIO m) => Text -> m EmailAddress
 mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
 
 randomPhone :: (MonadIO m) => m Phone
@@ -921,19 +856,11 @@ randomActivationCode =
       . printf "%06d"
       <$> randIntegerZeroToNMinusOne 1000000
 
-updatePhone :: (HasCallStack) => Brig -> UserId -> Phone -> Http ()
-updatePhone brig uid phn = do
-  -- update phone
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!! do
-    const 400 === statusCode
-    const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
-
-defEmailLogin :: Email -> Login
+defEmailLogin :: EmailAddress -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
-emailLogin :: Email -> PlainTextPassword6 -> Maybe CookieLabel -> Login
-emailLogin e pw cl = PasswordLogin (PasswordLoginData (LoginByEmail e) pw cl Nothing)
+emailLogin :: EmailAddress -> PlainTextPassword6 -> Maybe CookieLabel -> Login
+emailLogin e pw cl = MkLogin (LoginByEmail e) pw cl Nothing
 
 somePrekeys :: [Prekey]
 somePrekeys =
@@ -964,10 +891,6 @@ somePrekeys =
     Prekey (PrekeyId 25) "pQABARgZAqEAWCDGEwo61w4O8T8lyw0HdoOjGWBKQUNqo6+jSfrPR9alrAOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2",
     Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plB80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
   ]
-
--- | The client ID of the first of 'someLastPrekeys'
-someClientId :: ClientId
-someClientId = ClientId 0x1dbfbe22c8a35cb2
 
 someLastPrekeys :: [LastPrekey]
 someLastPrekeys =
@@ -1083,9 +1006,9 @@ withSettingsOverrides :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Sessio
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
   sftDiscovery <-
-    forM (env ^. sftEnv) $ \sftEnv' ->
-      Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) sftEnv'
-  turnDiscovery <- Calling.startTurnDiscovery (env ^. applog) (env ^. fsWatcher) (env ^. turnEnv)
+    forM env.sftEnv $ \sftEnv' ->
+      Async.async $ Calling.startSFTServiceDiscovery env.appLogger sftEnv'
+  turnDiscovery <- Calling.startTurnDiscovery env.appLogger env.fsWatcher env.turnEnv
   res <- WaiTest.runSession action brigApp
   mapM_ Async.cancel sftDiscovery
   mapM_ Async.cancel turnDiscovery
@@ -1095,7 +1018,7 @@ withSettingsOverrides opts action = liftIO $ do
 -- compile.
 withDomainsBlockedForRegistration :: (MonadIO m) => Opt.Opts -> [Text] -> WaiTest.Session a -> m a
 withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setCustomerExtensions = Just blocked}}
+  let opts' = opts {Opt.settings = opts.settings {customerExtensions = Just blocked}}
       blocked = Opt.CustomerExtensions (Opt.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
@@ -1116,9 +1039,6 @@ aFewTimes
       (exponentialBackoff 1000 <> limitRetries retries)
       (\_ -> pure . not . good)
       (const action)
-
-retryT :: (MonadIO m, MonadMask m) => m a -> m a
-retryT = recoverAll (exponentialBackoff 8000 <> limitRetries 3) . const
 
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a

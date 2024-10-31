@@ -19,7 +19,6 @@ module V1_BackfillBillingTeamMembers where
 
 import Cassandra
 import Conduit
-import Control.Lens (view)
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
 import Data.Id
@@ -70,5 +69,5 @@ createBillingTeamMembers pair =
     cql = "INSERT INTO billing_team_member (team, user) values (?, ?)"
 
 isOwner :: (TeamId, UserId, Maybe Permissions) -> Bool
-isOwner (_, _, Just p) = SetBilling `Set.member` view self p
+isOwner (_, _, Just p) = SetBilling `Set.member` p.self
 isOwner _ = False

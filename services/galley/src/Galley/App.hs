@@ -81,8 +81,7 @@ import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
-import Galley.Types.Teams (FeatureLegalHold)
-import Galley.Types.Teams qualified as Teams
+import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
@@ -93,6 +92,7 @@ import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async
 import Polysemy.Error
+import Polysemy.Fail
 import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.Resource
@@ -108,6 +108,7 @@ import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
+import Wire.HashPassword
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.Rpc
 import Wire.Sem.Delay
@@ -118,6 +119,7 @@ import Wire.Sem.Random.IO
 type GalleyEffects0 =
   '[ Input ClientState,
      Input Env,
+     HashPassword,
      Error InvalidInput,
      Error InternalError,
      -- federation errors can be thrown by almost every endpoint, so we avoid
@@ -125,6 +127,7 @@ type GalleyEffects0 =
      Error FederationError,
      Async,
      Delay,
+     Fail,
      Embed IO,
      Error JSONResponse,
      Resource,
@@ -146,9 +149,9 @@ validateOptions o = do
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
-  let mlsFlag = settings' ^. featureFlags . Teams.flagMLS . Teams.unDefaults
-      mlsConfig = wsConfig mlsFlag
-      migrationStatus = wsStatus $ settings' ^. featureFlags . Teams.flagMlsMigration . Teams.unDefaults
+  let mlsFlag = settings' ^. featureFlags . to (featureDefaults @MLSConfig)
+      mlsConfig = mlsFlag.config
+      migrationStatus = (.status) $ settings' ^. featureFlags . to (featureDefaults @MlsMigrationConfig)
   when (migrationStatus == FeatureStatusEnabled && ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig) $
     error "For starting MLS migration, MLS must be included in the supportedProtocol list"
   unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
@@ -166,7 +169,7 @@ createEnv o l = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  Env (RequestId "N/A") o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
+  Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
@@ -244,11 +247,13 @@ evalGalley e =
     . resourceToIOFinal
     . runError
     . embedToFinal @IO
+    . failToEmbed @IO
     . runDelay
     . asyncToIOFinal
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
+    . runHashPassword e._options._settings._passwordHashingOptions
     . runInputConst e
     . runInputConst (e ^. cstate)
     . mapError toResponse -- DynError
@@ -258,7 +263,7 @@ evalGalley e =
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
     . interpretTeamFeatureSpecialContext e
-    . runInputSem getAllFeatureConfigsForServer
+    . runInputSem getAllTeamFeaturesForServer
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
@@ -291,11 +296,11 @@ evalGalley e =
     . interpretSparAccess
     . interpretBrigAccess
   where
-    lh = view (options . settings . featureFlags . Teams.flagLegalHold) e
+    lh = view (options . settings . featureFlags . to npProject) e
 
-interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureLegalHold) ': r) a -> Sem r a
+interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =
   runInputConst
     ( e ^. options . settings . exposeInvitationURLsTeamAllowlist,
-      e ^. options . settings . featureFlags . Teams.flagLegalHold
+      e ^. options . settings . featureFlags . to npProject
     )

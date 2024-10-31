@@ -22,13 +22,9 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.API.User
 import Brig.App
-import Brig.Data.User qualified as User
-import Brig.Effects.BlacklistStore
-import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Brig.ZAuth hiding (Env, settings)
-import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
 import Data.Id
@@ -37,14 +33,13 @@ import Data.List1 (List1 (..))
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
-import Polysemy.Input (Input)
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -53,11 +48,13 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.BlockListStore
 import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.Events (Events)
 import Wire.GalleyAPIAccess
-import Wire.NotificationSubsystem
-import Wire.PasswordStore (PasswordStore)
-import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -65,11 +62,8 @@ import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
   ( Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -84,11 +78,8 @@ accessH mcid ut' mat' = do
 access ::
   ( TokenPair u a,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -106,15 +97,14 @@ sendLoginCode _ =
 login ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
-    Member VerificationCodeSubsystem r
+    Member Events r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r,
+    Member ActivationCodeStore r,
+    Member VerificationCodeSubsystem r,
+    Member AuthenticationSubsystem r
   ) =>
   Login ->
   Maybe Bool ->
@@ -139,9 +129,10 @@ logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member UserKeyStore r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member UserSubsystem r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -169,18 +160,23 @@ listCookies lusr (fold -> labels) =
   CookieList
     <$> wrapClientE (Auth.listCookies (tUnqualified lusr) (toList labels))
 
-removeCookies :: (Member TinyLog r, Member PasswordStore r) => Local UserId -> RemoveCookies -> Handler r ()
+removeCookies ::
+  ( Member TinyLog r,
+    Member UserSubsystem r,
+    Member AuthenticationSubsystem r
+  ) =>
+  Local UserId ->
+  RemoveCookies ->
+  Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
-  Auth.revokeAccess (tUnqualified lusr) pw ids lls !>> authError
+  Auth.revokeAccess lusr pw ids lls !>> authError
 
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r,
+    Member AuthenticationSubsystem r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -191,11 +187,9 @@ legalHoldLogin lhl = do
 
 ssoLogin ::
   ( Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member AuthenticationSubsystem r,
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   SsoLogin ->
   Maybe Bool ->
@@ -208,12 +202,21 @@ ssoLogin l (fromMaybe False -> persist) = do
 getLoginCode :: Phone -> Handler r PendingLoginCode
 getLoginCode _ = throwStd loginCodeNotFound
 
-reauthenticate :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => UserId -> ReAuthUser -> Handler r ()
-reauthenticate uid body = do
-  wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
+reauthenticate ::
+  ( Member GalleyAPIAccess r,
+    Member VerificationCodeSubsystem r,
+    Member AuthenticationSubsystem r,
+    Member UserSubsystem r
+  ) =>
+  Local UserId ->
+  ReAuthUser ->
+  Handler r ()
+reauthenticate luid@(tUnqualified -> uid) body = do
+  (lift . liftSem $ Authentication.reauthenticateEither uid body.reAuthPassword)
+    >>= either (throwE . reauthError) (const $ pure ())
   case reAuthCodeAction body of
     Just action ->
-      Auth.verifyCode (reAuthCode body) action uid
+      Auth.verifyCode (reAuthCode body) action luid
         `catchE` \case
           VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
           VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
@@ -228,14 +231,14 @@ mkUserTokenCookie ::
   Cookie (Token u) ->
   m UserTokenCookie
 mkUserTokenCookie c = do
-  s <- view settings
+  s <- asks (.settings)
   pure
     UserTokenCookie
       { utcExpires =
-          guard (cookieType c == PersistentCookie)
-            $> cookieExpires c,
-        utcToken = mkSomeToken (cookieValue c),
-        utcSecure = not (setCookieInsecure s)
+          guard (c.cookieType == PersistentCookie)
+            $> c.cookieExpires,
+        utcToken = mkSomeToken c.cookieValue,
+        utcSecure = not s.cookieInsecure
       }
 
 partitionTokens ::

@@ -74,8 +74,9 @@ library
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config
+    Wire.API.CannonId
+    Wire.API.Component
     Wire.API.Connection
-    Wire.API.ConverProtoLens
     Wire.API.Conversation
     Wire.API.Conversation.Action
     Wire.API.Conversation.Action.Tag
@@ -97,6 +98,7 @@ library
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
     Wire.API.Event.Federation
+    Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
     Wire.API.Event.Team
     Wire.API.FederationStatus
@@ -104,7 +106,6 @@ library
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.Locale
-    Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
     Wire.API.MLS.AuthenticatedContent
@@ -137,6 +138,7 @@ library
     Wire.API.Notification
     Wire.API.OAuth
     Wire.API.Password
+    Wire.API.Presence
     Wire.API.Properties
     Wire.API.Provider
     Wire.API.Provider.Bot
@@ -144,6 +146,7 @@ library
     Wire.API.Provider.Service
     Wire.API.Provider.Service.Tag
     Wire.API.Push.Token
+    Wire.API.Push.V2
     Wire.API.Push.V2.Token
     Wire.API.RawJson
     Wire.API.Routes.API
@@ -152,6 +155,7 @@ library
     Wire.API.Routes.ClientAlgebra
     Wire.API.Routes.Cookies
     Wire.API.Routes.CSV
+    Wire.API.Routes.Features
     Wire.API.Routes.FederationDomainConfig
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
@@ -164,7 +168,7 @@ library
     Wire.API.Routes.Internal.Galley.ConversationsIntra
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
     Wire.API.Routes.Internal.Galley.TeamsIntra
-    Wire.API.Routes.Internal.LegalHold
+    Wire.API.Routes.Internal.Gundeck
     Wire.API.Routes.Internal.Spar
     Wire.API.Routes.LowLevelStream
     Wire.API.Routes.MultiTablePaging
@@ -229,11 +233,13 @@ library
     Wire.API.User.Client
     Wire.API.User.Client.DPoPAccessToken
     Wire.API.User.Client.Prekey
+    Wire.API.User.EmailAddress
     Wire.API.User.Handle
     Wire.API.User.Identity
     Wire.API.User.IdentityProvider
     Wire.API.User.Orphans
     Wire.API.User.Password
+    Wire.API.User.Phone
     Wire.API.User.Profile
     Wire.API.User.RichInfo
     Wire.API.User.Saml
@@ -263,7 +269,6 @@ library
     , cereal
     , comonad
     , conduit
-    , constraints
     , containers                 >=0.5
     , cookie
     , crypton
@@ -272,7 +277,6 @@ library
     , data-default
     , deriving-aeson             >=0.2
     , deriving-swagger2
-    , either
     , email-validate             >=2.0
     , errors
     , extended
@@ -294,11 +298,13 @@ library
     , iso3166-country-codes      >=0.2
     , iso639                     >=0.1
     , jose
+    , kan-extensions
     , lens                       >=4.12
     , memory
     , metrics-wai
     , mime                       >=0.4
     , mtl
+    , network-uri
     , openapi3
     , pem                        >=0.2
     , polysemy
@@ -317,6 +323,7 @@ library
     , servant-client-core
     , servant-conduit
     , servant-multipart
+    , servant-multipart-api
     , servant-openapi3
     , servant-server
     , singletons
@@ -325,9 +332,9 @@ library
     , sop-core
     , tagged
     , text                       >=0.11
+    , these
     , time                       >=1.4
     , tinylog
-    , transitive-anns
     , types-common               >=0.16
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2
@@ -358,7 +365,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.AccessRoleLegacy_user
     Test.Wire.API.Golden.Generated.AccessToken_user
     Test.Wire.API.Golden.Generated.Action_user
-    Test.Wire.API.Golden.Generated.Activate_user
     Test.Wire.API.Golden.Generated.ActivationCode_user
     Test.Wire.API.Golden.Generated.ActivationKey_user
     Test.Wire.API.Golden.Generated.ActivationResponse_user
@@ -372,7 +378,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.AssetSettings_user
     Test.Wire.API.Golden.Generated.AssetSize_user
     Test.Wire.API.Golden.Generated.AssetToken_user
-    Test.Wire.API.Golden.Generated.BindingNewTeam_team
     Test.Wire.API.Golden.Generated.BindingNewTeamUser_user
     Test.Wire.API.Golden.Generated.BotConvView_provider
     Test.Wire.API.Golden.Generated.BotUserView_provider
@@ -422,7 +427,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Event_user
     Test.Wire.API.Golden.Generated.EventType_team
     Test.Wire.API.Golden.Generated.EventType_user
-    Test.Wire.API.Golden.Generated.FeatureStatus_team
+    Test.Wire.API.Golden.Generated.Feature_team
     Test.Wire.API.Golden.Generated.HandleUpdate_user
     Test.Wire.API.Golden.Generated.Invitation_team
     Test.Wire.API.Golden.Generated.InvitationCode_user
@@ -436,10 +441,10 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.ListType_team
     Test.Wire.API.Golden.Generated.Locale_user
     Test.Wire.API.Golden.Generated.LocaleUpdate_user
-    Test.Wire.API.Golden.Generated.Login_user
+    Test.Wire.API.Golden.Generated.LockableFeature_team
+    Test.Wire.API.Golden.Generated.LockableFeaturePatch_team
     Test.Wire.API.Golden.Generated.LoginCode_user
     Test.Wire.API.Golden.Generated.LoginCodeTimeout_user
-    Test.Wire.API.Golden.Generated.LoginId_user
     Test.Wire.API.Golden.Generated.ManagedBy_user
     Test.Wire.API.Golden.Generated.Member_user
     Test.Wire.API.Golden.Generated.MemberUpdate_user
@@ -460,6 +465,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.NewProviderResponse_provider
     Test.Wire.API.Golden.Generated.NewService_provider
     Test.Wire.API.Golden.Generated.NewServiceResponse_provider
+    Test.Wire.API.Golden.Generated.NewTeam_team
     Test.Wire.API.Golden.Generated.NewTeamMember_team
     Test.Wire.API.Golden.Generated.NewUser_user
     Test.Wire.API.Golden.Generated.NewUserPublic_user
@@ -512,7 +518,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.SearchResult_20Contact_user
     Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user
     Test.Wire.API.Golden.Generated.SelfProfile_user
-    Test.Wire.API.Golden.Generated.SendActivationCode_user
     Test.Wire.API.Golden.Generated.SendLoginCode_user
     Test.Wire.API.Golden.Generated.Service_provider
     Test.Wire.API.Golden.Generated.ServiceKey_provider
@@ -568,11 +573,10 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.VerifyDeleteUser_user
     Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
     Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
-    Test.Wire.API.Golden.Generated.WithStatus_team
-    Test.Wire.API.Golden.Generated.WithStatusNoLock_team
-    Test.Wire.API.Golden.Generated.WithStatusPatch_team
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
+    Test.Wire.API.Golden.Manual.Activate_user
+    Test.Wire.API.Golden.Manual.CannonId
     Test.Wire.API.Golden.Manual.ClientCapability
     Test.Wire.API.Golden.Manual.ClientCapabilityList
     Test.Wire.API.Golden.Manual.Contact
@@ -584,6 +588,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ConvIdsPage
     Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
+    Test.Wire.API.Golden.Manual.CreateScimTokenResponse
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
     Test.Wire.API.Golden.Manual.FederationDomainConfig
     Test.Wire.API.Golden.Manual.FederationRestriction
@@ -592,9 +597,15 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.GroupId
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.ListUsersById
+    Test.Wire.API.Golden.Manual.Login_user
+    Test.Wire.API.Golden.Manual.LoginId_user
     Test.Wire.API.Golden.Manual.MLSKeys
+    Test.Wire.API.Golden.Manual.Presence
+    Test.Wire.API.Golden.Manual.Push
+    Test.Wire.API.Golden.Manual.PushRemove
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
+    Test.Wire.API.Golden.Manual.SendActivationCode_user
     Test.Wire.API.Golden.Manual.SubConversation
     Test.Wire.API.Golden.Manual.TeamSize
     Test.Wire.API.Golden.Manual.Token
@@ -616,7 +627,6 @@ test-suite wire-api-golden-tests
     , bytestring-conversion
     , containers               >=0.5
     , currency-codes
-    , either
     , imports
     , iso3166-country-codes
     , iso639
@@ -662,7 +672,6 @@ test-suite wire-api-tests
     Test.Wire.API.Run
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
-    Test.Wire.API.Team.Feature
     Test.Wire.API.Team.Member
     Test.Wire.API.User
     Test.Wire.API.User.Auth
@@ -704,6 +713,7 @@ test-suite wire-api-tests
     , tasty-hunit
     , tasty-quickcheck
     , text
+    , time
     , types-common           >=0.16
     , unliftio
     , uuid

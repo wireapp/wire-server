@@ -7,7 +7,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana restund coturn k8ssandra-test-cluster
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana restund k8ssandra-test-cluster
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -17,8 +17,8 @@ CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq rabbitmq-ex
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper restund coturn		\
-k8ssandra-test-cluster postgresql ldap-scim-bridge smallstep-accomp
+nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper restund \
+k8ssandra-test-cluster ldap-scim-bridge
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 
@@ -49,9 +49,14 @@ install: init
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
 
+.PHONY: rabbit-clean
+rabbit-clean:
+	rabbitmqadmin -f pretty_json list queues vhost name messages | jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' | bash
+
 # Clean
 .PHONY: full-clean
 full-clean: clean
+	make rabbit-clean
 	rm -rf ~/.cache/hie-bios
 	rm -rf ./dist-newstyle ./.env
 	direnv reload
@@ -77,7 +82,10 @@ cabal.project.local:
 
 # Usage: make c package=brig test=1
 .PHONY: c
-c: treefmt
+c: treefmt c-fast
+
+.PHONY: c
+c-fast:
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
@@ -118,6 +126,9 @@ ci:
 cr: c db-migrate
 	./dist/run-services
 
+crm: c db-migrate
+	./dist/run-services -m
+
 # Run integration from new test suite
 # Usage: make devtest
 # Usage: TEST_INCLUDE=test1,test2 make devtest
@@ -126,7 +137,8 @@ devtest:
 	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
-sanitize-pr: 
+sanitize-pr:
+	./hack/bin/check-weed.sh
 	make lint-all-shallow
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
@@ -162,7 +174,7 @@ lint-all: formatc hlint-check-all lint-common
 # The extra 'hlint-check-pr' has been witnessed to be necessary due to
 # some bu in `hlint-inplace-pr`.  Details got lost in history.
 .PHONY: lint-all-shallow
-lint-all-shallow: formatf hlint-inplace-pr hlint-check-pr lint-common
+lint-all-shallow: lint-common formatf hlint-inplace-pr hlint-check-pr
 
 .PHONY: lint-common
 lint-common: check-local-nix-derivations treefmt-check # weeder (does not work on CI yet)
@@ -238,11 +250,11 @@ add-license:
 
 .PHONY: treefmt
 treefmt:
-	treefmt
+	treefmt -u debug
 
 .PHONY: treefmt-check
 treefmt-check:
-	treefmt --fail-on-change
+	treefmt --fail-on-change -u debug
 
 #################################
 ## docker targets
@@ -591,3 +603,14 @@ upload-bombon:
 		--project-version $(HELM_SEMVER) \
 		--api-key $(DEPENDENCY_TRACK_API_KEY) \
 		--auto-create
+
+.PHONY: openapi-validate
+openapi-validate:
+	@echo -e "Make sure you are running the backend in another terminal (make cr)\n"
+	vacuum lint -a -d -e <(curl http://localhost:8082/v7/api/swagger.json)
+	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/cannon-swagger.json)
+	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/cargohold-swagger.json)
+	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/spar-swagger.json)
+	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/gundeck-swagger.json)
+	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/brig-swagger.json)
+	vacuum lint -a -d -e <(curl http://localhost:8082/api-internal/swagger-ui/galley-swagger.json)

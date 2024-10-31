@@ -11,6 +11,7 @@
 , bytestring-conversion
 , containers
 , cookie
+, data-default
 , errors
 , exceptions
 , extended
@@ -87,7 +88,6 @@ mkDerivation {
     types-common
     unliftio
     utf8-string
-    uuid
     wai
     wai-utilities
     wire-api
@@ -101,6 +101,7 @@ mkDerivation {
     bytestring-conversion
     containers
     cookie
+    data-default
     exceptions
     extra
     HsOpenSSL

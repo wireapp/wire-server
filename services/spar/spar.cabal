@@ -40,6 +40,7 @@ library
     Spar.Schema.V16
     Spar.Schema.V17
     Spar.Schema.V18
+    Spar.Schema.V19
     Spar.Schema.V2
     Spar.Schema.V3
     Spar.Schema.V4
@@ -185,6 +186,7 @@ library
     , servant-server
     , text
     , text-latin1
+    , these
     , time
     , tinylog
     , transformers
@@ -197,6 +199,7 @@ library
     , wai-utilities
     , warp
     , wire-api
+    , wire-subsystems
     , yaml
 
   default-language:   Haskell2010
@@ -264,9 +267,10 @@ executable spar
 executable spar-integration
   main-is:            Main.hs
 
-  -- cabal-fmt: expand test-integration
+  -- we should not use cabal-fmt expand here because `Main` should not be in `other-modules`, it's wrong
+  -- and cabal chokes on it
+  -- FUTUREWORK(mangoiv): move Main to a different directory such that this one can be expanded
   other-modules:
-    Main
     Test.LoggingSpec
     Test.MetricsSpec
     Test.Spar.APISpec
@@ -349,13 +353,11 @@ executable spar-integration
     , cassava
     , cookie
     , crypton
-    , email-validate
     , exceptions
     , extended
     , hscim
     , HsOpenSSL
     , hspec
-    , hspec-core
     , hspec-junit-formatter
     , hspec-wai
     , http-api-data
@@ -367,6 +369,7 @@ executable spar-integration
     , lens-aeson
     , MonadRandom
     , mtl
+    , network-uri
     , optparse-applicative
     , polysemy
     , polysemy-plugin
@@ -383,6 +386,7 @@ executable spar-integration
     , string-conversions
     , tasty-hunit
     , text
+    , these
     , time
     , tinylog
     , transformers
@@ -392,7 +396,6 @@ executable spar-integration
     , vector
     , wai-extra
     , wai-utilities
-    , warp
     , wire-api
     , xml-conduit
     , yaml
@@ -405,7 +408,6 @@ executable spar-migrate-data
   other-modules:
     Paths_spar
     Spar.DataMigration.Options
-    Spar.DataMigration.RIO
     Spar.DataMigration.Run
     Spar.DataMigration.Types
     Spar.DataMigration.V2_UserV2
@@ -632,6 +634,7 @@ test-suite spec
     , servant-openapi3
     , spar
     , string-conversions
+    , these
     , time
     , tinylog
     , types-common

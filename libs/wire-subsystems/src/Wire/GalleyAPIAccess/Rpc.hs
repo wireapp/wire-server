@@ -46,6 +46,7 @@ import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold
 import Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
@@ -71,7 +72,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamConv id' id'' id'2 -> getTeamConv v id' id'' id'2
           NewClient id' ci -> newClient id' ci
           CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
-          AddTeamMember id' id'' x0 -> addTeamMember id' id'' x0
+          AddTeamMember id' id'' a b -> addTeamMember id' id'' a b
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
           GetTeamMembers id' -> getTeamMembers id'
@@ -80,14 +81,34 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamName id' -> getTeamName id'
           GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
           GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
+          GetFeatureConfigForTeam tid -> getFeatureConfigForTeam tid
+          GetUserLegalholdStatus id' tid -> getUserLegalholdStatus id' tid
           ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
-          GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
+          GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
+
+getUserLegalholdStatus ::
+  ( Member TinyLog r,
+    Member (Error ParseException) r,
+    Member Rpc r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Sem (Input Endpoint : r) UserLegalHoldStatusResponse
+getUserLegalholdStatus luid tid = do
+  debug $
+    remote "galley"
+      . msg (val "get legalhold user status")
+  decodeBodyOrThrow "galley" =<< galleyRequest do
+    method GET
+      . paths ["teams", toByteString' tid, "legalhold", toByteString' (tUnqualified luid)]
+      . zUser (tUnqualified luid)
+      . expect2xx
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do
@@ -234,9 +255,10 @@ addTeamMember ::
   ) =>
   UserId ->
   TeamId ->
-  (Maybe (UserId, UTCTimeMillis), Role) ->
+  Maybe (UserId, UTCTimeMillis) ->
+  Role ->
   Sem r Bool
-addTeamMember u tid (minvmeta, role) = do
+addTeamMember u tid minvmeta role = do
   debug $
     remote "galley"
       . msg (val "Adding member to team")
@@ -262,7 +284,7 @@ createTeam ::
     Member TinyLog r
   ) =>
   UserId ->
-  BindingNewTeam ->
+  NewTeam ->
   TeamId ->
   Sem r ()
 createTeam u t teamid = do
@@ -403,7 +425,7 @@ getTeamLegalHoldStatus ::
     Member TinyLog r
   ) =>
   TeamId ->
-  Sem r (WithStatus LegalholdConfig)
+  Sem r (LockableFeature LegalholdConfig)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest req >>= decodeBodyOrThrow "galley"
@@ -432,6 +454,25 @@ getTeamSearchVisibility tid =
         . paths ["i", "teams", toByteString' tid, "search-visibility"]
         . expect2xx
 
+getFeatureConfigForTeam ::
+  forall feature r.
+  ( IsFeatureConfig feature,
+    Typeable feature,
+    Member TinyLog r,
+    Member Rpc r,
+    Member (Error ParseException) r
+  ) =>
+  TeamId ->
+  Sem (Input Endpoint : r) (LockableFeature feature)
+getFeatureConfigForTeam tid = do
+  debug $ remote "galley" . msg (val "Get feature config for team")
+  galleyRequest req >>= decodeBodyOrThrow "galley"
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @feature]
+        . expect2xx
+
 getVerificationCodeEnabled ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -443,7 +484,7 @@ getVerificationCodeEnabled ::
 getVerificationCodeEnabled tid = do
   debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
   response <- galleyRequest req
-  status <- wsStatus <$> decodeBodyOrThrow @(WithStatus SndFactorPasswordChallengeConfig) "galley" response
+  status <- (.status) <$> decodeBodyOrThrow @(LockableFeature SndFactorPasswordChallengeConfig) "galley" response
   case status of
     FeatureStatusEnabled -> pure True
     FeatureStatusDisabled -> pure False
@@ -456,11 +497,11 @@ getVerificationCodeEnabled tid = do
 decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a
 decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)
 
-getAllFeatureConfigsForUser ::
+getAllTeamFeaturesForUser ::
   (Member Rpc r, Member (Input Endpoint) r) =>
   Maybe UserId ->
-  Sem r AllFeatureConfigs
-getAllFeatureConfigsForUser mbUserId =
+  Sem r AllTeamFeatures
+getAllTeamFeaturesForUser mbUserId =
   responseJsonUnsafe
     <$> galleyRequest
       ( method GET
@@ -500,7 +541,7 @@ getTeamExposeInvitationURLsToTeamAdmin ::
 getTeamExposeInvitationURLsToTeamAdmin tid = do
   debug $ remote "galley" . msg (val "Get expose invitation URLs to team admin settings")
   response <- galleyRequest req
-  status <- wsStatus <$> decodeBodyOrThrow @(WithStatus ExposeInvitationURLsToTeamAdminConfig) "galley" response
+  status <- (.status) <$> decodeBodyOrThrow @(LockableFeature ExposeInvitationURLsToTeamAdminConfig) "galley" response
   case status of
     FeatureStatusEnabled -> pure ShowInvitationUrl
     FeatureStatusDisabled -> pure HideInvitationUrl
@@ -534,8 +575,7 @@ checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
       method GET
         . paths
           [ "i",
-            "conversations",
-            "mls-one2one",
+            "mls-one2one-conversations",
             toByteString' otherDomain,
             toByteString' other,
             "established"

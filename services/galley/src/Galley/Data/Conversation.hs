@@ -27,7 +27,6 @@ module Galley.Data.Conversation
     convAccess,
     convAccessData,
     convAccessRoles,
-    convCreator,
     convMessageTimer,
     convName,
     convReceiptMode,
@@ -85,9 +84,6 @@ convAccessData c =
   ConversationAccessData
     (Set.fromList (convAccess c))
     (convAccessRoles c)
-
-convCreator :: Conversation -> Maybe UserId
-convCreator = cnvmCreator . convMetadata
 
 convName :: Conversation -> Maybe Text
 convName = cnvmName . convMetadata

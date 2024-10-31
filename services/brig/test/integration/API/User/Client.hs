@@ -30,8 +30,7 @@ import API.User.Util
 import API.User.Util qualified as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Options qualified as Opt
-import Brig.Options qualified as Opts
+import Brig.Options as Opt
 import Cassandra qualified as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
@@ -55,7 +54,6 @@ import Data.Set qualified as Set
 import Data.String.Conversions
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
 import Data.Text.Encoding qualified as T
-import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
 import Data.UUID qualified as UUID
@@ -65,11 +63,12 @@ import Network.Wai.Utilities.Error qualified as Error
 import System.Logger qualified as Log
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
-import Test.Tasty.Cannon hiding (Cannon)
+import Test.Tasty.Cannon hiding (Cannon, Timeout)
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Util.Timeout
 import Wire.API.Internal.Notification
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Version
@@ -86,7 +85,7 @@ import Wire.API.Wrapped (Wrapped (..))
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeGen
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p db n b c g =
   testGroup
     "client"
@@ -156,13 +155,13 @@ testAddGetClientVerificationCode db brig galley = do
   let k = mkKey email
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
-    PasswordLogin $
-      PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+    MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
   c <- addClient' codeValue
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just c) === responseJsonMaybe
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with missing second factor email verification code when this feature is enabled
 testAddGetClientMissingCode :: Brig -> Galley -> Http ()
@@ -179,6 +178,9 @@ testAddGetClientMissingCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-required") === fmap Error.label . responseJsonMaybe
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with wrong second factor email verification code when this feature is enabled
 testAddGetClientWrongCode :: Brig -> Galley -> Http ()
@@ -196,6 +198,9 @@ testAddGetClientWrongCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with expired second factor email verification code when this feature is enabled
 testAddGetClientCodeExpired :: DB.ClientState -> Opt.Opts -> Brig -> Galley -> Http ()
@@ -212,13 +217,14 @@ testAddGetClientCodeExpired db opts brig galley = do
   let k = mkKey email
   codeValue <- (.codeValue) <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
-    PasswordLogin $
-      PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
-  let verificationTimeout = round (Opt.setVerificationTimeout (Opt.optSettings opts))
-  threadDelay $ ((verificationTimeout + 1) * 1000_000)
+    MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+  let timeout = round (verificationTimeout opts.settings)
+  threadDelay $ ((timeout + 1) * 1000_000)
   addClient' codeValue !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
+
+-- @END
 
 data AddGetClient = AddGetClient
   { addWithPassword :: Bool,
@@ -253,7 +259,7 @@ testAddGetClient params brig cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client"
       etype @?= Just "user.client-add"
-      fmap fromJSON eclient @?= Just (Success (Versioned @'V5 c))
+      fmap fromJSON eclient @?= Just (Success (Versioned @'V6 c))
     pure c
   liftIO $ clientMLSPublicKeys c @?= keys
   getClient brig uid (clientId c) !!! do
@@ -285,7 +291,7 @@ testGetUserClientsQualified opts brig = do
   _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
-  let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let localdomain = opts.settings.federationDomain
   getUserClientsQualified brig uid2 localdomain uid1 !!! do
     const 200 === statusCode
     assertTrue_ $ \res -> do
@@ -390,7 +396,7 @@ testListClientsBulk opts brig = do
   c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
   c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
 
-  let domain = Opt.setFederationDomain $ Opt.optSettings opts
+  let domain = opts.settings.federationDomain
   uid3 <- userId <$> randomUser brig
   let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
   let expectedResponse :: QualifiedUserMap (Set PubClient) =
@@ -433,7 +439,7 @@ testClientsWithoutPrekeys brig cannon db opts = do
 
   uid2 <- userId <$> randomUser brig
 
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.settings.federationDomain
 
   let userClients =
         QualifiedUserClients $
@@ -525,7 +531,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
 
   uid2 <- userId <$> randomUser brig
 
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.settings.federationDomain
 
   let userClients =
         QualifiedUserClients $
@@ -620,7 +626,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
 
   uid2 <- fakeRemoteUser
 
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.settings.federationDomain
 
   let userClients1 =
         QualifiedUserClients $
@@ -704,7 +710,7 @@ testListClientsBulkV2 opts brig = do
   c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
   c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
 
-  let domain = Opt.setFederationDomain $ Opt.optSettings opts
+  let domain = opts.settings.federationDomain
   uid3 <- userId <$> randomUser brig
   let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
   let expectedResponse :: WrappedQualifiedUserMap (Set PubClient) =
@@ -768,7 +774,7 @@ testGetUserPrekeys brig = do
 
 testGetUserPrekeysQualified :: Brig -> Opt.Opts -> Http ()
 testGetUserPrekeysQualified brig opts = do
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.settings.federationDomain
   [(uid, _c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"] . zUser uid) !!! do
     const 200 === statusCode
@@ -789,7 +795,7 @@ testGetClientPrekey brig = do
 
 testGetClientPrekeyQualified :: Brig -> Opt.Opts -> Http ()
 testGetClientPrekeyQualified brig opts = do
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.settings.federationDomain
   [(uid, c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
@@ -826,7 +832,7 @@ testMultiUserGetPrekeys brig = do
 
 testMultiUserGetPrekeysQualified :: Brig -> Opt.Opts -> Http ()
 testMultiUserGetPrekeysQualified brig opts = do
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.settings.federationDomain
 
   xs <- generateClients 3 brig
   let userClients =
@@ -860,7 +866,7 @@ testMultiUserGetPrekeysQualified brig opts = do
 
 testMultiUserGetPrekeysQualifiedV4 :: Brig -> Opt.Opts -> Http ()
 testMultiUserGetPrekeysQualifiedV4 brig opts = do
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.settings.federationDomain
 
   xs <- generateClients 3 brig
   let userClients =
@@ -897,6 +903,7 @@ testMultiUserGetPrekeysQualifiedV4 brig opts = do
       const (Right $ expectedUserClientMap) === responseJsonEither
 
 -- The testTooManyClients test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test validates the upper bound on the number of permanent clients per
 -- user. It does so by trying to create one permanent client more than allowed.
@@ -906,7 +913,7 @@ testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
   -- We can always change the permanent client limit
-  let newOpts = opts & Opt.optionSettings . Opt.userMaxPermClients ?~ 1
+  let newOpts = opts & settingsLens . userMaxPermClientsLens ?~ 1
   withSettingsOverrides newOpts $ do
     -- There is only one temporary client, adding a new one
     -- replaces the previous one.
@@ -977,7 +984,10 @@ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate brig = do
     !!! const 400
       === statusCode
 
+-- @END
+
 -- The testRemoveClient test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- This test validates creating and deleting a client. A client is created and
 -- consequently deleted. Deleting a second time yields response 404 not found.
@@ -1023,7 +1033,10 @@ testRemoveClient hasPwd brig cannon = do
           newClientCookie = Just defCookieLabel
         }
 
+-- @END
+
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test checks if a client can be deleted by providing a too short password.
 -- This is done by using a single-character password, whereas the minimum is 6
@@ -1056,7 +1069,10 @@ testRemoveClientShortPwd brig = do
           newClientCookie = Just defCookieLabel
         }
 
+-- @END
+
 -- The testRemoveClientIncorrectPwd test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test checks if a client can be deleted by providing a syntax-valid, but
 -- incorrect password. The client deletion attempt fails with a 403 error
@@ -1088,6 +1104,8 @@ testRemoveClientIncorrectPwd brig = do
         { newClientLabel = Just "Nexus 5x",
           newClientCookie = Just defCookieLabel
         }
+
+-- @END
 
 testUpdateClient :: Opt.Opts -> Brig -> Http ()
 testUpdateClient opts brig = do
@@ -1139,7 +1157,7 @@ testUpdateClient opts brig = do
     const Nothing === (preview (key "mls_public_keys") <=< responseJsonMaybe @Value)
 
   -- via `/users/:domain/:uid/clients/:client`, only `id` and `class` are visible:
-  let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let localdomain = opts.settings.federationDomain
   get (brig . paths ["users", toByteString' localdomain, toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
@@ -1169,7 +1187,7 @@ testUpdateClient opts brig = do
   -- update supported client capabilities work
   let checkUpdate :: (HasCallStack) => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
       checkUpdate capsIn respStatusOk capsOut = do
-        let update'' = defUpdateClient {updateClientCapabilities = Set.fromList <$> capsIn}
+        let update'' = defUpdateClient {updateClientCapabilities = ClientCapabilityList . Set.fromList <$> capsIn}
         put
           ( apiVersion "v1"
               . brig
@@ -1218,7 +1236,7 @@ testUpdateClient opts brig = do
               assertEqual "" (clientId c) cid'
               assertEqual "" expectedPrekey prekey'
 
-        caps = Just $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
+        caps = Just $ ClientCapabilityList $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
 
         label = "label-bc1b7b0c-b7bf-11eb-9a1d-233d397f934a"
         prekey = somePrekeys !! 4
@@ -1281,6 +1299,7 @@ testMissingClient brig = do
         . responseHeaders
 
 -- The testAddMultipleTemporary test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- Legacy (galley)
 --
 -- Add temporary client, check that all services (both galley and
@@ -1337,6 +1356,8 @@ testAddMultipleTemporary brig galley cannon = do
             . path "i/test/clients"
             . zUser u
       pure $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
+
+-- @END
 
 testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do
@@ -1409,9 +1430,9 @@ instance A.ToJSON DPoPClaimsSet where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-testCreateAccessToken :: Opts.Opts -> Nginz -> Brig -> Http ()
+testCreateAccessToken :: Opt.Opts -> Nginz -> Brig -> Http ()
 testCreateAccessToken opts n brig = do
-  let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let localDomain = opts.settings.federationDomain
   (u, tid) <- Util.createUserWithTeam' brig
   handle <- do
     Just h <- userHandle <$> Util.setRandomHandle brig u

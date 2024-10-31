@@ -28,9 +28,8 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.OpenApi qualified as S
 import Data.Schema
-import GHC.TypeLits (KnownSymbol)
 import Imports
-import Test.QuickCheck.Gen (oneof)
+import Test.QuickCheck.Gen
 import Wire.API.Team.Feature
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
@@ -42,30 +41,30 @@ data Event = Event
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema Event
 
+arbitraryFeature :: forall cfg. (IsFeatureConfig cfg, Arbitrary cfg) => Gen A.Value
+arbitraryFeature = toJSON <$> arbitrary @(LockableFeature cfg)
+
+class AllArbitraryFeatures cfgs where
+  allArbitraryFeatures :: [Gen A.Value]
+
+instance AllArbitraryFeatures '[] where
+  allArbitraryFeatures = []
+
+instance
+  ( IsFeatureConfig cfg,
+    Arbitrary cfg,
+    AllArbitraryFeatures cfgs
+  ) =>
+  AllArbitraryFeatures (cfg : cfgs)
+  where
+  allArbitraryFeatures = arbitraryFeature @cfg : allArbitraryFeatures @cfgs
+
 instance Arbitrary Event where
   arbitrary =
-    do
-      let arbConfig =
-            oneof
-              [ arbitrary @(WithStatus SSOConfig) <&> toJSON,
-                arbitrary @(WithStatus SearchVisibilityAvailableConfig) <&> toJSON,
-                arbitrary @(WithStatus ValidateSAMLEmailsConfig) <&> toJSON,
-                arbitrary @(WithStatus DigitalSignaturesConfig) <&> toJSON,
-                arbitrary @(WithStatus AppLockConfig) <&> toJSON,
-                arbitrary @(WithStatus FileSharingConfig) <&> toJSON,
-                arbitrary @(WithStatus ClassifiedDomainsConfig) <&> toJSON,
-                arbitrary @(WithStatus ConferenceCallingConfig) <&> toJSON,
-                arbitrary @(WithStatus SelfDeletingMessagesConfig) <&> toJSON,
-                arbitrary @(WithStatus GuestLinksConfig) <&> toJSON,
-                arbitrary @(WithStatus SndFactorPasswordChallengeConfig) <&> toJSON,
-                arbitrary @(WithStatus SearchVisibilityInboundConfig) <&> toJSON,
-                arbitrary @(WithStatus MLSConfig) <&> toJSON,
-                arbitrary @(WithStatus ExposeInvitationURLsToTeamAdminConfig) <&> toJSON
-              ]
-      Event
-        <$> arbitrary
-        <*> arbitrary
-        <*> arbConfig
+    Event
+      <$> arbitrary
+      <*> arbitrary
+      <*> oneof (allArbitraryFeatures @Features)
 
 data EventType = Update
   deriving (Eq, Show, Generic)
@@ -98,5 +97,5 @@ instance ToJSONObject Event where
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
 
-mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => WithStatus cfg -> Event
+mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg) => LockableFeature cfg -> Event
 mkUpdateEvent ws = Event Update (featureName @cfg) (toJSON ws)

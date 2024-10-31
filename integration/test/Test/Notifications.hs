@@ -93,12 +93,12 @@ testInvalidNotification = do
       $ getNotifications user def {since = Just notifId}
       >>= getJSON 404
 
--- | Check that client-add notifications use the V5 format:
+-- | Check that client-add notifications use the V6 format:
 -- @
 --   "capabilities": { "capabilities": [..] }
 -- @
 --
--- Migration plan: clients must be able to parse both old and new schema starting from V6.  Once V5 is deprecated, the backend can start sending notifications in the new form.
+-- Migration plan: clients must be able to parse both old and new schema starting from V7.  Once V6 is deprecated, the backend can start sending notifications in the new form.
 testAddClientNotification :: (HasCallStack) => App ()
 testAddClientNotification = do
   alice <- randomUser OwnDomain def

@@ -46,7 +46,6 @@
 , prometheus-client
 , resourcet
 , retry
-, safe
 , servant
 , servant-client
 , servant-server
@@ -58,7 +57,6 @@
 , time
 , tinylog
 , transformers
-, transitive-anns
 , types-common
 , types-common-aws
 , unliftio
@@ -119,7 +117,6 @@ mkDerivation {
     time
     tinylog
     transformers
-    transitive-anns
     types-common
     types-common-aws
     unliftio
@@ -152,11 +149,9 @@ mkDerivation {
     imports
     kan-extensions
     lens
-    mime
     mmorph
     mtl
     optparse-applicative
-    safe
     servant-client
     tagged
     tasty

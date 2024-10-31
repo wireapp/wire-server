@@ -30,6 +30,7 @@ module Galley.Intra.User
     getContactList,
     chunkify,
     getRichInfoMultiUser,
+    getUserExportData,
     getAccountConferenceCallingConfigClient,
     updateSearchVisibilityInbound,
   )
@@ -37,9 +38,8 @@ where
 
 import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge.RPC
-import Brig.Types.Intra qualified as Brig
 import Control.Error hiding (bool, isRight)
-import Control.Lens (view, (^.))
+import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Char8 qualified as BSC
@@ -67,6 +67,7 @@ import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.Named
+import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
@@ -198,7 +199,7 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
     chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUsers :: [UserId] -> App [Brig.UserAccount]
+getUsers :: [UserId] -> App [User]
 getUsers = chunkify $ \uids -> do
   resp <-
     call Brig $
@@ -238,7 +239,17 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . expect2xx
   parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/rich-info`") resp
 
-getAccountConferenceCallingConfigClient :: (HasCallStack) => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
+-- | Calls 'Brig.API.Internal.getUserExportDataH'
+getUserExportData :: UserId -> App (Maybe TeamExportUser)
+getUserExportData uid = do
+  resp <-
+    call Brig $
+      method GET
+        . paths ["i/users", toByteString' uid, "export-data"]
+        . expect2xx
+  parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/:uid/export-data`") resp
+
+getAccountConferenceCallingConfigClient :: (HasCallStack) => UserId -> App (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =
   runHereClientM (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
     >>= handleServantResp
@@ -254,7 +265,7 @@ runHereClientM action = do
   mgr <- view manager
   brigep <- view brig
   let env = Client.mkClientEnv mgr baseurl
-      baseurl = Client.BaseUrl Client.Http (Text.unpack $ brigep ^. host) (fromIntegral $ brigep ^. port) ""
+      baseurl = Client.BaseUrl Client.Http (Text.unpack brigep.host) (fromIntegral brigep.port) ""
   liftIO $ Client.runClientM action env
 
 handleServantResp ::

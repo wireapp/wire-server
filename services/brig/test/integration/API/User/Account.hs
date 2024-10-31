@@ -50,6 +50,7 @@ import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (singleton)
+import Data.Mailbox
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
@@ -59,8 +60,6 @@ import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
-import Data.Time (UTCTime, getCurrentTime)
-import Data.Time.Clock (diffUTCTime)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Federator.MockServer (FederatedRequest (..), MockException (..))
@@ -73,20 +72,21 @@ import Network.Wai.Utilities.Error qualified as Error
 import Network.Wai.Utilities.Error qualified as Wai
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
-import Test.Tasty.Cannon hiding (Cannon)
+import Test.Tasty.Cannon hiding (Cannon, Timeout)
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently_)
 import Util
 import Util.AWS as Util
+import Util.Timeout
 import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Asset qualified as Asset
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL' (..), LockStatus (LockStatusLocked), withStatus)
-import Wire.API.Team.Invitation (Invitation (inInvitation))
+import Wire.API.Team.Feature
+import Wire.API.Team.Invitation
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.API.User.Activation
@@ -94,22 +94,20 @@ import Wire.API.User.Auth
 import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
+tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =
   testGroup
     "account"
     [ test p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified opts b userJournalWatcher,
       test p "testCreateUserWithInvalidVerificationCode - post /register - 400 (with preverified)" $ testCreateUserWithInvalidVerificationCode b,
       test p "post /register - 201" $ testCreateUser b g,
-      test p "post /register - 400 + no email" $ testCreateUserNoEmailNoPassword b,
       test p "post /register - 201 anonymous" $ testCreateUserAnon b g,
       test p "testCreateUserEmptyName - post /register - 400 empty name" $ testCreateUserEmptyName b,
       test p "testCreateUserLongName - post /register - 400 name too long" $ testCreateUserLongName b,
       test p "post /register - 201 anonymous expiry" $ testCreateUserAnonExpiry b,
       test p "post /register - 201 pending" $ testCreateUserPending opts b,
-      test p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey opts b,
       test p "testCreateUserConflict - post /register - 409 conflict" $ testCreateUserConflict opts b,
-      test p "testCreateUserInvalidEmailOrPhone - post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone opts b,
+      test p "testCreateUserInvalidEmail - post /register - 400 invalid input" $ testCreateUserInvalidEmail opts b,
       test p "post /register - 403 blacklist" $ testCreateUserBlacklist opts b aws,
       test p "post /register - 400 external-SSO" $ testCreateUserExternalSSO b,
       test p "post /register - 403 restricted user creation" $ testRestrictedUserCreation opts b,
@@ -129,7 +127,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "post /list-users - 200" $ testMultipleUsers opts b,
       test p "put /self - 200" $ testUserUpdate b c userJournalWatcher,
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
-      test p "put /self/phone - 400" $ testPhoneUpdate b,
       test p "head /self/password - 200/404" $ testPasswordSet b,
       test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
       test p "put /self/password - 200" $ testPasswordChange b,
@@ -164,25 +161,14 @@ tests _ at opts p b c ch g aws userJournalWatcher =
     ]
 
 -- The testCreateUserWithInvalidVerificationCode test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- Registering with an invalid verification code and valid account details should fail.
 testCreateUserWithInvalidVerificationCode :: Brig -> Http ()
 testCreateUserWithInvalidVerificationCode brig = do
-  -- Attempt to register (pre verified) user with phone
-  p <- randomPhone
-  code <- randomActivationCode -- incorrect but syntactically valid activation code
-  let Object regPhone =
-        object
-          [ "name" .= Name "Alice",
-            "phone" .= fromPhone p,
-            "phone_code" .= code
-          ]
-  postUserRegister' regPhone brig !!! do
-    const 400 === statusCode
-    const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
-
   -- Attempt to register (pre verified) user with email
   e <- randomEmail
+  code <- randomActivationCode -- incorrect but syntactically valid activation code
   let Object regEmail =
         object
           [ "name" .= Name "Alice",
@@ -190,6 +176,8 @@ testCreateUserWithInvalidVerificationCode brig = do
             "email_code" .= code
           ]
   postUserRegister' regEmail brig !!! const 404 === statusCode
+
+-- @END
 
 testUpdateUserEmailByTeamOwner :: Opt.Opts -> Brig -> Http ()
 testUpdateUserEmailByTeamOwner opts brig = do
@@ -212,13 +200,13 @@ testUpdateUserEmailByTeamOwner opts brig = do
   checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
   checkActivationCode newEmail False
   where
-    checkLetActivationExpire :: Email -> Http ()
+    checkLetActivationExpire :: EmailAddress -> Http ()
     checkLetActivationExpire email = do
-      let timeout = round (Opt.setActivationTimeout (Opt.optSettings opts))
+      let timeout = round opts.settings.activationTimeout
       threadDelay ((timeout + 1) * 1000_000)
       checkActivationCode email False
 
-    checkActivationCode :: Email -> Bool -> Http ()
+    checkActivationCode :: EmailAddress -> Bool -> Http ()
     checkActivationCode email shouldExist = do
       maybeActivationCode <- Util.getActivationCode brig (Left email)
       void $
@@ -227,25 +215,17 @@ testUpdateUserEmailByTeamOwner opts brig = do
             then assertBool "activation code should exists" (isJust maybeActivationCode)
             else assertBool "activation code should not exists" (isNothing maybeActivationCode)
 
-    checkSetUserEmail :: User -> User -> Email -> Int -> Http ()
+    checkSetUserEmail :: User -> User -> EmailAddress -> Int -> Http ()
     checkSetUserEmail teamOwner emailOwner email expectedStatusCode =
       setUserEmail brig (userId teamOwner) (userId emailOwner) email !!! (const expectedStatusCode === statusCode)
 
-    checkUnauthorizedRequests :: User -> User -> User -> Email -> Http ()
+    checkUnauthorizedRequests :: User -> User -> User -> EmailAddress -> Http ()
     checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam email = do
       setUserEmail brig (userId teamOwnerDifferentTeam) (userId emailOwner) email !!! (const 404 === statusCode)
       setUserEmail brig (userId otherTeamMember) (userId emailOwner) email !!! (const 403 === statusCode)
 
 testCreateUserWithPreverified :: Opt.Opts -> Brig -> UserJournalWatcher -> Http ()
 testCreateUserWithPreverified opts brig userJournalWatcher = do
-  -- Register (pre verified) user with phone
-  p <- randomPhone
-  let phoneReq = RequestBodyLBS . encode $ object ["phone" .= fromPhone p]
-  post (brig . path "/activate/send" . contentJson . body phoneReq)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
-
   -- Register (pre verified) user with email
   e <- randomEmail
   let emailReq = RequestBodyLBS . encode $ object ["email" .= fromEmail e]
@@ -260,7 +240,7 @@ testCreateUserWithPreverified opts brig userJournalWatcher = do
                 "email" .= fromEmail e,
                 "email_code" .= c
               ]
-      if Opt.setRestrictUserCreation (Opt.optSettings opts) == Just True
+      if opts.settings.restrictUserCreation == Just True
         then do
           postUserRegister' reg brig !!! const 403 === statusCode
         else do
@@ -309,6 +289,7 @@ assertOnlySelfConversations galley uid = do
     liftIO $ cnvType conv @?= SelfConv
 
 -- The testCreateUserEmptyName test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- An empty name is not allowed on registration
 testCreateUserEmptyName :: Brig -> Http ()
@@ -320,7 +301,10 @@ testCreateUserEmptyName brig = do
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
 
+-- @END
+
 -- The testCreateUserLongName test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- a name with > 128 characters is not allowed.
 testCreateUserLongName :: Brig -> Http ()
@@ -332,6 +316,8 @@ testCreateUserLongName brig = do
             ["name" .= (nameTooLong :: Text)]
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
+
+-- @END
 
 testCreateUserAnon :: Brig -> Galley -> Http ()
 testCreateUserAnon brig galley = do
@@ -355,7 +341,7 @@ testCreateUserAnon brig galley = do
   Search.assertCan'tFind brig suid quid "Mr. Pink"
 
 testCreateUserPending :: Opt.Opts -> Brig -> Http ()
-testCreateUserPending (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserPending (Opt.restrictUserCreation . Opt.settings -> Just True) _ = pure ()
 testCreateUserPending _ brig = do
   e <- randomEmail
   let p =
@@ -389,26 +375,12 @@ testCreateUserPending _ brig = do
   Search.refreshIndex brig
   Search.assertCan'tFind brig suid quid "Mr. Pink"
 
-testCreateUserNoEmailNoPassword :: Brig -> Http ()
-testCreateUserNoEmailNoPassword brig = do
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p
-            ]
-  post
-    (brig . path "/i/users" . contentJson . body newUser)
-    !!! do
-      const 400 === statusCode
-      (const (Just "invalid-phone") === fmap Error.label . responseJsonMaybe)
-
 -- The testCreateUserConflict test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
-testCreateUserConflict (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserConflict (Opt.restrictUserCreation . Opt.settings -> Just True) _ = pure ()
 testCreateUserConflict _ brig = do
   -- trusted email domains
   u <- createUser "conflict" brig
@@ -424,7 +396,9 @@ testCreateUserConflict _ brig = do
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
   -- untrusted email domains
   u2 <- createUserUntrustedEmail "conflict" brig
-  let Just (Email loc dom) = userEmail u2
+  let Just email = userEmail u2
+      dom = T.decodeUtf8 $ domainPart email
+      loc = T.decodeUtf8 $ localPart email
   let p2 =
         RequestBodyLBS . encode $
           object
@@ -436,38 +410,29 @@ testCreateUserConflict _ brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
--- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
---
--- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
-testCreateUserInvalidEmailOrPhone :: Opt.Opts -> Brig -> Http ()
-testCreateUserInvalidEmailOrPhone (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
-testCreateUserInvalidEmailOrPhone _ brig = do
-  email <- randomEmail
-  let reqEmail =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("foo" :: Text),
-              "email" .= fromEmail email,
-              "password" .= defPassword,
-              "phone" .= ("123456" :: Text) -- invalid phone nr
-            ]
-  post (brig . path "/register" . contentJson . body reqEmail)
-    !!! const 400 === statusCode
+-- @END
 
-  phone <- randomPhone
+-- The testCreateUserInvalidEmail test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- Test to make sure a new user cannot be created with an invalid email address
+testCreateUserInvalidEmail :: Opt.Opts -> Brig -> Http ()
+testCreateUserInvalidEmail (Opt.restrictUserCreation . Opt.settings -> Just True) _ = pure ()
+testCreateUserInvalidEmail _ brig = do
   let reqPhone =
         RequestBodyLBS . encode $
           object
             [ "name" .= ("foo" :: Text),
-              "email" .= ("invalid@email" :: Text), -- invalid since there's only a single label
-              "password" .= defPassword,
-              "phone" .= fromPhone phone
+              "email" .= ("invalid@" :: Text),
+              "password" .= defPassword
             ]
   post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
 
+-- @END
+
 testCreateUserBlacklist :: Opt.Opts -> Brig -> AWS.Env -> Http ()
-testCreateUserBlacklist (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
+testCreateUserBlacklist (Opt.restrictUserCreation . Opt.settings -> Just True) _ _ = pure ()
 testCreateUserBlacklist _ brig aws =
   mapM_ ensureBlacklist ["bounce", "complaint"]
   where
@@ -491,18 +456,18 @@ testCreateUserBlacklist _ brig aws =
             "password" .= defPassword
           ]
     -- If there is no queue available, we need to force it either by publishing an event or using the API
-    forceBlacklist :: Text -> Email -> Http ()
+    forceBlacklist :: Text -> EmailAddress -> Http ()
     forceBlacklist typ em = case aws ^. AWS.sesQueue of
       Just queue -> publishMessage typ em queue
       Nothing -> Bilge.post (brig . path "i/users/blacklist" . queryItem "email" (toByteString' em)) !!! const 200 === statusCode
-    publishMessage :: Text -> Email -> Text -> Http ()
+    publishMessage :: Text -> EmailAddress -> Text -> Http ()
     publishMessage typ em queue = do
       let bdy = encode $ case typ of
-            "bounce" -> MailBounce BouncePermanent [em]
-            "complaint" -> MailComplaint [em]
+            "bounce" -> MailBounce BouncePermanent [Mailbox Nothing em]
+            "complaint" -> MailComplaint [Mailbox Nothing em]
             x -> error ("Unsupported message type: " ++ show x)
       void . AWS.execute aws $ AWS.enqueueStandard queue bdy
-    awaitBlacklist :: Int -> Email -> Http ()
+    awaitBlacklist :: Int -> EmailAddress -> Http ()
     awaitBlacklist n e = do
       r <- Bilge.head (brig . path "i/users/blacklist" . queryItem "email" (toByteString' e))
       when (statusCode r == 404 && n > 0) $ do
@@ -525,8 +490,8 @@ testCreateUserExternalSSO brig = do
   post (brig . path "/register" . contentJson . body (p True True))
     !!! const 400 === statusCode
 
-testActivateWithExpiry :: Opt.Opts -> Brig -> Opt.Timeout -> Http ()
-testActivateWithExpiry (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
+testActivateWithExpiry :: Opt.Opts -> Brig -> Timeout -> Http ()
+testActivateWithExpiry (Opt.restrictUserCreation . Opt.settings -> Just True) _ _ = pure ()
 testActivateWithExpiry _ brig timeout = do
   u <- responseJsonError =<< registerUser "dilbert" brig
   let email = fromMaybe (error "missing email") (userEmail u)
@@ -690,7 +655,7 @@ testMultipleUsersUnqualified brig = do
       -- on this endpoint, only from the self profile (/self).
       expected =
         Set.fromList
-          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+          [ (Just $ userDisplayName u1, Nothing :: Maybe EmailAddress),
             (Just $ userDisplayName u2, Nothing),
             (Just $ userDisplayName u3, Nothing)
           ]
@@ -722,7 +687,7 @@ testMultipleUsersV3 brig = do
       q = ListUsersByIds (map userQualifiedId users)
       expected =
         Set.fromList
-          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+          [ (Just $ userDisplayName u1, Nothing :: Maybe EmailAddress),
             (Just $ userDisplayName u2, Nothing),
             (Just $ userDisplayName u3, Nothing)
           ]
@@ -759,6 +724,7 @@ testMultipleUsers opts brig = do
         UserProfile
           { profileQualifiedId = u5,
             profileName = Name "u5",
+            profileTextStatus = Nothing,
             profilePict = Pict [],
             profileAssets = [],
             profileAccentId = ColourId 0,
@@ -775,7 +741,7 @@ testMultipleUsers opts brig = do
       q = ListUsersByIds $ u5 : u4 : map userQualifiedId users
       expected =
         Set.fromList
-          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+          [ (Just $ userDisplayName u1, Nothing :: Maybe EmailAddress),
             (Just $ userDisplayName u2, Nothing),
             (Just $ userDisplayName u3, Nothing),
             (Just $ profileName u5Profile, profileEmail u5Profile)
@@ -882,8 +848,9 @@ testUserUpdate brig cannon userJournalWatcher = do
               (Just AssetComplete)
           ]
       mNewName = Just $ aliceNewName
+      mNewTextStatus = rightToMaybe $ mkTextStatus "fun status"
       newPic = Nothing -- Legacy
-      userUpdate = UserUpdate mNewName newPic newAssets newColId
+      userUpdate = UserUpdate mNewName mNewTextStatus newPic newAssets newColId
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile & receive notification
   WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
@@ -895,9 +862,10 @@ testUserUpdate brig cannon userJournalWatcher = do
   -- get the updated profile
   get (brig . path "/self" . zUser alice) !!! do
     const 200 === statusCode
-    const (mNewName, newColId, newAssets)
+    const (mNewName, mNewTextStatus, newColId, newAssets)
       === ( \u ->
               ( fmap userDisplayName u,
+                userTextStatus =<< u,
                 fmap userAccentId u,
                 fmap userAssets u
               )
@@ -929,7 +897,7 @@ testEmailUpdate brig userJournalWatcher = do
   -- ensure no other user has "test+<uuid>@example.com"
   -- if there is such a user, let's delete it first.  otherwise
   -- this test fails since there can be only one user with "test+...@example.com"
-  ensureNoOtherUserWithEmail (Email "test" "example.com")
+  ensureNoOtherUserWithEmail (unsafeEmailAddress "test" "example.com")
   -- we want to use a non-trusted domain in order to verify profile changes
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
@@ -940,7 +908,7 @@ testEmailUpdate brig userJournalWatcher = do
   -- In that case, you might need to manually delete the user from the test DB. @elland
   deleteUserInternal uid brig !!! const 202 === statusCode
   where
-    ensureNoOtherUserWithEmail :: Email -> Http ()
+    ensureNoOtherUserWithEmail :: EmailAddress -> Http ()
     ensureNoOtherUserWithEmail eml = do
       tk :: Maybe AccessToken <-
         responseJsonMaybe <$> login brig (defEmailLogin eml) SessionCookie
@@ -948,7 +916,7 @@ testEmailUpdate brig userJournalWatcher = do
         deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
         Util.assertDeleteJournaled userJournalWatcher (Auth.user t) "user deletion"
 
-    initiateUpdateAndActivate :: Email -> UserId -> Http ()
+    initiateUpdateAndActivate :: EmailAddress -> UserId -> Http ()
     initiateUpdateAndActivate eml uid = do
       initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
       activateEmail brig eml
@@ -956,28 +924,7 @@ testEmailUpdate brig userJournalWatcher = do
       Util.assertEmailUpdateJournaled userJournalWatcher uid eml "user update"
       -- Ensure login work both with the full email and the "short" version
       login brig (defEmailLogin eml) SessionCookie !!! const 200 === statusCode
-      login brig (defEmailLogin (Email "test" "example.com")) SessionCookie !!! const 200 === statusCode
-
-testPhoneUpdate :: Brig -> Http ()
-testPhoneUpdate brig = do
-  uid <- userId <$> randomUser brig
-  phn <- randomPhone
-  updatePhone brig uid phn
-  -- check new phone
-  get (brig . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-
-testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
-testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
-testCreateAccountPendingActivationKey _ brig = do
-  uid <- userId <$> randomUser brig
-  phn <- randomPhone
-  -- update phone
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === fmap Error.label . responseJsonMaybe
+      login brig (defEmailLogin (unsafeEmailAddress "test" "example.com")) SessionCookie !!! const 200 === statusCode
 
 testUserLocaleUpdate :: Brig -> UserJournalWatcher -> Http ()
 testUserLocaleUpdate brig userJournalWatcher = do
@@ -1047,7 +994,7 @@ testGetByIdentity brig = do
     const 200 === statusCode
     const (Just [uid]) === getUids
   where
-    getUids r = fmap (userId . accountUser) <$> responseJsonMaybe r
+    getUids r = fmap userId <$> responseJsonMaybe r
 
 testPasswordSet :: Brig -> Http ()
 testPasswordSet brig = do
@@ -1108,7 +1055,7 @@ testPasswordChange brig = do
   -- login with new password
   login
     brig
-    (PasswordLogin (PasswordLoginData (LoginByEmail email) newPass Nothing Nothing))
+    (MkLogin (LoginByEmail email) newPass Nothing Nothing)
     PersistentCookie
     !!! const 200 === statusCode
   -- try to change the password to itself should fail
@@ -1145,7 +1092,7 @@ testSendActivationCode opts brig = do
   -- Code for email pre-verification
   requestActivationCode brig 200 . Left =<< randomEmail
   -- Standard email registration flow
-  if Opt.setRestrictUserCreation (Opt.optSettings opts) == Just True
+  if opts.settings.restrictUserCreation == Just True
     then do
       registerUser "Alice" brig !!! const 403 === statusCode
     else do
@@ -1156,10 +1103,7 @@ testSendActivationCode opts brig = do
 
 testSendActivationCodeInvalidEmailOrPhone :: Brig -> Http ()
 testSendActivationCodeInvalidEmailOrPhone brig = do
-  let Just invalidEmail = parseEmail "?@?"
-  let invalidPhone = Phone "1234"
-  -- Code for phone pre-verification
-  requestActivationCode brig 400 (Right invalidPhone)
+  let invalidEmail = unsafeEmailAddress "?" "?"
   -- Code for email pre-verification
   requestActivationCode brig 400 (Left invalidEmail)
 
@@ -1275,7 +1219,7 @@ testDeleteWithProfilePic brig cargohold = do
               (qUnqualified $ ast ^. Asset.assetKey)
               (Just AssetComplete)
           ]
-      userUpdate = UserUpdate Nothing Nothing newAssets Nothing
+      userUpdate = UserUpdate Nothing Nothing Nothing newAssets Nothing
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile with the uploaded asset
   put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update)
@@ -1308,11 +1252,9 @@ testUpdateSSOId brig galley = do
           assertEqual "updateSSOId/ssoid" ssoid ssoid'
           assertEqual "updateSSOId/email" (userEmail user) mEmail
   (owner, teamid) <- createUserWithTeam brig
-  let mkMember :: Bool -> Bool -> Http User
-      mkMember hasEmail hasPhone = do
+  let mkMember :: Bool -> Http User
+      mkMember hasEmail = do
         member <- createTeamMember brig galley owner teamid noPermissions
-        when hasPhone $ do
-          updatePhone brig (userId member) =<< randomPhone
         unless hasEmail $ do
           error "not implemented"
         selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
@@ -1320,7 +1262,7 @@ testUpdateSSOId brig galley = do
       ssoids2 = [UserSSOId (mkSampleUref "2" "1"), UserSSOId (mkSampleUref "2" "2")]
   users <-
     sequence
-      [ mkMember True False
+      [ mkMember True
       -- the following two could be implemented by creating the user implicitly via SSO login.
       -- , mkMember False  False
       ]
@@ -1329,19 +1271,19 @@ testUpdateSSOId brig galley = do
 
 testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
 testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
-  badEmail1 <- randomEmail <&> \e -> e {emailDomain = "bad1.domain.com"}
-  badEmail2 <- randomEmail <&> \e -> e {emailDomain = "bad2.domain.com"}
+  badEmail1 <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "bad1.domain.com"
+  badEmail2 <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "bad2.domain.com"
   post (brig . path "/activate/send" . contentJson . body (p badEmail1)) !!! do
     const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
   post (brig . path "/activate/send" . contentJson . body (p badEmail2)) !!! do
     const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
-  goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
+  goodEmail <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "good.domain.com"
   post (brig . path "/activate/send" . contentJson . body (p goodEmail)) !!! do
     const 200 === statusCode
   where
-    p email = RequestBodyLBS . encode $ SendActivationCode (Left email) Nothing False
+    p email = RequestBodyLBS . encode $ SendActivationCode email Nothing
 
 -- | FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
 -- first thing that we check on the /register endpoint. Other tests that make use of @setRestrictUserCreation@
@@ -1351,7 +1293,7 @@ testRestrictedUserCreation opts brig = do
   -- We create a team before to help in other tests
   (teamOwner, createdTeam) <- createUserWithTeam brig
 
-  let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setRestrictUserCreation = Just True}}
+  let opts' = opts {Opt.settings = opts.settings {Opt.restrictUserCreation = Just True}}
   withSettingsOverrides opts' $ do
     e <- randomEmail
 
@@ -1432,11 +1374,11 @@ testTooManyMembersForLegalhold opts brig = do
   -- would return in that case.
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
-  inv <-
+  inv :: Invitation <-
     responseJsonError
       =<< postInvitation brig tid owner invite
         <!! statusCode === const 201
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  Just inviteeCode <- getInvitationCode brig tid inv.invitationId
   let mockGalley (ReceivedRequest mth pth _body)
         | mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"] =
             pure . Wai.responseLBS HTTP.status403 mempty $
@@ -1450,11 +1392,10 @@ testTooManyMembersForLegalhold opts brig = do
             && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
             pure . Wai.responseLBS HTTP.status200 mempty $
               encode
-                ( withStatus
+                ( LockableFeature
                     FeatureStatusDisabled
                     LockStatusLocked
                     ExposeInvitationURLsToTeamAdminConfig
-                    FeatureTTLUnlimited
                 )
         | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
 
@@ -1589,7 +1530,7 @@ execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete
   usr <- postUserInternal o brig
   Util.assertUserActivateJournaled userJournalWatcher usr "user activate execAndAssertUserDeletion"
   -- Handle is available again
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode
   where
     assertDeletedProfileSelf = do

@@ -18,6 +18,7 @@ library
     Cassandra.Helpers
     Cassandra.MigrateSchema
     Cassandra.Options
+    Cassandra.QQ
     Cassandra.Schema
     Cassandra.Settings
     Cassandra.Util
@@ -87,6 +88,7 @@ library
     , optparse-applicative  >=0.10
     , retry
     , split                 >=0.2
+    , template-haskell
     , text                  >=0.11
     , time                  >=1.4
     , tinylog               >=0.7

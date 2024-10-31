@@ -1,7 +1,7 @@
 {
     "accent_id": 0,
     "assets": [],
-    "email": "bar@example.com",
+    "email": "some@example",
     "expires_at": "1864-05-09T14:25:26.089Z",
     "handle": "iw2-.udd2l7-7yg3dfg.wzn4vx3hjhch8.--5t6uyjqk93twv-a2pce8p1xjh7387nztzu.q",
     "id": "00000000-0000-0002-0000-000200000002",
@@ -17,6 +17,7 @@
         "id": "00000000-0000-0001-0000-000100000000",
         "provider": "00000000-0000-0000-0000-000000000000"
     },
+    "status": "active",
     "supported_protocols": [
         "proteus"
     ],

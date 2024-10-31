@@ -19,7 +19,6 @@
 , bytestring
 , bytestring-conversion
 , call-stack
-, case-insensitive
 , cassandra-util
 , cassava
 , cereal
@@ -27,13 +26,11 @@
 , conduit
 , containers
 , cookie
-, cql
 , crypton
 , crypton-x509
 , currency-codes
 , data-default
 , data-timeout
-, either
 , enclosed-exceptions
 , errors
 , exceptions
@@ -42,9 +39,11 @@
 , federator
 , filepath
 , galley-types
+, generics-sop
 , gitignoreSource
-, gundeck-types
 , hex
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -79,13 +78,12 @@
 , resourcet
 , retry
 , safe-exceptions
-, saml2-web-sso
-, schema-profunctor
 , servant
 , servant-client
 , servant-client-core
 , servant-server
 , singletons
+, singletons-base
 , sop-core
 , split
 , ssl-util
@@ -98,13 +96,13 @@
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
+, template-haskell
 , temporary
 , text
 , time
 , tinylog
 , tls
 , transformers
-, transitive-anns
 , types-common
 , types-common-aws
 , types-common-journal
@@ -115,7 +113,6 @@
 , utf8-string
 , uuid
 , uuid-types
-, vector
 , wai
 , wai-extra
 , wai-middleware-gunzip
@@ -124,6 +121,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-otel
 , wire-subsystems
 , yaml
 }:
@@ -147,25 +145,25 @@ mkDerivation {
     brig-types
     bytestring
     bytestring-conversion
-    case-insensitive
     cassandra-util
     cassava
     comonad
     containers
-    cql
     crypton
     crypton-x509
     currency-codes
+    data-default
     data-timeout
-    either
     enclosed-exceptions
     errors
     exceptions
     extended
     extra
     galley-types
-    gundeck-types
+    generics-sop
     hex
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     HsOpenSSL
     http-client
     http-client-openssl
@@ -187,22 +185,22 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
-    saml2-web-sso
-    schema-profunctor
     servant
     servant-client
     servant-server
     singletons
+    singletons-base
+    sop-core
     split
     ssl-util
     stm
     tagged
+    template-haskell
     text
     time
     tinylog
     tls
     transformers
-    transitive-anns
     types-common
     types-common-aws
     types-common-journal
@@ -216,6 +214,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-otel
     wire-subsystems
   ];
   executableHaskellDepends = [
@@ -230,9 +229,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     call-stack
-    case-insensitive
     cassandra-util
-    cassava
     cereal
     conduit
     containers
@@ -271,8 +268,6 @@ mkDerivation {
     quickcheck-instances
     random
     retry
-    saml2-web-sso
-    schema-profunctor
     servant-client
     servant-client-core
     servant-server
@@ -298,9 +293,7 @@ mkDerivation {
     unliftio
     unordered-containers
     uuid
-    vector
     wai
-    wai-extra
     wai-utilities
     warp
     warp-tls

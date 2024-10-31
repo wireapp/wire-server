@@ -35,6 +35,7 @@ module Galley.Effects.BrigAccess
     deleteUser,
     getContactList,
     getRichInfoMultiUser,
+    getUserExportData,
 
     -- * Teams
     getSize,
@@ -71,9 +72,9 @@ import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
+import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
-import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -99,7 +100,7 @@ data BrigAccess m a where
   PutConnectionInternal :: UpdateConnectionsInternal -> BrigAccess m Status
   ReauthUser :: UserId -> ReAuthUser -> BrigAccess m (Either AuthenticationError ())
   LookupActivatedUsers :: [UserId] -> BrigAccess m [User]
-  GetUsers :: [UserId] -> BrigAccess m [UserAccount]
+  GetUsers :: [UserId] -> BrigAccess m [User]
   DeleteUser :: UserId -> BrigAccess m ()
   GetContactList :: UserId -> BrigAccess m [UserId]
   GetRichInfoMultiUser :: [UserId] -> BrigAccess m [(UserId, RichInfo)]
@@ -122,15 +123,16 @@ data BrigAccess m a where
     LastPrekey ->
     BrigAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
-  GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (WithStatusNoLock ConferenceCallingConfig)
+  GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (Feature ConferenceCallingConfig)
   GetLocalMLSClients :: Local UserId -> CipherSuiteTag -> BrigAccess m (Set ClientInfo)
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAccess m ()
+  GetUserExportData :: UserId -> BrigAccess m (Maybe TeamExportUser)
 
 makeSem ''BrigAccess
 
-getUser :: (Member BrigAccess r) => UserId -> Sem r (Maybe UserAccount)
+getUser :: (Member BrigAccess r) => UserId -> Sem r (Maybe User)
 getUser = fmap listToMaybe . getUsers . pure
 
 addLegalHoldClientToUser ::

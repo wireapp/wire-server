@@ -31,7 +31,6 @@ import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Types.Conversations.Members
-import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -47,6 +46,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
+import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.NotificationSubsystem
 
 -- | Propagate a message.

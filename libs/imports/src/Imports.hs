@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -35,6 +37,7 @@ module Imports
     module Data.Monoid,
     module Data.Maybe,
     module Data.Either,
+    module Data.Either.Combinators,
     module Data.Foldable,
     module Data.Traversable,
     module Data.Tuple,
@@ -60,19 +63,13 @@ module Imports
     module UnliftIO.Directory,
 
     -- ** Prelude
-    putChar,
     putStr,
     putStrLn,
     print,
-    getChar,
     getLine,
-    getContents,
-    interact,
     readFile,
     writeFile,
     appendFile,
-    readIO,
-    readLn,
 
     -- ** Environment
     getArgs,
@@ -118,12 +115,18 @@ module Imports
     -- * Functor
     (<$$>),
     (<$$$>),
+
+    -- * development
+    todo,
+    pattern TODO,
+    TodoException (..),
   )
 where
 
 -- common in some libs
 import Control.Applicative hiding (empty, many, optional, some)
 import Control.DeepSeq (NFData (..), deepseq)
+import Control.Exception
 import Control.Monad hiding (forM, forM_, mapM, mapM_, msum, sequence, sequence_)
 import Control.Monad.Extra (unlessM, whenM)
 import Control.Monad.IO.Unlift
@@ -145,6 +148,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified
 import Data.Char
 import Data.Either
+import Data.Either.Combinators hiding (fromLeft, fromRight, isLeft, isRight)
 import Data.Foldable
 import Data.Function
 import Data.Functor
@@ -152,15 +156,12 @@ import Data.Functor.Identity
 import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import Data.Int
--- 'insert' and 'delete' are common in database modules
+import Data.Kind (Type)
 import Data.List hiding (delete, insert, singleton)
--- Lazy and strict versions are the same
 import Data.Map (Map)
 import Data.Maybe
--- First and Last are going to be deprecated. Use Semigroup instead
 import Data.Monoid hiding (First (..), Last (..))
 import Data.Ord
--- conflicts with Options.Applicative.Option (should we care?)
 import Data.Semigroup hiding (diff)
 import Data.Set (Set)
 import Data.String
@@ -170,21 +171,18 @@ import Data.Traversable
 import Data.Tuple
 import Data.Void
 import Data.Word
+import GHC.Exts
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Text.Read (readEither, readMaybe)
 import UnliftIO.Concurrent
--- Permissions is common in Galley
 import UnliftIO.Directory hiding (Permissions)
 import UnliftIO.Environment
 import UnliftIO.Exception
--- Handle is hidden because it's common in Brig
 import UnliftIO.IO hiding (Handle, getMonotonicTime)
 import UnliftIO.IORef
 import UnliftIO.MVar
 import UnliftIO.STM
--- Explicitly saying what to import because some things from Prelude clash
--- with e.g. UnliftIO modules
 import Prelude
   ( Bounded (..),
     Double,
@@ -241,9 +239,6 @@ type LByteString = Data.ByteString.Lazy.ByteString
 ----------------------------------------------------------------------------
 -- Lifted functions from Prelude
 
-putChar :: (MonadIO m) => Char -> m ()
-putChar = liftIO . P.putChar
-
 putStr :: (MonadIO m) => String -> m ()
 putStr = liftIO . P.putStr
 
@@ -253,17 +248,8 @@ putStrLn = liftIO . P.putStrLn
 print :: (Show a, MonadIO m) => a -> m ()
 print = liftIO . P.print
 
-getChar :: (MonadIO m) => m Char
-getChar = liftIO P.getChar
-
 getLine :: (MonadIO m) => m String
 getLine = liftIO P.getLine
-
-getContents :: (MonadIO m) => m String
-getContents = liftIO P.getContents
-
-interact :: (MonadIO m) => (String -> String) -> m ()
-interact = liftIO . P.interact
 
 readFile :: (MonadIO m) => FilePath -> m String
 readFile = liftIO . P.readFile
@@ -274,11 +260,117 @@ writeFile = fmap liftIO . P.writeFile
 appendFile :: (MonadIO m) => FilePath -> String -> m ()
 appendFile = fmap liftIO . P.appendFile
 
-readIO :: (Read a, MonadIO m) => String -> m a
-readIO = liftIO . P.readIO
+----------------------------------------------------------------------
+-- placeholders
 
-readLn :: (Read a, MonadIO m) => m a
-readLn = liftIO P.readLn
+-- | 'todo' indicates unfinished code.
+--
+-- It is to be used whenever you want to indicate that you are missing a part of
+-- the implementation and want to fill that in later.
+--
+-- This takes a middle ground between other alternatives - unlike typed holes it doesn't cause
+-- a /compile time error/, but in contrast to 'GHC.Err.error' and 'GHC.Err.undefined', it does emit
+-- a /warning at compilation time/.
+--
+-- Similarly to all of 'GHC.Err.undefined', 'GHC.Err.error' and typed holes, this /will throw an error/
+-- if it is /evaluated at runtime/. This error can only be caught in 'System.IO.IO'.
+--
+-- This is intended to /never/ stay in code but exists purely for signifying
+
+-- "work in progress" code.
+--
+-- To make the emitted warning a compile error instead (e.g. for use in CI), add
+-- the @-Werror=x-todo@ flag to your @OPTIONS_GHC@.
+--
+-- ==== __Examples__
+--
+-- @
+-- superComplexFunction :: 'Data.Maybe.Maybe' a -> 'System.IO.IO' 'Data.Int.Int'
+-- -- we already know how to implement this in the 'Data.Maybe.Nothing' case
+-- superComplexFunction 'Data.Maybe.Nothing' = 'Control.Applicative.pure' 42
+-- -- but the 'Data.Maybe.Just' case is super complicated, so we leave it as 'todo' for now
+-- superComplexFunction ('Data.Maybe.Just' a) = 'todo'
+-- @
+--
+-- ==== __Representation Polymorphism__
+--
+-- 'todo', in contrast to 'TODO', is fully representation polymorphic
+--
+-- @since base-4.21.0.0
+todo :: forall {r :: RuntimeRep} (a :: TYPE r). (HasCallStack) => a
+todo = throw TodoException
+{-# WARNING todo "'todo' left in code" #-}
+
+-- FUTUREWORK(mangoiv): should be: WARNING in "x-todo" from ghc 9.8 on
+
+-- | 'TODO' indicates unfinished code or an unimplemented pattern match
+--
+-- You can use this in most positions where you could pass 'todo', but it /also/ can be used in
+-- the position of a pattern to indicate that there are cases you have not yet considered.
+--
+-- This pattern synonym is marked @COMPLETE@, implying that every match after matching on 'TODO'
+-- will /emit a redundant pattern match warning/. Adding new options to your datatype, similarly
+-- to how wildcard patterns (patterns starting with an underscore) work, will /not cause any warnings or errors/.
+--
+-- ==== __Examples__
+--
+-- Since the pattern match is strict, even if the branch itself does not evaluate to bottom, matching on
+-- 'TODO' will.
+--
+-- @
+-- >>> x = []
+-- >>> case x of
+-- ...   (x : _) -> x
+-- ...   'TODO' -> 42
+-- *** Exception: Develop.Placeholder.todo: not yet implemented
+-- @
+--
+-- As usual, this behaviour can be reversed by using a @~@ in front of 'TODO' in pattern position.
+--
+-- @
+-- >>> x = []
+-- >>> case x of
+-- ...   (x : _) -> x
+-- ...   ~'TODO' -> 42
+-- 42
+-- @
+--
+-- In most situations, 'TODO' can be used just like 'todo', where the above is equivalent to the below
+--
+-- @
+-- >>> y :: 'Data.Int.Int' = 'todo'
+-- >>> x :: 'Data.Int.Int' = 'TODO'
+-- @
+--
+--
+-- ==== __Representation Polymorphism__
+--
+-- Mind that pattern synonyms may not be representation polymorphic, hence, if you need something
+-- that can be used with some kind other than 'Data.Kind.Type', you have to use 'todo'. For example,
+-- 'TODO' cannot stand instead of a pattern match on an @'GHC.Exts.Int#' :: 'TYPE' 'GHC.Exts.IntRep'@
+-- or as a placeholder for a @'GHC.Exts.ByteArray#' :: 'GHC.Exts.UnliftedType'@
+--
+-- @since base-4.21.0.0
+pattern TODO :: forall (a :: Type). (HasCallStack) => forall. a
+pattern TODO <- (throw TodoException -> !_unused)
+  where
+    TODO = throw TodoException
+{-# WARNING TODO "'TODO' left in code" #-}
+
+-- FUTUREWORK(mangoiv): should be WARNING in "x-todo" from ghc 9.8 on
+
+{-# COMPLETE TODO #-}
+
+-- | This is the 'Exception' thrown by 'todo'.
+--
+-- This exception occurring indicates a bug as 'todo' should /never/ remain in code.
+--
+-- @since base-4.21.0.0
+data TodoException = TodoException
+  deriving stock (Eq, Show)
+
+instance Exception TodoException where
+  displayException _ = "Develop.Placeholder.todo: not yet implemented"
 
 ----------------------------------------------------------------------
 -- Functor

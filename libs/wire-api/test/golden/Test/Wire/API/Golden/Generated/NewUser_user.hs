@@ -37,7 +37,7 @@ import Data.Text.Ascii (AsciiChars (validate))
 import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined, (.))
 import Wire.API.Asset
-import Wire.API.Team (BindingNewTeam (..), Icon (..), NewTeam (..))
+import Wire.API.Team
 import Wire.API.User
 import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
@@ -51,8 +51,7 @@ testObject_NewUser_user_1 =
               "V~\14040\38047\NULw\1105603\1077601\&1\73084\1020199%\14699]y*\121297jqM\SYN\74260/\1108497-*\US \RSA\SO}\64347c\60361v [\1022394t\1012213R\181051Y\1036488\&6tg\SYN\1044855+\DLE\99976;\ACKOj\DC3\48593&aD:\nf\1002443!*\DEL"
           },
       newUserUUID = (Just . toUUID) (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
-      newUserIdentity = Just (EmailIdentity (Email {emailLocal = "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB", emailDomain = "P.b"})),
-      newUserPhone = Nothing,
+      newUserIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
       newUserPict = Just (Pict {fromPict = []}),
       newUserAssets =
         [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
@@ -61,7 +60,6 @@ testObject_NewUser_user_1 =
         ],
       newUserAccentId = Just (ColourId {fromColourId = -7404}),
       newUserEmailCode = Just (ActivationCode {fromActivationCode = fromRight undefined (validate "1YgaHo0=")}),
-      newUserPhoneCode = Nothing,
       newUserOrigin =
         Just
           ( NewUserOriginInvitationCode
@@ -132,27 +130,24 @@ testObject_NewUser_user_7 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamCreator user)),
-      newUserIdentity = Just (EmailIdentity (Email "12345678" "example.com")),
+      newUserIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }
   where
     user =
       BindingNewTeamUser
         { bnuTeam =
-            BindingNewTeam
-              ( NewTeam
-                  { _newTeamName =
-                      unsafeRange
-                        "\fe\ENQ\1011760zm",
-                    _newTeamIcon = DefaultIcon,
-                    _newTeamIconKey =
-                      Just
-                        ( unsafeRange
-                            "\ACKc\151665L ,"
-                        ),
-                    _newTeamMembers = Nothing
-                  }
-              ),
+            NewTeam
+              { newTeamName =
+                  unsafeRange
+                    "\fe\ENQ\1011760zm",
+                newTeamIcon = DefaultIcon,
+                newTeamIconKey =
+                  Just
+                    ( unsafeRange
+                        "\ACKc\151665L ,"
+                    )
+              },
           bnuCurrency = Just XUA
         }
 
@@ -165,23 +160,8 @@ testObject_NewUser_user_8 =
       newUserIdentity =
         Just
           ( EmailIdentity
-              ( Email
-                  { emailLocal = "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB",
-                    emailDomain = "P.b"
-                  }
+              ( unsafeEmailAddress "some" "example"
               )
           ),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
-    }
-
-testObject_NewUser_user_9 :: NewUser
-testObject_NewUser_user_9 =
-  testObject_NewUser_user_1
-    { newUserPhoneCode =
-        Just
-          ( ActivationCode
-              { fromActivationCode =
-                  fromRight undefined (validate "z1OeJQ==")
-              }
-          )
     }

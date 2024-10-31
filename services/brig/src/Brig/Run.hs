@@ -15,11 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Run
-  ( run,
-    mkApp,
-  )
-where
+module Brig.Run (run, mkApp) where
 
 import AWS.Util (readAuthExpiration)
 import Brig.API.Federation
@@ -27,7 +23,6 @@ import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
 import Brig.API.Public
 import Brig.API.User qualified as API
-import Brig.AWS (amazonkaEnv, sesQueue)
 import Brig.AWS qualified as AWS
 import Brig.AWS.SesNotification qualified as SesNotification
 import Brig.App
@@ -41,7 +36,7 @@ import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async
 import Control.Exception.Safe (catchAny)
-import Control.Lens (view, (.~), (^.))
+import Control.Lens ((.~))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
@@ -59,12 +54,15 @@ import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
+import OpenTelemetry.Instrumentation.Wai qualified as Otel
+import OpenTelemetry.Trace as Otel
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Util.Timeout
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Public.Brig
@@ -72,6 +70,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
+import Wire.OpenTelemetry (withTracer)
 import Wire.Sem.Paging qualified as P
 import Wire.UserStore
 
@@ -80,70 +79,84 @@ import Wire.UserStore
 -- thread terminates for any reason.
 -- https://github.com/zinfra/backend-issues/issues/1647
 run :: Opts -> IO ()
-run o = do
-  (app, e) <- mkApp o
+run opts = withTracer \tracer -> do
+  (app, e) <- mkApp opts
   s <- Server.newSettings (server e)
   internalEventListener <-
     Async.async $
       runBrigToIO e $
         wrapHttpClient $
-          Queue.listen (e ^. internalEvents) $
+          Queue.listen e.internalEvents $
             liftIO . runBrigToIO e . liftSem . Internal.onEvent
-  let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
-  emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
+  let throttleMillis = fromMaybe defSqsThrottleMillis opts.settings.sqsThrottleMillis
+  emailListener <- for e.awsEnv._sesQueue $ \q ->
     Async.async $
-      AWS.execute (e ^. awsEnv) $
+      AWS.execute e.awsEnv $
         AWS.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
-  sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
-  turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
+  sftDiscovery <- forM e.sftEnv $ Async.async . Calling.startSFTServiceDiscovery e.appLogger
+  turnDiscovery <- Calling.startTurnDiscovery e.appLogger e.fsWatcher e.turnEnv
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
   pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
-  runSettingsWithShutdown s app Nothing `finally` do
-    mapM_ Async.cancel emailListener
-    Async.cancel internalEventListener
-    mapM_ Async.cancel sftDiscovery
-    Async.cancel pendingActivationCleanupAsync
-    mapM_ Async.cancel turnDiscovery
-    Async.cancel authMetrics
+  inSpan tracer "brig" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
+    Async.cancelMany $
+      [internalEventListener, pendingActivationCleanupAsync, authMetrics]
+        <> catMaybes [emailListener, sftDiscovery]
+        <> turnDiscovery
     closeEnv e
   where
-    endpoint' = brig o
-    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) (e ^. applog)
+    brig = opts.brig
+    server e = defaultServer (unpack $ brig.host) brig.port e.appLogger
 
 mkApp :: Opts -> IO (Wai.Application, Env)
-mkApp o = do
-  e <- newEnv o
-  pure (middleware e $ servantApp e, e)
+mkApp opts = do
+  e <- newEnv opts
+  otelMiddleware <- Otel.newOpenTelemetryWaiMiddleware
+  pure (otelMiddleware . middleware e $ servantApp e, e)
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      -- this rewrites the request, so it must be at the top (i.e. applied last)
-      versionMiddleware (e ^. disabledVersions)
+      -- these rewrite the request, so they must be at the top (i.e. applied last)
+      versionMiddleware e.disabledVersions
+        . internalHandleCompatibilityMiddleware
         -- this also rewrites the request
-        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
+        . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) defaultRequestIdHeaderName
+        . catchErrors e.appLogger defaultRequestIdHeaderName
 
-    -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
-    servantApp e0 req cont = do
+    servantApp e req cont = do
       let rid = getRequestId defaultRequestIdHeaderName req
-      let e = requestId .~ rid $ e0
-      let localDomain = view (settings . federationDomain) e
+      let env = requestIdLens .~ rid $ e
+      let localDomain = env.settings.federationDomain
       Servant.serveWithContext
         (Proxy @ServantCombinedAPI)
         (customFormatters :. localDomain :. Servant.EmptyContext)
         ( docsAPI
-            :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
-            :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
-            :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-            :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
+            :<|> hoistServerWithDomain @BrigAPI (toServantHandler env) servantSitemap
+            :<|> hoistServerWithDomain @IAPI.API (toServantHandler env) IAPI.servantSitemap
+            :<|> hoistServerWithDomain @FederationAPI (toServantHandler env) federationSitemap
+            :<|> hoistServerWithDomain @VersionAPI (toServantHandler env) versionAPI
         )
         req
         cont
+
+-- FUTUREWORK: this rewrites /i/users/handles to /i/handles, for backward
+-- compatibility with the old endpoint path during deployment. Once the new
+-- endpoint has been deployed, this middleware can be removed.
+internalHandleCompatibilityMiddleware :: Wai.Middleware
+internalHandleCompatibilityMiddleware app req k =
+  app
+    ( case Wai.pathInfo req of
+        ("i" : "users" : "handles" : rest) ->
+          req
+            { Wai.pathInfo = ("i" : "handles" : rest)
+            }
+        _ -> req
+    )
+    k
 
 type ServantCombinedAPI =
   ( DocsAPI
@@ -187,7 +200,7 @@ pendingActivationCleanup ::
   AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
-    now <- liftIO =<< view currentTime
+    now <- liftIO =<< asks (.currentTime)
     forExpirationsPaged $ \exps -> do
       uids <-
         for exps $ \(UserPendingActivation uid expiresAt) -> do
@@ -234,7 +247,7 @@ pendingActivationCleanup = do
 
     threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do
-      cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> view settings
+      cleanupTimeout <- fromMaybe (hours 24) <$> asks (.settings.expiredUserCleanupTimeout)
       let d = realToFrac cleanupTimeout
       randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * d, d))
       threadDelay (randomSecs * 1_000_000)
@@ -244,7 +257,7 @@ pendingActivationCleanup = do
 
 collectAuthMetrics :: forall r. AppT r ()
 collectAuthMetrics = do
-  env <- view (awsEnv . amazonkaEnv)
+  env <- asks (.awsEnv._amazonkaEnv)
   liftIO $
     forever $ do
       mbRemaining <- readAuthExpiration env

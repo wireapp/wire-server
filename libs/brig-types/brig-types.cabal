@@ -17,7 +17,6 @@ library
     Brig.Types.Instances
     Brig.Types.Intra
     Brig.Types.Provider.Tag
-    Brig.Types.Search
     Brig.Types.Team
     Brig.Types.Team.LegalHold
     Brig.Types.Test.Arbitrary
@@ -73,16 +72,12 @@ library
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson                  >=2.0.1.0
-    , attoparsec             >=0.10
-    , base                   >=4       && <5
-    , bytestring
+      base                   >=4    && <5
     , bytestring-conversion  >=0.2
     , cassandra-util
     , containers             >=0.5
     , imports
     , QuickCheck             >=2.9
-    , text                   >=0.11
     , types-common           >=0.16
     , wire-api
 
@@ -148,15 +143,13 @@ test-suite brig-types-tests
     -Wunused-packages
 
   build-depends:
-      aeson                  >=2.0.1.0
-    , base                   >=4       && <5
+      aeson             >=2.0.1.0
+    , base              >=4       && <5
     , brig-types
-    , bytestring-conversion  >=0.3.1
     , imports
     , openapi3
-    , QuickCheck             >=2.9
+    , QuickCheck        >=2.9
     , tasty
-    , tasty-hunit
     , tasty-quickcheck
     , wire-api
 

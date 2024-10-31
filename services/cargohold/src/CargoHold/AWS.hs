@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,19 +19,14 @@
 
 module CargoHold.AWS
   ( -- * Monad
-    Env,
+    Env (..),
     mkEnv,
     amazonkaEnvWithDownloadEndpoint,
     Amazon,
-    amazonkaEnv,
     execute,
-    s3Bucket,
-    cloudFront,
     Error (..),
-    amazonkaDownloadEndpoint,
 
     -- * AWS
-    send,
     sendCatch,
     exec,
     execStream,
@@ -58,23 +52,21 @@ import qualified System.Logger.Class as Log
 import Util.Options (AWSEndpoint (..))
 
 data Env = Env
-  { _logger :: !Logger,
-    _s3Bucket :: !Text,
-    _amazonkaEnv :: !AWS.Env,
+  { logger :: !Logger,
+    s3Bucket :: !Text,
+    amazonkaEnv :: !AWS.Env,
     -- | Endpoint for downloading assets (for the external world).
     -- This gets used with Minio, which Cargohold can reach using a cluster-internal endpoint,
     -- but clients can't, so we need to use a public one for pre-signed URLs we redirect to.
-    _amazonkaDownloadEndpoint :: !AWSEndpoint,
-    _cloudFront :: !(Maybe CloudFront)
+    amazonkaDownloadEndpoint :: !AWSEndpoint,
+    cloudFront :: !(Maybe CloudFront)
   }
-
-makeLenses ''Env
 
 -- | Override the endpoint in the '_amazonkaEnv' with '_amazonkaDownloadEndpoint'.
 -- TODO: Choose the correct s3 addressing style
 amazonkaEnvWithDownloadEndpoint :: Env -> AWS.Env
 amazonkaEnvWithDownloadEndpoint e =
-  AWS.overrideService (setAWSEndpoint (e ^. amazonkaDownloadEndpoint)) (e ^. amazonkaEnv)
+  AWS.overrideService (setAWSEndpoint e.amazonkaDownloadEndpoint) e.amazonkaEnv
 
 setAWSEndpoint :: AWSEndpoint -> AWS.Service -> AWS.Service
 setAWSEndpoint e = AWS.setEndpoint (_awsSecure e) (_awsHost e) (_awsPort e)
@@ -96,7 +88,7 @@ newtype Amazon a = Amazon
     )
 
 instance MonadLogger Amazon where
-  log l m = view logger >>= \g -> Logger.log g l m
+  log l m = asks (.logger) >>= \g -> Logger.log g l m
 
 mkEnv ::
   Logger ->
@@ -116,7 +108,7 @@ mkEnv lgr s3End s3AddrStyle s3Download bucket cfOpts mgr = do
   cf <- mkCfEnv cfOpts
   pure (Env g bucket e s3Download cf)
   where
-    mkCfEnv (Just o) = Just <$> initCloudFront (o ^. privateKey) (o ^. keyPairId) 300 (o ^. domain)
+    mkCfEnv (Just o) = Just <$> initCloudFront o.privateKey o.keyPairId 300 o.domain
     mkCfEnv Nothing = pure Nothing
     mkAwsEnv g s3 = do
       baseEnv <-
@@ -164,16 +156,6 @@ sendCatch ::
   m (Either AWS.Error (AWSResponse r))
 sendCatch env = AWS.trying AWS._Error . AWS.send env
 
-send ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
-  AWS.Env ->
-  r ->
-  Amazon (AWSResponse r)
-send env r = throwA =<< sendCatch env r
-
-throwA :: Either AWS.Error a -> Amazon a
-throwA = either (throwM . GeneralError) pure
-
 exec ::
   ( AWSRequest r,
     Typeable r,
@@ -187,11 +169,11 @@ exec ::
   (Text -> r) ->
   m (AWSResponse r)
 exec env request = do
-  let req = request env._s3Bucket
-  resp <- execute env (sendCatch (env ^. amazonkaEnv) req)
+  let req = request env.s3Bucket
+  resp <- execute env (sendCatch env.amazonkaEnv req)
   case resp of
     Left err -> do
-      Logger.info (view logger env) $
+      Logger.info env.logger $
         Log.field "remote" (Log.val "S3")
           ~~ Log.msg (show err)
           ~~ Log.msg (show req)
@@ -210,11 +192,11 @@ execStream ::
   (Text -> r) ->
   ResourceT IO (AWSResponse r)
 execStream env request = do
-  let req = request env._s3Bucket
-  resp <- sendCatch (env ^. amazonkaEnv) req
+  let req = request env.s3Bucket
+  resp <- sendCatch env.amazonkaEnv req
   case resp of
     Left err -> do
-      Logger.info (view logger env) $
+      Logger.info env.logger $
         Log.field "remote" (Log.val "S3")
           ~~ Log.msg (show err)
           ~~ Log.msg (show req)
@@ -235,8 +217,8 @@ execCatch ::
   (Text -> r) ->
   m (Maybe (AWSResponse r))
 execCatch env request = do
-  let req = request env._s3Bucket
-  resp <- execute env (retrying retry5x (const canRetry) (const (sendCatch (env ^. amazonkaEnv) req)))
+  let req = request env.s3Bucket
+  resp <- execute env (retrying retry5x (const canRetry) (const (sendCatch env.amazonkaEnv req)))
   case resp of
     Left err -> do
       Log.info $

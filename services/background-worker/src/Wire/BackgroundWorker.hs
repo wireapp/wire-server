@@ -8,6 +8,7 @@ import Data.Metrics.Servant qualified as Metrics
 import Data.Text qualified as T
 import Imports
 import Network.AMQP qualified as Q
+import Network.AMQP.Extended (demoteOpts)
 import Network.Wai.Utilities.Server
 import Servant
 import Servant.Server.Generic
@@ -21,7 +22,8 @@ import Wire.BackgroundWorker.Options
 run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
-  (notifChanRef, notifConsumersRef) <- runAppT env $ BackendNotificationPusher.startWorker opts.rabbitmq
+  let amqpEP = either id demoteOpts opts.rabbitmq.unRabbitMqOpts
+  (notifChanRef, notifConsumersRef) <- runAppT env $ BackendNotificationPusher.startWorker amqpEP
   let -- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
       -- specific exception types to message threads to clean up
       l = logger env
@@ -48,7 +50,7 @@ run opts = do
           -- Close the channel. `extended` will then close the connection, flushing messages to the server.
           Log.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
           Q.closeChannel chan
-  let server = defaultServer (T.unpack $ opts.backgroundWorker._host) opts.backgroundWorker._port env.logger
+  let server = defaultServer (T.unpack $ opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   settings <- newSettings server
   -- Additional cleanup when shutting down via signals.
   runSettingsWithCleanup cleanup settings (servantApp env) Nothing

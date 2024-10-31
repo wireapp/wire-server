@@ -28,7 +28,7 @@ module Spar.Intra.Brig
     setBrigUserName,
     setBrigUserHandle,
     setBrigUserManagedBy,
-    setBrigUserVeid,
+    setBrigUserSSOId,
     setBrigUserRichInfo,
     setBrigUserLocale,
     checkHandleAvailable,
@@ -68,13 +68,9 @@ import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
+import Wire.UserSubsystem (HavePendingInvitations (..))
 
 ----------------------------------------------------------------------
-
--- | FUTUREWORK: this is redundantly defined in "Spar.Intra.BrigApp".
-veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
@@ -130,7 +126,8 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
 
 createBrigUserNoSAML ::
   (HasCallStack, MonadSparToBrig m) =>
-  Email ->
+  Text ->
+  EmailAddress ->
   UserId ->
   TeamId ->
   -- | User name
@@ -138,8 +135,8 @@ createBrigUserNoSAML ::
   Maybe Locale ->
   Role ->
   m UserId
-createBrigUserNoSAML email uid teamid uname locale role = do
-  let newUser = NewUserScimInvitation teamid uid locale uname email role
+createBrigUserNoSAML extId email uid teamid uname locale role = do
+  let newUser = NewUserScimInvitation teamid uid extId locale uname email role
   resp :: ResponseLBS <-
     call $
       method POST
@@ -147,10 +144,10 @@ createBrigUserNoSAML email uid teamid uname locale role = do
         . json newUser
 
   if statusCode resp `elem` [200, 201]
-    then userId . accountUser <$> parseResponse @UserAccount "brig" resp
+    then userId <$> parseResponse @User "brig" resp
     else rethrow "brig" resp
 
-updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
+updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> EmailAddress -> m ()
 updateEmail buid email = do
   resp <-
     call $
@@ -165,7 +162,7 @@ updateEmail buid email = do
     _ -> rethrow "brig" resp
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
-getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe UserAccount)
+getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe User)
 getBrigUserAccount havePending buid = do
   resp :: ResponseLBS <-
     call $
@@ -183,10 +180,10 @@ getBrigUserAccount havePending buid = do
 
   case statusCode resp of
     200 ->
-      parseResponse @[UserAccount] "brig" resp >>= \case
+      parseResponse @[User] "brig" resp >>= \case
         [account] ->
           pure $
-            if userDeleted $ accountUser account
+            if userDeleted account
               then Nothing
               else Just account
         _ -> pure Nothing
@@ -197,7 +194,7 @@ getBrigUserAccount havePending buid = do
 --
 -- TODO: currently this is not used, but it might be useful later when/if
 -- @hscim@ stops doing checks during user creation.
-getBrigUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe UserAccount)
+getBrigUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe User)
 getBrigUserByHandle handle = do
   resp :: ResponseLBS <-
     call $
@@ -206,11 +203,11 @@ getBrigUserByHandle handle = do
         . queryItem "handles" (toByteString' handle)
         . queryItem "includePendingInvitations" "true"
   case statusCode resp of
-    200 -> listToMaybe <$> parseResponse @[UserAccount] "brig" resp
+    200 -> listToMaybe <$> parseResponse @[User] "brig" resp
     404 -> pure Nothing
     _ -> rethrow "brig" resp
 
-getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe UserAccount)
+getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => EmailAddress -> m (Maybe User)
 getBrigUserByEmail email = do
   resp :: ResponseLBS <-
     call $
@@ -220,8 +217,8 @@ getBrigUserByEmail email = do
         . queryItem "includePendingInvitations" "true"
   case statusCode resp of
     200 -> do
-      macc <- listToMaybe <$> parseResponse @[UserAccount] "brig" resp
-      case userEmail . accountUser =<< macc of
+      macc <- listToMaybe <$> parseResponse @[User] "brig" resp
+      case userEmail =<< macc of
         Just email' | email' == email -> pure macc
         _ -> pure Nothing
     404 -> pure Nothing
@@ -273,13 +270,13 @@ setBrigUserManagedBy buid managedBy = do
     rethrow "brig" resp
 
 -- | Set user's UserSSOId.
-setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> ValidExternalId -> m ()
-setBrigUserVeid buid veid = do
+setBrigUserSSOId :: (HasCallStack, MonadSparToBrig m) => UserId -> UserSSOId -> m ()
+setBrigUserSSOId buid ssoId = do
   resp <-
     call $
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
-        . json (veidToUserSSOId veid)
+        . json ssoId
   case statusCode resp of
     200 -> pure ()
     _ -> rethrow "brig" resp

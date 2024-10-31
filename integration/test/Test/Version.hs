@@ -9,22 +9,24 @@ newtype Versioned' = Versioned' Versioned
 
 -- | This instance is used to generate tests for some of the versions. (Not checking all of them for time efficiency reasons)
 instance TestCases Versioned' where
-  testCases =
-    [ MkTestCase "[version=unversioned]" (Versioned' Unversioned),
-      MkTestCase "[version=versioned]" (Versioned' Versioned),
-      MkTestCase "[version=v1]" (Versioned' (ExplicitVersion 1)),
-      MkTestCase "[version=v3]" (Versioned' (ExplicitVersion 3)),
-      MkTestCase "[version=v6]" (Versioned' (ExplicitVersion 6))
-    ]
+  mkTestCases =
+    pure
+      [ MkTestCase "[version=unversioned]" (Versioned' Unversioned),
+        MkTestCase "[version=versioned]" (Versioned' Versioned),
+        MkTestCase "[version=v1]" (Versioned' (ExplicitVersion 1)),
+        MkTestCase "[version=v3]" (Versioned' (ExplicitVersion 3)),
+        MkTestCase "[version=v6]" (Versioned' (ExplicitVersion 6))
+      ]
 
 -- | Used to test endpoints that have changed after version 5
 data Version5 = Version5 | NoVersion5
 
 instance TestCases Version5 where
-  testCases =
-    [ MkTestCase "[version=versioned]" NoVersion5,
-      MkTestCase "[version=v5]" Version5
-    ]
+  mkTestCases =
+    pure
+      [ MkTestCase "[version=versioned]" NoVersion5,
+        MkTestCase "[version=v5]" Version5
+      ]
 
 withVersion5 :: Version5 -> App a -> App a
 withVersion5 Version5 = withAPIVersion 5

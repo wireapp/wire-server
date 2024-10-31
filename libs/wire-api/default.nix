@@ -23,7 +23,6 @@
 , cereal
 , comonad
 , conduit
-, constraints
 , containers
 , cookie
 , crypton
@@ -32,7 +31,6 @@
 , data-default
 , deriving-aeson
 , deriving-swagger2
-, either
 , email-validate
 , errors
 , extended
@@ -58,12 +56,14 @@
 , iso3166-country-codes
 , iso639
 , jose
+, kan-extensions
 , lens
 , lib
 , memory
 , metrics-wai
 , mime
 , mtl
+, network-uri
 , openapi3
 , pem
 , polysemy
@@ -83,6 +83,7 @@
 , servant-client-core
 , servant-conduit
 , servant-multipart
+, servant-multipart-api
 , servant-openapi3
 , servant-server
 , singletons
@@ -96,9 +97,9 @@
 , tasty-hunit
 , tasty-quickcheck
 , text
+, these
 , time
 , tinylog
-, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -134,7 +135,6 @@ mkDerivation {
     cereal
     comonad
     conduit
-    constraints
     containers
     cookie
     crypton
@@ -143,7 +143,6 @@ mkDerivation {
     data-default
     deriving-aeson
     deriving-swagger2
-    either
     email-validate
     errors
     extended
@@ -165,11 +164,13 @@ mkDerivation {
     iso3166-country-codes
     iso639
     jose
+    kan-extensions
     lens
     memory
     metrics-wai
     mime
     mtl
+    network-uri
     openapi3
     pem
     polysemy
@@ -188,6 +189,7 @@ mkDerivation {
     servant-client-core
     servant-conduit
     servant-multipart
+    servant-multipart-api
     servant-openapi3
     servant-server
     singletons
@@ -196,9 +198,9 @@ mkDerivation {
     sop-core
     tagged
     text
+    these
     time
     tinylog
-    transitive-anns
     types-common
     unordered-containers
     uri-bytestring
@@ -228,7 +230,6 @@ mkDerivation {
     containers
     crypton
     currency-codes
-    either
     filepath
     hex
     hspec

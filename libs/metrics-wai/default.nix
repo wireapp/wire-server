@@ -14,11 +14,11 @@
 , servant
 , servant-multipart
 , text
+, types-common
 , utf8-string
 , wai
 , wai-middleware-prometheus
 , wai-route
-, wai-routing
 }:
 mkDerivation {
   pname = "metrics-wai";
@@ -32,11 +32,11 @@ mkDerivation {
     servant
     servant-multipart
     text
+    types-common
     utf8-string
     wai
     wai-middleware-prometheus
     wai-route
-    wai-routing
   ];
   testHaskellDepends = [ base containers hspec imports ];
   testToolDepends = [ hspec-discover ];

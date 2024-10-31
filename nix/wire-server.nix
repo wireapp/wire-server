@@ -86,6 +86,7 @@ let
     integration = [ "integration" ];
     rabbitmq-consumer = [ "rabbitmq-consumer" ];
     test-stats = [ "test-stats" ];
+    team-info = [ "team-info" ];
   };
 
   inherit (lib) attrsets;
@@ -292,6 +293,7 @@ let
       pkgs.nginz
       pkgs.mls-test-cli
       pkgs.awscli2
+      pkgs.vacuum-go
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-ses
@@ -413,6 +415,7 @@ let
     pkgs.nixpkgs-fmt
     pkgs.openssl
     pkgs.ormolu
+    pkgs.vacuum-go
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
@@ -477,7 +480,7 @@ let
       out = import ./all-toplevel-derivations.nix {
         inherit (pkgs) lib;
         fn = mk;
-        # more than two takes more than 32GB of RAM, so this is what 
+        # more than two takes more than 32GB of RAM, so this is what
         # we're limiting ourselves to
         recursionDepth = 2;
         keyFilter = k: k != "passthru";
@@ -517,7 +520,7 @@ in
       pkgs.kind
       pkgs.netcat
       pkgs.niv
-      (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
+      pkgs.haskellPackages.apply-refact
       (pkgs.python3.withPackages
         (ps: with ps; [
           black
@@ -547,7 +550,7 @@ in
     ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
       # linux-only, not strictly required tools
       pkgs.docker-compose
-      pkgs.telepresence
+      (pkgs.telepresence.override { pythonPackages = pkgs.python310Packages; })
     ];
   };
 

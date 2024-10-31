@@ -40,12 +40,12 @@ import Wire.API.Team.Permission
   )
 
 testObject_Permissions_team_1 :: Permissions
-testObject_Permissions_team_1 = Permissions {_self = fromList [SetBilling], _copy = fromList [SetBilling]}
+testObject_Permissions_team_1 = Permissions {self = fromList [SetBilling], copy = fromList [SetBilling]}
 
 testObject_Permissions_team_2 :: Permissions
 testObject_Permissions_team_2 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ DeleteConversation,
             AddTeamMember,
@@ -58,7 +58,7 @@ testObject_Permissions_team_2 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ DeleteConversation,
             AddTeamMember,
@@ -75,7 +75,7 @@ testObject_Permissions_team_2 =
 testObject_Permissions_team_3 :: Permissions
 testObject_Permissions_team_3 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ DeleteConversation,
             AddTeamMember,
@@ -87,7 +87,7 @@ testObject_Permissions_team_3 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ AddTeamMember,
             RemoveTeamMember,
@@ -102,7 +102,7 @@ testObject_Permissions_team_3 =
 testObject_Permissions_team_4 :: Permissions
 testObject_Permissions_team_4 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ DeleteConversation,
             AddTeamMember,
@@ -113,13 +113,13 @@ testObject_Permissions_team_4 =
             SetMemberPermissions,
             DeleteTeam
           ],
-      _copy = fromList [GetBilling]
+      copy = fromList [GetBilling]
     }
 
 testObject_Permissions_team_5 :: Permissions
 testObject_Permissions_team_5 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             AddTeamMember,
@@ -131,7 +131,7 @@ testObject_Permissions_team_5 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ CreateConversation,
             RemoveTeamMember,
@@ -145,7 +145,7 @@ testObject_Permissions_team_5 =
 testObject_Permissions_team_6 :: Permissions
 testObject_Permissions_team_6 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             AddTeamMember,
@@ -158,7 +158,7 @@ testObject_Permissions_team_6 =
             GetMemberPermissions,
             GetTeamConversations
           ],
-      _copy =
+      copy =
         fromList
           [ CreateConversation,
             AddTeamMember,
@@ -175,7 +175,7 @@ testObject_Permissions_team_6 =
 testObject_Permissions_team_7 :: Permissions
 testObject_Permissions_team_7 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ AddTeamMember,
             RemoveTeamMember,
@@ -186,13 +186,13 @@ testObject_Permissions_team_7 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy = fromList [AddRemoveConvMember, GetBilling, DeleteTeam]
+      copy = fromList [AddRemoveConvMember, GetBilling, DeleteTeam]
     }
 
 testObject_Permissions_team_8 :: Permissions
 testObject_Permissions_team_8 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -207,7 +207,7 @@ testObject_Permissions_team_8 =
             SetMemberPermissions,
             GetTeamConversations
           ],
-      _copy =
+      copy =
         fromList
           [ AddTeamMember,
             RemoveTeamMember,
@@ -222,20 +222,20 @@ testObject_Permissions_team_8 =
 testObject_Permissions_team_9 :: Permissions
 testObject_Permissions_team_9 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             DeleteConversation,
             AddRemoveConvMember,
             GetMemberPermissions
           ],
-      _copy = fromList [CreateConversation, AddRemoveConvMember, GetMemberPermissions]
+      copy = fromList [CreateConversation, AddRemoveConvMember, GetMemberPermissions]
     }
 
 testObject_Permissions_team_10 :: Permissions
 testObject_Permissions_team_10 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -247,7 +247,7 @@ testObject_Permissions_team_10 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -264,7 +264,7 @@ testObject_Permissions_team_10 =
 testObject_Permissions_team_11 :: Permissions
 testObject_Permissions_team_11 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ DeleteConversation,
             RemoveTeamMember,
@@ -274,13 +274,13 @@ testObject_Permissions_team_11 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy = fromList [RemoveTeamMember, GetMemberPermissions, GetTeamConversations]
+      copy = fromList [RemoveTeamMember, GetMemberPermissions, GetTeamConversations]
     }
 
 testObject_Permissions_team_12 :: Permissions
 testObject_Permissions_team_12 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -295,7 +295,7 @@ testObject_Permissions_team_12 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -314,7 +314,7 @@ testObject_Permissions_team_12 =
 testObject_Permissions_team_13 :: Permissions
 testObject_Permissions_team_13 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             AddTeamMember,
@@ -324,13 +324,13 @@ testObject_Permissions_team_13 =
             SetTeamData,
             SetMemberPermissions
           ],
-      _copy = fromList [SetTeamData, SetMemberPermissions]
+      copy = fromList [SetTeamData, SetMemberPermissions]
     }
 
 testObject_Permissions_team_14 :: Permissions
 testObject_Permissions_team_14 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -342,7 +342,7 @@ testObject_Permissions_team_14 =
             GetMemberPermissions,
             SetMemberPermissions
           ],
-      _copy =
+      copy =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -359,7 +359,7 @@ testObject_Permissions_team_14 =
 testObject_Permissions_team_15 :: Permissions
 testObject_Permissions_team_15 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ DeleteConversation,
             AddTeamMember,
@@ -371,13 +371,13 @@ testObject_Permissions_team_15 =
             SetMemberPermissions,
             DeleteTeam
           ],
-      _copy = fromList []
+      copy = fromList []
     }
 
 testObject_Permissions_team_16 :: Permissions
 testObject_Permissions_team_16 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ DeleteConversation,
             AddRemoveConvMember,
@@ -386,7 +386,7 @@ testObject_Permissions_team_16 =
             SetMemberPermissions,
             GetTeamConversations
           ],
-      _copy =
+      copy =
         fromList
           [DeleteConversation, GetBilling, SetTeamData, SetMemberPermissions, GetTeamConversations]
     }
@@ -394,7 +394,7 @@ testObject_Permissions_team_16 =
 testObject_Permissions_team_17 :: Permissions
 testObject_Permissions_team_17 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ DeleteConversation,
             AddTeamMember,
@@ -406,7 +406,7 @@ testObject_Permissions_team_17 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ DeleteConversation,
             AddTeamMember,
@@ -423,7 +423,7 @@ testObject_Permissions_team_17 =
 testObject_Permissions_team_18 :: Permissions
 testObject_Permissions_team_18 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             AddTeamMember,
@@ -433,7 +433,7 @@ testObject_Permissions_team_18 =
             SetMemberPermissions,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ CreateConversation,
             AddTeamMember,
@@ -447,7 +447,7 @@ testObject_Permissions_team_18 =
 testObject_Permissions_team_19 :: Permissions
 testObject_Permissions_team_19 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -462,7 +462,7 @@ testObject_Permissions_team_19 =
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -479,7 +479,7 @@ testObject_Permissions_team_19 =
 testObject_Permissions_team_20 :: Permissions
 testObject_Permissions_team_20 =
   Permissions
-    { _self =
+    { self =
         fromList
           [ CreateConversation,
             DeleteConversation,
@@ -491,7 +491,7 @@ testObject_Permissions_team_20 =
             SetMemberPermissions,
             DeleteTeam
           ],
-      _copy =
+      copy =
         fromList
           [ DeleteConversation,
             AddTeamMember,

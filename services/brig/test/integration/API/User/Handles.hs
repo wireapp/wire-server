@@ -41,18 +41,19 @@ import Imports
 import Network.Wai.Utilities.Error qualified as Error
 import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty hiding (Timeout)
-import Test.Tasty.Cannon hiding (Cannon)
+import Test.Tasty.Cannon hiding (Cannon, Timeout)
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Util.Timeout
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Handle
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =
   testGroup
     "handles"
@@ -61,14 +62,15 @@ tests _cl _at conf p b c g =
       test p "handles/query" $ testHandleQuery conf b,
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
       test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g,
-      test p "GET /users/handles/<handle> 200" $ testGetUserByUnqualifiedHandle b,
-      test p "GET /users/handles/<handle> 404" $ testGetUserByUnqualifiedHandleFailure b,
+      test p "GET /handles/<handle> 200" $ testGetUserByUnqualifiedHandle b,
+      test p "GET /handles/<handle> 404" $ testGetUserByUnqualifiedHandleFailure b,
       test p "GET /users/by-handle/<domain>/<handle> : 200" $ testGetUserByQualifiedHandle b,
       test p "GET /users/by-handle/<domain>/<handle> : 404" $ testGetUserByQualifiedHandleFailure b,
       test p "GET /users/by-handle/<domain>/<handle> : no federation" $ testGetUserByQualifiedHandleNoFederation conf b
     ]
 
 -- The next line contains a mapping from the testHandleUpdate test to the following test standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test validates various updates to the user's handle. First, it attempts
 -- to set invalid handles. This fails. Then it successfully sets a valid handle.
@@ -103,7 +105,7 @@ testHandleUpdate brig cannon = do
   -- The owner of the handle can always retry the update
   put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
     !!! const 200 === statusCode
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 200 === statusCode
   -- For other users, the handle is unavailable
   uid2 <- userId <$> randomUser brig
@@ -118,7 +120,7 @@ testHandleUpdate brig cannon = do
   let update2 = RequestBodyLBS . encode $ HandleUpdate hdl2
   put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update2)
     !!! const 200 === statusCode
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode
   -- The owner appears by the new handle in search
   Search.refreshIndex brig
@@ -138,6 +140,8 @@ testHandleUpdate brig cannon = do
   -- now 'uid2' takes 'hld' back.
   put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update)
     !!! const 200 === statusCode
+
+-- @END
 
 testHandleRace :: Brig -> Http ()
 testHandleRace brig = do
@@ -159,7 +163,7 @@ testHandleQuery opts brig = do
   uid <- userId <$> randomUser brig
   hdl <- randomHandle
   -- Query for the handle availability (must be free)
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode
   -- Set handle
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
@@ -170,7 +174,7 @@ testHandleQuery opts brig = do
     const 200 === statusCode
     const (Just (fromJust $ parseHandle hdl)) === (userHandle <=< responseJsonMaybe)
   -- Query for the handle availability (must be taken)
-  Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
+  Bilge.head (brig . paths ["handles", toByteString' hdl] . zUser uid)
     !!! const 200 === statusCode
   -- Query user profiles by handles
   get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
@@ -193,7 +197,7 @@ testHandleQuery opts brig = do
   -- Usually, you can search outside your team
   assertCanFind brig user3 user4
   -- Usually, you can search outside your team but not if this config option is set
-  let newOpts = opts & ((Opt.optionSettings . Opt.searchSameTeamOnly) ?~ True)
+  let newOpts = opts & ((Opt.settingsLens . Opt.searchSameTeamOnlyLens) ?~ True)
   withSettingsOverrides newOpts $
     assertCannotFind brig user3 user4
 

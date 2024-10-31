@@ -32,7 +32,6 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
 import Brig.API.OAuth (oauthAPI)
-import Brig.API.Properties qualified as API
 import Brig.API.Public.Swagger
 import Brig.API.Types
 import Brig.API.User qualified as API
@@ -42,9 +41,7 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
-import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.FederationConfigStore (FederationConfigStore)
+import Brig.Effects.ConnectionStore
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
@@ -54,22 +51,17 @@ import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
 import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
-import Brig.Types.User (HavePendingInvitations (..))
+import Brig.Types.Intra
 import Brig.User.API.Handle qualified as Handle
-import Brig.User.API.Search (teamUserSearch)
-import Brig.User.API.Search qualified as Search
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens ((.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
-import Data.Bifunctor
 import Data.ByteString (fromStrict, toStrict)
-import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Code qualified as Code
@@ -79,6 +71,7 @@ import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
@@ -88,17 +81,16 @@ import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.Schema ()
-import Data.Text qualified as Text
-import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
-import Data.Text.Lazy (pack)
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
 import Network.Socket (PortNumber)
-import Network.Wai.Utilities as Utilities
+import Network.Wai.Utilities (CacheControl (..), (!>>))
+import Network.Wai.Utilities qualified as Utilities
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -110,17 +102,18 @@ import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.Connection qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
 import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
 import Wire.API.Routes.Internal.Galley qualified as GalleyInternalAPI
+import Wire.API.Routes.Internal.Gundeck qualified as GundeckInternalAPI
 import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
@@ -149,25 +142,40 @@ import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
+import Wire.API.User.Search qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
+import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
+import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
+import Wire.EmailSubsystem.Template
 import Wire.Error
+import Wire.Events (Events)
+import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.HashPassword (HashPassword)
+import Wire.IndexedUserStore (IndexedUserStore)
+import Wire.InvitationStore
 import Wire.NotificationSubsystem
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
+import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
-import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.Sem.Paging.Cassandra
+import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
+import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
-import Wire.UserSubsystem qualified as UserSubsystem
+import Wire.UserSubsystem qualified as User
+import Wire.UserSubsystem.Error
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -190,31 +198,33 @@ federatedEndpointsSwaggerDocsAPIs =
 internalEndpointsSwaggerDocsAPIs :: Servant.Server InternalEndpointsSwaggerDocsAPI
 internalEndpointsSwaggerDocsAPIs =
   internalEndpointsSwaggerDocsAPI @"brig" "brig" 9082 BrigInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"cannon" "cannon" 9093 CannonInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"cargohold" "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"galley" "galley" 9095 GalleyInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"spar" "spar" 9098 SparInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"cannon" "cannon" 9083 CannonInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"cargohold" "cargohold" 9084 CargoholdInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"galley" "galley" 9085 GalleyInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"spar" "spar" 9088 SparInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"gundeck" "gundeck" 9086 GundeckInternalAPI.swaggerDoc
 
 -- | Serves Swagger docs for public endpoints
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V6)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V7)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V6
-        <> serviceSwagger @BrigAPITag @'V6
-        <> serviceSwagger @GalleyAPITag @'V6
-        <> serviceSwagger @SparAPITag @'V6
-        <> serviceSwagger @CargoholdAPITag @'V6
-        <> serviceSwagger @CannonAPITag @'V6
-        <> serviceSwagger @GundeckAPITag @'V6
-        <> serviceSwagger @ProxyAPITag @'V6
-        <> serviceSwagger @OAuthAPITag @'V6
+    ( serviceSwagger @VersionAPITag @'V7
+        <> serviceSwagger @BrigAPITag @'V7
+        <> serviceSwagger @GalleyAPITag @'V7
+        <> serviceSwagger @SparAPITag @'V7
+        <> serviceSwagger @CargoholdAPITag @'V7
+        <> serviceSwagger @CannonAPITag @'V7
+        <> serviceSwagger @GundeckAPITag @'V7
+        <> serviceSwagger @ProxyAPITag @'V7
+        <> serviceSwagger @OAuthAPITag @'V7
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V6) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V7) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V6)) = swaggerPregenUIServer $(pregenSwagger V6)
 versionedSwaggerDocsAPI (Just (VersionNumber V5)) = swaggerPregenUIServer $(pregenSwagger V5)
 versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
@@ -235,79 +245,125 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 
     listAllVersionsHTML :: LByteString
     listAllVersionsHTML =
-      "<html><head></head><body><h2>please pick an api version</h2>"
-        <> mconcat
-          [ let url = "/" <> toQueryParam v <> "/api/swagger-ui/"
-             in "<a href=\""
-                  <> (fromStrict . Text.encodeUtf8 $ url)
-                  <> "\">"
-                  <> (fromStrict . Text.encodeUtf8 $ url)
-                  <> "</a><br>"
-            | v <- [minBound :: Version ..]
-          ]
-        <> "</body>"
+      LBS.unlines $
+        [ "<html><head></head><body><h1>OpenAPI 3.0 docs for all Wire APIs</h1>",
+          intro,
+          LBS.unlines public,
+          LBS.unlines internal,
+          LBS.unlines federated,
+          "</body></html>"
+        ]
+      where
+        intro =
+          "<p>This wire-server system provides <a href=\"https://swagger.io/resources/open-api/\">OpenAPI 3.0</a> \
+          \documentation of our HTTP REST API.</p> \
+          \<p>The openapi docs are correct by construction (compiled from the server code), and more or less \
+          \complete.</p> \
+          \<p>Some endpoints are version-controlled. </a href=\"/api-version\">Show all supported versions.</a> \
+          \<a href=\"https://docs.wire.com/developer/developer/api-versioning.html\">find out more.</a>"
 
--- | Serves Swagger docs for internal endpoints
---
--- Dual to `versionedSwaggerDocsAPI`. Swagger docs for old versions are (almost)
--- empty. It would have been too tedious to create them. Please add
--- pre-generated docs on version increase as it's done in
--- `versionedSwaggerDocsAPI`.
---
--- If you're having issues with this function not typechecking when it should,
--- be sure to supply the type argument explicitly
+        public :: [LByteString]
+        public =
+          ["<h2>Public (all available versions)</h2>"]
+            <> mconcat
+              [ [ v <> ": ",
+                  renderLink "swagger-ui" ("/" <> v <> "/api/swagger-ui") <> "; ",
+                  renderLink "swagger.json" ("/" <> v <> "/api/swagger.json"),
+                  "<br>"
+                ]
+                | v <- versionToLByteString <$> [minBound :: Version ..]
+              ]
+
+        internal :: [LByteString]
+        internal =
+          [ "<h2>Internal (not versioned)</h2>",
+            "<p>Openapi docs for internal endpoints are served per service. I.e. there's one for `brig`, one for `cannon`, \
+            \etc..  This is because Openapi doesn't play well with multiple actions having the same combination of HTTP \
+            \method and URL path.</p>"
+          ]
+            <> mconcat
+              [ [ s <> ":<br>",
+                  renderLink "swagger-ui" ("/api-internal/swagger-ui/" <> s) <> "; ",
+                  renderLink "swagger.json" ("/api-internal/swagger-ui/" <> s <> "-swagger.json"),
+                  "<br>"
+                ]
+                | s <- ["brig", "galley", "spar", "cargohold", "gundeck", "cannon", "proxy"]
+              ]
+
+        federated :: [LByteString]
+        federated =
+          ["<h2>Federated API (backend-to-backend)</h2>"]
+            <> [ mconcat
+                   [ mconcat
+                       [ s <> " (" <> v <> "):<br>",
+                         renderLink "swagger-ui" ("/" <> v <> "/api-federation/swagger-ui/" <> s) <> "; ",
+                         renderLink "swagger.json" ("/" <> v <> "/api-federation/swagger-ui/" <> s <> "-swagger.json"),
+                         "<br>"
+                       ]
+                     | v <- versionToLByteString <$> [minBound :: Fed.Version ..]
+                   ]
+                   <> "<br>"
+                 | s <- ["brig", "galley", "cargohold"]
+               ]
+
+        versionToLByteString :: (ToHttpApiData v) => v -> LByteString
+        versionToLByteString = fromStrict . Text.encodeUtf8 . toQueryParam
+
+        renderLink :: LByteString -> LByteString -> LByteString
+        renderLink caption url = "<a href=\"" <> url <> "\">" <> caption <> "</a>"
+
+-- | Serves Swagger docs for internal endpoints.
 internalEndpointsSwaggerDocsAPI ::
   forall service.
   String ->
   PortNumber ->
   S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V6)) =
-  swaggerSchemaUIServer $
-    swagger
-      & adjustSwaggerForInternalEndpoint service examplePort
-      & cleanupSwagger
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
-  swaggerSchemaUIServer $
-    swagger
-      & adjustSwaggerForInternalEndpoint service examplePort
-      & cleanupSwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V4)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V3)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V2)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V1)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V0)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just _) = emptySwagger "Internal APIs are not versioned!"
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
-  internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
+  swaggerSchemaUIServer $
+    swagger
+      & adjustSwaggerForInternalEndpoint service examplePort
+      & cleanupSwagger
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistStore r,
-    Member DeleteQueue r,
-    Member (Concurrency 'Unsafe) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member (Embed HttpClientIO) r,
+  ( Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
-    Member FederationConfigStore r,
+    Member (Error UserSubsystemError) r,
     Member (Input (Local ())) r,
-    Member AuthenticationSubsystem r,
     Member (Input UTCTime) r,
-    Member Jwk r,
+    Member (UserPendingActivationStore p) r,
+    Member AuthenticationSubsystem r,
+    Member DeleteQueue r,
+    Member EmailSending r,
+    Member EmailSubsystem r,
+    Member Events r,
+    Member FederationConfigStore r,
     Member GalleyAPIAccess r,
+    Member InvitationStore r,
+    Member Jwk r,
     Member JwtTools r,
     Member NotificationSubsystem r,
-    Member UserSubsystem r,
-    Member UserStore r,
-    Member PasswordStore r,
-    Member UserKeyStore r,
     Member Now r,
+    Member PasswordResetCodeStore r,
+    Member PasswordStore r,
+    Member PropertySubsystem r,
     Member PublicKeyBundle r,
     Member SFT r,
     Member TinyLog r,
-    Member (UserPendingActivationStore p) r,
-    Member EmailSubsystem r,
-    Member EmailSending r,
-    Member VerificationCodeSubsystem r
+    Member UserKeyStore r,
+    Member ActivationCodeStore r,
+    Member UserStore r,
+    Member (Input TeamTemplates) r,
+    Member UserSubsystem r,
+    Member TeamInvitationSubsystem r,
+    Member VerificationCodeSubsystem r,
+    Member (Concurrency 'Unsafe) r,
+    Member BlockListStore r,
+    Member (ConnectionStore InternalPaging) r,
+    Member IndexedUserStore r,
+    Member HashPassword r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -333,14 +389,14 @@ servantSitemap =
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
-      Named @"get-user-unqualified" (callsFed (exposeAnnotations getUserUnqualifiedH))
-        :<|> Named @"get-user-qualified" (callsFed (exposeAnnotations getUserProfileH))
+      Named @"get-user-unqualified" getUserUnqualifiedH
+        :<|> Named @"get-user-qualified" getUserProfileH
         :<|> Named @"update-user-email" updateUserEmail
-        :<|> Named @"get-handle-info-unqualified" (callsFed (exposeAnnotations getHandleInfoUnqualifiedH))
-        :<|> Named @"get-user-by-handle-qualified" (callsFed (exposeAnnotations Handle.getHandleInfo))
-        :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed (exposeAnnotations listUsersByUnqualifiedIdsOrHandles))
-        :<|> Named @"list-users-by-ids-or-handles" (callsFed (exposeAnnotations listUsersByIdsOrHandles))
-        :<|> Named @"list-users-by-ids-or-handles@V3" (callsFed (exposeAnnotations listUsersByIdsOrHandlesV3))
+        :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
+        :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
+        :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
+        :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
+        :<|> Named @"list-users-by-ids-or-handles@V3" listUsersByIdsOrHandlesV3
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
@@ -348,23 +404,24 @@ servantSitemap =
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
       Named @"get-self" getSelf
-        :<|> Named @"delete-self" (callsFed (exposeAnnotations deleteSelfUser))
-        :<|> Named @"put-self" (callsFed (exposeAnnotations updateUser))
+        :<|> Named @"delete-self" deleteSelfUser
+        :<|> Named @"put-self" updateUser
         :<|> Named @"change-phone" changePhone
-        :<|> Named @"remove-phone" (callsFed (exposeAnnotations removePhone))
-        :<|> Named @"remove-email" (callsFed (exposeAnnotations removeEmail))
+        :<|> Named @"remove-phone" removePhone
+        :<|> Named @"remove-email" removeEmail
         :<|> Named @"check-password-exists" checkPasswordExists
         :<|> Named @"change-password" changePassword
-        :<|> Named @"change-locale" (callsFed (exposeAnnotations changeLocale))
-        :<|> Named @"change-handle" (callsFed (exposeAnnotations changeHandle))
+        :<|> Named @"change-locale" changeLocale
+        :<|> Named @"change-handle" changeHandle
         :<|> Named @"change-supported-protocols" changeSupportedProtocols
 
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
-      Named @"register" (callsFed (exposeAnnotations createUser))
-        :<|> Named @"verify-delete" (callsFed (exposeAnnotations verifyDeleteUser))
-        :<|> Named @"get-activate" (callsFed (exposeAnnotations activate))
-        :<|> Named @"post-activate" (callsFed (exposeAnnotations activateKey))
+      Named @"upgrade-personal-to-team" upgradePersonalToTeam
+        :<|> Named @"register" createUser
+        :<|> Named @"verify-delete" verifyDeleteUser
+        :<|> Named @"get-activate" activate
+        :<|> Named @"post-activate" activateKey
         :<|> Named @"post-activate-send" sendActivationCode
         :<|> Named @"post-password-reset" beginPasswordReset
         :<|> Named @"post-password-reset-complete" completePasswordReset
@@ -373,33 +430,33 @@ servantSitemap =
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
-      Named @"get-user-clients-unqualified" (callsFed (exposeAnnotations getUserClientsUnqualified))
-        :<|> Named @"get-user-clients-qualified" (callsFed (exposeAnnotations getUserClientsQualified))
-        :<|> Named @"get-user-client-unqualified" (callsFed (exposeAnnotations getUserClientUnqualified))
-        :<|> Named @"get-user-client-qualified" (callsFed (exposeAnnotations getUserClientQualified))
-        :<|> Named @"list-clients-bulk" (callsFed (exposeAnnotations listClientsBulk))
-        :<|> Named @"list-clients-bulk-v2" (callsFed (exposeAnnotations listClientsBulkV2))
-        :<|> Named @"list-clients-bulk@v2" (callsFed (exposeAnnotations listClientsBulkV2))
+      Named @"get-user-clients-unqualified" getUserClientsUnqualified
+        :<|> Named @"get-user-clients-qualified" getUserClientsQualified
+        :<|> Named @"get-user-client-unqualified" getUserClientUnqualified
+        :<|> Named @"get-user-client-qualified" getUserClientQualified
+        :<|> Named @"list-clients-bulk" listClientsBulk
+        :<|> Named @"list-clients-bulk-v2" listClientsBulkV2
+        :<|> Named @"list-clients-bulk@v2" listClientsBulkV2
 
     prekeyAPI :: ServerT PrekeyAPI (Handler r)
     prekeyAPI =
-      Named @"get-users-prekeys-client-unqualified" (callsFed (exposeAnnotations getPrekeyUnqualifiedH))
-        :<|> Named @"get-users-prekeys-client-qualified" (callsFed (exposeAnnotations getPrekeyH))
-        :<|> Named @"get-users-prekey-bundle-unqualified" (callsFed (exposeAnnotations getPrekeyBundleUnqualifiedH))
-        :<|> Named @"get-users-prekey-bundle-qualified" (callsFed (exposeAnnotations getPrekeyBundleH))
+      Named @"get-users-prekeys-client-unqualified" getPrekeyUnqualifiedH
+        :<|> Named @"get-users-prekeys-client-qualified" getPrekeyH
+        :<|> Named @"get-users-prekey-bundle-unqualified" getPrekeyBundleUnqualifiedH
+        :<|> Named @"get-users-prekey-bundle-qualified" getPrekeyBundleH
         :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
-        :<|> Named @"get-multi-user-prekey-bundle-qualified@v3" (callsFed (exposeAnnotations getMultiUserPrekeyBundleHV3))
-        :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed (exposeAnnotations getMultiUserPrekeyBundleH))
+        :<|> Named @"get-multi-user-prekey-bundle-qualified@v3" getMultiUserPrekeyBundleHV3
+        :<|> Named @"get-multi-user-prekey-bundle-qualified" getMultiUserPrekeyBundleH
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client-v5" (callsFed (exposeAnnotations addClient))
-        :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
+      Named @"add-client-v6" addClient
+        :<|> Named @"add-client" addClient
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
-        :<|> Named @"list-clients-v5" listClients
+        :<|> Named @"list-clients-v6" listClients
         :<|> Named @"list-clients" listClients
-        :<|> Named @"get-client-v5" getClient
+        :<|> Named @"get-client-v6" getClient
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
@@ -409,25 +466,25 @@ servantSitemap =
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
-      Named @"create-connection-unqualified" (callsFed (exposeAnnotations createConnectionUnqualified))
-        :<|> Named @"create-connection" (callsFed (exposeAnnotations createConnection))
+      Named @"create-connection-unqualified" createConnectionUnqualified
+        :<|> Named @"create-connection" createConnection
         :<|> Named @"list-local-connections" listLocalConnections
         :<|> Named @"list-connections" listConnections
         :<|> Named @"get-connection-unqualified" getLocalConnection
         :<|> Named @"get-connection" getConnection
-        :<|> Named @"update-connection-unqualified" (callsFed (exposeAnnotations updateLocalConnection))
-        :<|> Named @"update-connection" (callsFed (exposeAnnotations updateConnection))
-        :<|> Named @"search-contacts" (callsFed (exposeAnnotations Search.search))
+        :<|> Named @"update-connection-unqualified" updateLocalConnection
+        :<|> Named @"update-connection" updateConnection
+        :<|> Named @"search-contacts" searchUsersHandler
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
     propertiesAPI =
-      ( Named @"set-property" setProperty
-          :<|> Named @"delete-property" deleteProperty
-          :<|> Named @"clear-properties" clearProperties
-          :<|> Named @"get-property" getProperty
-          :<|> Named @"list-property-keys" listPropertyKeys
+      ( Named @"set-property" setPropertyH
+          :<|> Named @"delete-property" deletePropertyH
+          :<|> Named @"clear-properties" clearPropertiesH
+          :<|> Named @"get-property" getPropertyH
+          :<|> Named @"list-property-keys" listPropertyKeysH
       )
-        :<|> Named @"list-properties" listPropertyKeysAndValues
+        :<|> Named @"list-properties" listPropertyKeysAndValuesH
 
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
@@ -439,18 +496,20 @@ servantSitemap =
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =
-      Named @"check-user-handles" checkHandles
+      Named @"check-user-handles@v6" checkHandles
+        :<|> Named @"check-user-handles" checkHandles
+        :<|> Named @"check-user-handle@v6" checkHandle
         :<|> Named @"check-user-handle" checkHandle
 
     searchAPI :: ServerT SearchAPI (Handler r)
     searchAPI =
-      Named @"browse-team" teamUserSearch
+      Named @"browse-team" browseTeamHandler
 
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
-      Named @"access" (callsFed (exposeAnnotations accessH))
+      Named @"access" accessH
         :<|> Named @"send-login-code" sendLoginCode
-        :<|> Named @"login" (callsFed (exposeAnnotations login))
+        :<|> Named @"login" login
         :<|> Named @"logout" logoutH
         :<|> Named @"change-self-email" changeSelfEmailH
         :<|> Named @"list-cookies" listCookies
@@ -476,61 +535,38 @@ servantSitemap =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
-setProperty u c key raw = do
-  checkPropertyKey key
-  val <- safeParsePropertyValue raw
-  API.setProperty u c key val !>> propDataError
+browseTeamHandler ::
+  (Member UserSubsystem r) =>
+  UserId ->
+  TeamId ->
+  Maybe Text ->
+  Maybe Public.RoleFilter ->
+  Maybe Public.TeamUserSearchSortBy ->
+  Maybe Public.TeamUserSearchSortOrder ->
+  Maybe (Range 1 500 Int) ->
+  Maybe Public.PagingState ->
+  Handler r (Public.SearchResult Public.TeamContact)
+browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState = do
+  let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder
+  lift . liftSem $ User.browseTeam uid browseTeamFilters mMaxResults mPagingState
 
-checkPropertyKey :: Public.PropertyKey -> Handler r ()
-checkPropertyKey k = do
-  maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
-  let keyText = Ascii.toText (Public.propertyKeyName k)
-  when (Text.compareLength keyText (fromIntegral maxKeyLen) == GT) $
-    throwStd propertyKeyTooLarge
+setPropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
+setPropertyH u c key raw = lift . liftSem $ setProperty u c key raw
 
--- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
--- checks the byte size of the input, and fails *without consuming all of it* if that size
--- exceeds the settings.
-safeParsePropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
-safeParsePropertyValue raw = do
-  maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
-  let lbs = Lazy.take (maxValueLen + 1) (Public.rawPropertyBytes raw)
-  unless (Lazy.length lbs <= maxValueLen) $
-    throwStd propertyValueTooLarge
-  hoistEither $ first (StdError . badRequest . pack) (propertyValueFromRaw raw)
+deletePropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Handler r ()
+deletePropertyH u c k = lift . liftSem $ deleteProperty u c k
 
-propertyValueFromRaw :: Public.RawPropertyValue -> Either String Public.PropertyValue
-propertyValueFromRaw raw =
-  Public.PropertyValue raw
-    <$> eitherDecode (Public.rawPropertyBytes raw)
+clearPropertiesH :: (Member PropertySubsystem r) => UserId -> ConnId -> Handler r ()
+clearPropertiesH u c = lift . liftSem $ clearProperties u c
 
-parseStoredPropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
-parseStoredPropertyValue raw = case propertyValueFromRaw raw of
-  Right value -> pure value
-  Left e -> do
-    Log.err $
-      Log.msg (Log.val "Failed to parse a stored property value")
-        . Log.field "raw_value" (Public.rawPropertyBytes raw)
-        . Log.field "parse_error" e
-    throwStd internalServerError
+getPropertyH :: (Member PropertySubsystem r) => UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
+getPropertyH u k = lift . liftSem $ lookupProperty u k
 
-deleteProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Handler r ()
-deleteProperty u c k = lift (API.deleteProperty u c k)
+listPropertyKeysH :: (Member PropertySubsystem r) => UserId -> Handler r [Public.PropertyKey]
+listPropertyKeysH u = lift . liftSem $ getPropertyKeys u
 
-clearProperties :: (Member NotificationSubsystem r) => UserId -> ConnId -> Handler r ()
-clearProperties u c = lift (API.clearProperties u c)
-
-getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
-getProperty u k = lift . wrapClient $ API.lookupProperty u k
-
-listPropertyKeys :: UserId -> Handler r [Public.PropertyKey]
-listPropertyKeys u = lift $ wrapClient (API.lookupPropertyKeys u)
-
-listPropertyKeysAndValues :: UserId -> Handler r Public.PropertyKeysAndValues
-listPropertyKeysAndValues u = do
-  keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
-  Public.PropertyKeysAndValues <$> traverse parseStoredPropertyValue keysAndVals
+listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler r Public.PropertyKeysAndValues
+listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
   (Member DeleteQueue r) =>
@@ -569,7 +605,7 @@ getMultiUserPrekeyBundleUnqualifiedH ::
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
-  maxSize <- fromIntegral . setMaxConvSize <$> view settings
+  maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
@@ -579,7 +615,7 @@ getMultiUserPrekeyBundleHInternal ::
   Public.QualifiedUserClients ->
   m ()
 getMultiUserPrekeyBundleHInternal qualUserClients = do
-  maxSize <- fromIntegral . setMaxConvSize <$> view settings
+  maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   let Sum (size :: Int) =
         Map.foldMapWithKey
           (\_ v -> Sum . Map.size $ v)
@@ -611,29 +647,29 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
 
 addClient ::
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
     Member DeleteQueue r,
     Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member AuthenticationSubsystem r,
+    Member VerificationCodeSubsystem r,
+    Member Events r,
+    Member UserSubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Public.NewClient ->
   Handler r Public.Client
-addClient usr con new = do
+addClient lusr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  API.addClient usr (Just con) new
+  API.addClient lusr (Just con) new
     !>> clientError
 
 deleteClient ::
-  (Member DeleteQueue r) =>
+  ( Member AuthenticationSubsystem r,
+    Member DeleteQueue r
+  ) =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -683,21 +719,27 @@ getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
-getRichInfo :: UserId -> UserId -> Handler r Public.RichInfoAssocList
-getRichInfo self user = do
+getRichInfo ::
+  ( Member UserSubsystem r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  UserId ->
+  Handler r Public.RichInfoAssocList
+getRichInfo lself user = do
+  let luser = qualifyAs lself user
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
-  selfUser <-
-    ifNothing (errorToWai @'E.UserNotFound)
-      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations self)
-  otherUser <-
-    ifNothing (errorToWai @'E.UserNotFound)
-      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations user)
+  let fetch luid =
+        ifNothing (errorToWai @'E.UserNotFound)
+          =<< lift (liftSem $ User.getLocalAccountBy NoPendingInvitations luid)
+  selfUser <- fetch lself
+  otherUser <- fetch luser
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo user
+  lift $ liftSem $ fold <$> UserStore.getRichInfo (tUnqualified luser)
 
 getSupportedProtocols ::
   (Member UserSubsystem r) =>
@@ -714,7 +756,7 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
-  ttl <- setNonceTtlSecs <$> view settings
+  ttl <- nonceTtlSecs <$> asks (.settings)
   nonce <- randomNonce
   lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.clientToText cid) nonce
   pure (nonce, NoStore)
@@ -737,19 +779,38 @@ createAccessToken method luid cid proof = do
   let link = safeLink (Proxy @api) (Proxy @endpoint) cid
   API.createAccessToken luid cid method link proof !>> certEnrollmentError
 
--- | docs/reference/user/registration.md {#RefRegistration}
-createUser ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
-    Member (UserPendingActivationStore p) r,
-    Member TinyLog r,
+upgradePersonalToTeam ::
+  ( Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member UserKeyStore r,
+    Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  Public.BindingNewTeamUser ->
+  Handler r (Either Public.UpgradePersonalToTeamError Public.CreateUserTeam)
+upgradePersonalToTeam luid bNewTeam =
+  lift . runExceptT $
+    API.upgradePersonalToTeam luid bNewTeam
+
+-- | docs/reference/user/registration.md {#RefRegistration}
+createUser ::
+  ( Member BlockListStore r,
+    Member GalleyAPIAccess r,
+    Member InvitationStore r,
+    Member (UserPendingActivationStore p) r,
+    Member (Input (Local ())) r,
+    Member TinyLog r,
+    Member UserKeyStore r,
     Member EmailSubsystem r,
+    Member Events r,
+    Member UserSubsystem r,
+    Member PasswordResetCodeStore r,
+    Member HashPassword r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
@@ -759,10 +820,6 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
 
-  -- prevent registration with a phone number
-  when (isJust (Public.newUserPhone new)) $
-    throwE Public.RegisterErrorInvalidPhone
-
   result <- API.createUser new
   let acc = createdAccount result
 
@@ -770,52 +827,51 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
-  let usr = accountUser acc
 
   let context =
         let invitationCode = case Public.newUserTeam new of
               (Just (Public.NewTeamMember code)) -> Just code
               _ -> Nothing
          in ( logFunction "Brig.API.Public.createUser"
-                . logUser (Public.userId usr)
-                . maybe id logHandle (Public.userHandle usr)
-                . maybe id logTeam (Public.userTeam usr)
-                . maybe id logEmail (Public.userEmail usr)
+                . logUser (Public.userId acc)
+                . maybe id logHandle (Public.userHandle acc)
+                . maybe id logTeam (Public.userTeam acc)
+                . maybe id logEmail (Public.userEmail acc)
                 . maybe id logInvitationCode invitationCode
             )
   lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
 
-  let Public.User {userLocale, userDisplayName} = usr
-      userEmail = Public.userEmail usr
-      userId = Public.userId usr
+  let Public.User {userLocale, userDisplayName} = acc
+      userEmail = Public.userEmail acc
+      userId = Public.userId acc
   lift $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
-    Auth.toWebCookie =<< case acc of
-      UserAccount _ Public.Ephemeral ->
+    Auth.toWebCookie =<< case userStatus acc of
+      Public.Ephemeral ->
         lift . wrapHttpClient $
           Auth.newCookie @ZAuth.User userId Nothing Public.SessionCookie newUserLabel
-      UserAccount _ _ ->
+      _ ->
         lift . wrapHttpClient $
           Auth.newCookie @ZAuth.User userId Nothing Public.PersistentCookie newUserLabel
-  -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
-  pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
+  -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
+  pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
   where
-    sendActivationEmail :: (Member EmailSubsystem r) => Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
+    sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
-        let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
-          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team ^. Public.newTeamName)
+        let Public.BindingNewTeamUser team _ = creator =
+          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team.newTeamName)
       | otherwise =
           liftSem $ sendActivationMail email name key code locale
 
-    sendWelcomeEmail :: (Member EmailSending r) => Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
+    sendWelcomeEmail :: (Member EmailSending r) => Public.EmailAddress -> Public.CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
-    sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
+    sendWelcomeEmail e (Public.CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
         pure ()
       Public.NewTeamMember _ ->
@@ -948,6 +1004,7 @@ updateUser uid conn uu = do
         def
           { name = uu.uupName,
             pict = uu.uupPict,
+            textStatus = uu.uupTextStatus,
             assets = uu.uupAssets,
             accentId = uu.uupAccentId
           }
@@ -964,17 +1021,12 @@ changePhone ::
 changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
 
 removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
-removePhone self = lift . exceptTToMaybe $ API.removePhone self
+removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member UserKeyStore r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
+  ( Member UserKeyStore r,
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
@@ -983,7 +1035,14 @@ removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
 
-changePassword :: (Member PasswordStore r, Member UserStore r) => UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
+changePassword ::
+  ( Member PasswordStore r,
+    Member UserStore r,
+    Member HashPassword r
+  ) =>
+  UserId ->
+  Public.PasswordChange ->
+  (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::
@@ -997,7 +1056,7 @@ changeLocale lusr conn l =
     updateUserProfile
       lusr
       (Just conn)
-      UserSubsystem.UpdateOriginWireClient
+      User.UpdateOriginWireClient
       def {locale = Just l.luLocale}
 
 changeSupportedProtocols ::
@@ -1007,7 +1066,7 @@ changeSupportedProtocols ::
   Public.SupportedProtocolUpdate ->
   Handler r ()
 changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
-  lift . liftSem $ UserSubsystem.updateUserProfile u (Just conn) UpdateOriginWireClient upd
+  lift . liftSem $ User.updateUserProfile u (Just conn) UpdateOriginWireClient upd
   where
     upd = def {supportedProtocols = Just prots}
 
@@ -1015,7 +1074,7 @@ changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
 -- *any* account.)
 checkHandle :: (Member UserSubsystem r) => UserId -> Text -> Handler r ()
 checkHandle _uid hndl =
-  lift (liftSem $ UserSubsystem.checkHandle hndl) >>= \case
+  lift (liftSem $ User.checkHandle hndl) >>= \case
     API.CheckHandleFound -> pure ()
     API.CheckHandleNotFound -> throwStd (errorToWai @'E.HandleNotFound)
 
@@ -1044,7 +1103,7 @@ getHandleInfoUnqualifiedH self handle = do
 
 changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
-  UserSubsystem.updateHandle u (Just conn) UpdateOriginWireClient h
+  User.updateHandle u (Just conn) UpdateOriginWireClient h
 
 beginPasswordReset ::
   (Member AuthenticationSubsystem r) =>
@@ -1070,30 +1129,39 @@ completePasswordReset req = do
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member ActivationCodeStore r
   ) =>
   Public.SendActivationCode ->
   Handler r ()
-sendActivationCode Public.SendActivationCode {..} = do
-  email <- case saUserKey of
-    Left email -> pure email
-    Right _ -> throwStd (errorToWai @'E.InvalidPhone)
+sendActivationCode ac = do
+  let email = ac.emailKey
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
-  API.sendActivationCode email saLocale saCall !>> sendActCodeError
+  API.sendActivationCode email (ac.locale) !>> sendActCodeError
+
+searchUsersHandler ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  Text ->
+  Maybe Domain ->
+  Maybe (Range 1 500 Int32) ->
+  Handler r (Public.SearchResult Public.Contact)
+searchUsersHandler luid term mDomain mMaxResults =
+  lift . liftSem $ User.searchUsers luid term mDomain mMaxResults
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --
 -- The tautological constraint in the type signature is added so that once we remove the
 -- feature, ghc will guide us here.
-customerExtensionCheckBlockedDomains :: Public.Email -> (Handler r) ()
+customerExtensionCheckBlockedDomains :: Public.EmailAddress -> (Handler r) ()
 customerExtensionCheckBlockedDomains email = do
-  mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
+  mBlockedDomains <- fmap (.domainsBlockedForRegistration) <$> asks (.settings.customerExtensions)
   for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
-    case mkDomain (Public.emailDomain email) of
+    case mkDomain (Text.decodeUtf8 $ Public.domainPart email) of
       Left _ ->
         pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
       Right domain ->
@@ -1106,6 +1174,7 @@ createConnectionUnqualified ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member (Embed HttpClientIO) r
   ) =>
   UserId ->
@@ -1122,6 +1191,7 @@ createConnection ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1233,28 +1303,28 @@ deleteSelfUser ::
     Member NotificationSubsystem r,
     Member UserStore r,
     Member PasswordStore r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member UserSubsystem r,
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r,
+    Member Events r
   ) =>
-  UserId ->
+  Local UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
-deleteSelfUser u body = do
-  API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
+deleteSelfUser lu body = do
+  API.deleteSelfUser lu (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserStore r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
     Member UserKeyStore r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r,
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
@@ -1262,10 +1332,11 @@ verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 
 updateUserEmail ::
   forall r.
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   UserId ->
@@ -1296,11 +1367,9 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 activate ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r,
+    Member PasswordResetCodeStore r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1313,11 +1382,9 @@ activate k c = do
 activateKey ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member Events r,
+    Member UserSubsystem r,
+    Member PasswordResetCodeStore r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
@@ -1338,7 +1405,9 @@ sendVerificationCode ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
+    Member (Input (Local ())) r,
     Member EmailSubsystem r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   Public.SendVerificationCode ->
@@ -1351,7 +1420,7 @@ sendVerificationCode req = do
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
       let gen = mk6DigitVerificationCodeGen email
-      timeout <- setVerificationTimeout <$> view settings
+      timeout <- verificationTimeout <$> asks (.settings)
       code <-
         lift . liftSem $
           createCodeOverwritePrevious
@@ -1359,39 +1428,40 @@ sendVerificationCode req = do
             (scopeFromAction action)
             (Retries 3)
             timeout
-            (Just $ toUUID $ Public.userId $ accountUser account)
-      sendMail email code.codeValue (Just $ Public.userLocale $ accountUser account) action
+            (Just $ toUUID $ Public.userId $ account)
+      sendMail email code.codeValue (Just (Public.userLocale account)) action
     _ -> pure ()
   where
-    getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
-    getAccount email = lift $ do
-      mbUserId <- liftSem $ lookupKey $ mkEmailKey email
-      join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
+    getAccount :: Public.EmailAddress -> (Handler r) (Maybe User)
+    getAccount email = lift . liftSem $ do
+      mbUserId <- lookupKey $ mkEmailKey email
+      mbLUserId <- qualifyLocal' `traverse` mbUserId
+      join <$> User.getAccountNoFilter `traverse` mbLUserId
 
-    sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
+    sendMail :: Public.EmailAddress -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =
       lift . liftSem . \case
         Public.CreateScimToken -> sendCreateScimTokenVerificationMail email value mbLocale
         Public.Login -> sendLoginVerificationMail email value mbLocale
         Public.DeleteTeam -> sendTeamDeletionVerificationMail email value mbLocale
 
-    getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
+    getFeatureStatus :: Maybe User -> (Handler r) Bool
     getFeatureStatus mbAccount = do
-      mbStatusEnabled <- lift $ liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
+      mbStatusEnabled <- lift $ liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` (Public.userTeam =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
 getSystemSettings :: (Handler r) SystemSettingsPublic
 getSystemSettings = do
-  optSettings <- view settings
+  optSettings <- asks (.settings)
   pure $
     SystemSettingsPublic $
-      fromMaybe False (setRestrictUserCreation optSettings)
+      fromMaybe False optSettings.restrictUserCreation
 
 getSystemSettingsInternal :: UserId -> (Handler r) SystemSettings
 getSystemSettingsInternal _ = do
-  optSettings <- view settings
-  let pSettings = SystemSettingsPublic $ fromMaybe False (setRestrictUserCreation optSettings)
-  let iSettings = SystemSettingsInternal $ fromMaybe False (setEnableMLS optSettings)
+  optSettings <- asks (.settings)
+  let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
+  let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
 
 -- Deprecated

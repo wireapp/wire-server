@@ -29,16 +29,18 @@ module Galley.API.MLS.Message
   )
 where
 
-import Control.Comonad
 import Data.Domain
 import Data.Id
 import Data.Json.Util
+import Data.LegalHold
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.LegalHold.Get (getUserStatus)
 import Galley.API.MLS.Commit.Core (getCommitData)
 import Galley.API.MLS.Commit.ExternalCommit
 import Galley.API.MLS.Commit.InternalCommit
@@ -58,6 +60,7 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.SubConversationStore
+import Galley.Effects.TeamStore qualified as TeamStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -81,6 +84,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.Team.LegalHold
 import Wire.NotificationSubsystem
 
 -- FUTUREWORK
@@ -146,11 +150,12 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundle ::
-  ( HasProposalEffects r,
-    Members MLSBundleStaticErrors r,
+  ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member Random r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Members MLSBundleStaticErrors r,
+    HasProposalEffects r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -168,11 +173,12 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
     qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
-  ( HasProposalEffects r,
-    Members MLSBundleStaticErrors r,
+  ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member Random r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Members MLSBundleStaticErrors r,
+    HasProposalEffects r
   ) =>
   Local UserId ->
   ClientId ->
@@ -190,11 +196,12 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundleToLocalConv ::
-  ( HasProposalEffects r,
-    Members MLSBundleStaticErrors r,
+  ( Member (ErrorS MLSLegalholdIncompatible) r,
+    Member Random r,
     Member Resource r,
     Member SubConversationStore r,
-    Member Random r
+    Members MLSBundleStaticErrors r,
+    HasProposalEffects r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -211,18 +218,38 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
     note (mlsProtocolError "Unsupported ciphersuite") $
       cipherSuiteTag bundle.groupInfo.value.groupContext.cipherSuite
 
-  case convOrSub.mlsMeta.cnvmlsActiveData of
+  -- when a user tries to join any mls conversation while being under legalhold
+  -- they receive a 409 stating that mls and legalhold are incompatible
+  case qusr `relativeTo` lConvOrSubId of
+    Local luid ->
+      when (isNothing convOrSub.mlsMeta.cnvmlsActiveData) do
+        usrTeams <- TeamStore.getUserTeams (tUnqualified luid)
+        for_ usrTeams \tid -> do
+          -- this would only return 'Left' if the team member did vanish directly in the process of this
+          -- request or if the legalhold state was somehow inconsistent. We can safely assume that this
+          -- should be a server error
+          resp <- runError @(Tagged TeamMemberNotFound ()) $ getUserStatus luid tid (tUnqualified luid)
+          case resp of
+            Left _ -> throw $ InternalErrorWithDescription "Server error. Team member must have vanished with the legal hold check"
+            Right r -> case r.ulhsrStatus of
+              UserLegalHoldPending -> throwS @MLSLegalholdIncompatible
+              UserLegalHoldEnabled -> throwS @MLSLegalholdIncompatible
+              UserLegalHoldDisabled -> pure ()
+              UserLegalHoldNoConsent -> pure ()
+
+    -- we can skip the remote case because we currently to not support creating conversations on the remote backend
+    Remote _ -> pure ()
+
+  ciphersuiteUpdate <- case convOrSub.mlsMeta.cnvmlsActiveData of
     -- if this is the first commit of the conversation, update ciphersuite
-    Nothing -> do
-      case convOrSub.id of
-        Conv cid -> setConversationCipherSuite cid ciphersuite
-        SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
+    Nothing -> pure True
     -- otherwise, make sure the ciphersuite matches
     Just activeData -> do
       unless (ciphersuite == activeData.ciphersuite) $
         throw $
           mlsProtocolError "GroupInfo ciphersuite does not match conversation"
       unless (bundle.epoch == activeData.epoch) $ throwS @'MLSStaleMessage
+      pure False
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
@@ -238,6 +265,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           conn
           lConvOrSub
           ciphersuite
+          ciphersuiteUpdate
           bundle.epoch
           action
           bundle.commit.value
@@ -253,6 +281,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         senderIdentity
         lConvOrSub
         ciphersuite
+        ciphersuiteUpdate
         bundle.epoch
         action
         bundle.commit.value.path

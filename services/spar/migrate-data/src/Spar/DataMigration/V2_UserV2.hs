@@ -188,10 +188,6 @@ filterResolved resolver migMapInv =
                 yieldOld old
         go
 
--- for debugging only
-resolveNothing :: CollisionResolver
-resolveNothing = const (pure . Left)
-
 combineResolver :: CollisionResolver -> CollisionResolver -> CollisionResolver
 combineResolver resolver1 resolver2 pair olds =
   resolver1 pair olds >>= \case

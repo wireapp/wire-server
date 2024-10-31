@@ -307,6 +307,19 @@ mls:
 
 This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
 
+This flag also supports setting an `initialConfig` value, which is applied when a team is created:
+
+```yaml
+# galley.yaml
+mls:
+  initialConfig:
+    protocolToggleUsers: []
+    defaultProtocol: mls
+    supportedProtocols: [proteus, mls] # must contain defaultProtocol
+    allowedCipherSuites: [1]
+    defaultCipherSuite: 1
+```
+
 ### MLS End-to-End Identity
 
 The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
@@ -331,6 +344,34 @@ mlsE2EId:
       crlProxy: https://example.com
     lockStatus: unlocked
 ```
+
+#### Key for DPoP access token signing
+
+The key for signing DPoP access tokens has to be configured at path `brig.secrets.dpopSigKeyBundle` e.g. as follows:
+
+```yaml
+brig:
+  secrets:
+    dpopSigKeyBundle: |
+      -----BEGIN PRIVATE KEY-----
+      MIGHAgEAMBMGByqGSM49....
+      -----END PRIVATE KEY-----
+```
+
+The corresponding public key has to be known by the ACME server.
+
+The key must be an ECDSA P-256 key and can be created with the following `openssl` command:
+
+```shell
+openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-256 --out private.pem
+```
+
+To get the public key run:
+
+```shell
+openssl ec -in private.pem -pubout --out public.pem
+```
+
 
 ### Federation Domain
 
@@ -422,6 +463,18 @@ federator:
     clientCertificate: client.pem
     clientPrivateKey: client-key.pem
 ```
+
+### Federation protocols
+
+A backend can restrict creation of new federated conversations according to the protocol used (Proteus or MLS). This is controlled by the `federationProtocols` setting. For example:
+
+```yaml
+galley:
+  settings:
+    federationProtocols: ["mls"]
+```
+
+will prevent the creation of a Proteus conversation containing federated users, and will prevent federated users from joining a Proteus conversation on this backend. However, existing Proteus conversations with federated users will continue to function, and users of this backend will be allowed to join new and existing Proteus conversations on federated backends.
 
 ### Outlook calendar integration
 
@@ -665,6 +718,47 @@ optSettings:
   # ...
   setOAuthMaxActiveRefreshTokens: 10
 ```
+
+#### Password hashing options
+
+Since release 5.6.0, wire-server can hash passwords with
+[argon2id](https://datatracker.ietf.org/doc/html/rfc9106) to be stored at rest.
+If you do not do anything, the deployment will still use scrypt.
+
+The password hashing options are set for brig and galley:
+
+```yaml
+brig:
+  optSettings:
+    setPasswordHashingOptions:
+      algorithm: # argon2id or scrypt
+      # These options only apply to argon2id
+      iterations: ...
+      memory: ... # memory needed in KiB
+      parallelism: ...
+galley:
+  settings:
+    passwordHashingOptions:
+      algorithm: # argon2id or scrypt
+      # These options only apply to argon2id
+      iterations: ...
+      memory: ... # memory needed in KiB
+      parallelism: ...
+```
+
+**Performance implications:** argon2id typically takes longer and uses more
+memory than scrypt. So when migrating to it brig and galley pods must be
+allocated more resouces according to the chosen paramters.
+
+When configured to use argon2id, the DB will be migrated slowly over time as the
+users enter their passwords (either to login or to do other operations which
+require explicit password entry). This migration is **NOT** done in reverse,
+i.e., if a deployment started with argon2id as the algorithm then chose to move
+to scrypt, the passwords already stored will not get rehashed automatically,
+however the users will still be able to use them to login.
+
+**NOTE** It is highly recommended to move to argon2id as it will be made the
+  only available choice for the `algorithm` config option in future.
 
 #### Disabling API versions
 

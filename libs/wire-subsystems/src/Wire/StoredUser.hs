@@ -19,9 +19,10 @@ import Wire.Arbitrary
 data StoredUser = StoredUser
   { id :: UserId,
     name :: Name,
+    textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
-    email :: Maybe Email,
-    phone :: Maybe Phone,
+    email :: Maybe EmailAddress,
+    emailUnvalidated :: Maybe EmailAddress,
     ssoId :: Maybe UserSSOId,
     accentId :: ColourId,
     assets :: Maybe [Asset],
@@ -72,18 +73,19 @@ hasPendingInvitation u = u.status == Just PendingInvitation
 
 mkUserFromStored :: Domain -> Locale -> StoredUser -> User
 mkUserFromStored domain defaultLocale storedUser =
-  let deleted = Just Deleted == storedUser.status
-      expiration = if storedUser.status == Just Ephemeral then storedUser.expires else Nothing
+  let expiration = if storedUser.status == Just Ephemeral then storedUser.expires else Nothing
       loc = toLocale defaultLocale (storedUser.language, storedUser.country)
       svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
    in User
         { userQualifiedId = (Qualified storedUser.id domain),
           userIdentity = storedUser.identity,
+          userEmailUnvalidated = storedUser.emailUnvalidated,
           userDisplayName = storedUser.name,
+          userTextStatus = storedUser.textStatus,
           userPict = (fromMaybe noPict storedUser.pict),
           userAssets = (fromMaybe [] storedUser.assets),
           userAccentId = storedUser.accentId,
-          userDeleted = deleted,
+          userStatus = fromMaybe Active storedUser.status,
           userLocale = loc,
           userService = svc,
           userHandle = storedUser.handle,
@@ -94,12 +96,6 @@ mkUserFromStored domain defaultLocale storedUser =
             Nothing -> defSupportedProtocols
             Just ps -> if S.null ps then defSupportedProtocols else ps
         }
-
-mkAccountFromStored :: Domain -> Locale -> StoredUser -> UserAccount
-mkAccountFromStored domain defaultLocale storedUser =
-  UserAccount
-    (mkUserFromStored domain defaultLocale storedUser)
-    (fromMaybe Active storedUser.status)
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
@@ -114,7 +110,7 @@ toLocale l _ = l
 toIdentity ::
   -- | Whether the user is activated
   Bool ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   Maybe UserSSOId ->
   Maybe UserIdentity
 toIdentity True (Just e) Nothing = Just $! EmailIdentity e

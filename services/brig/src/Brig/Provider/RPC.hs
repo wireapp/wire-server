@@ -35,7 +35,7 @@ import Brig.App
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.RPC
 import Control.Error
-import Control.Lens (set, view, (^.))
+import Control.Lens (set, (^.))
 import Control.Monad.Catch
 import Control.Retry (recovering)
 import Data.Aeson
@@ -74,7 +74,7 @@ data ServiceError
 createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppT r) NewBotResponse
 createBot scon new = do
   let fprs = toList (sconFingerprints scon)
-  (man, verifyFingerprints) <- view extGetManager
+  (man, verifyFingerprints) <- asks (.extGetManager)
   extHandleAll onExc $ do
     rs <- lift $
       wrapHttp $
@@ -164,7 +164,7 @@ setServiceConn scon = do
 -- | Remove service connection information from galley.
 removeServiceConn ::
   ( MonadReader Env m,
-    MonadIO m,
+    MonadUnliftIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
@@ -220,7 +220,7 @@ addBotMember zusr zcon conv bot clt pid sid = do
 removeBotMember ::
   ( MonadHttp m,
     MonadReader Env m,
-    MonadIO m,
+    MonadUnliftIO m,
     MonadMask m,
     HasRequestId m,
     MonadLogger m

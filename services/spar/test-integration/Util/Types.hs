@@ -43,7 +43,6 @@ where
 
 import Bilge
 import Cassandra as Cas
-import Control.Exception
 import Control.Lens (makeLenses, view)
 import Crypto.Random.Types (MonadRandom (..))
 import Data.Aeson
@@ -111,13 +110,13 @@ instance FromJSON TestErrorLabel where
 
 -- A quick unit test that serves two purposes: (1) shows that it works (and helped with debugging);
 -- (2) demonstrates how to use it.
-_unitTestTestErrorLabel :: IO ()
-_unitTestTestErrorLabel = do
-  let val :: Either String TestErrorLabel
-      val = Aeson.eitherDecode "{\"code\":404,\"message\":\"Not found.\",\"label\":\"not-found\"}"
-  unless (val == Right "not-found") $
-    throwIO . ErrorCall . show $
-      val
+-- _unitTestTestErrorLabel :: IO ()
+-- _unitTestTestErrorLabel = do
+--   let val :: Either String TestErrorLabel
+--       val = Aeson.eitherDecode "{\"code\":404,\"message\":\"Not found.\",\"label\":\"not-found\"}"
+--   unless (val == Right "not-found") $
+--     throwIO . ErrorCall . show $
+--       val
 
 -- | FUTUREWORK(fisx): we're running all tests for all constructors of `WireIdPAPIVersion`,
 -- which sometimes makes little sense.  'skipIdPAPIVersions' can be used to pend individual

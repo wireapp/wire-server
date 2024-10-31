@@ -123,14 +123,6 @@ getUser user target = do
       joinHttpPath ["users", domain, uid]
   submit "GET" req
 
-getUserByHandle :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> String -> App Response
-getUserByHandle user domain handle = do
-  domainStr <- asString domain
-  req <-
-    baseRequest user Brig Versioned $
-      joinHttpPath ["users", "by-handle", domainStr, handle]
-  submit "GET" req
-
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_clients__client_
 getClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
@@ -143,6 +135,15 @@ getClient u cli = do
     baseRequest u Brig Versioned $
       joinHttpPath ["clients", c]
   submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_clients
+getSelfClients ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  App Response
+getSelfClients u =
+  baseRequest u Brig Versioned (joinHttpPath ["clients"])
+    >>= submit "GET"
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_self
 deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
@@ -257,6 +258,13 @@ searchContacts user searchTerm domain = do
   d <- objDomain domain
   submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__search
+searchTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
+searchTeam user q = do
+  tid <- user %. "team" & asString
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
+  submit "GET" (req & addQueryParams [("q", q)])
+
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
   req <- baseRequest domain Brig Unversioned $ "/api-version"
@@ -349,14 +357,14 @@ deleteKeyPackages cid kps = do
   req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client)
   submit "DELETE" $ req & addJSONObject ["key_packages" .= kps]
 
-replaceKeyPackages :: ClientIdentity -> [Ciphersuite] -> [ByteString] -> App Response
-replaceKeyPackages cid suites kps = do
+replaceKeyPackages :: ClientIdentity -> Maybe [Ciphersuite] -> [ByteString] -> App Response
+replaceKeyPackages cid mSuites kps = do
   req <-
     baseRequest cid Brig Versioned $
       "/mls/key-packages/self/" <> cid.client
   submit "PUT" $
     req
-      & addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]
+      & maybe id (\suites -> addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]) mSuites
       & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self
@@ -410,6 +418,12 @@ putSelfEmail caller emailAddress = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", callerid, "email"]
   submit "PUT" $ req & addJSONObject ["email" .= emailAddress]
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_self_email
+deleteSelfEmail :: (HasCallStack, MakesValue caller) => caller -> App Response
+deleteSelfEmail caller = do
+  req <- baseRequest caller Brig Versioned $ joinHttpPath ["self", "email"]
+  submit "DELETE" req
+
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_self_handle
 -- FUTUREWORK: rename to putSelfHandle for consistency
 putHandle :: (HasCallStack, MakesValue user) => user -> String -> App Response
@@ -442,11 +456,12 @@ putUserSupportedProtocols user ps = do
   submit "PUT" (req & addJSONObject ["supported_protocols" .= ps])
 
 data PostInvitation = PostInvitation
-  { email :: Maybe String
+  { email :: Maybe String,
+    role :: Maybe String
   }
 
 instance Default PostInvitation where
-  def = PostInvitation Nothing
+  def = PostInvitation Nothing Nothing
 
 postInvitation ::
   (HasCallStack, MakesValue user) =>
@@ -460,7 +475,7 @@ postInvitation user inv = do
       joinHttpPath ["teams", tid, "invitations"]
   email <- maybe randomEmail pure inv.email
   submit "POST" $
-    req & addJSONObject ["email" .= email]
+    req & addJSONObject (["email" .= email] <> ["role" .= r | r <- toList inv.role])
 
 getApiVersions :: (HasCallStack) => App Response
 getApiVersions = do
@@ -475,9 +490,6 @@ getSwaggerPublicTOC = do
     rawBaseRequest OwnDomain Brig Unversioned $
       joinHttpPath ["api", "swagger-ui"]
   submit "GET" req
-
-getSwaggerInternalTOC :: (HasCallStack) => App Response
-getSwaggerInternalTOC = error "FUTUREWORK: this API end-point does not exist."
 
 getSwaggerPublicAllUI :: (HasCallStack) => Int -> App Response
 getSwaggerPublicAllUI version = do
@@ -668,10 +680,188 @@ getCallsConfigV2 user = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v2"]
   submit "GET" req
 
-addBot :: (MakesValue user) => user -> String -> String -> String -> App Response
+addBot :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
 addBot user providerId serviceId convId = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["conversations", convId, "bots"]
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["bot", "conversations", convId]
   submit "POST" $
     req
       & zType "access"
       & addJSONObject ["provider" .= providerId, "service" .= serviceId]
+
+setProperty :: (MakesValue user, ToJSON val) => user -> String -> val -> App Response
+setProperty user propName val = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties", propName]
+  submit "PUT" $ req & addJSON val
+
+getProperty :: (MakesValue user) => user -> String -> App Response
+getProperty user propName = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties", propName]
+  submit "GET" req
+
+deleteProperty :: (MakesValue user) => user -> String -> App Response
+deleteProperty user propName = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties", propName]
+  submit "DELETE" req
+
+getAllPropertyNames :: (MakesValue user) => user -> App Response
+getAllPropertyNames user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties"]
+  submit "GET" req
+
+getAllPropertyValues :: (MakesValue user) => user -> App Response
+getAllPropertyValues user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties-values"]
+  submit "GET" req
+
+clearProperties :: (MakesValue user) => user -> App Response
+clearProperties user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties"]
+  submit "DELETE" req
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/post_oauth_authorization_codes
+generateOAuthAuthorizationCode :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> [String] -> String -> App Response
+generateOAuthAuthorizationCode user cid scopes redirectUrl = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned "/oauth/authorization/codes"
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "client_id" .= cidStr,
+          "scope" .= unwords scopes,
+          "redirect_uri" .= redirectUrl,
+          "code_challenge" .= "G7CWLBqYDT8doT_oEIN3un_QwZWYKHmOqG91nwNzITc",
+          "code_challenge_method" .= "S256",
+          "response_type" .= "code",
+          "state" .= "abc"
+        ]
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/post_oauth_token
+createOAuthAccessToken :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> String -> App Response
+createOAuthAccessToken user cid code redirectUrl = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned "/oauth/token"
+  submit "POST" $
+    req
+      & addUrlEncodedForm
+        [ ("grant_type", "authorization_code"),
+          ("client_id", cidStr),
+          ("code_verifier", "nE3k3zykOmYki~kriKzAmeFiGT7cWugcuToFwo1YPgrZ1cFvaQqLa.dXY9MnDj3umAmG-8lSNIYIl31Cs_.fV5r2psa4WWZcB.Nlc3A-t3p67NDZaOJjIiH~8PvUH_hR"),
+          ("code", code),
+          ("redirect_uri", redirectUrl)
+        ]
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/post_oauth_token
+createOAuthAccessTokenWithRefreshToken :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
+createOAuthAccessTokenWithRefreshToken user cid token = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned "/oauth/token"
+  submit "POST" $
+    req
+      & addUrlEncodedForm
+        [ ("grant_type", "refresh_token"),
+          ("client_id", cidStr),
+          ("refresh_token", token)
+        ]
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_oauth_applications
+getOAuthApplications :: (HasCallStack, MakesValue user) => user -> App Response
+getOAuthApplications user = do
+  req <- baseRequest user Brig Versioned "/oauth/applications"
+  submit "GET" req
+
+deleteOAuthSession :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> String -> App Response
+deleteOAuthSession user cid password tokenId = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions", tokenId]
+  submit "DELETE" $ req & addJSONObject ["password" .= password]
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_oauth_applications__OAuthClientId_
+revokeApplicationAccessV6 :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> App Response
+revokeApplicationAccessV6 user cid = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig (ExplicitVersion 6) $ joinHttpPath ["oauth", "applications", cidStr]
+  submit "DELETE" req
+
+revokeApplicationAccess :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
+revokeApplicationAccess user cid password = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions"]
+  submit "DELETE" $ req & addJSONObject ["password" .= password]
+
+registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+registerUser domain email inviteeCode = do
+  req <- baseRequest domain Brig Versioned "register"
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "name" .= "Alice",
+          "email" .= email,
+          "password" .= defPassword,
+          "team_code" .= inviteeCode
+        ]
+
+activate :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+activate domain key code = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["activate"]
+  submit "GET" $
+    req
+      & addQueryParams [("key", key), ("code", code)]
+
+acceptTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> Maybe String -> App Response
+acceptTeamInvitation user code mPw = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "accept"]
+  submit "POST" $ req & addJSONObject (["code" .= code] <> maybeToList (((.=) "password") <$> mPw))
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__invitations
+listInvitations :: (HasCallStack, MakesValue user) => user -> String -> App Response
+listInvitations user tid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "invitations"]
+  submit "GET" req
+
+passwordReset :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+passwordReset domain email = do
+  req <- baseRequest domain Brig Versioned "password-reset"
+  submit "POST" $ req & addJSONObject ["email" .= email]
+
+completePasswordReset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+completePasswordReset domain key code pw = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["password-reset", "complete"]
+  submit "POST" $ req & addJSONObject ["key" .= key, "code" .= code, "password" .= pw]
+
+login :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+login domain email password = do
+  req <- baseRequest domain Brig Versioned "login"
+  submit "POST" $ req & addJSONObject ["email" .= email, "password" .= password] & addQueryParams [("persist", "true")]
+
+updateEmail :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
+updateEmail user email cookie token = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["access", "self", "email"]
+  submit "PUT" $ req & addJSONObject ["email" .= email] & setCookie cookie & addHeader "Authorization" ("Bearer " <> token)
+
+upgradePersonalToTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
+upgradePersonalToTeam user name = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["upgrade-personal-to-team"]
+  submit "POST" $ req & addJSONObject ["name" .= name, "icon" .= "default"]
+
+postServiceWhitelist ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue tid,
+    MakesValue update
+  ) =>
+  user ->
+  tid ->
+  update ->
+  App Response
+postServiceWhitelist user tid update = do
+  tidStr <- asString tid
+  updateJson <- make update
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath
+        [ "teams",
+          tidStr,
+          "services",
+          "whitelist"
+        ]
+  submit "POST" (addJSON updateJson req)

@@ -8,6 +8,12 @@ import Polysemy.State
 import Wire.API.User.Password
 import Wire.PasswordResetCodeStore
 
+runInMemoryPasswordResetCodeStore :: forall r. InterpreterFor PasswordResetCodeStore r
+runInMemoryPasswordResetCodeStore =
+  evalState (mempty :: Map PasswordResetKey (PRQueryData Identity))
+    . inMemoryPasswordResetCodeStore
+    . raiseUnder
+
 inMemoryPasswordResetCodeStore ::
   forall r.
   (Member (State (Map PasswordResetKey (PRQueryData Identity))) r) =>

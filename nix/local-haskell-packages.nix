@@ -12,7 +12,6 @@
   dns-util = hself.callPackage ../libs/dns-util/default.nix { inherit gitignoreSource; };
   extended = hself.callPackage ../libs/extended/default.nix { inherit gitignoreSource; };
   galley-types = hself.callPackage ../libs/galley-types/default.nix { inherit gitignoreSource; };
-  gundeck-types = hself.callPackage ../libs/gundeck-types/default.nix { inherit gitignoreSource; };
   hscim = hself.callPackage ../libs/hscim/default.nix { inherit gitignoreSource; };
   http2-manager = hself.callPackage ../libs/http2-manager/default.nix { inherit gitignoreSource; };
   imports = hself.callPackage ../libs/imports/default.nix { inherit gitignoreSource; };
@@ -31,6 +30,7 @@
   wire-api-federation = hself.callPackage ../libs/wire-api-federation/default.nix { inherit gitignoreSource; };
   wire-api = hself.callPackage ../libs/wire-api/default.nix { inherit gitignoreSource; };
   wire-message-proto-lens = hself.callPackage ../libs/wire-message-proto-lens/default.nix { inherit gitignoreSource; };
+  wire-otel = hself.callPackage ../libs/wire-otel/default.nix { inherit gitignoreSource; };
   wire-subsystems = hself.callPackage ../libs/wire-subsystems/default.nix { inherit gitignoreSource; };
   zauth = hself.callPackage ../libs/zauth/default.nix { inherit gitignoreSource; };
   background-worker = hself.callPackage ../services/background-worker/default.nix { inherit gitignoreSource; };
@@ -52,7 +52,7 @@
   repair-brig-clients-table = hself.callPackage ../tools/db/repair-brig-clients-table/default.nix { inherit gitignoreSource; };
   repair-handles = hself.callPackage ../tools/db/repair-handles/default.nix { inherit gitignoreSource; };
   service-backfill = hself.callPackage ../tools/db/service-backfill/default.nix { inherit gitignoreSource; };
-  fedcalls = hself.callPackage ../tools/fedcalls/default.nix { inherit gitignoreSource; };
+  team-info = hself.callPackage ../tools/db/team-info/default.nix { inherit gitignoreSource; };
   mlsstats = hself.callPackage ../tools/mlsstats/default.nix { inherit gitignoreSource; };
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { inherit gitignoreSource; };
   rex = hself.callPackage ../tools/rex/default.nix { inherit gitignoreSource; };

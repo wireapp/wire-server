@@ -20,7 +20,7 @@
 
 module Brig.AWS
   ( -- * Monad
-    Env,
+    Env (..),
     mkEnv,
     Amazon,
     amazonkaEnv,
@@ -174,10 +174,10 @@ listen throttleMillis url callback = forever . handleAny unexpectedError $ do
         & set SQS.receiveMessage_waitTimeSeconds (Just 20)
           . set SQS.receiveMessage_maxNumberOfMessages (Just 10)
     onMessage m =
-      case decodeStrict . Text.encodeUtf8 =<< (m ^. SQS.message_body) of
-        Nothing -> err $ msg ("Failed to parse SQS event: " ++ show m)
-        Just n -> do
-          debug $ msg ("Received SQS event: " ++ show n)
+      case eitherDecodeStrict . Text.encodeUtf8 =<< maybe (Left "No message body received") Right (m ^. SQS.message_body) of
+        Left e -> err $ msg (val "Failed to parse SQS event") . field "error" e . field "message" (show m)
+        Right n -> do
+          debug $ msg (val "Received SQS event") . field "event" (show n)
           liftIO $ callback n
           for_ (m ^. SQS.message_receiptHandle) (void . send . SQS.newDeleteMessage url)
     unexpectedError x = do

@@ -83,6 +83,9 @@ data:
       {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
       {{- end }}
       federationDomain: {{ .settings.federationDomain }}
+      {{- if .settings.federationProtocols }}
+      federationProtocols: {{ .settings.federationProtocols }}
+      {{- end }}
       {{- if $.Values.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:
         removal:
@@ -96,6 +99,7 @@ data:
       {{- if .settings.guestLinkTTLSeconds }}
       guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
       {{- end }}
+      passwordHashingOptions: {{ toYaml .settings.passwordHashingOptions | nindent 8 }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}
@@ -105,6 +109,10 @@ data:
         {{- if .settings.featureFlags.fileSharing }}
         fileSharing:
           {{- toYaml .settings.featureFlags.fileSharing | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.enforceFileDownloadLocation }}
+        enforceFileDownloadLocation:
+          {{- toYaml .settings.featureFlags.enforceFileDownloadLocation | nindent 10 }}
         {{- end }}
         {{- if .settings.featureFlags.sndFactorPasswordChallenge }}
         sndFactorPasswordChallenge:

@@ -1,3 +1,6 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -42,13 +45,13 @@ import Galley.API.MLS.Removal
 import Galley.API.One2One
 import Galley.API.Public.Servant
 import Galley.API.Query qualified as Query
-import Galley.API.Teams (uncheckedDeleteTeamMember)
+import Galley.API.Teams
 import Galley.API.Teams qualified as Teams
 import Galley.API.Teams.Features
+import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
 import Galley.API.Util
 import Galley.App
-import Galley.Cassandra.TeamFeatures (getAllFeatureConfigsForServer)
 import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
@@ -65,14 +68,13 @@ import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
-import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
-import Servant hiding (JSON, WithStatus)
+import Servant
 import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
@@ -84,13 +86,14 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
-import Wire.API.Team.Feature hiding (setStatus)
+import Wire.API.Team.Feature
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging
@@ -100,8 +103,8 @@ internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
   hoistAPI @InternalAPIBase Imports.id $
     mkNamedAPI @"status" (pure ())
-      <@> mkNamedAPI @"delete-user" (callsFed (exposeAnnotations rmUser))
-      <@> mkNamedAPI @"connect" (callsFed (exposeAnnotations Create.createConnectConversation))
+      <@> mkNamedAPI @"delete-user" rmUser
+      <@> mkNamedAPI @"connect" Create.createConnectConversation
       <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
@@ -114,7 +117,7 @@ internalAPI =
       <@> iEJPDAPI
 
 iEJPDAPI :: API IEJPDAPI GalleyEffects
-iEJPDAPI = mkNamedAPI @"get-conversations-by-user" (callsFed (exposeAnnotations ejpdGetConvInfo))
+iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
 
 -- | An unpaginated, internal http interface to `Query.conversationIdsPageFrom`.  Used for
 -- EJPD reports.  Called locally with very little data for each conv, so we don't expect
@@ -171,12 +174,10 @@ conversationAPI :: API IConversationAPI GalleyEffects
 conversationAPI =
   mkNamedAPI @"conversation-get-member" Query.internalGetMember
     <@> mkNamedAPI @"conversation-accept-v2" Update.acceptConv
-    <@> mkNamedAPI @"conversation-block-unqualified" Update.blockConvUnqualified
     <@> mkNamedAPI @"conversation-block" Update.blockConv
-    <@> mkNamedAPI @"conversation-unblock-unqualified" Update.unblockConvUnqualified
     <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
     <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
-    <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversation
+    <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
     <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
@@ -226,85 +227,67 @@ miscAPI =
     <@> mkNamedAPI @"test-delete-client" Clients.rmClient
     <@> mkNamedAPI @"add-service" createService
     <@> mkNamedAPI @"delete-service" deleteService
-    <@> mkNamedAPI @"add-bot" Update.addBot
+    <@> mkNamedAPI @"i-add-bot" Update.addBot
     <@> mkNamedAPI @"delete-bot" Update.rmBot
     <@> mkNamedAPI @"put-custom-backend" setCustomBackend
     <@> mkNamedAPI @"delete-custom-backend" deleteCustomBackend
 
+featureAPI1Full ::
+  forall cfg r.
+  (_) =>
+  API (IFeatureAPI1Full cfg) r
+featureAPI1Full =
+  mkNamedAPI @'("iget", cfg) getFeatureInternal
+    <@> mkNamedAPI @'("iput", cfg) setFeatureInternal
+    <@> mkNamedAPI @'("ipatch", cfg) patchFeatureInternal
+
+featureAPI1Get ::
+  forall cfg r.
+  (_) =>
+  API (IFeatureStatusGet cfg) r
+featureAPI1Get = mkNamedAPI @'("iget", cfg) getFeatureInternal
+
+allFeaturesAPI :: API (IAllFeaturesAPI Features) GalleyEffects
+allFeaturesAPI =
+  featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Get
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
-  mkNamedAPI @'("iget", SSOConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SSOConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", SSOConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (exposeAnnotations setFeatureStatusInternal))
-    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (exposeAnnotations patchFeatureStatusInternal))
-    <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", ValidateSAMLEmailsConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", ValidateSAMLEmailsConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", ValidateSAMLEmailsConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", DigitalSignaturesConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", DigitalSignaturesConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", DigitalSignaturesConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", AppLockConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", AppLockConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", AppLockConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", FileSharingConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", FileSharingConfig) setFeatureStatusInternal
+  allFeaturesAPI
+    -- legacy endpoints
     <@> mkNamedAPI @'("ilock", FileSharingConfig) (updateLockStatus @FileSharingConfig)
-    <@> mkNamedAPI @'("ipatch", FileSharingConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", ConferenceCallingConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", ConferenceCallingConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", ConferenceCallingConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", SelfDeletingMessagesConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SelfDeletingMessagesConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", ConferenceCallingConfig) (updateLockStatus @ConferenceCallingConfig)
     <@> mkNamedAPI @'("ilock", SelfDeletingMessagesConfig) (updateLockStatus @SelfDeletingMessagesConfig)
-    <@> mkNamedAPI @'("ipatch", SelfDeletingMessagesConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", GuestLinksConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", GuestLinksConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", GuestLinksConfig) (updateLockStatus @GuestLinksConfig)
-    <@> mkNamedAPI @'("ipatch", GuestLinksConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", SndFactorPasswordChallengeConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SndFactorPasswordChallengeConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", SndFactorPasswordChallengeConfig) (updateLockStatus @SndFactorPasswordChallengeConfig)
-    <@> mkNamedAPI @'("ipatch", SndFactorPasswordChallengeConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureStatusMulti
-    <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", MLSConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", MLSConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", MLSConfig) (updateLockStatus @MLSConfig)
-    <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @'("iget", OutlookCalIntegrationConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @OutlookCalIntegrationConfig)
-    <@> mkNamedAPI @'("iget", MlsE2EIdConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", MlsE2EIdConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @MlsE2EIdConfig)
-    <@> mkNamedAPI @'("iget", MlsMigrationConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", MlsMigrationConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", MlsMigrationConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
-    <@> mkNamedAPI @'("iget", EnforceFileDownloadLocationConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", EnforceFileDownloadLocationConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", EnforceFileDownloadLocationConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
-    <@> mkNamedAPI @'("iget", LimitedEventFanoutConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", LimitedEventFanoutConfig) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", LimitedEventFanoutConfig) patchFeatureStatusInternal
-    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
+    -- special endpoints
+    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureMulti
+    -- all features
+    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 
 rmUser ::
   forall p1 p2 r.
@@ -358,12 +341,12 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       toNotify <-
         handleImpossibleErrors $
-          getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid
+          getFeatureForTeam @LimitedEventFanoutConfig tid
             >>= ( \case
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
                     FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
                 )
-              . wsStatus
+              . (.status)
       uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'

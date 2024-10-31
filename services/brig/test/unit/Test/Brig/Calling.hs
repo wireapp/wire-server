@@ -291,12 +291,13 @@ testSFTStaticDeprecatedEndpoint :: IO ()
 testSFTStaticDeprecatedEndpoint = do
   env <- fst <$> sftStaticEnv
   turnUri <- generate arbitrary
+  uid <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env (Discovered turnUri) Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated True
+      $ newConfig uid env (Discovered turnUri) Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated True
   assertEqual
     "when SFT static URL is disabled, sft_servers should be empty."
     Set.empty
@@ -305,6 +306,7 @@ testSFTStaticDeprecatedEndpoint = do
 -- The v2 endpoint `GET /calls/config/v2` without an SFT static URL
 testSFTStaticV2NoStaticUrl :: IO ()
 testSFTStaticV2NoStaticUrl = do
+  uid <- generate arbitrary
   env <- fst <$> sftStaticEnv
   let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
@@ -323,7 +325,7 @@ testSFTStaticV2NoStaticUrl = do
       . ignoreLogs
       . interpretSFTInMemory mempty
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env (Discovered turnUri) Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers (CallsConfigV2 Nothing) True
+      $ newConfig uid env (Discovered turnUri) Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers (CallsConfigV2 Nothing) True
   assertEqual
     "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
     (Just . fmap ((^. sftURL) . sftServerFromSrvTarget . srvTarget) . toList $ servers)
@@ -334,12 +336,13 @@ testSFTStaticV2StaticUrlError :: IO ()
 testSFTStaticV2StaticUrlError = do
   (env, staticUrl) <- sftStaticEnv
   turnUri <- generate arbitrary
+  uid <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty -- an empty lookup map, meaning there was an error
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers (CallsConfigV2 Nothing) True
+      $ newConfig uid env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers (CallsConfigV2 Nothing) True
   assertEqual
     "when SFT static URL is enabled (and setSftListAllServers is enabled), but returns error, sft_servers_all should be omitted"
     Nothing
@@ -353,12 +356,13 @@ testSFTStaticV2StaticUrlList = do
   -- for sft_servers_all
   servers <- generate $ replicateM 10 arbitrary
   turnUri <- generate arbitrary
+  uid <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse $ Right servers))
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers (CallsConfigV2 Nothing) True
+      $ newConfig uid env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers (CallsConfigV2 Nothing) True
   assertEqual
     "when SFT static URL and setSftListAllServers are enabled, sft_servers_all should be from /sft_servers_all.json"
     ((^. sftURL) <$$> Just servers)
@@ -371,12 +375,13 @@ testSFTStaticV2ListAllServersDisabled = do
   -- for sft_servers_all
   servers <- generate $ replicateM 10 arbitrary
   turnUri <- generate arbitrary
+  uid <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers (CallsConfigV2 Nothing) True
+      $ newConfig uid env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers (CallsConfigV2 Nothing) True
   assertEqual
     "when SFT static URL is enabled and setSftListAllServers is \"disabled\" then sft_servers_all is missing"
     Nothing

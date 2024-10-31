@@ -11,6 +11,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
+import Crypto.Random (MonadRandom (..))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
@@ -68,7 +69,8 @@ data BackendResource = BackendResource
     berVHost :: String,
     berNginzSslPort :: Word16,
     berNginzHttp2Port :: Word16,
-    berInternalServicePorts :: forall a. (Num a) => Service -> a
+    berInternalServicePorts :: forall a. (Num a) => Service -> a,
+    berMlsPrivateKeyPaths :: Value
   }
 
 instance Eq BackendResource where
@@ -79,7 +81,8 @@ instance Ord BackendResource where
 
 data DynamicBackendConfig = DynamicBackendConfig
   { domain :: String,
-    federatorExternalPort :: Word16
+    federatorExternalPort :: Word16,
+    mlsPrivateKeyPaths :: Value
   }
   deriving (Show, Generic)
 
@@ -105,11 +108,11 @@ data GlobalEnv = GlobalEnv
     gDomain2 :: String,
     gIntegrationTestHostName :: String,
     gFederationV0Domain :: String,
+    gFederationV1Domain :: String,
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
-    gRemovalKeyPaths :: Map String FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
     gTempDir :: FilePath,
@@ -120,6 +123,7 @@ data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
     federationV0 :: BackendConfig,
+    federationV1 :: BackendConfig,
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
@@ -134,6 +138,7 @@ instance FromJSON IntegrationConfig where
         <$> parseJSON (Object o)
         <*> o .: fromString "backendTwo"
         <*> o .: fromString "federation-v0"
+        <*> o .: fromString "federation-v1"
         <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
@@ -201,12 +206,12 @@ data Env = Env
     domain2 :: String,
     integrationTestHostName :: String,
     federationV0Domain :: String,
+    federationV1Domain :: String,
     dynamicDomains :: [String],
     defaultAPIVersion :: Int,
+    apiVersionByDomain :: Map String Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
-    -- | paths to removal keys by signature scheme
-    removalKeyPaths :: Map String FilePath,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
@@ -236,6 +241,9 @@ data ClientIdentity = ClientIdentity
     client :: String
   }
   deriving stock (Show, Eq, Ord, Generic)
+
+instance HasField "qualifiedUserId" ClientIdentity Aeson.Value where
+  getField cid = object [fromString "id" .= cid.user, fromString "domain" .= cid.domain]
 
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show, Generic)
@@ -304,14 +312,15 @@ getRequestBody req = case HTTP.requestBody req of
 data AssertionFailure = AssertionFailure
   { callstack :: CallStack,
     response :: Maybe Response,
+    context :: Maybe String,
     msg :: String
   }
 
 instance Show AssertionFailure where
-  show (AssertionFailure _ _ msg) = "AssertionFailure _ _ " <> show msg
+  show (AssertionFailure _ _ _ msg) = "AssertionFailure _ _ _ " <> show msg
 
 instance Exception AssertionFailure where
-  displayException (AssertionFailure _ _ msg) = msg
+  displayException (AssertionFailure _ _ _ msg) = msg
 
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving newtype
@@ -327,6 +336,9 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadUnliftIO,
       MonadBaseControl IO
     )
+
+instance MonadRandom App where
+  getRandomBytes n = liftIO (getRandomBytes n)
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e
@@ -380,7 +392,7 @@ assertFailure :: (HasCallStack) => String -> App a
 assertFailure msg =
   forceList msg $
     liftIO $
-      E.throw (AssertionFailure callStack Nothing msg)
+      E.throw (AssertionFailure callStack Nothing Nothing msg)
   where
     forceList [] y = y
     forceList (x : xs) y = seq x (forceList xs y)
@@ -393,10 +405,12 @@ assertNothing :: (HasCallStack) => Maybe a -> App ()
 assertNothing = maybe (pure ()) $ const $ assertFailure "Maybe value was Just, not Nothing"
 
 addFailureContext :: String -> App a -> App a
-addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happened in this context:\n" <> msg)
+addFailureContext ctx = modifyFailureContext (\mCtx0 -> Just $ maybe ctx (\x -> ctx <> "\n" <> x) mCtx0)
 
-modifyFailureMsg :: (String -> String) -> App a -> App a
-modifyFailureMsg modMessage = modifyFailure (\e -> e {msg = modMessage e.msg})
+modifyFailureContext :: (Maybe String -> Maybe String) -> App a -> App a
+modifyFailureContext modContext =
+  modifyFailure
+    (\e -> e {context = modContext e.context})
 
 modifyFailure :: (AssertionFailure -> AssertionFailure) -> App a -> App a
 modifyFailure modifyAssertion action = do

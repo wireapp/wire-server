@@ -11,7 +11,6 @@ packages:
   , libs/dns-util/
   , libs/deriving-swagger2/
   , libs/galley-types/
-  , libs/gundeck-types/
   , libs/hscim/
   , libs/http2-manager/
   , libs/imports/
@@ -29,6 +28,7 @@ packages:
   , libs/wai-utilities/
   , libs/wire-api/
   , libs/wire-api-federation/
+  , libs/wire-otel/
   , libs/wire-message-proto-lens/
   , libs/wire-subsystems/
   , libs/zauth/
@@ -49,9 +49,9 @@ packages:
   , tools/db/move-team/
   , tools/db/phone-users/
   , tools/db/repair-handles/
+  , tools/db/team-info/
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
-  , tools/fedcalls/
   , tools/rabbitmq-consumer
   , tools/rex/
   , tools/stern/
@@ -74,3 +74,4 @@ program-options
 allow-newer:
   , proto-lens-protoc:base
   , proto-lens-protoc:ghc
+  , proto-lens-setup:Cabal

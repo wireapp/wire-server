@@ -15,6 +15,10 @@ resources:
     cpu: "100m"
   limits:
     memory: "500Mi"
+# This is not supported for production use, only here for testing:
+# preStop:
+#  exec: 
+#   command: ["sh", "-c", "curl http://acme.example"]
 config:
   logLevel: Info
   logFormat: StructuredJSON
@@ -29,7 +33,7 @@ config:
 #   tlsCaSecretRef:
 #     name: <secret-name>
 #     key: <ca-attribute>
-  enableFederation: false # keep enableFederation default in sync with brig and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
+  enableFederation: false # keep in sync with background-worker, brig and cargohold charts' config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
   rabbitmq:
     host: rabbitmq
@@ -66,6 +70,16 @@ config:
     # The lifetime of a conversation guest link in seconds. Must be a value 0 < x <= 31536000 (365 days)
     # Default is 31536000 (365 days) if not set
     guestLinkTTLSeconds: 31536000
+    passwordHashingOptions:
+      algorithm: scrypt # or argon2id
+      # When algorithm is argon2id, these can be configured:
+      # iterations: <iterations>
+      # parallelism: <paralellism>
+      # memory: <memory used in KiB>
+
+    # To disable proteus for new federated conversations:
+    # federationProtocols: ["mls"]
+
     featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
       appLock:
         defaults:
@@ -80,6 +94,7 @@ config:
       conferenceCalling:
         defaults:
           status: enabled
+          lockStatus: locked
       conversationGuestLinks:
         defaults:
           lockStatus: unlocked
@@ -88,6 +103,11 @@ config:
         defaults:
           lockStatus: unlocked
           status: enabled
+      enforceFileDownloadLocation:
+        defaults:
+          lockStatus: locked
+          status: disabled
+          config: {}
       legalhold: disabled-by-default
       mls:
         defaults:

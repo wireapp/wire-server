@@ -17,24 +17,16 @@
 
 module API.Federation.Util
   ( mkHandler,
-
-    -- * the remote backend type
-    BackendReachability (..),
-    Backend (..),
-    rbReachable,
-    participating,
   )
 where
 
 import Data.Kind
-import Data.Qualified
 import Data.SOP
 import Data.String.Conversions
 import GHC.TypeLits
 import Imports
 import Servant
 import Wire.API.Federation.Domain
-import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
@@ -48,9 +40,6 @@ instance (HasTrivialHandler api) => HasTrivialHandler ((path :: Symbol) :> api) 
   trivialHandler = trivialHandler @api
 
 instance (HasTrivialHandler api) => HasTrivialHandler (OriginDomainHeader :> api) where
-  trivialHandler name _ = trivialHandler @api name
-
-instance (HasTrivialHandler api) => HasTrivialHandler (MakesFederatedCall comp name :> api) where
   trivialHandler name _ = trivialHandler @api name
 
 instance (HasTrivialHandler api) => HasTrivialHandler (ReqBody cs a :> api) where
@@ -111,24 +100,3 @@ instance
   PartialAPI (Named (name :: Symbol) endpoint :<|> api) (Named name h)
   where
   mkHandler h = h :<|> mkHandler @api EmptyAPI
-
---------------------------------------------------------------------------------
--- The remote backend type
-
-data BackendReachability = BackendReachable | BackendUnreachable
-  deriving (Eq, Ord)
-
-data Backend = Backend
-  { bReachable :: BackendReachability,
-    bUsers :: Nat
-  }
-  deriving (Eq, Ord)
-
-rbReachable :: Remote Backend -> BackendReachability
-rbReachable = bReachable . tUnqualified
-
-participating :: Remote Backend -> [a] -> [a]
-participating rb users =
-  if rbReachable rb == BackendReachable
-    then users
-    else []

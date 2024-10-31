@@ -31,8 +31,8 @@ import Data.Id
 import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as Uuid
 import Gundeck.Aws.Arn (EndpointArn)
-import Gundeck.Types
 import Imports
+import Wire.API.Push.V2
 
 instance Cql Transport where
   ctype = Tagged IntColumn

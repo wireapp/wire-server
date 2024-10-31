@@ -27,25 +27,29 @@ import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Database.Redis qualified as Redis
-import Gundeck.API (sitemap)
-import Gundeck.API.Public (servantSitemap)
+import Gundeck.API.Internal as Internal (InternalAPI, servantSitemap)
+import Gundeck.API.Public as Public (servantSitemap)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Env qualified as Env
 import Gundeck.Monad
 import Gundeck.Options hiding (host, port)
 import Gundeck.React
+import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
-import Imports hiding (head)
+import Imports
 import Network.Wai as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server hiding (serverPort)
+import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware)
+import OpenTelemetry.Trace (defaultSpanArguments, inSpan, kind)
+import OpenTelemetry.Trace qualified as Otel
 import Servant (Handler (Handler), (:<|>) (..))
 import Servant qualified
 import System.Logger qualified as Log
@@ -54,22 +58,23 @@ import Util.Options
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import Wire.OpenTelemetry
 
 run :: Opts -> IO ()
-run o = do
+run o = withTracer \tracer -> do
   (rThreads, e) <- createEnv o
   runClient (e ^. cstate) $
-    versionCheck schemaVersion
+    versionCheck lastSchemaVersion
   let l = e ^. applog
-  s <- newSettings $ defaultServer (unpack $ o ^. gundeck . host) (o ^. gundeck . port) l
+  s <- newSettings $ defaultServer (unpack . host $ o ^. gundeck) (port $ o ^. gundeck) l
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)
 
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv e)))
 
-  let app = middleware e $ mkApp e
-  runSettingsWithShutdown s app Nothing `finally` do
+  app <- middleware e <*> pure (mkApp e)
+  inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
     Log.info l $ Log.msg (Log.val "Shutting down ...")
     shutdown (e ^. cstate)
     Async.cancel lst
@@ -80,32 +85,26 @@ run o = do
     whenJust (e ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
     Log.close (e ^. applog)
   where
-    middleware :: Env -> Middleware
-    middleware e =
-      versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
-        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
-        . waiPrometheusMiddleware sitemap
-        . GZip.gunzip
-        . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) defaultRequestIdHeaderName
-
-type CombinedAPI = GundeckAPI :<|> Servant.Raw
+    middleware :: Env -> IO Middleware
+    middleware e = do
+      otelMiddleWare <- newOpenTelemetryWaiMiddleware
+      pure $
+        versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
+          . otelMiddleWare
+          . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
+          . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> InternalAPI))
+          . GZip.gunzip
+          . GZip.gzip GZip.def
+          . catchErrors (e ^. applog) defaultRequestIdHeaderName
 
 mkApp :: Env -> Wai.Application
 mkApp env0 req cont = do
   let rid = getRequestId defaultRequestIdHeaderName req
       env = reqId .~ rid $ env0
-  Servant.serve
-    (Proxy @CombinedAPI)
-    (servantSitemap' env :<|> Servant.Tagged (runGundeckWithRoutes env))
-    req
-    cont
-  where
-    runGundeckWithRoutes :: Env -> Wai.Application
-    runGundeckWithRoutes e r k = runGundeck e r (route (compile sitemap) r k)
+  Servant.serve (Proxy @(GundeckAPI :<|> InternalAPI)) (servantSitemap' env) req cont
 
-servantSitemap' :: Env -> Servant.Server GundeckAPI
-servantSitemap' env = Servant.hoistServer (Proxy @GundeckAPI) toServantHandler servantSitemap
+servantSitemap' :: Env -> Servant.Server (GundeckAPI :<|> InternalAPI)
+servantSitemap' env = Servant.hoistServer (Proxy @(GundeckAPI :<|> InternalAPI)) toServantHandler (Public.servantSitemap :<|> Internal.servantSitemap)
   where
     toServantHandler :: Gundeck a -> Handler a
     toServantHandler m = Handler . ExceptT $ Right <$> runDirect env m

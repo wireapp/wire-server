@@ -124,6 +124,7 @@ emailSMS:
 
   team:
     tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tExistingUserInvitationUrl: http://127.0.0.1:8080/accept-invitation?team-code=${code}
     tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
@@ -154,9 +155,9 @@ turn:
   tokenTTL: 21600
 
 optSettings:
-  setActivationTimeout: 10
-  setVerificationTimeout: 10
-  setTeamInvitationTimeout: 10
+  setActivationTimeout: 4
+  setVerificationTimeout: 4
+  setTeamInvitationTimeout: 4
   setExpiredUserCleanupTimeout: 1
   # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
@@ -198,6 +199,11 @@ optSettings:
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
   setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
+    conferenceCalling:
+      defaultForNew:
+        status: disabled
+      defaultForNull:
+        status: disabled
   setFederationDomainConfigsUpdateFreq: 1
   setFederationStrategy: allowAll
   setFederationDomainConfigs:
@@ -222,6 +228,11 @@ optSettings:
   setOAuthEnabled: true
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
   setOAuthMaxActiveRefreshTokens: 10
+  setPasswordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
+    algorithm: argon2id
+    iterations: 1
+    memory: 128
+    parallelism: 1
 
 logLevel: Warn
 logNetStrings: false

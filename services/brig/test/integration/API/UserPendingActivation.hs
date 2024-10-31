@@ -24,7 +24,7 @@ module API.UserPendingActivation where
 import API.Team.Util (getTeam)
 import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
-import Brig.Options (Opts (..), setTeamInvitationTimeout)
+import Brig.Options (Opts (..), teamInvitationTimeout)
 import Cassandra
 import Control.Exception (assert)
 import Control.Lens ((^.), (^?))
@@ -56,7 +56,6 @@ import Web.Scim.Schema.Common qualified as Scim
 import Web.Scim.Schema.Meta (WithMeta)
 import Web.Scim.Schema.Meta qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
-import Web.Scim.Schema.User.Email qualified as Email
 import Web.Scim.Schema.User.Phone qualified as Phone
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
@@ -105,17 +104,18 @@ createScimToken spar' owner = do
   CreateScimTokenResponse tok _ <-
     createToken spar' owner $
       CreateScimToken
-        { createScimTokenDescr = "testCreateToken",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testCreateToken",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   pure tok
 
-createUserStep :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag -> Email -> HttpT IO (WithMeta (WithId UserId (Scim.User.User SparTag)), Invitation, InvitationCode)
+createUserStep :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag -> EmailAddress -> HttpT IO (WithMeta (WithId UserId (Scim.User.User SparTag)), Invitation, InvitationCode)
 createUserStep spar' brig' tok tid scimUser email = do
   scimStoredUser <- createUser spar' tok scimUser
   inv <- getInvitationByEmail brig' email
-  Just inviteeCode <- getInvitationCode brig' tid (inInvitation inv)
+  Just inviteeCode <- getInvitationCode brig' tid inv.invitationId
   pure (scimStoredUser, inv, inviteeCode)
 
 assertUserExist :: (HasCallStack) => String -> ClientState -> UserId -> Bool -> HttpT IO ()
@@ -125,7 +125,7 @@ assertUserExist msg db' uid shouldExist = liftIO $ do
 
 waitUserExpiration :: (MonadUnliftIO m) => Opts -> m ()
 waitUserExpiration opts' = do
-  let timeoutSecs = round @Double . realToFrac . setTeamInvitationTimeout . optSettings $ opts'
+  let timeoutSecs = round @Double . realToFrac $ opts'.settings.teamInvitationTimeout
   Control.Exception.assert (timeoutSecs < 30) $ do
     threadDelay $ (timeoutSecs + 3) * 1_000_000
 
@@ -141,15 +141,15 @@ userExists uid = do
     usersSelect :: PrepQuery R (Identity UserId) (UserId, Maybe AccountStatus)
     usersSelect = "SELECT id, status FROM user where id = ?"
 
-getInvitationByEmail :: Brig -> Email -> Http Invitation
+getInvitationByEmail :: Brig -> EmailAddress -> Http Invitation
 getInvitationByEmail brig email =
   responseJsonUnsafe
     <$> ( Bilge.get (brig . path "/i/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
             <!! const 200 === statusCode
         )
 
-newTeam :: BindingNewTeam
-newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
+newTeam :: NewTeam
+newTeam = newNewTeam (unsafeRange "teamName") DefaultIcon
 
 createUserWithTeamDisableSSO :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m) => Brig -> Galley -> m (UserId, TeamId)
 createUserWithTeamDisableSSO brg gly = do
@@ -194,7 +194,7 @@ randomScimUserWithSubjectAndRichInfo ::
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
+  _emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
   phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
   (externalId, subj) <-
@@ -213,23 +213,16 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          Scim.User.emails = emails,
           Scim.User.phoneNumbers = phones
         },
       subj
     )
 
-randomScimEmail :: (MonadRandom m) => m Email.Email
+randomScimEmail :: (MonadRandom m) => m EmailAddress
 randomScimEmail = do
-  let typ :: Maybe Text = Nothing
-      -- TODO: where should we catch users with more than one
-      -- primary email?
-      primary :: Maybe Scim.ScimBool = Nothing
-  value :: Email.EmailAddress2 <- do
-    localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
-  pure Email.Email {..}
+  localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
+  domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
+  pure $ Email.unsafeEmailAddress localpart domainpart
 
 randomScimPhone :: (MonadRandom m) => m Phone.Phone
 randomScimPhone = do
@@ -344,7 +337,7 @@ createToken spar zusr payload = do
       <!! const 200 === statusCode
   pure (responseJsonUnsafe r)
 
-registerInvitation :: Brig -> Email -> Name -> InvitationCode -> Bool -> Http ()
+registerInvitation :: Brig -> EmailAddress -> Name -> InvitationCode -> Bool -> Http ()
 registerInvitation brig email name inviteeCode shouldSucceed = do
   void $
     post
@@ -355,7 +348,7 @@ registerInvitation brig email name inviteeCode shouldSucceed = do
       )
       <!! const (if shouldSucceed then 201 else 400) === statusCode
 
-acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
+acceptWithName :: Name -> EmailAddress -> InvitationCode -> Aeson.Value
 acceptWithName name email code =
   Aeson.object
     [ "name" Aeson..= fromName name,

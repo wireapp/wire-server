@@ -17,16 +17,21 @@
 
 module Wire.API.MLS.Keys where
 
+import Control.Lens ((?~))
 import Crypto.ECC (Curve_P256R1, Curve_P384R1, Curve_P521R1)
 import Crypto.PubKey.ECDSA qualified as ECDSA
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson qualified as A
 import Data.Bifunctor
+import Data.ByteArray (ByteArray)
 import Data.ByteArray qualified as BA
+import Data.Default
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema hiding (HasField)
 import Imports hiding (First, getFirst)
+import Web.HttpApiData
 import Wire.API.MLS.CipherSuite
 
 data MLSKeysByPurpose a = MLSKeysByPurpose
@@ -47,7 +52,7 @@ data MLSKeys a = MLSKeys
     ecdsa_secp384r1_sha384 :: a,
     ecdsa_secp521r1_sha512 :: a
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeys a)
 
 instance (ToSchema a) => ToSchema (MLSKeys a) where
@@ -70,6 +75,7 @@ type MLSPublicKeys = MLSKeys MLSPublicKey
 
 newtype MLSPublicKey = MLSPublicKey {unwrapMLSPublicKey :: ByteString}
   deriving (Eq, Show)
+  deriving (ToJSON) via Schema MLSPublicKey
 
 instance ToSchema MLSPublicKey where
   schema = named "MLSPublicKey" $ MLSPublicKey <$> unwrapMLSPublicKey .= base64Schema
@@ -83,6 +89,30 @@ mlsKeysToPublic (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
       ecdsa_secp521r1_sha512 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P521R1) ec521
     }
 
+data MLSPublicKeyFormat = MLSPublicKeyFormatRaw | MLSPublicKeyFormatJWK
+  deriving (Eq, Ord, Show)
+
+instance Default MLSPublicKeyFormat where
+  def = MLSPublicKeyFormatRaw
+
+instance FromHttpApiData MLSPublicKeyFormat where
+  parseQueryParam "raw" = pure MLSPublicKeyFormatRaw
+  parseQueryParam "jwk" = pure MLSPublicKeyFormatJWK
+  parseQueryParam _ = Left "invalid MLSPublicKeyFormat"
+
+instance ToHttpApiData MLSPublicKeyFormat where
+  toQueryParam MLSPublicKeyFormatRaw = "raw"
+  toQueryParam MLSPublicKeyFormatJWK = "jwk"
+
+instance S.ToParamSchema MLSPublicKeyFormat where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiString
+      & S.enum_
+        ?~ map
+          (toJSON . toQueryParam)
+          [MLSPublicKeyFormatRaw, MLSPublicKeyFormatJWK]
+
 data JWK = JWK
   { keyType :: String,
     curve :: String,
@@ -90,6 +120,7 @@ data JWK = JWK
     pubY :: Maybe ByteString
   }
   deriving (Show, Ord, Eq)
+  deriving (ToJSON) via Schema JWK
 
 instance ToSchema JWK where
   schema =
@@ -102,10 +133,8 @@ instance ToSchema JWK where
 
 type MLSPublicKeysJWK = MLSKeys JWK
 
-mlsKeysToPublicJWK ::
-  MLSPrivateKeys ->
-  Maybe MLSPublicKeysJWK
-mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
+mlsPublicKeysToJWK :: MLSPublicKeys -> Maybe MLSPublicKeysJWK
+mlsPublicKeysToJWK (MLSKeys (MLSPublicKey ed) (MLSPublicKey ec256) (MLSPublicKey ec384) (MLSPublicKey ec521)) =
   -- The kty parameter for ECDSA is "EC", for Ed25519 it's "OKP" (octet key
   -- pair).
   -- https://www.rfc-editor.org/rfc/rfc7518.html#section-6.1
@@ -116,16 +145,18 @@ mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
   -- The x parameter is mandatory for all keys, the y parameter is mandatory for
   -- all ECDSA keys.
   -- https://www.rfc-editor.org/rfc/rfc7518.html#section-6.2.1
-  MLSKeys (JWK "OKP" "Ed25519" (BA.convert ed) Nothing)
-    <$> (uncurry (JWK "EC" "P-256") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P256R1) ec256))
-    <*> (uncurry (JWK "EC" "P-384") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P384R1) ec384))
-    <*> (uncurry (JWK "EC" "P-521") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P521R1) ec521))
+  MLSKeys
+    (JWK "OKP" "Ed25519" (BA.convert ed) Nothing)
+    <$> (uncurry (JWK "EC" "P-256") . second Just <$> splitXY ec256)
+    <*> (uncurry (JWK "EC" "P-384") . second Just <$> splitXY ec384)
+    <*> (uncurry (JWK "EC" "P-521") . second Just <$> splitXY ec521)
   where
     -- Obtaining X and Y from an encoded curve point follows the logic of
     -- Crypto.ECC's encodeECPoint and decodeECPoint (the module is not
     -- exported). Points need to be encoded in uncompressed representation. This
     -- is true for ECDSA.encodePublic.
     -- https://www.rfc-editor.org/rfc/rfc8422#section-5.4.1
+    splitXY :: forall {bs}. (ByteArray bs) => bs -> Maybe (bs, bs)
     splitXY mxy = do
       (m, xy) <- BA.uncons mxy
       -- The first Byte m is 4 for the uncompressed representation of curve points.
@@ -134,3 +165,15 @@ mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
       -- to Y.
       let size = BA.length xy `div` 2
       pure $ BA.splitAt size xy
+
+data SomeKey = SomeKey A.Value
+
+instance ToSchema SomeKey where
+  schema = mkSchema d r w
+    where
+      d = pure $ S.NamedSchema (Just "SomeKey") mempty
+      r = fmap SomeKey . parseJSON
+      w (SomeKey x) = Just (toJSON x)
+
+mkSomeKey :: (ToJSON a) => a -> SomeKey
+mkSomeKey = SomeKey . toJSON

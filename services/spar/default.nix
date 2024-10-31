@@ -20,14 +20,12 @@
 , cookie
 , crypton
 , crypton-x509
-, email-validate
 , exceptions
 , extended
 , gitignoreSource
 , hscim
 , HsOpenSSL
 , hspec
-, hspec-core
 , hspec-discover
 , hspec-junit-formatter
 , hspec-wai
@@ -64,6 +62,7 @@
 , tasty-hunit
 , text
 , text-latin1
+, these
 , time
 , tinylog
 , transformers
@@ -78,6 +77,7 @@
 , wai-utilities
 , warp
 , wire-api
+, wire-subsystems
 , xml-conduit
 , yaml
 , zauth
@@ -125,6 +125,7 @@ mkDerivation {
     servant-server
     text
     text-latin1
+    these
     time
     tinylog
     transformers
@@ -137,6 +138,7 @@ mkDerivation {
     wai-utilities
     warp
     wire-api
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [
@@ -156,13 +158,11 @@ mkDerivation {
     containers
     cookie
     crypton
-    email-validate
     exceptions
     extended
     hscim
     HsOpenSSL
     hspec
-    hspec-core
     hspec-junit-formatter
     hspec-wai
     http-api-data
@@ -174,6 +174,7 @@ mkDerivation {
     lens-aeson
     MonadRandom
     mtl
+    network-uri
     optparse-applicative
     polysemy
     polysemy-plugin
@@ -189,6 +190,7 @@ mkDerivation {
     string-conversions
     tasty-hunit
     text
+    these
     time
     tinylog
     transformers
@@ -199,7 +201,6 @@ mkDerivation {
     vector
     wai-extra
     wai-utilities
-    warp
     wire-api
     xml-conduit
     yaml
@@ -230,6 +231,7 @@ mkDerivation {
     servant
     servant-openapi3
     string-conversions
+    these
     time
     tinylog
     types-common

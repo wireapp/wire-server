@@ -33,6 +33,7 @@ module Test.Wire.API.Golden.Manual.UserEvent
     testObject_UserEvent_15,
     testObject_UserEvent_16,
     testObject_UserEvent_17,
+    testObject_UserEvent_18,
   )
 where
 
@@ -89,6 +90,7 @@ testObject_UserEvent_6 =
         ( UserUpdatedData
             (userId alice)
             (Just alice.userDisplayName)
+            alice.userTextStatus
             (Just alice.userPict)
             (Just alice.userAccentId)
             (Just alice.userAssets)
@@ -98,6 +100,7 @@ testObject_UserEvent_6 =
             Nothing
             False
             (Just mempty)
+            Nothing
         )
     )
 
@@ -107,7 +110,7 @@ testObject_UserEvent_7 =
     ( UserIdentityUpdated
         ( UserIdentityUpdatedData
             (userId alice)
-            (Just (Email "alice" "foo.example.com"))
+            (Just (unsafeEmailAddress "alice" "foo.example.com"))
             Nothing
         )
     )
@@ -118,7 +121,7 @@ testObject_UserEvent_8 =
     ( UserIdentityRemoved
         ( UserIdentityRemovedData
             (userId alice)
-            (Just (Email "alice" "foo.example.com"))
+            (Just (unsafeEmailAddress "alice" "foo.example.com"))
             Nothing
         )
     )
@@ -190,6 +193,27 @@ testObject_UserEvent_16 =
 testObject_UserEvent_17 :: Event
 testObject_UserEvent_17 = ClientEvent (ClientRemoved (ClientId 2839))
 
+testObject_UserEvent_18 :: Event
+testObject_UserEvent_18 =
+  UserEvent
+    ( UserUpdated
+        ( UserUpdatedData
+            (userId alice)
+            (Just alice.userDisplayName)
+            alice.userTextStatus
+            (Just alice.userPict)
+            (Just alice.userAccentId)
+            (Just alice.userAssets)
+            alice.userHandle
+            (Just alice.userLocale)
+            (Just alice.userManagedBy)
+            Nothing
+            False
+            (Just mempty)
+            alice.userTeam
+        )
+    )
+
 --------------------------------------------------------------------------------
 
 alice :: User
@@ -201,11 +225,13 @@ alice =
             qDomain = Domain {_domainText = "foo.example.com"}
           },
       userIdentity = Nothing,
+      userEmailUnvalidated = Nothing,
       userDisplayName = Name "alice",
+      userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 1},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale =
         Locale
           { lLanguage = Language L.TN,
@@ -214,7 +240,7 @@ alice =
       userService = Nothing,
       userHandle = Nothing,
       userExpire = Nothing,
-      userTeam = Nothing,
+      userTeam = Just $ Id (fromJust (UUID.fromString "bb843450-b2f5-4ec8-90bd-52c7d5f1d22e")),
       userManagedBy = ManagedByWire,
       userSupportedProtocols = defSupportedProtocols
     }
@@ -228,11 +254,13 @@ bob =
             qDomain = Domain {_domainText = "baz.example.com"}
           },
       userIdentity = Nothing,
+      userEmailUnvalidated = Nothing,
       userDisplayName = Name "bob",
+      userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 2},
-      userDeleted = False,
+      userStatus = Active,
       userLocale =
         Locale
           { lLanguage = Language L.CA,

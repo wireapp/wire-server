@@ -31,7 +31,9 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.String.Conversions
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as Lazy
+import Data.These
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -44,7 +46,6 @@ import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Test.QuickCheck (arbitrary, generate)
-import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML
 import Util.Core
 import Util.Types
@@ -59,14 +60,18 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import qualified Web.Scim.Schema.User.Email as Email
+import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Web.Scim.Schema.User.Phone as Phone
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
-import Wire.API.User.IdentityProvider hiding (team)
+import Wire.API.User.IdentityProvider hiding (handle, team)
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
+
+-- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
+runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
+runValidScimIdEither doUref doEmail = these doEmail doUref (\_ uref -> doUref uref) . validScimIdAuthInfo
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -109,7 +114,8 @@ registerScimToken teamid midpid = do
           stiId = scimTokenId,
           stiCreatedAt = now,
           stiIdP = midpid,
-          stiDescr = "test token"
+          stiDescr = "test token",
+          stiName = "test token"
         }
   pure tok
 
@@ -136,7 +142,6 @@ randomScimUserWithSubjectAndRichInfo ::
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
   suffix <- cs <$> replicateM 20 (getRandomR ('a', 'z'))
-  emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
   phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
   (externalId, subj) <-
@@ -155,7 +160,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          Scim.User.emails = emails,
+          Scim.User.emails = [],
           Scim.User.phoneNumbers = phones,
           Scim.User.roles = ["member"]
           -- if we don't add this role here explicitly, some tests may show confusing failures
@@ -171,10 +176,10 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
 -- support externalIds that are not emails, and storing email addresses in `emails` in the
 -- scim schema.  `randomScimUserWithEmail` is from a time where non-idp-authenticated users
 -- could only be provisioned with email as externalId.  we should probably rework all that.
-randomScimUserWithEmail :: (MonadRandom m) => m (Scim.User.User SparTag, Email)
+randomScimUserWithEmail :: (MonadRandom m) => m (Scim.User.User SparTag, EmailAddress)
 randomScimUserWithEmail = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  let email = Email ("email" <> suffix) "example.com"
+  let email = unsafeEmailAddress ("email" <> encodeUtf8 suffix) "example.com"
       externalId = fromEmail email
   pure
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))
@@ -196,17 +201,6 @@ randomScimUserWithNick = do
         },
       nick
     )
-
-randomScimEmail :: (MonadRandom m) => m Email.Email
-randomScimEmail = do
-  let typ :: Maybe Text = Nothing
-      primary :: Maybe Scim.ScimBool = Nothing -- TODO: where should we catch users with more than one
-      -- primary email?
-  value :: Email.EmailAddress2 <- do
-    localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
-  pure Email.Email {..}
 
 randomScimPhone :: (MonadRandom m) => m Phone.Phone
 randomScimPhone = do
@@ -603,9 +597,6 @@ acceptScim = accept "application/scim+json"
 scimUserId :: Scim.StoredUser SparTag -> UserId
 scimUserId = Scim.id . Scim.thing
 
-scimPreferredLanguage :: Scim.StoredUser SparTag -> Maybe Text
-scimPreferredLanguage = Scim.preferredLanguage . Scim.value . Scim.thing
-
 -- | There are a number of user types that all partially map on each other. This class
 -- provides a uniform interface to data stored in those types.
 --
@@ -635,12 +626,12 @@ class IsUser u where
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
 instance IsUser ValidScimUser where
   maybeUserId = Nothing
-  maybeHandle = Just (Just . view vsuHandle)
-  maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
-  maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
-  maybeLocale = Just (view vsuLocale)
+  maybeHandle = Just (Just <$> handle)
+  maybeName = Just (Just <$> (.name))
+  maybeTenant = Just (fmap SAML._uidTenant . veidUref . externalId)
+  maybeSubject = Just (fmap SAML._uidSubject . veidUref . externalId)
+  maybeScimExternalId = Just (runValidScimIdEither Intra.urefToExternalId (Just . fromEmail) . externalId)
+  maybeLocale = Just locale
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -675,20 +666,20 @@ instance IsUser User where
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
   maybeTenant = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
+    Intra.veidFromBrigUser usr Nothing Nothing
       & either
         (const Nothing)
-        (preview (veidUref . SAML.uidTenant))
+        (fmap SAML._uidTenant . veidUref)
   maybeSubject = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
+    Intra.veidFromBrigUser usr Nothing Nothing
       & either
         (const Nothing)
-        (preview (veidUref . SAML.uidSubject))
+        (fmap SAML._uidSubject . veidUref)
   maybeScimExternalId = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
+    Intra.veidFromBrigUser usr Nothing Nothing
       & either
         (const Nothing)
-        (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail))
+        (runValidScimIdEither Intra.urefToExternalId (Just . fromEmail))
   maybeLocale = Just $ Just . userLocale
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
@@ -737,16 +728,20 @@ setPreferredLanguage :: Language -> Scim.User.User SparTag -> Scim.User.User Spa
 setPreferredLanguage lang u =
   u {Scim.preferredLanguage = Scim.preferredLanguage u <|> Just (lan2Text lang)}
 
-setDefaultRoleIfEmpty :: Scim.User.User a -> Scim.User.User a
-setDefaultRoleIfEmpty u =
+setDefaultRoleAndEmailsIfEmpty :: Scim.User.User a -> Scim.User.User a
+setDefaultRoleAndEmailsIfEmpty u =
   u
     { Scim.User.roles = case Scim.User.roles u of
         [] -> [cs $ toByteString' defaultRole]
+        xs -> xs,
+      -- when the emails field is empty, we try to populate it with the externalId
+      Scim.User.emails = case Scim.User.emails u of
+        [] -> maybeToList ((\e -> Scim.Email.Email Nothing (Scim.Email.EmailAddress e) Nothing) <$> (emailAddressText =<< (Scim.User.externalId u)))
         xs -> xs
     }
 
 -- this is not always correct, but hopefully for the tests that we're using it in it'll do.
-scimifyBrigUserHack :: User -> Email -> User
+scimifyBrigUserHack :: User -> EmailAddress -> User
 scimifyBrigUserHack usr email =
   usr
     { userManagedBy = ManagedByScim,

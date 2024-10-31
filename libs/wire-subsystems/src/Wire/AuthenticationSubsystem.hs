@@ -18,16 +18,26 @@
 
 module Wire.AuthenticationSubsystem where
 
+import Data.Id
 import Data.Misc
+import Data.Qualified
 import Imports
 import Polysemy
+import Wire.API.Password (Password, PasswordStatus)
 import Wire.API.User
-import Wire.API.User.Password
+import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
+import Wire.AuthenticationSubsystem.Error
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
+  AuthenticateEither :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem m (Either AuthError ())
+  ReauthenticateEither :: UserId -> Maybe PlainTextPassword6 -> AuthenticationSubsystem m (Either ReAuthError ())
   CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
+  VerifyPassword :: PlainTextPassword6 -> Password -> AuthenticationSubsystem m (Bool, PasswordStatus)
+  VerifyUserPassword :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
+  VerifyUserPasswordError :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
+  VerifyProviderPassword :: ProviderId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
   -- For testing
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 

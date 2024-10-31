@@ -76,11 +76,11 @@ library
     , servant
     , servant-multipart
     , text                       >=0.11
+    , types-common
     , utf8-string
     , wai                        >=3
     , wai-middleware-prometheus
     , wai-route                  >=0.3
-    , wai-routing
 
   default-language:   GHC2021
 

@@ -47,7 +47,7 @@ import Wire.API.Team.Permission
         SetMemberPermissions,
         SetTeamData
       ),
-    Permissions (Permissions, _copy, _self),
+    Permissions (Permissions, copy, self),
   )
 
 testObject_TeamMemberList_team_1 :: TeamMemberList
@@ -58,7 +58,7 @@ testObject_TeamMemberList_team_2 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000002")))
-        (Permissions {_self = fromList [GetBilling, SetMemberPermissions], _copy = fromList []})
+        (Permissions {self = fromList [GetBilling, SetMemberPermissions], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002")),
               fromJust (readUTCTimeMillis "1864-05-10T10:05:44.332Z")
@@ -73,7 +73,7 @@ testObject_TeamMemberList_team_3 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T06:07:36.175Z")
@@ -82,7 +82,7 @@ testObject_TeamMemberList_team_3 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T14:28:10.448Z")
@@ -91,7 +91,7 @@ testObject_TeamMemberList_team_3 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T16:05:37.642Z")
@@ -100,12 +100,12 @@ testObject_TeamMemberList_team_3 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T13:06:20.504Z")
@@ -114,7 +114,7 @@ testObject_TeamMemberList_team_3 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T16:37:10.774Z")
@@ -123,7 +123,7 @@ testObject_TeamMemberList_team_3 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T04:36:55.388Z")
@@ -138,7 +138,7 @@ testObject_TeamMemberList_team_4 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [GetTeamConversations], _copy = fromList []})
+        (Permissions {self = fromList [GetTeamConversations], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-08T16:05:11.696Z")
@@ -147,7 +147,7 @@ testObject_TeamMemberList_team_4 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-08T07:09:26.753Z")
@@ -162,7 +162,7 @@ testObject_TeamMemberList_team_5 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T23:10:04.963Z")
@@ -171,7 +171,7 @@ testObject_TeamMemberList_team_5 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T15:40:17.119Z")
@@ -180,7 +180,7 @@ testObject_TeamMemberList_team_5 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T00:40:38.004Z")
@@ -189,7 +189,7 @@ testObject_TeamMemberList_team_5 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T07:30:49.028Z")
@@ -204,7 +204,7 @@ testObject_TeamMemberList_team_6 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T17:07:48.156Z")
@@ -213,7 +213,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T00:04:10.559Z")
@@ -222,7 +222,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T10:39:19.860Z")
@@ -231,7 +231,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T13:40:56.648Z")
@@ -240,7 +240,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T12:13:40.273Z")
@@ -249,7 +249,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T13:28:04.561Z")
@@ -258,7 +258,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T02:59:55.584Z")
@@ -267,7 +267,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T22:57:33.947Z")
@@ -276,7 +276,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T01:02:39.691Z")
@@ -285,7 +285,7 @@ testObject_TeamMemberList_team_6 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T13:39:38.488Z")
@@ -300,12 +300,12 @@ testObject_TeamMemberList_team_7 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [SetTeamData], _copy = fromList []})
+        (Permissions {self = fromList [SetTeamData], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-10T03:11:36.961Z")
@@ -314,7 +314,7 @@ testObject_TeamMemberList_team_7 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldEnabled
     ]
@@ -325,7 +325,7 @@ testObject_TeamMemberList_team_8 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T07:35:03.629Z")
@@ -334,7 +334,7 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T00:48:38.818Z")
@@ -343,7 +343,7 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T06:12:10.151Z")
@@ -352,7 +352,7 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T03:45:53.520Z")
@@ -361,7 +361,7 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T17:14:59.798Z")
@@ -370,7 +370,7 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T17:51:55.340Z")
@@ -379,7 +379,7 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T01:38:35.880Z")
@@ -388,7 +388,7 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T18:06:10.660Z")
@@ -397,7 +397,7 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T07:30:46.880Z")
@@ -406,12 +406,12 @@ testObject_TeamMemberList_team_8 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending
     ]
@@ -422,7 +422,7 @@ testObject_TeamMemberList_team_9 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [AddTeamMember], _copy = fromList []})
+        (Permissions {self = fromList [AddTeamMember], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-08T22:16:59.050Z")
@@ -431,7 +431,7 @@ testObject_TeamMemberList_team_9 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [CreateConversation], _copy = fromList []})
+        (Permissions {self = fromList [CreateConversation], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-08T21:43:37.550Z")
@@ -446,7 +446,7 @@ testObject_TeamMemberList_team_10 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T04:44:28.366Z")
@@ -455,7 +455,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T06:22:04.036Z")
@@ -464,7 +464,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T12:10:11.701Z")
@@ -473,7 +473,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T21:54:05.305Z")
@@ -482,7 +482,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T00:26:06.221Z")
@@ -491,12 +491,12 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T20:12:04.856Z")
@@ -505,7 +505,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T23:35:44.986Z")
@@ -514,7 +514,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T07:36:17.730Z")
@@ -523,7 +523,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T19:36:57.529Z")
@@ -532,12 +532,12 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T19:45:56.914Z")
@@ -546,7 +546,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T13:42:17.107Z")
@@ -555,7 +555,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T03:42:46.106Z")
@@ -564,7 +564,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T09:41:44.679Z")
@@ -573,7 +573,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T09:26:44.717Z")
@@ -582,7 +582,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T00:40:00.056Z")
@@ -591,12 +591,12 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T07:47:20.635Z")
@@ -605,7 +605,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T15:58:21.895Z")
@@ -614,7 +614,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T19:25:51.873Z")
@@ -623,7 +623,7 @@ testObject_TeamMemberList_team_10 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T03:19:55.569Z")
@@ -638,7 +638,7 @@ testObject_TeamMemberList_team_11 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T06:08:50.626Z")
@@ -647,12 +647,12 @@ testObject_TeamMemberList_team_11 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T08:23:53.653Z")
@@ -661,12 +661,12 @@ testObject_TeamMemberList_team_11 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T16:28:42.815Z")
@@ -675,17 +675,17 @@ testObject_TeamMemberList_team_11 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T11:47:57.498Z")
@@ -694,7 +694,7 @@ testObject_TeamMemberList_team_11 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T17:22:07.538Z")
@@ -703,7 +703,7 @@ testObject_TeamMemberList_team_11 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T19:14:48.836Z")
@@ -712,7 +712,7 @@ testObject_TeamMemberList_team_11 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T14:53:49.059Z")
@@ -721,7 +721,7 @@ testObject_TeamMemberList_team_11 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T10:44:04.209Z")
@@ -730,7 +730,7 @@ testObject_TeamMemberList_team_11 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T23:34:24.831Z")
@@ -745,12 +745,12 @@ testObject_TeamMemberList_team_12 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T15:59:09.462Z")
@@ -759,12 +759,12 @@ testObject_TeamMemberList_team_12 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T00:27:17.631Z")
@@ -779,12 +779,12 @@ testObject_TeamMemberList_team_13 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [GetMemberPermissions], _copy = fromList []})
+        (Permissions {self = fromList [GetMemberPermissions], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-10T04:37:19.686Z")
@@ -793,7 +793,7 @@ testObject_TeamMemberList_team_13 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T13:22:20.368Z")
@@ -808,12 +808,12 @@ testObject_TeamMemberList_team_14 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T07:01:56.077Z")
@@ -822,7 +822,7 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T09:34:46.900Z")
@@ -831,7 +831,7 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T10:40:24.034Z")
@@ -840,7 +840,7 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T10:17:53.056Z")
@@ -849,7 +849,7 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T18:37:38.894Z")
@@ -858,12 +858,12 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T06:25:10.534Z")
@@ -872,7 +872,7 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T02:42:16.433Z")
@@ -881,7 +881,7 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T07:25:18.248Z")
@@ -890,12 +890,12 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T15:31:36.237Z")
@@ -904,7 +904,7 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T15:23:38.616Z")
@@ -913,12 +913,12 @@ testObject_TeamMemberList_team_14 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldEnabled
     ]
@@ -929,7 +929,7 @@ testObject_TeamMemberList_team_15 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T20:33:17.912Z")
@@ -938,7 +938,7 @@ testObject_TeamMemberList_team_15 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               fromJust (readUTCTimeMillis "1864-05-09T09:03:59.579Z")
@@ -947,17 +947,17 @@ testObject_TeamMemberList_team_15 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldDisabled
     ]
@@ -971,7 +971,7 @@ testObject_TeamMemberList_team_17 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T10:04:36.715Z")
@@ -980,12 +980,12 @@ testObject_TeamMemberList_team_17 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T03:02:37.641Z")
@@ -994,7 +994,7 @@ testObject_TeamMemberList_team_17 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T23:21:44.944Z")
@@ -1003,7 +1003,7 @@ testObject_TeamMemberList_team_17 =
         UserLegalHoldDisabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T08:47:48.774Z")
@@ -1018,7 +1018,7 @@ testObject_TeamMemberList_team_18 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T17:44:12.611Z")
@@ -1027,7 +1027,7 @@ testObject_TeamMemberList_team_18 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T05:14:06.040Z")
@@ -1036,7 +1036,7 @@ testObject_TeamMemberList_team_18 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
               fromJust (readUTCTimeMillis "1864-05-09T05:24:40.864Z")
@@ -1045,7 +1045,7 @@ testObject_TeamMemberList_team_18 =
         UserLegalHoldPending,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-09T20:09:48.156Z")
@@ -1054,7 +1054,7 @@ testObject_TeamMemberList_team_18 =
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               fromJust (readUTCTimeMillis "1864-05-09T20:09:31.059Z")
@@ -1070,8 +1070,8 @@ testObject_TeamMemberList_team_19 =
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000000")))
         ( Permissions
-            { _self = fromList [CreateConversation, SetTeamData, SetMemberPermissions],
-              _copy = fromList []
+            { self = fromList [CreateConversation, SetTeamData, SetMemberPermissions],
+              copy = fromList []
             }
         )
         ( Just
@@ -1088,12 +1088,12 @@ testObject_TeamMemberList_team_20 =
   newTeamMemberList
     [ mkTeamMember
         (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         Nothing
         UserLegalHoldEnabled,
       mkTeamMember
         (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
-        (Permissions {_self = fromList [], _copy = fromList []})
+        (Permissions {self = fromList [], copy = fromList []})
         ( Just
             ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               fromJust (readUTCTimeMillis "1864-05-08T15:41:51.601Z")

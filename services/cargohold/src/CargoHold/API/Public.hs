@@ -41,7 +41,6 @@ import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString as URI
 import Wire.API.Asset
-import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Brig (brigInternalClient)
 import Wire.API.Routes.Internal.Cargohold
@@ -61,26 +60,41 @@ servantSitemap =
     :<|> mainAPI
   where
     userAPI :: forall tag. (tag ~ 'UserPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
-    userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    userAPI =
+      Named @'("assets-upload-v3", tag) uploadAssetV3
+        :<|> Named @'("assets-download-v3", tag) downloadAssetV3
+        :<|> Named @'("assets-delete-v3", tag) deleteAssetV3
     botAPI :: forall tag. (tag ~ 'BotPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
-    botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    botAPI =
+      Named @'("assets-upload-v3", tag) uploadAssetV3
+        :<|> Named @'("assets-download-v3", tag) downloadAssetV3
+        :<|> Named @'("assets-delete-v3", tag) deleteAssetV3
     providerAPI :: forall tag. (tag ~ 'ProviderPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
-    providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
-    legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
+    providerAPI =
+      Named @'("assets-upload-v3", tag) uploadAssetV3
+        :<|> Named @'("assets-download-v3", tag) downloadAssetV3
+        :<|> Named @'("assets-delete-v3", tag) deleteAssetV3
+    legacyAPI =
+      Named @"assets-download-legacy" legacyDownloadPlain
+        :<|> Named @"assets-conv-download-legacy" legacyDownloadPlain
+        :<|> Named @"assets-conv-otr-download-legacy" legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
-    qualifiedAPI = callsFed (exposeAnnotations downloadAssetV4) :<|> deleteAssetV4
+    qualifiedAPI =
+      Named @"assets-download-v4"
+        downloadAssetV4
+        :<|> Named @"assets-delete-v4" deleteAssetV4
     mainAPI :: ServerT MainAPI Handler
     mainAPI =
-      renewTokenV3
-        :<|> deleteTokenV3
-        :<|> uploadAssetV3 @'UserPrincipalTag
-        :<|> callsFed (exposeAnnotations downloadAssetV4)
-        :<|> deleteAssetV4
+      Named @"tokens-renew" renewTokenV3
+        :<|> Named @"tokens-delete" deleteTokenV3
+        :<|> Named @"assets-upload" (uploadAssetV3 @'UserPrincipalTag)
+        :<|> Named @"assets-download" downloadAssetV4
+        :<|> Named @"assets-delete" deleteAssetV4
 
 internalSitemap :: ServerT InternalAPI Handler
 internalSitemap =
-  pure ()
-    :<|> Named @"iGetAsset" iDownloadAssetV3
+  Named @"i_status" (pure ())
+    :<|> Named @"i_get_asset" iDownloadAssetV3
 
 -- | Like 'downloadAssetV3' below, but it works without user session token, and has a
 -- different route type.

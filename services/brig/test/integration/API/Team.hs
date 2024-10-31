@@ -43,8 +43,7 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
 import Data.String.Conversions (cs)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
-import Data.Text.Encoding (encodeUtf8)
-import Data.Time (addUTCTime, getCurrentTime)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.UUID qualified as UUID (fromString)
 import Data.UUID.V4 qualified as UUID
 import Imports
@@ -60,6 +59,7 @@ import URI.ByteString
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
+import Util.Timeout
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
 import Wire.API.Connection
@@ -81,8 +81,8 @@ newtype TeamSizeLimit = TeamSizeLimit Word32
 
 tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> UserJournalWatcher -> IO TestTree
 tests conf m n b c g aws = do
-  let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
-  let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
+  let tl = TeamSizeLimit conf.settings.maxTeamSize
+  let it = conf.settings.teamInvitationTimeout
   pure $
     testGroup
       "team"
@@ -168,8 +168,8 @@ testUpdateEvents brig cannon = do
   inviteeEmail <- randomEmail
   -- invite and register Bob
   let invite = stdInvitationRequest inviteeEmail
-  inv <- responseJsonError =<< postInvitation brig tid alice invite
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  inv :: Invitation <- responseJsonError =<< postInvitation brig tid alice invite
+  Just inviteeCode <- getInvitationCode brig tid inv.invitationId
   rsp2 <-
     post
       ( brig
@@ -187,7 +187,7 @@ testUpdateEvents brig cannon = do
       newAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)]
       newName = Just $ Name "Alice in Wonderland"
       newPic = Nothing -- Legacy
-      userUpdate = UserUpdate newName newPic newAssets newColId
+      userUpdate = UserUpdate newName Nothing newPic newAssets newColId
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile & receive notification
   WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
@@ -204,35 +204,34 @@ testInvitationEmail brig = do
       const 201 === statusCode
   inv <- responseJsonError res
   let actualHeader = getHeader "Location" res
-  let expectedHeader = "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' (inInvitation inv)
+  let expectedHeader = "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' inv.invitationId
   liftIO $ do
-    Just inviter @=? inCreatedBy inv
-    tid @=? inTeam inv
+    Just inviter @=? inv.createdBy
+    tid @=? inv.team
     assertInvitationResponseInvariants invite inv
-    (isNothing . inInviteeUrl) inv @? "No invitation url expected"
+    (isNothing . (.inviteeUrl)) inv @? "No invitation url expected"
     actualHeader @?= Just expectedHeader
 
 assertInvitationResponseInvariants :: InvitationRequest -> Invitation -> Assertion
 assertInvitationResponseInvariants invReq inv = do
-  irInviteeName invReq @=? inInviteeName inv
-  irInviteePhone invReq @=? inInviteePhone inv
-  irInviteeEmail invReq @=? inInviteeEmail inv
+  invReq.inviteeName @=? inv.inviteeName
+  invReq.inviteeEmail @=? inv.inviteeEmail
 
 testGetInvitation :: Brig -> Http ()
 testGetInvitation brig = do
   (inviter, tid) <- createUserWithTeam brig
   invite <- stdInvitationRequest <$> randomEmail
   inv1 <- responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode
-  inv2 <- responseJsonError =<< getInvitation brig tid (inInvitation inv1) inviter <!! do const 200 === statusCode
+  inv2 :: Invitation <- responseJsonError =<< getInvitation brig tid inv1.invitationId inviter <!! do const 200 === statusCode
   liftIO $ inv1 @=? inv2
 
 testDeleteInvitation :: Brig -> Http ()
 testDeleteInvitation brig = do
   (inviter, tid) <- createUserWithTeam brig
   invite <- stdInvitationRequest <$> randomEmail
-  iid <- inInvitation <$> (responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode)
-  deleteInvitation brig tid iid inviter
-  getInvitation brig tid iid inviter !!! do const 404 === statusCode
+  inv :: Invitation <- responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode
+  deleteInvitation brig tid inv.invitationId inviter
+  getInvitation brig tid inv.invitationId inviter !!! do const 404 === statusCode
 
 -- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
 -- inlined into Brig.
@@ -247,19 +246,19 @@ testInvitationUrl opts brig = do
         <!! (const 201 === statusCode)
 
     inv :: Invitation <- responseJsonError resp
-    invCode <- getInvitationCode brig tid (inInvitation inv)
+    invCode <- getInvitationCode brig tid inv.invitationId
     liftIO $ do
       assertInvitationResponseInvariants invite inv
       isJust invCode @? "Expect an invitation code in the backend"
-      Just inviter @=? inCreatedBy inv
-      tid @=? inTeam inv
+      Just inviter @=? inv.createdBy
+      tid @=? inv.team
       getQueryParam "team_code" resp @=? (invCode <&> (toStrict . toByteString))
       getQueryParam "team" resp @=? (pure . encodeUtf8 . idToText) tid
 
 getQueryParam :: ByteString -> ResponseLBS -> Maybe ByteString
 getQueryParam name r = do
-  inv <- (eitherToMaybe . responseJsonEither) r
-  url <- inInviteeUrl inv
+  inv :: Invitation <- (eitherToMaybe . responseJsonEither) r
+  url <- inv.inviteeUrl
   (lookup name . queryPairs . uriQuery) url
 
 -- | Mock the feature API because exposeInvitationURLsToTeamAdmin depends on
@@ -275,11 +274,10 @@ invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth body_
       && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
       pure . Wai.responseLBS HTTP.status200 mempty $
         encode
-          ( withStatus
+          ( LockableFeature
               featureStatus
               LockStatusUnlocked
               ExposeInvitationURLsToTeamAdminConfig
-              FeatureTTLUnlimited
           )
   | mth == "GET"
       && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
@@ -287,7 +285,7 @@ invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth body_
         encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
   | mth == "GET"
       && pth == ["i", "feature-configs"] =
-      pure $ Wai.responseLBS HTTP.status200 mempty (encode (def @AllFeatureConfigs))
+      pure $ Wai.responseLBS HTTP.status200 mempty (encode (def @AllTeamFeatures))
   | otherwise =
       let errBody =
             encode . object $
@@ -311,13 +309,13 @@ testNoInvitationUrl opts brig = do
         <!! (const 201 === statusCode)
 
     inv :: Invitation <- responseJsonError resp
-    invCode <- getInvitationCode brig tid (inInvitation inv)
+    invCode <- getInvitationCode brig tid inv.invitationId
     liftIO $ do
       assertInvitationResponseInvariants invite inv
       isJust invCode @? "Expect an invitation code in the backend"
-      Just inviter @=? inCreatedBy inv
-      tid @=? inTeam inv
-      (isNothing . inInviteeUrl) inv @? "No invitation url expected"
+      Just inviter @=? inv.createdBy
+      tid @=? inv.team
+      (isNothing . (.inviteeUrl)) inv @? "No invitation url expected"
 
 testInvitationEmailLookup :: Brig -> Http ()
 testInvitationEmailLookup brig = do
@@ -340,6 +338,8 @@ testInvitationEmailLookupRegister brig = do
   email <- randomEmail
   (owner, tid) <- createUserWithTeam brig
   let invite = stdInvitationRequest email
+  -- This incidentally also tests that sending multiple
+  -- invites from the same team results in last-invite-wins scenario
   void $ postInvitation brig tid owner invite
   inv :: Invitation <- responseJsonError =<< postInvitation brig tid owner invite
   -- expect an invitation to be found querying with email after invite
@@ -359,7 +359,7 @@ testInvitationEmailLookupNginz brig nginz = do
   -- expect an invitation to be found querying with email after invite
   headInvitationByEmail nginz email 200
 
-headInvitationByEmail :: (Request -> Request) -> Email -> Int -> Http ()
+headInvitationByEmail :: (Request -> Request) -> EmailAddress -> Int -> Http ()
 headInvitationByEmail service email expectedCode =
   Bilge.head (service . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
     !!! const expectedCode === statusCode
@@ -372,16 +372,16 @@ testInvitationTooManyPending opts brig (TeamSizeLimit limit) = do
   -- If this test takes longer to run than `team-invitation-timeout`, then some of the
   -- invitations have likely expired already and this test will actually _fail_
   -- therefore we increase the timeout from default 10 to 300 seconds
-  let longerTimeout = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setTeamInvitationTimeout = 300}}
+  let longerTimeout = opts {Opt.settings = opts.settings {Opt.teamInvitationTimeout = 300}}
   withSettingsOverrides longerTimeout $ do
     forM_ emails $ postInvitation brig tid inviter . stdInvitationRequest
   postInvitation brig tid inviter (stdInvitationRequest email) !!! do
     const 403 === statusCode
     const (Just "too-many-team-invitations") === fmap Error.label . responseJsonMaybe
 
-registerInvite :: Brig -> TeamId -> Invitation -> Email -> Http UserId
+registerInvite :: Brig -> TeamId -> Invitation -> EmailAddress -> Http UserId
 registerInvite brig tid inv invemail = do
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  Just inviteeCode <- getInvitationCode brig tid inv.invitationId
   rsp <-
     post
       ( brig
@@ -430,19 +430,19 @@ testInvitationRoles brig galley = do
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
-  inviteeEmail <- randomEmail
-  let invite = stdInvitationRequest inviteeEmail
-  void $ createAndVerifyInvitation (accept (irInviteeEmail invite)) invite brig galley
+  email <- randomEmail
+  let invite = stdInvitationRequest email
+  void $ createAndVerifyInvitation (accept invite.inviteeEmail) invite brig galley
 
 -- | Related: 'testDomainsBlockedForRegistration'.  When we remove the customer-specific
 -- extension of domain blocking, this test will fail to compile (so you will know it's time to
 -- remove it).
 testInvitationEmailAcceptedInBlockedDomain :: Opt.Opts -> Brig -> Galley -> Http ()
 testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
-  inviteeEmail :: Email <- randomEmail
-  let invite = stdInvitationRequest inviteeEmail
-      replacementBrigApp = withDomainsBlockedForRegistration opts [emailDomain inviteeEmail]
-  void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept (irInviteeEmail invite)) invite brig galley
+  email :: EmailAddress <- randomEmail
+  let invite = stdInvitationRequest email
+      replacementBrigApp = withDomainsBlockedForRegistration opts [decodeUtf8 $ domainPart email]
+  void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept invite.inviteeEmail) invite brig galley
 
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.
@@ -485,9 +485,9 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
         ) =>
         m' (Maybe (UserId, UTCTimeMillis), Invitation, UserId, ResponseLBS)
       invitationHandshake = do
-        inv <- responseJsonError =<< postInvitation brig tid inviter invite
-        let invmeta = Just (inviter, inCreatedAt inv)
-        Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+        inv :: Invitation <- responseJsonError =<< postInvitation brig tid inviter invite
+        let invmeta = Just (inviter, inv.createdAt)
+        Just inviteeCode <- getInvitationCode brig tid inv.invitationId
         Just invitation <- getInvitationInfo brig inviteeCode
         rsp2 <-
           post
@@ -615,9 +615,8 @@ testInvitationCodeExists brig = do
   (uid, tid) <- createUserWithTeam brig
   let invite email = stdInvitationRequest email
   email <- randomEmail
-  rsp <- postInvitation brig tid uid (invite email) <!! const 201 === statusCode
-  let Just invId = inInvitation <$> responseJsonMaybe rsp
-  Just invCode <- getInvitationCode brig tid invId
+  inv :: Invitation <- responseJsonError =<< postInvitation brig tid uid (invite email) <!! const 201 === statusCode
+  Just invCode <- getInvitationCode brig tid inv.invitationId
   post (brig . path "/register" . contentJson . body (accept email invCode))
     !!! const 201 === statusCode
   post (brig . path "/register" . contentJson . body (accept email invCode)) !!! do
@@ -667,9 +666,9 @@ testInvitationMutuallyExclusive brig = do
   req email (Just code) (Just newTeam) (Just code) !!! const 400 === statusCode
   where
     req ::
-      Email ->
+      EmailAddress ->
       Maybe InvitationCode ->
-      Maybe BindingNewTeam ->
+      Maybe NewTeam ->
       Maybe InvitationCode ->
       HttpT IO (Response (Maybe LByteString))
     req e c t i =
@@ -698,8 +697,8 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
   SearchUtil.refreshIndex brig
   let invite email = stdInvitationRequest email
   email <- randomEmail
-  inv <- responseJsonError =<< postInvitation brig tid creator (invite email)
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  inv :: Invitation <- responseJsonError =<< postInvitation brig tid creator (invite email)
+  Just inviteeCode <- getInvitationCode brig tid inv.invitationId
   post
     ( brig
         . path "/register"
@@ -716,7 +715,7 @@ testInvitationPaging opts brig = do
   (uid, tid) <- createUserWithTeam brig
   let total = 5
       invite email = stdInvitationRequest email
-      longerTimeout = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setTeamInvitationTimeout = 300}}
+      longerTimeout = opts {Opt.settings = opts.settings {Opt.teamInvitationTimeout = 300}}
   emails <-
     withSettingsOverrides longerTimeout $
       replicateM total $ do
@@ -733,7 +732,7 @@ testInvitationPaging opts brig = do
               === statusCode
         (invs, more) <- (ilInvitations &&& ilHasMore) <$> responseJsonError r
         if more
-          then (invs :) <$> getPages (count + step) (fmap inInvitation . listToMaybe . reverse $ invs) step
+          then (invs :) <$> getPages (count + step) (fmap (.invitationId) . listToMaybe . reverse $ invs) step
           else pure [invs]
   let checkSize :: (HasCallStack) => Int -> [Int] -> Http ()
       checkSize pageSize expectedSizes =
@@ -742,13 +741,13 @@ testInvitationPaging opts brig = do
           mapM_ validateInv $ concat invss
       validateInv :: Invitation -> Assertion
       validateInv inv = do
-        assertEqual "tid" tid (inTeam inv)
-        assertBool "email" (inInviteeEmail inv `elem` emails)
+        assertEqual "tid" tid (inv.team)
+        assertBool "email" (inv.inviteeEmail `elem` emails)
         -- (the output list is not ordered chronologically and emails are unique, so we just
         -- check whether the email is one of the valid ones.)
-        assertBool "timestamp" (inCreatedAt inv > before && inCreatedAt inv < after1ms)
-        assertEqual "uid" (Just uid) (inCreatedBy inv)
-  -- not checked: @inInvitation inv :: InvitationId@
+        assertBool "timestamp" (inv.createdAt > before && inv.createdAt < after1ms)
+        assertEqual "uid" (Just uid) (inv.createdBy)
+  -- not checked: @invitation inv :: InvitationId@
 
   checkSize 2 [2, 2, 1]
   checkSize total [total]
@@ -760,7 +759,7 @@ testInvitationInfo brig = do
   (uid, tid) <- createUserWithTeam brig
   let invite = stdInvitationRequest email
   inv <- responseJsonError =<< postInvitation brig tid uid invite
-  Just invCode <- getInvitationCode brig tid (inInvitation inv)
+  Just invCode <- getInvitationCode brig tid inv.invitationId
   Just invitation <- getInvitationInfo brig invCode
   liftIO $ assertEqual "Invitations differ" inv invitation
 
@@ -771,15 +770,15 @@ testInvitationInfoBadCode brig = do
   get (brig . path ("/teams/invitations/info?code=" <> icode))
     !!! const 400 === statusCode
 
-testInvitationInfoExpired :: Brig -> Opt.Timeout -> Http ()
+testInvitationInfoExpired :: Brig -> Timeout -> Http ()
 testInvitationInfoExpired brig timeout = do
   email <- randomEmail
   (uid, tid) <- createUserWithTeam brig
   let invite = stdInvitationRequest email
-  inv <- responseJsonError =<< postInvitation brig tid uid invite
+  inv :: Invitation <- responseJsonError =<< postInvitation brig tid uid invite
   -- Note: This value must be larger than the option passed as `team-invitation-timeout`
-  awaitExpiry (round timeout + 5) tid (inInvitation inv)
-  getCode tid (inInvitation inv) !!! const 400 === statusCode
+  awaitExpiry (round timeout + 5) tid inv.invitationId
+  getCode tid inv.invitationId !!! const 400 === statusCode
   headInvitationByEmail brig email 404
   where
     getCode t i =
@@ -803,8 +802,8 @@ testSuspendTeam brig = do
   (inviter, tid) <- createUserWithTeam brig
   -- invite and register invitee
   let invite = stdInvitationRequest inviteeEmail
-  inv <- responseJsonError =<< postInvitation brig tid inviter invite
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  inv :: Invitation <- responseJsonError =<< postInvitation brig tid inviter invite
+  Just inviteeCode <- getInvitationCode brig tid inv.invitationId
   rsp2 <-
     post
       ( brig
@@ -817,8 +816,8 @@ testSuspendTeam brig = do
   -- invite invitee2 (don't register)
   let invite2 = stdInvitationRequest inviteeEmail2
 
-  inv2 <- responseJsonError =<< postInvitation brig tid inviter invite2
-  Just _ <- getInvitationCode brig tid (inInvitation inv2)
+  inv2 :: Invitation <- responseJsonError =<< postInvitation brig tid inviter invite2
+  Just _ <- getInvitationCode brig tid inv2.invitationId
   -- suspend team
   suspendTeam brig tid !!! const 200 === statusCode
   -- login fails
@@ -828,7 +827,7 @@ testSuspendTeam brig = do
   -- check status
   chkStatus brig inviter Suspended
   chkStatus brig invitee Suspended
-  assertNoInvitationCode brig tid (inInvitation inv2)
+  assertNoInvitationCode brig tid inv2.invitationId
   -- unsuspend
   unsuspendTeam brig tid !!! const 200 === statusCode
   chkStatus brig inviter Active

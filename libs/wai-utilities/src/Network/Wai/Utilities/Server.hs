@@ -42,7 +42,6 @@ module Network.Wai.Utilities.Server
     logError,
     logError',
     logErrorMsg,
-    restrict,
     flushRequestBody,
 
     -- * Constants
@@ -61,11 +60,11 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain (domainText)
+import Data.Id
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error (lenientDecode)
-import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
@@ -170,7 +169,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
           r = reasonStr <$> reason e
           t = message e
        in case catMaybes [l, s, r] of
-            [] -> maybe "N/A" (LT.decodeUtf8With lenientDecode . LBS.fromStrict) t
+            [] -> maybe defRequestId (LT.decodeUtf8With lenientDecode . LBS.fromStrict) t
             bs -> LT.decodeUtf8With lenientDecode . toLazyByteString $ mconcat bs <> messageStr t
     labelStr [] = Nothing
     labelStr ls =
@@ -186,7 +185,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
     messageStr Nothing = mempty
 
 route :: (MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
-route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
+route rt rq k = Route.routeWith (Route.Config $ errorRs noEndpoint) rt rq (liftIO . k)
   where
     noEndpoint = Wai.mkError status404 "no-endpoint" "The requested endpoint does not exist"
 {-# INLINEABLE route #-}
@@ -253,7 +252,7 @@ errorHandlers =
         ThreadKilled -> throwIO x
         _ ->
           pure . Left $
-            Wai.mkError status500 "server-error" ("Server Error. " <> LT.pack (displayException x)),
+            Wai.mkError status500 "server-error" "Server Error",
     Handler $ \(_ :: InvalidRequest) ->
       pure . Left $
         Wai.mkError status400 "client-error" "Invalid Request",
@@ -267,9 +266,9 @@ errorHandlers =
       ZlibException _ ->
         pure . Left $
           Wai.mkError status500 "server-error" "Server Error",
-    Handler $ \(e :: SomeException) ->
+    Handler $ \(_ :: SomeException) ->
       pure . Left $
-        Wai.mkError status500 "server-error" ("Server Error. " <> LT.pack (displayException e))
+        Wai.mkError status500 "server-error" "Server Error"
   ]
 {-# INLINE errorHandlers #-}
 
@@ -313,7 +312,7 @@ heavyDebugLogging sanitizeReq lvl lgr reqIdHeaderName app = \req cont -> do
     logMostlyEverything req bdy resp = Log.debug lgr logMsg
       where
         logMsg =
-          field "request" (fromMaybe "N/A" $ lookupRequestId reqIdHeaderName req)
+          field "request" (fromMaybe defRequestId $ lookupRequestId reqIdHeaderName req)
             . field "request_details" (show req)
             . field "request_body" bdy
             . field "response_status" (show $ responseStatus resp)
@@ -352,7 +351,7 @@ rethrow5xx getRequestId logger app req k = app req k'
       let logMsg =
             field "canoncalpath" (show $ pathInfo req)
               . field "rawpath" (rawPathInfo req)
-              . field "request" (fromMaybe "N/A" $ getRequestId req)
+              . field "request" (fromMaybe defRequestId $ getRequestId req)
               . msg (val "ResponseRaw - cannot collect metrics or log info on errors")
       Log.log logger Log.Debug logMsg
       k resp
@@ -438,7 +437,7 @@ logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
 
 logJSONResponse :: (MonadIO m) => Logger -> Maybe ByteString -> JSONResponse -> m ()
 logJSONResponse g mReqId e = do
-  let r = fromMaybe "N/A" mReqId
+  let r = fromMaybe defRequestId mReqId
   liftIO $
     doLog g $
       field "request" r
@@ -464,27 +463,11 @@ logErrorMsg (Wai.Error c l m md inner) =
 
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =
-  field "request" (fromMaybe "N/A" mr) . logErrorMsg e
+  field "request" (fromMaybe defRequestId mr) . logErrorMsg e
 
 runHandlers :: SomeException -> [Handler IO a] -> IO a
 runHandlers e [] = throwIO e
 runHandlers e (Handler h : hs) = maybe (runHandlers e hs) h (fromException e)
-
-restrict :: Int -> Int -> Predicate r P.Error Int -> Predicate r P.Error Int
-restrict l u = fmap $ \x ->
-  x >>= \v ->
-    if v >= l && v <= u
-      then x
-      else Fail (setMessage (emsg v) . setReason TypeError $ e400)
-  where
-    emsg v =
-      LBS.toStrict . toLazyByteString $
-        byteString "outside range ["
-          <> intDec l
-          <> byteString ", "
-          <> intDec u
-          <> byteString "]: "
-          <> intDec v
 
 flushRequestBody :: Request -> IO ()
 flushRequestBody req = do

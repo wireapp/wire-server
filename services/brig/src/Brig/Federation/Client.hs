@@ -18,8 +18,7 @@
 -- FUTUREWORK: Remove this module all together.
 module Brig.Federation.Client where
 
-import Brig.App as Brig
-import Control.Lens
+import Brig.App
 import Control.Monad
 import Control.Monad.Catch (MonadMask, throwM)
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
@@ -100,18 +99,6 @@ claimMultiPrekeyBundle domain uc = do
   lift . Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   runBrigFederatorClient domain $ fedClient @'Brig @"claim-multi-prekey-bundle" uc
 
-searchUsers ::
-  ( MonadReader Env m,
-    MonadIO m,
-    Log.MonadLogger m
-  ) =>
-  Domain ->
-  SearchRequest ->
-  ExceptT FederationError m SearchResponse
-searchUsers domain searchTerm = do
-  lift $ Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
-  runBrigFederatorClient domain $ fedClient @'Brig @"search-users" searchTerm
-
 getUserClients ::
   ( MonadReader Env m,
     MonadIO m,
@@ -154,7 +141,7 @@ notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
       remoteDomain = tDomain remotes
-  view rabbitmqChannel >>= \case
+  asks (.rabbitmqChannel) >>= \case
     Just chanVar -> do
       enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
         fedQueueClient @'OnUserDeletedConnectionsTag notif
@@ -172,7 +159,7 @@ enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
   recovering policy [logRetries (const $ pure True) logError] (const go)
   where
     logError willRetry (SomeException e) status = do
-      rid <- view Brig.requestId
+      rid <- asks (.requestId)
       Log.err $
         Log.msg @Text "failed to enqueue notification in RabbitMQ"
           . Log.field "error" (displayException e)
@@ -180,7 +167,7 @@ enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
           . Log.field "retryCount" status.rsIterNumber
           . Log.field "request" rid
     go = do
-      rid <- view Brig.requestId
+      rid <- asks (.requestId)
       mChan <- timeout (1 :: Second) (readMVar chanVar)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
@@ -198,9 +185,9 @@ runBrigFederatorClient ::
   ExceptT FederationError m a
 runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
-  endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
-  mgr <- view http2Manager
-  rid <- view Brig.requestId
+  endpoint <- asks (.federator) >>= maybe (throwE FederationNotConfigured) pure
+  mgr <- asks (.http2Manager)
+  rid <- asks (.requestId)
   let env =
         FederatorClientEnv
           { ceOriginDomain = ownDomain,

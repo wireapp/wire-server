@@ -12,6 +12,7 @@ license-file:  LICENSE
 build-type:    Simple
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
     Data.Code
     Data.CommaSeparatedList
@@ -19,10 +20,12 @@ library
     Data.Domain
     Data.ETag
     Data.Handle
+    Data.HavePendingInvitations
     Data.Id
     Data.Json.Util
     Data.LegalHold
     Data.List1
+    Data.Mailbox
     Data.Misc
     Data.Nonce
     Data.PEMKeys
@@ -37,7 +40,9 @@ library
     Util.Logging
     Util.Options
     Util.Options.Common
+    Util.SuffixNamer
     Util.Test
+    Util.Timeout
     Wire.Arbitrary
 
   other-modules:      Paths_types_common
@@ -106,10 +111,10 @@ library
     , cryptohash-sha1        >=0.11.7.2
     , crypton                >=0.26
     , currency-codes         >=3.0.0.1
+    , email-validate
     , generic-random         >=1.4.0.0
     , hashable               >=1.2
     , http-api-data
-    , http-types
     , imports
     , iproute                >=1.5
     , iso3166-country-codes  >=0.20140203.8
@@ -125,10 +130,12 @@ library
     , quickcheck-instances   >=0.3.16
     , random                 >=1.1
     , schema-profunctor
+    , scientific
     , servant-server
     , tagged                 >=0.8
     , tasty                  >=0.11
     , tasty-hunit
+    , template-haskell
     , text                   >=0.11
     , time                   >=1.6
     , time-locale-compat     >=0.1
@@ -145,8 +152,12 @@ library
 test-suite tests
   type:               exitcode-stdio-1.0
   main-is:            Main.hs
+
+  -- cabal-fmt: expand test
   other-modules:
+    Main
     Paths_types_common
+    Test.Data.Mailbox
     Test.Data.PEMKeys
     Test.Domain
     Test.Handle
@@ -208,6 +219,7 @@ test-suite tests
     , bytestring
     , bytestring-conversion
     , cereal
+    , email-validate
     , imports
     , protobuf
     , string-conversions
@@ -218,6 +230,7 @@ test-suite tests
     , time
     , types-common
     , unordered-containers
+    , utf8-string
     , uuid
 
   default-language:   GHC2021

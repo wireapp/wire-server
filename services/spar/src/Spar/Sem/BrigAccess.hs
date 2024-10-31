@@ -28,7 +28,7 @@ module Spar.Sem.BrigAccess
     setName,
     setHandle,
     setManagedBy,
-    setVeid,
+    setSSOId,
     setRichInfo,
     setLocale,
     getRichInfo,
@@ -44,9 +44,9 @@ module Spar.Sem.BrigAccess
 where
 
 import Brig.Types.Intra
-import Brig.Types.User
 import Data.Code as Code
 import Data.Handle (Handle)
+import Data.HavePendingInvitations
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword6)
 import Imports
@@ -55,23 +55,20 @@ import qualified SAML2.WebSSO as SAML
 import Web.Cookie
 import Wire.API.Locale
 import Wire.API.Team.Role
-import Wire.API.User (AccountStatus (..), DeleteUserResult, VerificationAction)
-import Wire.API.User.Identity
-import Wire.API.User.Profile
+import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
-import Wire.API.User.Scim (ValidExternalId (..))
 
 data BrigAccess m a where
   CreateSAML :: SAML.UserRef -> UserId -> TeamId -> Name -> ManagedBy -> Maybe Handle -> Maybe RichInfo -> Maybe Locale -> Role -> BrigAccess m UserId
-  CreateNoSAML :: Email -> UserId -> TeamId -> Name -> Maybe Locale -> Role -> BrigAccess m UserId
-  UpdateEmail :: UserId -> Email -> BrigAccess m ()
-  GetAccount :: HavePendingInvitations -> UserId -> BrigAccess m (Maybe UserAccount)
-  GetByHandle :: Handle -> BrigAccess m (Maybe UserAccount)
-  GetByEmail :: Email -> BrigAccess m (Maybe UserAccount)
+  CreateNoSAML :: Text -> EmailAddress -> UserId -> TeamId -> Name -> Maybe Locale -> Role -> BrigAccess m UserId
+  UpdateEmail :: UserId -> EmailAddress -> BrigAccess m ()
+  GetAccount :: HavePendingInvitations -> UserId -> BrigAccess m (Maybe User)
+  GetByHandle :: Handle -> BrigAccess m (Maybe User)
+  GetByEmail :: EmailAddress -> BrigAccess m (Maybe User)
   SetName :: UserId -> Name -> BrigAccess m ()
   SetHandle :: UserId -> Handle {- not 'HandleUpdate'! -} -> BrigAccess m ()
   SetManagedBy :: UserId -> ManagedBy -> BrigAccess m ()
-  SetVeid :: UserId -> ValidExternalId -> BrigAccess m ()
+  SetSSOId :: UserId -> UserSSOId -> BrigAccess m ()
   SetRichInfo :: UserId -> RichInfo -> BrigAccess m ()
   SetLocale :: UserId -> Maybe Locale -> BrigAccess m ()
   GetRichInfo :: UserId -> BrigAccess m RichInfo

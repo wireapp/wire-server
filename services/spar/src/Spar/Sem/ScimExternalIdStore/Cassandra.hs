@@ -30,8 +30,7 @@ import Polysemy
 import Spar.Data.Instances ()
 import Spar.Scim.Types (ScimUserCreationStatus (ScimUserCreated))
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore (..))
-import Wire.API.User.Identity
-import Wire.API.User.Scim (ValidExternalId, runValidExternalIdUnsafe)
+import Wire.API.User.Scim (ValidScimId (..))
 
 scimExternalIdStoreToCassandra ::
   forall m r a.
@@ -41,9 +40,9 @@ scimExternalIdStoreToCassandra ::
 scimExternalIdStoreToCassandra =
   interpret $
     embed @m . \case
-      Insert tid em uid -> insertScimExternalId tid em uid
-      Lookup tid em -> lookupScimExternalId tid em
-      Delete tid em -> deleteScimExternalId tid em
+      Insert tid eid uid -> insertScimExternalId tid eid uid
+      Lookup tid eid -> lookupScimExternalId tid eid
+      Delete tid eid -> deleteScimExternalId tid eid
       InsertStatus tid veid buid status -> insertScimExternalIdStatus tid veid buid status
       LookupStatus tid veid -> lookupScimExternalIdStatus tid veid
 
@@ -52,38 +51,38 @@ scimExternalIdStoreToCassandra =
 -- 'UserId' here.  (Note that since there is no associated IdP, the externalId is required to
 -- be an email address, so we enforce that in the type signature, even though we only use it
 -- as a 'Text'.)
-insertScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> UserId -> m ()
-insertScimExternalId tid (fromEmail -> email) uid =
-  retry x5 . write insert $ params LocalQuorum (tid, email, uid)
+insertScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Text -> UserId -> m ()
+insertScimExternalId tid eid uid =
+  retry x5 . write insert $ params LocalQuorum (tid, eid, uid)
   where
     insert :: PrepQuery W (TeamId, Text, UserId) ()
     insert = "INSERT INTO scim_external (team, external_id, user) VALUES (?, ?, ?)"
 
 -- | The inverse of 'insertScimExternalId'.
-lookupScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> m (Maybe UserId)
-lookupScimExternalId tid (fromEmail -> email) = runIdentity <$$> (retry x1 . query1 sel $ params LocalQuorum (tid, email))
+lookupScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Text -> m (Maybe UserId)
+lookupScimExternalId tid eid = runIdentity <$$> (retry x1 . query1 sel $ params LocalQuorum (tid, eid))
   where
     sel :: PrepQuery R (TeamId, Text) (Identity UserId)
     sel = "SELECT user FROM scim_external WHERE team = ? and external_id = ?"
 
 -- | The other inverse of 'insertScimExternalId' :).
-deleteScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> m ()
-deleteScimExternalId tid (fromEmail -> email) =
-  retry x5 . write delete $ params LocalQuorum (tid, email)
+deleteScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Text -> m ()
+deleteScimExternalId tid eid =
+  retry x5 . write delete $ params LocalQuorum (tid, eid)
   where
     delete :: PrepQuery W (TeamId, Text) ()
     delete = "DELETE FROM scim_external WHERE team = ? and external_id = ?"
 
-insertScimExternalIdStatus :: (HasCallStack, MonadClient m) => TeamId -> ValidExternalId -> UserId -> ScimUserCreationStatus -> m ()
+insertScimExternalIdStatus :: (HasCallStack, MonadClient m) => TeamId -> ValidScimId -> UserId -> ScimUserCreationStatus -> m ()
 insertScimExternalIdStatus tid veid uid status =
-  retry x5 . write insert $ params LocalQuorum (tid, runValidExternalIdUnsafe veid, uid, status)
+  retry x5 . write insert $ params LocalQuorum (tid, validScimIdExternal veid, uid, status)
   where
     insert :: PrepQuery W (TeamId, Text, UserId, ScimUserCreationStatus) ()
     insert = "INSERT INTO scim_external (team, external_id, user, creation_status) VALUES (?, ?, ?, ?)"
 
-lookupScimExternalIdStatus :: (HasCallStack, MonadClient m) => TeamId -> ValidExternalId -> m (Maybe (UserId, ScimUserCreationStatus))
+lookupScimExternalIdStatus :: (HasCallStack, MonadClient m) => TeamId -> ValidScimId -> m (Maybe (UserId, ScimUserCreationStatus))
 lookupScimExternalIdStatus tid veid = do
-  mResult <- retry x1 . query1 sel $ params LocalQuorum (tid, runValidExternalIdUnsafe veid)
+  mResult <- retry x1 . query1 sel $ params LocalQuorum (tid, validScimIdExternal veid)
   -- if the user exists and the status is not present, we assume the user was created successfully
   pure $ mResult <&> second (fromMaybe ScimUserCreated)
   where

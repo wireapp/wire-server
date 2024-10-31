@@ -8,12 +8,16 @@
 , amazonka-core
 , amazonka-ses
 , async
+, attoparsec
 , base
 , base16-bytestring
 , bilge
+, bloodhound
 , bytestring
 , bytestring-conversion
+, case-insensitive
 , cassandra-util
+, conduit
 , containers
 , cql
 , crypton
@@ -25,7 +29,6 @@
 , extended
 , extra
 , gitignoreSource
-, gundeck-types
 , HaskellNet
 , HaskellNet-SSL
 , HsOpenSSL
@@ -50,12 +53,16 @@
 , polysemy-time
 , polysemy-wire-zoo
 , postie
+, prometheus-client
 , QuickCheck
 , quickcheck-instances
 , random
 , resource-pool
 , resourcet
 , retry
+, saml2-web-sso
+, schema-profunctor
+, scientific
 , servant
 , servant-client-core
 , stomp-queue
@@ -63,19 +70,22 @@
 , string-conversions
 , template
 , text
+, text-icu-translit
 , time
 , time-out
 , time-units
 , tinylog
 , transformers
-, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
+, uri-bytestring
 , uuid
 , wai-utilities
 , wire-api
 , wire-api-federation
+, wire-otel
+, witherable
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -87,12 +97,16 @@ mkDerivation {
     amazonka-core
     amazonka-ses
     async
+    attoparsec
     base
     base16-bytestring
     bilge
+    bloodhound
     bytestring
     bytestring-conversion
+    case-insensitive
     cassandra-util
+    conduit
     containers
     cql
     crypton
@@ -103,7 +117,6 @@ mkDerivation {
     exceptions
     extended
     extra
-    gundeck-types
     HaskellNet
     HaskellNet-SSL
     HsOpenSSL
@@ -124,28 +137,34 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    prometheus-client
     QuickCheck
     resource-pool
     resourcet
     retry
+    saml2-web-sso
+    schema-profunctor
     servant
     servant-client-core
     stomp-queue
     template
     text
+    text-icu-translit
     time
     time-out
     time-units
     tinylog
     transformers
-    transitive-anns
     types-common
     unliftio
     unordered-containers
+    uri-bytestring
     uuid
     wai-utilities
     wire-api
     wire-api-federation
+    wire-otel
+    witherable
   ];
   testHaskellDepends = [
     aeson
@@ -153,12 +172,12 @@ mkDerivation {
     base
     bilge
     bytestring
+    cassandra-util
     containers
     crypton
     data-default
     errors
     extended
-    gundeck-types
     hspec
     imports
     iso639
@@ -174,6 +193,7 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    scientific
     servant-client-core
     streaming-commons
     string-conversions

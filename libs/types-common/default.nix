@@ -19,11 +19,11 @@
 , cryptohash-sha1
 , crypton
 , currency-codes
+, email-validate
 , generic-random
 , gitignoreSource
 , hashable
 , http-api-data
-, http-types
 , imports
 , iproute
 , iso3166-country-codes
@@ -40,12 +40,14 @@
 , quickcheck-instances
 , random
 , schema-profunctor
+, scientific
 , servant-server
 , string-conversions
 , tagged
 , tasty
 , tasty-hunit
 , tasty-quickcheck
+, template-haskell
 , text
 , time
 , time-locale-compat
@@ -77,10 +79,10 @@ mkDerivation {
     cryptohash-sha1
     crypton
     currency-codes
+    email-validate
     generic-random
     hashable
     http-api-data
-    http-types
     imports
     iproute
     iso3166-country-codes
@@ -96,10 +98,12 @@ mkDerivation {
     quickcheck-instances
     random
     schema-profunctor
+    scientific
     servant-server
     tagged
     tasty
     tasty-hunit
+    template-haskell
     text
     time
     time-locale-compat
@@ -117,6 +121,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cereal
+    email-validate
     imports
     protobuf
     string-conversions
@@ -126,6 +131,7 @@ mkDerivation {
     text
     time
     unordered-containers
+    utf8-string
     uuid
   ];
   description = "Shared type definitions";

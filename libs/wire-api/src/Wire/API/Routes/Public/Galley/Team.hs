@@ -17,9 +17,14 @@
 
 module Wire.API.Routes.Public.Galley.Team where
 
+import Control.Lens ((?~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
+import Data.OpenApi.Schema qualified as S
+import Data.Range
+import Data.Schema
 import Imports
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -28,7 +33,36 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 import Wire.API.Team
+import Wire.API.Team.Member
 import Wire.API.Team.Permission
+
+-- | FUTUREWORK: remove when the create-non-binding-team endpoint is deleted
+data NonBindingNewTeam = NonBindingNewTeam
+  { teamName :: Range 1 256 Text,
+    teamIcon :: Icon,
+    teamIconKey :: Maybe (Range 1 256 Text),
+    teamMembers :: Maybe (Range 1 127 [TeamMember])
+  }
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NonBindingNewTeam)
+
+instance ToSchema NonBindingNewTeam where
+  schema =
+    object "NonBindingNewTeam" $
+      NonBindingNewTeam
+        <$> (.teamName) .= fieldWithDocModifier "name" (description ?~ "team name") schema
+        <*> (.teamIcon) .= fieldWithDocModifier "icon" (description ?~ "team icon (asset ID)") schema
+        <*> (.teamIconKey) .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "team icon asset key") schema)
+        <*> (.teamMembers)
+          .= maybe_
+            ( optFieldWithDocModifier
+                "members"
+                (description ?~ "initial team member ids (between 1 and 127)")
+                sch
+            )
+    where
+      sch :: ValueSchema SwaggerDoc (Range 1 127 [TeamMember])
+      sch = fromRange .= rangedSchema (array schema)
 
 type TeamAPI =
   Named
@@ -37,8 +71,7 @@ type TeamAPI =
         :> Until 'V4
         :> ZUser
         :> ZConn
-        :> CanThrow 'NotConnected
-        :> CanThrow 'UserBindingExists
+        :> CanThrow InvalidAction
         :> "teams"
         :> ReqBody '[Servant.JSON] NonBindingNewTeam
         :> MultiVerb

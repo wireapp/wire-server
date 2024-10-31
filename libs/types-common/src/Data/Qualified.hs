@@ -25,10 +25,12 @@ module Data.Qualified
     Qualified (..),
     qToPair,
     QualifiedWithTag,
+    RelativeTo (..),
+    relativeTo,
     tUnqualified,
-    tUnqualifiedL,
     tDomain,
     tUntagged,
+    tSplit,
     qTagUnsafe,
     Remote,
     toRemoteUnsafe,
@@ -48,7 +50,7 @@ module Data.Qualified
   )
 where
 
-import Control.Lens (Lens, lens, over, (?~))
+import Control.Lens (over, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bifunctor (first)
 import Data.Domain (Domain)
@@ -93,8 +95,9 @@ tUnqualified = qUnqualified . tUntagged
 tDomain :: QualifiedWithTag t a -> Domain
 tDomain = qDomain . tUntagged
 
-tUnqualifiedL :: Lens (QualifiedWithTag t a) (QualifiedWithTag t b) a b
-tUnqualifiedL = lens tUnqualified qualifyAs
+-- | perform 'qUnqualified' and 'tDomain' at once. Useful in ViewPatterns.
+tSplit :: QualifiedWithTag t a -> (Domain, a)
+tSplit (tUntagged -> q) = (q.qDomain, q.qUnqualified)
 
 -- | A type representing a 'Qualified' value where the domain is guaranteed to
 -- be remote.
@@ -109,22 +112,37 @@ toRemoteUnsafe d a = qTagUnsafe $ Qualified a d
 -- be local.
 type Local = QualifiedWithTag 'QLocal
 
--- | Convert a 'Domain' and an @a@ to a 'Local' value. This is only safe if we
--- already know that the domain is local.
-toLocalUnsafe :: Domain -> a -> Local a
-toLocalUnsafe d a = qTagUnsafe $ Qualified a d
-
 -- | Convert an unqualified value to a qualified one, with the same tag as the
 -- given tagged qualified value.
 qualifyAs :: QualifiedWithTag t x -> a -> QualifiedWithTag t a
 qualifyAs = ($>)
 
+data RelativeTo a
+  = Local (Local a)
+  | Remote (Remote a)
+
 foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
-foldQualified loc f g q
+foldQualified loc kLocal kRemote q =
+  case q `relativeTo` loc of
+    Local l -> kLocal l
+    Remote r -> kRemote r
+
+relativeTo :: Qualified a -> Local loc -> RelativeTo a
+relativeTo q loc
   | tDomain loc == qDomain q =
-      f (qTagUnsafe q)
+      Local (qTagUnsafe q)
   | otherwise =
-      g (qTagUnsafe q)
+      Remote (qTagUnsafe q)
+
+isLocal :: Local x -> Qualified a -> Bool
+isLocal loc q = case q `relativeTo` loc of
+  Local _ -> True
+  Remote _ -> False
+
+-- | Convert a 'Domain' and an @a@ to a 'Local' value. This is only safe if we
+-- already know that the domain is local.
+toLocalUnsafe :: Domain -> a -> Local a
+toLocalUnsafe d a = qTagUnsafe $ Qualified a d
 
 -- Partition a collection of qualified values into locals and remotes.
 --
@@ -158,9 +176,6 @@ bucketRemote =
     . Map.assocs
     . indexQualified
     . fmap tUntagged
-
-isLocal :: Local x -> Qualified a -> Bool
-isLocal loc = foldQualified loc (const True) (const False)
 
 ----------------------------------------------------------------------
 

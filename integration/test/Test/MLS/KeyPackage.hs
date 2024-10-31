@@ -238,7 +238,7 @@ testReplaceKeyPackages = do
     (kps, refs) <- unzip <$> replicateM 3 (generateKeyPackage alice1)
 
     -- replace old key packages with new
-    void $ replaceKeyPackages alice1 [suite] kps >>= getBody 201
+    void $ replaceKeyPackages alice1 (Just [suite]) kps >>= getBody 201
 
     checkCount def 4
     checkCount suite 3
@@ -274,7 +274,50 @@ testReplaceKeyPackages = do
     setMLSCiphersuite suite
     kps2 <- replicateM 2 (fmap fst (generateKeyPackage alice1))
 
-    void $ replaceKeyPackages alice1 [def, suite] (kps1 <> kps2) >>= getBody 201
+    void $ replaceKeyPackages alice1 (Just [def, suite]) (kps1 <> kps2) >>= getBody 201
 
     checkCount def 2
     checkCount suite 2
+
+  do
+    setMLSCiphersuite def
+    defKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1))
+    setMLSCiphersuite suite
+    suiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1))
+
+    void
+      $ replaceKeyPackages alice1 (Just []) []
+      `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 201
+
+    void
+      $ replaceKeyPackages alice1 Nothing defKeyPackages
+      `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 201
+
+    checkCount def 3
+    checkCount suite 2
+
+    let testErrorCases :: (HasCallStack) => Maybe [Ciphersuite] -> [ByteString] -> App ()
+        testErrorCases ciphersuites keyPackages = do
+          void
+            $ replaceKeyPackages alice1 ciphersuites keyPackages
+            `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 400
+              resp.json %. "label" `shouldMatch` "mls-protocol-error"
+          checkCount def 3
+          checkCount suite 2
+
+    testErrorCases (Just []) defKeyPackages
+    testErrorCases (Just []) suiteKeyPackages
+    testErrorCases Nothing []
+    testErrorCases Nothing suiteKeyPackages
+    testErrorCases Nothing (suiteKeyPackages <> defKeyPackages)
+
+    testErrorCases (Just [suite]) defKeyPackages
+    testErrorCases (Just [suite]) (suiteKeyPackages <> defKeyPackages)
+    testErrorCases (Just [suite]) []
+
+    testErrorCases (Just [def]) suiteKeyPackages
+    testErrorCases (Just [def]) (suiteKeyPackages <> defKeyPackages)
+    testErrorCases (Just [def]) []

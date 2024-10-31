@@ -19,6 +19,8 @@ module Test.Wire.API.Golden.Manual where
 
 import Imports
 import Test.Tasty
+import Test.Wire.API.Golden.Manual.Activate_user
+import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.Contact
@@ -30,6 +32,7 @@ import Test.Wire.API.Golden.Manual.ConversationRemoveMembers
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
+import Test.Wire.API.Golden.Manual.CreateScimTokenResponse
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.FederationDomainConfig
 import Test.Wire.API.Golden.Manual.FederationRestriction
@@ -38,9 +41,15 @@ import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
+import Test.Wire.API.Golden.Manual.LoginId_user
+import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
+import Test.Wire.API.Golden.Manual.Presence
+import Test.Wire.API.Golden.Manual.Push
+import Test.Wire.API.Golden.Manual.PushRemove
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
+import Test.Wire.API.Golden.Manual.SendActivationCode_user
 import Test.Wire.API.Golden.Manual.SubConversation
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
@@ -64,7 +73,8 @@ tests =
             (testObject_UserClientPrekeyMap_5, "testObject_UserClientPrekeyMap_5.json"),
             (testObject_UserClientPrekeyMap_6, "testObject_UserClientPrekeyMap_6.json"),
             (testObject_UserClientPrekeyMap_7, "testObject_UserClientPrekeyMap_7.json"),
-            (testObject_UserClientPrekeyMap_8, "testObject_UserClientPrekeyMap_8.json")
+            (testObject_UserClientPrekeyMap_8, "testObject_UserClientPrekeyMap_8.json"),
+            (testObject_UserClientPrekeyMap_9, "testObject_UserClientPrekeyMap_9.json")
           ],
       testGroup "QualifiedUserClientPrekeyMap" $
         testObjects
@@ -101,11 +111,20 @@ tests =
           ],
       testGroup "ClientCapability" $
         testObjects
-          [(testObject_ClientCapability_1, "testObject_ClientCapability_1.json")],
-      testGroup "ClientCapabilityList" $
+          [ (testObject_ClientCapability_1, "testObject_ClientCapability_1.json"),
+            (testObject_ClientCapability_2, "testObject_ClientCapability_2.json")
+          ],
+      testGroup "ClientCapabilityListV6" $
         testObjects
           [ (testObject_ClientCapabilityList_1, "testObject_ClientCapabilityList_1.json"),
             (testObject_ClientCapabilityList_2, "testObject_ClientCapabilityList_2.json")
+          ],
+      testGroup "ClientCapabilityListV6 - non-round-trip" $
+        [testToJSON testObject_ClientCapabilityList_3 "testObject_ClientCapabilityList_3.json"],
+      testGroup "ClientCapabilityList" $
+        testObjects
+          [ (testObject_ClientCapabilityList_4, "testObject_ClientCapabilityList_4.json"),
+            (testObject_ClientCapabilityList_5, "testObject_ClientCapabilityList_5.json")
           ],
       testGroup
         "Event.FeatureConfig.Event"
@@ -134,6 +153,10 @@ tests =
             (testObject_CreateScimToken_2, "testObject_CreateScimToken_2.json"),
             (testObject_CreateScimToken_3, "testObject_CreateScimToken_3.json"),
             (testObject_CreateScimToken_4, "testObject_CreateScimToken_4.json")
+          ],
+      testGroup "CreateScimTokenResponse" $
+        testObjects
+          [ (testObject_CreateScimTokenResponse_1, "testObject_CreateScimTokenResponse_1.json")
           ],
       testGroup "Contact" $
         testObjects
@@ -229,7 +252,8 @@ tests =
             (testObject_UserEvent_14, "testObject_UserEvent_14.json"),
             (testObject_UserEvent_15, "testObject_UserEvent_15.json"),
             (testObject_UserEvent_16, "testObject_UserEvent_16.json"),
-            (testObject_UserEvent_17, "testObject_UserEvent_17.json")
+            (testObject_UserEvent_17, "testObject_UserEvent_17.json"),
+            (testObject_UserEvent_18, "testObject_UserEvent_18.json")
           ],
       testGroup "MLSPublicKeys" $
         testObjects
@@ -238,5 +262,54 @@ tests =
       testGroup "MLSKeysByPurpose" $
         testObjects
           [ (testObject_MLSKeysByPurpose1, "testObject_MLSKeysByPurpose_1.json")
+          ],
+      testGroup "SendActivationCode" $
+        testObjects
+          [ (testObject_SendActivationCode_1, "testObject_SendActivationCode_1.json"),
+            (testObject_SendActivationCode_2, "testObject_SendActivationCode_2.json")
+          ],
+      testGroup "LoginId" $
+        testObjects
+          [ (testObject_LoginId_user_1, "testObject_LoginId_user_1.json"),
+            (testObject_LoginId_user_2, "testObject_LoginId_user_2.json"),
+            (testObject_LoginId_user_3, "testObject_LoginId_user_3.json"),
+            (testObject_LoginId_user_4, "testObject_LoginId_user_4.json"),
+            (testObject_LoginId_user_5, "testObject_LoginId_user_5.json"),
+            (testObject_LoginId_user_6, "testObject_LoginId_user_6.json")
+          ],
+      testGroup "Login" $
+        testObjects
+          [ (testObject_Login_user_1, "testObject_Login_user_1.json"),
+            (testObject_Login_user_2, "testObject_Login_user_2.json"),
+            (testObject_Login_user_3, "testObject_Login_user_3.json"),
+            (testObject_Login_user_4, "testObject_Login_user_4.json"),
+            (testObject_Login_user_5, "testObject_Login_user_5.json")
+          ],
+      testGroup "CannonId" $
+        testObjects
+          [ (testObject_CannonId_1, "testObject_CannonId_1.json"),
+            (testObject_CannonId_2, "testObject_CannonId_2.json"),
+            (testObject_CannonId_3, "testObject_CannonId_3.json")
+          ],
+      testGroup "Presence" $
+        testObjects
+          [ (testObject_Presence_1, "testObject_Presence_1.json"),
+            (testObject_Presence_2, "testObject_Presence_2.json")
+          ],
+      testGroup "Push" $
+        testObjects
+          [ (testObject_Push_1, "testObject_Push_1.json"),
+            (testObject_Push_2, "testObject_Push_2.json")
+          ],
+      testGroup "PushRemove" $
+        testObjects
+          [ (testObject_PushRemove_1, "testObject_PushRemove_1.json")
+          ],
+      testGroup "Activate" $
+        testObjects
+          [ (testObject_Activate_user_1, "testObject_Activate_user_1.json"),
+            (testObject_Activate_user_2, "testObject_Activate_user_2.json"),
+            (testObject_Activate_user_3, "testObject_Activate_user_3.json"),
+            (testObject_Activate_user_4, "testObject_Activate_user_4.json")
           ]
     ]

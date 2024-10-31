@@ -9,6 +9,7 @@
 , bytestring
 , case-insensitive
 , configurator
+, errors
 , exceptions
 , extended
 , gitignoreSource
@@ -21,6 +22,7 @@
 , lib
 , metrics-wai
 , retry
+, servant-server
 , text
 , tinylog
 , types-common
@@ -46,6 +48,7 @@ mkDerivation {
     bytestring
     case-insensitive
     configurator
+    errors
     exceptions
     extended
     http-client
@@ -56,6 +59,7 @@ mkDerivation {
     lens
     metrics-wai
     retry
+    servant-server
     text
     tinylog
     types-common

@@ -55,11 +55,13 @@ testObject_User_user_1 =
             qDomain = Domain {_domainText = "s-f4.s"}
           },
       userIdentity = Nothing,
+      userEmailUnvalidated = Nothing,
       userDisplayName = Name {fromName = "\NULuv\996028su\28209lRi"},
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 1},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.TN, lCountry = Just (Country {fromCountry = SB})},
       userService = Nothing,
       userHandle = Nothing,
@@ -77,12 +79,14 @@ testObject_User_user_2 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
             qDomain = Domain {_domainText = "k.vbg.p"}
           },
-      userIdentity = Just (EmailIdentity (Email "foo" "example.com")),
+      userIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
+      userEmailUnvalidated = Nothing,
       userDisplayName =
         Name
           { fromName =
               "4\1067195\&7\ACK\DC2\DC2\ETBbp\SOH\40601\&0Yr\\\984611vKRg\1048403)\1040186S\983500\1057766:3B\ACK\DC3\ETXT"
           },
+      userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
       userAssets =
         [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
@@ -90,7 +94,7 @@ testObject_User_user_2 =
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)
         ],
       userAccentId = ColourId {fromColourId = -2},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.DA, lCountry = Just (Country {fromCountry = TN})},
       userService =
         Just
@@ -114,13 +118,15 @@ testObject_User_user_3 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000002")),
             qDomain = Domain {_domainText = "dt.n"}
           },
-      userIdentity = Just (EmailIdentity (Email {emailLocal = "f", emailDomain = "\83115"})),
+      userIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
+      userEmailUnvalidated = Nothing,
       userDisplayName =
         Name {fromName = ",r\EMXEg0$\98187\RS\SI'uS\ETX/\1009222`\228V.J{\fgE(\rK!\SOp8s9gXO\21810Xj\STX\RS\DC2"},
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = -2},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.TG, lCountry = Just (Country {fromCountry = UA})},
       userService =
         Just
@@ -145,16 +151,18 @@ testObject_User_user_4 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (SSOIdentity (UserScimExternalId "") (Just (Email {emailLocal = "", emailDomain = ""}))),
+        Just (SSOIdentity (UserScimExternalId "") (Just (unsafeEmailAddress "some" "example"))),
+      userEmailUnvalidated = Nothing,
       userDisplayName =
         Name
           { fromName =
               "^\1025896F\1083260=&o>f<7\SOq|6\DC1\EM\997351\1054148\ESCf\1014774\170183\DC3bnVAj`^L\f\1047425\USLI\ENQ!\1061384\ETB`\1041537\ETXe\26313\SUBK|"
           },
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 0},
-      userDeleted = False,
+      userStatus = Active,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.BI, lCountry = Just (Country {fromCountry = MQ})},
       userService =
         Just
@@ -180,16 +188,18 @@ testObject_User_user_5 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (EmailIdentity (Email {emailLocal = "bar", emailDomain = "example.com"})),
+        Just (EmailIdentity (unsafeEmailAddress "some" "example")),
+      userEmailUnvalidated = Nothing,
       userDisplayName =
         Name
           { fromName =
               "^\1025896F\1083260=&o>f<7\SOq|6\DC1\EM\997351\1054148\ESCf\1014774\170183\DC3bnVAj`^L\f\1047425\USLI\ENQ!\1061384\ETB`\1041537\ETXe\26313\SUBK|"
           },
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 0},
-      userDeleted = False,
+      userStatus = Active,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.BI, lCountry = Just (Country {fromCountry = MQ})},
       userService =
         Just

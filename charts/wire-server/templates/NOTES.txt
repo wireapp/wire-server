@@ -1,2 +1,5 @@
 
-TODO: write nice NOTES.txt
+{{- if not (index .Values "brig" "config" "optSettings" "setRestrictUserCreation") }}
+⚠️ ⚠️ ⚠️ User/Team creation is possible from outside the cluster, via Internet ⚠️ ⚠️ ⚠️
+To disable, Set brig.optSettings.setRestrictUserCreation to true.
+{{- end  }}

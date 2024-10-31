@@ -48,10 +48,14 @@ module Data.Id
     -- * Other IDs
     ConnId (..),
     RequestId (..),
+    defRequestId,
     BotId (..),
     NoId,
     OAuthClientId,
     OAuthRefreshTokenId,
+
+    -- * Utils
+    uuidSchema,
   )
 where
 
@@ -175,23 +179,23 @@ newtype Id a = Id
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (Id a)
 
 instance ToSchema (Id a) where
-  schema = Id <$> toUUID .= uuid
-    where
-      uuid :: ValueSchema NamedSwaggerDoc UUID
-      uuid =
-        mkSchema
-          (addExample (swaggerDoc @UUID))
-          ( A.withText
-              "UUID"
-              ( maybe (fail "Invalid UUID") pure
-                  . UUID.fromText
-              )
-          )
-          (pure . A.toJSON . UUID.toText)
+  schema = Id <$> toUUID .= uuidSchema
 
-      addExample =
-        S.schema . S.example
-          ?~ toJSON ("99db9768-04e3-4b5d-9268-831b6a25c4ab" :: Text)
+uuidSchema :: ValueSchema NamedSwaggerDoc UUID
+uuidSchema =
+  mkSchema
+    (addExample (swaggerDoc @UUID))
+    ( A.withText
+        "UUID"
+        ( maybe (fail "Invalid UUID") pure
+            . UUID.fromText
+        )
+    )
+    (pure . A.toJSON . UUID.toText)
+  where
+    addExample =
+      S.schema . S.example
+        ?~ toJSON ("99db9768-04e3-4b5d-9268-831b6a25c4ab" :: Text)
 
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
@@ -417,6 +421,9 @@ newtype RequestId = RequestId
       Generic,
       ToBytes
     )
+
+defRequestId :: (IsString s) => s
+defRequestId = "N/A"
 
 instance ToSchema RequestId where
   schema =

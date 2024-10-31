@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Proxy.Proxy (Proxy, runProxy) where
+module Proxy.Proxy (Proxy, appInProxy, runProxy) where
 
 import Bilge.Request (requestIdName)
 import Control.Lens hiding ((.=))
@@ -51,10 +51,13 @@ newtype Proxy a = Proxy
 instance MonadLogger Proxy where
   log l m = ask >>= \e -> Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
 
-runProxy :: Env -> Request -> Proxy ResponseReceived -> IO ResponseReceived
-runProxy e r m = do
+appInProxy :: Env -> Request -> Proxy ResponseReceived -> IO ResponseReceived
+appInProxy e r m = do
   rid <- lookupReqId (e ^. applog) r
   runReaderT (unProxy m) (reqId .~ rid $ e)
+
+runProxy :: Env -> Proxy a -> IO a
+runProxy e m = runReaderT (unProxy m) e
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

@@ -16,6 +16,12 @@ interpretPasswordStore casClient =
     runEmbedded (runClient casClient) . \case
       UpsertHashedPassword uid password -> embed $ updatePasswordImpl uid password
       LookupHashedPassword uid -> embed $ lookupPasswordImpl uid
+      LookupHashedProviderPassword pid -> embed $ lookupProviderPasswordImpl pid
+
+lookupProviderPasswordImpl :: (MonadClient m) => ProviderId -> m (Maybe Password)
+lookupProviderPasswordImpl u =
+  (runIdentity =<<)
+    <$> retry x1 (query1 providerPasswordSelect (params LocalQuorum (Identity u)))
 
 lookupPasswordImpl :: (MonadClient m) => UserId -> m (Maybe Password)
 lookupPasswordImpl u =
@@ -28,6 +34,10 @@ updatePasswordImpl u p = do
 
 ------------------------------------------------------------------------
 -- Queries
+
+providerPasswordSelect :: PrepQuery R (Identity ProviderId) (Identity (Maybe Password))
+providerPasswordSelect =
+  "SELECT password FROM provider WHERE id = ?"
 
 passwordSelect :: PrepQuery R (Identity UserId) (Identity (Maybe Password))
 passwordSelect = "SELECT password FROM user WHERE id = ?"

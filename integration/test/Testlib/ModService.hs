@@ -124,11 +124,14 @@ startDynamicBackends beOverrides k =
       when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
       pool <- asks (.resourcePool)
       resources <- acquireResources (Prelude.length beOverrides) pool
-      void $ traverseConcurrentlyCodensity (uncurry startDynamicBackend) (zip resources beOverrides)
+      void $
+        traverseConcurrentlyCodensity
+          (void . uncurry startDynamicBackend)
+          (zip resources beOverrides)
       pure $ map (.berDomain) resources
     k
 
-startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App ()
+startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App String
 startDynamicBackend resource beOverrides = do
   let overrides =
         mconcat
@@ -136,10 +139,12 @@ startDynamicBackend resource beOverrides = do
             setEsIndex,
             setFederationSettings,
             setAwsConfigs,
+            setMlsPrivateKeyPaths,
             setLogLevel,
             beOverrides
           ]
   startBackend resource overrides
+  pure resource.berDomain
   where
     setAwsConfigs :: ServiceOverrides
     setAwsConfigs =
@@ -198,6 +203,12 @@ startDynamicBackend resource beOverrides = do
     setEsIndex =
       def
         { brigCfg = setField "elasticsearch.index" resource.berElasticsearchIndex
+        }
+
+    setMlsPrivateKeyPaths :: ServiceOverrides
+    setMlsPrivateKeyPaths =
+      def
+        { galleyCfg = setField "settings.mlsPrivateKeyPaths" resource.berMlsPrivateKeyPaths
         }
 
     setLogLevel :: ServiceOverrides
@@ -449,9 +460,10 @@ startNginzLocal resource = do
   -- override port configuration
   let portConfigTemplate =
         [r|listen {localPort};
-listen {http2_port} http2;
-listen {ssl_port} ssl http2;
-listen [::]:{ssl_port} ssl http2;
+listen {http2_port};
+listen {ssl_port} ssl;
+listen [::]:{ssl_port} ssl;
+http2 on;
 |]
   let portConfig =
         portConfigTemplate

@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Galley.Run
   ( run,
     mkApp,
@@ -56,6 +55,8 @@ import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
+import OpenTelemetry.Instrumentation.Wai qualified as Otel
+import OpenTelemetry.Trace as Otel
 import Prometheus qualified as Prom
 import Servant hiding (route)
 import System.Logger qualified as Log
@@ -65,16 +66,18 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import Wire.OpenTelemetry (withTracerC)
 
 run :: Opts -> IO ()
-run opts = lowerCodensity $ do
+run opts = lowerCodensity do
+  tracer <- withTracerC
   (app, env) <- mkApp opts
   settings' <-
     lift $
       newSettings $
         defaultServer
-          (unpack $ opts ^. galley . host)
-          (portNumber $ fromIntegral $ opts ^. galley . port)
+          (unpack $ opts._galley.host)
+          (portNumber $ fromIntegral opts._galley.port)
           (env ^. App.applog)
 
   forM_ (env ^. aEnv) $ \aws ->
@@ -82,25 +85,28 @@ run opts = lowerCodensity $ do
 
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  lift $ finally (runSettingsWithShutdown settings' app Nothing) (closeApp env)
+  lift $ inSpan tracer "galley" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown settings' app Nothing) `finally` closeApp env
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =
   do
     logger <- lift $ mkLogger (opts ^. logLevel) (opts ^. logNetStrings) (opts ^. logFormat)
     env <- lift $ App.createEnv opts logger
+    otelMiddleware <- lift Otel.newOpenTelemetryWaiMiddleware
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
             . requestIdMiddleware logger defaultRequestIdHeaderName
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
+            . otelMiddleware
             . GZip.gunzip
             . GZip.gzip GZip.def
             . catchErrors logger defaultRequestIdHeaderName
-    Codensity $ \k -> finally (k ()) $ do
-      Log.info logger $ Log.msg @Text "Galley application finished."
-      Log.flush logger
-      Log.close logger
+    Codensity \k ->
+      k () `finally` do
+        Log.info logger $ Log.msg @Text "Galley application finished."
+        Log.flush logger
+        Log.close logger
     pure (middlewares $ servantApp env, env)
   where
     -- Used as a last case in the servant tree. Previously, there used to be a

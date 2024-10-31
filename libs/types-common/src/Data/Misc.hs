@@ -49,11 +49,9 @@ module Data.Misc
     PlainTextPassword6,
     PlainTextPassword8,
     plainTextPassword6,
-    plainTextPassword8,
     fromPlainTextPassword,
     plainTextPassword8Unsafe,
     plainTextPassword6Unsafe,
-    plainTextPassword8To6,
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
@@ -324,18 +322,11 @@ plainTextPassword6 = fmap PlainTextPassword' . checked
 plainTextPassword6Unsafe :: Text -> PlainTextPassword6
 plainTextPassword6Unsafe = PlainTextPassword' . unsafeRange
 
-plainTextPassword8 :: Text -> Maybe PlainTextPassword8
-plainTextPassword8 = fmap PlainTextPassword' . checked
-
 plainTextPassword8Unsafe :: Text -> PlainTextPassword8
 plainTextPassword8Unsafe = PlainTextPassword' . unsafeRange
 
 fromPlainTextPassword :: PlainTextPassword' t -> Text
 fromPlainTextPassword = fromRange . fromPlainTextPassword'
-
--- | Convert a 'PlainTextPassword8' to a legacy 'PlainTextPassword'.
-plainTextPassword8To6 :: PlainTextPassword8 -> PlainTextPassword6
-plainTextPassword8To6 = PlainTextPassword' . unsafeRange . fromPlainTextPassword
 
 newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'
   {fromPlainTextPassword' :: Range minLen (1024 :: Nat) Text}
@@ -378,8 +369,6 @@ showT = Text.pack . show
 {-# INLINE showT #-}
 
 -- | Decodes a base64 'Text' to a regular 'ByteString' (if possible)
-from64 :: Text -> Maybe ByteString
-from64 = hush . B64.decode . encodeUtf8
-  where
-    hush = either (const Nothing) Just
+from64 :: Text -> Either String ByteString
+from64 = B64.decode . encodeUtf8
 {-# INLINE from64 #-}

@@ -43,8 +43,9 @@ type DeleteResponses =
 
 type BotAPI =
   Named
-    "add-bot"
+    "add-bot@v6"
     ( Summary "Add bot"
+        :> Until V7
         :> CanThrow 'AccessDenied
         :> CanThrow 'InvalidConversation
         :> CanThrow 'TooManyConversationMembers
@@ -52,22 +53,53 @@ type BotAPI =
         :> ZAccess
         :> ZConn
         :> "conversations"
-        :> Capture "Conversation ID" ConvId
+        :> Capture "conv" ConvId
         :> "bots"
         :> ReqBody '[JSON] AddBot
         :> MultiVerb1 'POST '[JSON] (Respond 201 "" AddBotResponse)
     )
     :<|> Named
-           "remove-bot"
+           "add-bot"
+           ( Summary "Add bot"
+               :> From V7
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidConversation
+               :> CanThrow 'TooManyConversationMembers
+               :> CanThrow 'ServiceDisabled
+               :> ZAccess
+               :> ZConn
+               :> "bot"
+               :> "conversations"
+               :> Capture "conv" ConvId
+               :> ReqBody '[JSON] AddBot
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "" AddBotResponse)
+           )
+    :<|> Named
+           "remove-bot@v6"
            ( Summary "Remove bot"
+               :> Until V7
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidConversation
                :> ZAccess
                :> ZConn
                :> "conversations"
-               :> Capture "Conversation ID" ConvId
+               :> Capture "conv" ConvId
                :> "bots"
-               :> Capture "Bot ID" BotId
+               :> Capture "bot" BotId
+               :> MultiVerb 'DELETE '[JSON] DeleteResponses (Maybe RemoveBotResponse)
+           )
+    :<|> Named
+           "remove-bot"
+           ( Summary "Remove bot"
+               :> From V7
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidConversation
+               :> ZAccess
+               :> ZConn
+               :> "bot"
+               :> "conversations"
+               :> Capture "conv" ConvId
+               :> Capture "bot" BotId
                :> MultiVerb 'DELETE '[JSON] DeleteResponses (Maybe RemoveBotResponse)
            )
     :<|> Named
@@ -114,9 +146,9 @@ type BotAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )
     :<|> Named
-           "bot-get-client-v5"
+           "bot-get-client-v6"
            ( Summary "Get client for bot"
-               :> Until 'V6
+               :> Until 'V7
                :> CanThrow 'AccessDenied
                :> CanThrow 'ClientNotFound
                :> ZBot
@@ -126,14 +158,14 @@ type BotAPI =
                     'GET
                     '[JSON]
                     '[ ErrorResponse 'ClientNotFound,
-                       VersionedRespond 'V5 200 "Client found" Client
+                       VersionedRespond 'V6 200 "Client found" Client
                      ]
                     (Maybe Client)
            )
     :<|> Named
            "bot-get-client"
            ( Summary "Get client for bot"
-               :> From 'V6
+               :> From 'V7
                :> CanThrow 'AccessDenied
                :> CanThrow 'ClientNotFound
                :> ZBot
@@ -178,7 +210,7 @@ type BotAPI =
                :> ZBot
                :> "bot"
                :> "users"
-               :> Capture "User ID" UserId
+               :> Capture "user" UserId
                :> "clients"
                :> Get '[JSON] [PubClient]
            )

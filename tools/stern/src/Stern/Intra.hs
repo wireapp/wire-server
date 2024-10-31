@@ -23,7 +23,6 @@
 
 module Stern.Intra
   ( backendApiVersion,
-    putUser,
     putUserStatus,
     getContacts,
     getUserConnections,
@@ -35,17 +34,18 @@ module Stern.Intra
     getInvoiceUrl,
     revokeIdentity,
     changeEmail,
-    changePhone,
     deleteAccount,
     setStatusBindingTeam,
     deleteBindingTeam,
     deleteBindingTeamForce,
+    getTeamMembers,
     getTeamInfo,
     getUserBindingTeam,
     isBlacklisted,
     setBlacklistStatus,
     getTeamFeatureFlag,
     setTeamFeatureFlag,
+    patchTeamFeatureFlag,
     setTeamFeatureLockStatus,
     getTeamData,
     getSearchVisibility,
@@ -70,7 +70,7 @@ module Stern.Intra
   )
 where
 
-import Bilge hiding (head, options, path, paths, requestId)
+import Bilge hiding (head, options, patch, path, paths, requestId)
 import Bilge qualified
 import Bilge.RPC
 import Brig.Types.Intra
@@ -87,14 +87,12 @@ import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import Data.Map qualified as Map
-import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy as LT (pack)
 import Data.Text.Lazy.Encoding qualified as TL
-import GHC.TypeLits (KnownSymbol, symbolVal)
 import Imports
 import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
@@ -141,28 +139,10 @@ versionedPaths = Bilge.paths . (encodeUtf8 (toUrlPiece backendApiVersion) :)
 
 -------------------------------------------------------------------------------
 
-putUser :: UserId -> UserUpdate -> Handler ()
-putUser uid upd = do
-  info $ userMsg uid . msg "Changing user state"
-  b <- view brig
-  void $
-    catchRpcErrors $
-      rpc'
-        "brig"
-        b
-        ( method PUT
-            . versionedPath "self"
-            . header "Z-User" (toByteString' uid)
-            . header "Z-Connection" (toByteString' "")
-            . lbytes (encode upd)
-            . contentJson
-            . expect2xx
-        )
-
 putUserStatus :: AccountStatus -> UserId -> Handler ()
 putUserStatus status uid = do
   info $ userMsg uid . msg "Changing user status"
-  b <- view brig
+  b <- asks (.brig)
   void $
     catchRpcErrors $
       rpc'
@@ -192,7 +172,7 @@ getUserConnections uid = do
         else pure (batch ++ xs)
     fetchBatch :: Maybe UserId -> Handler UserConnectionList
     fetchBatch start = do
-      b <- view brig
+      b <- asks (.brig)
       r <-
         catchRpcErrors $
           rpc'
@@ -211,7 +191,7 @@ getUserConnections uid = do
 getUsersConnections :: List UserId -> Handler [ConnectionStatus]
 getUsersConnections uids = do
   info $ msg "Getting user connections"
-  b <- view brig
+  b <- asks (.brig)
   let reqBody = ConnectionsStatusRequest (fromList uids) Nothing
   r <-
     catchRpcErrors $
@@ -226,13 +206,13 @@ getUsersConnections uids = do
   info $ msg ("Response" ++ show r)
   parseResponse (mkError status502 "bad-upstream") r
 
-getUserProfiles :: Either [UserId] [Handle] -> Handler [UserAccount]
+getUserProfiles :: Either [UserId] [Handle] -> Handler [User]
 getUserProfiles uidsOrHandles = do
   info $ msg "Getting user accounts"
-  b <- view brig
+  b <- asks (.brig)
   concat <$> mapM (doRequest b) (prepareQS uidsOrHandles)
   where
-    doRequest :: Request -> (Request -> Request) -> Handler [UserAccount]
+    doRequest :: Request -> (Request -> Request) -> Handler [User]
     doRequest b qry = do
       r <-
         catchRpcErrors $
@@ -253,10 +233,10 @@ getUserProfiles uidsOrHandles = do
       fmap (BS.intercalate "," . map toByteString')
         . chunksOf 50
 
-getUserProfilesByIdentity :: Email -> Handler [UserAccount]
+getUserProfilesByIdentity :: EmailAddress -> Handler [User]
 getUserProfilesByIdentity email = do
   info $ msg "Getting user accounts by identity"
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -272,7 +252,7 @@ getUserProfilesByIdentity email = do
 getEjpdInfo :: [Handle] -> Bool -> Handler EJPD.EJPDResponseBody
 getEjpdInfo handles includeContacts = do
   info $ msg "Getting ejpd info on users by handle"
-  b <- view brig
+  b <- asks (.brig)
   let bdy :: Value
       bdy =
         object
@@ -295,7 +275,7 @@ getEjpdInfo handles includeContacts = do
 getContacts :: UserId -> Text -> Int32 -> Handler (SearchResult Contact)
 getContacts u q s = do
   info $ msg "Getting user contacts"
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -310,10 +290,10 @@ getContacts u q s = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-revokeIdentity :: Email -> Handler ()
+revokeIdentity :: EmailAddress -> Handler ()
 revokeIdentity email = do
   info $ msg "Revoking user identity"
-  b <- view brig
+  b <- asks (.brig)
   void
     . catchRpcErrors
     $ rpc'
@@ -328,7 +308,7 @@ revokeIdentity email = do
 deleteAccount :: UserId -> Handler ()
 deleteAccount uid = do
   info $ msg "Deleting account"
-  b <- view brig
+  b <- asks (.brig)
   void
     . catchRpcErrors
     $ rpc'
@@ -346,7 +326,7 @@ setStatusBindingTeam tid status = do
       ( "Setting team status to "
           <> UTF8.toString (BS.toStrict . encode $ status)
       )
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -361,7 +341,7 @@ setStatusBindingTeam tid status = do
 deleteBindingTeam :: TeamId -> Handler ()
 deleteBindingTeam tid = do
   info $ msg "Deleting team"
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -376,7 +356,7 @@ deleteBindingTeam tid = do
 deleteBindingTeamForce :: TeamId -> Handler ()
 deleteBindingTeamForce tid = do
   info $ msg "Deleting team with force flag"
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -391,7 +371,7 @@ deleteBindingTeamForce tid = do
 changeEmail :: UserId -> EmailUpdate -> Handler ()
 changeEmail u upd = do
   info $ msg "Updating email address"
-  b <- view brig
+  b <- asks (.brig)
   void
     . catchRpcErrors
     $ rpc'
@@ -407,24 +387,6 @@ changeEmail u upd = do
           . expect2xx
       )
 
-changePhone :: UserId -> PhoneUpdate -> Handler ()
-changePhone u upd = do
-  info $ msg "Updating phone number"
-  b <- view brig
-  void
-    . catchRpcErrors
-    $ rpc'
-      "brig"
-      b
-      ( method PUT
-          . versionedPath "self/phone"
-          . header "Z-User" (toByteString' u)
-          . header "Z-Connection" (toByteString' "")
-          . lbytes (encode upd)
-          . contentJson
-          . expect2xx
-      )
-
 getTeamInfo :: TeamId -> Handler TeamInfo
 getTeamInfo tid = do
   d <- getTeamData tid
@@ -434,7 +396,7 @@ getTeamInfo tid = do
 getUserBindingTeam :: UserId -> Handler (Maybe TeamId)
 getUserBindingTeam u = do
   info $ msg "Getting user binding team"
-  g <- view galley
+  g <- asks (.galley)
   r <-
     catchRpcErrors $
       rpc'
@@ -457,7 +419,7 @@ getUserBindingTeam u = do
 getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
 getInvoiceUrl tid iid = do
   info $ msg "Getting invoice"
-  i <- view ibis
+  i <- asks (.ibis)
   r <-
     catchRpcErrors $
       rpc'
@@ -473,7 +435,7 @@ getInvoiceUrl tid iid = do
 getTeamBillingInfo :: TeamId -> Handler (Maybe TeamBillingInfo)
 getTeamBillingInfo tid = do
   info $ msg "Getting team billing info"
-  i <- view ibis
+  i <- asks (.ibis)
   resp <-
     catchRpcErrors $
       rpc'
@@ -490,7 +452,7 @@ getTeamBillingInfo tid = do
 setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
   info $ msg "Setting team billing info"
-  i <- view ibis
+  i <- asks (.ibis)
   void
     . catchRpcErrors
     $ rpc'
@@ -503,10 +465,10 @@ setTeamBillingInfo tid tbu = do
           . expect2xx
       )
 
-isBlacklisted :: Email -> Handler Bool
+isBlacklisted :: EmailAddress -> Handler Bool
 isBlacklisted email = do
   info $ msg "Checking blacklist"
-  b <- view brig
+  b <- asks (.brig)
   resp <-
     catchRpcErrors $
       rpc'
@@ -521,10 +483,10 @@ isBlacklisted email = do
     404 -> pure False
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
-setBlacklistStatus :: Bool -> Email -> Handler ()
+setBlacklistStatus :: Bool -> EmailAddress -> Handler ()
 setBlacklistStatus status email = do
   info $ msg "Changing blacklist status"
-  b <- view brig
+  b <- asks (.brig)
   void
     . catchRpcErrors
     $ rpc'
@@ -541,78 +503,68 @@ setBlacklistStatus status email = do
 
 getTeamFeatureFlag ::
   forall cfg.
-  ( Typeable (Public.WithStatus cfg),
-    FromJSON (Public.WithStatus cfg),
-    KnownSymbol (Public.FeatureSymbol cfg)
-  ) =>
+  (IsFeatureConfig cfg, Typeable cfg) =>
   TeamId ->
-  Handler (Public.WithStatus cfg)
+  Handler (Public.LockableFeature cfg)
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
-  gly <- view galley
+  gly <- asks (.galley)
   let req =
         method GET
           . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
-    200 -> pure $ responseJsonUnsafe @(Public.WithStatus cfg) resp
+    200 -> pure $ responseJsonUnsafe @(Public.LockableFeature cfg) resp
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setTeamFeatureFlag ::
   forall cfg.
-  ( ToJSON (Public.WithStatusNoLock cfg),
-    KnownSymbol (Public.FeatureSymbol cfg)
-  ) =>
+  (IsFeatureConfig cfg) =>
   TeamId ->
-  Public.WithStatusNoLock cfg ->
+  Public.Feature cfg ->
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
-  checkDaysLimit (wssTTL status)
-  gly <- view galley
-  let req =
-        method PUT
-          . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
-          . Bilge.json status
-          . contentJson
+  galleyRpc $
+    method PUT
+      . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . Bilge.json status
+      . contentJson
+
+patchTeamFeatureFlag ::
+  forall cfg.
+  (IsFeatureConfig cfg) =>
+  TeamId ->
+  Public.LockableFeaturePatch cfg ->
+  Handler ()
+patchTeamFeatureFlag tid patch = do
+  info $ msg "Patching team feature status"
+  galleyRpc $
+    method PATCH
+      . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . Bilge.json patch
+      . contentJson
+
+galleyRpc :: (Bilge.Request -> Bilge.Request) -> Handler ()
+galleyRpc req = do
+  gly <- asks (.galley)
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team does not exist")
-    403 -> throwE (mkError status403 "bad-upstream" "legal hold config cannot be changed")
+    403 -> throwE (mkError status403 "bad-upstream" "config cannot be changed")
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
-  where
-    checkDaysLimit :: FeatureTTL -> Handler ()
-    checkDaysLimit = \case
-      FeatureTTLUnlimited -> pure ()
-      FeatureTTLSeconds ((`div` (60 * 60 * 24)) -> days) -> do
-        unless (days <= daysLimit) $ do
-          throwE
-            ( mkError
-                status400
-                "bad-data"
-                ( LT.pack $
-                    "ttl limit is "
-                      <> show daysLimit
-                      <> " days; I got "
-                      <> show days
-                      <> "."
-                )
-            )
-      where
-        daysLimit = 2000
 
 setTeamFeatureLockStatus ::
   forall cfg.
-  ( KnownSymbol (Public.FeatureSymbol cfg)
-  ) =>
+  (IsFeatureConfig cfg) =>
   TeamId ->
   LockStatus ->
   Handler ()
 setTeamFeatureLockStatus tid lstat = do
-  info $ msg ("Setting lock status: " <> show (symbolVal (Proxy @(Public.FeatureSymbol cfg)), lstat))
-  gly <- view galley
+  info $ msg ("Setting lock status: " <> featureName @cfg)
+  gly <- asks (.galley)
   fromResponseBody
     <=< catchRpcErrors
     $ rpc'
@@ -635,7 +587,7 @@ setTeamFeatureLockStatus tid lstat = do
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
   info $ msg "Getting TeamSearchVisibilityView value"
-  gly <- view galley
+  gly <- asks (.galley)
   fromResponseBody
     <=< catchRpcErrors
     $ rpc'
@@ -652,7 +604,7 @@ getSearchVisibility tid = do
 setSearchVisibility :: TeamId -> TeamSearchVisibility -> Handler ()
 setSearchVisibility tid typ = do
   info $ msg "Setting TeamSearchVisibility value"
-  gly <- view galley
+  gly <- asks (.galley)
   resp <-
     catchRpcErrors $
       rpc'
@@ -679,7 +631,7 @@ setSearchVisibility tid typ = do
 stripBS :: ByteString -> ByteString
 stripBS = encodeUtf8 . strip . decodeUtf8
 
-userKeyToParam :: Email -> Request -> Request
+userKeyToParam :: EmailAddress -> Request -> Request
 userKeyToParam e = queryItem "email" (stripBS $ toByteString' e)
 
 errorMessage :: Response (Maybe LByteString) -> LText
@@ -699,7 +651,7 @@ catchRpcErrors action = ExceptT $ catch (Right <$> action) catchRPCException
 getTeamData :: TeamId -> Handler TeamData
 getTeamData tid = do
   info $ msg "Getting team information"
-  g <- view galley
+  g <- asks (.galley)
   r <-
     catchRpcErrors $
       rpc'
@@ -716,7 +668,7 @@ getTeamData tid = do
 getTeamMembers :: TeamId -> Handler TeamMemberList
 getTeamMembers tid = do
   info $ msg "Getting team members"
-  g <- view galley
+  g <- asks (.galley)
   r <-
     catchRpcErrors $
       rpc'
@@ -728,10 +680,10 @@ getTeamMembers tid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getEmailConsentLog :: Email -> Handler ConsentLog
+getEmailConsentLog :: EmailAddress -> Handler ConsentLog
 getEmailConsentLog email = do
   info $ msg "Getting email consent log"
-  g <- view galeb
+  g <- asks (.galeb)
   r <-
     catchRpcErrors $
       rpc'
@@ -749,7 +701,7 @@ getEmailConsentLog email = do
 getUserConsentValue :: UserId -> Handler ConsentValue
 getUserConsentValue uid = do
   info $ msg "Getting user consent value"
-  g <- view galeb
+  g <- asks (.galeb)
   r <-
     catchRpcErrors $
       rpc'
@@ -762,10 +714,10 @@ getUserConsentValue uid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getMarketoResult :: Email -> Handler MarketoResult
+getMarketoResult :: EmailAddress -> Handler MarketoResult
 getMarketoResult email = do
   info $ msg "Getting marketo results"
-  g <- view galeb
+  g <- asks (.galeb)
   r <-
     catchRpcErrors $
       rpc'
@@ -794,7 +746,7 @@ getMarketoResult email = do
 getUserConsentLog :: UserId -> Handler ConsentLog
 getUserConsentLog uid = do
   info $ msg "Getting user consent log"
-  g <- view galeb
+  g <- asks (.galeb)
   r <-
     catchRpcErrors $
       rpc'
@@ -809,7 +761,7 @@ getUserConsentLog uid = do
 getUserCookies :: UserId -> Handler CookieList
 getUserCookies uid = do
   info $ msg "Getting user cookies"
-  g <- view brig
+  g <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -837,7 +789,7 @@ getUserConversations uid maxConvs = do
         else pure (batch ++ xs)
     fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList Conversation)
     fetchBatch start batchSize = do
-      baseReq <- view galley
+      baseReq <- asks (.galley)
       r <-
         catchRpcErrors $
           rpc'
@@ -855,7 +807,7 @@ getUserConversations uid maxConvs = do
 getUserClients :: UserId -> Handler [Client]
 getUserClients uid = do
   info $ msg "Getting user clients"
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -867,7 +819,7 @@ getUserClients uid = do
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
-  let resultOrError :: Either String [Versioned 'V5 Client] = responseJsonEither r
+  let resultOrError :: Either String [Versioned 'V6 Client] = responseJsonEither r
   case resultOrError of
     Left e -> do
       Log.err $ msg ("Error parsing client response: " ++ e)
@@ -877,7 +829,7 @@ getUserClients uid = do
 getUserProperties :: UserId -> Handler UserProperties
 getUserProperties uid = do
   info $ msg "Getting user properties"
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -927,7 +879,7 @@ getUserNotifications uid maxNotifs = do
             else pure (batch ++ xs)
     fetchBatch :: Maybe NotificationId -> Int -> Handler (Maybe QueuedNotificationList)
     fetchBatch start batchSize = do
-      baseReq <- view gundeck
+      baseReq <- asks (.gundeck)
       r <-
         catchRpcErrors $
           rpc'
@@ -965,7 +917,7 @@ getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
 getSsoDomainRedirect domain = do
   info $ msg "getSsoDomainRedirect"
   -- curl  -XGET ${CLOUD_BACKEND}/custom-backend/by-domain/${DOMAIN_EXAMPLE}
-  g <- view galley
+  g <- asks (.galley)
   r <-
     catchRpcErrors $
       rpc'
@@ -988,7 +940,7 @@ putSsoDomainRedirect domain config welcome = do
   --   "webapp_welcome_url": "https://app.wire.example.com/" \
   -- }'
   -- curl -XPUT http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE} -d "${DOMAIN_ENTRY}"
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -1009,7 +961,7 @@ deleteSsoDomainRedirect :: Text -> Handler ()
 deleteSsoDomainRedirect domain = do
   info $ msg "deleteSsoDomainRedirect"
   -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -1027,7 +979,7 @@ deleteSsoDomainRedirect domain = do
 
 registerOAuthClient :: OAuthClientConfig -> Handler OAuthClientCredentials
 registerOAuthClient conf = do
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -1043,14 +995,15 @@ registerOAuthClient conf = do
 
 getOAuthClient :: OAuthClientId -> Handler OAuthClient
 getOAuthClient cid = do
-  b <- view brig
+  b <- asks (.brig)
   r <-
-    rpc'
-      "brig"
-      b
-      ( method GET
-          . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
-      )
+    lift $
+      rpc'
+        "brig"
+        b
+        ( method GET
+            . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
+        )
   case statusCode r of
     200 -> parseResponse (mkError status502 "bad-upstream") r
     404 -> throwE (mkError status404 "bad-upstream" "not-found")
@@ -1058,7 +1011,7 @@ getOAuthClient cid = do
 
 updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> Handler OAuthClient
 updateOAuthClient cid conf = do
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -1074,7 +1027,7 @@ updateOAuthClient cid conf = do
 
 deleteOAuthClient :: OAuthClientId -> Handler ()
 deleteOAuthClient cid = do
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'

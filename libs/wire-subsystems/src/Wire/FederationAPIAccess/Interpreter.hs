@@ -22,6 +22,15 @@ data FederationAPIAccessConfig = FederationAPIAccessConfig
 
 type FederatedActionRunner fedM r = forall c x. Domain -> fedM c x -> Sem r (Either FederationError x)
 
+noFederationAPIAccess ::
+  forall r fedM.
+  (Member (Concurrency 'Unsafe) r) =>
+  InterpreterFor (FederationAPIAccess fedM) r
+noFederationAPIAccess =
+  interpretFederationAPIAccessGeneral
+    (\_ _ -> pure $ Left FederationNotConfigured)
+    (pure False)
+
 interpretFederationAPIAccess ::
   forall r.
   (Member (Embed IO) r, Member (Concurrency 'Unsafe) r) =>

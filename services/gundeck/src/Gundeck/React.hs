@@ -41,12 +41,13 @@ import Gundeck.Options (notificationTTL, settings)
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native.Types
 import Gundeck.Push.Websocket qualified as Web
-import Gundeck.Types
 import Gundeck.Util
 import Imports
 import System.Logger.Class (Msg, msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
+import Wire.API.Event.Gundeck
 import Wire.API.Internal.Notification
+import Wire.API.Push.V2
 
 onEvent :: Event -> Gundeck ()
 onEvent ev = case ev ^. evType of

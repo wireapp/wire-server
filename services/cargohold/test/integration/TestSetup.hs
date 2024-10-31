@@ -19,10 +19,10 @@
 
 module TestSetup
   ( test,
-    tsManager,
-    tsEndpoint,
-    tsBrig,
-    tsOpts,
+    managerLens,
+    endpointLens,
+    TestSetup.brigLens,
+    optsLens,
     TestSetup (..),
     Cargohold,
     TestM,
@@ -31,10 +31,7 @@ module TestSetup
     viewCargohold,
     createTestSetup,
     runFederationClient,
-    withFederationClient,
-    withFederationError,
     apiVersion,
-    unversioned,
   )
 where
 
@@ -45,7 +42,6 @@ import Control.Lens
 import Control.Monad.Codensity
 import Control.Monad.Except
 import Control.Monad.Morph
-import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion
 import qualified Data.Text as T
@@ -55,12 +51,12 @@ import Imports
 import Network.HTTP.Client hiding (responseBody)
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS
-import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client.Streaming
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Options (Endpoint (..))
 import Util.Options.Common
+import Util.SuffixNamer
 import Util.Test
 import Web.HttpApiData
 import Wire.API.Federation.Domain
@@ -74,13 +70,13 @@ mkRequest :: Endpoint -> Request -> Request
 mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
 
 data TestSetup = TestSetup
-  { _tsManager :: Manager,
-    _tsEndpoint :: Endpoint,
-    _tsBrig :: Endpoint,
-    _tsOpts :: Opts
+  { manager :: Manager,
+    endpoint :: Endpoint,
+    brig :: Endpoint,
+    opts :: Opts
   }
 
-makeLenses ''TestSetup
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''TestSetup
 
 -- | Note: Apply this function last when composing (Request -> Request) functions
 apiVersion :: ByteString -> Request -> Request
@@ -103,16 +99,8 @@ removeVersionPrefix bs = do
   (_, s') <- B8.readInteger s
   pure (B8.tail s')
 
--- | Note: Apply this function last when composing (Request -> Request) functions
-unversioned :: Request -> Request
-unversioned r =
-  r
-    { HTTP.path =
-        maybe
-          (HTTP.path r)
-          (B8.pack "/" <>)
-          (removeVersionPrefix . removeSlash' $ HTTP.path r)
-    }
+viewUnversionedCargohold :: TestM Cargohold
+viewUnversionedCargohold = mkRequest <$> asks (.endpoint)
 
 viewCargohold :: TestM Cargohold
 viewCargohold =
@@ -123,11 +111,8 @@ viewCargohold =
     latestVersion :: Version
     latestVersion = maxBound
 
-viewUnversionedCargohold :: TestM Cargohold
-viewUnversionedCargohold = mkRequest <$> view tsEndpoint
-
 runTestM :: TestSetup -> TestM a -> IO a
-runTestM ts action = runHttpT (view tsManager ts) (runReaderT action ts)
+runTestM ts action = runHttpT ts.manager (runReaderT action ts)
 
 test :: IO TestSetup -> TestName -> TestM () -> TestTree
 test s name action = testCase name $ do
@@ -154,24 +139,24 @@ createTestSetup optsPath configPath = do
       tlsManagerSettings
         { managerResponseTimeout = responseTimeoutMicro 300000000
         }
-  let localEndpoint p = Endpoint {_host = "127.0.0.1", _port = p}
+  let localEndpoint p = Endpoint {host = "127.0.0.1", port = p}
   iConf <- handleParseError =<< decodeFileEither configPath
   opts <- decodeFileThrow optsPath
   endpoint <- optOrEnv @IntegrationConfig (.cargohold) iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
   brigEndpoint <- optOrEnv @IntegrationConfig (.brig) iConf (localEndpoint . read) "BRIG_WEB_PORT"
   pure $
     TestSetup
-      { _tsManager = m,
-        _tsEndpoint = endpoint,
-        _tsBrig = brigEndpoint,
-        _tsOpts = opts
+      { manager = m,
+        endpoint = endpoint,
+        brig = brigEndpoint,
+        opts = opts
       }
 
 runFederationClient :: ClientM a -> ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a
 runFederationClient action = do
-  man <- view tsManager
-  Endpoint cHost cPort <- view tsEndpoint
-  domain <- view (tsOpts . settings . federationDomain)
+  man <- asks (.manager)
+  Endpoint cHost cPort <- asks (.endpoint)
+  domain <- asks (.opts.settings.federationDomain)
   let base = BaseUrl Http (T.unpack cHost) (fromIntegral cPort) "/federation"
   let env =
         (mkClientEnv man base)
@@ -188,29 +173,3 @@ runFederationClient action = do
       catch (withClientM action env k) (k . Left)
 
   either throwError pure r
-
-hoistFederation :: ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a -> ExceptT ClientError TestM a
-hoistFederation action = do
-  env <- ask
-  hoist (liftIO . lowerCodensity) $ runReaderT action env
-
-withFederationClient :: ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a -> TestM a
-withFederationClient action =
-  runExceptT (hoistFederation action) >>= \case
-    Left err ->
-      liftIO
-        . assertFailure
-        $ "Unexpected federation client error: "
-          <> displayException err
-    Right x -> pure x
-
-withFederationError :: ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a -> TestM Wai.Error
-withFederationError action =
-  runExceptT (hoistFederation action)
-    >>= liftIO
-      . \case
-        Left (FailureResponse _ resp) -> case Aeson.eitherDecode (responseBody resp) of
-          Left err -> assertFailure $ "Error while parsing error response: " <> err
-          Right e -> (Wai.code e @?= responseStatusCode resp) $> e
-        Left err -> assertFailure $ "Unexpected federation client error: " <> displayException err
-        Right _ -> assertFailure "Unexpected success"

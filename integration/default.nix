@@ -19,6 +19,7 @@
 , Cabal
 , case-insensitive
 , containers
+, cookie
 , cql
 , cql-io
 , crypton
@@ -59,6 +60,7 @@
 , regex-base
 , regex-tdfa
 , retry
+, saml2-web-sso
 , scientific
 , split
 , stm
@@ -114,6 +116,7 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
+    cookie
     cql
     cql-io
     crypton
@@ -151,6 +154,7 @@ mkDerivation {
     regex-base
     regex-tdfa
     retry
+    saml2-web-sso
     scientific
     split
     stm

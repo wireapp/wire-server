@@ -46,6 +46,7 @@ import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsa
 import Data.Proxy
 import Data.Qualified
 import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.IO (hPutStrLn)
 import Data.Text.Lazy qualified as Lazy
 import Data.Time.Clock
@@ -54,19 +55,22 @@ import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Client (equivCookie)
 import Network.Wai.Utilities.Error qualified as Error
-import Test.Tasty
+import Polysemy
+import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
+import Util.Timeout
 import Wire.API.Conversation (Conversation (..))
-import Wire.API.Password (Password, mkSafePasswordScrypt)
+import Wire.API.Password as Password
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.HashPassword
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -94,17 +98,16 @@ tests conf m z db b g n =
     [ testGroup
         "login"
         [ test m "email" (testEmailLogin b),
-          test m "phone" (testPhoneLogin b),
           test m "handle" (testHandleLogin b),
           test m "email-untrusted-domain" (testLoginUntrustedDomain b),
-          test m "send-phone-code" (testSendLoginCode b),
           test m "testLoginFailure - failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
           test m "testLimitRetries - limit-retry" (testLimitRetries conf b),
-          test m "login with 6 character password" (testLoginWith6CharPassword b db),
+          test m "login with 6 character password" (testLoginWith6CharPassword conf b db),
           testGroup
             "sso-login"
             [ test m "email" (testEmailSsoLogin b),
+              test m "login-non-sso-fails" (testEmailSsoLoginNonSsoUser b),
               test m "failure-suspended" (testSuspendedSsoLogin b),
               test m "failure-no-user" (testNoUserSsoLogin b)
             ],
@@ -168,8 +171,8 @@ tests conf m z db b g n =
         ]
     ]
 
-testLoginWith6CharPassword :: Brig -> DB.ClientState -> Http ()
-testLoginWith6CharPassword brig db = do
+testLoginWith6CharPassword :: Opts.Opts -> Brig -> DB.ClientState -> Http ()
+testLoginWith6CharPassword opts brig db = do
   (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
   checkLogin email defPassword 200
   let pw6 = plainTextPassword6Unsafe "123456"
@@ -177,11 +180,11 @@ testLoginWith6CharPassword brig db = do
   checkLogin email defPassword 403
   checkLogin email pw6 200
   where
-    checkLogin :: Email -> PlainTextPassword6 -> Int -> Http ()
+    checkLogin :: EmailAddress -> PlainTextPassword6 -> Int -> Http ()
     checkLogin email pw expectedStatusCode =
       login
         brig
-        (PasswordLogin (PasswordLoginData (LoginByEmail email) pw Nothing Nothing))
+        (MkLogin (LoginByEmail email) pw Nothing Nothing)
         PersistentCookie
         !!! const expectedStatusCode === statusCode
 
@@ -193,7 +196,7 @@ testLoginWith6CharPassword brig db = do
 
     updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
-      p <- liftIO $ mkSafePasswordScrypt t
+      p <- liftIO $ runM . runHashPassword opts.settings.passwordHashingOptions $ hashPassword6 t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
@@ -352,25 +355,11 @@ testEmailLogin brig = do
     assertSanePersistentCookie @ZAuth.User (decodeCookie rs)
     assertSaneAccessToken now (userId u) (decodeToken rs)
   -- Login again, but with capitalised email address
-  let Email loc dom = email
-  let email' = Email (Text.toUpper loc) dom
+  let loc = localPart email
+      dom = domainPart email
+      email' = unsafeEmailAddress (encodeUtf8 . Text.toUpper . decodeUtf8 $ loc) dom
   login brig (defEmailLogin email') PersistentCookie
     !!! const 200 === statusCode
-
-testPhoneLogin :: Brig -> Http ()
-testPhoneLogin brig = do
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p
-            ]
-  -- phone logins are not supported anymore
-  post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === errorLabel
 
 testHandleLogin :: Brig -> Http ()
 testHandleLogin brig = do
@@ -379,35 +368,23 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = PasswordLogin (PasswordLoginData (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing)
+  let l = MkLogin (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
 -- untrusted.
 testLoginUntrustedDomain :: Brig -> Http ()
 testLoginUntrustedDomain brig = do
-  Just (Email loc dom) <- userEmail <$> createUserUntrustedEmail "Homer" brig
+  Just email <- userEmail <$> createUserUntrustedEmail "Homer" brig
+  let loc = decodeUtf8 $ localPart email
+      dom = domainPart email
   -- login without "+" suffix
-  let email' = Email (Text.takeWhile (/= '+') loc) dom
+  let email' = unsafeEmailAddress (encodeUtf8 $ Text.takeWhile (/= '+') loc) dom
   login brig (defEmailLogin email') PersistentCookie
     !!! const 200 === statusCode
 
-testSendLoginCode :: Brig -> Http ()
-testSendLoginCode brig = do
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p,
-              "password" .= ("topsecretdefaultpassword" :: Text)
-            ]
-  post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === errorLabel
-
 -- The testLoginFailure test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- Test that trying to log in with a wrong password or non-existent email fails.
 testLoginFailure :: Brig -> Http ()
@@ -417,24 +394,25 @@ testLoginFailure brig = do
   let badpw = plainTextPassword6Unsafe "wrongpassword"
   login
     brig
-    (PasswordLogin (PasswordLoginData (LoginByEmail email) badpw Nothing Nothing))
+    (MkLogin (LoginByEmail email) badpw Nothing Nothing)
     PersistentCookie
     !!! const 403 === statusCode
   -- login with wrong / non-existent email
-  let badmail = Email "wrong" "wire.com"
+  let badmail = unsafeEmailAddress "wrong" "wire.com"
   login
     brig
-    ( PasswordLogin
-        (PasswordLoginData (LoginByEmail badmail) defPassword Nothing Nothing)
+    ( MkLogin (LoginByEmail badmail) defPassword Nothing Nothing
     )
     PersistentCookie
     !!! const 403 === statusCode
+
+-- @END
 
 testThrottleLogins :: Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
   -- Get the maximum amount of times we are allowed to login before
   -- throttling begins
-  let l = Opts.setUserCookieLimit (Opts.optSettings conf)
+  let l = Opts.userCookieLimit (Opts.settings conf)
   u <- randomUser b
   let Just e = userEmail u
   -- Login exactly that amount of times, as fast as possible
@@ -455,6 +433,7 @@ testThrottleLogins conf b = do
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
 -- The testLimitRetries test conforms to the following testing standards:
+-- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
 -- The following test tests the login retries. It checks that a user can make
 -- only a prespecified number of attempts to log in with an invalid password,
@@ -465,7 +444,7 @@ testThrottleLogins conf b = do
 -- the aforementioned user.
 testLimitRetries :: (HasCallStack) => Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
-  let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
+  let Just opts = conf.settings.limitFailedLogins
   unless (Opts.timeout opts <= 30) $
     error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
   usr <- randomUser brig
@@ -487,7 +466,7 @@ testLimitRetries conf brig = do
   -- throttling should stop and login should work again
   do
     let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" resp
-        retryTimeout = Opts.Timeout $ fromIntegral retryAfterSecs
+        retryTimeout = Timeout $ fromIntegral retryAfterSecs
     liftIO $ do
       assertBool
         ("throttle delay (1): " <> show (retryTimeout, Opts.timeout opts))
@@ -508,6 +487,8 @@ testLimitRetries conf brig = do
   -- wait long enough and login successfully!
   liftIO $ threadDelay (1000000 * 2)
   login brig (defEmailLogin email) SessionCookie !!! const 200 === statusCode
+
+-- @END
 
 -------------------------------------------------------------------------------
 -- LegalHold Login
@@ -575,7 +556,7 @@ testWrongPasswordLegalHoldLogin brig galley = do
   legalHoldLogin brig (LegalHoldLogin alice (plainTextPassword6 "wrong-password") Nothing) PersistentCookie !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") === errorLabel
-  -- attempt a legalhold login with a no password
+  -- attempt a legalhold login without a password
   legalHoldLogin brig (LegalHoldLogin alice Nothing Nothing) PersistentCookie !!! do
     const 403 === statusCode
     const (Just "missing-auth") === errorLabel
@@ -599,16 +580,35 @@ testLegalHoldLogout brig galley = do
 -- right password.
 testEmailSsoLogin :: Brig -> Http ()
 testEmailSsoLogin brig = do
-  -- Create a user
-  uid <- Public.userId <$> randomUser brig
+  teamid <- snd <$> createUserWithTeam brig
+  let ssoid = UserSSOId mkSimpleSampleUref
+  -- creating user with sso_id, team_id
+  profile :: SelfProfile <-
+    responseJsonError
+      =<< postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
+        const 201 === statusCode
+        const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
+
+  let uid = userId profile.selfUser
   now <- liftIO getCurrentTime
   -- Login and do some checks
-  _rs <-
+  rs <-
     ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
       <!! const 200 === statusCode
   liftIO $ do
-    assertSanePersistentCookie @ZAuth.User (decodeCookie _rs)
-    assertSaneAccessToken now uid (decodeToken _rs)
+    assertSanePersistentCookie @ZAuth.User (decodeCookie rs)
+    assertSaneAccessToken now uid (decodeToken rs)
+
+testEmailSsoLoginNonSsoUser :: Brig -> Http ()
+testEmailSsoLoginNonSsoUser brig = do
+  -- Create a user
+  uid <- Public.userId <$> randomUser brig
+  -- Login and do some checks
+  void $
+    ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
+      <!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === errorLabel
 
 -- | Check that @/sso-login@ can not be used to login as a suspended
 -- user.
@@ -635,6 +635,7 @@ testNoUserSsoLogin brig = do
 -- Token Refresh
 
 -- The testInvalidCookie test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
 -- Test that invalid and expired tokens do not work.
 testInvalidCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
@@ -651,6 +652,8 @@ testInvalidCookie z b = do
   post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
     const (Just "expired") =~= responseBody
+
+-- @END
 
 testInvalidToken :: ZAuth.Env -> Brig -> Http ()
 testInvalidToken z b = do
@@ -789,7 +792,7 @@ testNewPersistentCookie config b =
 getAndTestDBSupersededCookieAndItsValidSuccessor :: Opts.Opts -> Brig -> Nginz -> Http (Http.Cookie, Http.Cookie)
 getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   u <- randomUser b
-  let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
+  let renewAge = config.settings.userCookieRenewAge
   let minAge = fromIntegral $ (renewAge + 1) * 1000000
       Just email = userEmail u
   _rs <-
@@ -1036,7 +1039,7 @@ testAccessWithExistingClientId brig = do
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do
   u <- randomUser b
-  let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
+  let renewAge = config.settings.userCookieRenewAge
   let minAge = fromIntegral $ renewAge * 1000000 + 1
       Just email = userEmail u
   _rs <-
@@ -1054,7 +1057,7 @@ testSuspendInactiveUsers config brig cookieType endPoint = do
   -- (context information: cookies are stored by user, not by device; so if there is a
   -- cookie that is old, it means none of the devices of the user has used it for a request.)
 
-  let Just suspendAge = Opts.suspendTimeout <$> Opts.setSuspendInactiveUsers (Opts.optSettings config)
+  let Just suspendAge = Opts.suspendTimeout <$> config.settings.suspendInactiveUsers
   unless (suspendAge <= 30) $
     error "`suspendCookiesOlderThanSecs` is the number of seconds this test is running.  Please pick a value < 30."
 
@@ -1065,7 +1068,7 @@ testSuspendInactiveUsers config brig cookieType endPoint = do
       <!! const 200 === statusCode
   let cky = decodeCookie rs
   -- wait slightly longer than required for being marked as inactive.
-  let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
+  let waitTime :: Int = floor (timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
   liftIO $ threadDelay (1000000 * waitTime)
   case endPoint of
     "/access" -> do
@@ -1164,6 +1167,7 @@ testRemoveCookiesByLabelAndId b = do
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
 
 -- The testTooManyCookies test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that there is an upper limit for the number of user cookies
 -- per cookie type. It does that by concurrently attempting to create more
@@ -1173,7 +1177,7 @@ testRemoveCookiesByLabelAndId b = do
 testTooManyCookies :: Opts.Opts -> Brig -> Http ()
 testTooManyCookies config b = do
   u <- randomUser b
-  let l = Opts.setUserCookieLimit (Opts.optSettings config)
+  let l = config.settings.userCookieLimit
   let Just e = userEmail u
       carry = 2
       pwlP = emailLogin e defPassword (Just "persistent")
@@ -1212,6 +1216,8 @@ testTooManyCookies config b = do
                 <> "(try 29 seconds)."
             )
         xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
+
+-- @END
 
 testLogout :: Brig -> Http ()
 testLogout b = do

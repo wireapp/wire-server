@@ -6,8 +6,8 @@ PATVIRTINKITE SAVO EL. PAŠTĄ
 ${email} buvo panaudotas, registruojantis „${brand}“.
 Norėdami patvirtinti savo adresą, spustelėkite mygtuką.
 
-Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
-įdėkite šią nuorodą į savo naršyklę:
+Patvirtinti [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

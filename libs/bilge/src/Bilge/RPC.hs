@@ -23,7 +23,6 @@ module Bilge.RPC
     RPCException (..),
     rpc,
     rpc',
-    statusCheck,
     parseResponse,
     rpcExceptionMsg,
   )
@@ -34,13 +33,14 @@ import Bilge.Request
 import Bilge.Response
 import Control.Error hiding (err)
 import Control.Monad.Catch (MonadCatch, MonadThrow (..), try)
-import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.CaseInsensitive (original)
 import Data.Text.Lazy (pack)
+import Data.Text.Lazy qualified as T
 import Imports hiding (log)
 import Network.HTTP.Client qualified as HTTP
 import System.Logger.Class
+import Wire.OpenTelemetry (withClientInstrumentation)
 
 class HasRequestId m where
   getRequestId :: m RequestId
@@ -71,7 +71,7 @@ instance Show RPCException where
       . showString "}"
 
 rpc ::
-  (MonadIO m, MonadCatch m, MonadHttp m, HasRequestId m) =>
+  (MonadUnliftIO m, MonadCatch m, MonadHttp m, HasRequestId m) =>
   LText ->
   (Request -> Request) ->
   m (Response (Maybe LByteString))
@@ -83,7 +83,7 @@ rpc sys = rpc' sys empty
 -- Note: 'syncIO' is wrapped around the IO action performing the request
 --       and any exceptions caught are re-thrown in an 'RPCException'.
 rpc' ::
-  (MonadIO m, MonadCatch m, MonadHttp m, HasRequestId m) =>
+  (MonadUnliftIO m, MonadCatch m, MonadHttp m, HasRequestId m) =>
   -- | A label for the remote system in case of 'RPCException's.
   LText ->
   Request ->
@@ -91,8 +91,9 @@ rpc' ::
   m (Response (Maybe LByteString))
 rpc' sys r f = do
   rId <- getRequestId
-  let rq = f . requestId rId $ r
-  res <- try $ httpLbs rq id
+  let rq = f $ requestId rId r
+  res <- try $ withClientInstrumentation ("intra-call-to-" <> T.toStrict sys) \k -> do
+    k rq \r' -> httpLbs r' id
   case res of
     Left x -> throwM $ RPCException sys rq x
     Right x -> pure x
@@ -103,17 +104,6 @@ rpcExceptionMsg (RPCException sys req ex) =
   where
     headers = foldr hdr id (HTTP.requestHeaders req)
     hdr (k, v) x = x ~~ original k .= v
-
-statusCheck ::
-  (MonadError e m) =>
-  Int ->
-  (LText -> e) ->
-  Response (Maybe LByteString) ->
-  m ()
-statusCheck c f r =
-  unless (statusCode r == c) $
-    throwError $
-      f ("unexpected status code: " <> pack (show $ statusCode r))
 
 parseResponse ::
   (Exception e, MonadThrow m, FromJSON a) =>

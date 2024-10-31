@@ -19,6 +19,7 @@
 , polysemy
 , polysemy-check
 , polysemy-plugin
+, prometheus-client
 , QuickCheck
 , saml2-web-sso
 , time
@@ -45,6 +46,7 @@ mkDerivation {
     polysemy
     polysemy-check
     polysemy-plugin
+    prometheus-client
     QuickCheck
     saml2-web-sso
     time

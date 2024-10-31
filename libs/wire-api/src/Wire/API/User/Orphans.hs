@@ -103,7 +103,11 @@ instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
           & properties . at "xml" ?~ authnReqSchema
 
 instance ToSchema (SAML.ID SAML.AuthnRequest) where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+  declareNamedSchema =
+    genericDeclareNamedSchema
+      samlSchemaOptions
+        { datatypeNameModifier = const "Id_AuthnRequest"
+        }
 
 instance ToSchema SAML.Time where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions

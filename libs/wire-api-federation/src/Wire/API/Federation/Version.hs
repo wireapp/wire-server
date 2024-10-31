@@ -22,6 +22,7 @@ module Wire.API.Federation.Version
     Version (..),
     V0Sym0,
     V1Sym0,
+    V2Sym0,
     intToVersion,
     versionInt,
     versionText,
@@ -32,35 +33,42 @@ module Wire.API.Federation.Version
     -- * VersionRange
     VersionUpperBound (..),
     VersionRange (..),
-    fromVersion,
-    toVersionExcl,
     allVersions,
     latestCommonVersion,
     rangeFromVersion,
     rangeUntilVersion,
-    enumVersionRange,
   )
 where
 
-import Control.Lens (makeLenses, (?~))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.ByteString.Char8 qualified as BS
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Imports
+import Servant.API (ToHttpApiData (..))
 
-data Version = V0 | V1
+data Version = V0 | V1 | V2
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
+
+instance ToHttpApiData Version where
+  toHeader = versionByteString
+  toUrlPiece = versionText
 
 versionInt :: Version -> Int
 versionInt V0 = 0
 versionInt V1 = 1
+versionInt V2 = 2
 
 versionText :: Version -> Text
 versionText = ("v" <>) . Text.pack . show . versionInt
+
+versionByteString :: Version -> ByteString
+versionByteString = ("v" <>) . BS.pack . show . versionInt
 
 intToVersion :: Int -> Maybe Version
 intToVersion intV = find (\v -> versionInt v == intV) [minBound ..]
@@ -69,7 +77,8 @@ instance ToSchema Version where
   schema =
     enum @Integer "Version" . mconcat $
       [ element 0 V0,
-        element 1 V1
+        element 1 V1,
+        element 2 V2
       ]
 
 supportedVersions :: Set Version
@@ -131,8 +140,6 @@ deriving instance Show VersionRange
 
 deriving instance Ord VersionRange
 
-makeLenses ''VersionRange
-
 instance ToSchema VersionRange where
   schema =
     object "VersionRange" $
@@ -164,12 +171,6 @@ rangeFromVersion v = VersionRange v Unbounded
 
 rangeUntilVersion :: Version -> VersionRange
 rangeUntilVersion v = VersionRange minBound (VersionUpperBound v)
-
-enumVersionRange :: VersionRange -> Set Version
-enumVersionRange =
-  Set.fromList . \case
-    VersionRange l Unbounded -> [l ..]
-    VersionRange l (VersionUpperBound u) -> init [l .. u]
 
 -- | For a version range of a local backend and for a set of versions that a
 -- remote backend supports, compute the newest version supported by both. The

@@ -4,15 +4,20 @@ module Test.User where
 
 import API.Brig
 import API.BrigInternal
+import API.Common
 import API.GalleyInternal
-import API.Spar
+import qualified API.Spar as Spar
+import Control.Monad.Codensity
+import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.ResourcePool
+import Testlib.VersionedFed
 
-testSupportedProtocols :: (HasCallStack) => Domain -> App ()
+testSupportedProtocols :: (HasCallStack) => OneOf Domain (FedDomain 1) -> App ()
 testSupportedProtocols bobDomain = do
   alice <- randomUser OwnDomain def
   alice %. "supported_protocols" `shouldMatchSet` ["proteus"]
@@ -114,7 +119,7 @@ testUpdateHandle = do
     resp.status `shouldMatchInt` 200
     mb <- (assertOne =<< asList resp.json) %. "managed_by"
     mb `shouldMatch` "wire"
-  bindResponse (getScimTokens owner) $ \resp -> do
+  bindResponse (Spar.getScimTokens owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "tokens" `shouldMatch` ([] @String)
 
@@ -172,4 +177,51 @@ testActivateAccountWithPhoneV5 = do
   let reqBody = Aeson.object ["phone" .= phone]
   activateUserV5 dom reqBody `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "invalid-phone"
+    resp.json %. "label" `shouldMatch` "bad-request"
+
+testMigratingPasswordHashingAlgorithm :: (HasCallStack) => App ()
+testMigratingPasswordHashingAlgorithm = do
+  let argon2idOpts =
+        object
+          [ "algorithm" .= "argon2id",
+            "iterations" .= (1 :: Int),
+            "memory" .= (128 :: Int),
+            "parallelism" .= (1 :: Int)
+          ]
+      cfgArgon2id =
+        def
+          { brigCfg = setField "settings.setPasswordHashingOptions" argon2idOpts,
+            galleyCfg = setField "settings.passwordHashingOptions" argon2idOpts
+          }
+      cfgScrypt =
+        def
+          { brigCfg = setField "settings.setPasswordHashingOptions.algorithm" "scrypt",
+            galleyCfg = setField "settings.passwordHashingOptions.algorithm" "scrypt"
+          }
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
+    let domain = testBackend.berDomain
+    email1 <- randomEmail
+    password1 <- randomString 20
+
+    email2 <- randomEmail
+    password2 <- randomString 20
+
+    runCodensity (startDynamicBackend testBackend cfgScrypt) $ \_ -> do
+      void $ randomUser domain (def {email = Just email1, password = Just password1})
+      login domain email1 password1 >>= assertSuccess
+
+    runCodensity (startDynamicBackend testBackend cfgArgon2id) $ \_ -> do
+      login domain email1 password1 >>= assertSuccess
+
+      -- Create second user to ensure that we're testing migrating back. This is
+      -- not really needed because the login above rehashes the password, but it
+      -- makes the test clearer.
+      void $ randomUser domain (def {email = Just email2, password = Just password2})
+      login domain email2 password2 >>= assertSuccess
+
+    -- Check that both users can still login with Scrypt in case the operator
+    -- wants to rollback the config.
+    runCodensity (startDynamicBackend testBackend cfgScrypt) $ \_ -> do
+      login domain email1 password1 >>= assertSuccess
+      login domain email2 password2 >>= assertSuccess

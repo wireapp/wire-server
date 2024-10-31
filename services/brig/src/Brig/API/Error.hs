@@ -19,14 +19,12 @@ module Brig.API.Error where
 
 import Brig.API.Types
 import Control.Monad.Error.Class
-import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.Text.Lazy as LT
 import Data.ZAuth.Validation qualified as ZAuth
 import Imports
-import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error
@@ -37,9 +35,6 @@ import Wire.Error
 
 throwStd :: (MonadError HttpError m) => Wai.Error -> m a
 throwStd = throwError . StdError
-
-throwRich :: (MonadError HttpError m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
-throwRich e x h = throwError (RichError e x h)
 
 -- Error Mapping ----------------------------------------------------------
 
@@ -86,12 +81,6 @@ changeEmailError (InvalidNewEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
 changeEmailError (EmailExists _) = StdError (errorToWai @'E.UserKeyExists)
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
-
-changeHandleError :: ChangeHandleError -> HttpError
-changeHandleError ChangeHandleNoIdentity = StdError (errorToWai @'E.NoIdentity)
-changeHandleError ChangeHandleExists = StdError (errorToWai @'E.HandleExists)
-changeHandleError ChangeHandleInvalid = StdError (errorToWai @'E.InvalidHandle)
-changeHandleError ChangeHandleManagedByScim = StdError (errorToWai @'E.HandleManagedByScim)
 
 legalHoldLoginError :: LegalHoldLoginError -> HttpError
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
@@ -144,6 +133,7 @@ clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError (errorToWai @'E.InvalidUser)
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
+clientError ClientLegalHoldIncompatible = StdError $ Wai.mkError status409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
 clientError ClientMissingLegalholdConsentOldClients = StdError (errorToWai @'E.MissingLegalholdConsentOldClients)
@@ -210,9 +200,6 @@ certEnrollmentError MissingName = StdError $ Wai.mkError status400 "missing-name
 fedError :: FederationError -> HttpError
 fedError = StdError . federationErrorToWai
 
-propDataError :: PropertiesDataError -> HttpError
-propDataError TooManyProperties = StdError tooManyProperties
-
 clientDataError :: ClientDataError -> HttpError
 clientDataError TooManyClients = StdError (errorToWai @'E.TooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
@@ -237,10 +224,6 @@ accountStatusError :: AccountStatusError -> HttpError
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
 accountStatusError AccountNotFound = StdError (notFound "Account not found")
 
-updateProfileError :: UpdateProfileError -> HttpError
-updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
-
 verificationCodeThrottledError :: VerificationCodeThrottledError -> HttpError
 verificationCodeThrottledError (VerificationCodeThrottled t) =
   RichError
@@ -250,29 +233,17 @@ verificationCodeThrottledError (VerificationCodeThrottled t) =
 
 -- WAI Errors -----------------------------------------------------------------
 
-tooManyProperties :: Wai.Error
-tooManyProperties = Wai.mkError status403 "too-many-properties" "Too many properties"
-
-propertyKeyTooLarge :: Wai.Error
-propertyKeyTooLarge = Wai.mkError status403 "property-key-too-large" "The property key is too large."
-
-propertyValueTooLarge :: Wai.Error
-propertyValueTooLarge = Wai.mkError status403 "property-value-too-large" "The property value is too large"
-
 clientCapabilitiesCannotBeRemoved :: Wai.Error
 clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."
 
+-- One of two cases:
+-- (1) the email is in use by any other account or invitation;
+-- (2) (when posting an invitation) the email is in use by a member of another team (and we can't steal away those, invitee has to be personal user).
 emailExists :: Wai.Error
 emailExists = Wai.mkError status409 "email-exists" "The given e-mail address is in use."
 
-phoneExists :: Wai.Error
-phoneExists = Wai.mkError status409 "phone-exists" "The given phone number is in use."
-
 badRequest :: LText -> Wai.Error
 badRequest = Wai.mkError status400 "bad-request"
-
-loginCodePending :: Wai.Error
-loginCodePending = Wai.mkError status403 "pending-login" "A login code is still pending."
 
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
@@ -285,12 +256,6 @@ invalidAccountStatus = Wai.mkError status400 "invalid-status" "The specified acc
 
 activationKeyNotFound :: Wai.Error
 activationKeyNotFound = notFound "Activation key not found."
-
-invalidActivationCode :: LText -> Wai.Error
-invalidActivationCode = Wai.mkError status404 "invalid-code"
-
-activationCodeNotFound :: Wai.Error
-activationCodeNotFound = invalidActivationCode "Activation key/code not found or invalid."
 
 deletionCodePending :: Wai.Error
 deletionCodePending = Wai.mkError status403 "pending-delete" "A verification code for account deletion is still pending."
@@ -306,37 +271,14 @@ blacklistedEmail =
     "The given e-mail address has been blacklisted due to a permanent bounce \
     \or a complaint."
 
-passwordExists :: Wai.Error
-passwordExists =
-  Wai.mkError
-    status403
-    "password-exists"
-    "The operation is not permitted because the user has a password set."
-
-phoneBudgetExhausted :: Wai.Error
-phoneBudgetExhausted =
-  Wai.mkError
-    status403
-    "phone-budget-exhausted"
-    "The SMS or voice call budget for the given phone number has been \
-    \exhausted. Please try again later. Repeated exhaustion of the SMS or \
-    \voice call budget is considered abuse of the API and may result in \
-    \permanent blacklisting of the phone number."
-
 authMissingCookie :: Wai.Error
 authMissingCookie = Wai.mkError status403 "invalid-credentials" "Missing cookie"
-
-authInvalidCookie :: Wai.Error
-authInvalidCookie = Wai.mkError status403 "invalid-credentials" "Invalid cookie"
 
 authMissingToken :: Wai.Error
 authMissingToken = Wai.mkError status403 "invalid-credentials" "Missing token"
 
 authMissingCookieAndToken :: Wai.Error
 authMissingCookieAndToken = Wai.mkError status403 "invalid-credentials" "Missing cookie and token"
-
-invalidAccessToken :: Wai.Error
-invalidAccessToken = Wai.mkError status403 "invalid-credentials" "Invalid access token"
 
 missingAccessToken :: Wai.Error
 missingAccessToken = Wai.mkError status403 "invalid-credentials" "Missing access token"

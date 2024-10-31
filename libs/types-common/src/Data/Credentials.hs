@@ -18,11 +18,8 @@
 module Data.Credentials where
 
 import Data.Aeson (FromJSON)
-import Data.ByteString.Base64 qualified as B64
 import Data.Text
-import Data.Text.Encoding qualified as TE
 import Imports
-import Network.HTTP.Types.Header
 
 -- | Generic credentials for authenticating a user. Usually used for deserializing from a secret yaml file.
 data Credentials = Credentials
@@ -32,6 +29,3 @@ data Credentials = Credentials
   deriving stock (Generic)
 
 instance FromJSON Credentials
-
-mkBasicAuthHeader :: Credentials -> Header
-mkBasicAuthHeader (Credentials u p) = (hAuthorization, "Basic " <> B64.encode (TE.encodeUtf8 (u <> ":" <> p)))

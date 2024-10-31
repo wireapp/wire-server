@@ -63,7 +63,6 @@ import Galley.Types.Teams (notTeamMember)
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Galley.Validation
-import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
@@ -76,6 +75,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
@@ -160,6 +160,7 @@ createGroupConversation ::
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr conn newConv = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   cnv <-
     createGroupConversationGeneric

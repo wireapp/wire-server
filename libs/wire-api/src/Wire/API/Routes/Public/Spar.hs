@@ -25,7 +25,6 @@ import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
 import Servant.Multipart
-import Servant.OpenApi
 import URI.ByteString qualified as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
@@ -35,7 +34,10 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Spar
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.SwaggerServant
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -58,8 +60,8 @@ type DeprecateSSOAPIV1 =
     \Details: https://docs.wire.com/understand/single-sign-on/trouble-shooting.html#can-i-use-the-same-sso-login-code-for-multiple-teams"
 
 type APISSO =
-  DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta
-    :<|> "metadata" :> Capture "team" TeamId :> SAML.APIMeta
+  Named "sso-metadata" (DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta)
+    :<|> Named "sso-team-metadata" ("metadata" :> Capture "team" TeamId :> SAML.APIMeta)
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
     :<|> APIAuthRespLegacy
@@ -69,40 +71,52 @@ type APISSO =
 type CheckOK = Verb 'HEAD 200
 
 type APIAuthReqPrecheck =
-  QueryParam "success_redirect" URI.URI
-    :> QueryParam "error_redirect" URI.URI
-    :> Capture "idp" SAML.IdPId
-    :> CheckOK '[PlainText] NoContent
+  Named
+    "auth-req-precheck"
+    ( QueryParam "success_redirect" URI.URI
+        :> QueryParam "error_redirect" URI.URI
+        :> Capture "idp" SAML.IdPId
+        :> CheckOK '[PlainText] NoContent
+    )
 
 type APIAuthReq =
-  QueryParam "success_redirect" URI.URI
-    :> QueryParam "error_redirect" URI.URI
-    -- (SAML.APIAuthReq from here on, except for the cookies)
-    :> Capture "idp" SAML.IdPId
-    :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
+  Named
+    "auth-req"
+    ( QueryParam "success_redirect" URI.URI
+        :> QueryParam "error_redirect" URI.URI
+        -- (SAML.APIAuthReq from here on, except for the cookies)
+        :> Capture "idp" SAML.IdPId
+        :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
+    )
 
 type APIAuthRespLegacy =
-  DeprecateSSOAPIV1
-    :> Deprecated
-    :> "finalize-login"
-    -- (SAML.APIAuthResp from here on, except for response)
-    :> MultipartForm Mem SAML.AuthnResponseBody
-    :> Post '[PlainText] Void
+  Named
+    "auth-resp-legacy"
+    ( DeprecateSSOAPIV1
+        :> Deprecated
+        :> "finalize-login"
+        -- (SAML.APIAuthResp from here on, except for response)
+        :> MultipartForm Mem SAML.AuthnResponseBody
+        :> Post '[PlainText] Void
+    )
 
 type APIAuthResp =
-  "finalize-login"
-    :> Capture "team" TeamId
-    -- (SAML.APIAuthResp from here on, except for response)
-    :> MultipartForm Mem SAML.AuthnResponseBody
-    :> Post '[PlainText] Void
+  Named
+    "auth-resp"
+    ( "finalize-login"
+        :> Capture "team" TeamId
+        -- (SAML.APIAuthResp from here on, except for response)
+        :> MultipartForm Mem SAML.AuthnResponseBody
+        :> Post '[PlainText] Void
+    )
 
 type APIIDP =
-  ZOptUser :> IdpGet
-    :<|> ZOptUser :> IdpGetRaw
-    :<|> ZOptUser :> IdpGetAll
-    :<|> ZOptUser :> IdpCreate
-    :<|> ZOptUser :> IdpUpdate
-    :<|> ZOptUser :> IdpDelete
+  Named "idp-get" (ZOptUser :> IdpGet)
+    :<|> Named "idp-get-raw" (ZOptUser :> IdpGetRaw)
+    :<|> Named "idp-get-all" (ZOptUser :> IdpGetAll)
+    :<|> Named "idp-create" (ZOptUser :> IdpCreate)
+    :<|> Named "idp-update" (ZOptUser :> IdpUpdate)
+    :<|> Named "idp-delete" (ZOptUser :> IdpDelete)
 
 type IdpGetRaw = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
 
@@ -132,7 +146,10 @@ type IdpDelete =
     :> DeleteNoContent
 
 type SsoSettingsGet =
-  Get '[JSON] SsoSettings
+  Named
+    "sso-settings"
+    ( Get '[JSON] SsoSettings
+    )
 
 sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m SAML.Issuer
 sparSPIssuer Nothing =
@@ -151,7 +168,6 @@ sparResponseURI (Just tid) =
 type APIScim =
   OmitDocs :> "v2" :> ScimSiteAPI SparTag
     :<|> "auth-tokens"
-      :> CanThrow 'PasswordAuthenticationFailed
       :> CanThrow 'CodeAuthenticationFailed
       :> CanThrow 'CodeAuthenticationRequired
       :> APIScimToken
@@ -173,9 +189,21 @@ data ScimSite tag route = ScimSite
   deriving (Generic)
 
 type APIScimToken =
-  ZOptUser :> APIScimTokenCreate
-    :<|> ZOptUser :> APIScimTokenDelete
-    :<|> ZOptUser :> APIScimTokenList
+  Named "auth-tokens-create@v6" (Until 'V7 :> ZOptUser :> APIScimTokenCreateV6)
+    :<|> Named "auth-tokens-create" (From 'V7 :> ZOptUser :> APIScimTokenCreate)
+    :<|> Named "auth-tokens-put-name" (From 'V7 :> ZUser :> APIScimTokenPutName)
+    :<|> Named "auth-tokens-delete" (ZOptUser :> APIScimTokenDelete)
+    :<|> Named "auth-tokens-list@v6" (Until 'V7 :> ZOptUser :> APIScimTokenListV6)
+    :<|> Named "auth-tokens-list" (From 'V7 :> ZOptUser :> APIScimTokenList)
+
+type APIScimTokenPutName =
+  Capture "id" ScimTokenId
+    :> ReqBody '[JSON] ScimTokenName
+    :> Put '[JSON] ()
+
+type APIScimTokenCreateV6 =
+  VersionedReqBody 'V6 '[JSON] CreateScimToken
+    :> Post '[JSON] CreateScimTokenResponseV6
 
 type APIScimTokenCreate =
   ReqBody '[JSON] CreateScimToken
@@ -188,9 +216,10 @@ type APIScimTokenDelete =
 type APIScimTokenList =
   Get '[JSON] ScimTokenList
 
+type APIScimTokenListV6 =
+  Get '[JSON] ScimTokenListV6
+
 data SparAPITag
 
 instance ServiceAPI SparAPITag v where
   type ServiceAPIRoutes SparAPITag = SparAPI
-  type SpecialisedAPIRoutes v SparAPITag = SparAPI
-  serviceSwagger = toOpenApi (Proxy @SparAPI)

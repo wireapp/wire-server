@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Proxy.API.Public
-  ( sitemap,
+  ( PublicAPI,
+    servantSitemap,
+    waiRoutingSitemap,
   )
 where
 
@@ -41,18 +43,35 @@ import Network.Wai.Internal qualified as I
 import Network.Wai.Predicate hiding (Error, err, setStatus)
 import Network.Wai.Predicate.Request (getRequest)
 import Network.Wai.Routing hiding (path, route)
+import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
+import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
 import Proxy.Proxy
+import Servant qualified
 import System.Logger.Class hiding (Error, info, render)
 import System.Logger.Class qualified as Logger
+
+type PublicAPI = Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
+
+servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy
+servantSitemap e = Servant.Tagged app
+  where
+    app :: Application
+    app r k = appInProxy e r (Routing.route tree r k')
+      where
+        tree :: Tree (App Proxy)
+        tree = compile (waiRoutingSitemap e)
+
+        k' :: Response -> Proxy.Proxy.Proxy ResponseReceived
+        k' = liftIO . k
 
 -- | IF YOU MODIFY THIS, BE AWARE OF:
 --
 -- >>> /libs/wire-api/src/Wire/API/Routes/Public/Proxy.hs
 -- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
-sitemap :: Env -> Routes a Proxy ()
-sitemap e = do
+waiRoutingSitemap :: Env -> Routes a Proxy ()
+waiRoutingSitemap e = do
   get
     "/proxy/youtube/v3/:path"
     (proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
@@ -107,10 +126,10 @@ proxy e qparam keyname reroute path phost rq k = do
           then do
             threadDelay 5000
             loop runInIO (n - 1) waiReq req
-          else runProxy e waiReq (k res)
+          else appInProxy e waiReq (k res)
     onUpstreamError runInIO x _ next = do
       void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
-      next (errorRs' error502)
+      next (errorRs error502)
 
 spotifyToken :: Request -> Proxy Response
 spotifyToken rq = do

@@ -19,10 +19,35 @@ module Test.Wire.API.Golden.Manual.ClientCapabilityList where
 
 import Data.Set qualified as Set
 import Imports
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.User.Client (ClientCapability (..), ClientCapabilityList (..))
 
-testObject_ClientCapabilityList_1 :: ClientCapabilityList
-testObject_ClientCapabilityList_1 = ClientCapabilityList mempty
+testObject_ClientCapabilityList_1 :: Versioned V6 ClientCapabilityList
+testObject_ClientCapabilityList_1 = Versioned $ ClientCapabilityList mempty
 
-testObject_ClientCapabilityList_2 :: ClientCapabilityList
-testObject_ClientCapabilityList_2 = ClientCapabilityList (Set.fromList [ClientSupportsLegalholdImplicitConsent])
+testObject_ClientCapabilityList_2 :: Versioned V6 ClientCapabilityList
+testObject_ClientCapabilityList_2 = Versioned $ ClientCapabilityList (Set.fromList [ClientSupportsLegalholdImplicitConsent])
+
+testObject_ClientCapabilityList_3 :: Versioned V6 ClientCapabilityList
+testObject_ClientCapabilityList_3 =
+  Versioned $
+    ClientCapabilityList
+      ( Set.fromList
+          [ ClientSupportsLegalholdImplicitConsent,
+            ClientSupportsConsumableNotifications
+          ]
+      )
+
+testObject_ClientCapabilityList_4 :: ClientCapabilityList
+testObject_ClientCapabilityList_4 =
+  ClientCapabilityList mempty
+
+testObject_ClientCapabilityList_5 :: ClientCapabilityList
+testObject_ClientCapabilityList_5 =
+  ClientCapabilityList
+    ( Set.fromList
+        [ ClientSupportsLegalholdImplicitConsent,
+          ClientSupportsConsumableNotifications
+        ]
+    )

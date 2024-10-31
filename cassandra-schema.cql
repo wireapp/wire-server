@@ -112,25 +112,6 @@ CREATE TABLE brig_test.rich_info (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE brig_test.user_keys_hash (
-    key blob PRIMARY KEY,
-    key_type int,
-    user uuid
-) WITH bloom_filter_fp_chance = 0.1
-    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
-    AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
-    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
-    AND crc_check_chance = 1.0
-    AND dclocal_read_repair_chance = 0.1
-    AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
-    AND max_index_interval = 2048
-    AND memtable_flush_period_in_ms = 0
-    AND min_index_interval = 128
-    AND read_repair_chance = 0.0
-    AND speculative_retry = '99PERCENTILE';
-
 CREATE TABLE brig_test.service_tag (
     bucket int,
     tag bigint,
@@ -372,10 +353,9 @@ CREATE TABLE brig_test.oauth_user_refresh_token (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE brig_test.invitation_info (
-    code ascii PRIMARY KEY,
-    id uuid,
-    inviter uuid
+CREATE TABLE brig_test.users_pending_activation (
+    user uuid PRIMARY KEY,
+    expires_at timestamp
 ) WITH bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
@@ -643,7 +623,6 @@ CREATE TABLE brig_test.team_invitation (
     created_by uuid,
     email text,
     name text,
-    phone text,
     role int,
     PRIMARY KEY (team, id)
 ) WITH CLUSTERING ORDER BY (id ASC)
@@ -678,7 +657,6 @@ CREATE TABLE brig_test.user (
     managed_by int,
     name text,
     password blob,
-    phone text,
     picture list<blob>,
     provider uuid,
     searchable boolean,
@@ -686,7 +664,9 @@ CREATE TABLE brig_test.user (
     sso_id text,
     status int,
     supported_protocols int,
-    team uuid
+    team uuid,
+    text_status text,
+    write_time_bumper int
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
@@ -886,24 +866,6 @@ CREATE TABLE brig_test.connection_remote (
     AND speculative_retry = '99PERCENTILE';
 CREATE INDEX connection_remote_right_domain_idx ON brig_test.connection_remote (right_domain);
 
-CREATE TABLE brig_test.users_pending_activation (
-    user uuid PRIMARY KEY,
-    expires_at timestamp
-) WITH bloom_filter_fp_chance = 0.01
-    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
-    AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
-    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
-    AND crc_check_chance = 1.0
-    AND dclocal_read_repair_chance = 0.1
-    AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
-    AND max_index_interval = 2048
-    AND memtable_flush_period_in_ms = 0
-    AND min_index_interval = 128
-    AND read_repair_chance = 0.0
-    AND speculative_retry = '99PERCENTILE';
-
 CREATE TABLE brig_test.connection (
     left uuid,
     right uuid,
@@ -929,27 +891,6 @@ CREATE TABLE brig_test.connection (
     AND speculative_retry = '99PERCENTILE';
 CREATE INDEX conn_status ON brig_test.connection (status);
 
-CREATE TABLE brig_test.password_reset (
-    key ascii PRIMARY KEY,
-    code ascii,
-    retries int,
-    timeout timestamp,
-    user uuid
-) WITH bloom_filter_fp_chance = 0.1
-    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
-    AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
-    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
-    AND crc_check_chance = 1.0
-    AND dclocal_read_repair_chance = 0.1
-    AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
-    AND max_index_interval = 2048
-    AND memtable_flush_period_in_ms = 0
-    AND min_index_interval = 128
-    AND read_repair_chance = 0.0
-    AND speculative_retry = '99PERCENTILE';
-
 CREATE TABLE brig_test.federation_remotes (
     domain text PRIMARY KEY,
     restriction int,
@@ -969,20 +910,16 @@ CREATE TABLE brig_test.federation_remotes (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE brig_test.invitation (
-    inviter uuid,
-    id uuid,
+CREATE TABLE brig_test.password_reset (
+    key ascii PRIMARY KEY,
     code ascii,
-    created_at timestamp,
-    email text,
-    name text,
-    phone text,
-    PRIMARY KEY (inviter, id)
-) WITH CLUSTERING ORDER BY (id ASC)
-    AND bloom_filter_fp_chance = 0.01
+    retries int,
+    timeout timestamp,
+    user uuid
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
@@ -1190,6 +1127,8 @@ CREATE TABLE galley_test.team_features (
     app_lock_inactivity_timeout_secs int,
     app_lock_status int,
     conference_calling int,
+    conference_calling_one_to_one int,
+    conference_calling_status int,
     digital_signatures int,
     enforce_file_download_location text,
     enforce_file_download_location_lock_status int,
@@ -2026,6 +1965,7 @@ CREATE TABLE spar_test.team_provisioning_by_team (
     created_at timestamp,
     descr text,
     idp uuid,
+    name text,
     token_ text,
     PRIMARY KEY (team, id)
 ) WITH CLUSTERING ORDER BY (id ASC)
@@ -2110,6 +2050,7 @@ CREATE TABLE spar_test.team_provisioning_by_token (
     descr text,
     id uuid,
     idp uuid,
+    name text,
     team uuid
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}

@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Options
-  ( Settings,
+  ( Settings (..),
     httpPoolSize,
     maxTeamSize,
     maxFanoutSize,
@@ -31,13 +31,14 @@ module Galley.Options
     concurrentDeletionEvents,
     deleteConvThrottleMillis,
     federationDomain,
+    federationProtocols,
     mlsPrivateKeyPaths,
     featureFlags,
     defConcurrentDeletionEvents,
     JournalOpts (JournalOpts),
     queueName,
     endpoint,
-    Opts,
+    Opts (..),
     galley,
     cassandra,
     brig,
@@ -53,6 +54,7 @@ module Galley.Options
     logFormat,
     guestLinkTTLSeconds,
     defGuestLinkTTLSeconds,
+    passwordHashingOptions,
     GuestLinkTTLSeconds (..),
   )
 where
@@ -71,6 +73,7 @@ import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options hiding (endpoint)
 import Util.Options.Common
+import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
 
@@ -135,13 +138,15 @@ data Settings = Settings
     --     - wire.com
     --     - example.com
     _federationDomain :: !Domain,
+    _federationProtocols :: !(Maybe [ProtocolTag]),
     _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,
     _disabledAPIVersions :: !(Set VersionExp),
     -- | The lifetime of a conversation guest link in seconds with the maximum of 1 year (31536000 seconds).
     -- If not set use the default `defGuestLinkTTLSeconds`
-    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds)
+    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
+    _passwordHashingOptions :: !(PasswordHashingOptions)
   }
   deriving (Show, Generic)
 
@@ -182,7 +187,7 @@ data Opts = Opts
     -- | Federator endpoint
     _federator :: !(Maybe Endpoint),
     -- | RabbitMQ settings, required when federation is enabled.
-    _rabbitmq :: !(Maybe RabbitMqOpts),
+    _rabbitmq :: !(Maybe AmqpEndpoint),
     -- | Disco URL
     _discoUrl :: !(Maybe Text),
     -- | Other settings

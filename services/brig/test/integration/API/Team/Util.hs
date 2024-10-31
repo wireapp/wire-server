@@ -90,11 +90,11 @@ createPopulatedBindingTeamWithNames brig names = do
   invitees <- forM names $ \name -> do
     inviteeEmail <- randomEmail
     let invite = stdInvitationRequest inviteeEmail
-    inv <-
+    inv :: Invitation <-
       responseJsonError
         =<< postInvitation brig tid (userId inviter) invite
           <!! statusCode === const 201
-    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    Just inviteeCode <- getInvitationCode brig tid inv.invitationId
     rsp2 <-
       post
         ( brig
@@ -109,22 +109,6 @@ createPopulatedBindingTeamWithNames brig names = do
       liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
     pure invitee
   pure (tid, inviter, invitees)
-
-createTeam :: UserId -> Galley -> Http TeamId
-createTeam u galley = do
-  tid <- randomId
-  r <-
-    put
-      ( galley
-          . paths ["i", "teams", toByteString' tid]
-          . contentJson
-          . zAuthAccess u "conn"
-          . expect2xx
-          . lbytes (encode newTeam)
-      )
-  maybe (error "invalid team id") pure $
-    fromByteString $
-      getHeader' "Location" r
 
 -- | Create user and binding team.
 --
@@ -183,11 +167,11 @@ inviteAndRegisterUser ::
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
-  inv <-
+  inv :: Invitation <-
     responseJsonError
       =<< postInvitation brig tid u invite
         <!! statusCode === const 201
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  Just inviteeCode <- getInvitationCode brig tid inv.invitationId
   rspInvitee <-
     post
       ( brig
@@ -273,8 +257,8 @@ deleteTeam g tid u = do
     !!! const 202
       === statusCode
 
-newTeam :: BindingNewTeam
-newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
+newTeam :: NewTeam
+newTeam = newNewTeam (unsafeRange "teamName") DefaultIcon
 
 putLegalHoldEnabled :: (HasCallStack) => TeamId -> FeatureStatus -> Galley -> Http ()
 putLegalHoldEnabled tid enabled g = do
@@ -282,7 +266,7 @@ putLegalHoldEnabled tid enabled g = do
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
       . contentJson
-      . lbytes (encode (Public.WithStatusNoLock enabled Public.LegalholdConfig Public.FeatureTTLUnlimited))
+      . lbytes (encode (Public.Feature enabled Public.LegalholdConfig))
       . expect2xx
 
 putLHWhitelistTeam :: (HasCallStack) => Galley -> TeamId -> Http ResponseLBS
@@ -292,10 +276,10 @@ putLHWhitelistTeam galley tid = do
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
-accept :: Email -> InvitationCode -> RequestBody
+accept :: EmailAddress -> InvitationCode -> RequestBody
 accept = acceptWithName (Name "Bob")
 
-acceptWithName :: Name -> Email -> InvitationCode -> RequestBody
+acceptWithName :: Name -> EmailAddress -> InvitationCode -> RequestBody
 acceptWithName name email code =
   RequestBodyLBS . encode $
     object
@@ -305,7 +289,7 @@ acceptWithName name email code =
         "team_code" .= code
       ]
 
-extAccept :: Email -> Name -> Phone -> ActivationCode -> InvitationCode -> RequestBody
+extAccept :: EmailAddress -> Name -> Phone -> ActivationCode -> InvitationCode -> RequestBody
 extAccept email name phone phoneCode code =
   RequestBodyLBS . encode $
     object
@@ -318,7 +302,7 @@ extAccept email name phone phoneCode code =
         "team_code" .= code
       ]
 
-register :: Email -> BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
+register :: EmailAddress -> NewTeam -> Brig -> Http (Response (Maybe LByteString))
 register e t brig =
   post
     ( brig
@@ -335,7 +319,7 @@ register e t brig =
           )
     )
 
-register' :: Email -> BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
+register' :: EmailAddress -> NewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
 register' e t c brig =
   post
     ( brig
@@ -439,12 +423,12 @@ isActivatedUser uid brig = do
     Just (_ : _) -> True
     _ -> False
 
-stdInvitationRequest :: Email -> InvitationRequest
+stdInvitationRequest :: EmailAddress -> InvitationRequest
 stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 
-stdInvitationRequest' :: Maybe Locale -> Maybe Role -> Email -> InvitationRequest
+stdInvitationRequest' :: Maybe Locale -> Maybe Role -> EmailAddress -> InvitationRequest
 stdInvitationRequest' loc role email =
-  InvitationRequest loc role Nothing email Nothing
+  InvitationRequest loc role Nothing email
 
 setTeamTeamSearchVisibilityAvailable :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Galley -> TeamId -> FeatureStatus -> m ()
 setTeamTeamSearchVisibilityAvailable galley tid status =
@@ -452,7 +436,7 @@ setTeamTeamSearchVisibilityAvailable galley tid status =
     ( galley
         . paths ["i/teams", toByteString' tid, "features/searchVisibility"]
         . contentJson
-        . body (RequestBodyLBS . encode $ Public.WithStatusNoLock status Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
+        . body (RequestBodyLBS . encode $ Public.Feature status Public.SearchVisibilityAvailableConfig)
     )
     !!! do
       const 200 === statusCode
@@ -474,12 +458,12 @@ setTeamSearchVisibilityInboundAvailable galley tid status =
     ( galley
         . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @Public.SearchVisibilityInboundConfig]
         . contentJson
-        . body (RequestBodyLBS . encode $ Public.WithStatusNoLock status Public.SearchVisibilityInboundConfig Public.FeatureTTLUnlimited)
+        . body (RequestBodyLBS . encode $ Public.Feature status Public.SearchVisibilityInboundConfig)
     )
     !!! do
       const 200 === statusCode
 
-setUserEmail :: Brig -> UserId -> UserId -> Email -> Http ResponseLBS
+setUserEmail :: Brig -> UserId -> UserId -> EmailAddress -> Http ResponseLBS
 setUserEmail brig from uid email = do
   put
     ( brig

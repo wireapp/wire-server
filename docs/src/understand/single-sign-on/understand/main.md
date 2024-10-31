@@ -269,7 +269,7 @@ You need to configure your SCIM client to use the following mandatory SCIM attri
 
 3. The `externalId` attribute:
 
-   1. If you are using Wire's SAML SSO feature then set `externalId` attribute to the same identifier used for `NameID` in your SAML configuration.
+   1. If you are using Wire's SAML SSO feature then set `externalId` attribute to the same identifier used for `NameID` in your SAML configuration (suppored `NameID` types are `email` and `unspecified`).
    2. If you are using email/password authentication then set the `externalId`
       attribute to the user's email address. The user will receive an invitation email during provisioning. Also note that the account will be set to `"active": false` until the user has accepted the invitation and activated the account.
 

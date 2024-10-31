@@ -19,13 +19,11 @@ module API.MLS.Mocks
   ( receiveCommitMock,
     receiveCommitMockByDomain,
     messageSentMock,
-    messageSentMockByDomain,
     welcomeMock,
     welcomeMockByDomain,
     sendMessageMock,
     claimKeyPackagesMock,
     queryGroupStateMock,
-    deleteMLSConvMock,
   )
 where
 
@@ -65,12 +63,6 @@ receiveCommitMockByDomain clients = do
 messageSentMock :: Mock LByteString
 messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
 
-messageSentMockByDomain :: [Domain] -> Mock LByteString
-messageSentMockByDomain reachables = do
-  domain <- frTargetDomain <$> getRequest
-  guard (domain `elem` reachables)
-  messageSentMock
-
 welcomeMock :: Mock LByteString
 welcomeMock = "mls-welcome" ~> MLSWelcomeSent
 
@@ -97,9 +89,3 @@ queryGroupStateMock gs qusr = do
     if uid == qUnqualified qusr
       then GetGroupInfoResponseState (Base64ByteString gs)
       else GetGroupInfoResponseError ConvNotFound
-
-deleteMLSConvMock :: Mock LByteString
-deleteMLSConvMock =
-  asum
-    [ "on-conversation-updated" ~> EmptyResponse
-    ]

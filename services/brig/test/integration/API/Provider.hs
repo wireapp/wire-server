@@ -133,8 +133,6 @@ tests dom conf p db b c g n = do
           "service whitelist"
           [ test p "search permissions" $
               testWhitelistSearchPermissions conf db b g,
-            test p "update permissions" $
-              testWhitelistUpdatePermissions conf db b g,
             test p "basic functionality" $
               testWhitelistBasic conf db b g,
             test p "search" $ testSearchWhitelist conf db b g,
@@ -263,7 +261,7 @@ testPasswordResetProvider db brig = do
   loginProvider brig email newPw
     !!! const 200 === statusCode
   where
-    resetPw :: PlainTextPassword6 -> Email -> Http ResponseLBS
+    resetPw :: PlainTextPassword6 -> EmailAddress -> Http ResponseLBS
     resetPw newPw email = do
       -- Get the code directly from the DB
       let gen = mkVerificationCodeGen email
@@ -879,32 +877,6 @@ testWhitelistSearchPermissions _config _db brig galley = do
   listTeamServiceProfilesByPrefix brig member tid Nothing True 20
     !!! const 200 === statusCode
 
-testWhitelistUpdatePermissions :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
-testWhitelistUpdatePermissions config db brig galley = do
-  -- Create a team
-  (owner, tid) <- Team.createUserWithTeam brig
-  -- Create a team admin
-  let Just adminPermissions = newPermissions serviceWhitelistPermissions mempty
-  admin <- userId <$> Team.createTeamMember brig galley owner tid adminPermissions
-  -- Create a service
-  pid <- providerId <$> randomProvider db brig
-  new <- defNewService config
-  sid <- serviceId <$> addGetService brig pid new
-  enableService brig pid sid
-  -- Check that a random user can't add it to the whitelist
-  _uid <- userId <$> randomUser brig
-  updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
-    const 403 === statusCode
-    const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
-  -- Check that a member who's not a team admin also can't add it to the whitelist
-  _uid <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
-  updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
-    const 403 === statusCode
-    const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
-  -- Check that a team admin can add and remove from the whitelist
-  whitelistService brig admin tid pid sid
-  dewhitelistService brig admin tid pid sid
-
 testSearchWhitelist :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testSearchWhitelist config db brig galley = do
   -- Create a team, a team owner, and a team member with no permissions
@@ -1109,7 +1081,7 @@ registerProvider brig new =
 
 getProviderActivationCodeInternal ::
   Brig ->
-  Email ->
+  EmailAddress ->
   Http ResponseLBS
 getProviderActivationCodeInternal brig email =
   get $
@@ -1131,7 +1103,7 @@ activateProvider brig key val =
 
 loginProvider ::
   Brig ->
-  Email ->
+  EmailAddress ->
   PlainTextPassword6 ->
   Http ResponseLBS
 loginProvider brig email pw =
@@ -1425,7 +1397,7 @@ addBot ::
 addBot brig uid pid sid cid =
   post $
     brig
-      . paths ["conversations", toByteString' cid, "bots"]
+      . paths ["bot", "conversations", toByteString' cid]
       . header "Z-Type" "access"
       . header "Z-User" (toByteString' uid)
       . header "Z-Connection" "conn"
@@ -1441,7 +1413,7 @@ removeBot ::
 removeBot brig uid cid bid =
   delete $
     brig
-      . paths ["conversations", toByteString' cid, "bots", toByteString' bid]
+      . paths ["bot", "conversations", toByteString' cid, toByteString' bid]
       . header "Z-Type" "access"
       . header "Z-User" (toByteString' uid)
       . header "Z-Connection" "conn"
@@ -1580,7 +1552,7 @@ enabled2ndFaForTeamInternal galley tid = do
     ( galley
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig]
         . contentJson
-        . Bilge.json (Public.WithStatusNoLock Public.FeatureStatusEnabled Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited)
+        . Bilge.json (Public.Feature Public.FeatureStatusEnabled Public.SndFactorPasswordChallengeConfig)
     )
     !!! const 200 === statusCode
 
@@ -1836,7 +1808,7 @@ defNewService config = liftIO $ do
         newServiceTags = defServiceTags
       }
 
-defNewProvider :: Email -> NewProvider
+defNewProvider :: EmailAddress -> NewProvider
 defNewProvider email =
   NewProvider
     { newProviderEmail = email,

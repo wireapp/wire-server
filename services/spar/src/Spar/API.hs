@@ -50,10 +50,10 @@ import Cassandra as Cas
 import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Proxy
 import Data.Range
-import qualified Data.Set as Set
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
@@ -73,10 +73,10 @@ import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Options
 import Spar.Orphans ()
-import Spar.Scim
+import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
-import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.BrigAccess (BrigAccess, getAccount)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
@@ -103,6 +103,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Spar
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
@@ -183,13 +184,13 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing)
-    :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
-    :<|> authreqPrecheck
-    :<|> authreq (maxttlAuthreqDiffTime opts)
-    :<|> authresp Nothing
-    :<|> authresp . Just
-    :<|> ssoSettings
+  Named @"sso-metadata" (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
+    :<|> Named @"sso-team-metadata" (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
+    :<|> Named @"auth-req-precheck" authreqPrecheck
+    :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
+    :<|> Named @"auth-resp-legacy" (authresp Nothing)
+    :<|> Named @"auth-resp" (authresp . Just)
+    :<|> Named @"sso-settings" ssoSettings
 
 apiIDP ::
   ( Member Random r,
@@ -204,12 +205,12 @@ apiIDP ::
   ) =>
   ServerT APIIDP (Sem r)
 apiIDP =
-  idpGet -- get, json, captures idp id
-    :<|> idpGetRaw -- get, raw xml, capture idp id
-    :<|> idpGetAll -- get, json
-    :<|> idpCreate -- post, created
-    :<|> idpUpdate -- put, okay
-    :<|> idpDelete -- delete, no content
+  Named @"idp-get" idpGet -- get, json, captures idp id
+    :<|> Named @"idp-get-raw" idpGetRaw -- get, raw xml, capture idp id
+    :<|> Named @"idp-get-all" idpGetAll -- get, json
+    :<|> Named @"idp-create" idpCreate -- post, created
+    :<|> Named @"idp-update" idpUpdate -- put, okay
+    :<|> Named @"idp-delete" idpDelete -- delete, no content
 
 apiINTERNAL ::
   ( Member ScimTokenStore r,
@@ -221,10 +222,10 @@ apiINTERNAL ::
   ) =>
   ServerT InternalAPI (Sem r)
 apiINTERNAL =
-  internalStatus
-    :<|> internalDeleteTeam
-    :<|> internalPutSsoSettings
-    :<|> internalGetScimUserInfo
+  Named @"i_status" internalStatus
+    :<|> Named @"i_delete_team" internalDeleteTeam
+    :<|> Named @"i_put_sso_settings" internalPutSsoSettings
+    :<|> Named @"i_post_scim_user_info" internalGetScimUserInfo
 
 appName :: Text
 appName = "spar"
@@ -382,7 +383,7 @@ idpGetAll ::
   Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
-  _providers <- IdPConfigStore.getConfigsByTeam teamid
+  providers <- IdPConfigStore.getConfigsByTeam teamid
   pure IdPList {..}
 
 -- | Delete empty IdPs, or if @"purge=true"@ in the HTTP query, delete all users
@@ -433,7 +434,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     assertEmptyOrPurge teamId page = do
       forM_ (Cas.result page) $ \(uref, uid) -> do
         mAccount <- BrigAccess.getAccount NoPendingInvitations uid
-        let mUserTeam = userTeam . accountUser =<< mAccount
+        let mUserTeam = userTeam =<< mAccount
         when (mUserTeam == Just teamId) $ do
           if purge
             then do
@@ -465,7 +466,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     idpDoesAuthSelf :: IdP -> UserId -> Sem r Bool
     idpDoesAuthSelf idp uid = do
       let idpIssuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-      mUserIssuer <- (>>= userIssuer) <$> Brig.getBrigUser NoPendingInvitations uid
+      mUserIssuer <- (>>= userIssuer) <$> getAccount NoPendingInvitations uid
       pure $ mUserIssuer == Just idpIssuer
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
@@ -790,8 +791,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
     *> DefaultSsoCode.store code
       $> NoContent
 
-internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserSet -> Sem r ScimUserInfos
-internalGetScimUserInfo (UserSet uids) = do
-  results <- ScimUserTimesStore.readMulti (Set.toList uids)
-  let scimUserInfos = results <&> (\(uid, t, _) -> ScimUserInfo uid (Just t))
-  pure $ ScimUserInfos scimUserInfos
+internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserId -> Sem r ScimUserInfo
+internalGetScimUserInfo uid = do
+  t <- fmap fst <$> ScimUserTimesStore.read uid
+  pure $ ScimUserInfo uid t

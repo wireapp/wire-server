@@ -115,6 +115,7 @@ federateWithAllowListFail =
         $ ensureCanFederateWith (Domain "hello.world")
     assertBool "federating should not be allowed" (isLeft eith)
 
+-- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 --
 -- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 validateDomainAllowListFail :: TestTree
@@ -132,6 +133,8 @@ validateDomainAllowListFail =
         $ validateDomain exampleCert (Domain "localhost.example.com")
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
 
+-- @END
+
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
   testCase "should give parsed domain if in the allow list" $ do
@@ -148,6 +151,7 @@ validateDomainAllowListSuccess =
         $ validateDomain exampleCert domain
     assertEqual "validateDomain should give 'localhost.example.com' as domain" domain res
 
+-- @SF.Federation @TSFI.Federate @TSFI.DNS @S3 @S7
 --
 -- Reject request if the infrastructure domain in the client cert does not match the backend
 -- domain in the `Wire-origin-domain` header.
@@ -164,6 +168,8 @@ validateDomainCertWrongDomain =
         . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain exampleCert (Domain "foo.example.com")
     res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.example.com"]))
+
+-- @END
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
@@ -247,9 +253,12 @@ validateDomainNonIdentitySRV =
         $ validateDomain exampleCert domain
     res @?= domain
 
+-- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 -- Reject request if the client certificate for federator is invalid
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
   testCase "validateDomainCertInvalid - should fail if the client certificate is invalid" $ do
     let res = decodeCertificate "not a certificate"
     res @?= Left "no certificate found"
+
+-- @END

@@ -29,6 +29,7 @@ import Servant
 import Servant.API.ContentTypes
 import Servant.OpenApi
 import Servant.OpenApi.Internal
+import Test.QuickCheck (Arbitrary)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 
@@ -89,10 +90,10 @@ instance
   responseUnrender c = fmap unVersioned . responseUnrender @cs @(Respond s desc (Versioned v a)) c
 
 instance
-  (KnownSymbol desc, S.ToSchema a) =>
-  IsSwaggerResponse (VersionedRespond v s desc a)
+  (KnownSymbol desc, S.ToSchema a, SingI v, ToSchema (Versioned v a), Typeable v) =>
+  IsSwaggerResponse (VersionedRespond (v :: Version) s desc a)
   where
-  responseSwagger = simpleResponseSwagger @a @'[JSON] @desc
+  responseSwagger = simpleResponseSwagger @(Versioned v a) @'[JSON] @desc
 
 -------------------------------------------------------------------------------
 -- Versioned newtype wrapper
@@ -102,6 +103,7 @@ instance
 -- Servant.
 newtype Versioned (v :: Version) a = Versioned {unVersioned :: a}
   deriving (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance Functor (Versioned v) where
   fmap f (Versioned a) = Versioned (f a)

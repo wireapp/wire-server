@@ -81,8 +81,7 @@ data Inconsistency = Inconsistency
     userId :: UserId,
     time :: Writetime UserId,
     status :: Maybe (WithWritetime AccountStatus),
-    userEmail :: Maybe (WithWritetime Email),
-    userPhone :: Maybe (WithWritetime Phone),
+    userEmail :: Maybe (WithWritetime EmailAddress),
     inconsistencyCase :: Text
   }
   deriving (Generic)
@@ -113,7 +112,7 @@ getKeys = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql = "SELECT key, user, writetime(user) from user_keys"
 
 parseKey :: Text -> Maybe EmailKey
-parseKey t = mkEmailKey <$> parseEmail t
+parseKey t = mkEmailKey <$> emailAddressText t
 
 instance Cql EmailKey where
   ctype = Tagged TextColumn
@@ -130,13 +129,13 @@ instance Cql EmailKey where
 instance Aeson.ToJSON EmailKey where
   toJSON = Aeson.toJSON . emailKeyUniq
 
-type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Email, Maybe (Writetime Email), Maybe Phone, Maybe (Writetime Phone))
+type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe EmailAddress, Maybe (Writetime EmailAddress))
 
 getUserDetails :: UserId -> Client (Maybe UserDetailsRow)
 getUserDetails uid = retry x5 $ query1 cql (params LocalQuorum (Identity uid))
   where
     cql :: PrepQuery R (Identity UserId) UserDetailsRow
-    cql = "SELECT status, writetime(status), email, writetime(email), phone, writetime(phone) from user where id = ?"
+    cql = "SELECT status, writetime(status), email, writetime(email) from user where id = ?"
 
 checkKey :: Logger -> ClientState -> EmailKey -> Bool -> IO (Maybe Inconsistency)
 checkKey l brig key repairData = do
@@ -179,16 +178,14 @@ checkUser l brig key uid time repairData = do
     Nothing -> do
       let status = Nothing
           userEmail = Nothing
-          userPhone = Nothing
           inconsistencyCase = "2."
       when repairData $ -- case 2.
         runClient brig $
           freeEmailKey l key
       pure . Just $ Inconsistency {userId = uid, ..}
-    Just (mStatus, mStatusWriteTime, mEmail, mEmailWriteTime, mPhone, mPhoneWriteTime) -> do
+    Just (mStatus, mStatusWriteTime, mEmail, mEmailWriteTime) -> do
       let status = WithWritetime <$> mStatus <*> mStatusWriteTime
           userEmail = WithWritetime <$> mEmail <*> mEmailWriteTime
-          userPhone = WithWritetime <$> mPhone <*> mPhoneWriteTime
           statusError = case mStatus of
             Nothing -> True
             Just Deleted -> True

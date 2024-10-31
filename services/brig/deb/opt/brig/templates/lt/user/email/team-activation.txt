@@ -6,8 +6,8 @@ JŪSŲ NAUJA „${brand}“ PASKYRA
 Naudojant ${email}, buvo sukurta nauja „${brand}“ komanda. Patvirtinkite savo
 el. paštą.
 
-Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
-įdėkite šią nuorodą į savo naršyklę:
+Patvirtinti [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

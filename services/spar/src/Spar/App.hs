@@ -53,6 +53,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
+import Data.These
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -74,7 +75,7 @@ import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.BrigAccess (BrigAccess, getAccount)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
@@ -94,10 +95,9 @@ import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User hiding (validateEmail)
+import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim (ValidExternalId (..))
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
@@ -141,7 +141,7 @@ getUserByUrefUnsafe ::
   SAML.UserRef ->
   Sem r (Maybe User)
 getUserByUrefUnsafe uref = do
-  maybe (pure Nothing) (Intra.getBrigUser Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
+  maybe (pure Nothing) (getAccount Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
 getUserIdByScimExternalId ::
@@ -149,10 +149,10 @@ getUserIdByScimExternalId ::
     Member ScimExternalIdStore r
   ) =>
   TeamId ->
-  Email ->
+  Text ->
   Sem r (Maybe UserId)
-getUserIdByScimExternalId tid email = do
-  muid <- ScimExternalIdStore.lookup tid email
+getUserIdByScimExternalId tid eid = do
+  muid <- ScimExternalIdStore.lookup tid eid
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -189,7 +189,7 @@ createSamlUserWithId ::
 createSamlUserWithId teamid buid suid role = do
   uname <-
     either (throwSparSem . SparBadUserName . LText.pack) pure $
-      Intra.mkUserName Nothing (UrefOnly suid)
+      Intra.mkUserName Nothing (That suid)
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
@@ -252,7 +252,7 @@ validateEmail ::
   ) =>
   Maybe TeamId ->
   UserId ->
-  Email ->
+  EmailAddress ->
   Sem r ()
 validateEmail mbTid uid email = do
   enabled <- maybe (pure False) GalleyAccess.isEmailValidationEnabledTeam mbTid
@@ -390,7 +390,7 @@ moveUserToNewIssuer ::
   Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
-  BrigAccess.setVeid uid (UrefOnly newUserRef)
+  BrigAccess.setSSOId uid (UserSSOId newUserRef)
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::

@@ -30,40 +30,7 @@ where
 import Brig.Options
 import Brig.Template
 import Imports
-import Wire.API.User.Identity
-
-data InvitationEmailTemplate = InvitationEmailTemplate
-  { invitationEmailUrl :: !Template,
-    invitationEmailSubject :: !Template,
-    invitationEmailBodyText :: !Template,
-    invitationEmailBodyHtml :: !Template,
-    invitationEmailSender :: !Email,
-    invitationEmailSenderName :: !Text
-  }
-
-data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
-  { creatorWelcomeEmailUrl :: !Text,
-    creatorWelcomeEmailSubject :: !Template,
-    creatorWelcomeEmailBodyText :: !Template,
-    creatorWelcomeEmailBodyHtml :: !Template,
-    creatorWelcomeEmailSender :: !Email,
-    creatorWelcomeEmailSenderName :: !Text
-  }
-
-data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
-  { memberWelcomeEmailUrl :: !Text,
-    memberWelcomeEmailSubject :: !Template,
-    memberWelcomeEmailBodyText :: !Template,
-    memberWelcomeEmailBodyHtml :: !Template,
-    memberWelcomeEmailSender :: !Email,
-    memberWelcomeEmailSenderName :: !Text
-  }
-
-data TeamTemplates = TeamTemplates
-  { invitationEmail :: !InvitationEmailTemplate,
-    creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
-    memberWelcomeEmail :: !MemberWelcomeEmailTemplate
-  }
+import Wire.EmailSubsystem.Template
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->
@@ -72,6 +39,13 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <$> readTemplate fp "email/invitation-subject.txt"
             <*> readTemplate fp "email/invitation.txt"
             <*> readTemplate fp "email/invitation.html"
+            <*> pure (emailSender gOptions)
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( InvitationEmailTemplate tExistingUrl
+            <$> readTemplate fp "email/migration-subject.txt"
+            <*> readTemplate fp "email/migration.txt"
+            <*> readTemplate fp "email/migration.html"
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )
@@ -89,10 +63,27 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )
+    <*> ( PersonalUserMemberWelcomeEmailTemplate
+            ""
+            (template "")
+            (template "")
+            (template "")
+            (emailSender gOptions)
+            <$> readText fp "email/sender.txt"
+        )
+    <*> ( PersonalUserCreatorWelcomeEmailTemplate
+            ""
+            (template "")
+            (template "")
+            (template "")
+            (emailSender gOptions)
+            <$> readText fp "email/sender.txt"
+        )
   where
-    gOptions = general (emailSMS o)
-    tOptions = team (emailSMS o)
-    tUrl = template $ tInvitationUrl tOptions
-    defLocale = setDefaultTemplateLocale (optSettings o)
+    gOptions = o.emailSMS.general
+    tOptions = o.emailSMS.team
+    tUrl = template tOptions.tInvitationUrl
+    tExistingUrl = template tOptions.tExistingUserInvitationUrl
+    defLocale = defaultTemplateLocale o.settings
     readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
     readText = readTextWithDefault (templateDir gOptions) defLocale "team"

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,6 +30,7 @@ import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Handle
 import Data.Id
 import Data.Range (unsafeRange)
@@ -85,7 +86,7 @@ tests s =
       test s "/teams/:tid/features/validateSamlEmails" $ testFeatureStatus @ValidateSAMLEmailsConfig,
       test s "/teams/:tid/features/digitalSignatures" $ testFeatureStatus @DigitalSignaturesConfig,
       test s "/teams/:tid/features/fileSharing" $ testFeatureStatus @FileSharingConfig,
-      test s "/teams/:tid/features/conference-calling" $ testFeatureStatusOptTtl @ConferenceCallingConfig (Just FeatureTTLUnlimited),
+      test s "/teams/:tid/features/conference-calling" $ testFeatureStatusOptTtl defConfCalling (Just FeatureTTLUnlimited),
       test s "/teams/:tid/searchVisibility" $ testFeatureStatus @SearchVisibilityAvailableConfig,
       test s "/teams/:tid/features/appLock" $ testFeatureConfig @AppLockConfig,
       test s "/teams/:tid/features/mls" $ testFeatureConfig @MLSConfig,
@@ -104,6 +105,9 @@ tests s =
       -- - `PUT /teams/:tid/billing`
       -- - `POST /teams/:tid/billing`
     ]
+
+defConfCalling :: LockableFeature ConferenceCallingConfig
+defConfCalling = def {status = FeatureStatusDisabled}
 
 testRudSsoDomainRedirect :: TestM ()
 testRudSsoDomainRedirect = do
@@ -178,7 +182,7 @@ testDeleteUser = do
   (uid, email) <- randomEmailUser
   do
     [ua] <- getUsersByIds [uid]
-    liftIO $ ua.accountStatus @?= Active
+    liftIO $ ua.userStatus @?= Active
   deleteUser uid (Left email)
   do
     uas <- getUsersByIds [uid]
@@ -211,7 +215,7 @@ testDeleteTeam :: TestM ()
 testDeleteTeam = do
   (uid, tid, _) <- createTeamWithNMembers 10
   [ua] <- getUsersByIds [uid]
-  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.accountUser.userIdentity
+  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.userIdentity
   do
     info <- getTeamInfo tid
     liftIO $ info.tiData.tdStatus @?= Team.Active
@@ -241,7 +245,7 @@ testGetTeamInfoByMemberEmail :: TestM ()
 testGetTeamInfoByMemberEmail = do
   (_, tid, member : _) <- createTeamWithNMembers 10
   [ua] <- getUsersByIds [member]
-  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.accountUser.userIdentity
+  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.userIdentity
   info <- getTeamInfoByMemberEmail email
   liftIO $ (info.tiData.tdTeam ^. teamId) @?= tid
 
@@ -258,7 +262,7 @@ testLegalholdConfig :: TestM ()
 testLegalholdConfig = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @LegalholdConfig tid
-  liftIO $ cfg @?= defFeatureStatus @LegalholdConfig
+  liftIO $ cfg @?= def
   -- Legal hold is enabled for teams via server config and cannot be changed here
   putFeatureStatus @LegalholdConfig tid FeatureStatusEnabled Nothing !!! const 403 === statusCode
 
@@ -275,11 +279,11 @@ testFeatureConfig ::
 testFeatureConfig = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
-  liftIO $ cfg @?= defFeatureStatus @cfg
-  let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
-  putFeatureConfig @cfg tid (setStatus newStatus cfg) !!! const 200 === statusCode
+  liftIO $ cfg @?= def
+  let newStatus = if cfg.status == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
+  putFeatureConfig @cfg tid cfg {status = newStatus} !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
-  liftIO $ wsStatus cfg' @?= newStatus
+  liftIO $ cfg'.status @?= newStatus
 
 testGetFeatureConfig ::
   forall cfg.
@@ -295,7 +299,7 @@ testGetFeatureConfig ::
 testGetFeatureConfig mDef = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
-  liftIO $ wsStatus cfg @?= fromMaybe (wsStatus $ defFeatureStatus @cfg) mDef
+  liftIO $ cfg.status @?= fromMaybe (def @(Feature cfg)).status mDef
 
 testFeatureStatus ::
   forall cfg.
@@ -307,7 +311,7 @@ testFeatureStatus ::
     Show cfg
   ) =>
   TestM ()
-testFeatureStatus = testFeatureStatusOptTtl @cfg Nothing
+testFeatureStatus = testFeatureStatusOptTtl @cfg def Nothing
 
 testFeatureStatusOptTtl ::
   forall cfg.
@@ -318,17 +322,18 @@ testFeatureStatusOptTtl ::
     Eq cfg,
     Show cfg
   ) =>
+  LockableFeature cfg ->
   Maybe FeatureTTL ->
   TestM ()
-testFeatureStatusOptTtl mTtl = do
+testFeatureStatusOptTtl defValue mTtl = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
-  liftIO $ cfg @?= defFeatureStatus @cfg
-  when (wsLockStatus cfg == LockStatusLocked) $ unlockFeature @cfg tid
-  let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
+  liftIO $ cfg @?= defValue
+  when (cfg.lockStatus == LockStatusLocked) $ unlockFeature @cfg tid
+  let newStatus = if cfg.status == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
   putFeatureStatus @cfg tid newStatus mTtl !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
-  liftIO $ wsStatus cfg' @?= newStatus
+  liftIO $ cfg'.status @?= newStatus
 
 testFeatureStatusWithLock ::
   forall cfg.
@@ -344,31 +349,31 @@ testFeatureStatusWithLock = do
   let mTtl = Nothing -- this function can become a variant of `testFeatureStatusOptTtl` if we need one.
   (_, tid, _) <- createTeamWithNMembers 10
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    cfg @?= defFeatureStatus @cfg
+    cfg @?= def
     -- if either of these two lines fails, it's probably because the default is surprising.
     -- in that case, make the text more flexible.
-    wsLockStatus cfg @?= LockStatusLocked
-    wsStatus cfg @?= FeatureStatusDisabled
+    cfg.lockStatus @?= LockStatusLocked
+    cfg.status @?= FeatureStatusDisabled
 
   void $ putFeatureStatusLock @cfg tid LockStatusUnlocked mTtl
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    wsLockStatus cfg @?= LockStatusUnlocked
-    wsStatus cfg @?= FeatureStatusDisabled
+    cfg.lockStatus @?= LockStatusUnlocked
+    cfg.status @?= FeatureStatusDisabled
 
   void $ putFeatureStatus @cfg tid FeatureStatusEnabled Nothing
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    wsLockStatus cfg @?= LockStatusUnlocked
-    wsStatus cfg @?= FeatureStatusEnabled
+    cfg.lockStatus @?= LockStatusUnlocked
+    cfg.status @?= FeatureStatusEnabled
 
   void $ putFeatureStatusLock @cfg tid LockStatusLocked mTtl
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    wsLockStatus cfg @?= LockStatusLocked
-    wsStatus cfg @?= FeatureStatusDisabled
+    cfg.lockStatus @?= LockStatusLocked
+    cfg.status @?= FeatureStatusDisabled
 
   void $ putFeatureStatusLock @cfg tid LockStatusUnlocked mTtl
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    wsLockStatus cfg @?= LockStatusUnlocked
-    wsStatus cfg @?= FeatureStatusEnabled
+    cfg.lockStatus @?= LockStatusUnlocked
+    cfg.status @?= FeatureStatusEnabled
 
 testGetConsentLog :: TestM ()
 testGetConsentLog = do
@@ -394,13 +399,13 @@ testGetUsersByHandles = do
   h <- randomHandle
   void $ setHandle uid h
   [ua] <- getUsersByHandles h
-  liftIO $ userId ua.accountUser @?= uid
+  liftIO $ userId ua @?= uid
 
 testGetUsersByEmail :: TestM ()
 testGetUsersByEmail = do
   (uid, email) <- randomEmailUser
   [ua] <- getUsersByEmail email
-  liftIO $ userId ua.accountUser @?= uid
+  liftIO $ userId ua @?= uid
 
 testUnsuspendUser :: TestM ()
 testUnsuspendUser = do
@@ -408,18 +413,18 @@ testUnsuspendUser = do
   void $ postSupendUser uid
   do
     [ua] <- getUsersByIds [uid]
-    liftIO $ ua.accountStatus @?= Suspended
+    liftIO $ ua.userStatus @?= Suspended
   void $ postUnsuspendUser uid
   do
     [ua] <- getUsersByIds [uid]
-    liftIO $ ua.accountStatus @?= Active
+    liftIO $ ua.userStatus @?= Active
 
 testSuspendUser :: TestM ()
 testSuspendUser = do
   uid <- randomUser
   void $ postSupendUser uid
   [ua] <- getUsersByIds [uid]
-  liftIO $ ua.accountStatus @?= Suspended
+  liftIO $ ua.userStatus @?= Suspended
 
 testGetStatus :: TestM ()
 testGetStatus = do
@@ -434,7 +439,7 @@ testGetUsersByIds = do
   uas <- getUsersByIds [uid1, uid2]
   liftIO $ do
     length uas @?= 2
-    Set.fromList (userId . (.accountUser) <$> uas) @?= Set.fromList [uid1, uid2]
+    Set.fromList (userId <$> uas) @?= Set.fromList [uid1, uid2]
 
 testGetTeamInfo :: TestM ()
 testGetTeamInfo = do
@@ -455,14 +460,14 @@ testRevokeIdentity = do
   do
     [ua] <- getUsersByEmail email
     liftIO $ do
-      ua.accountStatus @?= Active
-      isJust ua.accountUser.userIdentity @?= True
+      ua.userStatus @?= Active
+      isJust ua.userIdentity @?= True
   void $ revokeIdentity (Left email)
   do
     [ua] <- getUsersByEmail email
     liftIO $ do
-      ua.accountStatus @?= Active
-      isJust ua.accountUser.userIdentity @?= False
+      ua.userStatus @?= Active
+      isJust ua.userIdentity @?= False
 
 testPutEmail :: TestM ()
 testPutEmail = do
@@ -489,13 +494,13 @@ getConnections uid = do
   r <- get (s . paths ["users", toByteString' uid, "connections"] . expect2xx)
   pure $ responseJsonUnsafe r
 
-getUsersByHandles :: Text -> TestM [UserAccount]
+getUsersByHandles :: Text -> TestM [User]
 getUsersByHandles h = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-handles"] . queryItem "handles" (cs h) . expect2xx)
   pure $ responseJsonUnsafe r
 
-getUsersByEmail :: Email -> TestM [UserAccount]
+getUsersByEmail :: EmailAddress -> TestM [User]
 getUsersByEmail email = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-email"] . queryItem "email" (toByteString' email) . expect2xx)
@@ -516,7 +521,7 @@ getStatus = do
   stern <- view tsStern
   get (stern . paths ["i", "status"] . expect2xx)
 
-getUsersByIds :: [UserId] -> TestM [UserAccount]
+getUsersByIds :: [UserId] -> TestM [User]
 getUsersByIds uids = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-ids"] . queryItem "ids" (toByteString' uids) . expect2xx)
@@ -534,12 +539,12 @@ searchUsers uid = do
   r <- get (s . paths ["users", toByteString' uid, "search"] . expect2xx)
   pure $ responseJsonUnsafe r
 
-revokeIdentity :: Either Email Phone -> TestM ()
+revokeIdentity :: Either EmailAddress Phone -> TestM ()
 revokeIdentity emailOrPhone = do
   s <- view tsStern
   void $ post (s . paths ["users", "revoke-identity"] . mkQueryParam emailOrPhone . expect2xx)
 
-mkQueryParam :: Either Email Phone -> Request -> Request
+mkQueryParam :: Either EmailAddress Phone -> Request -> Request
 mkQueryParam = \case
   Left email -> queryItem "email" (toByteString' email)
   Right phone -> queryItem "phone" (toByteString' phone)
@@ -549,7 +554,7 @@ putEmail uid emailUpdate = do
   s <- view tsStern
   void $ put (s . paths ["users", toByteString' uid, "email"] . json emailUpdate . expect2xx)
 
-deleteUser :: UserId -> Either Email Phone -> TestM ()
+deleteUser :: UserId -> Either EmailAddress Phone -> TestM ()
 deleteUser uid emailOrPhone = do
   s <- view tsStern
   void $ delete (s . paths ["users", toByteString' uid] . mkQueryParam emailOrPhone . expect2xx)
@@ -564,7 +569,7 @@ unsuspendTeam tid = do
   s <- view tsStern
   void $ put (s . paths ["teams", toByteString' tid, "unsuspend"] . expect2xx)
 
-deleteTeam :: TeamId -> Bool -> Email -> TestM ()
+deleteTeam :: TeamId -> Bool -> EmailAddress -> TestM ()
 deleteTeam tid force email = do
   s <- view tsStern
   void $ delete (s . paths ["teams", toByteString' tid] . queryItem "force" (toByteString' force) . queryItem "email" (toByteString' email) . expect2xx)
@@ -575,22 +580,22 @@ ejpdInfo includeContacts handles = do
   r <- get (s . paths ["ejpd-info"] . queryItem "include_contacts" (toByteString' includeContacts) . queryItem "handles" (toByteString' handles) . expect2xx)
   pure $ responseJsonUnsafe r
 
-userBlacklistHead :: Either Email Phone -> TestM ResponseLBS
+userBlacklistHead :: Either EmailAddress Phone -> TestM ResponseLBS
 userBlacklistHead emailOrPhone = do
   s <- view tsStern
   Bilge.get (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone)
 
-postUserBlacklist :: Either Email Phone -> TestM ()
+postUserBlacklist :: Either EmailAddress Phone -> TestM ()
 postUserBlacklist emailOrPhone = do
   s <- view tsStern
   void $ post (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone . expect2xx)
 
-deleteUserBlacklist :: Either Email Phone -> TestM ()
+deleteUserBlacklist :: Either EmailAddress Phone -> TestM ()
 deleteUserBlacklist emailOrPhone = do
   s <- view tsStern
   void $ delete (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone . expect2xx)
 
-getTeamInfoByMemberEmail :: Email -> TestM TeamInfo
+getTeamInfoByMemberEmail :: EmailAddress -> TestM TeamInfo
 getTeamInfoByMemberEmail email = do
   s <- view tsStern
   r <- get (s . paths ["teams"] . queryItem "email" (toByteString' email) . expect2xx)
@@ -610,7 +615,7 @@ getFeatureConfig ::
     IsFeatureConfig cfg
   ) =>
   TeamId ->
-  TestM (WithStatus cfg)
+  TestM (LockableFeature cfg)
 getFeatureConfig tid = do
   s <- view tsStern
   r <- get (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . expect2xx)
@@ -665,10 +670,10 @@ putFeatureConfig ::
     ToSchema cfg,
     Typeable cfg,
     IsFeatureConfig cfg,
-    ToJSON (WithStatus cfg)
+    ToJSON (LockableFeature cfg)
   ) =>
   TeamId ->
-  WithStatus cfg ->
+  LockableFeature cfg ->
   TestM ResponseLBS
 putFeatureConfig tid cfg = do
   s <- view tsStern
@@ -685,7 +690,7 @@ putSearchVisibility tid vis = do
   s <- view tsStern
   void $ put (s . paths ["teams", toByteString' tid, "search-visibility"] . json vis . expect2xx)
 
-getConsentLog :: Email -> TestM ResponseLBS
+getConsentLog :: EmailAddress -> TestM ResponseLBS
 getConsentLog email = do
   s <- view tsStern
   get (s . paths ["i", "consent"] . queryItem "email" (toByteString' email))
@@ -702,7 +707,7 @@ unlockFeature ::
     ToSchema cfg,
     Typeable cfg,
     IsFeatureConfig cfg,
-    ToJSON (WithStatus cfg)
+    ToJSON (LockableFeature cfg)
   ) =>
   TeamId ->
   TestM ()

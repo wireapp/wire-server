@@ -6,7 +6,7 @@ tags:
   cannon: true
   cargohold: true
   spar: true
-  federation: true # also see galley.config.enableFederation and brig.config.enableFederation
+  federation: true # also see {background-worker,brig,cargohold,galley}.config.enableFederation
   backoffice: true
   proxy: false
   legalhold: false
@@ -115,6 +115,12 @@ brig:
       setMaxConvSize: 16
       # See helmfile for the real value
       setFederationDomain: integration.example.com
+      setFeatureFlags:
+        conferenceCalling:
+          defaultForNew:
+            status: disabled
+          defaultForNull:
+            status: disabled
       setFederationStrategy: allowAll
       setFederationDomainConfigsUpdateFreq: 10
       setDisabledAPIVersions: []
@@ -128,6 +134,13 @@ brig:
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
+      # These values are insecure, against anyone getting hold of the hash, 
+      # but its not a concern for the integration tests.
+      setPasswordHashingOptions:
+        algorithm: argon2id
+        iterations: 1
+        parallelism: 4
+        memory: 32 # This needs to be at least 8 * parallelism.
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
@@ -252,14 +265,31 @@ galley:
       federationDomain: integration.example.com
       disabledAPIVersions: []
 
+      # These values are insecure, against anyone getting hold of the hash, 
+      # but its not a concern for the integration tests.
+      passwordHashingOptions:
+        algorithm: argon2id
+        iterations: 1
+        parallelism: 4
+        memory: 32 # This needs to be at least 8 * parallelism.
+
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: whitelist-teams-and-implicit-consent
         teamSearchVisibility: disabled-by-default
+        conferenceCalling:
+          defaults:
+            status: disabled
         classifiedDomains:
           status: enabled
           config:
             domains: ["example.com"]
+        enforceFileDownloadLocation:
+          defaults:
+            status: disabled
+            lockStatus: unlocked
+            config:
+              enforcedDownloadLocation: "downloads"
         mlsMigration:
           defaults:
             status: enabled
@@ -269,6 +299,14 @@ galley:
               usersThreshold: 100
               clientsThreshold: 50
             lockStatus: locked
+        mlsE2EId:
+          defaults:
+            status: disabled
+            config:
+              verificationExpiration: 86400
+              acmeDiscoveryUrl: null
+              crlProxy: https://crlproxy.example.com
+            lockStatus: unlocked
         limitedEventFanout:
             defaults:
             status: disabled
@@ -350,7 +388,6 @@ gundeck:
       sqsEndpoint: http://fake-aws-sqs:4568
       snsEndpoint: http://fake-aws-sns:4575
     disabledAPIVersions: []
-    bulkPush: true
     setMaxConcurrentNativePushes:
       hard: 30
       soft: 10
@@ -459,6 +496,7 @@ federator:
   config:
     optSettings:
       useSystemCAStore: false
+    logLevel: Debug
   tests:
     {{- if .Values.uploadXml }}
     config:
@@ -475,6 +513,7 @@ background-worker:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
+    enableFederation: true
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s

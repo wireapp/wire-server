@@ -25,9 +25,6 @@ module Galley.API.Error
     internalErrorWithDescription,
     internalErrorDescription,
     legalHoldServiceUnavailable,
-
-    -- * Errors thrown by wai-routing handlers
-    invalidTeamNotificationId,
   )
 where
 
@@ -65,12 +62,14 @@ data InvalidInput
   | InvalidRange LText
   | InvalidUUID4
   | InvalidPayload LText
+  | FederationFunctionNotSupported LText
 
 instance APIError InvalidInput where
   toResponse CustomRolesNotSupported = toResponse $ badRequest "Custom roles not supported"
   toResponse (InvalidRange t) = toResponse $ invalidRange t
   toResponse InvalidUUID4 = toResponse invalidUUID4
   toResponse (InvalidPayload t) = toResponse $ invalidPayload t
+  toResponse (FederationFunctionNotSupported t) = toResponse $ federationFunctionNotSupported t
 
 ----------------------------------------------------------------------------
 -- Other errors
@@ -87,6 +86,9 @@ invalidPayload = Wai.mkError status400 "invalid-payload"
 badRequest :: LText -> Wai.Error
 badRequest = Wai.mkError status400 "bad-request"
 
+federationFunctionNotSupported :: LText -> Wai.Error
+federationFunctionNotSupported = Wai.mkError status400 "federation-function-not-supported"
+
 invalidUUID4 :: Wai.Error
 invalidUUID4 = Wai.mkError status400 "client-error" "Invalid UUID v4 format"
 
@@ -101,6 +103,3 @@ badConvState cid =
 
 legalHoldServiceUnavailable :: (Show a) => a -> Wai.Error
 legalHoldServiceUnavailable e = Wai.mkError status412 "legalhold-unavailable" ("legal hold service unavailable with underlying error: " <> (LT.pack . show $ e))
-
-invalidTeamNotificationId :: Wai.Error
-invalidTeamNotificationId = Wai.mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."

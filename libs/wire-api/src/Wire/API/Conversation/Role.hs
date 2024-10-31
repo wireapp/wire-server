@@ -33,7 +33,6 @@ module Wire.API.Conversation.Role
     RoleName,
     fromRoleName,
     parseRoleName,
-    wireConvRoleNames,
     roleNameWireAdmin,
     roleNameWireMember,
 
@@ -245,9 +244,6 @@ instance Arbitrary RoleName where
       <$> genRangeText @2 @128 genChar
     where
       genChar = QC.elements $ ['a' .. 'z'] <> ['0' .. '9'] <> ['_']
-
-wireConvRoleNames :: [RoleName]
-wireConvRoleNames = [roleNameWireAdmin, roleNameWireMember]
 
 roleNameWireAdmin :: RoleName
 roleNameWireAdmin = RoleName "wire_admin"
