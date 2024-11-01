@@ -49,6 +49,7 @@ where
 import Control.Lens (makeFields)
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as A
+import Data.Json.Util
 import Data.OpenApi qualified as O
 import Data.OpenApi.Declare qualified as O
 import Data.Proxy (Proxy (Proxy))
@@ -56,7 +57,6 @@ import Data.Schema
 import Data.Set qualified as Set
 import Imports
 import System.Logger.Extended (Level, LogFormat)
-import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version
 
 data Cannon = Cannon
