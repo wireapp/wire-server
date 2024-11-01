@@ -720,7 +720,6 @@ activateWithCurrency ::
   -- | The user for whom to activate the key.
   Maybe UserId ->
   -- | Potential currency update.
-  -- ^ TODO: to be removed once billing supports currency changes after team creation
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppT r) ActivationResult
 activateWithCurrency tgt code usr cur = do
