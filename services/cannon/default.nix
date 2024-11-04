@@ -54,6 +54,7 @@
 , websockets
 , wire-api
 , wire-otel
+, wire-subsystems
 }:
 mkDerivation {
   pname = "cannon";
@@ -104,6 +105,7 @@ mkDerivation {
     websockets
     wire-api
     wire-otel
+    wire-subsystems
   ];
   executableHaskellDepends = [ base imports types-common ];
   testHaskellDepends = [

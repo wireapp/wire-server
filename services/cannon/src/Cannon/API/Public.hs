@@ -21,7 +21,6 @@ module Cannon.API.Public
 where
 
 import Cannon.App (wsapp)
-import Cannon.Options (optsSchema)
 import Cannon.Types
 import Cannon.WS
 import Control.Monad.IO.Class
@@ -31,6 +30,7 @@ import Network.WebSockets.Connection
 import Servant
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cannon
+import Wire.ServerOptions.Cannon (optsSchema)
 
 publicAPIServer :: ServerT CannonAPI Cannon
 publicAPIServer =

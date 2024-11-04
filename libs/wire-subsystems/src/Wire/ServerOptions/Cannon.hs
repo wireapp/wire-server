@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Cannon.Options
+module Wire.ServerOptions.Cannon
   ( host,
     port,
     cannon,
@@ -39,12 +39,6 @@ module Cannon.Options
     optsSchema,
   )
 where
-
--- TODO: this is all nice, but how do we process the yaml schemas once we have them?  are they
--- human-readable?  check the ticket again!
-
--- TODO: move Cannon.Options to wire-subsystems.  :
--- "Wire.Options.Cannon", ...; and "Wire.Options" for the concatenation.  (and find a good reason to put it there.)
 
 import Control.Lens (makeFields)
 import Data.Aeson qualified as A

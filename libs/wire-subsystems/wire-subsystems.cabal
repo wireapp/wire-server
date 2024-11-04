@@ -116,6 +116,7 @@ library
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
     Wire.Rpc
+    Wire.ServerOptions.Cannon
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.StoredUser
@@ -159,6 +160,7 @@ library
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , openapi3
     , conduit
     , containers
     , cql

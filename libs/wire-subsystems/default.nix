@@ -47,6 +47,7 @@
 , mime-mail
 , network
 , network-conduit-tls
+, openapi3
 , pipes
 , polysemy
 , polysemy-plugin
@@ -133,6 +134,7 @@ mkDerivation {
     mime-mail
     network
     network-conduit-tls
+    openapi3
     polysemy
     polysemy-plugin
     polysemy-time
