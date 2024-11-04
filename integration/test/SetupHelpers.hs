@@ -146,7 +146,12 @@ simpleMixedConversationSetup secondDomain = do
   bindResponse (putConversationProtocol bob conv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-  pure (alice, bob, conv)
+  convId <-
+    getConversation alice (convIdToQidObject conv)
+      >>= getJSON 200
+      >>= objConvId
+
+  pure (alice, bob, convId)
 
 supportMLS :: (HasCallStack, MakesValue u) => u -> App ()
 supportMLS u = do

@@ -165,20 +165,22 @@ testMixedProtocolAddUsers secondDomain suite = do
   [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
   connectUsers [alice, bob, charlie]
 
-  convId <-
-    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
-      >>= getJSON 201
-      >>= objConvId
+  convId <- do
+    convId <-
+      postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+        >>= getJSON 201
+        >>= objConvId
 
-  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
-    resp.status `shouldMatchInt` 200
+    bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "epoch" `shouldMatchInt` 0
+      objConvId resp.json
 
   [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
-
-  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "epoch" `shouldMatchInt` 0
-    createGroup suite alice1 convId
+  createGroup suite alice1 convId
 
   void $ uploadNewKeyPackage suite bob1
 
@@ -201,20 +203,21 @@ testMixedProtocolUserLeaves secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  convId <-
-    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
-      >>= getJSON 201
-      >>= objConvId
+  convId <- do
+    convId <-
+      postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+        >>= getJSON 201
+        >>= objConvId
 
-  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
-    resp.status `shouldMatchInt` 200
+    bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      objConvId resp.json
 
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
-
-  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    createGroup def alice1 convId
-
+  createGroup def alice1 convId
   void $ uploadNewKeyPackage def bob1
 
   mp <- createAddCommit alice1 convId [bob]
@@ -238,19 +241,21 @@ testMixedProtocolAddPartialClients secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  convId <-
-    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
-      >>= getJSON 201
-      >>= objConvId
+  convId <- do
+    convId <-
+      postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+        >>= getJSON 201
+        >>= objConvId
 
-  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
-    resp.status `shouldMatchInt` 200
+    bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      objConvId resp.json
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
-
-  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    createGroup def alice1 convId
+  createGroup def alice1 convId
 
   traverse_ (uploadNewKeyPackage def) [bob1, bob1, bob2, bob2]
 
@@ -277,20 +282,21 @@ testMixedProtocolRemovePartialClients secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  convId <-
-    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
-      >>= getJSON 201
-      >>= objConvId
+  convId <- do
+    convId <-
+      postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+        >>= getJSON 201
+        >>= objConvId
 
-  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
-    resp.status `shouldMatchInt` 200
+    bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      objConvId resp.json
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
-
-  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    createGroup def alice1 convId
-
+  createGroup def alice1 convId
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
   mp <- createRemoveCommit alice1 convId [bob1]
@@ -303,21 +309,23 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  convId <-
-    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
-      >>= getJSON 201
-      >>= objConvId
+  convId <- do
+    convId <-
+      postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+        >>= getJSON 201
+        >>= objConvId
 
-  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
-    resp.status `shouldMatchInt` 200
+    bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      objConvId resp.json
 
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
 
+  createGroup def alice1 convId
   void $ uploadNewKeyPackage def bob1
-
-  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    createGroup def alice1 convId
 
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
 
