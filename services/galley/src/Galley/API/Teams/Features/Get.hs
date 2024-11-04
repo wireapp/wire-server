@@ -246,7 +246,9 @@ getAllTeamFeaturesForUser ::
   Sem r AllTeamFeatures
 getAllTeamFeaturesForUser uid = do
   mTid <- getTeamAndCheckMembership uid
-  hsequence' $ hcpure (Proxy @(GetAllTeamFeaturesForUserConstraints r)) $ Comp $ getFeatureForTeamUser uid mTid
+  case mTid of
+    Nothing -> hsequence' $ hcpure (Proxy @(GetAllTeamFeaturesForUserConstraints r)) $ Comp $ getFeatureForUser uid
+    Just tid -> getAllTeamFeatures tid
 
 getSingleFeatureForUser ::
   forall cfg r.
