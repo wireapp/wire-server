@@ -60,6 +60,7 @@ import Wire.UserStore
 import Wire.UserSubsystem (UpdateOriginType (..), UserSubsystem)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
@@ -137,7 +138,8 @@ changeSelfEmail ::
     Member UserSubsystem r,
     Member UserStore r,
     Member ActivationCodeStore r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -150,9 +152,8 @@ changeSelfEmail uts' mat' up = do
   usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
   lusr <- qualifyLocal usr
   let email = euEmail up
-  timeout <- asks (.settings.activationTimeout)
   lift . liftSem $
-    User.requestEmailChange timeout lusr email UpdateOriginWireClient
+    User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
   (TokenPair u a) =>

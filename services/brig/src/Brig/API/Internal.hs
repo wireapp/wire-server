@@ -117,6 +117,7 @@ import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -149,7 +150,8 @@ servantSitemap ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member HashPassword r,
     Member (Embed IO) r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -204,7 +206,8 @@ accountAPI ::
     Member InvitationStore r,
     Member (Embed IO) r,
     Member ActivationCodeStore r,
-    Member (Polysemy.Error UserSubsystemError) r
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -543,7 +546,8 @@ changeSelfEmailMaybeSendH ::
     Member UserSubsystem r,
     Member UserStore r,
     Member ActivationCodeStore r,
-    Member (Polysemy.Error UserSubsystemError) r
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   EmailUpdate ->
@@ -562,7 +566,8 @@ changeSelfEmailMaybeSend ::
     Member UserSubsystem r,
     Member UserStore r,
     Member ActivationCodeStore r,
-    Member (Polysemy.Error UserSubsystemError) r
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   MaybeSendEmail ->
@@ -571,14 +576,12 @@ changeSelfEmailMaybeSend ::
   (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   lusr <- qualifyLocal u
-  timeout <- asks (.settings.activationTimeout)
   lift . liftSem $
-    UserSubsystem.requestEmailChange timeout lusr email allowScim
+    UserSubsystem.requestEmailChange lusr email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
   lusr <- qualifyLocal u
-  timeout <- asks (.settings.activationTimeout)
   (lift . liftSem)
-    (UserSubsystem.createEmailChangeToken timeout lusr email allowScim)
+    (UserSubsystem.createEmailChangeToken lusr email allowScim)
     >>= \case
       ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
       ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation

@@ -176,6 +176,7 @@ import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles, removeEmail, requestEmailChange)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -363,7 +364,8 @@ servantSitemap ::
     Member BlockListStore r,
     Member (ConnectionStore InternalPaging) r,
     Member IndexedUserStore r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -1350,7 +1352,8 @@ updateUserEmail ::
     Member UserSubsystem r,
     Member UserStore r,
     Member ActivationCodeStore r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   UserId ->
@@ -1361,10 +1364,9 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  acTimeout <- asks (.settings.activationTimeout)
   lEmailOwnerId <- qualifyLocal emailOwnerId
   void . lift . liftSem $
-    User.requestEmailChange acTimeout lEmailOwnerId email UpdateOriginWireClient
+    User.requestEmailChange lEmailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =

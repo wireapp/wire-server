@@ -32,7 +32,6 @@ import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import Servant.Client.Core
 import System.Logger.Message qualified as Log
-import Util.Timeout
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
@@ -49,7 +48,6 @@ import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
-import Wire.Arbitrary
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
@@ -76,17 +74,8 @@ import Wire.UserStore.IndexUser
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
+import Wire.UserSubsystem.UserSubsystemConfig
 import Witherable (wither)
-
-data UserSubsystemConfig = UserSubsystemConfig
-  { emailVisibilityConfig :: EmailVisibilityConfig,
-    defaultLocale :: Locale,
-    searchSameTeamOnly :: Bool,
-    maxTeamSize :: Word32,
-    activationCodeTimeout :: Timeout
-  }
-  deriving (Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
 
 runUserSubsystem ::
   ( Member UserStore r,

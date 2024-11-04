@@ -18,7 +18,7 @@ import Data.Range
 import Imports
 import Polysemy
 import Polysemy.Error
-import Util.Timeout
+import Polysemy.Input
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
@@ -39,6 +39,7 @@ import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore
 import Wire.UserSubsystem.Error (UserSubsystemError (..))
+import Wire.UserSubsystem.UserSubsystemConfig
 
 -- | Who is performing this update operation / who is allowed to?  (Single source of truth:
 -- users managed by SCIM can't be updated by clients and vice versa.)
@@ -214,16 +215,16 @@ requestEmailChange ::
     Member UserSubsystem r,
     Member UserStore r,
     Member (Error UserSubsystemError) r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r
   ) =>
-  Timeout ->
   Local UserId ->
   EmailAddress ->
   UpdateOriginType ->
   Sem r ChangeEmailResponse
-requestEmailChange actTimeout lusr email allowScim = do
+requestEmailChange lusr email allowScim = do
   let u = tUnqualified lusr
-  createEmailChangeToken actTimeout lusr email allowScim >>= \case
+  createEmailChangeToken lusr email allowScim >>= \case
     ChangeEmailIdempotent ->
       pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation (usr, adata, en) -> do
@@ -246,14 +247,14 @@ createEmailChangeToken ::
     Member UserKeyStore r,
     Member (Error UserSubsystemError) r,
     Member UserSubsystem r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r
   ) =>
-  Timeout ->
   Local UserId ->
   EmailAddress ->
   UpdateOriginType ->
   Sem r ChangeEmailResult
-createEmailChangeToken actTimeout lusr email updateOrigin = do
+createEmailChangeToken lusr email updateOrigin = do
   let ek = mkEmailKey email
       u = tUnqualified lusr
   blocklisted <- BlockListStore.exists ek
@@ -269,6 +270,7 @@ createEmailChangeToken actTimeout lusr email updateOrigin = do
     _ -> do
       unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
         throw UserSubsystemEmailManagedByScim
+      actTimeout <- inputs (.activationCodeTimeout)
       act <- newActivationCode ek actTimeout (Just u)
       pure $ ChangeEmailNeedsActivation (usr, act, email)
 
