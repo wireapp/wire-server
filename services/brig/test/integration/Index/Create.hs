@@ -53,7 +53,8 @@ testCreateIndexWhenNotPresent brigOpts = do
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
-      indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
+      indexNameE <- (ES.mkIndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z')))
+      indexName <- either (\v -> fail ("Invalid (auto-generated) index name: " ++ show v)) (pure) indexNameE
       let replicas = 2
           shards = 2
           refreshInterval = 5
@@ -75,18 +76,17 @@ testCreateIndexWhenNotPresent brigOpts = do
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       mgr <- liftIO $ initHttpManagerWithTLSConfig connSettings.esInsecureSkipVerifyTls connSettings.esCaCert
       let bEnv = (mkBHEnv esURL mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
-      ES.runBH bEnv $ do
+      eitherIndexSettings <- ES.runBH bEnv $ do
         indexExists <- ES.indexExists indexName
         lift $
           assertBool "Index should exist" indexExists
-        eitherIndexSettings <- ES.getIndexSettings indexName
-        lift $ do
-          case eitherIndexSettings of
-            Left err -> fail $ "Failed to fetch index settings with error: " <> show err
-            Right indexSettings -> do
-              assertEqual "Shard count should be set" (ES.ShardCount replicas) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Replica count should be set" (ES.ReplicaCount replicas) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Refresh interval should be set" [ES.RefreshInterval refreshInterval] (ES.sSummaryUpdateable indexSettings)
+        ES.getIndexSettings indexName
+      case eitherIndexSettings of
+        Left err -> fail $ "Failed to fetch index settings with error: " <> show err
+        Right indexSettings -> do
+          assertEqual "Shard count should be set" (ES.ShardCount replicas) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
+          assertEqual "Replica count should be set" (ES.ReplicaCount replicas) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
+          assertEqual "Refresh interval should be set" [ES.RefreshInterval refreshInterval] (ES.sSummaryUpdateable indexSettings)
 
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
@@ -94,7 +94,8 @@ testCreateIndexWhenPresent brigOpts = do
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
-      indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
+      indexNameE <- (ES.mkIndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z')))
+      indexName <- either (\v -> fail ("Invalid (auto-generated) index name: " ++ show v)) (pure) indexNameE
       let replicas = 2
           shards = 2
           refreshInterval = 5
@@ -114,22 +115,21 @@ testCreateIndexWhenPresent brigOpts = do
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       mgr <- liftIO $ initHttpManagerWithTLSConfig connSettings.esInsecureSkipVerifyTls connSettings.esCaCert
       let bEnv = (mkBHEnv esURL mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
-      ES.runBH bEnv $ do
-        _ <- ES.createIndex (ES.IndexSettings (ES.ShardCount 1) (ES.ReplicaCount 1)) indexName
+      void $ ES.runBH bEnv $ do
+        void $ ES.createIndex (ES.IndexSettings (ES.ShardCount 1) (ES.ReplicaCount 1) ES.defaultIndexMappingsLimits) indexName
         indexExists <- ES.indexExists indexName
         lift $
           assertBool "Index should exist" indexExists
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
-      ES.runBH bEnv $ do
+      eitherIndexSettings <- ES.runBH bEnv $ do
         indexExists <- ES.indexExists indexName
         lift $
           assertBool "Index should still exist" indexExists
-        eitherIndexSettings <- ES.getIndexSettings indexName
-        lift $ do
-          case eitherIndexSettings of
-            Left err -> fail $ "Failed to fetch index settings with error: " <> show err
-            Right indexSettings -> do
-              assertEqual "Shard count should not be updated" (ES.ShardCount 1) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Replica count should not be updated" (ES.ReplicaCount 1) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Refresh interval should not be updated" [] (ES.sSummaryUpdateable indexSettings)
+        ES.getIndexSettings indexName
+      case eitherIndexSettings of
+        Left err -> fail $ "Failed to fetch index settings with error: " <> show err
+        Right indexSettings -> do
+          assertEqual "Shard count should not be updated" (ES.ShardCount 1) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
+          assertEqual "Replica count should not be updated" (ES.ReplicaCount 1) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
+          assertEqual "Refresh interval should not be updated" [] (ES.sSummaryUpdateable indexSettings)

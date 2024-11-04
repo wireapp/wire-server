@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -36,15 +37,14 @@ module Brig.User.Search.Index
 
     -- * Re-exports
     ES.IndexSettings (..),
-    ES.IndexName (..),
+    ES.IndexName,
   )
 where
 
 import Bilge.IO (MonadHttp)
 import Bilge.IO qualified as RPC
 import Brig.Index.Types (CreateIndexSettings (..))
-import Control.Lens hiding ((#), (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, catch, throwM)
 import Control.Monad.Except
 import Data.Aeson as Aeson
 import Data.Credentials
@@ -52,7 +52,9 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.Text.Encoding
+import Database.Bloodhound (BHResponse (getResponse))
 import Database.Bloodhound qualified as ES
+import Database.Bloodhound.Common.Requests qualified as ESR
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (host, path, port)
 import Network.HTTP.Types (statusCode)
@@ -112,7 +114,11 @@ instance MonadLogger (ExceptT e IndexIO) where
   log l m = lift (log l m)
 
 instance ES.MonadBH IndexIO where
-  getBHEnv = asks idxElastic
+  dispatch req = do
+    bhEnv <- asks idxElastic
+    either throwM pure =<< ES.runBH bhEnv (ES.dispatch req)
+  tryEsError action = (Right <$> action) `catch` \e -> pure (Left e)
+  throwEsError = throwM
 
 instance MonadHttp IndexIO where
   handleRequestWithCont req handler = do
@@ -133,7 +139,7 @@ refreshIndexes = liftIndexIO $ do
   case (mbAddIdx, mbAddElasticEnv) of
     (Just addIdx, Just addElasticEnv) ->
       -- Refresh additional index on a separate ElasticSearch instance.
-      ES.runBH addElasticEnv ((void . ES.refreshIndex) addIdx)
+      either throwM pure =<< ES.runBH addElasticEnv ((void . ES.refreshIndex) addIdx)
     (Just addIdx, Nothing) ->
       -- Refresh additional index on the same ElasticSearch instance.
       void $ ES.refreshIndex addIdx
@@ -181,16 +187,16 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
             ( encodeUtf8
                 ("Delete index template " <> "\"" <> tname <> "\"")
             )
-            $ ES.deleteTemplate templateName
+            $ fmap fst (ES.performBHRequest $ ES.keepBHResponse $ ESR.deleteTemplate templateName)
         unless (ES.isSuccess dr) $
           throwM (IndexError "Deleting index template failed.")
 
-    cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
+    cr <- traceES "Create index" $ fmap fst (ES.performBHRequest $ ES.keepBHResponse $ ESR.createIndexWith fullSettings shardCount idx)
     unless (ES.isSuccess cr) $
       throwM (IndexError "Index creation failed.")
     mr <-
       traceES "Put mapping" $
-        ES.putMapping idx (ES.MappingName "user") indexMapping
+        fmap fst (ES.performBHRequest $ ES.keepBHResponse $ ESR.putMapping @Value idx indexMapping)
     unless (ES.isSuccess mr) $
       throwM (IndexError "Put Mapping failed.")
 
@@ -219,7 +225,7 @@ updateMapping = liftIndexIO $ do
   -- https://github.com/wireapp/wire-server-deploy/blob/92311d189818ffc5e26ff589f81b95c95de8722c/charts/elasticsearch-index/templates/create-index.yaml
   void $
     traceES "Put mapping" $
-      ES.putMapping idx (ES.MappingName "user") indexMapping
+      fmap fst (ES.performBHRequest $ ES.keepBHResponse $ ESR.putMapping @Value idx indexMapping)
 
 resetIndex ::
   (MonadIndexIO m) =>
@@ -227,22 +233,21 @@ resetIndex ::
   m ()
 resetIndex ciSettings = liftIndexIO $ do
   idx <- asks idxName
-  gone <-
-    ES.indexExists idx >>= \case
-      True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
-      False -> pure True
-  if gone
-    then createIndex ciSettings
-    else throwM (IndexError "Index deletion failed.")
+  ES.indexExists idx >>= \case
+    True -> do
+      info $ msg ("Delete Index" :: String)
+      void $ ES.deleteIndex idx
+    False -> pure ()
+  createIndex ciSettings
 
 --------------------------------------------------------------------------------
 -- Internal
 
-traceES :: (MonadIndexIO m) => ByteString -> IndexIO ES.Reply -> m ES.Reply
+traceES :: (MonadIndexIO m) => ByteString -> IndexIO (ES.BHResponse contextualized body) -> m (ES.BHResponse contextualized body)
 traceES descr act = liftIndexIO $ do
   info (msg descr)
   r <- act
-  info . msg $ (r & statusCode . responseStatus) +++ val " - " +++ responseBody r
+  info . msg $ (statusCode . responseStatus $ getResponse r) +++ val " - " +++ responseBody (getResponse r)
   pure r
 
 -- | This mapping defines how elasticsearch will treat each field in a document. Here

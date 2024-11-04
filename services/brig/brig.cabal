@@ -223,7 +223,7 @@ library
     , base16-bytestring                     >=0.1
     , base64-bytestring                     >=1.0
     , bilge                                 >=0.21.1
-    , bloodhound                            >=0.13
+    , bloodhound
     , brig-types                            >=0.91.1
     , bytestring                            >=0.10
     , bytestring-conversion                 >=0.2
