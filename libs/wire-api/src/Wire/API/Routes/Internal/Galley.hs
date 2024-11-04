@@ -39,7 +39,6 @@ import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Features
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -82,8 +81,6 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
-    -- special endpoints
-    :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -358,19 +355,6 @@ type IFeatureStatusLockStatusPut cfg =
         :> Capture "lockStatus" LockStatus
         :> Put '[JSON] LockStatusResponse
     )
-
-type FeatureNoConfigMultiGetBase featureName =
-  Summary
-    (AppendSymbol "Get team feature status in bulk for feature " (FeatureSymbol featureName))
-    :> "features-multi-teams"
-    :> FeatureSymbol featureName
-    :> ReqBody '[JSON] TeamFeatureNoConfigMultiRequest
-    :> Post '[JSON] (TeamFeatureNoConfigMultiResponse featureName)
-
-type IFeatureNoConfigMultiGet f =
-  Named
-    '("igetmulti", f)
-    (FeatureNoConfigMultiGetBase f)
 
 type IFederationAPI =
   Named

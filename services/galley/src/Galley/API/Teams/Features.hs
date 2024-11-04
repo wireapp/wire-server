@@ -18,8 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Teams.Features
-  ( getFeatureMulti,
-    setFeature,
+  ( setFeature,
     setFeatureInternal,
     patchFeatureInternal,
     getAllTeamFeaturesForTeam,

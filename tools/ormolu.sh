@@ -68,7 +68,7 @@ echo "language extensions are taken from the resp. cabal files"
 FAILURES=0
 
 if [ -t 1 ]; then
-    : ${ORMOLU_CONDENSE_OUTPUT:=1}
+    : "${ORMOLU_CONDENSE_OUTPUT:=1}"
 fi
 
 if [ "$f" = "all" ] || [ "$f" = "" ]; then
@@ -81,8 +81,6 @@ count=$( echo "$files" | sed '/^\s*$/d' | wc -l )
 echo "Checking $count file(s)…"
 
 for hsfile in $files; do
-    FAILED=0
-
     # run in background so that we can detect Ctrl-C properly
     ormolu --mode $ARG_ORMOLU_MODE --check-idempotence "$hsfile" &
     wait $! && err=0 || err=$?

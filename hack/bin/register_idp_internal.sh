@@ -14,7 +14,7 @@ if [ ! -e "${metadata_file}" ]; then
 fi
 
 z_user=$2
-if [ ! -n "${z_user}" ]; then
+if [ -z "${z_user}" ]; then
     echo "*** no z_user uuid"
     exit 80
 fi
