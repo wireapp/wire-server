@@ -40,7 +40,7 @@ main = do
   cas <- initCas (setCasBrig s) lgr
   mgr <- HTTP.newManager HTTP.defaultManagerSettings
   let es = initES (setESBrig s) mgr
-  runCommand lgr cas es (esIndex $ setESBrig s) (esMapping $ setESBrig s)
+  runCommand lgr cas es (esIndex $ setESBrig s)
   where
     desc =
       header "find-undead"

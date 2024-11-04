@@ -84,11 +84,13 @@ let
     # END maintained by us
     # --------------------
 
+    # FUTUREWORK: This can be replaced once bloodhound > v0.23.0.0 has been
+    # released and deployed to Hackage/nixpkgs.
     bloodhound = {
       src = fetchgit {
-        url = "https://github.com/wireapp/bloodhound";
-        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
-        hash = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
+        url = "https://github.com/bitemyapp/bloodhound";
+        rev = "c3a78373dfdbcbb14e363becfab0114deba44b28";
+        hash = "sha256-+Rgwcs0ZM9Tsy6p7d7Od8A1+6IWiI7r4r2pbBty1oDc=";
       };
     };
 
