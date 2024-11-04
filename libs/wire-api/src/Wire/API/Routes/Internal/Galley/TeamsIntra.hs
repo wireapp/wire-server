@@ -27,7 +27,6 @@ module Wire.API.Routes.Internal.Galley.TeamsIntra
   )
 where
 
-import Control.Lens ((?~))
 import Data.Aeson
 import Data.Currency qualified as Currency
 import Data.Json.Util
@@ -82,7 +81,6 @@ instance S.ToSchema TeamData where
 data TeamStatusUpdate = TeamStatusUpdate
   { tuStatus :: !TeamStatus,
     tuCurrency :: !(Maybe Currency.Alpha)
-    -- TODO: Remove Currency selection once billing supports currency changes after team creation
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform TeamStatusUpdate
@@ -93,15 +91,7 @@ instance S.ToSchema TeamStatusUpdate where
     S.object "TeamStatusUpdate" $
       TeamStatusUpdate
         <$> tuStatus S..= S.field "status" S.schema
-        <*> tuCurrency S..= S.maybe_ (S.optField "currency" currencyAlphaSchema)
-    where
-      currencyAlphaSchema :: S.ValueSchema S.NamedSwaggerDoc Currency.Alpha
-      currencyAlphaSchema = S.mkSchema docs parseJSON (pure . toJSON)
-        where
-          docs =
-            S.swaggerDoc @Text
-              & Swagger.schema . Swagger.description ?~ "ISO 4217 alphabetic codes"
-              & Swagger.schema . Swagger.example ?~ "EUR"
+        <*> tuCurrency S..= S.maybe_ (S.optField "currency" S.genericToSchema)
 
 newtype TeamName = TeamName
   {tnName :: Text}

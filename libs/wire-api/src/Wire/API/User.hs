@@ -1305,8 +1305,6 @@ newTeamUserTeamId = \case
 data BindingNewTeamUser = BindingNewTeamUser
   { bnuTeam :: NewTeam,
     bnuCurrency :: Maybe Currency.Alpha
-    -- FUTUREWORK:
-    -- Remove Currency selection once billing supports currency changes after team creation
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BindingNewTeamUser)
