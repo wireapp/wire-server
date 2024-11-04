@@ -1025,12 +1025,18 @@ removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
 removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
-  ( Member UserSubsystem r
+  ( Member UserSubsystem r,
+    Member (Error UserSubsystemError) r
   ) =>
   Local UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
-removeEmail =
-  lift . liftSem . fmap leftToMaybe . User.removeEmailEither
+removeEmail = lift . liftSem . User.removeEmailEither >=> reint
+  where
+    reint = \case
+      Left UserSubsystemNoIdentity -> pure . Just $ Public.NoIdentity
+      Left UserSubsystemLastIdentity -> pure . Just $ Public.LastIdentity
+      Left e -> lift . liftSem . throw $ e
+      Right () -> pure Nothing
 
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword

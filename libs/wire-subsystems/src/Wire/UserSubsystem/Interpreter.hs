@@ -159,7 +159,6 @@ runUserSubsystem authInterpreter = interpret $
     InternalFindTeamInvitation mEmailKey code ->
       internalFindTeamInvitationImpl mEmailKey code
     GetUserExportData uid -> getUserExportDataImpl uid
-    RemoveEmail luid -> removeEmailImpl luid
     RemoveEmailEither luid -> removeEmailEitherImpl luid
 
 scimExtId :: StoredUser -> Maybe Text
@@ -979,19 +978,18 @@ getUserExportDataImpl uid = fmap hush . runError @() $ do
         tExportStatus = su.status
       }
 
-removeEmailImpl ::
+removeEmailEitherImpl ::
   ( Member UserKeyStore r,
     Member UserStore r,
     Member Events r,
     Member IndexedUserStore r,
-    Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member GalleyAPIAccess r,
     Member Metrics r
   ) =>
   Local UserId ->
-  Sem r ()
-removeEmailImpl lusr = do
+  Sem r (Either UserSubsystemError ())
+removeEmailEitherImpl lusr = runError $ do
   let uid = tUnqualified lusr
   ident <- getSelfProfileImpl lusr >>= note UserSubsystemProfileNotFound
   case ident.selfUser.userIdentity of
@@ -1002,24 +1000,3 @@ removeEmailImpl lusr = do
       syncUserIndex uid
     Just _ -> throw UserSubsystemLastIdentity
     Nothing -> throw UserSubsystemNoIdentity
-
--- | Catch the no identity and the last identity error cases and return them as
--- values. Re-throw other errors.
-removeEmailEitherImpl ::
-  ( Member UserKeyStore r,
-    Member UserStore r,
-    Member Events r,
-    Member IndexedUserStore r,
-    Member (Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r,
-    Member GalleyAPIAccess r,
-    Member Metrics r
-  ) =>
-  Local UserId ->
-  Sem r (Either RemoveIdentityError ())
-removeEmailEitherImpl lusr =
-  runError (removeEmailImpl lusr) >>= \case
-    Left UserSubsystemNoIdentity -> pure . Left $ NoIdentity
-    Left UserSubsystemLastIdentity -> pure . Left $ LastIdentity
-    Left e -> throw e
-    Right () -> pure . Right $ ()

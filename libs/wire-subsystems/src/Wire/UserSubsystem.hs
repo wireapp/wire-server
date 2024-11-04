@@ -160,11 +160,7 @@ data UserSubsystem m a where
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
   GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
-  -- | Throws errors in the interpreter.
-  RemoveEmail :: Local UserId -> UserSubsystem m ()
-  -- | Implemented in terms of 'RemoveEmail', but returns as value only a few
-  -- errors of type 'RemoveIdentityError', and re-throws others.
-  RemoveEmailEither :: Local UserId -> UserSubsystem m (Either RemoveIdentityError ())
+  RemoveEmailEither :: Local UserId -> UserSubsystem m (Either UserSubsystemError ())
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
@@ -173,6 +169,14 @@ data CheckHandleResp
   deriving stock (Eq, Ord, Show)
 
 makeSem ''UserSubsystem
+
+removeEmail ::
+  ( Member UserSubsystem r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  Local UserId ->
+  Sem r ()
+removeEmail = removeEmailEither >=> fromEither
 
 getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
 getUserProfile luid targetUser =
