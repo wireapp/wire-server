@@ -583,8 +583,8 @@ createExternalCommit convId cid mgi = do
 data MLSNotificationTag = MLSNotificationMessageTag | MLSNotificationWelcomeTag
   deriving (Show, Eq, Ord)
 
-consumingMessages :: (HasCallStack) => MessagePackage -> Codensity App ()
-consumingMessages mp = Codensity $ \k -> do
+consumingMessages :: (HasCallStack) => MLSProtocol -> MessagePackage -> Codensity App ()
+consumingMessages mlsProtocol mp = Codensity $ \k -> do
   conv <- getMLSConv mp.convId
   -- clients that should receive the message itself
   let oldClients = Set.delete mp.sender conv.members
@@ -596,26 +596,27 @@ consumingMessages mp = Codensity $ \k -> do
         map (,MLSNotificationMessageTag) (toList oldClients)
           <> map (,MLSNotificationWelcomeTag) (toList newClients)
 
-  -- let newUsers =
-  --       Set.delete mp.sender.user $
-  --         Set.difference
-  --           (Set.map (.user) newClients)
-  --           (Set.map (.user) oldClients)
+  let newUsers =
+        Set.delete mp.sender.user $
+          Set.difference
+            (Set.map (.user) newClients)
+            (Set.map (.user) oldClients)
   withWebSockets (map fst clients) $ \wss -> do
     r <- k ()
 
     -- if the conversation is actually MLS (and not mixed), pick one client for
-    -- each new user and wait for its join event
-    -- when (mls.protocol == MLSProtocolMLS) $
-
-    -- traverse_
-    --   (awaitMatch (\n -> (||) <$> isMemberJoinNotif n <*> isWelcomeNotif n))
-    --   ( flip Map.restrictKeys newUsers
-    --       . Map.mapKeys ((.user) . fst)
-    --       . Map.fromList
-    --       . toList
-    --       $ zip clients wss
-    --   )
+    -- each new user and wait for its join event. In Mixed protocol, the user is
+    -- already in the conversation so they do not get a member-join
+    -- notification.
+    when (mlsProtocol == MLSProtocolMLS) $
+      traverse_
+        (awaitMatch (\n -> isMemberJoinNotif n))
+        ( flip Map.restrictKeys newUsers
+            . Map.mapKeys ((.user) . fst)
+            . Map.fromList
+            . toList
+            $ zip clients wss
+        )
 
     -- at this point we know that every new user has been added to the
     -- conversation
@@ -684,15 +685,18 @@ mlsCliConsume convId cs cid msgData =
 -- returns response body of 'postMLSMessage'
 sendAndConsumeMessage :: (HasCallStack) => MessagePackage -> App Value
 sendAndConsumeMessage mp = lowerCodensity $ do
-  consumingMessages mp
+  consumingMessages MLSProtocolMLS mp
   lift $ postMLSMessage mp.sender mp.message >>= getJSON 201
+
+sendAndConsumeCommitBundle :: (HasCallStack) => MessagePackage -> App Value
+sendAndConsumeCommitBundle = sendAndConsumeCommitBundleWithProtocol MLSProtocolMLS
 
 -- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
 -- update the test state accordingly.
-sendAndConsumeCommitBundle :: (HasCallStack) => MessagePackage -> App Value
-sendAndConsumeCommitBundle mp = do
+sendAndConsumeCommitBundleWithProtocol :: (HasCallStack) => MLSProtocol -> MessagePackage -> App Value
+sendAndConsumeCommitBundleWithProtocol protocol mp = do
   lowerCodensity $ do
-    consumingMessages mp
+    consumingMessages protocol mp
     lift $ do
       r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 

@@ -157,7 +157,6 @@ testMixedProtocolNonTeam secondDomain = do
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 403
 
--- TODO: This test could fail because of not keeping track of protocol
 testMixedProtocolAddUsers :: (HasCallStack) => Domain -> Ciphersuite -> App ()
 testMixedProtocolAddUsers secondDomain suite = do
   (alice, tid, _) <- createTeam OwnDomain 1
@@ -170,7 +169,6 @@ testMixedProtocolAddUsers secondDomain suite = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
-  -- modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
 
@@ -185,7 +183,7 @@ testMixedProtocolAddUsers secondDomain suite = do
   withWebSocket bob $ \ws -> do
     mp <- createAddCommit alice1 convId [bob]
     welcome <- assertJust "should have welcome" mp.welcome
-    void $ sendAndConsumeCommitBundle mp
+    void $ sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed mp
     n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
     nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
 
@@ -195,7 +193,6 @@ testMixedProtocolAddUsers secondDomain suite = do
     (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
     resp.json %. "cipher_suite" `shouldMatchInt` suiteCode
 
--- TODO: This test could fail because of not keeping track of protocol
 testMixedProtocolUserLeaves :: (HasCallStack) => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
@@ -208,7 +205,6 @@ testMixedProtocolUserLeaves secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
-  -- modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
 
@@ -220,7 +216,7 @@ testMixedProtocolUserLeaves secondDomain = do
   void $ uploadNewKeyPackage def bob1
 
   mp <- createAddCommit alice1 convId [bob]
-  void $ sendAndConsumeCommitBundle mp
+  void $ sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed mp
 
   withWebSocket alice $ \ws -> do
     bindResponse (removeConversationMember bob qcnv) $ \resp ->
@@ -246,7 +242,6 @@ testMixedProtocolAddPartialClients secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
-  -- modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
 
@@ -263,7 +258,7 @@ testMixedProtocolAddPartialClients secondDomain = do
     kps <- unbundleKeyPackages bundle
     kp1 <- assertOne (filter ((== bob1) . fst) kps)
     mp <- createAddCommitWithKeyPackages alice1 convId [kp1]
-    void $ sendAndConsumeCommitBundle mp
+    void $ sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed mp
 
   -- this tests that bob's backend has a mapping of group id to the remote conv
   -- this test is only interesting when bob is on OtherDomain
@@ -286,7 +281,6 @@ testMixedProtocolRemovePartialClients secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
-  -- modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
 
@@ -296,7 +290,7 @@ testMixedProtocolRemovePartialClients secondDomain = do
     objConvId resp.json
 
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
   mp <- createRemoveCommit alice1 convId [bob1]
 
   void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
@@ -313,7 +307,6 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
-  -- modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
 
@@ -324,7 +317,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
     createGroup def alice1 resp.json
     objConvId resp.json
 
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
 
   mp <- createApplicationMessage convId bob1 "hello, world"
   bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
@@ -339,13 +332,13 @@ testMLSProtocolUpgrade secondDomain = do
   -- alice creates MLS group and bob joins
   [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
   createGroup def alice1 convId
-  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
-  void $ createExternalCommit convId bob1 Nothing >>= sendAndConsumeCommitBundle
+  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
+  void $ createExternalCommit convId bob1 Nothing >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
 
   void $ withWebSocket bob $ \ws -> do
     -- charlie is added to the group
     void $ uploadNewKeyPackage def charlie1
-    void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
+    void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
     awaitMatch isNewMLSMessageNotif ws
 
   supportMLS alice
@@ -361,7 +354,6 @@ testMLSProtocolUpgrade secondDomain = do
   withWebSockets [alice1, bob1] $ \wss -> do
     bindResponse (putConversationProtocol bob convId "mls") $ \resp -> do
       resp.status `shouldMatchInt` 200
-    -- modifyMLSState $ \mls -> mls {protocol = MLSProtocolMLS}
     for_ wss $ \ws -> do
       n <- awaitMatch isNewMLSMessageNotif ws
       msg <- asByteString (nPayload n %. "data") >>= showMessage def alice1
