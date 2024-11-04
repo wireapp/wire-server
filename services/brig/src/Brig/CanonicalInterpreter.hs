@@ -214,6 +214,9 @@ runBrigToIO e (AppT ma) = do
           }
 
       -- These interpreters depend on each other, we use let recursion to solve that.
+      --
+      -- This terminates if and only if we do not create an action sequence at
+      -- runtime such that interpretation of actions results in a call cycle.
       userSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor UserSubsystem r
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
 
