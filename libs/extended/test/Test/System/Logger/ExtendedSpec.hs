@@ -28,6 +28,8 @@ import Test.Hspec (Spec, describe, it, shouldBe)
 spec :: Spec
 spec =
   describe "System.Loggger.Extended" $ do
+    it "instance {To,From}JSON LogFormat" $ do
+      Aeson.eitherDecode' "[\"JSON\", \"Plain\", \"Netstring\", \"StructuredJSON\"]" `shouldBe` Right [minBound @LogFormat ..]
     describe "LogFormat: StructuredJSON" $ do
       it "should encode logs as new line separated structured JSON with log level, messages and fields" $ do
         withSystemTempFile "structured-json" $ \f h -> do

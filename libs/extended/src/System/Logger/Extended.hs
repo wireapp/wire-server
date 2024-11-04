@@ -56,8 +56,8 @@ instance ToJSON LC.Level
 
 -- | The log formats supported
 data LogFormat = JSON | Plain | Netstring | StructuredJSON
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving stock (Eq, Show, Bounded, Enum, Generic)
+  deriving (ToJSON, FromJSON) via (S.Schema LogFormat)
 
 -- | We use this as an intermediate structure to ease the implementation of the
 -- ToJSON instance but we could just inline everything. I think this has
