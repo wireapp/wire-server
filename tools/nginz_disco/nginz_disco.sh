@@ -19,6 +19,7 @@ function valid_ipv4() {
     if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         OIFS=$IFS
         IFS='.'
+        # shellcheck disable=SC2206
         ip=($ip)
         IFS=$OIFS
         [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
@@ -40,16 +41,20 @@ function valid_ipv6() {
 function upstream() {
     name=$1
     port=${2:-'8080'}
-    ips=$(dig +short +retries=3 +search ${name} | sort)
+    ips=$(dig +short +retries=3 +search "${name}" | sort)
     unset servers
-    for ip in ${ips[@]}; do
-        if valid_ipv4 $ip || valid_ipv6 $ip; then
+    IFS=$' \t\n'
+    for ip in $ips; do
+        if valid_ipv4 "$ip" || valid_ipv6 "$ip"; then
             servers+=("\n\t server ${ip}:${port} max_fails=3 weight=100;")
         fi
     done;
+    # shellcheck disable=SC2128
     if [ -n "$servers" ]; then
+        # shellcheck disable=SC2068,SC2116,SC2059
         printf "upstream ${name} { \n\t least_conn; \n\t keepalive 32; $(echo ${servers[@]}) \n}\n" >> ${new}
     else
+        # shellcheck disable=SC2059
         printf "upstream ${name} { \n\t least_conn; \n\t keepalive 32; \n\t server localhost:${port} down;\n}\n" >> ${new}
     fi
 }
@@ -58,6 +63,7 @@ function routing_disco() {
     ivl=$(echo | awk '{ srand(); printf("%f", 1.5 + rand() * 1.5) }')
 
     upstreams=$(cat "$upstream_list")
+    # shellcheck disable=SC2206
     upstreams=( $upstreams )
 
     [[ -f $old ]] || touch -d "1970-01-01" $old
@@ -74,8 +80,8 @@ function routing_disco() {
 
     rm -f $new
 
-    echo done, sleeping $ivl
-    sleep $ivl
+    echo done, sleeping "$ivl"
+    sleep "$ivl"
 }
 
 while true; do

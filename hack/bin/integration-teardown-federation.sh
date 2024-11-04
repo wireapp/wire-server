@@ -24,6 +24,7 @@ else
     export INGRESS_CHART="nginx-ingress-controller"
 fi
 
+# shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
 helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy --skip-deps --skip-charts --concurrency 0 || echo "Failed to delete helm deployments, ignoring this failure as next steps will the destroy namespaces anyway."
 
