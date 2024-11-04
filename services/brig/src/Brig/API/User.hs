@@ -487,7 +487,7 @@ createUser new = do
         Nothing -> do
           timeout <- asks (.settings.activationTimeout)
           lift . liftSem $ do
-            edata <- newActivation ek timeout (Just uid)
+            edata <- newActivationCode ek timeout (Just uid)
             Log.info $
               field "user" (toByteString uid)
                 . field "activation.key" (toByteString $ activationKey edata)
@@ -739,7 +739,7 @@ sendActivationCode email loc = do
       case c of
         Just c' -> liftIO $ (,c') <$> Data.mkActivationKey k
         Nothing -> lift . liftSem $ do
-          dat <- newActivation k timeout u
+          dat <- newActivationCode k timeout u
           pure (activationKey dat, activationCode dat)
     sendVerificationEmail ek uc = do
       (key, code) <- mkPair ek uc Nothing

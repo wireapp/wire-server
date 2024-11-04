@@ -27,8 +27,8 @@ import Wire.UserKeyStore
 
 data ActivationCodeStore :: Effect where
   LookupActivationCode :: EmailKey -> ActivationCodeStore m (Maybe (Maybe UserId, ActivationCode))
-  -- | Create a new pending activation for a given 'EmailKey'.
-  NewActivation ::
+  -- | Create a code for a new pending activation for a given 'EmailKey'
+  NewActivationCode ::
     EmailKey ->
     -- | The timeout for the activation code.
     Timeout ->

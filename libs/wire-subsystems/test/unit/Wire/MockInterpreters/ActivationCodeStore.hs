@@ -19,7 +19,7 @@ inMemoryActivationCodeStoreInterpreter ::
   InterpreterFor ActivationCodeStore r
 inMemoryActivationCodeStoreInterpreter = interpret \case
   LookupActivationCode ek -> gets (!? ek)
-  NewActivation ek _ uid -> do
+  NewActivationCode ek _ uid -> do
     let key =
           ActivationKey
             . Ascii.encodeBase64Url

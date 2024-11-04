@@ -201,9 +201,9 @@ getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Se
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
   listToMaybe <$> getAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])
 
--- | Call 'changeEmail' and process result: if email changes to itself, succeed,
--- if not, send validation email.
-changeSelfEmail ::
+-- | Call 'createEmailChangeToken' and process result: if email changes to
+-- itself, succeed, if not, send validation email.
+requestEmailChange ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
@@ -265,7 +265,7 @@ changeEmail actTimeout lusr email updateOrigin = do
     _ -> do
       unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
         throw UserSubsystemEmailManagedByScim
-      act <- newActivation ek actTimeout (Just u)
+      act <- newActivationCode ek actTimeout (Just u)
       pure $ ChangeEmailNeedsActivation (usr, act, email)
 
 ------------------------------------------

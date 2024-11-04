@@ -24,7 +24,7 @@ interpretActivationCodeStoreToCassandra casClient =
       LookupActivationCode ek -> do
         liftIO (mkActivationKey ek)
           >>= retry x1 . query1 cql . params LocalQuorum . Identity
-      NewActivation ek timeout uid -> newActivationImpl ek timeout uid
+      NewActivationCode ek timeout uid -> newActivationCodeImpl ek timeout uid
   where
     cql :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
     cql =
@@ -33,7 +33,7 @@ interpretActivationCodeStoreToCassandra casClient =
       |]
 
 -- | Create a new pending activation for a given 'EmailKey'.
-newActivationImpl ::
+newActivationCodeImpl ::
   (MonadClient m) =>
   EmailKey ->
   -- | The timeout for the activation code.
@@ -41,7 +41,7 @@ newActivationImpl ::
   -- | The user with whom to associate the activation code.
   Maybe UserId ->
   m Activation
-newActivationImpl uk timeout u = do
+newActivationCodeImpl uk timeout u = do
   let typ = "email"
       key = fromEmail (emailKeyOrig uk)
   code <- liftIO $ genCode
