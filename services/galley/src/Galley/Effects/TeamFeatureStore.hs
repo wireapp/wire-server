@@ -27,10 +27,6 @@ data TeamFeatureStore m a where
     FeatureSingleton cfg ->
     TeamId ->
     TeamFeatureStore m (DbFeature cfg)
-  GetDbFeatureMulti ::
-    FeatureSingleton cfg ->
-    [TeamId] ->
-    TeamFeatureStore m [(TeamId, DbFeature cfg)]
   SetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
@@ -50,12 +46,6 @@ getDbFeature ::
   TeamId ->
   Sem r (DbFeature cfg)
 getDbFeature tid = send (GetDbFeature featureSingleton tid)
-
-getDbFeatureMulti ::
-  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
-  [TeamId] ->
-  Sem r [(TeamId, DbFeature cfg)]
-getDbFeatureMulti tids = send (GetDbFeatureMulti featureSingleton tids)
 
 setDbFeature ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>

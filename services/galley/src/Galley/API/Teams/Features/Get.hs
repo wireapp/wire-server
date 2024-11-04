@@ -21,7 +21,6 @@
 module Galley.API.Teams.Features.Get
   ( getFeature,
     getFeatureInternal,
-    getFeatureMulti,
     getAllTeamFeaturesForServer,
     getAllTeamFeaturesForTeam,
     getAllTeamFeaturesForUser,
@@ -141,20 +140,6 @@ getFeatureInternal ::
 getFeatureInternal tid = do
   assertTeamExists tid
   getFeatureForTeam tid
-
-getFeatureMulti ::
-  forall cfg r.
-  ( GetFeatureConfig cfg,
-    ComputeFeatureConstraints cfg r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r
-  ) =>
-  Multi.TeamFeatureNoConfigMultiRequest ->
-  Sem r (Multi.TeamFeatureNoConfigMultiResponse cfg)
-getFeatureMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
-  cfgs <- getFeatureForMultiTeam @cfg tids
-  let xs = uncurry toTeamStatus <$> cfgs
-  pure $ Multi.TeamFeatureNoConfigMultiResponse xs
 
 toTeamStatus :: TeamId -> LockableFeature cfg -> Multi.TeamStatus cfg
 toTeamStatus tid feat = Multi.TeamStatus tid feat.status
@@ -283,22 +268,6 @@ getFeatureForTeam tid = do
     tid
     defFeature
     dbFeature
-
-getFeatureForMultiTeam ::
-  forall cfg r.
-  ( GetFeatureConfig cfg,
-    ComputeFeatureConstraints cfg r,
-    Member TeamFeatureStore r,
-    Member (Input Opts) r
-  ) =>
-  [TeamId] ->
-  Sem r [(TeamId, LockableFeature cfg)]
-getFeatureForMultiTeam tids = do
-  defFeature <- getFeatureForServer
-  features <- getDbFeatureMulti tids
-  for features $ \(tid, dbFeature) -> do
-    feat <- computeFeature @cfg tid defFeature dbFeature
-    pure (tid, feat)
 
 getFeatureForTeamUser ::
   forall cfg r.
