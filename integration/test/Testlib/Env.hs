@@ -22,7 +22,6 @@ import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp
-import Testlib.JSON
 import Testlib.Prekeys
 import Testlib.ResourcePool
 import Testlib.Types
@@ -182,8 +181,7 @@ getMLSConv convId = do
   case mConv of
     Just conv -> pure conv
     Nothing -> do
-      convIdJSON <- prettyJSON convId
-      assertFailure $ "MLSConv not found, convId=" <> convIdJSON
+      assertFailure $ "MLSConv not found, convId=" <> show convId
 
 withAPIVersion :: Int -> App a -> App a
 withAPIVersion v = local $ \e -> e {defaultAPIVersion = v}

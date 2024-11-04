@@ -46,7 +46,7 @@ testJoinOne2OneSubConv = do
   createOne2OneSubConv def one2OneConvId bob1 "conference" (one2OneConv %. "public_keys")
 
   -- bob adds his first client to the subconversation
-  sub' <- getSubConversation bob (one2OneConv %. "conversation") "conference" >>= getJSON 200
+  sub' <- getSubConversation bob one2OneConvId "conference" >>= getJSON 200
   subConvId <- objConvId sub'
   do
     tm <- sub' %. "epoch_timestamp"
@@ -123,7 +123,7 @@ testDeleteParentOfSubConv secondDomain = do
 
   -- alice deletes main conversation
   withWebSocket bob $ \ws -> do
-    void . bindResponse (deleteTeamConv tid convId alice) $ \resp -> do
+    void . bindResponse (deleteTeamConv tid (convIdToQidObject convId) alice) $ \resp -> do
       resp.status `shouldMatchInt` 200
     void $ awaitMatch isConvDeleteNotif ws
 

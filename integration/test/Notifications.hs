@@ -130,7 +130,7 @@ isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObj
 isNotifConvId :: (MakesValue a, HasCallStack) => ConvId -> a -> App Bool
 isNotifConvId conv n = do
   let subconvField = "payload.0.subconv"
-  fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
+  fieldEquals n "payload.0.qualified_conversation" (convIdToQidObject conv)
     &&~ maybe (isNothing <$> lookupField n subconvField) (fieldEquals n subconvField) conv.subconvId
 
 isNotifForUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool

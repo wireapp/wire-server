@@ -84,7 +84,7 @@ testAccessUpdateGuestRemoved proto = do
 
       conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201
       convId <- objConvId conv
-      createGroup def alice1 conv
+      createGroup def alice1 convId
 
       void $ createAddCommit alice1 convId [bob, charlie, dee] >>= sendAndConsumeCommitBundle
       convQid <- conv %. "qualified_id"

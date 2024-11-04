@@ -285,23 +285,8 @@ data ConvId = ConvId
   }
   deriving (Show, Eq, Ord)
 
-instance ToJSON ConvId where
-  toJSON c =
-    object
-      [ fromString "parent_qualified_id"
-          .= object
-            [ fromString "id" .= c.id_,
-              fromString "domain" .= c.domain
-            ],
-        fromString "subconv_id" .= c.subconvId,
-        fromString "qualified_id"
-          .= object
-            [ fromString "id" .= c.id_,
-              fromString "domain" .= c.domain
-            ],
-        fromString "id" .= c.id_,
-        fromString "group_id" .= c.groupId
-      ]
+convIdToQidObject :: ConvId -> Value
+convIdToQidObject convId = object [fromString "id" .= convId.id_, fromString "domain" .= convId.domain]
 
 data MLSState = MLSState
   { baseDir :: FilePath,

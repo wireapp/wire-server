@@ -111,7 +111,7 @@ testMixedProtocolUpgrade secondDomain = do
   [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
   connectUsers [alice, bob, charlie]
 
-  qcnv <-
+  convId <-
     postConversation
       alice
       defProteus
@@ -119,42 +119,44 @@ testMixedProtocolUpgrade secondDomain = do
           team = Just tid
         }
       >>= getJSON 201
+      >>= objConvId
 
-  bindResponse (putConversationProtocol bob qcnv "mls") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "mls") $ \resp -> do
     resp.status `shouldMatchInt` 403
 
   withWebSockets [alice, charlie] $ \websockets -> do
-    bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+    bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
       resp.status `shouldMatchInt` 200
-      resp.json %. "conversation" `shouldMatch` (qcnv %. "id")
+      resp.json %. "qualified_conversation" `shouldMatch` (convIdToQidObject convId)
       resp.json %. "data.protocol" `shouldMatch` "mixed"
 
     for_ websockets $ \ws -> do
       n <- awaitMatch (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") ws
       nPayload n %. "data.protocol" `shouldMatch` "mixed"
 
-  bindResponse (getConversation alice qcnv) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mixed"
     resp.json %. "epoch" `shouldMatchInt` 0
 
-  bindResponse (putConversationProtocol alice qcnv "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol alice convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
 
-  bindResponse (putConversationProtocol bob qcnv "proteus") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "proteus") $ \resp -> do
     resp.status `shouldMatchInt` 403
 
-  bindResponse (putConversationProtocol bob qcnv "invalid") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "invalid") $ \resp -> do
     resp.status `shouldMatchInt` 400
 
 testMixedProtocolNonTeam :: (HasCallStack) => Domain -> App ()
 testMixedProtocolNonTeam secondDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, secondDomain]
-  qcnv <-
+  convId <-
     postConversation alice defProteus {qualifiedUsers = [bob]}
       >>= getJSON 201
+      >>= objConvId
 
-  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 403
 
 testMixedProtocolAddUsers :: (HasCallStack) => Domain -> Ciphersuite -> App ()
@@ -163,20 +165,20 @@ testMixedProtocolAddUsers secondDomain suite = do
   [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
   connectUsers [alice, bob, charlie]
 
-  qcnv <-
+  convId <-
     postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
       >>= getJSON 201
+      >>= objConvId
 
-  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
 
-  convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "epoch" `shouldMatchInt` 0
-    createGroup suite alice1 resp.json
-    objConvId resp.json
+    createGroup suite alice1 convId
 
   void $ uploadNewKeyPackage suite bob1
 
@@ -187,7 +189,7 @@ testMixedProtocolAddUsers secondDomain suite = do
     n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
     nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
 
-  bindResponse (getConversation alice qcnv) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "epoch" `shouldMatchInt` 1
     (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
@@ -199,19 +201,19 @@ testMixedProtocolUserLeaves secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  qcnv <-
+  convId <-
     postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
       >>= getJSON 201
+      >>= objConvId
 
-  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
 
-  convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    createGroup def alice1 resp.json
-    objConvId resp.json
+    createGroup def alice1 convId
 
   void $ uploadNewKeyPackage def bob1
 
@@ -219,7 +221,7 @@ testMixedProtocolUserLeaves secondDomain = do
   void $ sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed mp
 
   withWebSocket alice $ \ws -> do
-    bindResponse (removeConversationMember bob qcnv) $ \resp ->
+    bindResponse (removeConversationMember bob (convIdToQidObject convId)) $ \resp ->
       resp.status `shouldMatchInt` 200
 
     n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
@@ -236,19 +238,19 @@ testMixedProtocolAddPartialClients secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  qcnv <-
+  convId <-
     postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
       >>= getJSON 201
+      >>= objConvId
 
-  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
 
-  convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    createGroup def alice1 resp.json
-    objConvId resp.json
+    createGroup def alice1 convId
 
   traverse_ (uploadNewKeyPackage def) [bob1, bob1, bob2, bob2]
 
@@ -275,19 +277,19 @@ testMixedProtocolRemovePartialClients secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  qcnv <-
+  convId <-
     postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
       >>= getJSON 201
+      >>= objConvId
 
-  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
 
-  convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    createGroup def alice1 resp.json
-    objConvId resp.json
+    createGroup def alice1 convId
 
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
@@ -301,21 +303,21 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  qcnv <-
+  convId <-
     postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
       >>= getJSON 201
+      >>= objConvId
 
-  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
 
   void $ uploadNewKeyPackage def bob1
 
-  convId <- bindResponse (getConversation alice qcnv) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    createGroup def alice1 resp.json
-    objConvId resp.json
+    createGroup def alice1 convId
 
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
 
@@ -345,7 +347,7 @@ testMLSProtocolUpgrade secondDomain = do
   bindResponse (putConversationProtocol bob convId "mls") $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-migration-criteria-not-satisfied"
-  bindResponse (getConversation alice convId) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mixed"
 
@@ -361,7 +363,7 @@ testMLSProtocolUpgrade secondDomain = do
       msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexCharlie
       msg %. "message.content.sender.External" `shouldMatchInt` 0
 
-  bindResponse (getConversation alice convId) $ \resp -> do
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
 
@@ -411,7 +413,7 @@ testRemoteAddUser = do
   traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
   conv <- createNewGroup def alice1
   void $ createAddCommit alice1 conv [bob] >>= sendAndConsumeCommitBundle
-  bindResponse (updateConversationMember alice1 conv bob "wire_admin") $ \resp ->
+  bindResponse (updateConversationMember alice1 (convIdToQidObject conv) bob "wire_admin") $ \resp ->
     resp.status `shouldMatchInt` 200
 
   mp <- createAddCommit bob1 conv [charlie]
@@ -434,7 +436,7 @@ testRemoteRemoveClient suite = do
     void $ deleteClient bob bob1.client >>= getBody 200
     let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
     n <- awaitMatch predicate wsAlice
-    shouldMatch (nPayload n %. "conversation") (objId conv)
+    shouldMatch (nPayload n %. "qualified_conversation") (convIdToQidObject conv)
     shouldMatch (nPayload n %. "from") (objId bob)
 
     mlsMsg <- asByteString (nPayload n %. "data")
@@ -463,7 +465,7 @@ testRemoteRemoveCreatorClient suite = do
     void $ deleteClient alice alice1.client >>= getBody 200
     let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
     n <- awaitMatch predicate wsBob
-    shouldMatch (nPayload n %. "conversation") (objId conv)
+    shouldMatch (nPayload n %. "qualified_conversation") (convIdToQidObject conv)
     shouldMatch (nPayload n %. "from") (objId alice)
 
     mlsMsg <- asByteString (nPayload n %. "data")
@@ -495,7 +497,7 @@ testCreateSubConvProteus = do
   alice <- randomUser OwnDomain def
   conv <- bindResponse (postConversation alice defProteus) $ \resp -> do
     resp.status `shouldMatchInt` 201
-    resp.json
+    objConvId resp.json
   bindResponse (getSubConversation alice conv "conference") $ \resp ->
     resp.status `shouldMatchInt` 404
 
@@ -598,7 +600,7 @@ testAdminRemovesUserFromConv suite = do
 
   do
     event <- assertOne =<< asList (events %. "events")
-    event %. "qualified_conversation" `shouldMatch` objQidObject convId
+    event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
     event %. "type" `shouldMatch` "conversation.member-leave"
     event %. "from" `shouldMatch` objId alice
     members <- event %. "data" %. "qualified_user_ids" & asList
@@ -635,14 +637,14 @@ testLocalWelcome = do
 
     n <- awaitMatch isWelcome wsBob
 
-    shouldMatch (nPayload n %. "qualified_conversation") (objQidObject convId)
+    shouldMatch (nPayload n %. "qualified_conversation") (convIdToQidObject convId)
     shouldMatch (nPayload n %. "from") (objId alice)
     shouldMatch (nPayload n %. "data") (B8.unpack (Base64.encode welcome))
     pure es
 
   event <- assertOne =<< asList (es %. "events")
   event %. "type" `shouldMatch` "conversation.member-join"
-  event %. "qualified_conversation" `shouldMatch` objQidObject convId
+  event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
   addedUser <- (event %. "data.users") >>= asList >>= assertOne
   objQid addedUser `shouldMatch` objQid bob
 

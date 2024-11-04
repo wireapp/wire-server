@@ -141,13 +141,12 @@ simpleMixedConversationSetup secondDomain = do
   conv <-
     postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
       >>= getJSON 201
+      >>= objConvId
 
   bindResponse (putConversationProtocol bob conv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-  conv' <- getConversation alice conv >>= getJSON 200 >>= objConvId
-
-  pure (alice, bob, conv')
+  pure (alice, bob, conv)
 
 supportMLS :: (HasCallStack, MakesValue u) => u -> App ()
 supportMLS u = do

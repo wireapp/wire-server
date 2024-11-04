@@ -193,20 +193,20 @@ createNewGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App ConvId
 createNewGroup cs cid = do
   conv <- postConversation cid defMLS >>= getJSON 201
   convId <- objConvId conv
-  createGroup cs cid conv
+  createGroup cs cid convId
   pure convId
 
 -- | Retrieve self conversation and create the corresponding group.
 createSelfGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App (String, Value)
 createSelfGroup cs cid = do
   conv <- getSelfConversation cid >>= getJSON 200
+  convId <- objConvId conv
   groupId <- conv %. "group_id" & asString
-  createGroup cs cid conv
+  createGroup cs cid convId
   pure (groupId, conv)
 
-createGroup :: (MakesValue conv) => Ciphersuite -> ClientIdentity -> conv -> App ()
-createGroup cs cid conv = do
-  convId <- objConvId conv
+createGroup :: Ciphersuite -> ClientIdentity -> ConvId -> App ()
+createGroup cs cid convId = do
   let Just groupId = convId.groupId
   modifyMLSState $ \s ->
     let mlsConv =
@@ -226,7 +226,7 @@ createSubConv :: (HasCallStack) => Ciphersuite -> ConvId -> ClientIdentity -> St
 createSubConv cs convId cid subId = do
   sub <- getSubConversation cid convId subId >>= getJSON 200
   subConvId <- objConvId sub
-  createGroup cs cid sub
+  createGroup cs cid subConvId
   void $ createPendingProposalCommit subConvId cid >>= sendAndConsumeCommitBundle
 
 createOne2OneSubConv :: (HasCallStack, MakesValue keys) => Ciphersuite -> ConvId -> ClientIdentity -> String -> keys -> App ()
@@ -613,7 +613,7 @@ consumeMessageWithPredicate p convId cs cid mmp ws = do
   notif <- awaitMatch p ws
   event <- notif %. "payload.0"
 
-  event %. "qualified_conversation" `shouldMatch` objQidObject convId
+  event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
   lookupField event "subconv" `shouldMatch` convId.subconvId
 
   for_ mmp $ \mp -> do
@@ -715,7 +715,7 @@ consumeWelcome cid mp ws = do
   event <- notif %. "payload.0"
 
   -- eventSubConv event `shouldMatch` mp.convId
-  event %. "qualified_conversation" `shouldMatch` objQidObject mp.convId
+  event %. "qualified_conversation" `shouldMatch` convIdToQidObject mp.convId
   lookupField event "subconv" `shouldMatch` mp.convId.subconvId
   event %. "from" `shouldMatch` mp.sender.user
   event %. "data" `shouldMatch` (fmap (B8.unpack . Base64.encode) mp.welcome)
@@ -855,7 +855,7 @@ leaveConv convId cid = do
 getConv :: (HasCallStack) => ConvId -> ClientIdentity -> App Value
 getConv convId cid = do
   resp <- case convId.subconvId of
-    Nothing -> getConversation cid convId
+    Nothing -> getConversation cid (convIdToQidObject convId)
     Just sub -> getSubConversation cid convId sub
   getJSON 200 resp
 

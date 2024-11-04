@@ -155,8 +155,8 @@ testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
 
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
-  createGroup def alice1 conv
   convId <- objConvId conv
+  createGroup def alice1 convId
 
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
