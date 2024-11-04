@@ -159,7 +159,6 @@ testMixedProtocolNonTeam secondDomain = do
   bindResponse (putConversationProtocol bob convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 403
 
--- TODO: This test could fail because of not keeping track of protocol
 testMixedProtocolAddUsers :: (HasCallStack) => Domain -> Ciphersuite -> App ()
 testMixedProtocolAddUsers secondDomain suite = do
   (alice, tid, _) <- createTeam OwnDomain 1
@@ -198,7 +197,6 @@ testMixedProtocolAddUsers secondDomain suite = do
     (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
     resp.json %. "cipher_suite" `shouldMatchInt` suiteCode
 
--- TODO: This test could fail because of not keeping track of protocol
 testMixedProtocolUserLeaves :: (HasCallStack) => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
