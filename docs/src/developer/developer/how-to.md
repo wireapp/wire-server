@@ -234,3 +234,20 @@ This leads to such entry:
 [url "git@github.com:"]
         insteadOf = https://github.com/
 ```
+
+## How to use opensearch-dashboards
+
+Our docker-compose setup contains a configured
+[`opensearch-dashboards`](https://opensearch.org/docs/latest/dashboards/)
+instance:
+
+- URL: http://localhost:5601
+- Username: `elastic`
+- Password: `changeme`
+
+To search in indices, *Index patterns* need to be created; identifying which
+indices you care for. This is IMHO a bit hidden in the UI, so I'm stating it
+here for future reference:
+
+- `Management` -> `Stack Management` -> `Index patterns`
+- http://localhost:5601/app/management/opensearch-dashboards/indexPatterns
