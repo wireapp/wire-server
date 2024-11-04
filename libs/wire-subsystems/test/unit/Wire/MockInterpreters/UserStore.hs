@@ -37,6 +37,13 @@ inMemoryUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserSupportedProtocols update.supportedProtocols
               $ u
           else u
+  UpdateEmailUnvalidated uid email -> modify (map doUpdate)
+    where
+      doUpdate :: StoredUser -> StoredUser
+      doUpdate u =
+        if u.id == uid
+          then u {emailUnvalidated = Just email}
+          else u
   GetIndexUser uid ->
     gets $ fmap storedUserToIndexUser . find (\user -> user.id == uid)
   GetIndexUsersPaginated _pageSize _pagingState ->
@@ -74,6 +81,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
   GetActivityTimestamps _ -> pure []
   GetRichInfo _ -> error "rich info not implemented"
   GetUserAuthenticationInfo _uid -> error "Not implemented"
+  DeleteEmail _uid -> error "Not implemented"
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

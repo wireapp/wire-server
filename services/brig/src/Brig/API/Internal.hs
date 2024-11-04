@@ -117,6 +117,7 @@ import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -149,7 +150,8 @@ servantSitemap ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member HashPassword r,
     Member (Embed IO) r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -203,7 +205,9 @@ accountAPI ::
     Member HashPassword r,
     Member InvitationStore r,
     Member (Embed IO) r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -477,7 +481,8 @@ createUserNoVerify ::
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member HashPassword r,
-    Member PasswordResetCodeStore r
+    Member PasswordResetCodeStore r,
+    Member ActivationCodeStore r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -538,7 +543,11 @@ changeSelfEmailMaybeSendH ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   EmailUpdate ->
@@ -554,7 +563,11 @@ changeSelfEmailMaybeSend ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   MaybeSendEmail ->
@@ -562,11 +575,16 @@ changeSelfEmailMaybeSend ::
   UpdateOriginType ->
   (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
-  API.changeSelfEmail u email allowScim
+  lusr <- qualifyLocal u
+  lift . liftSem $
+    UserSubsystem.requestEmailChange lusr email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
-  API.changeEmail u email allowScim !>> changeEmailError >>= \case
-    ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
-    ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
+  lusr <- qualifyLocal u
+  (lift . liftSem)
+    (UserSubsystem.createEmailChangeToken lusr email allowScim)
+    >>= \case
+      ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+      ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This

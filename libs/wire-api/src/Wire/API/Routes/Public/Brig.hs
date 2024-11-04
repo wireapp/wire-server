@@ -363,7 +363,7 @@ type SelfAPI =
           :> Description
                "Your email address can only be removed if you also have a \
                \phone number."
-          :> ZUser
+          :> ZLocalUser
           :> "self"
           :> "email"
           :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)

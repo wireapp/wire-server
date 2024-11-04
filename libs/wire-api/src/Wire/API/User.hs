@@ -1515,7 +1515,6 @@ instance (res ~ ChangePhoneResponses) => AsUnion res (Maybe ChangePhoneError) wh
 
 data RemoveIdentityError
   = LastIdentity
-  | NoPassword
   | NoIdentity
   deriving (Generic)
   deriving (AsUnion RemoveIdentityErrorResponses) via GenericAsUnion RemoveIdentityErrorResponses RemoveIdentityError
@@ -1524,7 +1523,6 @@ instance GSOP.Generic RemoveIdentityError
 
 type RemoveIdentityErrorResponses =
   [ ErrorResponse 'E.LastIdentity,
-    ErrorResponse 'E.NoPassword,
     ErrorResponse 'E.NoIdentity
   ]
 

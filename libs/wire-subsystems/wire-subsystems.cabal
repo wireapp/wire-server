@@ -135,6 +135,7 @@ library
     Wire.UserSubsystem.Error
     Wire.UserSubsystem.HandleBlacklist
     Wire.UserSubsystem.Interpreter
+    Wire.UserSubsystem.UserSubsystemConfig
     Wire.VerificationCode
     Wire.VerificationCodeGen
     Wire.VerificationCodeStore
