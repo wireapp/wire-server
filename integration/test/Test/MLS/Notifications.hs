@@ -12,7 +12,7 @@ testWelcomeNotification = do
   [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def def) [alice, alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [alice2, bob1, bob2]
 
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   notif <- withWebSocket bob $ \ws -> do
     void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
     awaitMatch isWelcomeNotif ws

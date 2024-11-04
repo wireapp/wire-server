@@ -189,17 +189,12 @@ generateKeyPackage cid suite = do
   pure (kp, ref)
 
 -- | Create conversation and corresponding group.
---
--- returns (groupId, convId)
---
--- TODO: Don't return groupId as it is already part of ConvId or remove it from ConvID.
-createNewGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App (String, ConvId)
+createNewGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App ConvId
 createNewGroup cs cid = do
   conv <- postConversation cid defMLS >>= getJSON 201
-  groupId <- conv %. "group_id" & asString
   convId <- objConvId conv
   createGroup cs cid conv
-  pure (groupId, convId)
+  pure convId
 
 -- | Retrieve self conversation and create the corresponding group.
 createSelfGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App (String, Value)

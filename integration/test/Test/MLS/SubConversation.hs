@@ -16,7 +16,7 @@ testJoinSubConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
   void $ createSubConv def convId bob1 "conference"
@@ -99,7 +99,7 @@ testDeleteParentOfSubConv secondDomain = do
 
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   traverse_ (uploadNewKeyPackage def) [alice1, bob1]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
   -- bob creates a subconversation and adds his own client
@@ -149,7 +149,7 @@ testDeleteSubConversation otherDomain = do
   charlie <- randomUser OwnDomain def
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
   createSubConv def convId alice1 "conference1"
@@ -172,7 +172,7 @@ testLeaveSubConv leaver = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
   clients@[alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def def) [alice, bob, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2, charlie1]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   withWebSockets [bob, charlie] $ \wss -> do
     void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
@@ -239,7 +239,7 @@ testCreatorRemovesUserFromParent = do
   addUsersToFailureContext [("alice", alice), ("bob", bob), ("charlie", charlie)] $ do
     [alice1, bob1, bob2, charlie1, charlie2] <- traverse (createMLSClient def def) [alice, bob, bob, charlie, charlie]
     traverse_ (uploadNewKeyPackage def) [bob1, bob2, charlie1, charlie2]
-    (_, convId) <- createNewGroup def alice1
+    convId <- createNewGroup def alice1
 
     _ <- createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
 
@@ -327,7 +327,7 @@ testResendingProposals = do
       [alice, alice, bob, bob, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [alice2, bob1, bob2, bob3, charlie1]
 
-  (_, conv) <- createNewGroup def alice1
+  conv <- createNewGroup def alice1
   void $ createAddCommit alice1 conv [alice, bob, charlie] >>= sendAndConsumeCommitBundle
 
   createSubConv def conv alice1 "conference"

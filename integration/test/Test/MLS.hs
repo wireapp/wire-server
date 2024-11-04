@@ -22,7 +22,7 @@ testSendMessageNoReturnToSender = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def def) [alice, alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [alice2, bob1, bob2]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
 
   -- alice1 sends a message to the conversation, all clients but alice1 receive
@@ -50,7 +50,7 @@ testPastStaleApplicationMessage otherDomain = do
     createAndConnectUsers [OwnDomain, otherDomain, OwnDomain, OwnDomain, OwnDomain]
   [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   -- alice adds bob first
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
@@ -76,7 +76,7 @@ testFutureStaleApplicationMessage = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
   [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   -- alice adds bob
   void . sendAndConsumeCommitBundle =<< createAddCommit alice1 convId [bob]
@@ -375,7 +375,7 @@ testAddUserSimple suite ctype = do
 
   void $ uploadNewKeyPackage suite bob2
   qcnv <- withWebSocket alice $ \ws -> do
-    (_, qcnv) <- createNewGroup suite alice1
+    qcnv <- createNewGroup suite alice1
     -- check that the conversation inside the ConvCreated event contains
     -- epoch and ciphersuite, regardless of the API version
     n <- awaitMatch isConvCreateNotif ws
@@ -409,7 +409,7 @@ testRemoteAddUser = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OwnDomain]
   [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
-  (_, conv) <- createNewGroup def alice1
+  conv <- createNewGroup def alice1
   void $ createAddCommit alice1 conv [bob] >>= sendAndConsumeCommitBundle
   bindResponse (updateConversationMember alice1 conv bob "wire_admin") $ \resp ->
     resp.status `shouldMatchInt` 200
@@ -427,7 +427,7 @@ testRemoteRemoveClient suite = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
   void $ uploadNewKeyPackage suite bob1
-  (_, conv) <- createNewGroup suite alice1
+  conv <- createNewGroup suite alice1
   void $ createAddCommit alice1 conv [bob] >>= sendAndConsumeCommitBundle
 
   withWebSocket alice $ \wsAlice -> do
@@ -456,7 +456,7 @@ testRemoteRemoveCreatorClient suite = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
   void $ uploadNewKeyPackage suite bob1
-  (_, conv) <- createNewGroup suite alice1
+  conv <- createNewGroup suite alice1
   void $ createAddCommit alice1 conv [bob] >>= sendAndConsumeCommitBundle
 
   withWebSocket bob $ \wsBob -> do
@@ -486,7 +486,7 @@ testCreateSubConv suite = do
   replicateM_ 3 $ traverse_ (uploadNewKeyPackage suite) aliceClients
   [bob1, bob2] <- replicateM 2 $ createMLSClient suite def bob
   replicateM_ 3 $ traverse_ (uploadNewKeyPackage suite) [bob1, bob2]
-  (_, convId) <- createNewGroup suite alice1
+  convId <- createNewGroup suite alice1
   void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
   createSubConv suite convId alice1 "conference"
 
@@ -525,7 +525,7 @@ testFirstCommitAllowsPartialAdds = do
   [alice1, alice2, alice3] <- traverse (createMLSClient def def) [alice, alice, alice]
   traverse_ (uploadNewKeyPackage def) [alice1, alice2, alice2, alice3, alice3]
 
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   bundle <- claimKeyPackages def alice1 alice >>= getJSON 200
   kps <- unbundleKeyPackages bundle
@@ -553,7 +553,7 @@ testAddUserPartial = do
   traverse_ (uploadNewKeyPackage def) (take 2 bobClients <> charlieClients)
 
   -- alice adds bob's first 2 clients
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   -- alice sends a commit now, and should get a conflict error
   kps <- fmap concat . for [bob, charlie] $ \user -> do
@@ -576,7 +576,7 @@ testRemoveClientsIncomplete = do
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
   mp <- createRemoveCommit alice1 convId [bob1]
 
@@ -591,7 +591,8 @@ testAdminRemovesUserFromConv suite = do
 
   void $ createWireClient bob def
   traverse_ (uploadNewKeyPackage suite) [bob1, bob2]
-  (gid, convId) <- createNewGroup suite alice1
+  convId <- createNewGroup suite alice1
+  let Just gid = convId.groupId
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
   events <- createRemoveCommit alice1 convId [bob1, bob2] >>= sendAndConsumeCommitBundle
 
@@ -623,7 +624,7 @@ testLocalWelcome = do
 
   void $ uploadNewKeyPackage def bob1
 
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   commit <- createAddCommit alice1 convId [bob]
   Just welcome <- pure commit.welcome
@@ -652,7 +653,7 @@ testStaleCommit = do
 
   (alice1 : clients) <- traverse (createMLSClient def def) (alice : users)
   traverse_ (uploadNewKeyPackage def) clients
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   gsBackup <- getClientGroupState alice1
 
@@ -671,7 +672,7 @@ testPropInvalidEpoch :: (HasCallStack) => App ()
 testPropInvalidEpoch = do
   users@[_alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 OwnDomain)
   [alice1, bob1, charlie1, dee1] <- traverse (createMLSClient def def) users
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   -- Add bob -> epoch 1
   void $ uploadNewKeyPackage def bob1
@@ -714,7 +715,7 @@ testPropUnsupported = do
   users@[_alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
   [alice1, bob1] <- traverse (createMLSClient def def) users
   void $ uploadNewKeyPackage def bob1
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
   mp <- createReInitProposal convId alice1
@@ -726,7 +727,7 @@ testAddUserBareProposalCommit :: (HasCallStack) => App ()
 testAddUserBareProposalCommit = do
   [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   void $ uploadNewKeyPackage def bob1
   void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
 
@@ -749,7 +750,7 @@ testPropExistingConv = do
   [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
   res <- createAddProposals convId alice1 [bob] >>= traverse sendAndConsumeMessage >>= assertOne
   shouldBeEmpty (res %. "events")
@@ -763,7 +764,7 @@ testCommitNotReferencingAllProposals = do
   users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
 
   [alice1, bob1, charlie1] <- traverse (createMLSClient def def) users
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
   traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
   void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
 
@@ -789,7 +790,7 @@ testUnsupportedCiphersuite = do
   let suite = (Ciphersuite "0x0003")
   alice <- randomUser OwnDomain def
   alice1 <- createMLSClient suite def alice
-  (_, convId) <- createNewGroup suite alice1
+  convId <- createNewGroup suite alice1
 
   mp <- createPendingProposalCommit convId alice1
 
@@ -802,7 +803,7 @@ testBackendRemoveProposal suite domain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, domain]
   (alice1 : bobClients) <- traverse (createMLSClient suite def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage suite) bobClients
-  (_, convId) <- createNewGroup suite alice1
+  convId <- createNewGroup suite alice1
 
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 

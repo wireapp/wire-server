@@ -915,7 +915,7 @@ testBlockLHForMLSUsers = do
   -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
   (charlie, tid, []) <- createTeam OwnDomain 1
   [charlie1] <- traverse (createMLSClient def def) [charlie]
-  (_, convId) <- createNewGroup def charlie1
+  convId <- createNewGroup def charlie1
   void $ createAddCommit charlie1 convId [charlie] >>= sendAndConsumeCommitBundle
 
   legalholdWhitelistTeam tid charlie >>= assertStatus 200
@@ -969,7 +969,7 @@ testBlockCreateMLSConvForLHUsers v = do
     pStatus `shouldMatch` "enabled"
 
     -- charlie tries to create a group and should fail when POSTing the add commit
-    (_, convId) <- createNewGroup def charlie1
+    convId <- createNewGroup def charlie1
 
     void
       -- we try to add alice since adding charlie himself would trigger 2.1

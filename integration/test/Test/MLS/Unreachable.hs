@@ -35,7 +35,7 @@ testAddUsersSomeReachable = do
 
     [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
     traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
-    (_, convId) <- createNewGroup def alice1
+    convId <- createNewGroup def alice1
     void $ withWebSocket bob $ \ws -> do
       void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
       awaitMatch isMemberJoinNotif ws
@@ -59,7 +59,7 @@ testAddUserWithUnreachableRemoteUsers = do
       [alice1, charlie1, chris1] <-
         traverse (createMLSClient def def) [alice, charlie, chris]
       traverse_ (uploadNewKeyPackage def) [charlie1, chris1]
-      (_, convId) <- createNewGroup def alice1
+      convId <- createNewGroup def alice1
       void $ withWebSocket charlie $ \ws -> do
         void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
         awaitMatch isMemberJoinNotif ws
@@ -100,7 +100,7 @@ testAddUnreachableUserFromFederatingBackend = do
 
       [alice1, bob1, charlie1, chad1] <- traverse (createMLSClient def def) [alice, bob, charlie, chad]
       traverse_ (uploadNewKeyPackage def) [bob1, charlie1, chad1]
-      (_, convId) <- createNewGroup def alice1
+      convId <- createNewGroup def alice1
       withWebSockets [bob, charlie] $ \wss -> do
         void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
         forM_ wss $ awaitMatch isMemberJoinNotif

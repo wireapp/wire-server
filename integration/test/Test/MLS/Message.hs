@@ -45,7 +45,7 @@ testApplicationMessage = do
       (createMLSClient def def)
       [alice, alice, alex, alex, bob, bob, betty, betty]
   traverse_ (uploadNewKeyPackage def) clients
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   withWebSockets [alice, alex, bob, betty] $ \wss -> do
     -- alice adds all other users (including her own client)
@@ -71,7 +71,7 @@ testAppMessageSomeReachable = do
 
     [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
     traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
-    (_, convId) <- createNewGroup def alice1
+    convId <- createNewGroup def alice1
     void $ withWebSocket charlie $ \ws -> do
       void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
       awaitMatch isMemberJoinNotif ws
@@ -91,7 +91,7 @@ testMessageNotifications bobDomain = do
 
   traverse_ (uploadNewKeyPackage def) [alice1, alice2, bob1, bob2]
 
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   void $ withWebSocket bob $ \ws -> do
     void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
@@ -117,7 +117,7 @@ testMultipleMessages = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
   traverse_ (uploadNewKeyPackage def) [alice1, bob1]
-  (_, convId) <- createNewGroup def alice1
+  convId <- createNewGroup def alice1
 
   withWebSockets [bob] $ \wss -> do
     void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
