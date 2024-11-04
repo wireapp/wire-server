@@ -982,7 +982,7 @@ testBlockCreateMLSConvForLHUsers v = do
     -- (unsurprisingly) this same thing should also work in the one2one case
 
     respJson <- getMLSOne2OneConversation alice charlie >>= getJSON 200
-    resetGroup def alice1 (respJson %. "conversation")
+    createGroup def alice1 (respJson %. "conversation")
 
     void
       -- we try to add alice since adding charlie himself would trigger 2.1

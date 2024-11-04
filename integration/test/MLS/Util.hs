@@ -204,34 +204,8 @@ createSelfGroup cs cid = do
   createGroup cs cid conv
   pure (groupId, conv)
 
--- TODO: Remove this or remove resetGroup
 createGroup :: (MakesValue conv) => Ciphersuite -> ClientIdentity -> conv -> App ()
-createGroup cs cid conv = resetGroup cs cid conv
-
-createSubConv :: (HasCallStack) => Ciphersuite -> ConvId -> ClientIdentity -> String -> App ()
-createSubConv cs convId cid subId = do
-  sub <- getSubConversation cid convId subId >>= getJSON 200
-  subConvId <- objConvId sub
-  resetGroup cs cid sub
-  void $ createPendingProposalCommit subConvId cid >>= tap "Pending Proposal Commit" >>= sendAndConsumeCommitBundle
-
-tap :: String -> MessagePackage -> App MessagePackage
-tap _ x = pure x
-
--- tap tag x = do
---   j <- prettyJSON x.convId
---   putStrLn $ "Tap: " <> tag <> "\n" <> j
---   pure x
-
-createOne2OneSubConv :: (HasCallStack, MakesValue keys) => Ciphersuite -> ConvId -> ClientIdentity -> String -> keys -> App ()
-createOne2OneSubConv cs convId cid subId keys = do
-  sub <- getSubConversation cid convId subId >>= getJSON 200
-  subConvId <- objConvId sub
-  resetOne2OneGroupGeneric cs cid sub keys
-  void $ createPendingProposalCommit subConvId cid >>= sendAndConsumeCommitBundle
-
-resetGroup :: (HasCallStack, MakesValue conv) => Ciphersuite -> ClientIdentity -> conv -> App ()
-resetGroup cs cid conv = do
+createGroup cs cid conv = do
   convId <- objConvId conv
   let Just groupId = convId.groupId
   modifyMLSState $ \s ->
@@ -247,6 +221,20 @@ resetGroup cs cid conv = do
      in s {convs = Map.insert convId mlsConv s.convs}
   keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
   resetClientGroup cs cid groupId convId keys
+
+createSubConv :: (HasCallStack) => Ciphersuite -> ConvId -> ClientIdentity -> String -> App ()
+createSubConv cs convId cid subId = do
+  sub <- getSubConversation cid convId subId >>= getJSON 200
+  subConvId <- objConvId sub
+  createGroup cs cid sub
+  void $ createPendingProposalCommit subConvId cid >>= sendAndConsumeCommitBundle
+
+createOne2OneSubConv :: (HasCallStack, MakesValue keys) => Ciphersuite -> ConvId -> ClientIdentity -> String -> keys -> App ()
+createOne2OneSubConv cs convId cid subId keys = do
+  sub <- getSubConversation cid convId subId >>= getJSON 200
+  subConvId <- objConvId sub
+  resetOne2OneGroupGeneric cs cid sub keys
+  void $ createPendingProposalCommit subConvId cid >>= sendAndConsumeCommitBundle
 
 resetOne2OneGroup :: (HasCallStack, MakesValue one2OneConv) => Ciphersuite -> ClientIdentity -> one2OneConv -> App ()
 resetOne2OneGroup cs cid one2OneConv =
