@@ -113,7 +113,7 @@ config:
     replicationFactor: 1
 
   elasticsearch:
-    host: elasticsearch-ephemeral
+    host: opensearch-cluster-master
 
   sqsEndpointUrl: http://fake-aws-sqs:4568
   sesEndpointUrl: http://fake-aws-ses:4569
