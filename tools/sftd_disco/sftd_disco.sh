@@ -31,8 +31,8 @@ function upstream() {
     entries=$(dig +short +retries=3 +search SRV "${name}" | sort)
     unset servers
     comma=""
-    IFS=$'\n'
-    for entry in "${entries[@]}"; do
+    IFS=$' \t\n'
+    for entry in $entries; do
         if valid_entry "$entry"; then
             sft_host_port=$(echo "$entry" | awk '{print $4":"$3}')
             sft_url=$(curl -s http://"$sft_host_port"/sft/url | xargs)
