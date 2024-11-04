@@ -203,7 +203,8 @@ accountAPI ::
     Member HashPassword r,
     Member InvitationStore r,
     Member (Embed IO) r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -541,7 +542,8 @@ changeSelfEmailMaybeSendH ::
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r
   ) =>
   UserId ->
   EmailUpdate ->
@@ -559,7 +561,8 @@ changeSelfEmailMaybeSend ::
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r
   ) =>
   UserId ->
   MaybeSendEmail ->
@@ -569,14 +572,16 @@ changeSelfEmailMaybeSend ::
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   lusr <- qualifyLocal u
   timeout <- asks (.settings.activationTimeout)
-  liftUserSubsystemError $
+  lift . liftSem $
     UserSubsystem.requestEmailChange timeout lusr email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
   lusr <- qualifyLocal u
   timeout <- asks (.settings.activationTimeout)
-  liftUserSubsystemError (UserSubsystem.createEmailChangeToken timeout lusr email allowScim) >>= \case
-    ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
-    ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
+  (lift . liftSem)
+    (UserSubsystem.createEmailChangeToken timeout lusr email allowScim)
+    >>= \case
+      ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+      ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This

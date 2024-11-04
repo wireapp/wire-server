@@ -1343,7 +1343,8 @@ updateUserEmail ::
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Error UserSubsystemError) r
   ) =>
   UserId ->
   UserId ->
@@ -1356,7 +1357,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   acTimeout <- asks (.settings.activationTimeout)
   lEmailOwnerId <- qualifyLocal emailOwnerId
-  void . liftUserSubsystemError $
+  void . lift . liftSem $
     User.requestEmailChange acTimeout lEmailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()

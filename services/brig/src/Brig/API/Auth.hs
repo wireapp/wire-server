@@ -38,6 +38,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
+import Polysemy.Error (Error)
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Error
@@ -58,6 +59,7 @@ import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UpdateOriginType (..), UserSubsystem)
 import Wire.UserSubsystem qualified as User
+import Wire.UserSubsystem.Error
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
@@ -134,7 +136,8 @@ changeSelfEmail ::
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Error UserSubsystemError) r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -148,7 +151,8 @@ changeSelfEmail uts' mat' up = do
   lusr <- qualifyLocal usr
   let email = euEmail up
   timeout <- asks (.settings.activationTimeout)
-  liftUserSubsystemError $ User.requestEmailChange timeout lusr email UpdateOriginWireClient
+  lift . liftSem $
+    User.requestEmailChange timeout lusr email UpdateOriginWireClient
 
 validateCredentials ::
   (TokenPair u a) =>
