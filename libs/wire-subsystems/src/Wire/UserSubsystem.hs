@@ -217,9 +217,9 @@ requestEmailChange ::
   EmailAddress ->
   UpdateOriginType ->
   Sem r ChangeEmailResponse
-changeSelfEmail actTimeout lusr email allowScim = do
+requestEmailChange actTimeout lusr email allowScim = do
   let u = tUnqualified lusr
-  changeEmail actTimeout lusr email allowScim >>= \case
+  createEmailChangeToken actTimeout lusr email allowScim >>= \case
     ChangeEmailIdempotent ->
       pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation (usr, adata, en) -> do
@@ -237,7 +237,7 @@ changeSelfEmail actTimeout lusr email allowScim = do
         (Just (userLocale usr))
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail ::
+createEmailChangeToken ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member (Error UserSubsystemError) r,
@@ -249,7 +249,7 @@ changeEmail ::
   EmailAddress ->
   UpdateOriginType ->
   Sem r ChangeEmailResult
-changeEmail actTimeout lusr email updateOrigin = do
+createEmailChangeToken actTimeout lusr email updateOrigin = do
   let ek = mkEmailKey email
       u = tUnqualified lusr
   blocklisted <- BlockListStore.exists ek

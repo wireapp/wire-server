@@ -570,11 +570,11 @@ changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   lusr <- qualifyLocal u
   timeout <- asks (.settings.activationTimeout)
   liftUserSubsystemError $
-    UserSubsystem.changeSelfEmail timeout lusr email allowScim
+    UserSubsystem.requestEmailChange timeout lusr email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
   lusr <- qualifyLocal u
   timeout <- asks (.settings.activationTimeout)
-  liftUserSubsystemError (UserSubsystem.changeEmail timeout lusr email allowScim) >>= \case
+  liftUserSubsystemError (UserSubsystem.createEmailChangeToken timeout lusr email allowScim) >>= \case
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 

@@ -148,7 +148,7 @@ changeSelfEmail uts' mat' up = do
   lusr <- qualifyLocal usr
   let email = euEmail up
   timeout <- asks (.settings.activationTimeout)
-  liftUserSubsystemError $ User.changeSelfEmail timeout lusr email UpdateOriginWireClient
+  liftUserSubsystemError $ User.requestEmailChange timeout lusr email UpdateOriginWireClient
 
 validateCredentials ::
   (TokenPair u a) =>

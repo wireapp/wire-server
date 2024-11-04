@@ -173,7 +173,7 @@ import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
-import Wire.UserSubsystem hiding (changeSelfEmail, checkHandle, checkHandles, removeEmail)
+import Wire.UserSubsystem hiding (checkHandle, checkHandles, removeEmail, requestEmailChange)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 import Wire.VerificationCode
@@ -1357,7 +1357,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   acTimeout <- asks (.settings.activationTimeout)
   lEmailOwnerId <- qualifyLocal emailOwnerId
   void . liftUserSubsystemError $
-    User.changeSelfEmail acTimeout lEmailOwnerId email UpdateOriginWireClient
+    User.requestEmailChange acTimeout lEmailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
