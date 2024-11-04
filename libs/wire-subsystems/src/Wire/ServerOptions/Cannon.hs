@@ -36,17 +36,12 @@ module Wire.ServerOptions.Cannon
     minBatchSize,
     disabledAPIVersions,
     DrainOpts,
-    optsSchema,
   )
 where
 
 import Control.Lens (makeFields)
 import Data.Aeson qualified as A
-import Data.Aeson.KeyMap qualified as A
-import Data.Json.Util
 import Data.OpenApi qualified as O
-import Data.OpenApi.Declare qualified as O
-import Data.Proxy (Proxy (Proxy))
 import Data.Schema
 import Data.Set qualified as Set
 import Imports
@@ -138,14 +133,3 @@ instance ToSchema Opts where
         <*> (Set.toList . _optsDisabledAPIVersions) .= field "disabledAPIVersions" (Set.fromList <$> array schema)
 
 makeFields ''Opts
-
-optsSchema :: JsonObject
-optsSchema = case A.toJSON r of
-  A.Object obj -> JsonObject obj
-  other -> JsonObject (A.singleton "value" other)
-  where
-    d :: O.Declare (O.Definitions O.Schema) O.Schema
-    d = O.declareSchema (Proxy @Opts)
-
-    r :: (O.Definitions O.Schema, O.Schema)
-    r = O.runDeclare d mempty

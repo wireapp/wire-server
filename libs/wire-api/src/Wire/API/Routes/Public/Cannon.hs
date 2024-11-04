@@ -18,9 +18,7 @@
 module Wire.API.Routes.Public.Cannon where
 
 import Data.Id
-import Data.Json.Util
 import Servant
-import Servant.API.Extended
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
@@ -43,12 +41,6 @@ type CannonAPI =
         -- FUTUREWORK: Consider higher-level web socket combinator
         :> WebSocketPending
     )
-    :<|> Named
-           "config-options-cannon"
-           ( Summary "Establish websocket connection"
-               :> "config-options-cannon"
-               :> Get '[JSON, YAML] JsonObject
-           )
 
 data CannonAPITag
 

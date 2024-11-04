@@ -134,7 +134,7 @@ mkApp opts = do
       Servant.serveWithContext
         (Proxy @ServantCombinedAPI)
         (customFormatters :. localDomain :. Servant.EmptyContext)
-        ( docsAPI
+        ( docsAndOptionsAPI
             :<|> hoistServerWithDomain @BrigAPI (toServantHandler env) servantSitemap
             :<|> hoistServerWithDomain @IAPI.API (toServantHandler env) IAPI.servantSitemap
             :<|> hoistServerWithDomain @FederationAPI (toServantHandler env) federationSitemap
@@ -159,7 +159,7 @@ internalHandleCompatibilityMiddleware app req k =
     k
 
 type ServantCombinedAPI =
-  ( DocsAPI
+  ( DocsAndOptionsAPI
       :<|> BrigAPI
       :<|> IAPI.API
       :<|> FederationAPI

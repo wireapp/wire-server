@@ -30,12 +30,9 @@ import Network.WebSockets.Connection
 import Servant
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cannon
-import Wire.ServerOptions.Cannon (optsSchema)
 
 publicAPIServer :: ServerT CannonAPI Cannon
-publicAPIServer =
-  Named @"await-notifications" streamData
-    :<|> Named @"config-options-cannon" (pure optsSchema)
+publicAPIServer = Named @"await-notifications" streamData
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
 streamData userId connId clientId con = do
