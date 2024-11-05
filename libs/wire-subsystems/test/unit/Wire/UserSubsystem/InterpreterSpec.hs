@@ -852,3 +852,29 @@ spec = describe "UserSubsystem.Interpreter" do
                 remRes <- removeEmailEither lusr
                 (remRes,) <$> gets users
          in result === (Right (), [user {email = Nothing}])
+  describe "Changing an email address" $ do
+    prop "Idempotent email change" $
+      \(locx :: Local ()) (NotPendingStoredUser user') email config ->
+        let user = user' {email = Just email}
+            localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack localBackend Nothing config $ do
+                c <- requestEmailChange lusr email UpdateOriginWireClient
+                (c,) <$> gets users
+         in result === (ChangeEmailResponseIdempotent, [user])
+    prop "Email change needing activation" $
+      \(locx :: Local ()) (NotPendingStoredUser user') config ->
+        let email = unsafeEmailAddress "me" "example.com"
+            updatedEmail = unsafeEmailAddress "you" "example.com"
+            user = user' {email = Just email, managedBy = Nothing}
+            localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack localBackend Nothing config $ do
+                c <- requestEmailChange lusr updatedEmail UpdateOriginWireClient
+                (c,) <$> gets users
+         in result
+              === ( ChangeEmailResponseNeedsActivation,
+                    [user {emailUnvalidated = Just updatedEmail}]
+                  )
