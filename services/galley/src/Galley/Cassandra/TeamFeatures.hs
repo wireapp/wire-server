@@ -19,7 +19,6 @@
 
 module Galley.Cassandra.TeamFeatures
   ( interpretTeamFeatureStoreToCassandra,
-    getDbFeatureMulti,
     getAllTeamFeaturesForServer,
   )
 where
@@ -38,7 +37,6 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
-import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Feature
 
 interpretTeamFeatureStoreToCassandra ::
@@ -52,9 +50,6 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetDbFeature sing tid -> do
     logEffect "TeamFeatureStore.GetFeatureConfig"
     embedClient $ getDbFeature sing tid
-  TFS.GetDbFeatureMulti sing tids -> do
-    logEffect "TeamFeatureStore.GetFeatureConfigMulti"
-    embedClient $ getDbFeatureMulti sing tids
   TFS.SetDbFeature sing tid feat -> do
     logEffect "TeamFeatureStore.SetFeatureConfig"
     embedClient $ setDbFeature sing tid feat
@@ -64,15 +59,6 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
     embedClient $ getAllDbFeatures tid
-
-getDbFeatureMulti ::
-  forall cfg m.
-  (MonadClient m, MonadUnliftIO m) =>
-  FeatureSingleton cfg ->
-  [TeamId] ->
-  m [(TeamId, DbFeature cfg)]
-getDbFeatureMulti proxy =
-  pooledMapConcurrentlyN 8 (\tid -> getDbFeature proxy tid <&> (tid,))
 
 getDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
 getDbFeature = $(featureCases [|fetchFeature|])

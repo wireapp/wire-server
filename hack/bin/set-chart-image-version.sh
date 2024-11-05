@@ -2,7 +2,7 @@
 
 USAGE="$0 <docker-tag> <chart-name>..."
 docker_tag=${1?$USAGE}
-charts=${@:2}
+charts=${*:2}
 
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 CHARTS_DIR="$TOP_LEVEL/.local/charts"

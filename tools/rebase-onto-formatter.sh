@@ -99,7 +99,7 @@ echo "Running the script now. This might take a while..."
 set -x
 
 # edit every commit Ci, adding new commits representing f at Ci and it's inverse g
-git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am format && git revert HEAD --no-edit"
+git rebase "$BASE_COMMIT"~1 --exec "$FORMATTING_COMMAND && git commit -am format && git revert HEAD --no-edit"
 
 # drop last commit (do not revert formatting at the end of the branch)
 git reset HEAD~1 --hard
@@ -110,14 +110,15 @@ git reset HEAD~1 --hard
 # Ci=$(git rev-parse HEAD~1); git reset --soft HEAD~3; git commit --reuse-message $Ci
 # We do an interactive rebase, but instead of editing the commit sequence manually,
 # we use sed for that, inserting an `exec` command after every 3 commits.
+# shellcheck disable=SC2016
 GIT_SEQUENCE_EDITOR='sed -i -e "4~3s/^\(pick \S* format\)$/\1\nexec Ci=\$(git rev-parse HEAD~1); git reset --soft HEAD~3; git commit --reuse-message \$Ci/"' \
-  git rebase --interactive $BASE_COMMIT
+  git rebase --interactive "$BASE_COMMIT"
 
 # rebase onto TARGET_COMMIT.
 # Annoyingly, we still have this first "format" commit that should already be
 # part of the TARGET_COMMIT. So we drop it.
 GIT_SEQUENCE_EDITOR='sed -i "1s/pick/drop/"' \
-  git rebase --interactive $BASE_COMMIT --onto $TARGET_COMMIT
+  git rebase --interactive "$BASE_COMMIT" --onto "$TARGET_COMMIT"
 
 echo "Done."
 echo "Please check that the history looks as it should and all expected commits are there."

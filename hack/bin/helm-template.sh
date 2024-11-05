@@ -25,4 +25,4 @@ if [ -f "$certificatesfile" ]; then
 fi
 
 "$DIR/update.sh" "$CHARTS_DIR/$chart"
-helm template $"chart" "$CHARTS_DIR/$chart" ${options[*]}
+helm template "$chart" "$CHARTS_DIR/$chart" "${options[*]}"
