@@ -81,7 +81,10 @@ inMemoryUserStoreInterpreter = interpret $ \case
   GetActivityTimestamps _ -> pure []
   GetRichInfo _ -> error "rich info not implemented"
   GetUserAuthenticationInfo _uid -> error "Not implemented"
-  DeleteEmail _uid -> error "Not implemented"
+  DeleteEmail uid -> modify (map doUpdate)
+    where
+      doUpdate :: StoredUser -> StoredUser
+      doUpdate u = if u.id == uid then u {email = Nothing} else u
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

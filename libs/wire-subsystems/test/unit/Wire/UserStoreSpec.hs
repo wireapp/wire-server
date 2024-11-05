@@ -1,11 +1,15 @@
 module Wire.UserStoreSpec (spec) where
 
+import Data.Default
 import Imports
+import Polysemy.State
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.User
+import Wire.MiniBackend
 import Wire.StoredUser
+import Wire.UserStore
 
 spec :: Spec
 spec = do
@@ -33,3 +37,13 @@ spec = do
        in if (isJust storedUser.language)
             then user.userLocale === Locale (fromJust storedUser.language) storedUser.country
             else user.userLocale === defaultLocale
+
+  describe "UserStore effect" $ do
+    prop "user self email deleted" $ \user1 user2' email2 config ->
+      let user2 = user2' {email = Just email2}
+          localBackend = def {users = [user1, user2]}
+          result =
+            runNoFederationStack localBackend Nothing config $ do
+              deleteEmail (user1.id)
+              gets users
+       in result === [user1 {email = Nothing}, user2]
