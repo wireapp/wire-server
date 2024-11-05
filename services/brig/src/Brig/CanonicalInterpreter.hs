@@ -11,8 +11,6 @@ import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.IO.Intra (runEvents)
-import Brig.Options (federationDomainConfigs, federationStrategy)
-import Brig.Options qualified as Opt
 import Brig.Team.Template (TeamTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
@@ -83,6 +81,8 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.Sem.Random
 import Wire.Sem.Random.IO
+import Wire.ServerOptions.Brig (federationDomainConfigs, federationStrategy)
+import Wire.ServerOptions.Brig qualified as Opt
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
 import Wire.TeamInvitationSubsystem

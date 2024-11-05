@@ -26,7 +26,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Options qualified as Opt
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Imports
@@ -34,6 +33,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Wire.API.User
+import Wire.ServerOptions.Brig qualified as Opt
 
 tests :: Manager -> Opt.Opts -> Brig -> IO TestTree
 tests manager opts brig = do

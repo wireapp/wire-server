@@ -17,7 +17,7 @@
 
 -- | Working with remote queues (like Amazon SQS).
 module Brig.Queue
-  ( module Brig.Queue.Types,
+  ( module Wire.ServerOptions.Brig.Queue,
     listen,
   )
 where
@@ -25,11 +25,11 @@ where
 import Brig.AWS qualified as AWS
 import Brig.DeleteQueue.Interpreter (QueueEnv (..))
 import Brig.Queue.Stomp qualified as Stomp
-import Brig.Queue.Types
 import Control.Monad.Catch
 import Data.Aeson
 import Imports
 import System.Logger.Class as Log hiding (settings)
+import Wire.ServerOptions.Brig.Queue
 
 -- | Forever listen to messages coming from a queue and execute a callback
 -- for each incoming message.

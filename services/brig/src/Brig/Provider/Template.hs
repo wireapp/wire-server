@@ -29,7 +29,6 @@ module Brig.Provider.Template
   )
 where
 
-import Brig.Options
 import Brig.Template
 import Data.ByteString.Conversion (fromByteString)
 import Data.Misc (HttpsUrl)
@@ -37,6 +36,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Wire.API.User.Identity
 import Wire.EmailSubsystem.Template
+import Wire.ServerOptions.Brig
 
 data ProviderTemplates = ProviderTemplates
   { activationEmail :: !ActivationEmailTemplate,

@@ -31,7 +31,6 @@ import Brig.CanonicalInterpreter
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Brig.InternalEvent.Process qualified as Internal
-import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async
@@ -72,6 +71,7 @@ import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.OpenTelemetry (withTracer)
 import Wire.Sem.Paging qualified as P
+import Wire.ServerOptions.Brig hiding (internalEvents, sesQueue)
 import Wire.UserStore
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it

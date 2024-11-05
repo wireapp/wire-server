@@ -22,11 +22,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Options where
+module Wire.ServerOptions.Brig where
 
-import Brig.Queue.Types (QueueOpts (..))
-import Brig.User.Auth.Cookie.Limit
-import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
 import Control.Lens hiding (Level, element, enum)
 import Data.Aeson
@@ -57,6 +54,9 @@ import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.EmailSending.SMTP (SMTPConnType (..))
+import Wire.ServerOptions.Brig.CookieLimit
+import Wire.ServerOptions.Brig.Queue (QueueOpts (..))
+import Wire.ServerOptions.Brig.ZAuth qualified as ZAuth
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL

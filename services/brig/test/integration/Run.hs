@@ -37,7 +37,6 @@ import Bilge hiding (header, host, port)
 import Bilge qualified
 import Brig.AWS qualified as AWS
 import Brig.App (initHttpManagerWithTLSConfig)
-import Brig.Options qualified as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
@@ -65,6 +64,7 @@ import Util.Test.SQS qualified as SQS
 import Web.HttpApiData
 import Wire.API.Federation.API
 import Wire.API.Routes.Version
+import Wire.ServerOptions.Brig qualified as Opts
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,

@@ -29,7 +29,6 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.AWS qualified as AWS
 import Brig.AWS.Types
-import Brig.Options qualified as Opt
 import Brig.Types.Activation
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
@@ -93,6 +92,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
+import Wire.ServerOptions.Brig qualified as Opt
 
 tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =

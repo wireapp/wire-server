@@ -22,8 +22,6 @@ import API.Team.Util qualified as Team
 import Bilge
 import Bilge.Assert
 import Brig.API.OAuth hiding (verifyRefreshToken)
-import Brig.Options
-import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
@@ -62,6 +60,8 @@ import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
 import Wire.API.User as User
 import Wire.API.User.Auth (CookieType (PersistentCookie))
 import Wire.Sem.Jwk (readJwk)
+import Wire.ServerOptions.Brig
+import Wire.ServerOptions.Brig qualified as Opt
 
 tests :: Manager -> C.ClientState -> Brig -> Nginz -> Opts -> TestTree
 tests m db b n o = do

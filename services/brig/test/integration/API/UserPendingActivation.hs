@@ -24,7 +24,6 @@ module API.UserPendingActivation where
 import API.Team.Util (getTeam)
 import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
-import Brig.Options (Opts (..), teamInvitationTimeout)
 import Cassandra
 import Control.Exception (assert)
 import Control.Lens ((^.), (^?))
@@ -63,6 +62,7 @@ import Wire.API.Team.Invitation
 import Wire.API.User hiding (CreateScimToken)
 import Wire.API.User.RichInfo (RichInfo)
 import Wire.API.User.Scim (CreateScimToken (..), ScimToken, ScimUserExtra (ScimUserExtra))
+import Wire.ServerOptions.Brig (Opts (..), teamInvitationTimeout)
 
 tests :: Opts -> Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree
 tests opts m db brig galley spar = do

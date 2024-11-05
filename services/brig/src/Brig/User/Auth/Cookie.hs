@@ -40,7 +40,6 @@ module Brig.User.Auth.Cookie
 where
 
 import Brig.App
-import Brig.Options hiding (user)
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Cassandra
@@ -60,6 +59,7 @@ import System.Logger.Class qualified as Log
 import Util.Timeout
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
+import Wire.ServerOptions.Brig hiding (user)
 import Wire.SessionStore qualified as Store
 
 --------------------------------------------------------------------------------

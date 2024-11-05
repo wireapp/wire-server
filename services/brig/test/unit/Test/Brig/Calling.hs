@@ -24,7 +24,6 @@ import Brig.Calling
 import Brig.Calling.API
 import Brig.Calling.Internal
 import Brig.Effects.SFT
-import Brig.Options
 import Control.Concurrent.Timeout qualified as System
 import Control.Lens ((^.))
 import Control.Monad.Catch
@@ -54,6 +53,7 @@ import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 import Wire.Sem.Logger.Level
 import Wire.Sem.Logger.TinyLog
+import Wire.ServerOptions.Brig
 
 data FakeDNSEnv = FakeDNSEnv
   { fakeLookupSrv :: Domain -> SrvResponse,

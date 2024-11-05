@@ -21,7 +21,6 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
-import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Brig.ZAuth hiding (Env, settings)
 import Control.Monad.Trans.Except
@@ -55,6 +54,7 @@ import Wire.BlockListStore
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess
+import Wire.ServerOptions.Brig
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UpdateOriginType (..), UserSubsystem)

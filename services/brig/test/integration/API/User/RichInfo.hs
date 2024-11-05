@@ -25,8 +25,6 @@ import API.Team.Util (createTeamMember, createUserWithTeam)
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Options
-import Brig.Options qualified as Opt
 import Data.CaseInsensitive qualified as CI
 import Data.List1 qualified as List1
 import Data.Text qualified as Text
@@ -38,6 +36,8 @@ import Util.Timeout
 import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.API.User.RichInfo
+import Wire.ServerOptions.Brig
+import Wire.ServerOptions.Brig qualified as Opt
 
 tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b _c g =

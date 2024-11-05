@@ -33,8 +33,6 @@ import API.User.Util
 import Bilge
 import Bilge.Assert
 import Brig.App (initHttpManagerWithTLSConfig)
-import Brig.Options qualified as Opt
-import Brig.Options qualified as Opts
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
@@ -71,6 +69,8 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
+import Wire.ServerOptions.Brig qualified as Opt
+import Wire.ServerOptions.Brig qualified as Opts
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do

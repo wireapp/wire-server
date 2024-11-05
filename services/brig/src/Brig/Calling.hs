@@ -48,8 +48,6 @@ module Brig.Calling
   )
 where
 
-import Brig.Options (SFTOptions (..), defSftListLength, defSftServiceName, defSrvDiscoveryIntervalSeconds)
-import Brig.Options qualified as Opts
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
@@ -81,6 +79,8 @@ import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 import Wire.Sem.Delay
 import Wire.Sem.Logger.TinyLog
+import Wire.ServerOptions.Brig (SFTOptions (..), defSftListLength, defSftServiceName, defSrvDiscoveryIntervalSeconds)
+import Wire.ServerOptions.Brig qualified as Opts
 
 -- | NOTE SFTServers:
 -- Retrieving SFTServers should give a 1) randomized and 2) limited list of servers.

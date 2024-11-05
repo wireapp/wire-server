@@ -26,7 +26,6 @@ where
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Options (Settings (userMaxConnections))
 import Control.Error (MaybeT, noteT)
 import Control.Monad.Trans.Except
 import Data.Id (UserId)
@@ -34,6 +33,7 @@ import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.Connection (Relation (..))
+import Wire.ServerOptions.Brig (Settings (userMaxConnections))
 import Wire.UserStore
 
 type ConnectionM r = ExceptT ConnectionError (AppT r)

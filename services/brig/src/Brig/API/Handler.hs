@@ -33,7 +33,6 @@ import Brig.API.Error
 import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
-import Brig.Options (allowlistEmailDomains)
 import Control.Error
 import Control.Exception (throwIO)
 import Control.Monad.Catch (catches, throwM)
@@ -55,6 +54,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.User
 import Wire.Error
+import Wire.ServerOptions.Brig (allowlistEmailDomains)
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad

@@ -28,7 +28,6 @@ import API.User.Util as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge qualified
 import Bilge.Assert
-import Brig.Options qualified as Opt
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
@@ -76,6 +75,7 @@ import Wire.API.Team.Size
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client (ClientType (PermanentClientType))
+import Wire.ServerOptions.Brig qualified as Opt
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 

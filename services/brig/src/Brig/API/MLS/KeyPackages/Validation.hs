@@ -27,7 +27,6 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
 import Brig.Data.Client qualified as Data
-import Brig.Options
 import Control.Applicative
 import Data.ByteString qualified as LBS
 import Data.Qualified
@@ -42,6 +41,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Lifetime
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation
+import Wire.ServerOptions.Brig
 
 validateUploadedKeyPackage ::
   ClientIdentity ->

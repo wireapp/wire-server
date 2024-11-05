@@ -36,8 +36,6 @@ import Brig.API.Types (PasswordResetError (..))
 import Brig.App
 import Brig.Data.Client qualified as User
 import Brig.Data.User qualified as User
-import Brig.Options (Settings (..))
-import Brig.Options qualified as Opt
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
@@ -130,6 +128,8 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.ServerOptions.Brig (Settings (..))
+import Wire.ServerOptions.Brig qualified as Opt
 import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error

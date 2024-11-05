@@ -117,6 +117,10 @@ library
     Wire.PropertySubsystem.Interpreter
     Wire.Rpc
     Wire.ServerOptions.Cannon
+    Wire.ServerOptions.Brig
+    Wire.ServerOptions.Brig.ZAuth
+    Wire.ServerOptions.Brig.Queue
+    Wire.ServerOptions.Brig.CookieLimit
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.StoredUser
@@ -155,6 +159,7 @@ library
     , base
     , base16-bytestring
     , bilge
+    , dns
     , bloodhound
     , bytestring
     , bytestring-conversion

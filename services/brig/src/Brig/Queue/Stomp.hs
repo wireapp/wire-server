@@ -27,7 +27,6 @@ module Brig.Queue.Stomp
 where
 
 import BasePrelude hiding (Handler, throwIO)
-import Brig.Options qualified as Opts
 import Codec.MIME.Type qualified as MIME
 import Control.Monad.Catch (Handler (..), MonadMask)
 import Control.Retry hiding (retryPolicy)
@@ -39,6 +38,7 @@ import Data.Text.Encoding
 import Network.Mom.Stompl.Client.Queue hiding (try)
 import System.Logger.Class as Log
 import UnliftIO (MonadUnliftIO, throwIO, withRunInIO)
+import Wire.ServerOptions.Brig qualified as Opts
 
 data Env = Env
   { -- | STOMP broker that we're using

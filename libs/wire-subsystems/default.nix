@@ -24,6 +24,7 @@
 , currency-codes
 , data-default
 , data-timeout
+, dns
 , errors
 , exceptions
 , extended
@@ -114,6 +115,7 @@ mkDerivation {
     currency-codes
     data-default
     data-timeout
+    dns
     errors
     exceptions
     extended

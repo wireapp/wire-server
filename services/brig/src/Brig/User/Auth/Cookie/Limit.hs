@@ -17,7 +17,6 @@
 
 module Brig.User.Auth.Cookie.Limit where
 
-import Data.Aeson
 import Data.RetryAfter
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
@@ -25,6 +24,7 @@ import Data.Vector qualified as Vector
 import Imports
 import Statistics.Sample qualified as Stats
 import Wire.API.User.Auth
+import Wire.ServerOptions.Brig.CookieLimit
 
 --------------------------------------------------------------------------------
 -- Quantitive Limiting
@@ -58,27 +58,6 @@ limitCookies lim now cs
 
 --------------------------------------------------------------------------------
 -- Temporal Throttling
-
--- | The fields are:
---
--- * Min. standard deviation cookie creation
--- * Wait time when the min deviation is violated
---
--- Both fields are in seconds.
-data CookieThrottle
-  = StdDevThrottle StdDev RetryAfter
-  deriving (Show)
-
-newtype StdDev = StdDev Double
-  deriving (Eq, Ord, Show, Generic)
-
-instance FromJSON StdDev
-
-instance FromJSON CookieThrottle where
-  parseJSON = withObject "User.Auth.Cookie.Limit.CookieThrottle" $ \o ->
-    StdDevThrottle
-      <$> o .: "stdDev"
-      <*> (RetryAfter <$> o .: "retryAfter")
 
 -- | Check that the standard deviation of cookie creation dates is /higher/
 -- than the specified minimum. If the standard deviation is below the

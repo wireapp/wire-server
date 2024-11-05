@@ -43,7 +43,6 @@ import Brig.Data.Types (resultHasMore, resultList)
 import Brig.Data.User qualified as Data
 import Brig.IO.Intra qualified as Intra
 import Brig.IO.Logging
-import Brig.Options
 import Brig.Types.Connection
 import Control.Error
 import Control.Monad.Catch (throwM)
@@ -70,6 +69,7 @@ import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.ServerOptions.Brig
 import Wire.UserStore
 import Wire.UserSubsystem
 

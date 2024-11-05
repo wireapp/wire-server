@@ -30,7 +30,6 @@ import API.User.Util
 import API.User.Util qualified as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Options as Opt
 import Cassandra qualified as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
@@ -82,6 +81,7 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
+import Wire.ServerOptions.Brig as Opt
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeGen
 
