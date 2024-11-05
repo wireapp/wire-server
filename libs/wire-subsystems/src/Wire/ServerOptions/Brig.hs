@@ -86,7 +86,7 @@ data ElasticSearchOpts = ElasticSearchOpts
     additionalInsecureSkipVerifyTls :: Bool,
     additionalCaCert :: Maybe FilePath
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON ElasticSearchOpts
 
@@ -101,7 +101,7 @@ data AWSOpts = AWSOpts
     -- | DynamoDB endpoint
     dynamoDBEndpoint :: !(Maybe AWSEndpoint)
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON AWSOpts
 
@@ -112,7 +112,7 @@ data EmailAWSOpts = EmailAWSOpts
     -- | AWS SES endpoint
     sesEndpoint :: !AWSEndpoint
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EmailAWSOpts
 
@@ -124,7 +124,7 @@ data EmailSMTPCredentials = EmailSMTPCredentials
     --   authenticate against the SMTP server
     smtpPassword :: !FilePathSecrets
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EmailSMTPCredentials
 
@@ -136,7 +136,7 @@ data EmailSMTPOpts = EmailSMTPOpts
     --   against the SMTP server {tls,ssl,plain}
     smtpConnType :: !SMTPConnType
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EmailSMTPOpts
 
@@ -145,12 +145,12 @@ data StompOpts = StompOpts
     port :: !Int,
     tls :: !Bool
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 data InternalEventsOpts = InternalEventsOpts
   { internalEventsQueue :: !QueueOpts
   }
-  deriving (Show)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON InternalEventsOpts where
   parseJSON = withObject "InternalEventsOpts" $ \o ->
@@ -169,7 +169,7 @@ data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     --   emails/sms/calls
     templateBranding :: !BrandingOpts
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EmailSMSGeneralOpts
 
@@ -185,7 +185,7 @@ data BrandingOpts = BrandingOpts
     forgot :: !Text,
     support :: !Text
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON BrandingOpts
 
@@ -199,7 +199,7 @@ data EmailUserOpts = EmailUserOpts
     -- | Deletion URL template
     deletionUrl :: !Text
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EmailUserOpts
 
@@ -216,7 +216,7 @@ data ProviderOpts = ProviderOpts
     -- | Password reset URL template
     providerPwResetUrl :: !Text
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON ProviderOpts
 
@@ -232,14 +232,14 @@ data TeamOpts = TeamOpts
     -- | Team Member Welcome URL
     tMemberWelcomeUrl :: !Text
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON TeamOpts
 
 data EmailOpts
   = EmailAWS EmailAWSOpts
   | EmailSMTP EmailSMTPOpts
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EmailOpts where
   parseJSON o =
@@ -253,7 +253,7 @@ data EmailSMSOpts = EmailSMSOpts
     provider :: !ProviderOpts,
     team :: !TeamOpts
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EmailSMSOpts
 
@@ -292,7 +292,7 @@ data ZAuthOpts = ZAuthOpts
     -- | Other settings
     authSettings :: !ZAuth.Settings
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON ZAuthOpts
 
@@ -309,7 +309,7 @@ data TurnOpts = TurnOpts
     --   should be fetched, in seconds
     configTTL :: !Word32
   }
-  deriving (Show)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON TurnOpts where
   parseJSON = withObject "TurnOpts" $ \o -> do
@@ -327,13 +327,13 @@ instance FromJSON TurnOpts where
 data TurnServersSource
   = TurnSourceDNS TurnDnsOpts
   | TurnSourceFiles TurnServersFiles
-  deriving (Show)
+  deriving (Show, Eq, Generic)
 
 data TurnServersFiles = TurnServersFiles
   { tsfServers :: !FilePath,
     tsfServersV2 :: !FilePath
   }
-  deriving (Show)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON TurnServersFiles where
   parseJSON = withObject "TurnServersFiles" $ \o ->
@@ -345,7 +345,7 @@ data TurnDnsOpts = TurnDnsOpts
   { tdoBaseDomain :: DNS.Domain,
     tdoDiscoveryIntervalSeconds :: !(Maybe DiffTime)
   }
-  deriving (Show)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON TurnDnsOpts where
   parseJSON = withObject "TurnDnsOpts" $ \o ->
@@ -356,7 +356,7 @@ instance FromJSON TurnDnsOpts where
 data ListAllSFTServers
   = ListAllSFTServers
   | HideAllSFTServers
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
   deriving (FromJSON) via Schema ListAllSFTServers
 
 instance ToSchema ListAllSFTServers where
@@ -429,7 +429,7 @@ data Opts = Opts
     -- | Runtime settings
     settings :: !Settings
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
@@ -588,7 +588,7 @@ data Settings = Settings
     -- | Options to override the default Argon2id settings for specific operators.
     passwordHashingOptions :: !(PasswordHashingOptions)
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 newtype ImplicitNoFederationRestriction = ImplicitNoFederationRestriction
   {federationDomainConfig :: FederationDomainConfig}
@@ -679,7 +679,7 @@ oAuthMaxActiveRefreshTokens = fromMaybe defaultOAuthMaxActiveRefreshTokens . oAu
 data UserFeatureFlags = UserFeatureFlags
   { conferenceCalling :: UserFeature ConferenceCallingConfig
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 instance FromJSON UserFeatureFlags where
   parseJSON = withObject "UserFeatureFlags" $ \obj -> do
@@ -694,7 +694,7 @@ data instance UserFeature ConferenceCallingConfig = ConferenceCallingUserStatus
     -- | How an unset status for this feature should be interpreted.
     forNull :: FeatureStatus
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 instance Default (UserFeature ConferenceCallingConfig) where
   def = ConferenceCallingUserStatus Nothing FeatureStatusEnabled
@@ -747,11 +747,11 @@ data CustomerExtensions = CustomerExtensions
     -- least @domainsBlockedForRegistration = []@.  :)
     domainsBlockedForRegistration :: DomainsBlockedForRegistration
   }
-  deriving (Show, FromJSON, Generic)
+  deriving (Show, Eq, FromJSON, Generic)
 
 -- | See also: "Galley.API.CustomBackend", `galley.custom_backend`.
 newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
-  deriving newtype (Show, FromJSON, Generic)
+  deriving newtype (Show, Eq, FromJSON, Generic)
 
 data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
@@ -760,7 +760,7 @@ data SFTOptions = SFTOptions
     sftListLength :: !(Maybe (Range 1 100 Int)), -- defaults to defSftListLength
     sftTokenOptions :: !(Maybe SFTTokenOptions)
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON SFTOptions where
   parseJSON = withObject "SFTOptions" $ \o ->
@@ -775,7 +775,7 @@ data SFTTokenOptions = SFTTokenOptions
   { sttTTL :: !Word32,
     sttSecret :: !FilePath
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON SFTTokenOptions where
   parseJSON = withObject "SFTTokenOptions" $ \o ->

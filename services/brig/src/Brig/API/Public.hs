@@ -170,8 +170,8 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
-import Wire.ServerOptions.Cannon qualified
 import Wire.ServerOptions.Brig hiding (internalEvents)
+import Wire.ServerOptions.Cannon qualified
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types

@@ -65,7 +65,6 @@
 , imports
 , insert-ordered-containers
 , iproute
-, iso639
 , jose
 , jwt-tools
 , lens
@@ -214,7 +213,6 @@ mkDerivation {
     imports
     insert-ordered-containers
     iproute
-    iso639
     jose
     jwt-tools
     lens

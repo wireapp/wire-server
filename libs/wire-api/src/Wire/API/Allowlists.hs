@@ -31,7 +31,7 @@ import Wire.API.User.Identity
 
 -- | A service providing a whitelist of allowed email addresses and phone numbers
 data AllowlistEmailDomains = AllowlistEmailDomains [Text]
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON AllowlistEmailDomains
 

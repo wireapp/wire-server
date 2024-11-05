@@ -25,6 +25,7 @@
 , data-default
 , data-timeout
 , dns
+, email-validate
 , errors
 , exceptions
 , extended
@@ -88,6 +89,7 @@
 , wire-api-federation
 , wire-otel
 , witherable
+, yaml
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -173,13 +175,17 @@ mkDerivation {
   testHaskellDepends = [
     aeson
     async
+    attoparsec
     base
     bilge
+    bloodhound
     bytestring
     cassandra-util
     containers
     crypton
     data-default
+    dns
+    email-validate
     errors
     extended
     hspec
@@ -208,6 +214,7 @@ mkDerivation {
     types-common
     wire-api
     wire-api-federation
+    yaml
   ];
   testToolDepends = [ hspec-discover ];
   license = lib.licenses.agpl3Only;

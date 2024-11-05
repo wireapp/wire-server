@@ -62,7 +62,7 @@ data Settings = Settings
     -- | Legal Hold Access token validity timeout
     _legalHoldAccessTokenTimeout :: !LegalHoldAccessTokenTimeout
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 defSettings :: Settings
 defSettings =
@@ -77,27 +77,27 @@ defSettings =
 
 newtype UserTokenTimeout = UserTokenTimeout
   {_userTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
+  deriving (Show, Num, Eq, Generic)
 
 newtype SessionTokenTimeout = SessionTokenTimeout
   {sessionTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
+  deriving (Show, Num, Eq, Generic)
 
 newtype AccessTokenTimeout = AccessTokenTimeout
   {_accessTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
+  deriving (Show, Num, Eq, Generic)
 
 newtype ProviderTokenTimeout = ProviderTokenTimeout
   {providerTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
+  deriving (Show, Num, Eq, Generic)
 
 newtype LegalHoldUserTokenTimeout = LegalHoldUserTokenTimeout
   {_legalHoldUserTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
+  deriving (Show, Num, Eq, Generic)
 
 newtype LegalHoldAccessTokenTimeout = LegalHoldAccessTokenTimeout
   {_legalHoldAccessTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
+  deriving (Show, Num, Eq, Generic)
 
 instance FromJSON UserTokenTimeout
 

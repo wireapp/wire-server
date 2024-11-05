@@ -151,14 +151,14 @@ parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pu
 data PasswordHashingOptions
   = PasswordHashingArgon2id Argon2idOptions
   | PasswordHashingScrypt
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 data Argon2idOptions = Argon2idOptions
   { iterations :: !Word32,
     memory :: !Word32,
     parallelism :: !Word32
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON PasswordHashingOptions where
   parseJSON =

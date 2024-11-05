@@ -240,6 +240,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.ServerOptionsSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
@@ -275,9 +276,14 @@ test-suite wire-subsystems-tests
     , async
     , base
     , bilge
+    , yaml
     , bytestring
     , cassandra-util
     , containers
+              , bloodhound
+              , dns
+              , attoparsec
+              , email-validate
     , crypton
     , data-default
     , errors

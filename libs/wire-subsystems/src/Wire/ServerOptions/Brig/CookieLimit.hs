@@ -29,10 +29,10 @@ import Imports
 -- Both fields are in seconds.
 data CookieThrottle
   = StdDevThrottle StdDev RetryAfter
-  deriving (Show)
+  deriving (Eq, Show)
 
 newtype StdDev = StdDev Double
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Num, Generic)
 
 instance FromJSON StdDev
 
