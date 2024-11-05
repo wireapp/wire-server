@@ -82,6 +82,11 @@ spec:
       value: "eu-west-1"
     - name: TEST_XML
       value: /tmp/result.xml
+    # RabbitMQ needs dummy credentials for the tests to run
+    - name: RABBITMQ_USERNAME
+      value: "guest"
+    - name: RABBITMQ_PASSWORD
+      value: "guest"
     {{- if hasKey .Values.secrets "redisUsername" }}
     - name: REDIS_USERNAME
       valueFrom:
