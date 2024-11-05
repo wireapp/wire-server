@@ -59,10 +59,7 @@ import Data.Attoparsec.Text
 import Data.Text qualified as Text
 import Imports
 import Wire.API.Push.V2 (AppName (..), Transport (..))
-
-newtype ArnEnv = ArnEnv {arnEnvText :: Text} deriving (Show, ToText, FromJSON)
-
-newtype Account = Account {fromAccount :: Text} deriving (Eq, Ord, Show, ToText, FromJSON)
+import Wire.ServerOptions.Gundeck
 
 newtype EndpointId = EndpointId Text deriving (Eq, Ord, Show, ToText)
 

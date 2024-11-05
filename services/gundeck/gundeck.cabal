@@ -29,7 +29,6 @@ library
     Gundeck.Monad
     Gundeck.Notification
     Gundeck.Notification.Data
-    Gundeck.Options
     Gundeck.Presence
     Gundeck.Presence.Data
     Gundeck.Push
@@ -167,7 +166,7 @@ library
     , wai-utilities                         >=0.16
     , wire-api
     , wire-otel
-    , yaml                                  >=0.8
+    , wire-subsystems
 
   default-language:   GHC2021
 

@@ -198,10 +198,10 @@ serverOptionsDocsAPI = Named @"server-config-options" $ pure allOptsSchema
   where
     allOptsSchema =
       mkJsonObject
-        ( [ "brig" .= ("comping up!" :: Text), -- TODO
-            "galley" .= ("comping up!" :: Text), -- TODO
-            "spar" .= ("comping up!" :: Text), -- TODO
-            "gundeck" .= ("comping up!" :: Text), -- TODO
+        ( [ "brig" .= ("comping up!" :: Text), -- TODO: use schema-profunctor, then connect here.
+            "galley" .= ("comping up!" :: Text), -- TODO: move to wire-subsystems.
+            "spar" .= ("comping up!" :: Text), -- TODO: use schema-profunctor, then connect here.
+            "gundeck" .= ("comping up!" :: Text), -- TODO: get it to compile.
             "cannon" .= describeOpts (Proxy @Wire.ServerOptions.Cannon.Opts),
             "cargohold" .= ("comping up!" :: Text), -- TODO
             "federator" .= ("comping up!" :: Text), -- TODO

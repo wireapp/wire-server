@@ -121,6 +121,7 @@ library
     Wire.ServerOptions.Brig.Queue
     Wire.ServerOptions.Brig.ZAuth
     Wire.ServerOptions.Cannon
+    Wire.ServerOptions.Gundeck
     Wire.ServerOptions.Spar
     Wire.SessionStore
     Wire.SessionStore.Cassandra
@@ -208,6 +209,7 @@ library
     , schema-profunctor
     , servant
     , servant-client-core
+    , shakespeare
     , stomp-queue
     , template
     , text

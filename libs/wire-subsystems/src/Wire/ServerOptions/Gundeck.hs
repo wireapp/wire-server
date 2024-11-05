@@ -18,14 +18,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.Options where
+module Wire.ServerOptions.Gundeck where
 
+import Amazonka (Region)
 import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
-import Gundeck.Aws.Arn
 import Imports
 import System.Logger.Extended (Level, LogFormat)
+import Text.Shakespeare.Text (ToText (..))
 import Util.Options
 import Util.Options.Common
 import Wire.API.Routes.Version
@@ -33,6 +34,12 @@ import Wire.API.Routes.Version
 newtype NotificationTTL = NotificationTTL
   {notificationTTLSeconds :: Word32}
   deriving (Eq, Ord, Show, Generic, FromJSON)
+
+newtype ArnEnv = ArnEnv {arnEnvText :: Text}
+  deriving (Show, ToText, FromJSON)
+
+newtype Account = Account {fromAccount :: Text}
+  deriving (Eq, Ord, Show, ToText, FromJSON)
 
 data AWSOpts = AWSOpts
   { -- | AWS account
