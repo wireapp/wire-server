@@ -67,11 +67,13 @@ persistMigrationVersionImpl :: (Member (Embed IO) r, Member TinyLog r, Member (E
 persistMigrationVersionImpl env v = do
   let docIdText = Text.pack . show $ migrationVersion v
       docId = ES.DocId docIdText
-  persistResponse <- liftIO $ ES.runBH env $ ES.indexDocument migrationIndexName ES.defaultIndexDocumentSettings v docId
+  persistResponse <-
+    liftIO . ES.runBH env . ES.performBHRequest . ES.keepBHResponse $
+      (ESR.indexDocument migrationIndexName ES.defaultIndexDocumentSettings v docId)
   case persistResponse of
     Left _ -> throw $ PersistVersionFailed v $ show persistResponse
-    Right r ->
-      if ES.idxDocId r == docIdText
+    Right (resp, doc) ->
+      if (ES.idxDocId doc == docIdText) && ES.isCreated resp
         then do
           Log.info $
             Log.msg (Log.val "Migration success recorded")
