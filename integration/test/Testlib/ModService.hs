@@ -220,14 +220,14 @@ startDynamicBackend resource beOverrides = do
       def
         { sparCfg = setField "saml.logLevel" ("Warn" :: String),
           brigCfg = setField "logLevel" ("Warn" :: String),
-          cannonCfg = setField "logLevel" ("Fatal" :: String),
+          cannonCfg = setField "logLevel" ("Warn" :: String),
           cargoholdCfg = setField "logLevel" ("Warn" :: String),
           galleyCfg = setField "logLevel" ("Warn" :: String),
           gundeckCfg = setField "logLevel" ("Warn" :: String),
-          nginzCfg = setField "logLevel" ("Fatal" :: String),
+          nginzCfg = setField "logLevel" ("Warn" :: String),
           backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
           sternCfg = setField "logLevel" ("Warn" :: String),
-          federatorInternalCfg = setField "logLevel" ("Fatal" :: String)
+          federatorInternalCfg = setField "logLevel" ("Warn" :: String)
         }
 
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
