@@ -38,6 +38,10 @@ startConsumer chan = do
 
   cassandra <- asks (.cassandra)
 
+  -- This ensures that we receive notifications 1 by 1 which ensures they are
+  -- delivered in order.
+  lift $ Q.qos chan 0 1 False
+
   -- TODO: replace bare string with the constant from the rabbitmq PR.
   let queueName = "dead-user-notifications"
 
