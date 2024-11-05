@@ -11,7 +11,6 @@ import Control.Monad.Catch (catchAll)
 import Control.Monad.Codensity
 import Data.Aeson
 import Data.Id
-import Debug.Trace
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended (withConnection)
@@ -26,69 +25,59 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
   wsVar <- newEmptyMVar
   msgVar <- newEmptyMVar
 
-  bracket (openWebSocket wsVar) closeWebSocket $ \(wsConn, _) ->
-    catches
-      ( do
-          sendFullSyncMessageIfNeeded wsConn uid cid e
-          sendNotifications wsConn msgVar wsVar
-      )
-      [ -- handle client misbehaving
-        Handler $ \(err :: WebSocketServerError) -> do
-          case err of
-            FailedToParseClientMessage _ -> do
-              Log.info e.logg $
-                Log.msg (Log.val "Failed to parse received message, closing websocket")
-                  . logClient
-              WS.sendCloseCode wsConn 1003 ("failed-to-parse" :: ByteString)
-            UnexpectedAck -> do
-              Log.info e.logg $
-                Log.msg (Log.val "Client sent unexpected ack message")
-                  . logClient
-              WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString),
-        -- handle web socket exception
-        Handler $
-          \(err :: WS.ConnectionException) -> case err of
-            CloseRequest code reason ->
-              Log.debug e.logg $
-                Log.msg (Log.val "Client requested to close connection")
-                  . Log.field "status_code" code
-                  . Log.field "reason" reason
-                  . logClient
-            ConnectionClosed ->
-              Log.info e.logg $
-                Log.msg (Log.val "Client closed tcp connection abruptly")
-                  . logClient
-            _ -> do
-              Log.info e.logg $
-                Log.msg (Log.val "Failed to receive message, closing websocket")
-                  . Log.field "error" (displayException err)
-                  . logClient
-              WS.sendCloseCode wsConn 1003 ("websocket-failure" :: ByteString)
-      ]
+  bracket openWebSocket closeWebSocket $ \wsConn ->
+    ( do
+        sendFullSyncMessageIfNeeded wsConn uid cid e
+        sendNotifications wsConn msgVar wsVar
+    )
+      `catches` [
+                  -- handle client misbehaving
+                  Handler $ \(err :: WebSocketServerError) -> do
+                    case err of
+                      FailedToParseClientMessage _ -> do
+                        Log.info e.logg $
+                          Log.msg (Log.val "Failed to parse received message, closing websocket")
+                            . logClient
+                        WS.sendCloseCode wsConn 1003 ("failed-to-parse" :: ByteString)
+                      UnexpectedAck -> do
+                        Log.info e.logg $
+                          Log.msg (Log.val "Client sent unexpected ack message")
+                            . logClient
+                        WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString),
+                  -- handle web socket exception
+                  Handler $
+                    \(err :: WS.ConnectionException) -> do
+                      case err of
+                        CloseRequest code reason ->
+                          Log.debug e.logg $
+                            Log.msg (Log.val "Client requested to close connection")
+                              . Log.field "status_code" code
+                              . Log.field "reason" reason
+                              . logClient
+                        ConnectionClosed ->
+                          Log.info e.logg $
+                            Log.msg (Log.val "Client closed tcp connection abruptly")
+                              . logClient
+                        _ -> do
+                          Log.info e.logg $
+                            Log.msg (Log.val "Failed to receive message, closing websocket")
+                              . Log.field "error" (displayException err)
+                              . logClient
+                          WS.sendCloseCode wsConn 1003 ("websocket-failure" :: ByteString)
+                ]
   where
     logClient =
       Log.field "user" (idToText uid)
         . Log.field "client" (clientToText cid)
 
-    openWebSocket wsVar = do
+    openWebSocket = do
       wsConn <-
         acceptRequest pendingConn
           `catch` rejectOnError pendingConn
-      -- start a reader thread for client messages
-      -- this needs to run asynchronously in order to promptly react to
-      -- client-side connection termination
-      a <- async $ forever $ do
-        catch
-          ( do
-              msg <- getClientMessage wsConn
-              putMVar wsVar (Right msg)
-          )
-          $ \err -> putMVar wsVar (Left err)
-      pure (wsConn, a)
+      pure (wsConn)
 
     -- this is only needed in case of asynchronous exceptions
-    closeWebSocket (wsConn, a) = do
-      cancel a
+    closeWebSocket wsConn = do
       logCloseWebsocket
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
@@ -142,16 +131,18 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
       -- get data from msgVar and push to client
       let consumeRabbitMq = forever $ do
-            eventData <- takeMVar msgVar >>= either throwIO pure
-            logEvent eventData.event
-            catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
-              \(err :: SomeException) -> do
-                logSendFailure err
-                throwIO err
+            eventData' <- takeMVar msgVar
+            either throwIO pure eventData' >>= \eventData -> do
+              logEvent eventData.event
+              catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
+                \(err :: SomeException) -> do
+                  logSendFailure err
+                  throwIO err
 
       -- get ack from wsVar and forward to rabbitmq
       let consumeWebsocket = forever $ do
-            takeMVar wsVar >>= either throwIO pure >>= \case
+            v <- takeMVar wsVar
+            either throwIO pure v >>= \case
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
@@ -217,17 +208,11 @@ sendFullSyncMessage uid cid wsConn env = do
   WS.sendBinaryData wsConn event
   res <-
     (getClientMessage wsConn)
-      `catchAll` ( \e -> do
-                     traceM $ "\n we just got excepted " <> displayException e
-                     throwIO e
+      `catchAll` ( \e -> throwIO e
                  )
-  traceM $ "\n dethunk this res! " <> show res
   case res of
-    AckMessage _ -> do
-      traceM "\n => Whacky ack!"
-      throwIO UnexpectedAck
-    AckFullSync -> do
-      traceM "\n =>    Got our ack!"
+    AckMessage _ -> throwIO UnexpectedAck
+    AckFullSync ->
       C.runClient env.cassandra do
         retry x1 $ write delete (params LocalQuorum (uid, cid))
   where
@@ -241,14 +226,9 @@ sendFullSyncMessage uid cid wsConn env = do
 getClientMessage :: WS.Connection -> IO MessageClientToServer
 getClientMessage wsConn = do
   msg <- WS.receiveData wsConn
-  traceM $ "\n msg received " <> show msg
   case eitherDecode msg of
-    Left err -> do
-      traceM $ "oh no we crash! " <> show err
-      throwIO (FailedToParseClientMessage err)
-    Right m -> do
-      traceM $ "\n decoded!! " <> show m
-      pure m
+    Left err -> throwIO (FailedToParseClientMessage err)
+    Right m -> pure m
 
 data WebSocketServerError
   = FailedToParseClientMessage String

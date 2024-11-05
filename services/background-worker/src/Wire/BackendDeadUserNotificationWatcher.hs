@@ -11,7 +11,6 @@ import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Map qualified as Map
-import Debug.Trace
 import Imports hiding (putMVar)
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
@@ -33,7 +32,6 @@ getLastDeathQueue Nothing = error "oh noes!! sad"
 -- Should we have an async notification terminate this?
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
-  traceM $ "\n ---- Starting consumer"
   markAsWorking BackendDeadUserNoticationWatcher
 
   cassandra <- asks (.cassandra)
@@ -103,7 +101,6 @@ startWorker AmqpEndpoint {..} = do
               -- We need to recover from connection closed by restarting it
               liftIO $ Q.addConnectionClosedHandler conn True do
                 -- TODO: log
-                traceM $ "\n ---- Connection closed"
                 putMVar mVar Nothing
               pure conn
             Just conn -> pure conn

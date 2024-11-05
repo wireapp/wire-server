@@ -210,16 +210,18 @@ testEventExpiration = do
 
 testEventsDeadLettered :: (HasCallStack) => App ()
 testEventsDeadLettered = do
-  let notifTTL = 2 # Second
+  let notifTTL = 1 # Second
   withModifiedBackend (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}) $ \domain -> do
     alice <- randomUser domain def
+
+    -- This generates an event
     client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
     clientId <- objId client
 
     -- We expire the add client event by waiting it out
-    Timeout.threadDelay (notifTTL + 150 # MilliSecond)
+    Timeout.threadDelay (notifTTL + 500 # MilliSecond)
 
-    -- Generate another event
+    -- Generate a second event
     handle1 <- randomHandle
     putHandle alice handle1 >>= assertSuccess
 
@@ -230,6 +232,7 @@ testEventsDeadLettered = do
       -- Until we ack the full sync, we can't get new events
       ackFullSync ackChan
 
+      -- withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
       -- Now we can see the next event
       assertEvent eventsChan $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.update"
