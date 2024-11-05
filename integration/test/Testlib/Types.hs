@@ -392,13 +392,13 @@ modifyMLSState f = do
 getBaseDir :: App FilePath
 getBaseDir = fmap (.baseDir) getMLSState
 
-data AppFailure = AppFailure String
+data AppFailure = AppFailure String CallStack
 
 instance Show AppFailure where
-  show (AppFailure msg) = msg
+  show (AppFailure msg _) = msg
 
 instance Exception AppFailure where
-  displayException (AppFailure msg) = msg
+  displayException (AppFailure msg _) = msg
 
 instance MonadFail App where
   fail msg = assertFailure ("Pattern matching failure: " <> msg)
