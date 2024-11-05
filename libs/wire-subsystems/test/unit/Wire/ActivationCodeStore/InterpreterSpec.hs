@@ -6,6 +6,7 @@ import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Wire.API.User.Activation
 import Wire.ActivationCodeStore
 import Wire.MiniBackend
 import Wire.MockInterpreters.ActivationCodeStore
@@ -27,3 +28,13 @@ spec = do
             runNoFederationStack localBackend Nothing config $
               lookupActivationCode emailKey
        in result === Nothing
+    prop "newly added code can be looked up" $ \emailKey mUid config ->
+      let c = code emailKey
+          localBackend = def
+          (actCode, lookupRes) =
+            runNoFederationStack localBackend Nothing config $ do
+              ac <-
+                (.activationCode)
+                  <$> newActivationCode emailKey undefined mUid
+              (ac,) <$> lookupActivationCode emailKey
+       in actCode === c .&&. lookupRes === Just (mUid, c)
