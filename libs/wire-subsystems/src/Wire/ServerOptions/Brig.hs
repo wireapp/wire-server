@@ -3,7 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 -- Disabling to stop errors on Getters
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -25,7 +25,7 @@
 module Wire.ServerOptions.Brig where
 
 import Control.Applicative
-import Control.Lens hiding (Level, element, enum)
+import Control.Lens (lensField, lensRules, makeLensesWith, (.~))
 import Data.Aeson
 import Data.Aeson.Types qualified as A
 import Data.Char qualified as Char
@@ -36,13 +36,15 @@ import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.Misc (HttpsUrl)
 import Data.Nonce
+import Data.OpenApi qualified as O
 import Data.Range
 import Data.Schema
+import Data.Schema qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound.Types qualified as ES
 import Imports
-import Network.AMQP.Extended
+import Network.AMQP.Extended qualified as AMQP
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
@@ -87,8 +89,28 @@ data ElasticSearchOpts = ElasticSearchOpts
     additionalCaCert :: Maybe FilePath
   }
   deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, O.ToSchema) via (Schema ElasticSearchOpts)
 
-instance FromJSON ElasticSearchOpts
+instance ToSchema ES.Server where
+  schema = (Text.pack . show) S..= (ES.Server <$> text "ElasticSearch.Server")
+
+instance ToSchema ES.IndexName where
+  schema = (Text.pack . show) S..= (ES.IndexName <$> S.text "ElasticSearch.IndexName")
+
+instance S.ToSchema ElasticSearchOpts where
+  schema =
+    S.object "ElasticSearchOpts" $
+      ElasticSearchOpts
+        <$> url S..= S.field "url" S.schema
+        <*> index S..= S.field "index" S.schema
+        <*> additionalWriteIndex S..= maybe_ (S.optField "additionalWriteIndex" S.schema)
+        <*> additionalWriteIndexUrl S..= maybe_ (S.optField "additionalWriteIndexUrl" S.schema)
+        <*> credentials S..= maybe_ (S.optField "credentials" S.schema)
+        <*> additionalCredentials S..= maybe_ (S.optField "additionalCredentials" S.schema)
+        <*> insecureSkipVerifyTls S..= S.field "insecureSkipVerifyTls" S.schema
+        <*> caCert S..= maybe_ (S.optField "caCert" S.schema)
+        <*> additionalInsecureSkipVerifyTls S..= S.field "additionalInsecureSkipVerifyTls" S.schema
+        <*> additionalCaCert S..= maybe_ (S.optField "additionalCaCert" S.schema)
 
 data AWSOpts = AWSOpts
   { -- | Event journal queue for user events
@@ -389,7 +411,7 @@ data Opts = Opts
     -- | SFT Federation
     multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.
-    rabbitmq :: !(Maybe AmqpEndpoint),
+    rabbitmq :: !(Maybe AMQP.AmqpEndpoint),
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
