@@ -353,6 +353,11 @@ checkServiceIsUp domain srv = do
 withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service -> Codensity App ()
 withProcess resource overrides service = do
   let domain = berDomain resource
+
+  isServiceAlreadyUp <- lift $ checkServiceIsUp domain service
+  lift $ when (isServiceAlreadyUp && service /= Nginz) $ do
+    failApp $ show service <> " is already up for domain " <> show domain <> ", it must mean something went wrong with the resource acquisition or cleanup"
+
   sm <- lift $ getServiceMap domain
   getConfig <-
     lift . appToIO $
