@@ -80,7 +80,7 @@ brig:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
     authSettings:
       userTokenTimeout: 120
@@ -214,7 +214,7 @@ cannon:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
   secrets:
     rabbitmq:
@@ -267,7 +267,7 @@ galley:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
     enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     settings:
@@ -393,7 +393,7 @@ gundeck:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
     redis:
       host: redis-ephemeral-master
@@ -557,7 +557,7 @@ background-worker:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
   secrets:
     rabbitmq:

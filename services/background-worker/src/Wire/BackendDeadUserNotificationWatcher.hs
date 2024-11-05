@@ -99,7 +99,7 @@ startWorker AmqpEndpoint {..} = do
               -- We need to recover from connection closed by restarting it
               liftIO $ Q.addConnectionClosedHandler conn True do
                 -- TODO: log
-                traceM $ "\n would have caught this if we had logs"
+                traceM $ "\n ---- Connection closed"
                 putMVar mVar Nothing
               pure conn
             Just conn -> pure conn
