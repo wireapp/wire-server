@@ -23,6 +23,7 @@ library
     Cannon.App
     Cannon.Dict
     Cannon.Options
+    Cannon.RabbitMq
     Cannon.RabbitMqConsumerApp
     Cannon.Run
     Cannon.Types
@@ -111,6 +112,7 @@ library
     , strict                                >=0.3.2
     , text                                  >=1.1
     , tinylog                               >=0.10
+    , transformers
     , types-common                          >=0.16
     , unix
     , unliftio
