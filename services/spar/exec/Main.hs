@@ -18,8 +18,8 @@
 module Main where
 
 import Imports
-import Spar.Options
 import Spar.Run
+import Wire.ServerOptions.Spar
 
 main :: IO ()
 main = runServer =<< getOpts

@@ -33,11 +33,11 @@ import Polysemy.Input (Input, input)
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
-import Spar.Options
 import Spar.Sem.AReqIDStore
 import Wire.API.User.Saml
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
+import Wire.ServerOptions.Spar
 
 aReqIDStoreToCassandra ::
   forall m r a.

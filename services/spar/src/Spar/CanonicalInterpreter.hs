@@ -33,7 +33,6 @@ import Polysemy.Input (Input, runInputConst)
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
-import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)
@@ -74,6 +73,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
+import Wire.ServerOptions.Spar
 
 type CanonicalEffs =
   '[ SAML2,

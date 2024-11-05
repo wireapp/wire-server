@@ -182,7 +182,6 @@ import qualified Spar.App as Spar
 import Spar.CanonicalInterpreter
 import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
-import Spar.Options
 import Spar.Run
 import Spar.Sem.BrigAccess (getAccount)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
@@ -218,6 +217,7 @@ import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
 import Wire.Sem.Logger.TinyLog
+import Wire.ServerOptions.Spar
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -225,7 +225,7 @@ mkEnvFromOptions = do
   let desc = "Spar - SSO Service Integration Test Suite"
   (integrationCfgFilePath, cfgFilePath) <- OPA.execParser (OPA.info (OPA.helper <*> cliOptsParser) (OPA.header desc <> OPA.fullDesc))
   integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationCfgFilePath >>= either (error . show) pure
-  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) Spar.Options.deriveOpts
+  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) Wire.ServerOptions.Spar.deriveOpts
   mkEnv integrationOpts serviceOpts
 
 -- | Accept config file locations as cli options.

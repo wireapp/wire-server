@@ -19,7 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Reading the Spar config.
-module Spar.Options
+module Wire.ServerOptions.Spar
   ( Opts' (..),
     Opts,
     DerivedOpts (..),

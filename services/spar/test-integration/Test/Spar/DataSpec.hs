@@ -32,7 +32,6 @@ import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Error (IdpDbError (IdpNotFound), SparCustomError (IdpDbError))
 import Spar.Intra.BrigApp (veidFromUserSSOId)
-import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import qualified Spar.Sem.IdPConfigStore as IdPEffect
@@ -48,6 +47,7 @@ import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.ServerOptions.Spar
 
 spec :: SpecWith TestEnv
 spec = do

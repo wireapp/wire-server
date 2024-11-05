@@ -49,7 +49,6 @@ import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
 import Spar.App (throwSparSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
-import Spar.Options
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
@@ -68,6 +67,7 @@ import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
+import Wire.ServerOptions.Spar
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance (Member ScimTokenStore r) => Scim.Class.Auth.AuthDB SparTag (Sem r) where

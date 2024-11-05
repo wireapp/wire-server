@@ -51,10 +51,10 @@ import Data.Aeson.TH
 import Imports
 import Spar.API ()
 import qualified Spar.App as Spar
-import Spar.Options
 import Test.Hspec (pendingWith)
 import Util.Options
 import Wire.API.User.IdentityProvider (WireIdPAPIVersion)
+import Wire.ServerOptions.Spar
 
 type BrigReq = Request -> Request
 

@@ -25,7 +25,6 @@ library
     Spar.Intra.Brig
     Spar.Intra.BrigApp
     Spar.Intra.Galley
-    Spar.Options
     Spar.Orphans
     Spar.Run
     Spar.Schema.Run
@@ -173,7 +172,6 @@ library
     , metrics-wai
     , mtl
     , network-uri
-    , optparse-applicative
     , polysemy
     , polysemy-check         >=0.9
     , polysemy-plugin
@@ -185,7 +183,6 @@ library
     , servant-multipart
     , servant-server
     , text
-    , text-latin1
     , these
     , time
     , tinylog
@@ -200,7 +197,6 @@ library
     , warp
     , wire-api
     , wire-subsystems
-    , yaml
 
   default-language:   Haskell2010
 
@@ -261,6 +257,7 @@ executable spar
       base
     , imports
     , spar
+    , wire-subsystems
 
   default-language:   Haskell2010
 
@@ -397,6 +394,7 @@ executable spar-integration
     , wai-extra
     , wai-utilities
     , wire-api
+    , wire-subsystems
     , xml-conduit
     , yaml
     , zauth
