@@ -82,6 +82,7 @@ import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
+import qualified Wire.API.Team.Invitation as Invitation
 
 servantAPI ::
   ( Member GalleyAPIAccess r,
@@ -286,6 +287,8 @@ getInvitation ::
   Sem r (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
+  -- TODO: if invitee exists, add inviter email to the invitation
+  mInviterEmail <- _
 
   invitationM <- Store.lookupInvitation tid iid
   case invitationM of
@@ -293,7 +296,7 @@ getInvitation uid tid iid = do
     Just invitation -> do
       showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
       maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
-      pure $ Just (Store.invitationFromStored maybeUrl invitation)
+      pure $ Just (Store.invitationFromStored maybeUrl invitation) { Invitation.inviterEmail = mInviterEmail }
 
 isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
 isPersonalUser uke = do
