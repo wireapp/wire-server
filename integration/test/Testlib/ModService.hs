@@ -342,22 +342,6 @@ waitUntilServiceIsUp domain srv =
 -- | Check if a service is up and running.
 checkServiceIsUp :: String -> Service -> App Bool
 checkServiceIsUp _ Nginz = pure True
-checkServiceIsUp domain FederatorInternal = do
-  req <- baseRequest domain FederatorInternal Unversioned "/i/status"
-  let internalStatus = do
-        checkStatus <- appToIO $ do
-          res <- submit "GET" req
-          pure (res.status `elem` [200, 204])
-        eith <- liftIO (E.try checkStatus)
-        pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
-      externalStatus = do
-        checkStatus <- appToIO $ do
-          extPort <- fromIntegral . (.port) . (.federatorExternal) <$> getServiceMap domain
-          res <- submit "GET" req {HTTP.port = extPort}
-          pure (res.status `elem` [200, 204])
-        eith <- liftIO (E.try checkStatus)
-        pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
-  (&&) <$> internalStatus <*> externalStatus
 checkServiceIsUp domain srv = do
   req <- baseRequest domain srv Unversioned "/i/status"
   checkStatus <- appToIO $ do
