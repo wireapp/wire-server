@@ -2,6 +2,8 @@ _meta:
   type: "internalusers"
   config_version: 2
 
+# User: elastic
+# Password: changeme
 elastic:
   hash: "$2y$12$GRc68jkEX1m4uQpTVbwURu79xHxZ7vsbyEctOAADQwPjlhYS4LJVa"
   reserved: true
