@@ -80,6 +80,7 @@ import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredI
 import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
 import Wire.TeamInvitationSubsystem
+import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -236,37 +237,11 @@ listInvitations uid tid startingId mSize = do
     -- To create the correct team invitation URL, we need to detect whether the invited account already exists.
     -- Optimization: if url is not to be shown, do not check for existing personal user.
     toInvitationHack :: ShowOrHideInvitationUrl -> StoredInvitation -> Sem r Invitation
-    toInvitationHack HideInvitationUrl si = toInvitation False HideInvitationUrl si -- isPersonalUserMigration is always ignored here
+    toInvitationHack HideInvitationUrl si =
+      toInvitation False HideInvitationUrl si -- isPersonalUserMigration is always ignored here
     toInvitationHack ShowInvitationUrl si = do
       isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
       toInvitation isPersonalUserMigration ShowInvitationUrl si
-
--- | brig used to not store the role, so for migration we allow this to be empty and fill in the
--- default here.
-toInvitation ::
-  ( Member TinyLog r,
-    Member (Input TeamTemplates) r
-  ) =>
-  Bool ->
-  ShowOrHideInvitationUrl ->
-  StoredInvitation ->
-  Sem r Invitation
-toInvitation isPersonalUserMigration showUrl storedInv = do
-  url <-
-    if isPersonalUserMigration
-      then mkInviteUrlPersonalUser showUrl storedInv.teamId storedInv.code
-      else mkInviteUrl showUrl storedInv.teamId storedInv.code
-  pure $
-    Invitation
-      { team = storedInv.teamId,
-        role = fromMaybe defaultRole storedInv.role,
-        invitationId = storedInv.invitationId,
-        createdAt = storedInv.createdAt,
-        createdBy = storedInv.createdBy,
-        inviteeEmail = storedInv.email,
-        inviteeName = storedInv.name,
-        inviteeUrl = url
-      }
 
 getInviteUrl ::
   forall r.
@@ -306,19 +281,6 @@ mkInviteUrl ::
 mkInviteUrl HideInvitationUrl _ _ = pure Nothing
 mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
   template <- invitationEmail <$> input
-  getInviteUrl template team c
-
-mkInviteUrlPersonalUser ::
-  ( Member TinyLog r,
-    Member (Input TeamTemplates) r
-  ) =>
-  ShowOrHideInvitationUrl ->
-  TeamId ->
-  InvitationCode ->
-  Sem r (Maybe (URIRef Absolute))
-mkInviteUrlPersonalUser HideInvitationUrl _ _ = pure Nothing
-mkInviteUrlPersonalUser ShowInvitationUrl team (InvitationCode c) = do
-  template <- existingUserInvitationEmail <$> input
   getInviteUrl template team c
 
 getInvitation ::
