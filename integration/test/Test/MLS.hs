@@ -433,7 +433,6 @@ testRemoteAddUser = do
 
 testRemoteRemoveClient :: (HasCallStack) => Ciphersuite -> App ()
 testRemoteRemoveClient suite = do
-  -- setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
   void $ uploadNewKeyPackage suite bob1
@@ -462,7 +461,6 @@ testRemoteRemoveClient suite = do
 
 testRemoteRemoveCreatorClient :: (HasCallStack) => Ciphersuite -> App ()
 testRemoteRemoveCreatorClient suite = do
-  -- setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
   void $ uploadNewKeyPackage suite bob1
@@ -595,7 +593,6 @@ testRemoveClientsIncomplete = do
 
 testAdminRemovesUserFromConv :: (HasCallStack) => Ciphersuite -> App ()
 testAdminRemovesUserFromConv suite = do
-  -- setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1, bob2] <- traverse (createMLSClient suite def) [alice, bob, bob]
 

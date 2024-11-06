@@ -244,16 +244,13 @@ testCreatorRemovesUserFromParent = do
     _ <- createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
 
     -- save the state of the parent group
-    -- parentState <- getMLSState
-    -- switch to the subgroup
     let subConvName = "conference"
     createSubConv def convId alice1 subConvName
     subConvId <- getSubConvId alice convId "conference"
 
     for_ [bob1, bob2, charlie1, charlie2] \c ->
       createExternalCommit subConvId c Nothing >>= sendAndConsumeCommitBundle
-    -- save the state of the subgroup and switch to the parent context
-    -- childState <- getMLSState <* setMLSState parentState
+
     withWebSockets [alice1, charlie1, charlie2] \wss -> do
       removeCommitEvents <- createRemoveCommit alice1 convId [bob1, bob2] >>= sendAndConsumeCommitBundle
       modifyMLSState $ \s ->
@@ -274,7 +271,6 @@ testCreatorRemovesUserFromParent = do
         n %. "payload.0.data.reason" `shouldMatch` "removed"
         n %. "payload.0.from" `shouldMatch` alice1.user
 
-      -- setMLSState childState
       let idxBob1 :: Int = 1
           idxBob2 :: Int = 2
       for_ ((,) <$> [idxBob1, idxBob2] <*> wss) \(idx, ws) -> do

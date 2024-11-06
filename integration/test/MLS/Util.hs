@@ -87,7 +87,11 @@ mlscli mConvId cs cid args mbstdin = do
   store <- case Map.lookup scheme gs.keystore of
     Nothing -> do
       bd <- getBaseDir
-      liftIO (createDirectory (bd </> cid2Str cid)) `catch` \e -> if (isAlreadyExistsError e) then assertFailure "Fasdfa" else throwM e
+      liftIO (createDirectory (bd </> cid2Str cid))
+        `catch` \e ->
+          if (isAlreadyExistsError e)
+            then assertFailure "client directory for mls state already exists"
+            else throwM e
 
       -- initialise new keystore
       path <- randomFileName
@@ -710,11 +714,9 @@ sendAndConsumeCommitBundleWithProtocol protocol mp = do
 
 consumeWelcome :: (HasCallStack) => ClientIdentity -> MessagePackage -> WebSocket -> App ()
 consumeWelcome cid mp ws = do
-  -- Just mls <- Map.lookup mp.convId . (.convs) <$> getMLSState
   notif <- awaitMatch isWelcomeNotif ws
   event <- notif %. "payload.0"
 
-  -- eventSubConv event `shouldMatch` mp.convId
   event %. "qualified_conversation" `shouldMatch` convIdToQidObject mp.convId
   lookupField event "subconv" `shouldMatch` mp.convId.subconvId
   event %. "from" `shouldMatch` mp.sender.user
