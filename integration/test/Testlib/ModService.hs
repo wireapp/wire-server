@@ -21,6 +21,7 @@ import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
+import Data.List
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -41,6 +42,7 @@ import Testlib.App
 import Testlib.Assertions (prettierCallStack)
 import Testlib.HTTP
 import Testlib.JSON
+import Testlib.Ports as Ports
 import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
@@ -229,14 +231,14 @@ startDynamicBackend resource beOverrides = do
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
 updateServiceMapInConfig resource forSrv config =
   foldlM
-    ( \c (srv, port) -> do
+    ( \c (srv, p) -> do
         overridden <-
           c
             & setField
               (serviceName srv)
               ( object
                   ( [ "host" .= ("127.0.0.1" :: String),
-                      "port" .= port
+                      "port" .= p
                     ]
                       <> (["externalHost" .= ("127.0.0.1" :: String) | srv == Cannon])
                   )
@@ -246,7 +248,7 @@ updateServiceMapInConfig resource forSrv config =
             overridden
               -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
               & setField "saml.spHost" ("127.0.0.1" :: String)
-              & setField "saml.spPort" port
+              & setField "saml.spPort" p
           _ -> pure overridden
     )
     config
@@ -333,16 +335,23 @@ cleanupService inst = do
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
 -- | Wait for a service to come up.
-waitUntilServiceIsUp :: (HasCallStack) => String -> Service -> App ()
-waitUntilServiceIsUp domain srv =
+waitUntilServiceIsUp :: (HasCallStack) => BackendName -> String -> Service -> App ()
+waitUntilServiceIsUp beName domain srv =
   retryRequestUntil
-    (checkServiceIsUp domain srv)
+    (checkServiceIsUp beName domain srv)
     (show srv)
 
 -- | Check if a service is up and running.
-checkServiceIsUp :: String -> Service -> App Bool
-checkServiceIsUp _ Nginz = pure True
-checkServiceIsUp domain FederatorInternal = do
+checkServiceIsUp :: BackendName -> String -> Service -> App Bool
+checkServiceIsUp _ _ Nginz = pure True
+checkServiceIsUp beName domain FederatorInternal = do
+  let p :: Int = Ports.port (ServiceInternal FederatorInternal) beName
+  (_, Just hout, _, _) <- liftIO $ createProcess (proc "netstat" ["-nptel"]) {std_out = CreatePipe}
+  contents <- liftIO $ hGetContents hout
+  let ls = filter (\l -> show p `isInfixOf` l) (lines contents)
+  liftIO $ case ls of
+    [] -> putStrLn $ "==========> port not found: " <> show p
+    _ -> putStrLn $ unlines ls
   req <- baseRequest domain FederatorInternal Unversioned "/i/status"
   let internalStatus = do
         checkStatus <- appToIO $ do
@@ -358,7 +367,7 @@ checkServiceIsUp domain FederatorInternal = do
         eith <- liftIO (E.try checkStatus)
         pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
   (&&) <$> internalStatus <*> externalStatus
-checkServiceIsUp domain srv = do
+checkServiceIsUp _ domain srv = do
   req <- baseRequest domain srv Unversioned "/i/status"
   checkStatus <- appToIO $ do
     res <- submit "GET" req
@@ -370,7 +379,7 @@ withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service 
 withProcess resource overrides service = do
   let domain = berDomain resource
 
-  isServiceAlreadyUp <- lift $ checkServiceIsUp domain service
+  isServiceAlreadyUp <- lift $ checkServiceIsUp resource.berName domain service
   lift $ when (isServiceAlreadyUp && service /= Nginz) $ do
     failApp $ show service <> " is already up for domain " <> show domain <> ", it must mean something went wrong with the resource acquisition or cleanup"
 
@@ -406,7 +415,7 @@ withProcess resource overrides service = do
     iok <- appToIOKleisli k
     liftIO $ E.bracket initProcess cleanupService iok
 
-  lift $ waitUntilServiceIsUp domain service
+  lift $ waitUntilServiceIsUp resource.berName domain service
 
 logToConsole :: (String -> String) -> String -> Handle -> IO ()
 logToConsole colorize prefix hdl = do
