@@ -145,10 +145,12 @@ createChannel pool queue = do
   let manageChannel = do
         conn <- acquireConnection pool
         chan <- Q.openChannel conn.inner
+        putMVar inner chan
         void $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
           putMVar msgVar (Just (message, envelope))
 
         Q.addChannelExceptionHandler chan $ \e -> do
+          void $ takeMVar inner
           releaseConnection pool conn
 
           retry <- case (Q.isNormalChannelClose e, fromException e) of
@@ -159,7 +161,7 @@ createChannel pool queue = do
             (_, Just (Q.ConnectionClosedException {})) -> do
               Log.info pool.logger $
                 Log.msg (Log.val "RabbitMQ connection is closed, not attempting to reopen channel")
-              pure False
+              pure False -- TODO: change this to true?
             _ -> do
               logException pool.logger "RabbitMQ channel closed" e
               pure True
@@ -168,7 +170,8 @@ createChannel pool queue = do
 
         retry <- takeMVar closedVar
         if retry
-          then manageChannel
+          then -- TODO: exponential backoff?
+            manageChannel
           else putMVar msgVar Nothing
 
   -- TODO: leaking async
