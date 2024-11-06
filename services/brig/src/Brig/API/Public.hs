@@ -790,7 +790,8 @@ upgradePersonalToTeam ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member EmailSending r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->

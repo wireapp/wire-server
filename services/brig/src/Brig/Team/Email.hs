@@ -19,8 +19,7 @@
 
 module Brig.Team.Email
   ( sendMemberWelcomeMail,
-    sendPersonalUserMemberWelcomeMail,
-    sendPersonalUserCreatorWelcomeMail,
+    sendNewTeamOwnerWelcomeEmail,
   )
 where
 
@@ -41,13 +40,11 @@ sendMemberWelcomeMail to tid teamName loc = do
   branding <- asks (.templateBranding)
   liftSem $ sendMail $ renderMemberWelcomeMail to tid teamName tpl branding
 
-sendPersonalUserMemberWelcomeMail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
-sendPersonalUserMemberWelcomeMail _ _ _ _ = do
-  pure ()
-
-sendPersonalUserCreatorWelcomeMail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
-sendPersonalUserCreatorWelcomeMail _ _ _ _ = do
-  pure ()
+sendNewTeamOwnerWelcomeEmail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
+sendNewTeamOwnerWelcomeEmail to tid teamName loc = do
+  tpl <- newTeamOwnerWelcomeEmail . snd <$> teamTemplatesWithLocale loc
+  branding <- asks (.templateBranding)
+  liftSem $ sendMail $ renderNewTeamOwnerWelcomeEmail to tid teamName tpl branding
 
 -------------------------------------------------------------------------------
 -- Member Welcome Email
@@ -69,6 +66,31 @@ renderMemberWelcomeMail emailTo tid teamName MemberWelcomeEmailTemplate {..} bra
     html = renderHtmlWithBranding memberWelcomeEmailBodyHtml replace branding
     subj = renderTextWithBranding memberWelcomeEmailSubject replace branding
     replace "url" = memberWelcomeEmailUrl
+    replace "email" = fromEmail emailTo
+    replace "team_id" = idToText tid
+    replace "team_name" = teamName
+    replace x = x
+
+-------------------------------------------------------------------------------
+-- New Team Owner Welcome Email
+
+renderNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> NewTeamOwnerWelcomeEmailTemplate -> TemplateBranding -> Mail
+renderNewTeamOwnerWelcomeEmail emailTo tid teamName NewTeamOwnerWelcomeEmailTemplate {..} branding =
+  (emptyMail from)
+    { mailTo = [to],
+      mailHeaders =
+        [ ("Subject", toStrict subj),
+          ("X-Zeta-Purpose", "Welcome")
+        ],
+      mailParts = [[plainPart txt, htmlPart html]]
+    }
+  where
+    from = Address (Just newTeamOwnerWelcomeEmailSenderName) (fromEmail newTeamOwnerWelcomeEmailSender)
+    to = Address Nothing (fromEmail emailTo)
+    txt = renderTextWithBranding newTeamOwnerWelcomeEmailBodyText replace branding
+    html = renderHtmlWithBranding newTeamOwnerWelcomeEmailBodyHtml replace branding
+    subj = renderTextWithBranding newTeamOwnerWelcomeEmailSubject replace branding
+    replace "url" = newTeamOwnerWelcomeEmailUrl
     replace "email" = fromEmail emailTo
     replace "team_id" = idToText tid
     replace "team_name" = teamName
