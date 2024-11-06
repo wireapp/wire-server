@@ -1580,6 +1580,7 @@ instance ToSchema NameUpdate where
 data ChangeEmailResponse
   = ChangeEmailResponseIdempotent
   | ChangeEmailResponseNeedsActivation
+  deriving (Eq, Show)
 
 instance
   AsUnion

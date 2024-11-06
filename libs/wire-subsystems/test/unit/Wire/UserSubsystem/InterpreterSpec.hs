@@ -814,3 +814,67 @@ spec = describe "UserSubsystem.Interpreter" do
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Nothing
+  describe "Removing an email address" do
+    prop "Cannot remove an email of a non-existing user" $ \lusr config ->
+      let localBackend = def
+          result =
+            runNoFederationStack localBackend Nothing config $
+              removeEmailEither lusr
+       in result === Left UserSubsystemProfileNotFound
+    prop "Cannot remove an email of a no-identity user" $
+      \(locx :: Local ()) (NotPendingEmptyIdentityStoredUser user) config ->
+        let localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack localBackend Nothing config $
+                removeEmailEither lusr
+         in result === Left UserSubsystemNoIdentity
+    prop "Cannot remove an email of a last-identity user" $
+      \(locx :: Local ()) user' email sso config ->
+        let user =
+              user'
+                { activated = True,
+                  email = email,
+                  ssoId = if isNothing email then Just sso else Nothing
+                }
+            localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack localBackend Nothing config $
+                removeEmailEither lusr
+         in result === Left UserSubsystemLastIdentity
+    prop "Successfully remove an email from an SSOId user" $
+      \(locx :: Local ()) (NotPendingSSOIdWithEmailStoredUser user) config ->
+        let localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack localBackend Nothing config $ do
+                remRes <- removeEmailEither lusr
+                (remRes,) <$> gets users
+         in result === (Right (), [user {email = Nothing}])
+  describe "Changing an email address" $ do
+    prop "Idempotent email change" $
+      \(locx :: Local ()) (NotPendingStoredUser user') email config ->
+        let user = user' {email = Just email}
+            localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack localBackend Nothing config $ do
+                c <- requestEmailChange lusr email UpdateOriginWireClient
+                (c,) <$> gets users
+         in result === (ChangeEmailResponseIdempotent, [user])
+    prop "Email change needing activation" $
+      \(locx :: Local ()) (NotPendingStoredUser user') config ->
+        let email = unsafeEmailAddress "me" "example.com"
+            updatedEmail = unsafeEmailAddress "you" "example.com"
+            user = user' {email = Just email, managedBy = Nothing}
+            localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack localBackend Nothing config $ do
+                c <- requestEmailChange lusr updatedEmail UpdateOriginWireClient
+                (c,) <$> gets users
+         in result
+              === ( ChangeEmailResponseNeedsActivation,
+                    [user {emailUnvalidated = Just updatedEmail}]
+                  )

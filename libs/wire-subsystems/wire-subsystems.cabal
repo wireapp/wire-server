@@ -232,6 +232,7 @@ test-suite wire-subsystems-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Spec
+    Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters

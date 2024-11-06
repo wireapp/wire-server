@@ -13,6 +13,15 @@ import Wire.API.User.Activation
 import Wire.ActivationCodeStore (ActivationCodeStore (..))
 import Wire.UserKeyStore
 
+code :: EmailKey -> ActivationCode
+code =
+  ActivationCode
+    . Ascii.unsafeFromText
+    . pack
+    . printf "%06d"
+    . length
+    . show
+
 inMemoryActivationCodeStoreInterpreter ::
   ( Member (State (Map EmailKey (Maybe UserId, ActivationCode))) r
   ) =>
@@ -26,12 +35,5 @@ inMemoryActivationCodeStoreInterpreter = interpret \case
             . T.encodeUtf8
             . emailKeyUniq
             $ ek
-        code =
-          ActivationCode
-            . Ascii.unsafeFromText
-            . pack
-            . printf "%06d"
-            . length
-            . show
-            $ ek
-    modify (insert ek (uid, code)) $> Activation key code
+        c = code ek
+    modify (insert ek (uid, c)) $> Activation key c

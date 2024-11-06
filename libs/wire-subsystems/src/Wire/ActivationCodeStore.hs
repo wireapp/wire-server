@@ -26,7 +26,9 @@ import Wire.API.User.Activation
 import Wire.UserKeyStore
 
 data ActivationCodeStore :: Effect where
-  LookupActivationCode :: EmailKey -> ActivationCodeStore m (Maybe (Maybe UserId, ActivationCode))
+  LookupActivationCode ::
+    EmailKey ->
+    ActivationCodeStore m (Maybe (Maybe UserId, ActivationCode))
   -- | Create a code for a new pending activation for a given 'EmailKey'
   NewActivationCode ::
     EmailKey ->
