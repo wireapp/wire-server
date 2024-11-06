@@ -40,10 +40,8 @@ import Data.Id
 import Data.List1 qualified as List1
 import Data.Qualified
 import Data.Range
-import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
-import Data.Text.Lazy qualified as Text
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (Error, code, message)
 import Polysemy
@@ -67,9 +65,9 @@ import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
-import Wire.API.Team.Role
 import Wire.API.User hiding (fromEmail)
 import Wire.BlockListStore
+import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.EmailSubsystem.Template
 import Wire.Error
 import Wire.Events (Events)
@@ -238,27 +236,31 @@ listInvitations uid tid startingId mSize = do
     -- Optimization: if url is not to be shown, do not check for existing personal user.
     toInvitationHack :: ShowOrHideInvitationUrl -> StoredInvitation -> Sem r Invitation
     toInvitationHack HideInvitationUrl si =
-      toInvitation False HideInvitationUrl si -- isPersonalUserMigration is always ignored here
+      toInvitation "" HideInvitationUrl si -- isPersonalUserMigration is always ignored here
     toInvitationHack ShowInvitationUrl si = do
       isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
-      toInvitation isPersonalUserMigration ShowInvitationUrl si
+      template <-
+        if isPersonalUserMigration
+          then invitationEmailUrl . existingUserInvitationEmail <$> input
+          else invitationEmailUrl . invitationEmail <$> input
+      let url = renderInvitationUrl template tid si.code id
+      toInvitation url ShowInvitationUrl si
 
-getInviteUrl ::
+mkInviteUrl ::
   forall r.
-  (Member TinyLog r) =>
-  InvitationEmailTemplate ->
+  ( Member TinyLog r,
+    Member (Input TeamTemplates) r
+  ) =>
+  ShowOrHideInvitationUrl ->
   TeamId ->
-  AsciiText Base64Url ->
+  InvitationCode ->
   Sem r (Maybe (URIRef Absolute))
-getInviteUrl (invitationEmailUrl -> template) team code = do
-  let branding = id -- url is not branded
-  let url = Text.toStrict $ renderTextWithBranding template replace branding
+mkInviteUrl HideInvitationUrl _ _ = pure Nothing
+mkInviteUrl ShowInvitationUrl team c = do
+  template <- invitationEmailUrl . invitationEmail <$> input
+  let url = renderInvitationUrl template team c id
   parseHttpsUrl url
   where
-    replace "team" = idToText team
-    replace "code" = toText code
-    replace x = x
-
     parseHttpsUrl :: Text -> Sem r (Maybe (URIRef Absolute))
     parseHttpsUrl url =
       either (\e -> Nothing <$ logError url e) (pure . Just) $
@@ -269,19 +271,6 @@ getInviteUrl (invitationEmailUrl -> template) team code = do
         Log.msg @Text "Unable to create invitation url. Please check configuration."
           . Log.field "url" url
           . Log.field "error" (show e)
-
-mkInviteUrl ::
-  ( Member TinyLog r,
-    Member (Input TeamTemplates) r
-  ) =>
-  ShowOrHideInvitationUrl ->
-  TeamId ->
-  InvitationCode ->
-  Sem r (Maybe (URIRef Absolute))
-mkInviteUrl HideInvitationUrl _ _ = pure Nothing
-mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
-  template <- invitationEmail <$> input
-  getInviteUrl template team c
 
 -- TODO: is this also code already available from wire-subsystems?
 getInvitation ::
