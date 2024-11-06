@@ -36,7 +36,8 @@ import Control.Concurrent.Async qualified as Async
 import Control.Exception qualified as E
 import Control.Exception.Safe (catchAny)
 import Control.Lens ((^.))
-import Control.Monad.Catch (MonadCatch, finally)
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Codensity
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.Text (pack, strip)
@@ -67,26 +68,32 @@ import Wire.OpenTelemetry (withTracer)
 type CombinedAPI = CannonAPI :<|> Internal.API
 
 run :: Opts -> IO ()
-run o = withTracer \tracer -> do
+run o = lowerCodensity $ do
+  tracer <- Codensity withTracer
   when (o ^. drainOpts . millisecondsBetweenBatches == 0) $
     error "drainOpts.millisecondsBetweenBatches must not be set to 0."
   when (o ^. drainOpts . gracePeriodSeconds == 0) $
     error "drainOpts.gracePeriodSeconds must not be set to 0."
-  ext <- loadExternal
-  g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
-  cassandra <- defInitCassandra (o ^. cassandraOpts) g
-  e <-
-    mkEnv ext o cassandra g
-      <$> D.empty connectionLimit
-      <*> D.empty connectionLimit
-      <*> newManager defaultManagerSettings {managerConnCount = connectionLimit}
-      <*> createSystemRandom
-      <*> mkClock
-      <*> pure (o ^. Cannon.Options.rabbitmq)
-  refreshMetricsThread <- Async.async $ runCannon e refreshMetrics
+  ext <- lift loadExternal
+  g <-
+    Codensity $
+      E.bracket
+        (L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat))
+        L.close
+  cassandra <- lift $ defInitCassandra (o ^. cassandraOpts) g
+
+  e <- do
+    d1 <- D.empty connectionLimit
+    d2 <- D.empty connectionLimit
+    man <- lift $ newManager defaultManagerSettings {managerConnCount = connectionLimit}
+    rnd <- lift createSystemRandom
+    clk <- lift mkClock
+    mkEnv ext o cassandra g d1 d2 man rnd clk (o ^. Cannon.Options.rabbitmq)
+
+  void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 
-  otelMiddleWare <- newOpenTelemetryWaiMiddleware
+  otelMiddleWare <- lift newOpenTelemetryWaiMiddleware
   let middleware :: Wai.Middleware
       middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
@@ -101,17 +108,19 @@ run o = withTracer \tracer -> do
       server =
         hoistServer (Proxy @CannonAPI) (runCannonToServant e) publicAPIServer
           :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
-  tid <- myThreadId
-  E.handle uncaughtExceptionHandler $ do
-    void $ installHandler sigTERM (signalHandler (env e) tid) Nothing
-    void $ installHandler sigINT (signalHandler (env e) tid) Nothing
-    inSpan tracer "cannon" defaultSpanArguments {kind = Otel.Server} (runSettings s app) `finally` do
+  tid <- lift myThreadId
+
+  Codensity $ \k ->
+    inSpan tracer "cannon" defaultSpanArguments {kind = Otel.Server} (k ())
+  lift $
+    E.handle uncaughtExceptionHandler $ do
+      void $ installHandler sigTERM (signalHandler (env e) tid) Nothing
+      void $ installHandler sigINT (signalHandler (env e) tid) Nothing
       -- FUTUREWORK(@akshaymankar, @fisx): we may want to call `runSettingsWithShutdown` here,
       -- but it's a sensitive change, and it looks like this is closing all the websockets at
       -- the same time and then calling the drain script. I suspect this might be due to some
       -- cleanup in wai.  this needs to be tested very carefully when touched.
-      Async.cancel refreshMetricsThread
-      L.close (applog e)
+      runSettings s app
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3
     -- Each cannon instance advertises its own location (ip or dns name) to gundeck.

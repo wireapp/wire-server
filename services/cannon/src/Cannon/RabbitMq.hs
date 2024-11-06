@@ -6,9 +6,10 @@ module Cannon.RabbitMq
     RabbitMqPoolOptions (..),
     RabbitMqPool,
     createRabbitMqPool,
-    RabbitMqChannel,
+    RabbitMqChannel (..),
     createChannel,
     getMessage,
+    ackMessage,
   )
 where
 
@@ -136,6 +137,11 @@ data RabbitMqChannel = RabbitMqChannel
 
 getMessage :: RabbitMqChannel -> IO (Q.Message, Q.Envelope)
 getMessage chan = takeMVar chan.msgVar >>= maybe (throwIO ChannelClosed) pure
+
+ackMessage :: RabbitMqChannel -> Word64 -> Bool -> IO ()
+ackMessage chan deliveryTag multiple = do
+  inner <- readMVar chan.inner
+  Q.ackMsg inner deliveryTag multiple
 
 createChannel :: RabbitMqPool -> Text -> IO RabbitMqChannel
 createChannel pool queue = do

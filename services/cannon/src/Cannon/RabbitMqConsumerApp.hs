@@ -5,6 +5,7 @@ module Cannon.RabbitMqConsumerApp where
 import Cannon.App (rejectOnError)
 import Cannon.Dict qualified as D
 import Cannon.Options
+import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
@@ -18,7 +19,6 @@ import Data.List.Extra hiding (delete)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Imports hiding (min, threadDelay)
 import Network.AMQP qualified as Q
-import Network.AMQP.Extended (withConnection)
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import System.Logger qualified as Log
@@ -78,12 +78,11 @@ drainRabbitQueues e = do
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
   wsVar <- newEmptyMVar
-  msgVar <- newEmptyMVar
 
   bracket (openWebSocket wsVar) closeWebSocket $ \(wsConn, _) ->
     ( do
         sendFullSyncMessageIfNeeded wsVar wsConn uid cid e
-        sendNotifications wsConn msgVar wsVar
+        sendNotifications wsConn wsVar
     )
       `catches` [ handleClientMisbehaving wsConn,
                   handleWebSocketExceptions wsConn
@@ -116,28 +115,26 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
 
-    -- Create a rabbitmq consumer that receives messages and saves them into an MVar
-    createConsumer ::
-      Q.Channel ->
-      MVar (Either Q.AMQPException EventData) ->
-      IO Q.ConsumerTag
-    createConsumer chan msgVar = do
-      Q.consumeMsgs chan (clientNotificationQueueName uid cid) Q.Ack $
-        \(msg, envelope) -> case eitherDecode @QueuedNotification msg.msgBody of
-          Left err -> do
-            logParseError err
-            -- This message cannot be parsed, make sure it doesn't requeue. There
-            -- is no need to throw an error and kill the websocket as this is
-            -- probably caused by a bug or someone messing with RabbitMQ.
-            --
-            -- The bug case is slightly dangerous as it could drop a lot of events
-            -- en masse, if at some point we decide that Events should not be
-            -- pushed as JSONs, hopefully we think of the parsing side if/when
-            -- that happens.
-            Q.rejectEnv envelope False
-          Right notif ->
-            putMVar msgVar . Right $
-              EventData notif envelope.envDeliveryTag
+    getEventData :: RabbitMqChannel -> IO EventData
+    getEventData chan = do
+      (msg, envelope) <- getMessage chan
+      case eitherDecode @QueuedNotification msg.msgBody of
+        Left err -> do
+          logParseError err
+          -- This message cannot be parsed, make sure it doesn't requeue. There
+          -- is no need to throw an error and kill the websocket as this is
+          -- probably caused by a bug or someone messing with RabbitMQ.
+          --
+          -- The bug case is slightly dangerous as it could drop a lot of events
+          -- en masse, if at some point we decide that Events should not be
+          -- pushed as JSONs, hopefully we think of the parsing side if/when
+          -- that happens.
+          Q.rejectEnv envelope False
+          -- try again
+          getEventData chan
+        Right notif -> do
+          logEvent notif
+          pure $ EventData notif envelope.envDeliveryTag
 
     handleWebSocketExceptions wsConn =
       Handler $
@@ -173,45 +170,20 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               Log.msg (Log.val "Client sent unexpected ack message")
                 . logClient
             WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString)
+
     sendNotifications ::
       WS.Connection ->
-      MVar (Either Q.AMQPException EventData) ->
       MVar (Either ConnectionException MessageClientToServer) ->
       IO ()
-    sendNotifications wsConn msgVar wsVar = lowerCodensity $ do
-      -- create rabbitmq connection
-      conn <- Codensity $ withConnection e.logg e.rabbitmq
+    sendNotifications wsConn wsVar = lowerCodensity $ do
+      chan <- lift $ createChannel e.pool (clientNotificationQueueName uid cid)
 
-      -- Store it in the env
-      let key = mkKeyRabbit uid cid
-      D.insert key conn e.rabbitConnections
-
-      -- create rabbitmq channel
-      amqpChan <- Codensity $ bracket (Q.openChannel conn) Q.closeChannel
-
-      -- propagate rabbitmq connection failure
-      lift $ Q.addConnectionClosedHandler conn True $ do
-        void $ D.remove key e.rabbitConnections
-        putMVar msgVar $
-          Left (Q.ConnectionClosedException Q.Normal "")
-
-      -- register consumer that pushes rabbitmq messages into msgVar
-      void $
-        Codensity $
-          bracket
-            (createConsumer amqpChan msgVar)
-            (Q.cancelConsumer amqpChan)
-
-      -- get data from msgVar and push to client
       let consumeRabbitMq = forever $ do
-            eventData' <- takeMVar msgVar
-            either throwIO pure eventData' >>= \eventData -> do
-              logEvent eventData.event
-              catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
-                \(err :: SomeException) -> do
-                  logSendFailure err
-                  void $ D.remove key e.rabbitConnections
-                  throwIO err
+            eventData <- getEventData chan
+            catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
+              \(err :: SomeException) -> do
+                logSendFailure err
+                throwIO err
 
       -- get ack from wsVar and forward to rabbitmq
       let consumeWebsocket = forever $ do
@@ -220,7 +192,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
-                void $ Q.ackMsg amqpChan ackData.deliveryTag ackData.multiple
+                void $ ackMessage chan ackData.deliveryTag ackData.multiple
 
       -- run both loops concurrently, so that
       --  - notifications are delivered without having to wait for acks
