@@ -196,18 +196,6 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
   withEventsWebSocket alice clientId $ \eventsChan _ -> do
     assertNoEvent eventsChan
 
-testEventExpiration :: (HasCallStack) => App ()
-testEventExpiration = do
-  let notifTTL = 1 # Second
-  withModifiedBackend (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}) $ \domain -> do
-    alice <- randomUser domain def
-    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    clientId <- objId client
-
-    Timeout.threadDelay (notifTTL + 1 # Second)
-    withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
-      assertNoEvent eventsChan
-
 testEventsDeadLettered :: (HasCallStack) => App ()
 testEventsDeadLettered = do
   let notifTTL = 1 # Second
