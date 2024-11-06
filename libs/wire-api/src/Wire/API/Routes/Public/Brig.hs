@@ -1588,8 +1588,27 @@ type TeamsAPI =
                     (Respond 200 "List of sent invitations" InvitationList)
            )
     :<|> Named
+           "get-team-invitation@v6"
+           ( Summary "Get a pending team invitation by ID."
+               :> Until 'V7
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> Capture "iid" InvitationId
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ ErrorResponse 'NotificationNotFound,
+                       VersionedRespond 'V6 200 "Invitation" Invitation
+                     ]
+                    (Maybe Invitation)
+           )
+    :<|> Named
            "get-team-invitation"
            ( Summary "Get a pending team invitation by ID."
+               :> From 'V7
                :> CanThrow 'InsufficientTeamPermissions
                :> ZUser
                :> "teams"
@@ -1616,8 +1635,23 @@ type TeamsAPI =
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Invitation deleted")
            )
     :<|> Named
-           "get-team-invitation-info"
+           "get-team-invitation-info@v6"
            ( Summary "Get invitation info given a code."
+               :> Until 'V7
+               :> CanThrow 'InvalidInvitationCode
+               :> "teams"
+               :> "invitations"
+               :> "info"
+               :> QueryParam' '[Required, Strict, Description "Invitation code"] "code" InvitationCode
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V6 200 "Invitation info" Invitation)
+           )
+    :<|> Named
+           "get-team-invitation-info"
+           ( Summary "Get invitation info given a code (with inviter email if intivee already has a personal wire account)."
+               :> From 'V7
                :> CanThrow 'InvalidInvitationCode
                :> "teams"
                :> "invitations"

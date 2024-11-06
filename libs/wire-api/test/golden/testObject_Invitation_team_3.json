@@ -3,6 +3,7 @@
     "created_by": "00000001-0000-0002-0000-000200000001",
     "email": "some@example",
     "id": "00000002-0000-0001-0000-000100000002",
+    "inviter_email": "inviter@example.com",
     "name": null,
     "role": "partner",
     "team": "00000002-0000-0001-0000-000100000001",

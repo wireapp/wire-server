@@ -99,8 +99,10 @@ servantAPI ::
 servantAPI =
   Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
     :<|> Named @"get-team-invitations" (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
+    :<|> Named @"get-team-invitation@v6" (\u t inv -> lift . liftSem $ getInvitation u t inv)
     :<|> Named @"get-team-invitation" (\u t inv -> lift . liftSem $ getInvitation u t inv)
     :<|> Named @"delete-team-invitation" (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
+    :<|> Named @"get-team-invitation-info@v6" (lift . liftSem . getInvitationByCode)
     :<|> Named @"get-team-invitation-info" (lift . liftSem . getInvitationByCode)
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)

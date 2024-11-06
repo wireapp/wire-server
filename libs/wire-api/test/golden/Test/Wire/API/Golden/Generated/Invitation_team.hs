@@ -20,7 +20,7 @@ module Test.Wire.API.Golden.Generated.Invitation_team where
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
 import Data.UUID qualified as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust)
+import Imports
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
 import Wire.API.User.Identity
@@ -35,6 +35,7 @@ testObject_Invitation_team_1 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-11T20:13:15.856Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Just $ unsafeEmailAddress "som2" "example",
       inviteeName = Nothing,
       inviteeUrl = Nothing
     }
@@ -48,6 +49,7 @@ testObject_Invitation_team_2 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-12T14:47:35.551Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Just $ unsafeEmailAddress "som2" "example",
       inviteeName = Just (Name {fromName = "\1067847} 2pGEW+\rT\171609p\174643\157218&\146145v0\b"}),
       inviteeUrl = Nothing
     }
@@ -61,6 +63,7 @@ testObject_Invitation_team_3 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-08T22:07:35.846Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Nothing,
       inviteeUrl = Nothing
     }
@@ -74,6 +77,7 @@ testObject_Invitation_team_4 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-09T09:23:58.270Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Nothing,
       inviteeUrl = Nothing
     }
@@ -87,6 +91,7 @@ testObject_Invitation_team_5 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-09T03:42:15.266Z"),
       createdBy = Nothing,
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -106,6 +111,7 @@ testObject_Invitation_team_6 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-09T08:56:40.919Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000000"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -125,6 +131,7 @@ testObject_Invitation_team_7 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-07T18:46:22.786Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -144,6 +151,7 @@ testObject_Invitation_team_8 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-07T12:20:00.738Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Just (Name {fromName = "\67592\154970\1102305lE\990376\SYN\rjI!@\RS\1094043"}),
       inviteeUrl = Nothing
     }
@@ -157,6 +165,7 @@ testObject_Invitation_team_9 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-06T13:15:34.606Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000002"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Nothing,
       inviteeUrl = Nothing
     }
@@ -170,6 +179,7 @@ testObject_Invitation_team_10 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-10T19:57:59.926Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000002"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Nothing,
       inviteeUrl = Nothing
     }
@@ -183,6 +193,7 @@ testObject_Invitation_team_11 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-10T16:20:51.120Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -202,6 +213,7 @@ testObject_Invitation_team_12 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-12T22:47:35.829Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000000000000"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -221,6 +233,7 @@ testObject_Invitation_team_13 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-08T01:18:31.982Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000002"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Just (Name {fromName = "U"}),
       inviteeUrl = Nothing
     }
@@ -234,6 +247,7 @@ testObject_Invitation_team_14 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-12T23:54:25.090Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Nothing,
       inviteeUrl = Nothing
     }
@@ -247,6 +261,7 @@ testObject_Invitation_team_15 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-08T22:22:28.568Z"),
       createdBy = Nothing,
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -266,6 +281,7 @@ testObject_Invitation_team_16 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-09T09:56:33.113Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Just (Name {fromName = "\GS\DC4Q;6/_f*7\1093966\SI+\1092810\41698\&9"}),
       inviteeUrl = Nothing
     }
@@ -279,6 +295,7 @@ testObject_Invitation_team_17 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-08T06:30:23.239Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -298,6 +315,7 @@ testObject_Invitation_team_18 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-08T06:07:59.528Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -317,6 +335,7 @@ testObject_Invitation_team_19 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-07T15:08:06.796Z"),
       createdBy = Nothing,
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName =
         Just
           ( Name
@@ -336,6 +355,7 @@ testObject_Invitation_team_20 =
       createdAt = fromJust (readUTCTimeMillis "1864-05-12T08:07:17.747Z"),
       createdBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
       inviteeEmail = unsafeEmailAddress "some" "example",
+      inviterEmail = Nothing,
       inviteeName = Nothing,
       inviteeUrl = Nothing
     }
