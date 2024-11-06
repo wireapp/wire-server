@@ -283,6 +283,7 @@ mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
   template <- invitationEmail <$> input
   getInviteUrl template team c
 
+-- TODO: is this also code already available from wire-subsystems?
 getInvitation ::
   ( Member GalleyAPIAccess r,
     Member InvitationStore r,

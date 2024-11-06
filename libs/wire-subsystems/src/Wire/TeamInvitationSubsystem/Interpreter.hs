@@ -128,6 +128,8 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
   when blacklistedEm $
     throw TeamInvitationBlacklistedEmail
 
+  -- TODO: explain change in confluence.
+
   mEmailOwner <- getLocalUserAccountByUserKey uke
   isPersonalUserMigration <- case mEmailOwner of
     Nothing -> pure False
@@ -162,6 +164,8 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
                 -- mUrl = mUrl
               }
        in Store.insertInvitation insertInv timeout
+
+    -- TODO: write tests (in wire-subsystem?  in /integration?)
 
     let sendOp =
           if isPersonalUserMigration
