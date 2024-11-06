@@ -24,6 +24,7 @@ import API.Common
 import API.Galley (getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Gundeck
+import qualified API.Nginz as Nginz
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
@@ -256,8 +257,10 @@ testTeamUserCannotBeInvited = do
 testUpgradePersonalToTeam :: (HasCallStack) => App ()
 testUpgradePersonalToTeam = do
   alice <- randomUser OwnDomain def
+  email <- alice %. "email" >>= asString
   let teamName = "wonderland"
-  tid <- bindResponse (upgradePersonalToTeam alice teamName) $ \resp -> do
+  token <- Nginz.login OwnDomain email defPassword >>= getJSON 200 >>= (%. "access_token") & asString
+  tid <- bindResponse (Nginz.upgradePersonalToTeam alice token teamName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "team_name" `shouldMatch` teamName
     resp.json %. "team_id"
