@@ -7,7 +7,6 @@ import Cannon.WS hiding (env)
 import Cassandra as C
 import Control.Concurrent.Async
 import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
-import Control.Monad.Catch (catchAll)
 import Control.Monad.Codensity
 import Data.Aeson
 import Data.Id
@@ -25,59 +24,38 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
   wsVar <- newEmptyMVar
   msgVar <- newEmptyMVar
 
-  bracket openWebSocket closeWebSocket $ \wsConn ->
+  bracket (openWebSocket wsVar) closeWebSocket $ \(wsConn, _) ->
     ( do
-        sendFullSyncMessageIfNeeded wsConn uid cid e
+        sendFullSyncMessageIfNeeded wsVar wsConn uid cid e
         sendNotifications wsConn msgVar wsVar
     )
-      `catches` [
-                  -- handle client misbehaving
-                  Handler $ \(err :: WebSocketServerError) -> do
-                    case err of
-                      FailedToParseClientMessage _ -> do
-                        Log.info e.logg $
-                          Log.msg (Log.val "Failed to parse received message, closing websocket")
-                            . logClient
-                        WS.sendCloseCode wsConn 1003 ("failed-to-parse" :: ByteString)
-                      UnexpectedAck -> do
-                        Log.info e.logg $
-                          Log.msg (Log.val "Client sent unexpected ack message")
-                            . logClient
-                        WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString),
-                  -- handle web socket exception
-                  Handler $
-                    \(err :: WS.ConnectionException) -> do
-                      case err of
-                        CloseRequest code reason ->
-                          Log.debug e.logg $
-                            Log.msg (Log.val "Client requested to close connection")
-                              . Log.field "status_code" code
-                              . Log.field "reason" reason
-                              . logClient
-                        ConnectionClosed ->
-                          Log.info e.logg $
-                            Log.msg (Log.val "Client closed tcp connection abruptly")
-                              . logClient
-                        _ -> do
-                          Log.info e.logg $
-                            Log.msg (Log.val "Failed to receive message, closing websocket")
-                              . Log.field "error" (displayException err)
-                              . logClient
-                          WS.sendCloseCode wsConn 1003 ("websocket-failure" :: ByteString)
+      `catches` [ handleClientMisbehaving wsConn,
+                  handleWebSocketExceptions wsConn
                 ]
   where
     logClient =
       Log.field "user" (idToText uid)
         . Log.field "client" (clientToText cid)
 
-    openWebSocket = do
+    openWebSocket wsVar = do
       wsConn <-
         acceptRequest pendingConn
           `catch` rejectOnError pendingConn
-      pure (wsConn)
+      -- start a reader thread for client messages
+      -- this needs to run asynchronously in order to promptly react to
+      -- client-side connection termination
+      a <- async $ forever $ do
+        catch
+          ( do
+              msg <- getClientMessage wsConn
+              putMVar wsVar (Right msg)
+          )
+          $ \err -> putMVar wsVar (Left err)
+      pure (wsConn, a)
 
     -- this is only needed in case of asynchronous exceptions
-    closeWebSocket wsConn = do
+    closeWebSocket (wsConn, a) = do
+      cancel a
       logCloseWebsocket
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
@@ -105,6 +83,40 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
             putMVar msgVar . Right $
               EventData notif envelope.envDeliveryTag
 
+    handleWebSocketExceptions wsConn =
+      Handler $
+        \(err :: WS.ConnectionException) -> do
+          case err of
+            CloseRequest code reason ->
+              Log.debug e.logg $
+                Log.msg (Log.val "Client requested to close connection")
+                  . Log.field "status_code" code
+                  . Log.field "reason" reason
+                  . logClient
+            ConnectionClosed ->
+              Log.info e.logg $
+                Log.msg (Log.val "Client closed tcp connection abruptly")
+                  . logClient
+            _ -> do
+              Log.info e.logg $
+                Log.msg (Log.val "Failed to receive message, closing websocket")
+                  . Log.field "error" (displayException err)
+                  . logClient
+              WS.sendCloseCode wsConn 1003 ("websocket-failure" :: ByteString)
+
+    handleClientMisbehaving wsConn =
+      Handler $ \(err :: WebSocketServerError) -> do
+        case err of
+          FailedToParseClientMessage _ -> do
+            Log.info e.logg $
+              Log.msg (Log.val "Failed to parse received message, closing websocket")
+                . logClient
+            WS.sendCloseCode wsConn 1003 ("failed-to-parse" :: ByteString)
+          UnexpectedAck -> do
+            Log.info e.logg $
+              Log.msg (Log.val "Client sent unexpected ack message")
+                . logClient
+            WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString)
     sendNotifications ::
       WS.Connection ->
       MVar (Either Q.AMQPException EventData) ->
@@ -190,11 +202,17 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
 -- | Check if client has missed messages. If so, send a full synchronisation
 -- message and wait for the corresponding ack.
-sendFullSyncMessageIfNeeded :: WS.Connection -> UserId -> ClientId -> Env -> IO ()
-sendFullSyncMessageIfNeeded wsConn uid cid env = do
+sendFullSyncMessageIfNeeded ::
+  MVar (Either ConnectionException MessageClientToServer) ->
+  WS.Connection ->
+  UserId ->
+  ClientId ->
+  Env ->
+  IO ()
+sendFullSyncMessageIfNeeded wsVar wsConn uid cid env = do
   row <- C.runClient env.cassandra do
     retry x5 $ query1 q (params LocalQuorum (uid, cid))
-  for_ row $ \_ -> sendFullSyncMessage uid cid wsConn env
+  for_ row $ \_ -> sendFullSyncMessage uid cid wsVar wsConn env
   where
     q :: PrepQuery R (UserId, ClientId) (Identity (Maybe UserId))
     q =
@@ -202,14 +220,17 @@ sendFullSyncMessageIfNeeded wsConn uid cid env = do
             WHERE user_id = ? and client_id = ?
         |]
 
-sendFullSyncMessage :: UserId -> ClientId -> WS.Connection -> Env -> IO ()
-sendFullSyncMessage uid cid wsConn env = do
+sendFullSyncMessage ::
+  UserId ->
+  ClientId ->
+  MVar (Either ConnectionException MessageClientToServer) ->
+  WS.Connection ->
+  Env ->
+  IO ()
+sendFullSyncMessage uid cid wsVar wsConn env = do
   let event = encode EventFullSync
   WS.sendBinaryData wsConn event
-  res <-
-    (getClientMessage wsConn)
-      `catchAll` ( \e -> throwIO e
-                 )
+  res <- takeMVar wsVar >>= either throwIO pure
   case res of
     AckMessage _ -> throwIO UnexpectedAck
     AckFullSync ->
