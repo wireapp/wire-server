@@ -1,9 +1,9 @@
 {
     "created_at": "1864-05-11T20:13:15.856Z",
     "created_by": "00000002-0000-0000-0000-000100000001",
+    "created_by_email": "som2@example",
     "email": "some@example",
     "id": "00000002-0000-0001-0000-000200000000",
-    "inviter_email": "som2@example",
     "name": null,
     "role": "admin",
     "team": "00000002-0000-0001-0000-000200000002",

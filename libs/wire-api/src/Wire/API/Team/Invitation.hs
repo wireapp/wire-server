@@ -102,14 +102,14 @@ instance ToSchema Invitation where
     objectWithDocModifier
       "Invitation"
       (description ?~ "An invitation to join a team on Wire. if invitee is invited from an existing personal account, inviter email is included.")
-      (invitationObjectSchema ((.inviterEmail) .= maybe_ (optFieldWithDocModifier "inviter_email" (description ?~ "Email of the inviter") schema)))
+      (invitationObjectSchema ((.inviterEmail) .= maybe_ (optFieldWithDocModifier "created_by_email" (description ?~ "Email of the inviter") schema)))
 
 instance ToSchema (Versioned 'V6 Invitation) where
   schema =
     objectWithDocModifier
       "InvitationV6"
       (description ?~ "An invitation to join a team on Wire")
-      (Versioned <$> unVersioned .= (invitationObjectSchema ((const Nothing) .= maybe_ (optField "inviter_email" schema))))
+      (Versioned <$> unVersioned .= (invitationObjectSchema ((const Nothing) .= maybe_ (optField "created_by_email" schema))))
 
 invitationObjectSchema :: ObjectSchemaP SwaggerDoc Invitation (Maybe EmailAddress) -> ObjectSchema SwaggerDoc Invitation
 invitationObjectSchema inviterEmailField =
