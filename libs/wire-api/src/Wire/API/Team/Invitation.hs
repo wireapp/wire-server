@@ -96,31 +96,32 @@ data Invitation = Invitation
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Invitation)
 
 instance ToSchema Invitation where
-  schema = invitationSchema
+  schema =
+    objectWithDocModifier
+      "Invitation"
+      (description ?~ "An invitation to join a team on Wire. if invitee is invited from an existing personal account, inviter email is included.")
+      invitationObjectSchema
 
-invitationSchema :: ValueSchema NamedSwaggerDoc Invitation
-invitationSchema =
-  objectWithDocModifier
-    "Invitation"
-    (description ?~ "An invitation to join a team on Wire. if invitee is invited from an existing personal account, inviter email is included.")
-    $ Invitation
-      <$> (.team)
-        .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
-      <*> (.role)
-        -- clients, when leaving "role" empty, can leave the default role choice to us
-        .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
-      <*> (.invitationId)
-        .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
-      <*> (.createdAt)
-        .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
-      <*> (.createdBy)
-        .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
-      <*> (.inviteeEmail)
-        .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
-      <*> (.inviteeName)
-        .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
-      <*> (fmap (TE.decodeUtf8 . serializeURIRef') . (.inviteeUrl))
-        .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
+invitationObjectSchema :: ObjectSchema SwaggerDoc Invitation
+invitationObjectSchema =
+  Invitation
+    <$> (.team)
+      .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
+    <*> (.role)
+      -- clients, when leaving "role" empty, can leave the default role choice to us
+      .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
+    <*> (.invitationId)
+      .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
+    <*> (.createdAt)
+      .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
+    <*> (.createdBy)
+      .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
+    <*> (.inviteeEmail)
+      .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
+    <*> (.inviteeName)
+      .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
+    <*> (fmap (TE.decodeUtf8 . serializeURIRef') . (.inviteeUrl))
+      .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
   where
     urlSchema = parsedText "URIRef_Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
 
@@ -201,7 +202,7 @@ instance ToSchema AcceptTeamInvitation where
         <$> code .= fieldWithDocModifier "code" (description ?~ "Invitation code to accept.") schema
         <*> password .= fieldWithDocModifier "password" (description ?~ "The user account password.") schema
 
-data InvitationUserView = InvitationInfoUserView
+data InvitationUserView = InvitationUserView
   { invitation :: Invitation,
     inviterEmail :: Maybe EmailAddress
   }
@@ -212,6 +213,6 @@ data InvitationUserView = InvitationInfoUserView
 instance ToSchema InvitationUserView where
   schema =
     object "InvitationUserView" $
-      InvitationInfoUserView
-        <$> invitation .= field "invitation" schema
+      InvitationUserView
+        <$> invitation .= invitationObjectSchema
         <*> inviterEmail .= maybe_ (optField "inviter_email" schema)
