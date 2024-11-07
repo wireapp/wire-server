@@ -61,6 +61,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig (TeamsAPI)
 import Wire.API.Team
 import Wire.API.Team.Invitation
+import Wire.API.Team.Invitation qualified as Invitation
 import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
@@ -82,7 +83,6 @@ import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
-import qualified Wire.API.Team.Invitation as Invitation
 
 servantAPI ::
   ( Member GalleyAPIAccess r,
@@ -296,7 +296,7 @@ getInvitation uid tid iid = do
     Just invitation -> do
       showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
       maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
-      pure $ Just (Store.invitationFromStored maybeUrl invitation) { Invitation.inviterEmail = mInviterEmail }
+      pure $ Just (Store.invitationFromStored maybeUrl invitation) {Invitation.inviterEmail = mInviterEmail}
 
 isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
 isPersonalUser uke = do

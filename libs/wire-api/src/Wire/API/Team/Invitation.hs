@@ -106,10 +106,14 @@ instance ToSchema Invitation where
 
 instance ToSchema (Versioned 'V6 Invitation) where
   schema =
-    objectWithDocModifier
-      "InvitationV6"
-      (description ?~ "An invitation to join a team on Wire")
-      (Versioned <$> unVersioned .= (invitationObjectSchema ((const Nothing) .= maybe_ (optField "created_by_email" schema))))
+    Versioned <$> unVersioned .= invitationSchemaV6
+
+invitationSchemaV6 :: ValueSchema NamedSwaggerDoc Invitation
+invitationSchemaV6 =
+  objectWithDocModifier
+    "InvitationV6"
+    (description ?~ "An invitation to join a team on Wire")
+    (invitationObjectSchema ((const Nothing) .= maybe_ (optField "created_by_email" schema)))
 
 invitationObjectSchema :: ObjectSchemaP SwaggerDoc Invitation (Maybe EmailAddress) -> ObjectSchema SwaggerDoc Invitation
 invitationObjectSchema inviterEmailField =
@@ -192,10 +196,8 @@ instance ToSchema InvitationList where
   schema =
     objectWithDocModifier "InvitationList" (description ?~ "A list of sent team invitations.") $
       InvitationList
-        <$> ilInvitations
-          .= field "invitations" (array schema)
-        <*> ilHasMore
-          .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more invitations than returned.") schema
+        <$> ilInvitations .= field "invitations" (array invitationSchemaV6)
+        <*> ilHasMore .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more invitations than returned.") schema
 
 --------------------------------------------------------------------------------
 -- AcceptTeamInvitation
