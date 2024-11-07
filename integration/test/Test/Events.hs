@@ -59,21 +59,20 @@ testConsumeEventsOneWebSocket = do
 
 testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
 testConsumeEventsForDifferentUsers = do
-  withModifiedBackend def $ \domain -> do
-    alice <- randomUser domain def
-    bob <- randomUser domain def
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
 
-    aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    aliceClientId <- objId aliceClient
+  aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  aliceClientId <- objId aliceClient
 
-    bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    bobClientId <- objId bobClient
+  bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  bobClientId <- objId bobClient
 
-    userIdsContext <- mkContextUserIds [("alice", alice), ("bob", bob)]
-    addFailureContext userIdsContext $ do
-      withEventsWebSockets [(alice, aliceClientId), (bob, bobClientId)] $ \[(aliceEventsChan, aliceAckChan), (bobEventsChan, bobAckChan)] -> do
-        assertClientAdd aliceClientId aliceEventsChan aliceAckChan
-        assertClientAdd bobClientId bobEventsChan bobAckChan
+  userIdsContext <- mkContextUserIds [("alice", alice), ("bob", bob)]
+  addFailureContext userIdsContext $ do
+    withEventsWebSockets [(alice, aliceClientId), (bob, bobClientId)] $ \[(aliceEventsChan, aliceAckChan), (bobEventsChan, bobAckChan)] -> do
+      assertClientAdd aliceClientId aliceEventsChan aliceAckChan
+      assertClientAdd bobClientId bobEventsChan bobAckChan
   where
     assertClientAdd :: (HasCallStack) => String -> TChan Value -> TChan Value -> App ()
     assertClientAdd clientId eventsChan ackChan = do
