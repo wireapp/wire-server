@@ -95,7 +95,6 @@ invitationFromStored maybeUrl MkStoredInvitation {..} =
       createdAt = createdAt,
       createdBy = createdBy,
       inviteeEmail = email,
-      inviterEmail = Nothing,
       inviteeName = name,
       inviteeUrl = maybeUrl
     }

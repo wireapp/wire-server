@@ -27,34 +27,35 @@ import Wire.API.User.Identity
 import Wire.API.User.Profile (Name (Name, fromName))
 
 testObject_InvitationUserView_team_1 :: InvitationUserView
-testObject_InvitationUserView_team_1  =
-  InvitationUserView { invitation =
-  Invitation
-    { team = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002")),
-      role = RoleAdmin,
-      invitationId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000")),
-      createdAt = fromJust (readUTCTimeMillis "1864-05-11T20:13:15.856Z"),
-      createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
-      inviteeEmail = unsafeEmailAddress "some" "example",
-      inviteeName = Nothing,
-      inviteeUrl = Nothing
-    },
-    inviterEmail = Just $ unsafeEmailAddress "some" "example"
-  }
+testObject_InvitationUserView_team_1 =
+  InvitationUserView
+    { invitation =
+        Invitation
+          { team = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002")),
+            role = RoleAdmin,
+            invitationId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000")),
+            createdAt = fromJust (readUTCTimeMillis "1864-05-11T20:13:15.856Z"),
+            createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
+            inviteeEmail = unsafeEmailAddress "some" "example",
+            inviteeName = Nothing,
+            inviteeUrl = Nothing
+          },
+      inviterEmail = Just $ unsafeEmailAddress "some" "example"
+    }
 
 testObject_InvitationUserView_team_2 :: InvitationUserView
-testObject_InvitationUserView_team_2  =
-
-  InvitationUserView { invitation =
-  Invitation
-    { team = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
-      role = RoleExternalPartner,
-      invitationId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
-      createdAt = fromJust (readUTCTimeMillis "1864-05-12T14:47:35.551Z"),
-      createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001"))),
-      inviteeEmail = unsafeEmailAddress "some" "example",
-      inviteeName = Just (Name {fromName = "\1067847} 2pGEW+\rT\171609p\174643\157218&\146145v0\b"}),
-      inviteeUrl = Nothing
-    },
-    inviterEmail = Nothing
-  }
+testObject_InvitationUserView_team_2 =
+  InvitationUserView
+    { invitation =
+        Invitation
+          { team = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
+            role = RoleExternalPartner,
+            invitationId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
+            createdAt = fromJust (readUTCTimeMillis "1864-05-12T14:47:35.551Z"),
+            createdBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001"))),
+            inviteeEmail = unsafeEmailAddress "some" "example",
+            inviteeName = Just (Name {fromName = "\1067847} 2pGEW+\rT\171609p\174643\157218&\146145v0\b"}),
+            inviteeUrl = Nothing
+          },
+      inviterEmail = Nothing
+    }

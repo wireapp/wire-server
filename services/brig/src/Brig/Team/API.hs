@@ -61,7 +61,6 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig (TeamsAPI)
 import Wire.API.Team
 import Wire.API.Team.Invitation
-import Wire.API.Team.Invitation qualified as Invitation
 import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
@@ -101,7 +100,6 @@ servantAPI =
     :<|> Named @"get-team-invitations" (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
     :<|> Named @"get-team-invitation" (\u t inv -> lift . liftSem $ getInvitation u t inv)
     :<|> Named @"delete-team-invitation" (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
-    :<|> Named @"get-team-invitation-info@v6" (lift . liftSem . getInvitationByCode)
     :<|> Named @"get-team-invitation-info" (lift . liftSem . getInvitationByCode)
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
@@ -309,7 +307,7 @@ getInvitationByCode ::
     Member (Input (Local ())) r
   ) =>
   InvitationCode ->
-  Sem r Public.Invitation
+  Sem r Public.InvitationUserView
 getInvitationByCode c = do
   storedInv <-
     Store.lookupInvitationByCode c
@@ -320,7 +318,7 @@ getInvitationByCode c = do
       False -> pure Nothing
       True ->
         fmap join . for inv.createdBy $ qualifyLocal' >=> getUserEmail
-  pure $ inv {Invitation.inviterEmail = mInviterEmail}
+  pure $ InvitationUserView {invitation = inv, inviterEmail = mInviterEmail}
 
 headInvitationByEmail ::
   (Member InvitationStore r, Member TinyLog r) =>

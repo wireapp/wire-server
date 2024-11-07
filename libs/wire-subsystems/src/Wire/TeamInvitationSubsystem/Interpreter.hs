@@ -201,7 +201,6 @@ toInvitation urlText showUrl storedInv = do
         createdAt = storedInv.createdAt,
         createdBy = storedInv.createdBy,
         inviteeEmail = storedInv.email,
-        inviterEmail = Nothing,
         inviteeName = storedInv.name,
         inviteeUrl = url
       }
