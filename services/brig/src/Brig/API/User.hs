@@ -130,6 +130,7 @@ import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BlockListStore as BlockListStore
 import Wire.DeleteQueue
+import Wire.EmailSending
 import Wire.EmailSubsystem
 import Wire.Error
 import Wire.Events (Events)
@@ -263,7 +264,8 @@ upgradePersonalToTeam ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSending r
   ) =>
   Local UserId ->
   BindingNewTeamUser ->
@@ -295,7 +297,7 @@ upgradePersonalToTeam luid bNewTeam = do
 
     -- send confirmation email
     for_ (userEmail user) $ \email -> do
-      sendPersonalUserCreatorWelcomeMail
+      sendNewTeamOwnerWelcomeEmail
         email
         tid
         bNewTeam.bnuTeam.newTeamName.fromRange
