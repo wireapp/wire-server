@@ -1617,7 +1617,7 @@ type TeamsAPI =
            )
     :<|> Named
            "get-team-invitation-info"
-           ( Summary "Get invitation info given a code (with inviter email if intivee already has a personal wire account)."
+           ( Summary "Get invitation info given a code."
                :> CanThrow 'InvalidInvitationCode
                :> "teams"
                :> "invitations"
