@@ -39,24 +39,27 @@ startConsumer chan = do
 
   cassandra <- asks (.cassandra)
 
-  -- This ensures that we receive notifications 1 by 1 which ensures they are
-  -- delivered in order.
-  -- lift $ Q.qos chan 0 1 False
-
   void . lift $ Q.declareQueue chan Q.newQueue {Q.queueName = userNotificationDlqName}
-  QL.consumeMsgs chan userNotificationDlqName Q.Ack $ \(msg, envelope) -> do
-    let dat = getLastDeathQueue msg.msgHeaders
-    let vals = BS.split '.' dat
-    case vals of
-      ["user-notifications", uidBS, cidBS] -> do
-        m <- runMaybeT $ do
-          uid <- hoistMaybe $ fromByteString uidBS
-          cid <- hoistMaybe $ fromByteString cidBS
-          pure (uid, cid)
-        (uid, cid) <- maybe (logParseError env dat) pure m
-        markAsNeedsFullSync cassandra uid cid
+  QL.consumeMsgs chan userNotificationDlqName Q.Ack $ \(msg, envelope) ->
+    if (msg.msgDeliveryMode == Just Q.NonPersistent)
+      then do
+        -- ignore transient messages, ack it so they don't clog the queue
         lift $ Q.ackEnv envelope
-      _ -> void $ logParseError env dat
+        pure ()
+      else do
+        -- forward non-transient messages to the respective client
+        let dat = getLastDeathQueue msg.msgHeaders
+        let vals = BS.split '.' dat
+        case vals of
+          ["user-notifications", uidBS, cidBS] -> do
+            m <- runMaybeT $ do
+              uid <- hoistMaybe $ fromByteString uidBS
+              cid <- hoistMaybe $ fromByteString cidBS
+              pure (uid, cid)
+            (uid, cid) <- maybe (logParseError env dat) pure m
+            markAsNeedsFullSync cassandra uid cid
+            lift $ Q.ackEnv envelope
+          _ -> void $ logParseError env dat
   where
     logParseError env dat = do
       Log.err env.logger $
