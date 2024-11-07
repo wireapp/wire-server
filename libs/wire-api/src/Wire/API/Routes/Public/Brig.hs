@@ -1590,7 +1590,6 @@ type TeamsAPI =
     :<|> Named
            "get-team-invitation"
            ( Summary "Get a pending team invitation by ID."
-               :> From 'V7
                :> CanThrow 'InsufficientTeamPermissions
                :> ZUser
                :> "teams"
