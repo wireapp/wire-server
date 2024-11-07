@@ -176,7 +176,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
       MVar (Either ConnectionException MessageClientToServer) ->
       IO ()
     sendNotifications wsConn wsVar = lowerCodensity $ do
-      chan <- lift $ createChannel e.pool (clientNotificationQueueName uid cid)
+      chan <- createChannel e.pool (clientNotificationQueueName uid cid)
 
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan

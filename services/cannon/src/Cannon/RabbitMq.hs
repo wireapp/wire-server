@@ -131,7 +131,9 @@ openConnection pool = do
     )
 
 data RabbitMqChannel = RabbitMqChannel
-  { inner :: MVar Q.Channel,
+  { -- | The current channel. The var is empty while the channel is being
+    -- re-established.
+    inner :: MVar Q.Channel,
     msgVar :: MVar (Maybe (Q.Message, Q.Envelope))
   }
 
@@ -143,11 +145,13 @@ ackMessage chan deliveryTag multiple = do
   inner <- readMVar chan.inner
   Q.ackMsg inner deliveryTag multiple
 
-createChannel :: RabbitMqPool -> Text -> IO RabbitMqChannel
+createChannel :: RabbitMqPool -> Text -> Codensity IO RabbitMqChannel
 createChannel pool queue = do
-  closedVar <- newEmptyMVar
-  inner <- newEmptyMVar
-  msgVar <- newEmptyMVar
+  closedVar <- lift newEmptyMVar
+  inner <- lift newEmptyMVar
+  msgVar <- lift newEmptyMVar
+
+  -- TODO: handle exceptions in the manager thread
   let manageChannel = do
         conn <- acquireConnection pool
         chan <- Q.openChannel conn.inner
@@ -181,8 +185,10 @@ createChannel pool queue = do
           else putMVar msgVar Nothing
 
   -- TODO: leaking async
-  void . mask_ $ async manageChannel
-  pure RabbitMqChannel {inner = inner, msgVar = msgVar}
+  Codensity $ \k -> do
+    void . mask_ $ async manageChannel
+    let chan = RabbitMqChannel {inner = inner, msgVar = msgVar}
+    k chan `finally` (readMVar inner >>= Q.closeChannel)
 
 acquireConnection :: RabbitMqPool -> IO PooledConnection
 acquireConnection pool = (>>= either throwIO pure) . atomically . runExceptT $ do
@@ -192,11 +198,7 @@ acquireConnection pool = (>>= either throwIO pure) . atomically . runExceptT $ d
   when (pconn.numChannels >= pool.opts.maxChannels) $
     throwE TooManyChannels
 
-  let pconn' =
-        pconn'
-          { numChannels =
-              max pool.opts.maxChannels (succ (numChannels pconn))
-          }
+  let pconn' = pconn {numChannels = succ (numChannels pconn)}
   lift $
     writeTVar pool.connections $!
       map (\c -> if c.connId == pconn'.connId then pconn' else c) conns
