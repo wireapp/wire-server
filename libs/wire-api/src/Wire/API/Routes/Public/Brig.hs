@@ -1600,7 +1600,7 @@ type TeamsAPI =
                     'GET
                     '[JSON]
                     '[ ErrorResponse 'NotificationNotFound,
-                       VersionedRespond 'V6 200 "Invitation" Invitation
+                       Respond 200 "Invitation" Invitation
                      ]
                     (Maybe Invitation)
            )
@@ -1616,23 +1616,8 @@ type TeamsAPI =
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Invitation deleted")
            )
     :<|> Named
-           "get-team-invitation-info@v6"
-           ( Summary "Get invitation info given a code."
-               :> Until 'V7
-               :> CanThrow 'InvalidInvitationCode
-               :> "teams"
-               :> "invitations"
-               :> "info"
-               :> QueryParam' '[Required, Strict, Description "Invitation code"] "code" InvitationCode
-               :> MultiVerb1
-                    'GET
-                    '[JSON]
-                    (VersionedRespond 'V6 200 "Invitation info" Invitation)
-           )
-    :<|> Named
            "get-team-invitation-info"
            ( Summary "Get invitation info given a code (with inviter email if intivee already has a personal wire account)."
-               :> From 'V7
                :> CanThrow 'InvalidInvitationCode
                :> "teams"
                :> "invitations"
@@ -1641,7 +1626,7 @@ type TeamsAPI =
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    (Respond 200 "Invitation info" Invitation)
+                    (Respond 200 "Invitation info" InvitationUserView)
            )
     -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
     :<|> Named
