@@ -235,6 +235,37 @@ testEventsDeadLettered = do
       -- We've consumed the whole queue.
       assertNoEvent eventsChan
 
+testTransientEventsDoNotTriggerDeadLetters :: (HasCallStack) => App ()
+testTransientEventsDoNotTriggerDeadLetters = do
+  let notifTTL = 1 # Second
+  withModifiedBackend (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}) $ \domain -> do
+    alice <- randomUser domain def
+    -- Creates a non-transient event
+    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    clientId <- objId client
+
+    -- consume it
+    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
+      assertEvent eventsChan $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "type" `shouldMatch` "event"
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+        deliveryTag <- e %. "data.delivery_tag"
+        sendAck ackChan deliveryTag False
+
+    -- Self conv ID is same as user's ID, we'll use this to send typing
+    -- indicators, so we don't have to create another conv.
+    selfConvId <- objQidObject alice
+    -- Typing status is transient, currently no one is listening.
+    sendTypingStatus alice selfConvId "started" >>= assertSuccess
+
+    -- Wait out to be sure the event is dead lettered
+    Timeout.threadDelay $ notifTTL + 500 # MilliSecond
+
+    withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
+      assertNoEvent eventsChan
+
 testTransientEvents :: (HasCallStack) => App ()
 testTransientEvents = do
   withModifiedBackend def $ \domain -> do

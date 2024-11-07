@@ -45,7 +45,6 @@ startConsumer chan = do
       then do
         -- ignore transient messages, ack it so they don't clog the queue
         lift $ Q.ackEnv envelope
-        pure ()
       else do
         -- forward non-transient messages to the respective client
         let dat = getLastDeathQueue msg.msgHeaders
