@@ -818,6 +818,12 @@ listInvitations user tid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "invitations"]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/get-team-invitation-info
+getInvitationByCode :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getInvitationByCode user code = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "info"]
+  submit "GET" (req & addQueryParams [("code", code)])
+
 passwordReset :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 passwordReset domain email = do
   req <- baseRequest domain Brig Versioned "password-reset"

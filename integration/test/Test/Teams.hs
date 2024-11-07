@@ -67,6 +67,10 @@ testInvitePersonalUserToTeam = do
         checkListInvitations owner tid email
         code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
         inv %. "url" & asString >>= assertUrlContainsCode code
+        bindResponse (getInvitationByCode user code) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          ownersEmail <- owner %. "email" & asString
+          resp.json %. "created_by_email" `shouldMatch` ownersEmail
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
 
