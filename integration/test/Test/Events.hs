@@ -338,7 +338,7 @@ sendAck ackChan deliveryTag multiple = do
 
 assertEvent :: (HasCallStack) => TChan Value -> ((HasCallStack) => Value -> App a) -> App a
 assertEvent eventsChan expectations = do
-  timeout 100_000_000 (atomically (readTChan eventsChan)) >>= \case
+  timeout 10_000_000 (atomically (readTChan eventsChan)) >>= \case
     Nothing -> assertFailure "No event received for 10s"
     Just e -> do
       pretty <- prettyJSON e

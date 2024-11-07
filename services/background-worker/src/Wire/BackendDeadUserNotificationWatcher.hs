@@ -16,8 +16,10 @@ import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
 import Network.AMQP.Types
+import System.Logger qualified as Log
 import UnliftIO hiding (bracket, putMVar)
 import UnliftIO.Exception (bracket)
+import Wire.API.Notification
 import Wire.BackgroundWorker.Env
 
 -- TODO: make this whole thing less awful
@@ -32,19 +34,17 @@ getLastDeathQueue Nothing = error "oh noes!! sad"
 -- Should we have an async notification terminate this?
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
+  env <- ask
   markAsWorking BackendDeadUserNoticationWatcher
 
   cassandra <- asks (.cassandra)
 
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
-  lift $ Q.qos chan 0 1 False
+  -- lift $ Q.qos chan 0 1 False
 
-  -- TODO: replace bare string with the constant from the rabbitmq PR.
-  let queueName = "dead-user-notifications"
-
-  void . lift $ Q.declareQueue chan Q.newQueue {Q.queueName = queueName}
-  QL.consumeMsgs chan queueName Q.Ack $ \(msg, envelope) -> do
+  void . lift $ Q.declareQueue chan Q.newQueue {Q.queueName = userNotificationDlqName}
+  QL.consumeMsgs chan userNotificationDlqName Q.Ack $ \(msg, envelope) -> do
     let dat = getLastDeathQueue msg.msgHeaders
     let vals = BS.split '.' dat
     case vals of
@@ -53,15 +53,16 @@ startConsumer chan = do
           uid <- hoistMaybe $ fromByteString uidBS
           cid <- hoistMaybe $ fromByteString cidBS
           pure (uid, cid)
-        (uid, cid) <- maybe handleParseErrors pure m
+        (uid, cid) <- maybe (logParseError env dat) pure m
         markAsNeedsFullSync cassandra uid cid
         lift $ Q.ackEnv envelope
-
-      -- TODO:
-      _ -> error "invalid routing key, don't throw an error here, just log things"
+      _ -> void $ logParseError env dat
   where
-    -- TODO: use the logger instead of error
-    handleParseErrors = error "Log: could not parse a user and client id from routing key."
+    logParseError env dat = do
+      Log.err env.logger $
+        Log.msg (Log.val "Could not parse msgHeaders into uid/cid for dead letter exchange message")
+          . Log.field "error_parsing_message" dat
+      error "Could not parse msgHeaders into uid/cid for dead letter exchange message"
 
 markAsNeedsFullSync :: ClientState -> UserId -> ClientId -> AppT IO ()
 markAsNeedsFullSync cassandra uid cid = do
@@ -79,6 +80,7 @@ startWorker ::
   AmqpEndpoint ->
   AppT IO (Async ())
 startWorker AmqpEndpoint {..} = do
+  env <- ask
   mVar <- newEmptyMVar
 
   -- Create settings
@@ -100,7 +102,8 @@ startWorker AmqpEndpoint {..} = do
               conn <- Codensity $ bracket (liftIO $ Q.openConnection'' connOpts) (liftIO . Q.closeConnection)
               -- We need to recover from connection closed by restarting it
               liftIO $ Q.addConnectionClosedHandler conn True do
-                -- TODO: log
+                Log.err env.logger $
+                  Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed.")
                 putMVar mVar Nothing
               pure conn
             Just conn -> pure conn
@@ -109,8 +112,10 @@ startWorker AmqpEndpoint {..} = do
           chan <- Codensity $ bracket (liftIO $ Q.openChannel conn) (liftIO . Q.closeChannel)
 
           -- If the channel stops, we need to re-open
-          liftIO $ Q.addChannelExceptionHandler chan $ \_e -> do
-            -- TODO: Do handling and logging
+          liftIO $ Q.addChannelExceptionHandler chan $ \e -> do
+            Log.err env.logger $
+              Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
+                . Log.field "exception" (displayException e)
             putMVar mVar (Just conn)
 
           -- Set up the consumer
@@ -119,32 +124,3 @@ startWorker AmqpEndpoint {..} = do
         openConnection mConn
 
   async (openConnection Nothing)
-
--- env <- ask
--- -- These are used in the POSIX signal handlers, so we need to make
--- -- cross thread references that we can use to cancel consumers and
--- -- wait for current processing steps to finish.
--- chanRef <- newIORef Nothing
--- let -- cleanup the refs when channels die
---     -- This is so we aren't trying to close consumers
---     -- that don't exist when the service is shutdown.
---     clearRefs = do
---       atomicWriteIORef chanRef Nothing
--- a <-
---   async $
---     liftIO $
---       openConnectionWithRetries env.logger rabbitmqOpts $
---         RabbitMqHooks
---           { -- The exception handling in `openConnectionWithRetries` won't open a new
---             -- connection on an explicit close call.
---             onNewChannel = \chan -> do
---               atomicWriteIORef chanRef $ pure chan
---               runAppT env $ startWatcher chan,
---             onChannelException = \_ -> do
---               clearRefs
---               runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher,
---             onConnectionClose = do
---               clearRefs
---               runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
---           }
--- pure (chanRef, a)
