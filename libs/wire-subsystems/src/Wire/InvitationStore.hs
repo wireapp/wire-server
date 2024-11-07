@@ -40,6 +40,7 @@ data StoredInvitation = MkStoredInvitation
     invitationId :: InvitationId,
     createdAt :: UTCTimeMillis,
     createdBy :: Maybe UserId,
+    -- | The invitee's email address
     email :: EmailAddress,
     name :: Maybe Name,
     code :: InvitationCode

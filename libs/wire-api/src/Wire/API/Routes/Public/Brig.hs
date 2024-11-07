@@ -1592,7 +1592,7 @@ type TeamsAPI =
            ( Summary "Get a pending team invitation by ID."
                :> Until 'V7
                :> CanThrow 'InsufficientTeamPermissions
-               :> ZUser
+               :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
                :> "invitations"
@@ -1610,7 +1610,7 @@ type TeamsAPI =
            ( Summary "Get a pending team invitation by ID."
                :> From 'V7
                :> CanThrow 'InsufficientTeamPermissions
-               :> ZUser
+               :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
                :> "invitations"

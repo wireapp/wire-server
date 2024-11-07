@@ -202,6 +202,10 @@ getLocalAccountBy includePendingInvitations uid =
             }
       )
 
+getUserEmail :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe EmailAddress)
+getUserEmail lusr =
+  (>>= userEmail) <$> getLocalAccountBy WithPendingInvitations lusr
+
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe User)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
   listToMaybe <$> getAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])

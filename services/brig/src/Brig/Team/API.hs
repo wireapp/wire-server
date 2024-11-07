@@ -279,21 +279,27 @@ getInvitation ::
     Member InvitationStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   TeamId ->
   InvitationId ->
   Sem r (Maybe Public.Invitation)
-getInvitation uid tid iid = do
+getInvitation lusr tid iid = do
+  let uid = tUnqualified lusr
   ensurePermissions uid tid [AddTeamMember]
-  -- TODO: if invitee exists, add inviter email to the invitation
-  mInviterEmail <- _
-
   invitationM <- Store.lookupInvitation tid iid
   case invitationM of
     Nothing -> pure Nothing
     Just invitation -> do
+      mInviterEmail <-
+        isPersonalUser (mkEmailKey invitation.email) >>= \case
+          False -> pure Nothing
+          True ->
+            fmap join . for invitation.createdBy $
+              getUserEmail . qualifyAs lusr
       showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
       maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
       pure $ Just (Store.invitationFromStored maybeUrl invitation) {Invitation.inviterEmail = mInviterEmail}
@@ -308,13 +314,23 @@ isPersonalUser uke = do
 
 getInvitationByCode ::
   ( Member Store.InvitationStore r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   InvitationCode ->
   Sem r Public.Invitation
 getInvitationByCode c = do
-  inv <- Store.lookupInvitationByCode c
-  maybe (throw UserSubsystemInvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
+  storedInv <-
+    Store.lookupInvitationByCode c
+      >>= note UserSubsystemInvalidInvitationCode
+  let inv = Store.invitationFromStored Nothing storedInv
+  mInviterEmail <-
+    isPersonalUser (mkEmailKey inv.inviteeEmail) >>= \case
+      False -> pure Nothing
+      True ->
+        fmap join . for inv.createdBy $ qualifyLocal' >=> getUserEmail
+  pure $ inv {Invitation.inviterEmail = mInviterEmail}
 
 headInvitationByEmail ::
   (Member InvitationStore r, Member TinyLog r) =>
