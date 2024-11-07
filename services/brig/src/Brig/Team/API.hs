@@ -99,7 +99,6 @@ servantAPI ::
 servantAPI =
   Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
     :<|> Named @"get-team-invitations" (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
-    :<|> Named @"get-team-invitation@v6" (\u t inv -> lift . liftSem $ getInvitation u t inv)
     :<|> Named @"get-team-invitation" (\u t inv -> lift . liftSem $ getInvitation u t inv)
     :<|> Named @"delete-team-invitation" (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
     :<|> Named @"get-team-invitation-info@v6" (lift . liftSem . getInvitationByCode)
@@ -279,30 +278,21 @@ getInvitation ::
     Member InvitationStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
-    Member (Error UserSubsystemError) r,
-    Member (Input (Local ())) r,
-    Member UserSubsystem r
+    Member (Error UserSubsystemError) r
   ) =>
-  Local UserId ->
+  UserId ->
   TeamId ->
   InvitationId ->
   Sem r (Maybe Public.Invitation)
-getInvitation lusr tid iid = do
-  let uid = tUnqualified lusr
+getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   invitationM <- Store.lookupInvitation tid iid
   case invitationM of
     Nothing -> pure Nothing
     Just invitation -> do
-      mInviterEmail <-
-        isPersonalUser (mkEmailKey invitation.email) >>= \case
-          False -> pure Nothing
-          True ->
-            fmap join . for invitation.createdBy $
-              getUserEmail . qualifyAs lusr
       showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
       maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
-      pure $ Just (Store.invitationFromStored maybeUrl invitation) {Invitation.inviterEmail = mInviterEmail}
+      pure $ Just (Store.invitationFromStored maybeUrl invitation)
 
 isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
 isPersonalUser uke = do

@@ -1588,11 +1588,11 @@ type TeamsAPI =
                     (Respond 200 "List of sent invitations" InvitationList)
            )
     :<|> Named
-           "get-team-invitation@v6"
+           "get-team-invitation"
            ( Summary "Get a pending team invitation by ID."
-               :> Until 'V7
+               :> From 'V7
                :> CanThrow 'InsufficientTeamPermissions
-               :> ZLocalUser
+               :> ZUser
                :> "teams"
                :> Capture "tid" TeamId
                :> "invitations"
@@ -1602,24 +1602,6 @@ type TeamsAPI =
                     '[JSON]
                     '[ ErrorResponse 'NotificationNotFound,
                        VersionedRespond 'V6 200 "Invitation" Invitation
-                     ]
-                    (Maybe Invitation)
-           )
-    :<|> Named
-           "get-team-invitation"
-           ( Summary "Get a pending team invitation by ID."
-               :> From 'V7
-               :> CanThrow 'InsufficientTeamPermissions
-               :> ZLocalUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "invitations"
-               :> Capture "iid" InvitationId
-               :> MultiVerb
-                    'GET
-                    '[JSON]
-                    '[ ErrorResponse 'NotificationNotFound,
-                       Respond 200 "Invitation" Invitation
                      ]
                     (Maybe Invitation)
            )
