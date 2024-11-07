@@ -17,6 +17,8 @@ import Testlib.Prelude hiding (assertNoEvent)
 import Testlib.Printing
 import UnliftIO hiding (handle)
 
+-- FUTUREWORK: Investigate why these tests are failing without
+-- `withModifiedBackend`; No events are received otherwise.
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
 testConsumeEventsOneWebSocket = do
   withModifiedBackend def \domain -> do
@@ -59,17 +61,16 @@ testConsumeEventsOneWebSocket = do
 
 testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
 testConsumeEventsForDifferentUsers = do
-  alice <- randomUser OwnDomain def
-  bob <- randomUser OwnDomain def
+  withModifiedBackend def $ \domain -> do
+    alice <- randomUser domain def
+    bob <- randomUser domain def
 
-  aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-  aliceClientId <- objId aliceClient
+    aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    aliceClientId <- objId aliceClient
 
-  bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-  bobClientId <- objId bobClient
+    bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    bobClientId <- objId bobClient
 
-  userIdsContext <- mkContextUserIds [("alice", alice), ("bob", bob)]
-  addFailureContext userIdsContext $ do
     withEventsWebSockets [(alice, aliceClientId), (bob, bobClientId)] $ \[(aliceEventsChan, aliceAckChan), (bobEventsChan, bobAckChan)] -> do
       assertClientAdd aliceClientId aliceEventsChan aliceAckChan
       assertClientAdd bobClientId bobEventsChan bobAckChan
