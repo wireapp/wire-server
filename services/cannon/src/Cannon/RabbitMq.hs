@@ -62,12 +62,12 @@ createRabbitMqPool opts logger = Codensity $ bracket create destroy
         atomically $
           (,) <$> newTVar 0 <*> newTVar []
       let pool = RabbitMqPool {..}
-      -- create one connection
-      void $ createConnection pool
+      -- -- create one connection
+      -- void $ createConnection pool
       pure pool
     destroy pool = putMVar pool.deadVar ()
 
-createConnection :: RabbitMqPool -> IO Q.Connection
+createConnection :: RabbitMqPool -> IO PooledConnection
 createConnection pool = mask_ $ do
   conn <- openConnection pool
   pconn <- atomically $ do
@@ -99,7 +99,7 @@ createConnection pool = mask_ $ do
         filter (\c -> c.connId /= pconn.connId) conns
   Q.addConnectionClosedHandler conn True $ do
     putMVar closedVar ()
-  pure conn
+  pure pconn
 
 openConnection :: RabbitMqPool -> IO Q.Connection
 openConnection pool = do
@@ -191,18 +191,45 @@ createChannel pool queue = do
     k chan `finally` (readMVar inner >>= Q.closeChannel)
 
 acquireConnection :: RabbitMqPool -> IO PooledConnection
-acquireConnection pool = (>>= either throwIO pure) . atomically . runExceptT $ do
-  conns <- lift $ readTVar pool.connections
-  let pconn = minimumOn (.numChannels) conns
-  -- TODO: spawn new connection if possible
-  when (pconn.numChannels >= pool.opts.maxChannels) $
-    throwE TooManyChannels
+acquireConnection pool = do
+  pconn <-
+    findConnection pool >>= \case
+      Nothing -> do
+        bracketOnError
+          ( do
+              conn <- createConnection pool
+              -- if we have too many connections at this point, give up
+              numConnections <-
+                atomically $
+                  length <$> readTVar pool.connections
+              when (numConnections > pool.opts.maxConnections) $
+                throw TooManyChannels
+              pure conn
+          )
+          (\conn -> Q.closeConnection conn.inner)
+          pure
+      Just conn -> pure conn
 
-  let pconn' = pconn {numChannels = succ (numChannels pconn)}
-  lift $
+  atomically $ do
+    let pconn' = pconn {numChannels = succ (numChannels pconn)}
+    conns <- readTVar pool.connections
     writeTVar pool.connections $!
       map (\c -> if c.connId == pconn'.connId then pconn' else c) conns
-  pure pconn'
+    pure pconn'
+
+findConnection :: RabbitMqPool -> IO (Maybe PooledConnection)
+findConnection pool = (>>= either throwIO pure) . atomically . runExceptT $ do
+  conns <- lift $ readTVar pool.connections
+  if null conns
+    then pure Nothing
+    else do
+      let pconn = minimumOn (.numChannels) conns
+      if pconn.numChannels >= pool.opts.maxChannels
+        then
+          if length conns >= pool.opts.maxChannels
+            then throwE TooManyChannels
+            else pure Nothing
+        else pure (Just pconn)
 
 releaseConnection :: RabbitMqPool -> PooledConnection -> IO ()
 releaseConnection pool conn = atomically $ do
