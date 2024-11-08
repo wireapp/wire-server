@@ -99,7 +99,7 @@ instance ToSchema Invitation where
   schema =
     objectWithDocModifier
       "Invitation"
-      (description ?~ "An invitation to join a team on Wire. if invitee is invited from an existing personal account, inviter email is included.")
+      (description ?~ "An invitation to join a team on Wire. If invitee is invited from an existing personal account, inviter email is included.")
       invitationObjectSchema
 
 invitationObjectSchema :: ObjectSchema SwaggerDoc Invitation
