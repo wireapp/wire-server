@@ -1,6 +1,8 @@
 module Testlib.Options where
 
+import Data.Either.Extra (eitherToMaybe)
 import Data.List.Split (splitOn)
+import Data.Maybe (fromMaybe)
 import Options.Applicative
 import System.Environment (lookupEnv)
 import Prelude
@@ -55,7 +57,7 @@ parser =
           <> metavar "SUITE"
           <> value IntegrationSuite
           <> showDefaultWith showSuite
-          <> help "Test suite to run"
+          <> help "Test suite to run. This flag can also be provided via the TEST_SUITE environment variable."
       )
     <*> switch (long "list" <> short 'l' <> help "Only list tests.")
     <*> optional
@@ -86,13 +88,15 @@ getOptions :: IO TestOptions
 getOptions = do
   defaultsInclude <- maybe [] (splitOn ",") <$> lookupEnv "TEST_INCLUDE"
   defaultsExclude <- maybe [] (splitOn ",") <$> lookupEnv "TEST_EXCLUDE"
+  defaultsSuite <- (>>= eitherToMaybe . parseSuite) <$> lookupEnv "TEST_SUITE"
   defaultsXMLReport <- lookupEnv "TEST_XML"
   opts <- execParser optInfo
   pure
     opts
       { includeTests = includeTests opts `orFromEnv` defaultsInclude,
         excludeTests = excludeTests opts `orFromEnv` defaultsExclude,
-        xmlReport = xmlReport opts `orFromEnv` defaultsXMLReport
+        xmlReport = xmlReport opts `orFromEnv` defaultsXMLReport,
+        testSuite = fromMaybe opts.testSuite defaultsSuite
       }
   where
     orFromEnv fromArgs fromEnv =
