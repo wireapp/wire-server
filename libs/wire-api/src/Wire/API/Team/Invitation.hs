@@ -215,4 +215,4 @@ instance ToSchema InvitationUserView where
     object "InvitationUserView" $
       InvitationUserView
         <$> invitation .= invitationObjectSchema
-        <*> inviterEmail .= maybe_ (optField "inviter_email" schema)
+        <*> inviterEmail .= maybe_ (optField "created_by_email" schema)

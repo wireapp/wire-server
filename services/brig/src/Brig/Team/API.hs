@@ -301,6 +301,7 @@ isPersonalUser uke = do
     Just account -> account.userStatus == Active && isNothing account.userTeam
 
 getInvitationByCode ::
+  forall r.
   ( Member Store.InvitationStore r,
     Member (Error UserSubsystemError) r,
     Member UserSubsystem r,
@@ -316,8 +317,7 @@ getInvitationByCode c = do
   mInviterEmail <-
     isPersonalUser (mkEmailKey inv.inviteeEmail) >>= \case
       False -> pure Nothing
-      True ->
-        fmap join . for inv.createdBy $ qualifyLocal' >=> getUserEmail
+      True -> maybe (pure Nothing) (qualifyLocal' >=> getUserEmail) inv.createdBy
   pure $ InvitationUserView {invitation = inv, inviterEmail = mInviterEmail}
 
 headInvitationByEmail ::

@@ -127,9 +127,9 @@ testInvitePersonalUserToTeam = do
     checkListInvitations :: Value -> String -> String -> App ()
     checkListInvitations owner tid email = do
       newUserEmail <- randomEmail
-      inv <- postInvitation owner (PostInvitation (Just newUserEmail) Nothing) >>= assertSuccess
+      inv <- postInvitation owner (PostInvitation (Just newUserEmail) Nothing) >>= getJSON 201
       code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
-      bindResponse (getInvitationByCode OwnDomain code) $ \resp -> do
+      bindResponse (getInvitationByCode owner code) $ \resp -> do
         resp.status `shouldMatchInt` 200
         lookupField resp.json "created_by_email" `shouldMatch` (Nothing :: Maybe Value)
       bindResponse (listInvitations owner tid) $ \resp -> do
