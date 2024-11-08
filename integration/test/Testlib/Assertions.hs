@@ -261,6 +261,15 @@ printFailureDetails (AssertionFailure stack mbResponse ctx msg) = do
       : toList (fmap prettyResponse mbResponse)
         <> toList (fmap prettyContext ctx)
 
+printAppFailureDetails :: AppFailure -> IO String
+printAppFailureDetails (AppFailure msg stack) = do
+  s <- prettierCallStack stack
+  pure . unlines $
+    colored yellow "app failure:"
+      : colored red msg
+      : "\n"
+      : [s]
+
 prettyContext :: String -> String
 prettyContext ctx = do
   unlines

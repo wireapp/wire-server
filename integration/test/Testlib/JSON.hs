@@ -436,16 +436,16 @@ objSubConv x = do
     lift $ asString sub'
   pure (obj, sub)
 
--- | Turn an object parseable by 'objSubConv' into a canonical flat representation.
-objSubConvObject :: (HasCallStack, MakesValue a) => a -> App Value
-objSubConvObject x = do
-  (convId, mSubConvId) <- objSubConv x
-  (domain, id_) <- objQid convId
-  pure . object $
-    [ "domain" .= domain,
-      "id" .= id_
-    ]
-      <> ["subconv_id" .= sub | sub <- toList mSubConvId]
+objConvId :: (HasCallStack, MakesValue conv) => conv -> App ConvId
+objConvId conv = do
+  v <- make conv
+  -- Domain and ConvId either come from parent_qualified_id or qualified_id
+  mParent <- lookupField v "parent_qualified_id"
+  (domain, id_) <- objQid $ fromMaybe v mParent
+
+  groupId <- traverse asString =<< asOptional (lookupField v "group_id")
+  subconvId <- traverse asString =<< asOptional (lookupField v "subconv_id")
+  pure ConvId {..}
 
 instance MakesValue ClientIdentity where
   make cid =

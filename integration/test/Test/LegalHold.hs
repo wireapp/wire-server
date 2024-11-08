@@ -914,9 +914,9 @@ testBlockLHForMLSUsers = do
   -- scenario 1:
   -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
   (charlie, tid, []) <- createTeam OwnDomain 1
-  [charlie1] <- traverse (createMLSClient def) [charlie]
-  void $ createNewGroup charlie1
-  void $ createAddCommit charlie1 [charlie] >>= sendAndConsumeCommitBundle
+  [charlie1] <- traverse (createMLSClient def def) [charlie]
+  convId <- createNewGroup def charlie1
+  void $ createAddCommit charlie1 convId [charlie] >>= sendAndConsumeCommitBundle
 
   legalholdWhitelistTeam tid charlie >>= assertStatus 200
   withMockServer def lhMockApp \lhDomAndPort _chan -> do
@@ -934,9 +934,9 @@ testBlockLHForMLSUsers = do
 testBlockClaimingKeyPackageForLHUsers :: (HasCallStack) => App ()
 testBlockClaimingKeyPackageForLHUsers = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
-  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
-  _ <- uploadNewKeyPackage charlie1
-  _ <- createNewGroup alice1
+  [alice1, charlie1] <- traverse (createMLSClient def def) [alice, charlie]
+  _ <- uploadNewKeyPackage def charlie1
+  _ <- createNewGroup def alice1
   legalholdWhitelistTeam tid alice >>= assertStatus 200
   withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
@@ -946,8 +946,7 @@ testBlockClaimingKeyPackageForLHUsers = do
     pStatus <- profile %. "legalhold_status" & asString
     pStatus `shouldMatch` "enabled"
 
-    mls <- getMLSState
-    claimKeyPackages mls.ciphersuite alice1 charlie
+    claimKeyPackages def alice1 charlie
       `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"
 
 -- | scenario 2.2:
@@ -958,8 +957,8 @@ testBlockClaimingKeyPackageForLHUsers = do
 testBlockCreateMLSConvForLHUsers :: (HasCallStack) => LhApiVersion -> App ()
 testBlockCreateMLSConvForLHUsers v = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
-  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
-  _ <- uploadNewKeyPackage alice1
+  [alice1, charlie1] <- traverse (createMLSClient def def) [alice, charlie]
+  _ <- uploadNewKeyPackage def alice1
   legalholdWhitelistTeam tid alice >>= assertStatus 200
   withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
@@ -970,12 +969,12 @@ testBlockCreateMLSConvForLHUsers v = do
     pStatus `shouldMatch` "enabled"
 
     -- charlie tries to create a group and should fail when POSTing the add commit
-    _ <- createNewGroup charlie1
+    convId <- createNewGroup def charlie1
 
     void
       -- we try to add alice since adding charlie himself would trigger 2.1
       -- since he'd try to claim his own keypackages
-      $ createAddCommit charlie1 [alice]
+      $ createAddCommit charlie1 convId [alice]
       >>= \mp ->
         postMLSCommitBundle mp.sender (mkBundle mp)
           `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"
@@ -983,12 +982,12 @@ testBlockCreateMLSConvForLHUsers v = do
     -- (unsurprisingly) this same thing should also work in the one2one case
 
     respJson <- getMLSOne2OneConversation alice charlie >>= getJSON 200
-    resetGroup alice1 (respJson %. "conversation")
+    createGroup def alice1 =<< objConvId (respJson %. "conversation")
 
     void
       -- we try to add alice since adding charlie himself would trigger 2.1
       -- since he'd try to claim his own keypackages
-      $ createAddCommit charlie1 [alice]
+      $ createAddCommit charlie1 convId [alice]
       >>= \mp ->
         postMLSCommitBundle mp.sender (mkBundle mp)
           `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"

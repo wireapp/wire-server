@@ -111,7 +111,8 @@ testExposeInvitationURLsToTeamAdminConfig = do
   runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
     let domain = testBackend.berDomain
 
-    let testNoAllowlistEntry = runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist ([] :: [String])) $ \_ -> do
+        testNoAllowlistEntry :: (HasCallStack) => App (Value, String)
+        testNoAllowlistEntry = runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist ([] :: [String])) $ \_ -> do
           (owner, tid, _) <- createTeam domain 1
           checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
           -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
