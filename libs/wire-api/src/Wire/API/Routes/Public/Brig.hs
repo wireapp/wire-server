@@ -1626,7 +1626,7 @@ type TeamsAPI =
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    (Respond 200 "Invitation info" Invitation)
+                    (Respond 200 "Invitation info" InvitationUserView)
            )
     -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
     :<|> Named

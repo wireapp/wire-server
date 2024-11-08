@@ -39,6 +39,7 @@ import Test.Wire.API.Golden.Manual.FederationRestriction
 import Test.Wire.API.Golden.Manual.FederationStatus
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
+import Test.Wire.API.Golden.Manual.InvitationUserView
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
@@ -311,5 +312,10 @@ tests =
             (testObject_Activate_user_2, "testObject_Activate_user_2.json"),
             (testObject_Activate_user_3, "testObject_Activate_user_3.json"),
             (testObject_Activate_user_4, "testObject_Activate_user_4.json")
+          ],
+      testGroup "InvitationUserView" $
+        testObjects
+          [ (testObject_InvitationUserView_team_1, "testObject_InvitationUserView_team_1.json"),
+            (testObject_InvitationUserView_team_2, "testObject_InvitationUserView_team_2.json")
           ]
     ]

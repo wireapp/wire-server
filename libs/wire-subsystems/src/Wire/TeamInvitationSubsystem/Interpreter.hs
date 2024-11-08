@@ -159,7 +159,6 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
                 inviteeEmail = email,
                 inviteeName = invRequest.inviteeName,
                 code = code
-                -- mUrl = mUrl
               }
        in Store.insertInvitation insertInv timeout
 

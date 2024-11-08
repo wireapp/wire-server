@@ -40,10 +40,8 @@ import Data.Id
 import Data.List1 qualified as List1
 import Data.Qualified
 import Data.Range
-import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
-import Data.Text.Lazy qualified as Text
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (Error, code, message)
 import Polysemy
@@ -67,9 +65,9 @@ import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
-import Wire.API.Team.Role
 import Wire.API.User hiding (fromEmail)
 import Wire.BlockListStore
+import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.EmailSubsystem.Template
 import Wire.Error
 import Wire.Events (Events)
@@ -80,6 +78,7 @@ import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredI
 import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
 import Wire.TeamInvitationSubsystem
+import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -234,54 +233,32 @@ listInvitations uid tid startingId mSize = do
     -- To create the correct team invitation URL, we need to detect whether the invited account already exists.
     -- Optimization: if url is not to be shown, do not check for existing personal user.
     toInvitationHack :: ShowOrHideInvitationUrl -> StoredInvitation -> Sem r Invitation
-    toInvitationHack HideInvitationUrl si = toInvitation False HideInvitationUrl si -- isPersonalUserMigration is always ignored here
+    toInvitationHack HideInvitationUrl si =
+      toInvitation "" HideInvitationUrl si -- isPersonalUserMigration is always ignored here
     toInvitationHack ShowInvitationUrl si = do
       isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
-      toInvitation isPersonalUserMigration ShowInvitationUrl si
+      template <-
+        if isPersonalUserMigration
+          then invitationEmailUrl . existingUserInvitationEmail <$> input
+          else invitationEmailUrl . invitationEmail <$> input
+      let url = renderInvitationUrl template tid si.code id
+      toInvitation url ShowInvitationUrl si
 
--- | brig used to not store the role, so for migration we allow this to be empty and fill in the
--- default here.
-toInvitation ::
+mkInviteUrl ::
+  forall r.
   ( Member TinyLog r,
     Member (Input TeamTemplates) r
   ) =>
-  Bool ->
   ShowOrHideInvitationUrl ->
-  StoredInvitation ->
-  Sem r Invitation
-toInvitation isPersonalUserMigration showUrl storedInv = do
-  url <-
-    if isPersonalUserMigration
-      then mkInviteUrlPersonalUser showUrl storedInv.teamId storedInv.code
-      else mkInviteUrl showUrl storedInv.teamId storedInv.code
-  pure $
-    Invitation
-      { team = storedInv.teamId,
-        role = fromMaybe defaultRole storedInv.role,
-        invitationId = storedInv.invitationId,
-        createdAt = storedInv.createdAt,
-        createdBy = storedInv.createdBy,
-        inviteeEmail = storedInv.email,
-        inviteeName = storedInv.name,
-        inviteeUrl = url
-      }
-
-getInviteUrl ::
-  forall r.
-  (Member TinyLog r) =>
-  InvitationEmailTemplate ->
   TeamId ->
-  AsciiText Base64Url ->
+  InvitationCode ->
   Sem r (Maybe (URIRef Absolute))
-getInviteUrl (invitationEmailUrl -> template) team code = do
-  let branding = id -- url is not branded
-  let url = Text.toStrict $ renderTextWithBranding template replace branding
+mkInviteUrl HideInvitationUrl _ _ = pure Nothing
+mkInviteUrl ShowInvitationUrl team c = do
+  template <- invitationEmailUrl . invitationEmail <$> input
+  let url = renderInvitationUrl template team c id
   parseHttpsUrl url
   where
-    replace "team" = idToText team
-    replace "code" = toText code
-    replace x = x
-
     parseHttpsUrl :: Text -> Sem r (Maybe (URIRef Absolute))
     parseHttpsUrl url =
       either (\e -> Nothing <$ logError url e) (pure . Just) $
@@ -292,32 +269,6 @@ getInviteUrl (invitationEmailUrl -> template) team code = do
         Log.msg @Text "Unable to create invitation url. Please check configuration."
           . Log.field "url" url
           . Log.field "error" (show e)
-
-mkInviteUrl ::
-  ( Member TinyLog r,
-    Member (Input TeamTemplates) r
-  ) =>
-  ShowOrHideInvitationUrl ->
-  TeamId ->
-  InvitationCode ->
-  Sem r (Maybe (URIRef Absolute))
-mkInviteUrl HideInvitationUrl _ _ = pure Nothing
-mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
-  template <- invitationEmail <$> input
-  getInviteUrl template team c
-
-mkInviteUrlPersonalUser ::
-  ( Member TinyLog r,
-    Member (Input TeamTemplates) r
-  ) =>
-  ShowOrHideInvitationUrl ->
-  TeamId ->
-  InvitationCode ->
-  Sem r (Maybe (URIRef Absolute))
-mkInviteUrlPersonalUser HideInvitationUrl _ _ = pure Nothing
-mkInviteUrlPersonalUser ShowInvitationUrl team (InvitationCode c) = do
-  template <- existingUserInvitationEmail <$> input
-  getInviteUrl template team c
 
 getInvitation ::
   ( Member GalleyAPIAccess r,
@@ -332,7 +283,6 @@ getInvitation ::
   Sem r (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-
   invitationM <- Store.lookupInvitation tid iid
   case invitationM of
     Nothing -> pure Nothing
@@ -350,14 +300,24 @@ isPersonalUser uke = do
     Just account -> account.userStatus == Active && isNothing account.userTeam
 
 getInvitationByCode ::
+  forall r.
   ( Member Store.InvitationStore r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   InvitationCode ->
-  Sem r Public.Invitation
+  Sem r Public.InvitationUserView
 getInvitationByCode c = do
-  inv <- Store.lookupInvitationByCode c
-  maybe (throw UserSubsystemInvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
+  storedInv <-
+    Store.lookupInvitationByCode c
+      >>= note UserSubsystemInvalidInvitationCode
+  let inv = Store.invitationFromStored Nothing storedInv
+  mInviterEmail <-
+    isPersonalUser (mkEmailKey inv.inviteeEmail) >>= \case
+      False -> pure Nothing
+      True -> maybe (pure Nothing) (qualifyLocal' >=> getUserEmail) inv.createdBy
+  pure $ InvitationUserView {invitation = inv, inviterEmail = mInviterEmail}
 
 headInvitationByEmail ::
   (Member InvitationStore r, Member TinyLog r) =>

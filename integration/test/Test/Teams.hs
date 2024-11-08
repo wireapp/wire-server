@@ -67,6 +67,10 @@ testInvitePersonalUserToTeam = do
         checkListInvitations owner tid email
         code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
         inv %. "url" & asString >>= assertUrlContainsCode code
+        bindResponse (getInvitationByCode user code) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          ownersEmail <- owner %. "email" & asString
+          resp.json %. "created_by_email" `shouldMatch` ownersEmail
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
 
@@ -123,7 +127,11 @@ testInvitePersonalUserToTeam = do
     checkListInvitations :: Value -> String -> String -> App ()
     checkListInvitations owner tid email = do
       newUserEmail <- randomEmail
-      void $ postInvitation owner (PostInvitation (Just newUserEmail) Nothing) >>= assertSuccess
+      inv <- postInvitation owner (PostInvitation (Just newUserEmail) Nothing) >>= getJSON 201
+      code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+      bindResponse (getInvitationByCode owner code) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        lookupField resp.json "created_by_email" `shouldMatch` (Nothing :: Maybe Value)
       bindResponse (listInvitations owner tid) $ \resp -> do
         resp.status `shouldMatchInt` 200
         invitations <- resp.json %. "invitations" >>= asList
