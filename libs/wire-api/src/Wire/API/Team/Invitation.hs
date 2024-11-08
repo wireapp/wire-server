@@ -130,8 +130,6 @@ newtype InvitationLocation = InvitationLocation
   }
   deriving stock (Eq, Show, Generic)
 
--- TODO: is there an invitation list EP that we should also change?
-
 instance S.ToParamSchema InvitationLocation where
   toParamSchema _ =
     mempty

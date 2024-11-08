@@ -270,7 +270,6 @@ mkInviteUrl ShowInvitationUrl team c = do
           . Log.field "url" url
           . Log.field "error" (show e)
 
--- TODO: is this also code already available from wire-subsystems?
 getInvitation ::
   ( Member GalleyAPIAccess r,
     Member InvitationStore r,
