@@ -16,9 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
-  ( TeamFeatureNoConfigMultiRequest (..),
-    TeamFeatureNoConfigMultiResponse (..),
-    TeamStatus (..),
+  ( TeamStatus (..),
   )
 where
 
@@ -28,30 +26,6 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
 import Wire.API.Team.Feature qualified as Public
-
-newtype TeamFeatureNoConfigMultiRequest = TeamFeatureNoConfigMultiRequest
-  { teams :: [TeamId]
-  }
-  deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema TeamFeatureNoConfigMultiRequest
-
-instance ToSchema TeamFeatureNoConfigMultiRequest where
-  schema =
-    object "TeamFeatureNoConfigMultiRequest" $
-      TeamFeatureNoConfigMultiRequest
-        <$> teams .= field "teams" (array schema)
-
-newtype TeamFeatureNoConfigMultiResponse cfg = TeamFeatureNoConfigMultiResponse
-  { teamsStatuses :: [TeamStatus cfg]
-  }
-  deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (TeamFeatureNoConfigMultiResponse cfg)
-
-instance ToSchema (TeamFeatureNoConfigMultiResponse cfg) where
-  schema =
-    object "TeamFeatureNoConfigMultiResponse" $
-      TeamFeatureNoConfigMultiResponse
-        <$> teamsStatuses .= field "default_status" (array schema)
 
 data TeamStatus cfg = TeamStatus
   { team :: TeamId,

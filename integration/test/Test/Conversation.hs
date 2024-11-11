@@ -906,3 +906,28 @@ testPostConvWithUnreachableRemoteUsers = do
         for_ convs $ \conv -> conv %. "type" `shouldNotMatchInt` 0
         assertNoEvent 2 wssAlice
         assertNoEvent 2 wssAlex
+
+testNoFederationWithProteus :: (HasCallStack) => App ()
+testNoFederationWithProteus = do
+  withModifiedBackend
+    ( def
+        { galleyCfg = \conf ->
+            conf & setField "settings.federationProtocols" ["mls"]
+        }
+    )
+    $ \domain -> do
+      charlieDomain <- asString $ make OwnDomain
+      [alice, alex, arnold, bob] <- createAndConnectUsers [domain, domain, domain, charlieDomain]
+
+      do
+        conv <- postConversation alice defProteus {qualifiedUsers = [alex]} >>= getJSON 201
+        bindResponse (addMembers alice conv def {users = [bob]}) $ \resp -> do
+          resp.status `shouldMatchInt` 409
+          resp.json %. "label" `shouldMatch` "federation-disabled-for-protocol"
+        void $ addMembers alice conv def {users = [arnold]} >>= getJSON 200
+
+      bindResponse (postConversation alice defProteus {qualifiedUsers = [bob]}) $ \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.json %. "label" `shouldMatch` "federation-disabled-for-protocol"
+
+      void $ postConversation bob defProteus {qualifiedUsers = [alice]} >>= getJSON 201

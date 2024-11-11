@@ -44,8 +44,8 @@ module Wire.API.Routes.Version
     Until,
     From,
 
-    -- * Swagger instances
-    SpecialiseToVersion,
+    -- * Swagger
+    module Wire.API.Routes.SpecialiseToVersion,
   )
 where
 
@@ -65,13 +65,10 @@ import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Data.Text.Encoding as Text
-import GHC.TypeLits
 import Imports hiding ((\\))
 import Servant
-import Servant.API.Extended.RawM qualified as RawM
-import Wire.API.Deprecated
-import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named hiding (unnamed)
+import Wire.API.Routes.SpecialiseToVersion
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
@@ -251,72 +248,4 @@ expandVersionExp :: VersionExp -> Set Version
 expandVersionExp (VersionExpConst v) = Set.singleton v
 expandVersionExp VersionExpDevelopment = Set.fromList developmentVersions
 
--- Version-aware swagger generation
-
 $(promoteOrdInstances [''Version])
-
-type family SpecialiseToVersion (v :: Version) api
-
-type instance
-  SpecialiseToVersion v (From w :> api) =
-    If (v < w) EmptyAPI (SpecialiseToVersion v api)
-
-type instance
-  SpecialiseToVersion v (Until w :> api) =
-    If (v < w) (SpecialiseToVersion v api) EmptyAPI
-
-type instance
-  SpecialiseToVersion v ((s :: Symbol) :> api) =
-    s :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (Named n api) =
-    Named n (SpecialiseToVersion v api)
-
-type instance
-  SpecialiseToVersion v (Capture' mod sym a :> api) =
-    Capture' mod sym a :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (Summary s :> api) =
-    Summary s :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (Deprecated :> api) =
-    Deprecated :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (Verb m s t r) =
-    Verb m s t r
-
-type instance
-  SpecialiseToVersion v (MultiVerb m t r x) =
-    MultiVerb m t r x
-
-type instance SpecialiseToVersion v RawM.RawM = RawM.RawM
-
-type instance
-  SpecialiseToVersion v (ReqBody t x :> api) =
-    ReqBody t x :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (QueryParam' mods l x :> api) =
-    QueryParam' mods l x :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (Header' opts l x :> api) =
-    Header' opts l x :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (Description desc :> api) =
-    Description desc :> SpecialiseToVersion v api
-
-type instance
-  SpecialiseToVersion v (StreamBody' opts f t x :> api) =
-    StreamBody' opts f t x :> SpecialiseToVersion v api
-
-type instance SpecialiseToVersion v EmptyAPI = EmptyAPI
-
-type instance
-  SpecialiseToVersion v (api1 :<|> api2) =
-    SpecialiseToVersion v api1 :<|> SpecialiseToVersion v api2

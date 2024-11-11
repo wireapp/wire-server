@@ -117,6 +117,7 @@ import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -149,7 +150,8 @@ servantSitemap ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member HashPassword r,
     Member (Embed IO) r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -157,7 +159,7 @@ servantSitemap =
     :<|> ejpdAPI
     :<|> accountAPI
     :<|> mlsAPI
-    :<|> getVerificationCode
+    :<|> Named @"get-verification-code" getVerificationCode
     :<|> teamsAPI
     :<|> userAPI
     :<|> clientAPI
@@ -177,11 +179,10 @@ ejpdAPI ::
     Member Rpc r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
-ejpdAPI =
-  Brig.User.EJPD.ejpdRequest
+ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = getMLSClients
+mlsAPI = Named @"get-mls-clients" getMLSClients
 
 accountAPI ::
   ( Member BlockListStore r,
@@ -204,15 +205,17 @@ accountAPI ::
     Member HashPassword r,
     Member InvitationStore r,
     Member (Embed IO) r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
-    :<|> putAccountConferenceCallingConfig
-    :<|> deleteAccountConferenceCallingConfig
-    :<|> getConnectionsStatusUnqualified
-    :<|> getConnectionsStatus
+    :<|> Named @"i-put-account-conference-calling-config" putAccountConferenceCallingConfig
+    :<|> Named @"i-delete-account-conference-calling-config" deleteAccountConferenceCallingConfig
+    :<|> Named @"i-get-all-connections-unqualified" getConnectionsStatusUnqualified
+    :<|> Named @"i-get-all-connections" getConnectionsStatus
     :<|> Named @"createUserNoVerify" createUserNoVerify
     :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
     :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
@@ -271,9 +274,9 @@ teamsAPI =
 
 userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
-  updateLocale
-    :<|> deleteLocale
-    :<|> getDefaultUserLocale
+  Named @"i-update-user-locale" updateLocale
+    :<|> Named @"i-delete-user-locale" deleteLocale
+    :<|> Named @"i-get-default-locale" getDefaultUserLocale
     :<|> Named @"get-user-export-data" getUserExportDataH
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
@@ -478,7 +481,8 @@ createUserNoVerify ::
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member HashPassword r,
-    Member PasswordResetCodeStore r
+    Member PasswordResetCodeStore r,
+    Member ActivationCodeStore r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -539,7 +543,11 @@ changeSelfEmailMaybeSendH ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   EmailUpdate ->
@@ -555,7 +563,11 @@ changeSelfEmailMaybeSend ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   MaybeSendEmail ->
@@ -563,11 +575,16 @@ changeSelfEmailMaybeSend ::
   UpdateOriginType ->
   (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
-  API.changeSelfEmail u email allowScim
+  lusr <- qualifyLocal u
+  lift . liftSem $
+    UserSubsystem.requestEmailChange lusr email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
-  API.changeEmail u email allowScim !>> changeEmailError >>= \case
-    ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
-    ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
+  lusr <- qualifyLocal u
+  (lift . liftSem)
+    (UserSubsystem.createEmailChangeToken lusr email allowScim)
+    >>= \case
+      ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+      ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This
@@ -783,9 +800,9 @@ getRichInfoH uid =
   RichInfo . fromMaybe mempty
     <$> lift (liftSem $ UserStore.getRichInfo uid)
 
-getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, RichInfo)]
+getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> Handler r BrigIRoutes.GetRichInfoMultiResponse
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
-  lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
+  lift $ wrapClient $ BrigIRoutes.GetRichInfoMultiResponse <$> API.lookupRichInfoMultiUsers uids
 
 updateHandleH ::
   (Member UserSubsystem r) =>

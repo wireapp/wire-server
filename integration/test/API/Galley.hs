@@ -120,17 +120,15 @@ deleteTeamMember tid owner mem = do
 putConversationProtocol ::
   ( HasCallStack,
     MakesValue user,
-    MakesValue qcnv,
     MakesValue protocol
   ) =>
   user ->
-  qcnv ->
+  ConvId ->
   protocol ->
   App Response
-putConversationProtocol user qcnv protocol = do
-  (domain, cnv) <- objQid qcnv
+putConversationProtocol user convId protocol = do
   p <- asString protocol
-  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "protocol"])
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId.domain, convId.id_, "protocol"])
   submit "PUT" (req & addJSONObject ["protocol" .= p])
 
 getConversation ::
@@ -148,21 +146,19 @@ getConversation user qcnv = do
 
 getSubConversation ::
   ( HasCallStack,
-    MakesValue user,
-    MakesValue conv
+    MakesValue user
   ) =>
   user ->
-  conv ->
+  ConvId ->
   String ->
   App Response
 getSubConversation user conv sub = do
-  (cnvDomain, cnvId) <- objQid conv
   req <-
     baseRequest user Galley Versioned
       $ joinHttpPath
         [ "conversations",
-          cnvDomain,
-          cnvId,
+          conv.domain,
+          conv.id_,
           "subconversations",
           sub
         ]
@@ -184,16 +180,15 @@ deleteSubConversation user sub = do
   submit "DELETE" $ req & addJSONObject ["group_id" .= groupId, "epoch" .= epoch]
 
 leaveSubConversation ::
-  (HasCallStack, MakesValue user, MakesValue sub) =>
+  (HasCallStack, MakesValue user) =>
   user ->
-  sub ->
+  ConvId ->
   App Response
-leaveSubConversation user sub = do
-  (conv, Just subId) <- objSubConv sub
-  (domain, convId) <- objQid conv
+leaveSubConversation user convId = do
+  let Just subId = convId.subconvId
   req <-
     baseRequest user Galley Versioned
-      $ joinHttpPath ["conversations", domain, convId, "subconversations", subId, "self"]
+      $ joinHttpPath ["conversations", convId.domain, convId.id_, "subconversations", subId, "self"]
   submit "DELETE" req
 
 getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
@@ -278,16 +273,14 @@ mkProteusRecipients dom userClients msg = do
         & #text .~ fromString msg
 
 getGroupInfo ::
-  (HasCallStack, MakesValue user, MakesValue conv) =>
+  (HasCallStack, MakesValue user) =>
   user ->
-  conv ->
+  ConvId ->
   App Response
 getGroupInfo user conv = do
-  (qcnv, mSub) <- objSubConv conv
-  (convDomain, convId) <- objQid qcnv
-  let path = joinHttpPath $ case mSub of
-        Nothing -> ["conversations", convDomain, convId, "groupinfo"]
-        Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
+  let path = joinHttpPath $ case conv.subconvId of
+        Nothing -> ["conversations", conv.domain, conv.id_, "groupinfo"]
+        Just sub -> ["conversations", conv.domain, conv.id_, "subconversations", sub, "groupinfo"]
   req <- baseRequest user Galley Versioned path
   submit "GET" req
 
@@ -323,9 +316,21 @@ deleteTeamConv ::
   App Response
 deleteTeamConv team conv user = do
   teamId <- objId team
-  convId <- objId conv
+  convId <- objId $ objQidObject conv
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", teamId, "conversations", convId])
   submit "DELETE" req
+
+getMLSOne2OneConversationLegacy ::
+  (HasCallStack, MakesValue self, MakesValue other) =>
+  self ->
+  other ->
+  App Response
+getMLSOne2OneConversationLegacy self other = do
+  (domain, uid) <- objQid other
+  req <-
+    baseRequest self Galley Versioned
+      $ joinHttpPath ["conversations", "one2one", domain, uid]
+  submit "GET" req
 
 getMLSOne2OneConversation ::
   (HasCallStack, MakesValue self, MakesValue other) =>
@@ -336,7 +341,7 @@ getMLSOne2OneConversation self other = do
   (domain, uid) <- objQid other
   req <-
     baseRequest self Galley Versioned
-      $ joinHttpPath ["conversations", "one2one", domain, uid]
+      $ joinHttpPath ["one2one-conversations", domain, uid]
   submit "GET" req
 
 getGroupClients ::

@@ -106,6 +106,7 @@ import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
 import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
@@ -172,9 +173,10 @@ import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
-import Wire.UserSubsystem hiding (checkHandle, checkHandles)
+import Wire.UserSubsystem hiding (checkHandle, checkHandles, removeEmail, requestEmailChange)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -244,17 +246,72 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 
     listAllVersionsHTML :: LByteString
     listAllVersionsHTML =
-      "<html><head></head><body><h2>please pick an api version</h2>"
-        <> mconcat
-          [ let url = "/" <> toQueryParam v <> "/api/swagger-ui/"
-             in "<a href=\""
-                  <> (fromStrict . Text.encodeUtf8 $ url)
-                  <> "\">"
-                  <> (fromStrict . Text.encodeUtf8 $ url)
-                  <> "</a><br>"
-            | v <- [minBound :: Version ..]
+      LBS.unlines $
+        [ "<html><head></head><body><h1>OpenAPI 3.0 docs for all Wire APIs</h1>",
+          intro,
+          LBS.unlines public,
+          LBS.unlines internal,
+          LBS.unlines federated,
+          "</body></html>"
+        ]
+      where
+        intro =
+          "<p>This wire-server system provides <a href=\"https://swagger.io/resources/open-api/\">OpenAPI 3.0</a> \
+          \documentation of our HTTP REST API.</p> \
+          \<p>The openapi docs are correct by construction (compiled from the server code), and more or less \
+          \complete.</p> \
+          \<p>Some endpoints are version-controlled. </a href=\"/api-version\">Show all supported versions.</a> \
+          \<a href=\"https://docs.wire.com/developer/developer/api-versioning.html\">find out more.</a>"
+
+        public :: [LByteString]
+        public =
+          ["<h2>Public (all available versions)</h2>"]
+            <> mconcat
+              [ [ v <> ": ",
+                  renderLink "swagger-ui" ("/" <> v <> "/api/swagger-ui") <> "; ",
+                  renderLink "swagger.json" ("/" <> v <> "/api/swagger.json"),
+                  "<br>"
+                ]
+                | v <- versionToLByteString <$> [minBound :: Version ..]
+              ]
+
+        internal :: [LByteString]
+        internal =
+          [ "<h2>Internal (not versioned)</h2>",
+            "<p>Openapi docs for internal endpoints are served per service. I.e. there's one for `brig`, one for `cannon`, \
+            \etc..  This is because Openapi doesn't play well with multiple actions having the same combination of HTTP \
+            \method and URL path.</p>"
           ]
-        <> "</body>"
+            <> mconcat
+              [ [ s <> ":<br>",
+                  renderLink "swagger-ui" ("/api-internal/swagger-ui/" <> s) <> "; ",
+                  renderLink "swagger.json" ("/api-internal/swagger-ui/" <> s <> "-swagger.json"),
+                  "<br>"
+                ]
+                | s <- ["brig", "galley", "spar", "cargohold", "gundeck", "cannon", "proxy"]
+              ]
+
+        federated :: [LByteString]
+        federated =
+          ["<h2>Federated API (backend-to-backend)</h2>"]
+            <> [ mconcat
+                   [ mconcat
+                       [ s <> " (" <> v <> "):<br>",
+                         renderLink "swagger-ui" ("/" <> v <> "/api-federation/swagger-ui/" <> s) <> "; ",
+                         renderLink "swagger.json" ("/" <> v <> "/api-federation/swagger-ui/" <> s <> "-swagger.json"),
+                         "<br>"
+                       ]
+                     | v <- versionToLByteString <$> [minBound :: Fed.Version ..]
+                   ]
+                   <> "<br>"
+                 | s <- ["brig", "galley", "cargohold"]
+               ]
+
+        versionToLByteString :: (ToHttpApiData v) => v -> LByteString
+        versionToLByteString = fromStrict . Text.encodeUtf8 . toQueryParam
+
+        renderLink :: LByteString -> LByteString -> LByteString
+        renderLink caption url = "<a href=\"" <> url <> "\">" <> caption <> "</a>"
 
 -- | Serves Swagger docs for internal endpoints.
 internalEndpointsSwaggerDocsAPI ::
@@ -263,7 +320,7 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
-internalEndpointsSwaggerDocsAPI _ _ _ (Just _) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just _) = emptySwagger "Internal APIs are not versioned!"
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
   swaggerSchemaUIServer $
     swagger
@@ -307,7 +364,8 @@ servantSitemap ::
     Member BlockListStore r,
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -440,7 +498,9 @@ servantSitemap =
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =
-      Named @"check-user-handles" checkHandles
+      Named @"check-user-handles@v6" checkHandles
+        :<|> Named @"check-user-handles" checkHandles
+        :<|> Named @"check-user-handle@v6" checkHandle
         :<|> Named @"check-user-handle" checkHandle
 
     searchAPI :: ServerT SearchAPI (Handler r)
@@ -453,7 +513,7 @@ servantSitemap =
         :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH
-        :<|> Named @"change-self-email" changeSelfEmailH
+        :<|> Named @"change-self-email" changeSelfEmail
         :<|> Named @"list-cookies" listCookies
         :<|> Named @"remove-cookies" removeCookies
 
@@ -721,14 +781,14 @@ createAccessToken method luid cid proof = do
 upgradePersonalToTeam ::
   ( Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
-    Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member EmailSending r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->
@@ -751,7 +811,8 @@ createUser ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member ActivationCodeStore r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -964,13 +1025,18 @@ removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
 removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
-  ( Member UserKeyStore r,
-    Member UserSubsystem r,
-    Member Events r
+  ( Member UserSubsystem r,
+    Member (Error UserSubsystemError) r
   ) =>
-  UserId ->
+  Local UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
-removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
+removeEmail = lift . liftSem . User.removeEmailEither >=> reint
+  where
+    reint = \case
+      Left UserSubsystemNoIdentity -> pure . Just $ Public.NoIdentity
+      Left UserSubsystemLastIdentity -> pure . Just $ Public.LastIdentity
+      Left e -> lift . liftSem . throw $ e
+      Right () -> pure Nothing
 
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
@@ -1041,7 +1107,12 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
+changeHandle ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  ConnId ->
+  Public.HandleUpdate ->
+  Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
   User.updateHandle u (Just conn) UpdateOriginWireClient h
 
@@ -1276,7 +1347,11 @@ updateUserEmail ::
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   UserId ->
@@ -1287,7 +1362,9 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  void $ API.changeSelfEmail emailOwnerId email UpdateOriginWireClient
+  lEmailOwnerId <- qualifyLocal emailOwnerId
+  void . lift . liftSem $
+    User.requestEmailChange lEmailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =

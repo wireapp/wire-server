@@ -43,9 +43,9 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <*> readText fp "email/sender.txt"
         )
     <*> ( InvitationEmailTemplate tExistingUrl
-            <$> readTemplate fp "email/existing-invitation-subject.txt"
-            <*> readTemplate fp "email/existing-invitation.txt"
-            <*> readTemplate fp "email/existing-invitation.html"
+            <$> readTemplate fp "email/migration-subject.txt"
+            <*> readTemplate fp "email/migration.txt"
+            <*> readTemplate fp "email/migration.html"
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )
@@ -60,6 +60,21 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <$> readTemplate fp "email/new-member-welcome-subject.txt"
             <*> readTemplate fp "email/new-member-welcome.txt"
             <*> readTemplate fp "email/new-member-welcome.html"
+            <*> pure (emailSender gOptions)
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( PersonalUserMemberWelcomeEmailTemplate
+            ""
+            (template "")
+            (template "")
+            (template "")
+            (emailSender gOptions)
+            <$> readText fp "email/sender.txt"
+        )
+    <*> ( NewTeamOwnerWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
+            <$> readTemplate fp "email/new-team-owner-welcome-subject.txt"
+            <*> readTemplate fp "email/new-team-owner-welcome.txt"
+            <*> readTemplate fp "email/new-team-owner-welcome.html"
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )

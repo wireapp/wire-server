@@ -6,7 +6,7 @@ VERIFY YOUR EMAIL
 ${email} was registered as your new email address on ${brand}. Click the button
 below to verify your address.
 
-Verify [${url}]If you can’t click the button, copy and paste this link to your
+Verify [${url}]If you can’t select the button, copy and paste this link to your
 browser:
 
 ${url}

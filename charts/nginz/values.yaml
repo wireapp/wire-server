@@ -156,6 +156,10 @@ nginx_conf:
       envs:
       - all
       doc: true
+    - path: /handles
+      envs:
+      - all
+      doc: true
     - path: /list-users
       envs:
       - all
@@ -464,6 +468,9 @@ nginx_conf:
     - path: /oauth/applications
       envs:
       - all
+    - path: /upgrade-personal-to-team$
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -479,7 +486,7 @@ nginx_conf:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
-    - path: /conversations/one2one/
+    - path: /one2one-conversations/
       envs:
       - all
       # During MLS migration, this endpoint gets called _a lot_.
@@ -553,6 +560,9 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /teams/invitations/accept$
+      envs:
+      - all
     - path: /custom-backend/by-domain/([^/]*)$
       disable_zauth: true
       envs:

@@ -34,7 +34,6 @@ import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
-import Wire.API.Password
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AuthenticationSubsystem
@@ -179,7 +178,8 @@ runBrigToIO e (AppT ma) = do
           { emailVisibilityConfig = e.settings.emailVisibility,
             defaultLocale = Opt.defaultUserLocale e.settings,
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
-            maxTeamSize = e.settings.maxTeamSize
+            maxTeamSize = e.settings.maxTeamSize,
+            activationCodeTimeout = e.settings.activationTimeout
           }
       teamInvitationSubsystemConfig =
         TeamInvitationSubsystemConfig
@@ -216,6 +216,9 @@ runBrigToIO e (AppT ma) = do
           }
 
       -- These interpreters depend on each other, we use let recursion to solve that.
+      --
+      -- This terminates if and only if we do not create an action sequence at
+      -- runtime such that interpretation of actions results in a call cycle.
       userSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor UserSubsystem r
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
 
@@ -266,7 +269,7 @@ runBrigToIO e (AppT ma) = do
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
-              . runHashPassword (argon2OptsFromHashingOpts e.settings.passwordHashingOptions)
+              . runHashPassword e.settings.passwordHashingOptions
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
               . mapError propertySubsystemErrorToHttpError

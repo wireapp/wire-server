@@ -6,8 +6,8 @@ VOTRE NOUVEAU COMPTE ${brand}
 Une nouvelle équipé a été créée sur ${brand} avec ${email}. Veuillez vérifier
 votre adresse email s’il vous plaît.
 
-Vérifier [${url}]Si vous ne pouvez pas cliquer sur le bouton, copiez et collez
-ce lien dans votre navigateur :
+Vérifier [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 

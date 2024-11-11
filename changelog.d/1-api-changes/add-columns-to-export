@@ -1,1 +1,0 @@
-The team CSV export endpoint has gained two extra columns: `last_active` and `status`. The streaming behaviour has also been improved.

@@ -18,9 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Team.Email
-  ( CreatorWelcomeEmail (..),
-    MemberWelcomeEmail (..),
-    sendMemberWelcomeMail,
+  ( sendMemberWelcomeMail,
+    sendNewTeamOwnerWelcomeEmail,
   )
 where
 
@@ -33,35 +32,25 @@ import Network.Mail.Mime
 import Polysemy
 import Wire.API.User
 import Wire.EmailSending
-import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, renderTextWithBranding)
+import Wire.EmailSubsystem.Template
 
 sendMemberWelcomeMail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
 sendMemberWelcomeMail to tid teamName loc = do
   tpl <- memberWelcomeEmail . snd <$> teamTemplatesWithLocale loc
   branding <- asks (.templateBranding)
-  let mail = MemberWelcomeEmail to tid teamName
-  liftSem $ sendMail $ renderMemberWelcomeMail mail tpl branding
+  liftSem $ sendMail $ renderMemberWelcomeMail to tid teamName tpl branding
 
--------------------------------------------------------------------------------
--- Creator Welcome Email
-
-data CreatorWelcomeEmail = CreatorWelcomeEmail
-  { cwTo :: !EmailAddress,
-    cwTid :: !TeamId,
-    cwTeamName :: !Text
-  }
+sendNewTeamOwnerWelcomeEmail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
+sendNewTeamOwnerWelcomeEmail to tid teamName loc = do
+  tpl <- newTeamOwnerWelcomeEmail . snd <$> teamTemplatesWithLocale loc
+  branding <- asks (.templateBranding)
+  liftSem $ sendMail $ renderNewTeamOwnerWelcomeEmail to tid teamName tpl branding
 
 -------------------------------------------------------------------------------
 -- Member Welcome Email
 
-data MemberWelcomeEmail = MemberWelcomeEmail
-  { mwTo :: !EmailAddress,
-    mwTid :: !TeamId,
-    mwTeamName :: !Text
-  }
-
-renderMemberWelcomeMail :: MemberWelcomeEmail -> MemberWelcomeEmailTemplate -> TemplateBranding -> Mail
-renderMemberWelcomeMail MemberWelcomeEmail {..} MemberWelcomeEmailTemplate {..} branding =
+renderMemberWelcomeMail :: EmailAddress -> TeamId -> Text -> MemberWelcomeEmailTemplate -> TemplateBranding -> Mail
+renderMemberWelcomeMail emailTo tid teamName MemberWelcomeEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
       mailHeaders =
@@ -72,12 +61,37 @@ renderMemberWelcomeMail MemberWelcomeEmail {..} MemberWelcomeEmailTemplate {..} 
     }
   where
     from = Address (Just memberWelcomeEmailSenderName) (fromEmail memberWelcomeEmailSender)
-    to = Address Nothing (fromEmail mwTo)
+    to = Address Nothing (fromEmail emailTo)
     txt = renderTextWithBranding memberWelcomeEmailBodyText replace branding
     html = renderHtmlWithBranding memberWelcomeEmailBodyHtml replace branding
     subj = renderTextWithBranding memberWelcomeEmailSubject replace branding
     replace "url" = memberWelcomeEmailUrl
-    replace "email" = fromEmail mwTo
-    replace "team_id" = idToText mwTid
-    replace "team_name" = mwTeamName
+    replace "email" = fromEmail emailTo
+    replace "team_id" = idToText tid
+    replace "team_name" = teamName
+    replace x = x
+
+-------------------------------------------------------------------------------
+-- New Team Owner Welcome Email
+
+renderNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> NewTeamOwnerWelcomeEmailTemplate -> TemplateBranding -> Mail
+renderNewTeamOwnerWelcomeEmail emailTo tid teamName NewTeamOwnerWelcomeEmailTemplate {..} branding =
+  (emptyMail from)
+    { mailTo = [to],
+      mailHeaders =
+        [ ("Subject", toStrict subj),
+          ("X-Zeta-Purpose", "Welcome")
+        ],
+      mailParts = [[plainPart txt, htmlPart html]]
+    }
+  where
+    from = Address (Just newTeamOwnerWelcomeEmailSenderName) (fromEmail newTeamOwnerWelcomeEmailSender)
+    to = Address Nothing (fromEmail emailTo)
+    txt = renderTextWithBranding newTeamOwnerWelcomeEmailBodyText replace branding
+    html = renderHtmlWithBranding newTeamOwnerWelcomeEmailBodyHtml replace branding
+    subj = renderTextWithBranding newTeamOwnerWelcomeEmailSubject replace branding
+    replace "url" = newTeamOwnerWelcomeEmailUrl
+    replace "email" = fromEmail emailTo
+    replace "team_id" = idToText tid
+    replace "team_name" = teamName
     replace x = x

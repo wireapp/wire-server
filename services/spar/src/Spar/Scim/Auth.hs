@@ -37,7 +37,7 @@ where
 
 import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
-import Data.Id (ScimTokenId, UserId)
+import Data.Id
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import Imports
@@ -98,9 +98,53 @@ apiScimToken ::
   ) =>
   ServerT APIScimToken (Sem r)
 apiScimToken =
-  Named @"auth-tokens-create" createScimToken
+  Named @"auth-tokens-create@v6" createScimTokenV6
+    :<|> Named @"auth-tokens-create" createScimToken
+    :<|> Named @"auth-tokens-put-name" updateScimTokenName
     :<|> Named @"auth-tokens-delete" deleteScimToken
+    :<|> Named @"auth-tokens-list@v6" listScimTokensV6
     :<|> Named @"auth-tokens-list" listScimTokens
+
+updateScimTokenName ::
+  ( Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member (Error E.SparError) r,
+    Member GalleyAccess r
+  ) =>
+  UserId ->
+  ScimTokenId ->
+  ScimTokenName ->
+  Sem r ()
+updateScimTokenName lusr tokenId name = do
+  teamid <- Intra.Brig.authorizeScimTokenManagement (Just lusr)
+  ScimTokenStore.updateName teamid tokenId name.fromScimTokenName
+
+-- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
+--
+-- Create a token for user's team.
+createScimTokenV6 ::
+  forall r.
+  ( Member Random r,
+    Member (Input Opts) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member Now r,
+    Member (Error E.SparError) r
+  ) =>
+  -- | Who is trying to create a token
+  Maybe UserId ->
+  -- | Request body
+  CreateScimToken ->
+  Sem r CreateScimTokenResponseV6
+createScimTokenV6 zusr req = responseToV6 <$> createScimToken zusr req
+  where
+    responseToV6 :: CreateScimTokenResponse -> CreateScimTokenResponseV6
+    responseToV6 (CreateScimTokenResponse token info) = CreateScimTokenResponseV6 token (infoToV6 info)
+
+    infoToV6 :: ScimTokenInfo -> ScimTokenInfoV6
+    infoToV6 ScimTokenInfo {..} = ScimTokenInfoV6 {..}
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
 --
@@ -122,9 +166,8 @@ createScimToken ::
   CreateScimToken ->
   Sem r CreateScimTokenResponse
 createScimToken zusr Api.CreateScimToken {..} = do
-  let descr = createScimTokenDescr
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  BrigAccess.ensureReAuthorised zusr createScimTokenPassword createScimTokenCode (Just User.CreateScimToken)
+  BrigAccess.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
   tokenNumber <- length <$> ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
@@ -148,7 +191,8 @@ createScimToken zusr Api.CreateScimToken {..} = do
                   stiTeam = teamid,
                   stiCreatedAt = now,
                   stiIdP = midpid,
-                  stiDescr = descr
+                  stiDescr = description,
+                  stiName = fromMaybe (idToText tokenid) name
                 }
         ScimTokenStore.insert token info
         pure $ CreateScimTokenResponse token info
@@ -178,6 +222,23 @@ deleteScimToken zusr tokenid = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   ScimTokenStore.delete teamid tokenid
   pure NoContent
+
+listScimTokensV6 ::
+  ( Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member (Error E.SparError) r
+  ) =>
+  -- | Who is trying to list tokens
+  Maybe UserId ->
+  Sem r ScimTokenListV6
+listScimTokensV6 zusr = toV6 <$> listScimTokens zusr
+  where
+    toV6 :: ScimTokenList -> ScimTokenListV6
+    toV6 (ScimTokenList tokens) = ScimTokenListV6 $ map infoToV6 tokens
+
+    infoToV6 :: ScimTokenInfo -> ScimTokenInfoV6
+    infoToV6 ScimTokenInfo {..} = ScimTokenInfoV6 {..}
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenList}
 --

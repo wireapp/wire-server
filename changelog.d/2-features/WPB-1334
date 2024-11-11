@@ -1,1 +1,0 @@
-Adds a field which contains a list of all active sessions to each OAuth application in the response of `GET /oauth/applications`

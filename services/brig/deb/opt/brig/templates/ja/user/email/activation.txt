@@ -6,7 +6,8 @@ ${brand_label_url} [${brand_url}]
 ${email} は、${brand} への登録に使用されました。
 ボタンをクリックしてメールアドレスの認証を行ってください。
 
-認証 [${url}]ボタンをクリックできない場合は、以下のリンクをブラウザにコピー＆ペーストして下さい。
+認証 [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 

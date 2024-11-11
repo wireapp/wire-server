@@ -47,6 +47,7 @@ module Util.Core
     -- * HTTP
     call,
     endpointToReq,
+    mkVersionedRequest,
 
     -- * Other
     randomEmail,
@@ -139,7 +140,7 @@ where
 import Bilge hiding (getCookie, host, port) -- we use Web.Cookie instead of the http-client type
 import qualified Bilge
 import Bilge.Assert (Assertions, (!!!), (<!!), (===))
-import Cassandra as Cas
+import Cassandra as Cas hiding (Version)
 import Control.Exception
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
@@ -149,6 +150,7 @@ import Crypto.Random.Types (MonadRandom)
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import qualified Data.ByteString.Base64.Lazy as EL
+import qualified Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion
 import Data.Handle (Handle, parseHandle)
 import Data.Id
@@ -165,7 +167,9 @@ import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
 import GHC.TypeLits
 import Imports hiding (head)
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.MultipartFormData
+import Network.URI (pathSegments)
 import qualified Options.Applicative as OPA
 import Polysemy (Sem)
 import SAML2.WebSSO as SAML hiding ((<$$>))
@@ -196,6 +200,8 @@ import URI.ByteString as URI
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
+import Web.HttpApiData
+import Wire.API.Routes.Version
 import Wire.API.Team (Icon (..))
 import qualified Wire.API.Team as Galley
 import Wire.API.Team.Feature
@@ -259,9 +265,9 @@ mkEnv tstOpts opts = do
   mgr :: Manager <- newManager defaultManagerSettings
   sparCtxLogger <- Log.mkLogger (samlToLevel $ saml opts ^. SAML.cfgLogLevel) (logNetStrings opts) (logFormat opts)
   cql :: ClientState <- initCassandra opts sparCtxLogger
-  let brig = endpointToReq tstOpts.brig
-      galley = endpointToReq tstOpts.galley
-      spar = endpointToReq tstOpts.spar
+  let brig = mkVersionedRequest tstOpts.brig
+      galley = mkVersionedRequest tstOpts.galley
+      spar = mkVersionedRequest tstOpts.spar
       sparEnv = Spar.Env {..}
       wireIdPAPIVersion = WireIdPAPIV2
       sparCtxOpts = opts
@@ -565,16 +571,41 @@ nextUserRef = liftIO $ do
     (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
     <$> nextSubject
 
+-- FUTUREWORK: use an endpoint from latest API version
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
   r <-
     get
-      ( gly
+      ( unversioned
+          . gly
           . paths ["teams"]
           . zAuthAccess u "conn"
           . expect2xx
       )
   pure $ responseJsonUnsafe r
+
+-- | Note: Apply this function last when composing (Request -> Request) functions
+unversioned :: Request -> Request
+unversioned r =
+  r
+    { HTTP.path =
+        maybe
+          (HTTP.path r)
+          (B8.pack "/" <>)
+          (removeVersionPrefix . removeSlash' $ HTTP.path r)
+    }
+  where
+    removeVersionPrefix :: ByteString -> Maybe ByteString
+    removeVersionPrefix bs = do
+      let (x, s) = B8.splitAt 1 bs
+      guard (x == B8.pack "v")
+      (_, s') <- B8.readInteger s
+      pure (B8.tail s')
+
+    removeSlash' :: ByteString -> ByteString
+    removeSlash' s = case B8.uncons s of
+      Just ('/', s') -> s'
+      _ -> s
 
 getTeamMemberIds :: (HasCallStack) => UserId -> TeamId -> TestSpar [UserId]
 getTeamMemberIds usr tid = (^. Team.userId) <$$> getTeamMembers usr tid
@@ -667,6 +698,24 @@ zConn = header "Z-Connection"
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
 endpointToReq ep = Bilge.host (cs ep.host) . Bilge.port ep.port
+
+mkVersionedRequest :: Endpoint -> Request -> Request
+mkVersionedRequest ep = maybeAddPrefix . endpointToReq ep
+
+maybeAddPrefix :: Request -> Request
+maybeAddPrefix r = case pathSegments $ getUri r of
+  ("i" : _) -> r
+  ("api-internal" : _) -> r
+  _ -> addPrefix r
+
+addPrefix :: Request -> Request
+addPrefix r = r {HTTP.path = toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
+  where
+    removeSlash s = case B8.uncons s of
+      Just ('/', s') -> s'
+      _ -> s
+    latestVersion :: Version
+    latestVersion = maxBound
 
 -- spar specifics
 
@@ -1214,7 +1263,7 @@ stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 -- | copied from brig integration tests
 stdInvitationRequest' :: Maybe User.Locale -> Maybe Role -> EmailAddress -> TeamInvitation.InvitationRequest
 stdInvitationRequest' loc role email =
-  TeamInvitation.InvitationRequest loc role Nothing email
+  TeamInvitation.InvitationRequest loc role Nothing email True
 
 setRandomHandleBrig :: (HasCallStack) => UserId -> TestSpar ()
 setRandomHandleBrig uid = do

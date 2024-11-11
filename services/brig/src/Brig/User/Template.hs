@@ -28,7 +28,6 @@ module Brig.User.Template
     LoginCallTemplate (..),
     DeletionSmsTemplate (..),
     DeletionEmailTemplate (..),
-    UpgradePersonalToTeamEmailTemplate (..),
     NewClientEmailTemplate (..),
     SecondFactorVerificationEmailTemplate (..),
     loadUserTemplates,
@@ -107,13 +106,6 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
             <$> readTemplate fp "email/deletion-subject.txt"
             <*> readTemplate fp "email/deletion.txt"
             <*> readTemplate fp "email/deletion.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( UpgradePersonalToTeamEmailTemplate
-            <$> readTemplate fp "email/upgrade-subject.txt"
-            <*> readTemplate fp "email/upgrade.txt"
-            <*> readTemplate fp "email/upgrade.html"
             <*> pure emailSender
             <*> readText fp "email/sender.txt"
         )

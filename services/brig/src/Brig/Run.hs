@@ -116,8 +116,9 @@ mkApp opts = do
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      -- this rewrites the request, so it must be at the top (i.e. applied last)
+      -- these rewrite the request, so they must be at the top (i.e. applied last)
       versionMiddleware e.disabledVersions
+        . internalHandleCompatibilityMiddleware
         -- this also rewrites the request
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
@@ -141,6 +142,21 @@ mkApp opts = do
         )
         req
         cont
+
+-- FUTUREWORK: this rewrites /i/users/handles to /i/handles, for backward
+-- compatibility with the old endpoint path during deployment. Once the new
+-- endpoint has been deployed, this middleware can be removed.
+internalHandleCompatibilityMiddleware :: Wai.Middleware
+internalHandleCompatibilityMiddleware app req k =
+  app
+    ( case Wai.pathInfo req of
+        ("i" : "users" : "handles" : rest) ->
+          req
+            { Wai.pathInfo = ("i" : "handles" : rest)
+            }
+        _ -> req
+    )
+    k
 
 type ServantCombinedAPI =
   ( DocsAPI

@@ -21,7 +21,9 @@ module Wire.API.Routes.SpecialiseToVersion where
 import Data.Singletons.Base.TH
 import GHC.TypeLits
 import Servant
+import Servant.API.Extended
 import Servant.API.Extended.RawM qualified as RawM
+import Servant.Multipart.API
 import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -44,6 +46,10 @@ type instance
 type instance
   SpecialiseToVersion v (Named n api) =
     Named n (SpecialiseToVersion v api)
+
+type instance
+  SpecialiseToVersion v (NoContentVerb m) =
+    NoContentVerb m
 
 type instance
   SpecialiseToVersion v (Capture' mod sym a :> api) =
@@ -92,3 +98,11 @@ type instance SpecialiseToVersion v EmptyAPI = EmptyAPI
 type instance
   SpecialiseToVersion v (api1 :<|> api2) =
     SpecialiseToVersion v api1 :<|> SpecialiseToVersion v api2
+
+type instance
+  SpecialiseToVersion v (ReqBodyCustomError t l x :> api) =
+    ReqBodyCustomError t l x :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (MultipartForm x b :> api) =
+    MultipartForm x b :> SpecialiseToVersion v api

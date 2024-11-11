@@ -1,1 +1,0 @@
-charts/wire-server: There is a new config value called `background-worker.config.enableFederation` which defaults to `false`. This must be kept in sync with `tags.federation`.

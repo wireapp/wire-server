@@ -83,7 +83,7 @@ checkHandles brig uid hs num =
   let hs' = unsafeRange hs
       num' = unsafeRange num
       js = RequestBodyLBS $ encode $ CheckHandles hs' num'
-   in post (brig . path "/users/handles" . contentJson . zUser uid . body js)
+   in post (brig . path "/handles" . contentJson . zUser uid . body js)
 
 randomUserWithHandle ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>

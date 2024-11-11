@@ -30,7 +30,7 @@ module Brig.API.Types
   )
 where
 
-import Brig.Data.Activation (Activation (..), ActivationError (..))
+import Brig.Data.Activation (ActivationError (..))
 import Brig.Data.Client (ClientDataError (..))
 import Brig.Types.Intra
 import Data.Code
@@ -42,6 +42,7 @@ import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.API.User.Activation
 import Wire.AuthenticationSubsystem.Error
 import Wire.UserKeyStore
 
@@ -63,14 +64,6 @@ data ActivationResult
     ActivationSuccess !(Maybe UserIdentity) !Bool
   | -- | The key/code was valid but already recently activated.
     ActivationPass
-  deriving (Show)
-
--- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
-data ChangeEmailResult
-  = -- | The request was successful, user needs to verify the new email address
-    ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
-  | -- | The user asked to change the email address to the one already owned
-    ChangeEmailIdempotent
   deriving (Show)
 
 -------------------------------------------------------------------------------
@@ -152,12 +145,6 @@ data VerificationCodeError
   = VerificationCodeRequired
   | VerificationCodeNoPendingCode
   | VerificationCodeNoEmail
-
-data ChangeEmailError
-  = InvalidNewEmail !EmailAddress !String
-  | EmailExists !EmailAddress
-  | ChangeBlacklistedEmail !EmailAddress
-  | EmailManagedByScim
 
 data SendActivationCodeError
   = InvalidRecipient EmailKey

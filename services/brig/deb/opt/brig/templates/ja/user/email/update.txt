@@ -5,7 +5,8 @@ ${brand_label_url} [${brand_url}]
 メールアドレス認証
 ${email} は、 ${brand} で新しいメールアドレスとして登録されました。 新しいメールアドレスを認証するために下のボタンをクリックしてください。
 
-認証 [${url}]ボタンをクリックできない場合は、以下のリンクをブラウザにコピー＆ペーストして下さい。
+認証 [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 

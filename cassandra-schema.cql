@@ -1985,6 +1985,7 @@ CREATE TABLE spar_test.team_provisioning_by_team (
     created_at timestamp,
     descr text,
     idp uuid,
+    name text,
     token_ text,
     PRIMARY KEY (team, id)
 ) WITH CLUSTERING ORDER BY (id ASC)
@@ -2069,6 +2070,7 @@ CREATE TABLE spar_test.team_provisioning_by_token (
     descr text,
     id uuid,
     idp uuid,
+    name text,
     team uuid
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}

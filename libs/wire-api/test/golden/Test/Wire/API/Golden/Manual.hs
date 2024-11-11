@@ -32,12 +32,14 @@ import Test.Wire.API.Golden.Manual.ConversationRemoveMembers
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
+import Test.Wire.API.Golden.Manual.CreateScimTokenResponse
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.FederationDomainConfig
 import Test.Wire.API.Golden.Manual.FederationRestriction
 import Test.Wire.API.Golden.Manual.FederationStatus
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
+import Test.Wire.API.Golden.Manual.InvitationUserView
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
@@ -152,6 +154,10 @@ tests =
             (testObject_CreateScimToken_2, "testObject_CreateScimToken_2.json"),
             (testObject_CreateScimToken_3, "testObject_CreateScimToken_3.json"),
             (testObject_CreateScimToken_4, "testObject_CreateScimToken_4.json")
+          ],
+      testGroup "CreateScimTokenResponse" $
+        testObjects
+          [ (testObject_CreateScimTokenResponse_1, "testObject_CreateScimTokenResponse_1.json")
           ],
       testGroup "Contact" $
         testObjects
@@ -306,5 +312,10 @@ tests =
             (testObject_Activate_user_2, "testObject_Activate_user_2.json"),
             (testObject_Activate_user_3, "testObject_Activate_user_3.json"),
             (testObject_Activate_user_4, "testObject_Activate_user_4.json")
+          ],
+      testGroup "InvitationUserView" $
+        testObjects
+          [ (testObject_InvitationUserView_team_1, "testObject_InvitationUserView_team_1.json"),
+            (testObject_InvitationUserView_team_2, "testObject_InvitationUserView_team_2.json")
           ]
     ]

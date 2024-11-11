@@ -682,7 +682,7 @@ getCallsConfigV2 user = do
 
 addBot :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
 addBot user providerId serviceId convId = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["conversations", convId, "bots"]
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["bot", "conversations", convId]
   submit "POST" $
     req
       & zType "access"
@@ -817,6 +817,12 @@ listInvitations :: (HasCallStack, MakesValue user) => user -> String -> App Resp
 listInvitations user tid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "invitations"]
   submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/get-team-invitation-info
+getInvitationByCode :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getInvitationByCode user code = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "info"]
+  submit "GET" (req & addQueryParams [("code", code)])
 
 passwordReset :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 passwordReset domain email = do

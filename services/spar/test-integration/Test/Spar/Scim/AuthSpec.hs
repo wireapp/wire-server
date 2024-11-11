@@ -97,9 +97,10 @@ testCreateToken = do
     createToken
       owner
       CreateScimToken
-        { createScimTokenDescr = "testCreateToken",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testCreateToken",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   -- Try to do @GET /Users@ and check that it succeeds
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
@@ -120,17 +121,17 @@ testCreateTokenWithVerificationCode = do
   user <- getUserBrig owner
   let email = fromMaybe undefined (userEmail =<< user)
 
-  let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing
+  let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing Nothing
   createTokenFailsWith owner reqMissingCode 403 "code-authentication-required"
 
   void $ requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
-  let reqWrongCode = CreateScimToken "testCreateToken" (Just defPassword) (Just wrongCode)
+  let reqWrongCode = CreateScimToken "testCreateToken" (Just defPassword) (Just wrongCode) Nothing
   createTokenFailsWith owner reqWrongCode 403 "code-authentication-failed"
 
   void $ retryNUntil 6 ((==) 200 . statusCode) $ requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
   code <- getVerificationCode (env ^. teBrig) owner Public.CreateScimToken
-  let reqWithCode = CreateScimToken "testCreateToken" (Just defPassword) (Just code)
+  let reqWithCode = CreateScimToken "testCreateToken" (Just defPassword) (Just code) Nothing
   CreateScimTokenResponse token _ <- createToken owner reqWithCode
 
   -- Try to do @GET /Users@ and check that it succeeds
@@ -177,25 +178,28 @@ testTokenLimit = do
     createToken
       owner
       CreateScimToken
-        { createScimTokenDescr = "testTokenLimit / #1",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testTokenLimit / #1",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   _ <-
     createToken
       owner
       CreateScimToken
-        { createScimTokenDescr = "testTokenLimit / #2",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testTokenLimit / #2",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   -- Try to create the third token and see that it fails
   createToken_
     owner
     CreateScimToken
-      { createScimTokenDescr = "testTokenLimit / #3",
-        createScimTokenPassword = Just defPassword,
-        createScimTokenCode = Nothing
+      { description = "testTokenLimit / #3",
+        password = Just defPassword,
+        verificationCode = Nothing,
+        name = Nothing
       }
     (env ^. teSpar)
     !!! checkErr 403 (Just "token-limit-reached")
@@ -214,13 +218,13 @@ testNumIdPs = do
         SAML.SampleIdP metadata _ _ _ <- SAML.makeSampleIdPMetadata
         void $ call $ Util.callIdpCreate apiversion spar (Just owner) metadata
 
-  createToken owner (CreateScimToken "eins" (Just defPassword) Nothing)
-    >>= deleteToken owner . stiId . createScimTokenResponseInfo
+  createToken owner (CreateScimToken "eins" (Just defPassword) Nothing Nothing)
+    >>= deleteToken owner . (.stiId) . (.info)
   addSomeIdP
-  createToken owner (CreateScimToken "zwei" (Just defPassword) Nothing)
-    >>= deleteToken owner . stiId . createScimTokenResponseInfo
+  createToken owner (CreateScimToken "zwei" (Just defPassword) Nothing Nothing)
+    >>= deleteToken owner . (.stiId) . (.info)
   addSomeIdP
-  createToken_ owner (CreateScimToken "drei" (Just defPassword) Nothing) (env ^. teSpar)
+  createToken_ owner (CreateScimToken "drei" (Just defPassword) Nothing Nothing) (env ^. teSpar)
     !!! checkErr 400 (Just "more-than-one-idp")
 
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -244,9 +248,10 @@ testCreateTokenAuthorizesOnlyAdmins = do
         createToken_
           uid
           CreateScimToken
-            { createScimTokenDescr = "testCreateToken",
-              createScimTokenPassword = Just defPassword,
-              createScimTokenCode = Nothing
+            { description = "testCreateToken",
+              password = Just defPassword,
+              verificationCode = Nothing,
+              name = Nothing
             }
           (env ^. teSpar)
 
@@ -272,9 +277,10 @@ testCreateTokenRequiresPassword = do
   createToken_
     owner
     CreateScimToken
-      { createScimTokenDescr = "testCreateTokenRequiresPassword",
-        createScimTokenPassword = Nothing,
-        createScimTokenCode = Nothing
+      { description = "testCreateTokenRequiresPassword",
+        password = Nothing,
+        verificationCode = Nothing,
+        name = Nothing
       }
     (env ^. teSpar)
     !!! checkErr 403 (Just "access-denied")
@@ -282,9 +288,10 @@ testCreateTokenRequiresPassword = do
   createToken_
     owner
     CreateScimToken
-      { createScimTokenDescr = "testCreateTokenRequiresPassword",
-        createScimTokenPassword = Just (plainTextPassword6Unsafe "wrong password"),
-        createScimTokenCode = Nothing
+      { description = "testCreateTokenRequiresPassword",
+        password = Just (plainTextPassword6Unsafe "wrong password"),
+        verificationCode = Nothing,
+        name = Nothing
       }
     (env ^. teSpar)
     !!! checkErr 403 (Just "access-denied")
@@ -309,22 +316,24 @@ testListTokens = do
     createToken
       owner
       CreateScimToken
-        { createScimTokenDescr = "testListTokens / #1",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testListTokens / #1",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   _ <-
     createToken
       owner
       CreateScimToken
-        { createScimTokenDescr = "testListTokens / #2",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testListTokens / #2",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   -- Check that the token is on the list
-  list <- scimTokenListTokens <$> listTokens owner
+  list <- (.scimTokenListTokens) <$> listTokens owner
   liftIO $
-    map stiDescr list
+    map (.stiDescr) list
       `shouldBe` ["testListTokens / #1", "testListTokens / #2"]
 
 testPlaintextTokensAreConverted :: TestSpar ()
@@ -418,16 +427,17 @@ testDeletedTokensAreUnusable = do
     createToken
       owner
       CreateScimToken
-        { createScimTokenDescr = "testDeletedTokensAreUnusable",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testDeletedTokensAreUnusable",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   -- An operation with the token should succeed
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
   -- Delete the token and now the operation should fail
-  deleteToken owner (stiId tokenInfo)
+  deleteToken owner tokenInfo.stiId
   listUsers_ (Just token) Nothing (env ^. teSpar)
     !!! checkErr 401 Nothing
 
@@ -443,14 +453,15 @@ testDeletedTokensAreUnlistable = do
     createToken
       owner
       CreateScimToken
-        { createScimTokenDescr = "testDeletedTokensAreUnlistable",
-          createScimTokenPassword = Just defPassword,
-          createScimTokenCode = Nothing
+        { description = "testDeletedTokensAreUnlistable",
+          password = Just defPassword,
+          verificationCode = Nothing,
+          name = Nothing
         }
   -- Delete the token
-  deleteToken owner (stiId tokenInfo)
+  deleteToken owner tokenInfo.stiId
   -- Check that the token is not on the list
-  list <- scimTokenListTokens <$> listTokens owner
+  list <- (.scimTokenListTokens) <$> listTokens owner
   liftIO $ list `shouldBe` []
 
 ----------------------------------------------------------------------------

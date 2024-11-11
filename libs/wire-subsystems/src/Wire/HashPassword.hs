@@ -3,11 +3,11 @@
 
 module Wire.HashPassword where
 
-import Crypto.KDF.Argon2 qualified as Argon2
 import Data.Misc
 import Imports
 import Polysemy
-import Wire.API.Password (Password)
+import Util.Options
+import Wire.API.Password
 import Wire.API.Password qualified as Password
 
 data HashPassword m a where
@@ -17,20 +17,18 @@ data HashPassword m a where
 makeSem ''HashPassword
 
 runHashPassword ::
+  forall r.
   ( Member (Embed IO) r
   ) =>
-  Argon2.Options ->
+  PasswordHashingOptions ->
   InterpreterFor HashPassword r
 runHashPassword opts =
   interpret $
     \case
-      HashPassword6 pw6 -> hashPasswordImpl opts pw6
-      HashPassword8 pw8 -> hashPasswordImpl opts pw8
-
-hashPasswordImpl ::
-  (Member (Embed IO) r) =>
-  Argon2.Options ->
-  PlainTextPassword' t ->
-  Sem r Password
-hashPasswordImpl opts pwd = do
-  liftIO $ Password.mkSafePassword opts pwd
+      HashPassword6 pw6 -> hashFunction pw6
+      HashPassword8 pw8 -> hashFunction pw8
+  where
+    hashFunction :: PlainTextPassword' t -> Sem r Password
+    hashFunction = case opts of
+      PasswordHashingArgon2id o -> Password.mkSafePassword (argon2OptsFromHashingOpts o)
+      PasswordHashingScrypt -> Password.mkSafePasswordScrypt

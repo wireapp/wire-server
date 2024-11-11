@@ -22,6 +22,7 @@
 module Wire.API.User.Identity
   ( -- * UserIdentity
     UserIdentity (..),
+    isUserSSOId,
     isSSOIdentity,
     newIdentity,
     emailIdentity,
@@ -149,6 +150,10 @@ data UserSSOId
   | UserScimExternalId Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
+
+isUserSSOId :: UserSSOId -> Bool
+isUserSSOId (UserSSOId _) = True
+isUserSSOId (UserScimExternalId _) = False
 
 instance C.Cql UserSSOId where
   ctype = C.Tagged C.TextColumn

@@ -204,6 +204,7 @@ tests =
       testRoundTrip @Push.Token.PushToken,
       testRoundTrip @Push.Token.PushTokenList,
       testRoundTrip @Scim.CreateScimToken,
+      testRoundTrip @Scim.CreateScimTokenResponse,
       testRoundTrip @SystemSettings.SystemSettings,
       testRoundTrip @SystemSettings.SystemSettingsPublic,
       testRoundTrip @SystemSettings.SystemSettingsInternal,

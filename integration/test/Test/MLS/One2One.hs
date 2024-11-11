@@ -23,6 +23,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
@@ -41,7 +42,7 @@ testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
         conv %. "cipher_suite" `shouldMatchInt` 1
 
   convId <-
-    getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+    getMLSOne2OneConversationLegacy alice bob `bindResponse` \resp -> do
       conv <- getJSON 200 resp
       conv %. "type" `shouldMatchInt` 2
       shouldBeEmpty (conv %. "members.others")
@@ -53,7 +54,7 @@ testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
       conv %. "qualified_id"
 
   -- check that the conversation has the same ID on the other side
-  conv2 <- bindResponse (getMLSOne2OneConversation bob alice) $ \resp -> do
+  conv2 <- bindResponse (getMLSOne2OneConversationLegacy bob alice) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
 
@@ -64,11 +65,11 @@ testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
 testGetMLSOne2OneRemoteV5 :: (HasCallStack) => App ()
 testGetMLSOne2OneRemoteV5 = withVersion5 Version5 $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
-  getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+  getMLSOne2OneConversationLegacy alice bob `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.jsonBody %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
 
-  getMLSOne2OneConversation bob alice `bindResponse` \resp -> do
+  getMLSOne2OneConversationLegacy bob alice `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.jsonBody %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
 
@@ -116,16 +117,17 @@ testMLSOne2OneOtherMember scenario = do
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  one2OneConvId <- objConvId $ one2OneConv %. "conversation"
   do
     convId <- one2OneConv %. "conversation.qualified_id"
     bobOne2OneConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
     convId `shouldMatch` (bobOne2OneConv %. "conversation.qualified_id")
 
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ uploadNewKeyPackage [bob1]
-  resetOne2OneGroup alice1 one2OneConv
+  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  resetOne2OneGroup def alice1 one2OneConv
   withWebSocket bob1 $ \ws -> do
-    commit <- createAddCommit alice1 [bob]
+    commit <- createAddCommit alice1 one2OneConvId [bob]
     void $ sendAndConsumeCommitBundle commit
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
     n <- awaitMatch isMessage ws
@@ -149,13 +151,14 @@ testMLSOne2OneOtherMember scenario = do
 testMLSOne2OneRemoveClientLocalV5 :: App ()
 testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  conv <- getMLSOne2OneConversationLegacy alice bob >>= getJSON 200
 
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ uploadNewKeyPackage [bob1]
-  resetGroup alice1 conv
+  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  convId <- objConvId conv
+  createGroup def alice1 convId
 
-  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
   withWebSocket alice $ \wsAlice -> do
     _ <- deleteClient bob bob1.client >>= getBody 200
@@ -167,9 +170,9 @@ testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by alice
-    void $ mlsCliConsume alice1 mlsMsg
+    void $ mlsCliConsume convId def alice1 mlsMsg
 
-    parsedMsg <- showMessage alice1 mlsMsg
+    parsedMsg <- showMessage def alice1 mlsMsg
     let leafIndexBob = 1
     -- msg `shouldMatch` "foo"
     parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
@@ -198,15 +201,16 @@ testMLSOne2OneBlockedAfterConnected scenario = do
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  one2OneConvId <- objConvId $ one2OneConv %. "conversation"
   convId <- one2OneConv %. "conversation.qualified_id"
   do
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
     convId `shouldMatch` (bobConv %. "conversation.qualified_id")
 
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ uploadNewKeyPackage [bob1]
-  resetOne2OneGroup alice1 one2OneConv
-  commit <- createAddCommit alice1 [bob]
+  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  resetOne2OneGroup def alice1 one2OneConv
+  commit <- createAddCommit alice1 one2OneConvId [bob]
   withWebSocket bob1 $ \ws -> do
     void $ sendAndConsumeCommitBundle commit
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
@@ -223,7 +227,7 @@ testMLSOne2OneBlockedAfterConnected scenario = do
     -- Bob.
     void $ getMLSOne2OneConversation alice bob >>= getJSON 403
 
-  mp <- createApplicationMessage bob1 "hello, world, again"
+  mp <- createApplicationMessage one2OneConvId bob1 "hello, world, again"
   withWebSocket alice1 $ \ws -> do
     void $ postMLSMessage mp.sender mp.message >>= getJSON 201
     awaitAnyEvent 2 ws `shouldMatch` (Nothing :: Maybe Value)
@@ -237,16 +241,17 @@ testMLSOne2OneUnblocked scenario = do
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  one2OneConvId <- objConvId $ one2OneConv %. "conversation"
   do
     convId <- one2OneConv %. "conversation.qualified_id"
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
     convId `shouldMatch` (bobConv %. "conversation.qualified_id")
 
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ uploadNewKeyPackage [bob1]
-  resetOne2OneGroup alice1 one2OneConv
+  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  resetOne2OneGroup def alice1 one2OneConv
   withWebSocket bob1 $ \ws -> do
-    commit <- createAddCommit alice1 [bob]
+    commit <- createAddCommit alice1 one2OneConvId [bob]
     void $ sendAndConsumeCommitBundle commit
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
     n <- awaitMatch isMessage ws
@@ -259,24 +264,24 @@ testMLSOne2OneUnblocked scenario = do
   -- Reset the group membership in the test setup as only 'bob1' is left in
   -- reality, even though the test state believes 'alice1' is still part of the
   -- conversation.
-  modifyMLSState $ \s -> s {members = Set.singleton bob1}
+  modifyMLSState $ \s -> s {convs = Map.adjust (\conv -> conv {members = Set.singleton bob1}) one2OneConvId s.convs}
 
   -- Bob creates a new client and adds it to the one-to-one conversation just so
   -- that the epoch advances.
-  bob2 <- createMLSClient def bob
-  traverse_ uploadNewKeyPackage [bob2]
-  void $ createAddCommit bob1 [bob] >>= sendAndConsumeCommitBundle
+  bob2 <- createMLSClient def def bob
+  void $ uploadNewKeyPackage def bob2
+  void $ createAddCommit bob1 one2OneConvId [bob] >>= sendAndConsumeCommitBundle
 
   -- Alice finally unblocks Bob
   void $ putConnection alice bob "accepted" >>= getBody 200
   void $ getMLSOne2OneConversation alice bob >>= getJSON 200
 
   -- Alice rejoins via an external commit
-  void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit one2OneConvId alice1 Nothing >>= sendAndConsumeCommitBundle
 
   -- Check that an application message can get to Bob
   withWebSockets [bob1, bob2] $ \wss -> do
-    mp <- createApplicationMessage alice1 "hello, I've always been here"
+    mp <- createApplicationMessage one2OneConvId alice1 "hello, I've always been here"
     void $ sendAndConsumeMessage mp
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
     forM_ wss $ \ws -> do
@@ -316,18 +321,18 @@ one2OneScenarioConvDomain One2OneScenarioRemoteConv = OtherDomain
 
 testMLSOne2One :: (HasCallStack) => Ciphersuite -> One2OneScenario -> App ()
 testMLSOne2One suite scenario = do
-  setMLSCiphersuite suite
   alice <- randomUser OwnDomain def
   let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ uploadNewKeyPackage [bob1]
+  [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
+  void $ uploadNewKeyPackage suite bob1
 
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  resetOne2OneGroup alice1 one2OneConv
+  one2OneConvId <- objConvId $ one2OneConv %. "conversation"
+  resetOne2OneGroup suite alice1 one2OneConv
 
-  commit <- createAddCommit alice1 [bob]
+  commit <- createAddCommit alice1 one2OneConvId [bob]
   withWebSocket bob1 $ \ws -> do
     void $ sendAndConsumeCommitBundle commit
 
@@ -338,7 +343,7 @@ testMLSOne2One suite scenario = do
     void $ awaitMatch isMemberJoinNotif ws
 
   withWebSocket bob1 $ \ws -> do
-    mp <- createApplicationMessage alice1 "hello, world"
+    mp <- createApplicationMessage one2OneConvId alice1 "hello, world"
     void $ sendAndConsumeMessage mp
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
     n <- awaitMatch isMessage ws
@@ -346,7 +351,7 @@ testMLSOne2One suite scenario = do
 
   -- Send another commit. This verifies that the backend has correctly updated
   -- the cipersuite of this conversation.
-  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+  void $ createPendingProposalCommit one2OneConvId alice1 >>= sendAndConsumeCommitBundle
 
   one2OneConv' <- getMLSOne2OneConversation alice bob >>= getJSON 200
   (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
@@ -360,10 +365,11 @@ testMLSOne2One suite scenario = do
 testMLSGhostOne2OneConv :: App ()
 testMLSGhostOne2OneConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
-  traverse_ uploadNewKeyPackage [bob1, bob2]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
+  traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  resetOne2OneGroup alice1 one2OneConv
+  one2OneConvId <- objConvId $ one2OneConv %. "conversation"
+  resetOne2OneGroup def alice1 one2OneConv
 
   doneVar <- liftIO $ newEmptyMVar
   let checkConversation =
@@ -379,7 +385,7 @@ testMLSGhostOne2OneConv = do
   createCommit <-
     appToIO
       $ void
-      $ createAddCommit alice1 [bob]
+      $ createAddCommit alice1 one2OneConvId [bob]
       >>= sendAndConsumeCommitBundle
 
   liftIO $ withAsync checkConversationIO $ \a -> do
@@ -395,6 +401,8 @@ testMLSGhostOne2OneConv = do
 -- still be created but only by the user whose backend hosts this conversation.
 
 -- | See Note: [Federated 1:1 MLS Conversations]
+-- To run locally this test requires federation-v1 docker containers to be up and running.
+-- See `deploy/dockerephemeral/run.sh` and comment on `StaticFedDomain` in `Testlib/VersionedFed.hs` for more details.
 testMLSFederationV1ConvOnOldBackend :: App ()
 testMLSFederationV1ConvOnOldBackend = do
   alice <- randomUser OwnDomain def
@@ -407,8 +415,8 @@ testMLSFederationV1ConvOnOldBackend = do
             else createBob
 
   bob <- createBob
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ uploadNewKeyPackage [alice1]
+  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  void $ uploadNewKeyPackage def alice1
 
   -- Alice cannot start this conversation because it would exist on Bob's
   -- backend and Alice cannot get the MLS public keys of that backend.
@@ -416,12 +424,13 @@ testMLSFederationV1ConvOnOldBackend = do
     fedError <- getJSON 533 resp
     fedError %. "label" `shouldMatch` "federation-version-error"
 
-  conv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+  conv <- getMLSOne2OneConversationLegacy bob alice >>= getJSON 200
+  convId <- objConvId conv
   keys <- getMLSPublicKeys bob >>= getJSON 200
-  resetOne2OneGroupGeneric bob1 conv keys
+  resetOne2OneGroupGeneric def bob1 conv keys
 
   withWebSocket alice1 $ \wsAlice -> do
-    commit <- createAddCommit bob1 [alice]
+    commit <- createAddCommit bob1 convId [alice]
     void $ sendAndConsumeCommitBundle commit
 
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
@@ -439,14 +448,16 @@ testMLSFederationV1ConvOnOldBackend = do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by bob
-    void $ mlsCliConsume bob1 mlsMsg
+    void $ mlsCliConsume convId def bob1 mlsMsg
 
-    parsedMsg <- showMessage bob1 mlsMsg
+    parsedMsg <- showMessage def bob1 mlsMsg
     let leafIndexAlice = 1
     parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexAlice
     parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
 
 -- | See Note: Federated 1:1 MLS Conversations
+-- To run locally this test requires federation-v1 docker containers to be up and running.
+-- See `deploy/dockerephemeral/run.sh` and comment on `StaticFedDomain` in `Testlib/VersionedFed.hs` for more details.
 testMLSFederationV1ConvOnNewBackend :: App ()
 testMLSFederationV1ConvOnNewBackend = do
   alice <- randomUser OwnDomain def
@@ -459,21 +470,22 @@ testMLSFederationV1ConvOnNewBackend = do
             else createBob
 
   bob <- createBob
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  traverse_ uploadNewKeyPackage [bob1]
+  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
 
   -- Bob cannot start this conversation because it would exist on Alice's
   -- backend and Bob cannot get the MLS public keys of that backend.
-  getMLSOne2OneConversation bob alice `bindResponse` \resp -> do
+  getMLSOne2OneConversationLegacy bob alice `bindResponse` \resp -> do
     fedError <- getJSON 533 resp
     fedError %. "label" `shouldMatch` "federation-remote-error"
 
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  one2OneConvId <- objConvId $ one2OneConv %. "conversation"
   conv <- one2OneConv %. "conversation"
-  resetOne2OneGroup alice1 one2OneConv
+  resetOne2OneGroup def alice1 one2OneConv
 
   withWebSocket bob1 $ \wsBob -> do
-    commit <- createAddCommit alice1 [bob]
+    commit <- createAddCommit alice1 one2OneConvId [bob]
     void $ sendAndConsumeCommitBundle commit
 
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
@@ -491,9 +503,9 @@ testMLSFederationV1ConvOnNewBackend = do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by bob
-    void $ mlsCliConsume alice1 mlsMsg
+    void $ mlsCliConsume one2OneConvId def alice1 mlsMsg
 
-    parsedMsg <- showMessage alice1 mlsMsg
+    parsedMsg <- showMessage def alice1 mlsMsg
     let leafIndexBob = 1
     parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
     parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0

@@ -76,12 +76,6 @@ sendActCodeError (InvalidRecipient _) = StdError $ errorToWai @'E.InvalidEmail
 sendActCodeError (UserKeyInUse _) = StdError (errorToWai @'E.UserKeyExists)
 sendActCodeError (ActivationBlacklistedUserKey _) = StdError blacklistedEmail
 
-changeEmailError :: ChangeEmailError -> HttpError
-changeEmailError (InvalidNewEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
-changeEmailError (EmailExists _) = StdError (errorToWai @'E.UserKeyExists)
-changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
-changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
-
 legalHoldLoginError :: LegalHoldLoginError -> HttpError
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
 legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled

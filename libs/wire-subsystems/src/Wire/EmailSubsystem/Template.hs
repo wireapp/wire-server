@@ -85,7 +85,6 @@ data UserTemplates = UserTemplates
     loginCall :: LoginCallTemplate,
     deletionSms :: DeletionSmsTemplate,
     deletionEmail :: DeletionEmailTemplate,
-    upgradePersonalToTeamEmail :: UpgradePersonalToTeamEmailTemplate,
     newClientEmail :: NewClientEmailTemplate,
     verificationLoginEmail :: SecondFactorVerificationEmailTemplate,
     verificationScimTokenEmail :: SecondFactorVerificationEmailTemplate,
@@ -136,14 +135,6 @@ data DeletionEmailTemplate = DeletionEmailTemplate
     deletionEmailBodyHtml :: Template,
     deletionEmailSender :: EmailAddress,
     deletionEmailSenderName :: Text
-  }
-
-data UpgradePersonalToTeamEmailTemplate = UpgradePersonalToTeamEmailTemplate
-  { upgradePersonalToTeamEmailSubject :: Template,
-    upgradePersonalToTeamEmailBodyText :: Template,
-    upgradePersonalToTeamEmailBodyHtml :: Template,
-    upgradePersonalToTeamEmailSender :: EmailAddress,
-    upgradePersonalToTeamEmailSenderName :: Text
   }
 
 data PasswordResetEmailTemplate = PasswordResetEmailTemplate
@@ -219,9 +210,29 @@ data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
     memberWelcomeEmailSenderName :: !Text
   }
 
+data PersonalUserMemberWelcomeEmailTemplate = PersonalUserMemberWelcomeEmailTemplate
+  { personalUserMemberWelcomeEmailUrl :: !Text,
+    personalUserMemberWelcomeEmailSubject :: !Template,
+    personalUserMemberWelcomeEmailBodyText :: !Template,
+    personalUserMemberWelcomeEmailBodyHtml :: !Template,
+    personalUserMemberWelcomeEmailSender :: !EmailAddress,
+    personalUserMemberWelcomeEmailSenderName :: !Text
+  }
+
+data NewTeamOwnerWelcomeEmailTemplate = NewTeamOwnerWelcomeEmailTemplate
+  { newTeamOwnerWelcomeEmailUrl :: !Text,
+    newTeamOwnerWelcomeEmailSubject :: !Template,
+    newTeamOwnerWelcomeEmailBodyText :: !Template,
+    newTeamOwnerWelcomeEmailBodyHtml :: !Template,
+    newTeamOwnerWelcomeEmailSender :: !EmailAddress,
+    newTeamOwnerWelcomeEmailSenderName :: !Text
+  }
+
 data TeamTemplates = TeamTemplates
   { invitationEmail :: !InvitationEmailTemplate,
     existingUserInvitationEmail :: !InvitationEmailTemplate,
     creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
-    memberWelcomeEmail :: !MemberWelcomeEmailTemplate
+    memberWelcomeEmail :: !MemberWelcomeEmailTemplate,
+    personalUserMemberWelcomeEmail :: !PersonalUserMemberWelcomeEmailTemplate,
+    newTeamOwnerWelcomeEmail :: !NewTeamOwnerWelcomeEmailTemplate
   }

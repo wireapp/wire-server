@@ -218,6 +218,8 @@ library
     , cookie
     , cql
     , cql-io
+    , criterion
+    , cryptobox-haskell
     , crypton
     , crypton-x509
     , cryptostore

@@ -170,7 +170,6 @@ library
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
     Wire.API.Routes.Internal.Galley.TeamsIntra
     Wire.API.Routes.Internal.Gundeck
-    Wire.API.Routes.Internal.LegalHold
     Wire.API.Routes.Internal.Spar
     Wire.API.Routes.LowLevelStream
     Wire.API.Routes.MultiTablePaging
@@ -325,6 +324,7 @@ library
     , servant-client-core
     , servant-conduit
     , servant-multipart
+    , servant-multipart-api
     , servant-openapi3
     , servant-server
     , singletons
@@ -589,12 +589,14 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ConvIdsPage
     Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
+    Test.Wire.API.Golden.Manual.CreateScimTokenResponse
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
     Test.Wire.API.Golden.Manual.FederationDomainConfig
     Test.Wire.API.Golden.Manual.FederationRestriction
     Test.Wire.API.Golden.Manual.FederationStatus
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId
+    Test.Wire.API.Golden.Manual.InvitationUserView
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.Login_user

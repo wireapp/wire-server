@@ -39,7 +39,6 @@ import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Features
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -82,8 +81,6 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
-    -- special endpoints
-    :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -359,19 +356,6 @@ type IFeatureStatusLockStatusPut cfg =
         :> Put '[JSON] LockStatusResponse
     )
 
-type FeatureNoConfigMultiGetBase featureName =
-  Summary
-    (AppendSymbol "Get team feature status in bulk for feature " (FeatureSymbol featureName))
-    :> "features-multi-teams"
-    :> FeatureSymbol featureName
-    :> ReqBody '[JSON] TeamFeatureNoConfigMultiRequest
-    :> Post '[JSON] (TeamFeatureNoConfigMultiResponse featureName)
-
-type IFeatureNoConfigMultiGet f =
-  Named
-    '("igetmulti", f)
-    (FeatureNoConfigMultiGetBase f)
-
 type IFederationAPI =
   Named
     "get-federation-status"
@@ -387,7 +371,7 @@ type IConversationAPI =
   Named
     "conversation-get-member"
     ( "conversations"
-        :> Capture "cnv" ConvId
+        :> QualifiedCapture "cnv" ConvId
         :> "members"
         :> Capture "usr" UserId
         :> Get '[JSON] (Maybe Member)
@@ -409,16 +393,6 @@ type IConversationAPI =
                :> Put '[JSON] Conversation
            )
     :<|> Named
-           "conversation-block-unqualified"
-           ( CanThrow 'InvalidOperation
-               :> CanThrow 'ConvNotFound
-               :> ZUser
-               :> "conversations"
-               :> Capture "cnv" ConvId
-               :> "block"
-               :> Put '[JSON] ()
-           )
-    :<|> Named
            "conversation-block"
            ( CanThrow 'InvalidOperation
                :> CanThrow 'ConvNotFound
@@ -427,21 +401,6 @@ type IConversationAPI =
                :> QualifiedCapture "cnv" ConvId
                :> "block"
                :> Put '[JSON] ()
-           )
-    -- This endpoint can lead to the following events being sent:
-    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
-    -- - MemberJoin event to other, if the conversation existed and only the other was member
-    --   before
-    :<|> Named
-           "conversation-unblock-unqualified"
-           ( CanThrow 'InvalidOperation
-               :> CanThrow 'ConvNotFound
-               :> ZLocalUser
-               :> ZOptConn
-               :> "conversations"
-               :> Capture "cnv" ConvId
-               :> "unblock"
-               :> Put '[JSON] Conversation
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to you, if the conversation existed and had < 2 members before
@@ -470,8 +429,7 @@ type IConversationAPI =
            "conversation-mls-one-to-one"
            ( CanThrow 'NotConnected
                :> CanThrow 'MLSNotEnabled
-               :> "conversations"
-               :> "mls-one2one"
+               :> "mls-one2one-conversations"
                :> ZLocalUser
                :> QualifiedCapture "user" UserId
                :> Get '[JSON] Conversation
@@ -481,8 +439,7 @@ type IConversationAPI =
            ( CanThrow 'NotConnected
                :> CanThrow 'MLSNotEnabled
                :> ZLocalUser
-               :> "conversations"
-               :> "mls-one2one"
+               :> "mls-one2one-conversations"
                :> QualifiedCapture "user" UserId
                :> "established"
                :> Get '[JSON] Bool

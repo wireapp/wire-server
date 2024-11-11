@@ -47,20 +47,21 @@ fi;
 
 # Generate users
 
-for i in `seq 1 $COUNT`
+# shellcheck disable=SC2034
+for i in $(seq 1 "$COUNT")
 do
-    EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
-    PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
+    EMAIL=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)"@example.com"
+    PASSWORD=$(env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c 8)
 
     CURL_OUT=$(curl -i -s --show-error \
         -XPOST "$BRIG_HOST/i/users" \
         -H'Content-type: application/json' \
-        -d'{"email":"'$EMAIL'","password":"'$PASSWORD'","name":"demo"}')
+        -d'{"email":"'"$EMAIL"'","password":"'"$PASSWORD"'","name":"demo"}')
 
     UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
     if [ "$CSV" == "false" ]
-        then echo -e "Succesfully created a user with email: "$EMAIL" and password: "$PASSWORD
-        else echo -e $UUID","$EMAIL","$PASSWORD
+        then echo -e "Succesfully created a user with email: ""$EMAIL"" and password: ""$PASSWORD"
+        else echo -e "$UUID,$EMAIL,$PASSWORD"
     fi
 done

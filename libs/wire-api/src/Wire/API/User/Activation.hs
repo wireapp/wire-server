@@ -32,6 +32,9 @@ module Wire.API.User.Activation
 
     -- * SendActivationCode
     SendActivationCode (..),
+
+    -- * Activation
+    Activation (..),
   )
 where
 
@@ -211,3 +214,12 @@ instance ToSchema SendActivationCode where
       objectDesc =
         description
           ?~ "Data for requesting an email code to be sent. 'email' must be present."
+
+--  | The information associated with the pending activation of an 'EmailKey'.
+data Activation = Activation
+  { -- | An opaque key for the original 'EmailKey' pending activation.
+    activationKey :: !ActivationKey,
+    -- | The confidential activation code.
+    activationCode :: !ActivationCode
+  }
+  deriving (Eq, Show)

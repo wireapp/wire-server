@@ -114,10 +114,11 @@ cd "$TOP_LEVEL_DIR"
 
 # If ./upload-helm-charts-s3.sh is run with a parameter, only synchronize one chart
 if [ -n "$chart_dir" ] && [ -d "$chart_dir" ]; then
-    chart_name=$(basename $chart_dir)
+    chart_name=$(basename "$chart_dir")
     echo "only syncing $chart_name"
     charts=( "$chart_name" )
 else
+    #shellcheck disable=SC2207
     charts=( $(make -s -C "$TOP_LEVEL_DIR" echo-release-charts) )
     # See Makefile/ CHARTS_RELEASE FUTUREWORK
     #charts=( $(find $CHART_DIR/ -maxdepth 1 -type d | sed -n "s=$CHART_DIR/\(.\+\)=\1 =p") )
@@ -176,7 +177,7 @@ if [[ "$reindex" == "1" ]]; then
 else
     # update local cache with newly pushed charts
     helm repo update
-    printf "\n--> Not reindexing by default. Pass the --reindex flag in case the index.yaml is incomplete. See all wire charts using \n helm search repo $REPO_NAME/ -l\n\n"
+    printf "\n--> Not reindexing by default. Pass the --reindex flag in case the index.yaml is incomplete. See all wire charts using \n helm search repo %s/ -l\n\n" "$REPO_NAME"
 fi
 
 

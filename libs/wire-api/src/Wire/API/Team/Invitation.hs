@@ -21,6 +21,7 @@
 module Wire.API.Team.Invitation
   ( InvitationRequest (..),
     Invitation (..),
+    InvitationUserView (..),
     InvitationList (..),
     InvitationLocation (..),
     AcceptTeamInvitation (..),
@@ -45,6 +46,8 @@ import URI.ByteString
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -56,24 +59,35 @@ data InvitationRequest = InvitationRequest
   { locale :: Maybe Locale,
     role :: Maybe Role,
     inviteeName :: Maybe Name,
-    inviteeEmail :: EmailAddress
+    inviteeEmail :: EmailAddress,
+    allowExisting :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema InvitationRequest)
 
+instance ToSchema (Versioned V6 InvitationRequest) where
+  schema = Versioned <$> unVersioned .= invitationRequestSchema False
+
 instance ToSchema InvitationRequest where
-  schema =
-    objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
-      InvitationRequest
-        <$> locale
-          .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
-        <*> (.role)
-          .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
-        <*> (.inviteeName)
-          .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
-        <*> (.inviteeEmail)
-          .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
+  schema = invitationRequestSchema True
+
+invitationRequestSchema :: Bool -> ValueSchema NamedSwaggerDoc InvitationRequest
+invitationRequestSchema allowExisting =
+  objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
+    InvitationRequest
+      <$> locale
+        .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
+      <*> (.role)
+        .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
+      <*> (.inviteeName)
+        .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
+      <*> (.inviteeEmail)
+        .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
+      <*> (.allowExisting)
+        .= ( fromMaybe allowExisting
+               <$> optFieldWithDocModifier "allow_existing" (description ?~ "Whether invitations to existing users are allowed.") schema
+           )
 
 --------------------------------------------------------------------------------
 -- Invitation
@@ -98,27 +112,31 @@ instance ToSchema Invitation where
   schema =
     objectWithDocModifier
       "Invitation"
-      (description ?~ "An invitation to join a team on Wire")
-      $ Invitation
-        <$> (.team)
-          .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
-        <*> (.role)
-          -- clients, when leaving "role" empty, can leave the default role choice to us
-          .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
-        <*> (.invitationId)
-          .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
-        <*> (.createdAt)
-          .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
-        <*> (.createdBy)
-          .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
-        <*> (.inviteeEmail)
-          .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
-        <*> (.inviteeName)
-          .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
-        <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inviteeUrl)
-          .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
-    where
-      urlSchema = parsedText "URIRef_Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
+      (description ?~ "An invitation to join a team on Wire. If invitee is invited from an existing personal account, inviter email is included.")
+      invitationObjectSchema
+
+invitationObjectSchema :: ObjectSchema SwaggerDoc Invitation
+invitationObjectSchema =
+  Invitation
+    <$> (.team)
+      .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
+    <*> (.role)
+      -- clients, when leaving "role" empty, can leave the default role choice to us
+      .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
+    <*> (.invitationId)
+      .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
+    <*> (.createdAt)
+      .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
+    <*> (.createdBy)
+      .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
+    <*> (.inviteeEmail)
+      .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
+    <*> (.inviteeName)
+      .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
+    <*> (fmap (TE.decodeUtf8 . serializeURIRef') . (.inviteeUrl))
+      .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
+  where
+    urlSchema = parsedText "URIRef_Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
 
 newtype InvitationLocation = InvitationLocation
   { unInvitationLocation :: ByteString
@@ -175,10 +193,8 @@ instance ToSchema InvitationList where
   schema =
     objectWithDocModifier "InvitationList" (description ?~ "A list of sent team invitations.") $
       InvitationList
-        <$> ilInvitations
-          .= field "invitations" (array schema)
-        <*> ilHasMore
-          .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more invitations than returned.") schema
+        <$> ilInvitations .= field "invitations" (array schema)
+        <*> ilHasMore .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more invitations than returned.") schema
 
 --------------------------------------------------------------------------------
 -- AcceptTeamInvitation
@@ -196,3 +212,18 @@ instance ToSchema AcceptTeamInvitation where
       AcceptTeamInvitation
         <$> code .= fieldWithDocModifier "code" (description ?~ "Invitation code to accept.") schema
         <*> password .= fieldWithDocModifier "password" (description ?~ "The user account password.") schema
+
+data InvitationUserView = InvitationUserView
+  { invitation :: Invitation,
+    inviterEmail :: Maybe EmailAddress
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InvitationUserView)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema InvitationUserView)
+
+instance ToSchema InvitationUserView where
+  schema =
+    object "InvitationUserView" $
+      InvitationUserView
+        <$> invitation .= invitationObjectSchema
+        <*> inviterEmail .= maybe_ (optField "created_by_email" schema)
