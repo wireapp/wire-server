@@ -303,9 +303,6 @@ insufficientTeamPermissions = errorToWai @'E.InsufficientTeamPermissions
 noBindingTeam :: Wai.Error
 noBindingTeam = Wai.mkError status403 "no-binding-team" "Operation allowed only on binding teams"
 
-propertyManagedByScim :: LText -> Wai.Error
-propertyManagedByScim prop = Wai.mkError status403 "managed-by-scim" $ "Updating \"" <> prop <> "\" is not allowed, because it is managed by SCIM"
-
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.mkError status403 "same-binding-team-users" "Operation not allowed to binding team users."
 

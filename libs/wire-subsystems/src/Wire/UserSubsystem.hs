@@ -171,14 +171,6 @@ data CheckHandleResp
 
 makeSem ''UserSubsystem
 
-removeEmail ::
-  ( Member UserSubsystem r,
-    Member (Error UserSubsystemError) r
-  ) =>
-  Local UserId ->
-  Sem r ()
-removeEmail = removeEmailEither >=> fromEither
-
 getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
 getUserProfile luid targetUser =
   listToMaybe <$> getUserProfiles luid [targetUser]

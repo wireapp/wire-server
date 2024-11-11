@@ -173,7 +173,7 @@ import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
-import Wire.UserSubsystem hiding (checkHandle, checkHandles, removeEmail, requestEmailChange)
+import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
