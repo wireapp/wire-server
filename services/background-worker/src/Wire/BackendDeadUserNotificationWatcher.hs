@@ -104,6 +104,7 @@ startWorker amqp = do
                 Log.err env.logger $
                   Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed.")
                 putMVar mVar Nothing
+              runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
               pure conn
             Just conn -> pure conn
 
@@ -115,6 +116,7 @@ startWorker amqp = do
             Log.err env.logger $
               Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
                 . Log.field "exception" (displayException e)
+            runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
             putMVar mVar (Just conn)
 
           -- Set up the consumer
