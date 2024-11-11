@@ -22,15 +22,14 @@ import UnliftIO.Exception (bracket)
 import Wire.API.Notification
 import Wire.BackgroundWorker.Env
 
--- TODO: make this whole thing less awful
-getLastDeathQueue :: Maybe FieldTable -> ByteString
+getLastDeathQueue :: Maybe FieldTable -> Maybe ByteString
 getLastDeathQueue (Just (FieldTable headers)) = do
   case Map.lookup "x-last-death-queue" headers of
-    Just (FVString str) -> str
-    _ -> error "oh noes what now?"
-getLastDeathQueue Nothing = error "oh noes!! sad"
+    Just (FVString str) -> pure str
+    _ -> Nothing
+getLastDeathQueue Nothing = Nothing
 
--- TODO: what happens if messages expire _after_ we checked against cassandra here?
+-- FUTUREWORK: what happens if messages expire _after_ we checked against cassandra here?
 -- Should we have an async notification terminate this?
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
@@ -48,9 +47,10 @@ startConsumer chan = do
       else do
         -- forward non-transient messages to the respective client
         let dat = getLastDeathQueue msg.msgHeaders
-        let vals = BS.split '.' dat
+        let vals = fmap (BS.split '.') dat
         case vals of
-          ["user-notifications", uidBS, cidBS] -> do
+          Nothing -> logHeaderError env msg.msgHeaders
+          Just ["user-notifications", uidBS, cidBS] -> do
             m <- runMaybeT $ do
               uid <- hoistMaybe $ fromByteString uidBS
               cid <- hoistMaybe $ fromByteString cidBS
@@ -60,10 +60,17 @@ startConsumer chan = do
             lift $ Q.ackEnv envelope
           _ -> void $ logParseError env dat
   where
+    logHeaderError env headers = do
+      Log.err
+        env.logger
+        ( Log.msg (Log.val "Could not find x-last-death-queue in headers")
+            . Log.field "error_configuring_dead_letter_exchange" (show headers)
+        )
+      error "Could not find x-last-death-queue in headers"
     logParseError env dat = do
       Log.err env.logger $
         Log.msg (Log.val "Could not parse msgHeaders into uid/cid for dead letter exchange message")
-          . Log.field "error_parsing_message" dat
+          . Log.field "error_parsing_message" (show dat)
       error "Could not parse msgHeaders into uid/cid for dead letter exchange message"
 
 markAsNeedsFullSync :: ClientState -> UserId -> ClientId -> AppT IO ()
