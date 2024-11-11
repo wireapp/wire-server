@@ -1305,8 +1305,6 @@ newTeamUserTeamId = \case
 data BindingNewTeamUser = BindingNewTeamUser
   { bnuTeam :: NewTeam,
     bnuCurrency :: Maybe Currency.Alpha
-    -- FUTUREWORK:
-    -- Remove Currency selection once billing supports currency changes after team creation
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BindingNewTeamUser)
@@ -1517,7 +1515,6 @@ instance (res ~ ChangePhoneResponses) => AsUnion res (Maybe ChangePhoneError) wh
 
 data RemoveIdentityError
   = LastIdentity
-  | NoPassword
   | NoIdentity
   deriving (Generic)
   deriving (AsUnion RemoveIdentityErrorResponses) via GenericAsUnion RemoveIdentityErrorResponses RemoveIdentityError
@@ -1526,7 +1523,6 @@ instance GSOP.Generic RemoveIdentityError
 
 type RemoveIdentityErrorResponses =
   [ ErrorResponse 'E.LastIdentity,
-    ErrorResponse 'E.NoPassword,
     ErrorResponse 'E.NoIdentity
   ]
 
@@ -1584,6 +1580,7 @@ instance ToSchema NameUpdate where
 data ChangeEmailResponse
   = ChangeEmailResponseIdempotent
   | ChangeEmailResponseNeedsActivation
+  deriving (Eq, Show)
 
 instance
   AsUnion

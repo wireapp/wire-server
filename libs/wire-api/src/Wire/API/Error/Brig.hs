@@ -67,6 +67,7 @@ data BrigError
   | NameManagedByScim
   | HandleManagedByScim
   | LocaleManagedByScim
+  | EmailManagedByScim
   | LastIdentity
   | NoPassword
   | ChangePasswordMustDiffer
@@ -247,6 +248,8 @@ type instance MapError 'NameManagedByScim = 'StaticError 403 "managed-by-scim" "
 type instance MapError 'HandleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating handle is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
 type instance MapError 'LocaleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating locale is not allowed, because it is managed by SCIM, or E2EId is enabled"
+
+type instance MapError 'EmailManagedByScim = 'StaticError 403 "managed-by-scim" "Updating email is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
 type instance MapError 'LastIdentity = 'StaticError 403 "last-identity" "The last user identity cannot be removed."
 

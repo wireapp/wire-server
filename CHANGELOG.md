@@ -1,3 +1,21 @@
+# [2024-11-04] (Chart Release 5.7.0)
+
+## Bug fixes and other updates
+
+
+* galley: Use bulk query when getting all feature configs for a team user (#4325)
+
+
+## Internal changes
+
+
+* Block access to assets.*/minio/ path for public access. (#4297)
+
+* galley: Delete unused endpoint for getting feature status for multiple teams (#4326)
+
+* Fix shellcheck problems in all shell scripts (#4220)
+
+
 # [2024-10-30] (Chart Release 5.6.0)
 
 ## Release notes

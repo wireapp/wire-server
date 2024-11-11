@@ -137,6 +137,12 @@ isConvLeaveNotifWithLeaver user n =
 isNotifConv :: (MakesValue conv, MakesValue a, HasCallStack) => conv -> a -> App Bool
 isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
 
+isNotifConvId :: (MakesValue a, HasCallStack) => ConvId -> a -> App Bool
+isNotifConvId conv n = do
+  let subconvField = "payload.0.subconv"
+  fieldEquals n "payload.0.qualified_conversation" (convIdToQidObject conv)
+    &&~ maybe (isNothing <$> lookupField n subconvField) (fieldEquals n subconvField) conv.subconvId
+
 isNotifForUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
 isNotifForUser user n = fieldEquals n "payload.0.data.qualified_user_ids.0" (objQidObject user)
 

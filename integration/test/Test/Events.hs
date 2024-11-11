@@ -67,8 +67,7 @@ testConsumeEventsForDifferentUsers = do
   bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   bobClientId <- objId bobClient
 
-  userIdsContext <- mkContextUserIds [("alice", alice), ("bob", bob)]
-  addFailureContext userIdsContext $ do
+  addUsersToFailureContext [("alice", alice), ("bob", bob)] $ do
     withEventsWebSockets [(alice, aliceClientId), (bob, bobClientId)] $ \[(aliceEventsChan, aliceAckChan), (bobEventsChan, bobAckChan)] -> do
       assertClientAdd aliceClientId aliceEventsChan aliceAckChan
       assertClientAdd bobClientId bobEventsChan bobAckChan

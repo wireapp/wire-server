@@ -73,6 +73,7 @@ module Data.Schema
     dispatch,
     text,
     parsedText,
+    parsedTextWithDoc,
     null_,
     nullable,
     element,
@@ -637,6 +638,17 @@ parsedText ::
   (Text -> Either String a) ->
   SchemaP NamedSwaggerDoc A.Value A.Value Text a
 parsedText name parser = text name `withParser` (either fail pure . parser)
+
+-- | A schema for a textual value with possible failure.
+parsedTextWithDoc ::
+  Text ->
+  Text ->
+  (Text -> Either String a) ->
+  SchemaP NamedSwaggerDoc A.Value A.Value Text a
+parsedTextWithDoc desc name parser = appendDescr (text name) `withParser` (either fail pure . parser)
+  where
+    appendDescr :: ValueSchema NamedSwaggerDoc Text -> ValueSchema NamedSwaggerDoc Text
+    appendDescr = (doc . S.description) %~ (Just . maybe desc (<> ("\n" <> desc)))
 
 -- | A schema for an arbitrary JSON object.
 jsonObject :: ValueSchema SwaggerDoc A.Object

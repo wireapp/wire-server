@@ -20,7 +20,6 @@ module Brig.API.Auth where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.API.User
 import Brig.App
 import Brig.Options
 import Brig.User.Auth qualified as Auth
@@ -39,6 +38,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
+import Polysemy.Error (Error)
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Error
@@ -57,7 +57,10 @@ import Wire.Events (Events)
 import Wire.GalleyAPIAccess
 import Wire.UserKeyStore
 import Wire.UserStore
-import Wire.UserSubsystem
+import Wire.UserSubsystem (UpdateOriginType (..), UserSubsystem)
+import Wire.UserSubsystem qualified as User
+import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
@@ -128,23 +131,29 @@ logout :: (TokenPair u a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r 
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
-changeSelfEmailH ::
+changeSelfEmail ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   EmailUpdate ->
   Handler r ChangeEmailResponse
-changeSelfEmailH uts' mat' up = do
+changeSelfEmail uts' mat' up = do
   uts <- handleTokenErrors uts'
   mat <- traverse handleTokenError mat'
   toks <- partitionTokens uts mat
   usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
+  lusr <- qualifyLocal usr
   let email = euEmail up
-  changeSelfEmail usr email UpdateOriginWireClient
+  lift . liftSem $
+    User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
   (TokenPair u a) =>

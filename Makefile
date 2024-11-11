@@ -139,7 +139,7 @@ crm: c db-migrate
 # Usage: TEST_INCLUDE=test1,test2 make devtest
 .PHONY: devtest
 devtest:
-	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
+	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
 sanitize-pr:

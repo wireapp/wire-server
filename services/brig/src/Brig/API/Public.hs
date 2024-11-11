@@ -173,9 +173,10 @@ import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
-import Wire.UserSubsystem hiding (checkHandle, checkHandles)
+import Wire.UserSubsystem hiding (checkHandle, checkHandles, removeEmail, requestEmailChange)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -363,7 +364,8 @@ servantSitemap ::
     Member BlockListStore r,
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -511,7 +513,7 @@ servantSitemap =
         :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH
-        :<|> Named @"change-self-email" changeSelfEmailH
+        :<|> Named @"change-self-email" changeSelfEmail
         :<|> Named @"list-cookies" listCookies
         :<|> Named @"remove-cookies" removeCookies
 
@@ -785,7 +787,8 @@ upgradePersonalToTeam ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member EmailSending r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->
@@ -808,7 +811,8 @@ createUser ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member ActivationCodeStore r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -1021,13 +1025,18 @@ removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
 removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
-  ( Member UserKeyStore r,
-    Member UserSubsystem r,
-    Member Events r
+  ( Member UserSubsystem r,
+    Member (Error UserSubsystemError) r
   ) =>
-  UserId ->
+  Local UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
-removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
+removeEmail = lift . liftSem . User.removeEmailEither >=> reint
+  where
+    reint = \case
+      Left UserSubsystemNoIdentity -> pure . Just $ Public.NoIdentity
+      Left UserSubsystemLastIdentity -> pure . Just $ Public.LastIdentity
+      Left e -> lift . liftSem . throw $ e
+      Right () -> pure Nothing
 
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
@@ -1098,7 +1107,12 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
+changeHandle ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  ConnId ->
+  Public.HandleUpdate ->
+  Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
   User.updateHandle u (Just conn) UpdateOriginWireClient h
 
@@ -1333,7 +1347,11 @@ updateUserEmail ::
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   UserId ->
@@ -1344,7 +1362,9 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  void $ API.changeSelfEmail emailOwnerId email UpdateOriginWireClient
+  lEmailOwnerId <- qualifyLocal emailOwnerId
+  void . lift . liftSem $
+    User.requestEmailChange lEmailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
