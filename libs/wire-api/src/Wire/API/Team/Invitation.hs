@@ -46,6 +46,8 @@ import URI.ByteString
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -57,24 +59,35 @@ data InvitationRequest = InvitationRequest
   { locale :: Maybe Locale,
     role :: Maybe Role,
     inviteeName :: Maybe Name,
-    inviteeEmail :: EmailAddress
+    inviteeEmail :: EmailAddress,
+    allowExisting :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema InvitationRequest)
 
+instance ToSchema (Versioned V6 InvitationRequest) where
+  schema = Versioned <$> unVersioned .= invitationRequestSchema False
+
 instance ToSchema InvitationRequest where
-  schema =
-    objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
-      InvitationRequest
-        <$> locale
-          .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
-        <*> (.role)
-          .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
-        <*> (.inviteeName)
-          .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
-        <*> (.inviteeEmail)
-          .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
+  schema = invitationRequestSchema True
+
+invitationRequestSchema :: Bool -> ValueSchema NamedSwaggerDoc InvitationRequest
+invitationRequestSchema allowExisting =
+  objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
+    InvitationRequest
+      <$> locale
+        .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
+      <*> (.role)
+        .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
+      <*> (.inviteeName)
+        .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
+      <*> (.inviteeEmail)
+        .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
+      <*> (.allowExisting)
+        .= ( fromMaybe allowExisting
+               <$> optFieldWithDocModifier "allow_existing" (description ?~ "Whether invitations to existing users are allowed.") schema
+           )
 
 --------------------------------------------------------------------------------
 -- Invitation

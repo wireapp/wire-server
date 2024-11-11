@@ -96,7 +96,8 @@ servantAPI ::
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
-  Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
+  Named @"send-team-invitation@v6" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
+    :<|> Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
     :<|> Named @"get-team-invitations" (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
     :<|> Named @"get-team-invitation" (\u t inv -> lift . liftSem $ getInvitation u t inv)
     :<|> Named @"delete-team-invitation" (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
@@ -155,7 +156,8 @@ createInvitationViaScim tid newUser@(NewUserScimInvitation _tid _uid@(Id (Id -> 
           { locale = loc,
             role = Nothing, -- (unused, it's in the type for 'createInvitationV5')
             inviteeName = Just name,
-            inviteeEmail = email
+            inviteeEmail = email,
+            allowExisting = True
           }
 
       context =

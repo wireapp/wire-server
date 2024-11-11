@@ -237,6 +237,26 @@ testInvitePersonalUserToTeamMultipleInvitations = do
     resp.json %. "team" `shouldMatch` tid
   acceptTeamInvitation user code (Just defPassword) >>= assertStatus 400
 
+testInvitePersonalUserToTeamLegacy :: (HasCallStack) => App ()
+testInvitePersonalUserToTeamLegacy = withAPIVersion 6 $ do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  user <- I.createUser OwnDomain def >>= getJSON 201
+
+  -- inviting an existing user should fail
+  do
+    email <- user %. "email" >>= asString
+    bindResponse (postInvitation owner (PostInvitation (Just email) Nothing)) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "email-exists"
+
+  -- inviting a new user should succeed
+  do
+    email <- randomEmail
+    bindResponse (postInvitation owner (PostInvitation (Just email) Nothing)) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "email" `shouldMatch` email
+      resp.json %. "team" `shouldMatch` tid
+
 testInvitationTypesAreDistinct :: (HasCallStack) => App ()
 testInvitationTypesAreDistinct = do
   -- We are only testing one direction because the other is not possible
