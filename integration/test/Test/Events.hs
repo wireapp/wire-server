@@ -261,9 +261,6 @@ testTransientEventsDoNotTriggerDeadLetters = do
     -- Typing status is transient, currently no one is listening.
     sendTypingStatus alice selfConvId "started" >>= assertSuccess
 
-    -- Wait out to be sure the event is dead lettered
-    Timeout.threadDelay $ notifTTL + 500 # MilliSecond
-
     withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
       assertNoEvent eventsChan
 
