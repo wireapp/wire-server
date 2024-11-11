@@ -32,6 +32,8 @@ module Cannon.Options
     drainOpts,
     rabbitmq,
     cassandraOpts,
+    rabbitMqMaxConnections,
+    rabbitMqMaxChannels,
     Opts,
     gracePeriodSeconds,
     millisecondsBetweenBatches,
@@ -98,7 +100,9 @@ data Opts = Opts
     _optsLogFormat :: !(Maybe (Last LogFormat)),
     _optsDrainOpts :: DrainOpts,
     _optsDisabledAPIVersions :: !(Set VersionExp),
-    _optsCassandraOpts :: !CassandraOpts
+    _optsCassandraOpts :: !CassandraOpts,
+    _optsRabbitMqMaxConnections :: Int,
+    _optsRabbitMqMaxChannels :: Int
   }
   deriving (Show, Generic)
 
@@ -116,3 +120,5 @@ instance FromJSON Opts where
       <*> o .: "drainOpts"
       <*> o .: "disabledAPIVersions"
       <*> o .: "cassandra"
+      <*> o .:? "rabbitMqMaxConnections" .!= 30
+      <*> o .:? "rabbitMqMaxChannels" .!= 300
