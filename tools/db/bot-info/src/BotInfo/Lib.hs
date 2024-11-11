@@ -22,14 +22,17 @@ module BotInfo.Lib where
 import BotInfo.Types
 import Cassandra as C
 import Cassandra.Settings as C
+import Control.Monad.Trans.Maybe
 import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
 import qualified Data.Conduit.List as CL
 import Data.Id
+import Data.Map as Map
 import qualified Database.CQL.Protocol as CQL
 import Imports
 import Options.Applicative
 import qualified System.Logger as Log
+import Wire.API.User (EmailAddress)
 
 selectServices :: ClientState -> ConduitM () [ServiceProviderRow] IO ()
 selectServices client =
@@ -47,12 +50,39 @@ lookupService client providerId serviceId = do
     cql :: PrepQuery R (ProviderId, ServiceId) (CQL.TupleType ServiceRow)
     cql = "select base_url, enabled from service where provider = ? AND id = ?"
 
-process :: ClientState -> ClientState -> IO [String]
-process brigClient galleyClient =
+lookupTeamOwnerEmail :: MVar (Map TeamId (Maybe EmailAddress)) -> ClientState -> ClientState -> TeamId -> IO (Maybe EmailAddress)
+lookupTeamOwnerEmail cache brig galley teamId = do
+  emailCache <- readMVar cache
+  maybe fromDb pure $ Map.lookup teamId emailCache
+  where
+    fromDb :: IO (Maybe EmailAddress)
+    fromDb = do
+      mFromDb <- lookupEmailInDb brig galley teamId
+      modifyMVar_ cache (pure . Map.insert teamId mFromDb)
+      pure mFromDb
+
+lookupEmailInDb :: ClientState -> ClientState -> TeamId -> IO (Maybe EmailAddress)
+lookupEmailInDb brig galley team = runMaybeT $ do
+  uid <- MaybeT ((runIdentity =<<) <$> runClient galley (retry x1 (query1 selectCreatorFromTeam (params One (Identity team)))))
+  MaybeT ((runIdentity =<<) <$> runClient brig (retry x1 (query1 selectEmailFromUser (params One (Identity uid)))))
+  where
+    selectCreatorFromTeam :: C.PrepQuery C.R (Identity TeamId) (Identity (Maybe UserId))
+    selectCreatorFromTeam = "SELECT creator FROM team WHERE team = ?"
+
+    selectEmailFromUser :: C.PrepQuery C.R (Identity UserId) (Identity (Maybe EmailAddress))
+    selectEmailFromUser = "SELECT email FROM user WHERE id = ?"
+
+process :: MVar (Map TeamId (Maybe EmailAddress)) -> ClientState -> ClientState -> IO [String]
+process cache brigClient galleyClient =
   runConduit $
     selectServices brigClient
       .| Conduit.concat
-      .| Conduit.mapM (\row -> toBotInfo row <$> lookupService galleyClient (row.providerId) (row.serviceId))
+      .| Conduit.mapM
+        ( \row -> do
+            toBotInfo row
+              <$> lookupService galleyClient (row.providerId) (row.serviceId)
+              <*> lookupTeamOwnerEmail cache brigClient galleyClient row.teamId
+        )
       .| Conduit.map toCsv
       .| CL.consume
 
@@ -62,9 +92,10 @@ main = do
   logger <- initLogger
   brigClient <- initCas opts.brigDb logger
   galleyClient <- initCas opts.galleyDb logger
-  csvLines <- process brigClient galleyClient
+  cache <- newMVar Map.empty
+  csvLines <- process cache brigClient galleyClient
   let csv = unlines csvLines
-  putStrLn "team,service,provider,base_url,enabled"
+  putStrLn "team,email,service,provider,host,enabled"
   putStrLn csv
   where
     initLogger =

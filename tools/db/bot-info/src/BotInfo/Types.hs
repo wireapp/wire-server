@@ -30,6 +30,7 @@ import Data.Text.Strict.Lens
 import Database.CQL.Protocol hiding (Result)
 import Imports
 import Options.Applicative
+import Wire.API.User (EmailAddress)
 
 data CassandraSettings = CassandraSettings
   { host :: String,
@@ -125,19 +126,21 @@ data BotInfo = BotInfo
   { teamId :: TeamId,
     serviceId :: ServiceId,
     providerId :: ProviderId,
+    email :: Maybe EmailAddress,
     url :: Maybe HttpsUrl,
     enabled :: Maybe Bool
   }
   deriving (Show, Generic)
 
-toBotInfo :: ServiceProviderRow -> Maybe ServiceRow -> BotInfo
-toBotInfo sp sr = BotInfo (sp.teamId) (sp.serviceId) (sp.providerId) ((.url) <$> sr) ((.enabled) <$> sr)
+toBotInfo :: ServiceProviderRow -> Maybe ServiceRow -> Maybe EmailAddress -> BotInfo
+toBotInfo sp sr email = BotInfo (sp.teamId) (sp.serviceId) (sp.providerId) email ((.url) <$> sr) ((.enabled) <$> sr)
 
 toCsv :: BotInfo -> String
 toCsv bi =
   intercalate
     ","
     [ show bi.teamId,
+      maybe "N/A" (cs . toByteString) bi.email,
       show bi.serviceId,
       show bi.providerId,
       maybe "N/A" (cs . toByteString) bi.url,

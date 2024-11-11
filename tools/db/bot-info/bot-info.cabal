@@ -25,13 +25,16 @@ library
     , bytestring-conversion
     , cassandra-util
     , conduit
+    , containers
     , cql
     , imports
     , lens
     , optparse-applicative
     , string-conversions
     , tinylog
+    , transformers
     , types-common
+    , wire-api
 
   default-extensions:
     AllowAmbiguousTypes
