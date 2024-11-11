@@ -81,20 +81,10 @@ markAsNeedsFullSync cassandra uid cid = do
 startWorker ::
   AmqpEndpoint ->
   AppT IO (Async ())
-startWorker AmqpEndpoint {..} = do
+startWorker amqp = do
   env <- ask
   mVar <- newEmptyMVar
-
-  -- Create settings
-  (username, password) <- liftIO $ readCredsFromEnv
-  mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
-  let connOpts =
-        Q.defaultConnectionOpts
-          { Q.coServers = [(host, fromIntegral port)],
-            Q.coVHost = vHost,
-            Q.coAuth = [Q.plain username password],
-            Q.coTLSSettings = Q.TLSCustom <$> mTlsSettings
-          }
+  connOpts <- mkConnectionOpts amqp
 
   let openConnection connM = do
         mConn <- lowerCodensity $ do
