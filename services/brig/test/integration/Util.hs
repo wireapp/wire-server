@@ -27,7 +27,6 @@ import Bilge.Assert
 import Brig.AWS.Types
 import Brig.App (Env (..))
 import Brig.Calling as Calling
-import Brig.Options as Opt
 import Brig.Run qualified as Run
 import Brig.Types.Activation
 import Brig.ZAuth qualified as ZAuth
@@ -122,6 +121,7 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.VersionInfo
+import Wire.ServerOptions.Brig as Opt
 
 type Brig = Request -> Request
 

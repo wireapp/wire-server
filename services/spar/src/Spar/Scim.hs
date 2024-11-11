@@ -78,7 +78,6 @@ import Spar.Error
   ( SparCustomError (SparScimError),
     SparError,
   )
-import Spar.Options
 import Spar.Scim.Auth
 import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
@@ -102,6 +101,7 @@ import Wire.API.User.Scim
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
+import Wire.ServerOptions.Spar
 
 -- | SCIM config for our server.
 --

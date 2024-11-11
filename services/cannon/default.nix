@@ -4,7 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
-, api-field-json-th
 , async
 , base
 , bilge
@@ -52,6 +51,7 @@
 , websockets
 , wire-api
 , wire-otel
+, wire-subsystems
 }:
 mkDerivation {
   pname = "cannon";
@@ -61,7 +61,6 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
-    api-field-json-th
     async
     base
     bilge
@@ -100,6 +99,7 @@ mkDerivation {
     websockets
     wire-api
     wire-otel
+    wire-subsystems
   ];
   executableHaskellDepends = [ base imports types-common ];
   testHaskellDepends = [

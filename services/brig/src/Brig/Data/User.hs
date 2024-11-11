@@ -51,7 +51,6 @@ module Brig.Data.User
 where
 
 import Brig.App
-import Brig.Options
 import Brig.Types.Intra
 import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Set)
@@ -75,6 +74,7 @@ import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.HashPassword
+import Wire.ServerOptions.Brig
 
 -- | Preconditions:
 --

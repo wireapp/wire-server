@@ -30,8 +30,12 @@ where
 
 import Cassandra.Options
 import Control.Lens
+import Data.Aeson qualified as A
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
+import Data.OpenApi qualified as O
+import Data.Schema qualified as S
+import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml hiding (Parser)
 import Imports
@@ -78,8 +82,12 @@ urlPort u = do
 
 makeLenses ''AWSEndpoint
 
-newtype FilePathSecrets = FilePathSecrets FilePath
-  deriving (Eq, Show, FromJSON, IsString)
+newtype FilePathSecrets = FilePathSecrets {unFilePathSecrets :: FilePath}
+  deriving (Eq, Show, IsString, Generic)
+  deriving (A.FromJSON, A.ToJSON, O.ToSchema) via (S.Schema FilePathSecrets)
+
+instance S.ToSchema FilePathSecrets where
+  schema = (T.pack . unFilePathSecrets) S..= (FilePathSecrets . T.unpack <$> S.text "FilePathSecrets")
 
 initCredentials :: (MonadIO m, FromJSON a) => FilePathSecrets -> m a
 initCredentials secretFile = do
@@ -151,14 +159,14 @@ parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pu
 data PasswordHashingOptions
   = PasswordHashingArgon2id Argon2idOptions
   | PasswordHashingScrypt
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 data Argon2idOptions = Argon2idOptions
   { iterations :: !Word32,
     memory :: !Word32,
     parallelism :: !Word32
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON PasswordHashingOptions where
   parseJSON =

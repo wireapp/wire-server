@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -41,6 +40,7 @@ import Data.ByteString (toStrict)
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy.Char8 qualified as L
 import Data.Map.Lazy qualified as Map
+import Data.Schema qualified as S
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import GHC.Generics
@@ -50,14 +50,36 @@ import System.Logger.Class qualified as LC
 
 deriving instance Generic LC.Level
 
-instance FromJSON LC.Level
+deriving via (S.Schema LC.Level) instance Aeson.FromJSON LC.Level
 
-instance ToJSON LC.Level
+deriving via (S.Schema LC.Level) instance Aeson.ToJSON LC.Level
+
+instance S.ToSchema LC.Level where
+  schema =
+    S.enum @Text "Level" $
+      mconcat
+        [ S.element "Trace" Trace,
+          S.element "Debug" Debug,
+          S.element "Info" Info,
+          S.element "Warn" Warn,
+          S.element "Error" LC.Error,
+          S.element "Fatal" Fatal
+        ]
 
 -- | The log formats supported
 data LogFormat = JSON | Plain | Netstring | StructuredJSON
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving stock (Eq, Show, Bounded, Enum, Generic)
+  deriving (ToJSON, FromJSON) via (S.Schema LogFormat)
+
+instance S.ToSchema LogFormat where
+  schema =
+    S.enum @Text "LogFormat" $
+      mconcat
+        [ S.element "JSON" JSON,
+          S.element "Plain" Plain,
+          S.element "Netstring" Netstring,
+          S.element "StructuredJSON" StructuredJSON
+        ]
 
 -- | We use this as an intermediate structure to ease the implementation of the
 -- ToJSON instance but we could just inline everything. I think this has

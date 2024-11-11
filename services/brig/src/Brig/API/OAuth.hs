@@ -26,7 +26,6 @@ where
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
-import Brig.Options qualified as Opt
 import Cassandra hiding (Set)
 import Cassandra qualified as C
 import Control.Error
@@ -64,6 +63,7 @@ import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.ServerOptions.Brig qualified as Opt
 
 --------------------------------------------------------------------------------
 -- API Internal

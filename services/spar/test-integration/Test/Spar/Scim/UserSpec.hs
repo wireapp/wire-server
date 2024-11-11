@@ -63,7 +63,6 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util.TestSP (makeSampleIdPMetadata)
 import qualified SAML2.WebSSO.Test.Util.Types as SAML
 import qualified Spar.Intra.BrigApp as Intra
-import Spar.Options
 import Spar.Scim
 import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.User as SU
@@ -95,6 +94,7 @@ import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
 import qualified Wire.API.User.Scim as Spar.Types
 import qualified Wire.API.User.Search as Search
+import Wire.ServerOptions.Spar
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv

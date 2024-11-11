@@ -12,7 +12,7 @@ data Endpoint = Endpoint
   { host :: !Text,
     port :: !Word16
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 deriveFromJSON defaultOptions ''Endpoint
 
@@ -27,6 +27,6 @@ data CassandraOpts = CassandraOpts
     filterNodesByDatacentre :: !(Maybe Text),
     tlsCa :: Maybe FilePath
   }
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
 
 deriveFromJSON defaultOptions ''CassandraOpts

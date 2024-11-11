@@ -48,7 +48,6 @@ import Spar.API (SparAPI, app)
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
-import Spar.Options as Opt
 import Spar.Orphans ()
 import System.Logger (Logger)
 import qualified System.Logger as Log
@@ -57,6 +56,7 @@ import Util.Options
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
 import Wire.Sem.Logger.TinyLog
+import Wire.ServerOptions.Spar as Opt
 
 ----------------------------------------------------------------------
 -- cassandra

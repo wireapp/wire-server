@@ -22,7 +22,6 @@ library
     Cannon.API.Public
     Cannon.App
     Cannon.Dict
-    Cannon.Options
     Cannon.Run
     Cannon.Types
     Cannon.WS
@@ -79,7 +78,6 @@ library
 
   build-depends:
       aeson                                 >=2.0.1.0
-    , api-field-json-th                     >=0.1.0.2
     , async                                 >=2.0
     , base                                  >=4.6     && <5
     , bilge                                 >=0.12
@@ -118,6 +116,7 @@ library
     , websockets                            >=0.11.2
     , wire-api
     , wire-otel
+    , wire-subsystems
 
   default-language:   GHC2021
 

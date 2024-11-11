@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Cannon.Options
+module Wire.ServerOptions.Cannon
   ( host,
     port,
     cannon,
@@ -40,7 +40,10 @@ module Cannon.Options
 where
 
 import Control.Lens (makeFields)
-import Data.Aeson.APIFieldJsonTH
+import Data.Aeson qualified as A
+import Data.OpenApi qualified as O
+import Data.Schema
+import Data.Set qualified as Set
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
@@ -52,20 +55,34 @@ data Cannon = Cannon
     _cannonExternalHostFile :: !(Maybe FilePath)
   }
   deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, O.ToSchema) via (Schema Cannon)
+
+instance ToSchema Cannon where
+  schema =
+    object "Cannon.Options.Cannon" $
+      Cannon
+        <$> _cannonHost .= field "host" schema
+        <*> _cannonPort .= field "port" schema
+        <*> _cannonExternalHost .= maybe_ (optField "externalHost" schema)
+        <*> _cannonExternalHostFile .= maybe_ (optField "externalHostFile" schema)
 
 makeFields ''Cannon
-
-deriveApiFieldJSON ''Cannon
 
 data Gundeck = Gundeck
   { _gundeckHost :: !Text,
     _gundeckPort :: !Word16
   }
   deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, O.ToSchema) via (Schema Gundeck)
+
+instance ToSchema Gundeck where
+  schema =
+    object "Cannon.Options.Gundeck" $
+      Gundeck
+        <$> _gundeckHost .= field "host" schema
+        <*> _gundeckPort .= field "port" schema
 
 makeFields ''Gundeck
-
-deriveApiFieldJSON ''Gundeck
 
 data DrainOpts = DrainOpts
   { -- | Maximum amount of time draining should take. Must not be set to 0.
@@ -79,10 +96,17 @@ data DrainOpts = DrainOpts
     _drainOptsMinBatchSize :: Word64
   }
   deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, O.ToSchema) via (Schema DrainOpts)
+
+instance ToSchema DrainOpts where
+  schema =
+    object "Cannon.Options.DrainOpts" $
+      DrainOpts
+        <$> _drainOptsGracePeriodSeconds .= field "gracePeriodSeconds" schema
+        <*> _drainOptsMillisecondsBetweenBatches .= field "millisecondsBetweenBatches" schema
+        <*> _drainOptsMinBatchSize .= field "minBatchSize" schema
 
 makeFields ''DrainOpts
-
-deriveApiFieldJSON ''DrainOpts
 
 data Opts = Opts
   { _optsCannon :: !Cannon,
@@ -94,7 +118,18 @@ data Opts = Opts
     _optsDisabledAPIVersions :: !(Set VersionExp)
   }
   deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, O.ToSchema) via (Schema Opts)
+
+instance ToSchema Opts where
+  schema =
+    object "Cannon.Options.Opts" $
+      Opts
+        <$> _optsCannon .= field "cannon" schema
+        <*> _optsGundeck .= field "gundeck" schema
+        <*> _optsLogLevel .= field "logLevel" schema
+        <*> (fmap getLast . _optsLogNetStrings) .= maybe_ (optField "logNetStrings" (Last <$> schema))
+        <*> (fmap getLast . _optsLogFormat) .= maybe_ (optField "logFormat" (Last <$> schema))
+        <*> _optsDrainOpts .= field "drainOpts" schema
+        <*> (Set.toList . _optsDisabledAPIVersions) .= field "disabledAPIVersions" (Set.fromList <$> array schema)
 
 makeFields ''Opts
-
-deriveApiFieldJSON ''Opts

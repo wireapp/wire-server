@@ -27,6 +27,7 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
+import Data.Json.Util
 import Data.Nonce (Nonce)
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
 import Data.OpenApi qualified as S
@@ -39,6 +40,7 @@ import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant.API.Extended
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
@@ -79,6 +81,21 @@ import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, Password
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
+
+----------------------------------------------------------------------
+
+type ServerOptionsDocsAPI =
+  Named
+    "server-config-options"
+    ( Summary "JSON schema of the server config yaml file(s)."
+        :> Description
+             "returns a JSON (or YAML) object with one JSON schema for each \
+             \backend service (brig, gundeck, ...)."
+        :> "server-config-options"
+        :> Get '[JSON, YAML] JsonObject
+    )
+
+----------------------------------------------------------------------
 
 type BrigAPI =
   UserAPI

@@ -37,10 +37,10 @@ module Brig.User.Template
   )
 where
 
-import Brig.Options qualified as Opt
 import Brig.Template
 import Imports
 import Wire.EmailSubsystem.Template
+import Wire.ServerOptions.Brig qualified as Opt
 
 loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
 loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->

@@ -31,17 +31,8 @@ module Brig.ZAuth
     Env,
     mkEnv,
     readKeys,
-
-    -- * Settings
     settings,
-    Settings (..),
-    defSettings,
     localSettings,
-    keyIndex,
-    SessionTokenTimeout (..),
-    sessionTokenTimeout,
-    ProviderTokenTimeout (..),
-    providerTokenTimeout,
 
     -- * timeout settings for access and legalholdaccess
     settingsTTL,
@@ -80,6 +71,7 @@ module Brig.ZAuth
     zauthType,
 
     -- * Re-exports
+    module Wire.ServerOptions.Brig.ZAuth,
     SecretKey,
     PublicKey,
   )
@@ -87,7 +79,6 @@ where
 
 import Control.Lens (Lens', makeLenses, over, (.~), (^.))
 import Control.Monad.Catch
-import Data.Aeson
 import Data.Bits
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
@@ -105,6 +96,7 @@ import Imports
 import OpenSSL.Random
 import Sodium.Crypto.Sign
 import Wire.API.User.Auth qualified as Auth
+import Wire.ServerOptions.Brig.ZAuth
 
 newtype ZAuth a = ZAuth {unZAuth :: ReaderT Env IO a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env)
@@ -118,98 +110,11 @@ instance MonadZAuth ZAuth where
 runZAuth :: (MonadIO m) => Env -> ZAuth a -> m a
 runZAuth e za = liftIO $ runReaderT (unZAuth za) e
 
-data Settings = Settings
-  { -- | Secret key index to use
-    --   for token creation
-    _keyIndex :: !Int,
-    -- | User token validity timeout
-    _userTokenTimeout :: !UserTokenTimeout,
-    -- | Session token validity timeout
-    _sessionTokenTimeout :: !SessionTokenTimeout,
-    -- | Access token validity timeout
-    _accessTokenTimeout :: !AccessTokenTimeout,
-    -- | Proider token validity timeout
-    _providerTokenTimeout :: !ProviderTokenTimeout,
-    -- | Legal Hold User token validity timeout
-    _legalHoldUserTokenTimeout :: !LegalHoldUserTokenTimeout,
-    -- | Legal Hold Access token validity timeout
-    _legalHoldAccessTokenTimeout :: !LegalHoldAccessTokenTimeout
-  }
-  deriving (Show, Generic)
-
-defSettings :: Settings
-defSettings =
-  Settings
-    1
-    (UserTokenTimeout (60 * 60 * 24 * 28)) -- 28 days
-    (SessionTokenTimeout (60 * 60 * 24)) -- 1 day
-    (AccessTokenTimeout 900) -- 15 minutes
-    (ProviderTokenTimeout (60 * 60 * 24 * 7)) -- 7 days
-    (LegalHoldUserTokenTimeout (60 * 60 * 24 * 56)) -- 56 days
-    (LegalHoldAccessTokenTimeout (60 * 15)) -- 15 minutes
-
 data Env = Env
   { _private :: !ZC.Env,
     _public :: !ZV.Env,
     _settings :: !Settings
   }
-
-newtype UserTokenTimeout = UserTokenTimeout
-  {_userTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
-
-newtype SessionTokenTimeout = SessionTokenTimeout
-  {sessionTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
-
-newtype AccessTokenTimeout = AccessTokenTimeout
-  {_accessTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
-
-newtype ProviderTokenTimeout = ProviderTokenTimeout
-  {providerTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
-
-newtype LegalHoldUserTokenTimeout = LegalHoldUserTokenTimeout
-  {_legalHoldUserTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
-
-newtype LegalHoldAccessTokenTimeout = LegalHoldAccessTokenTimeout
-  {_legalHoldAccessTokenTimeoutSeconds :: Integer}
-  deriving (Show, Generic)
-
-instance FromJSON UserTokenTimeout
-
-instance FromJSON SessionTokenTimeout
-
-instance FromJSON AccessTokenTimeout
-
-instance FromJSON ProviderTokenTimeout
-
-instance FromJSON LegalHoldAccessTokenTimeout
-
-instance FromJSON LegalHoldUserTokenTimeout
-
-instance FromJSON Settings where
-  parseJSON = withObject "ZAuth.Settings" $ \o ->
-    Settings
-      <$> o .: "keyIndex"
-      <*> (UserTokenTimeout <$> o .: "userTokenTimeout")
-      <*> (SessionTokenTimeout <$> o .: "sessionTokenTimeout")
-      <*> (AccessTokenTimeout <$> o .: "accessTokenTimeout")
-      <*> (ProviderTokenTimeout <$> o .: "providerTokenTimeout")
-      <*> (LegalHoldUserTokenTimeout <$> o .: "legalHoldUserTokenTimeout")
-      <*> (LegalHoldAccessTokenTimeout <$> o .: "legalHoldAccessTokenTimeout")
-
-makeLenses ''LegalHoldAccessTokenTimeout
-
-makeLenses ''AccessTokenTimeout
-
-makeLenses ''UserTokenTimeout
-
-makeLenses ''LegalHoldUserTokenTimeout
-
-makeLenses ''Settings
 
 makeLenses ''Env
 

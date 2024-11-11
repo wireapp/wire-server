@@ -36,7 +36,6 @@ where
 import Bilge (Manager)
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
-import Cannon.Options
 import Cannon.WS (Clock, Key, Websocket)
 import Cannon.WS qualified as WS
 import Control.Concurrent.Async (mapConcurrently)
@@ -50,6 +49,7 @@ import Servant qualified
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
+import Wire.ServerOptions.Cannon
 
 -----------------------------------------------------------------------------
 -- Cannon monad

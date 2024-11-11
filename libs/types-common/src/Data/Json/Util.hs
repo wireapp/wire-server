@@ -28,6 +28,9 @@ module Data.Json.Util
     toJSONFieldName,
     (#),
     ToJSONObject (..),
+    JsonObject,
+    mkJsonObject,
+    unJsonObject,
 
     -- * UTCTimeMillis
     UTCTimeMillis,
@@ -53,6 +56,7 @@ import Cassandra qualified as CQL
 import Control.Lens hiding ((#), (.=))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.Text qualified as Atto
 import Data.Attoparsec.Time qualified as Atto
@@ -63,8 +67,8 @@ import Data.ByteString.Conversion qualified as BS
 import Data.ByteString.Lazy qualified as L
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Fixed
-import Data.OpenApi qualified as S
-import Data.Schema
+import Data.OpenApi qualified as O
+import Data.Schema as S
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
@@ -99,24 +103,24 @@ infixr 5 #
 -- Unlike with 'UTCTime', 'Show' renders ISO string.
 newtype UTCTimeMillis = UTCTimeMillis {fromUTCTimeMillis :: UTCTime}
   deriving (Eq, Ord, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UTCTimeMillis
+  deriving (FromJSON, ToJSON, O.ToSchema) via Schema UTCTimeMillis
 
 instance ToSchema UTCTimeMillis where
   schema =
     UTCTimeMillis
       <$> showUTCTimeMillis
         .= ( utcTimeTextSchema "UTCTimeMillis"
-               & doc . S.schema
-                 %~ (S.format ?~ "yyyy-mm-ddThh:MM:ss.qqqZ")
-                   . (S.example ?~ "2021-05-12T10:52:02.671Z")
+               & doc . O.schema
+                 %~ (O.format ?~ "yyyy-mm-ddThh:MM:ss.qqqZ")
+                   . (O.example ?~ "2021-05-12T10:52:02.671Z")
            )
 
 utcTimeTextSchema :: Text -> ValueSchemaP NamedSwaggerDoc Text UTCTime
 utcTimeTextSchema name =
   parsedText name (Atto.parseOnly (Atto.utcTime <* Atto.endOfInput))
-    & doc . S.schema
-      %~ (S.format ?~ "yyyy-mm-ddThh:MM:ssZ")
-        . (S.example ?~ "2021-05-12T10:52:02Z")
+    & doc . O.schema
+      %~ (O.format ?~ "yyyy-mm-ddThh:MM:ssZ")
+        . (O.example ?~ "2021-05-12T10:52:02Z")
 
 utcTimeSchema :: ValueSchema NamedSwaggerDoc UTCTime
 utcTimeSchema = showUTCTime .= utcTimeTextSchema "UTCTime"
@@ -164,17 +168,33 @@ class ToJSONObject a where
 instance ToJSONObject A.Object where
   toJSONObject = id
 
+instance ToJSONObject [A.Pair] where
+  toJSONObject = A.fromList
+
 -----------------------------------------------------------------------------
 -- Aeson Object
 
-instance S.ToParamSchema A.Object where
-  toParamSchema _ =
-    mempty & S.type_ ?~ S.OpenApiString
+-- | Arbitrary aeson object value with helpful {to,from}json instances and schema.
+newtype JsonObject = JsonObject {unJsonObject :: A.Object}
+  deriving newtype (Eq, Ord, Show)
+  deriving (O.ToSchema) via (Schema JsonObject)
 
-instance ToSchema A.Object where
-  schema =
-    named "Object" $
-      id .= jsonObject
+mkJsonObject :: (ToJSONObject a) => a -> JsonObject
+mkJsonObject = JsonObject . toJSONObject
+
+instance A.FromJSON JsonObject where
+  parseJSON = A.withObject "Object" (pure . JsonObject)
+
+instance A.ToJSON JsonObject where
+  toJSON (JsonObject obj) = A.Object obj
+
+instance S.ToSchema JsonObject where
+  schema = named "Object" $ unJsonObject .= (JsonObject <$> S.jsonObject)
+
+-- | This instance is currently still used for 'Push' (in a `List1`).  Instead we could
+-- introduce a type `JsonObjectList1` that works analogously to `JsonObject`.
+instance S.ToSchema A.Object where
+  schema = named "Object" $ id .= S.jsonObject
 
 -----------------------------------------------------------------------------
 -- toJSONFieldName
@@ -204,7 +224,7 @@ toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_'}
 -- Some related discussion: <https://github.com/bos/aeson/issues/126>.
 newtype Base64ByteString = Base64ByteString {fromBase64ByteString :: ByteString}
   deriving stock (Eq, Ord, Show)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Base64ByteString
+  deriving (FromJSON, ToJSON, O.ToSchema) via Schema Base64ByteString
   deriving newtype (Arbitrary, IsString)
 
 instance ToSchema Base64ByteString where
@@ -216,14 +236,14 @@ instance FromHttpApiData Base64ByteString where
 instance ToHttpApiData Base64ByteString where
   toUrlPiece = Text.decodeUtf8With Text.lenientDecode . B64U.encodeUnpadded . fromBase64ByteString
 
-instance S.ToParamSchema Base64ByteString where
-  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
+instance O.ToParamSchema Base64ByteString where
+  toParamSchema _ = mempty & O.type_ ?~ O.OpenApiString
 
 -- base64("example") ~> "ZXhhbXBsZQo="
 base64SchemaN :: ValueSchema NamedSwaggerDoc ByteString
 base64SchemaN =
   (toBase64Text .= parsedText "Base64ByteString" fromBase64Text)
-    & doc %~ fmap (S.schema . S.example ?~ A.String "ZXhhbXBsZQo=")
+    & doc %~ fmap (O.schema . O.example ?~ A.String "ZXhhbXBsZQo=")
 
 base64Schema :: ValueSchema SwaggerDoc ByteString
 base64Schema = unnamed base64SchemaN
@@ -233,7 +253,7 @@ base64URLSchemaN =
   ( (Text.decodeUtf8 . B64U.encodeUnpadded)
       .= parsedText "Base64URLByteString" (B64U.decodeUnpadded . Text.encodeUtf8)
   )
-    & doc %~ fmap (S.schema . S.example ?~ A.String "ZXhhbXBsZQo=")
+    & doc %~ fmap (O.schema . O.example ?~ A.String "ZXhhbXBsZQo=")
 
 base64URLSchema :: ValueSchema SwaggerDoc ByteString
 base64URLSchema = unnamed base64URLSchemaN
@@ -262,8 +282,8 @@ instance FromHttpApiData Base64ByteStringL where
 instance ToHttpApiData Base64ByteStringL where
   toUrlPiece = toUrlPiece . base64ToStrict
 
-instance S.ToParamSchema Base64ByteStringL where
-  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
+instance O.ToParamSchema Base64ByteStringL where
+  toParamSchema _ = mempty & O.type_ ?~ O.OpenApiString
 
 base64SchemaLN :: ValueSchema NamedSwaggerDoc LByteString
 base64SchemaLN = L.toStrict .= fmap L.fromStrict base64SchemaN

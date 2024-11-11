@@ -116,6 +116,13 @@ library
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
     Wire.Rpc
+    Wire.ServerOptions.Brig
+    Wire.ServerOptions.Brig.CookieLimit
+    Wire.ServerOptions.Brig.Queue
+    Wire.ServerOptions.Brig.ZAuth
+    Wire.ServerOptions.Cannon
+    Wire.ServerOptions.Gundeck
+    Wire.ServerOptions.Spar
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.StoredUser
@@ -166,6 +173,7 @@ library
     , currency-codes
     , data-default
     , data-timeout
+    , dns
     , errors
     , exceptions
     , extended
@@ -186,6 +194,8 @@ library
     , mime-mail
     , network
     , network-conduit-tls
+    , openapi3
+    , optparse-applicative
     , polysemy
     , polysemy-plugin
     , polysemy-time
@@ -199,10 +209,12 @@ library
     , schema-profunctor
     , servant
     , servant-client-core
+    , shakespeare
     , stomp-queue
     , template
     , text
     , text-icu-translit
+    , text-latin1
     , time
     , time-out
     , time-units
@@ -218,6 +230,7 @@ library
     , wire-api-federation
     , wire-otel
     , witherable
+    , yaml
 
   default-language: GHC2021
 
@@ -258,6 +271,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
+    Wire.ServerOptionsSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
@@ -267,13 +281,17 @@ test-suite wire-subsystems-tests
   build-depends:
     , aeson
     , async
+    , attoparsec
     , base
     , bilge
+    , bloodhound
     , bytestring
     , cassandra-util
     , containers
     , crypton
     , data-default
+    , dns
+    , email-validate
     , errors
     , extended
     , hspec
@@ -303,3 +321,4 @@ test-suite wire-subsystems-tests
     , wire-api
     , wire-api-federation
     , wire-subsystems
+    , yaml

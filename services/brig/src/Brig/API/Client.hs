@@ -61,7 +61,6 @@ import Brig.Federation.Client (getUserClients)
 import Brig.Federation.Client qualified as Federation
 import Brig.IO.Intra (guardLegalhold)
 import Brig.IO.Intra qualified as Intra
-import Brig.Options qualified as Opt
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.User.Auth qualified as UserAuth
@@ -114,6 +113,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
+import Wire.ServerOptions.Brig qualified as Opt
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)

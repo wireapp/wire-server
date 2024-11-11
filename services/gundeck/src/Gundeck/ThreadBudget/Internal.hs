@@ -29,13 +29,13 @@ import Data.Set qualified as Set
 import Data.Time
 import Data.UUID (UUID, toText)
 import Data.UUID.V4 (nextRandom)
-import Gundeck.Options
 import Imports
 import Prometheus (MonadMonitor)
 import Prometheus qualified as Prom
 import System.Logger.Class qualified as LC
 import UnliftIO.Async
 import UnliftIO.Exception (finally)
+import Wire.ServerOptions.Gundeck
 
 data ThreadBudgetState = ThreadBudgetState
   { threadBudgetLimits :: MaxConcurrentNativePushes,

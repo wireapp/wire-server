@@ -32,7 +32,6 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.IO.Intra (notify)
-import Brig.Options
 import Brig.User.API.Handle
 import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
@@ -74,6 +73,7 @@ import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.ServerOptions.Brig
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as UserSubsystem

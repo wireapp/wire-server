@@ -20,8 +20,8 @@
 
 module Brig.API.Public
   ( servantSitemap,
-    docsAPI,
-    DocsAPI,
+    docsAndOptionsAPI,
+    DocsAndOptionsAPI,
   )
 where
 
@@ -46,7 +46,6 @@ import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
@@ -61,6 +60,7 @@ import Control.Lens ((.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
+import Data.Aeson.Types qualified as A
 import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.ByteString.UTF8 qualified as UTF8
@@ -74,10 +74,12 @@ import Data.Handle qualified as Handle
 import Data.HavePendingInvitations
 import Data.Id
 import Data.Id qualified as Id
+import Data.Json.Util
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Nonce (Nonce, randomNonce)
 import Data.OpenApi qualified as S
+import Data.OpenApi.Declare qualified as S
 import Data.Qualified
 import Data.Range
 import Data.Schema ()
@@ -168,6 +170,8 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.ServerOptions.Brig hiding (internalEvents)
+import Wire.ServerOptions.Cannon qualified
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
@@ -182,6 +186,33 @@ import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
 
 -- User API -----------------------------------------------------------
+
+type DocsAndOptionsAPI = DocsAPI :<|> ServerOptionsDocsAPI
+
+docsAndOptionsAPI :: Servant.Server DocsAndOptionsAPI
+docsAndOptionsAPI = docsAPI :<|> serverOptionsDocsAPI
+
+-- TODO: write a test for this end-point!
+serverOptionsDocsAPI :: Servant.Server ServerOptionsDocsAPI
+serverOptionsDocsAPI = Named @"server-config-options" $ pure allOptsSchema
+  where
+    allOptsSchema =
+      mkJsonObject
+        ( [ "brig" .= ("comping up!" :: Text), -- TODO: use schema-profunctor, then connect here.
+            "galley" .= ("comping up!" :: Text), -- TODO: move to wire-subsystems.
+            "spar" .= ("comping up!" :: Text), -- TODO: use schema-profunctor, then connect here.
+            "gundeck" .= ("comping up!" :: Text), -- TODO: get it to compile.
+            "cannon" .= describeOpts (Proxy @Wire.ServerOptions.Cannon.Opts),
+            "cargohold" .= ("comping up!" :: Text), -- TODO
+            "federator" .= ("comping up!" :: Text), -- TODO
+            "proxy" .= ("comping up!" :: Text), -- TODO
+            "background-worker" .= ("comping up!" :: Text) -- TODO
+          ] ::
+            [A.Pair]
+        )
+
+    describeOpts :: (S.ToSchema a) => Proxy a -> A.Value
+    describeOpts prx = toJSON $ S.runDeclare (S.declareSchema prx) mempty
 
 docsAPI :: Servant.Server DocsAPI
 docsAPI =

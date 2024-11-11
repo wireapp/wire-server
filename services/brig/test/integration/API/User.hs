@@ -30,7 +30,6 @@ import API.User.RichInfo qualified
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Brig.AWS qualified as AWS
-import Brig.Options qualified as Opt
 import Brig.ZAuth qualified as ZAuth
 import Cassandra qualified as DB
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -40,6 +39,7 @@ import Util
 import Util.AWS (UserJournalWatcher)
 import Util.Options.Common
 import Wire.API.Federation.Component
+import Wire.ServerOptions.Brig qualified as Opt
 
 tests ::
   Opt.Opts ->

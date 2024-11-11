@@ -22,7 +22,6 @@ module API.Calling where
 
 import Bilge
 import Bilge.Assert
-import Brig.Options qualified as Opts
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch)
 import Data.Bifunctor (Bifunctor (first))
@@ -44,6 +43,7 @@ import UnliftIO.Temporary qualified as Temp
 import Util
 import Wire.API.Call.Config
 import Wire.API.User
+import Wire.ServerOptions.Brig qualified as Opts
 
 tests :: Manager -> Brig -> Opts.Opts -> FilePath -> FilePath -> IO TestTree
 tests m b opts turn turnV2 = do

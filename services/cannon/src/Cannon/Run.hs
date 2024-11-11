@@ -26,7 +26,6 @@ import Cannon.API.Internal
 import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import Cannon.Dict qualified as D
-import Cannon.Options
 import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon, runCannonToServant)
 import Cannon.WS hiding (env)
 import Control.Concurrent
@@ -61,6 +60,7 @@ import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry (withTracer)
+import Wire.ServerOptions.Cannon
 
 type CombinedAPI = CannonAPI :<|> Internal.API
 

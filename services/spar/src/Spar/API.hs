@@ -71,7 +71,6 @@ import Spar.App
 import Spar.CanonicalInterpreter
 import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
-import Spar.Options
 import Spar.Orphans ()
 import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
@@ -114,6 +113,7 @@ import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
+import Wire.ServerOptions.Spar
 
 app :: Env -> Application
 app ctx0 req cont = do

@@ -15,20 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.MLS.Util where
+module Wire.ServerOptions.Brig.CookieLimit where
 
-import Brig.API.Error
-import Brig.API.Handler
-import Brig.App
-import Brig.Data.Client
-import Control.Error
+import Data.Aeson
+import Data.RetryAfter
 import Imports
-import Wire.ServerOptions.Brig
 
-isMLSEnabled :: Handler r Bool
-isMLSEnabled = fromMaybe False <$> asks (.settings.enableMLS)
+-- | The fields are:
+--
+-- * Min. standard deviation cookie creation
+-- * Wait time when the min deviation is violated
+--
+-- Both fields are in seconds.
+data CookieThrottle
+  = StdDevThrottle StdDev RetryAfter
+  deriving (Eq, Show)
 
-assertMLSEnabled :: Handler r ()
-assertMLSEnabled =
-  unlessM isMLSEnabled $
-    throwE (clientDataError MLSNotEnabled)
+newtype StdDev = StdDev Double
+  deriving (Eq, Ord, Show, Num, Generic)
+
+instance FromJSON StdDev
+
+instance FromJSON CookieThrottle where
+  parseJSON = withObject "User.Auth.Cookie.Limit.CookieThrottle" $ \o ->
+    StdDevThrottle
+      <$> o .: "stdDev"
+      <*> (RetryAfter <$> o .: "retryAfter")

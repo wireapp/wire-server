@@ -22,7 +22,6 @@ where
 
 import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
 import Brig.Index.Options
-import Brig.Options
 import Brig.User.Search.Index
 import Cassandra (Client, runClient)
 import Cassandra.Options
@@ -70,6 +69,7 @@ import Wire.Sem.Concurrency.IO
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics.IO
+import Wire.ServerOptions.Brig
 import Wire.UserKeyStore (UserKeyStore)
 import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)

@@ -27,7 +27,6 @@ import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Data.User
-import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Cassandra qualified as Cass
 import Cassandra.Util
@@ -44,6 +43,7 @@ import Util
 import Util.Options (Endpoint)
 import Wire.API.User
 import Wire.API.User.Client
+import Wire.ServerOptions.Brig qualified as Opt
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 

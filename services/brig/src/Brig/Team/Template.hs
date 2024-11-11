@@ -27,10 +27,10 @@ module Brig.Team.Template
   )
 where
 
-import Brig.Options
 import Brig.Template
 import Imports
 import Wire.EmailSubsystem.Template
+import Wire.ServerOptions.Brig
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->

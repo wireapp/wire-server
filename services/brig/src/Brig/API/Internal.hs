@@ -38,7 +38,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Types.Connection
@@ -111,6 +110,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
+import Wire.ServerOptions.Brig hiding (internalEvents)
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore

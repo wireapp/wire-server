@@ -22,7 +22,6 @@ import Brig.App
 import Brig.IO.Intra (rmClient)
 import Brig.IO.Intra qualified as Intra
 import Brig.InternalEvent.Types
-import Brig.Options (defDeleteThrottleMillis, deleteThrottleMillis)
 import Brig.Provider.API qualified as API
 import Control.Monad.Catch
 import Data.ByteString.Conversion
@@ -39,6 +38,7 @@ import Wire.Events (Events)
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
 import Wire.Sem.Delay
+import Wire.ServerOptions.Brig (defDeleteThrottleMillis, deleteThrottleMillis)
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem

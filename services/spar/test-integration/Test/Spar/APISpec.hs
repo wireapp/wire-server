@@ -71,7 +71,6 @@ import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
 import qualified Spar.Intra.BrigApp as Intra
-import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import qualified Spar.Sem.IdPConfigStore as IdPEffect
@@ -96,6 +95,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim hiding (handle)
+import Wire.ServerOptions.Spar
 
 spec :: SpecWith TestEnv
 spec = do

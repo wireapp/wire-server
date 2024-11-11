@@ -29,7 +29,6 @@ import Brig.API.User qualified as API
 import Brig.App
 import Brig.Data.User qualified as Data
 import Brig.Federation.Client qualified as Federation
-import Brig.Options (searchSameTeamOnly)
 import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)
 import Data.Qualified
@@ -41,6 +40,7 @@ import Wire.API.User
 import Wire.API.User qualified as Public
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
+import Wire.ServerOptions.Brig (searchSameTeamOnly)
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem
 

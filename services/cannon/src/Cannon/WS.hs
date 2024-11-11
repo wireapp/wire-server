@@ -51,7 +51,6 @@ import Bilge.RPC
 import Bilge.Retry
 import Cannon.Dict (Dict)
 import Cannon.Dict qualified as D
-import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
 import Conduit
 import Control.Concurrent.Timeout
 import Control.Lens ((^.))
@@ -76,6 +75,7 @@ import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
 import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)
 import Wire.API.Presence
+import Wire.ServerOptions.Cannon (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
 
 -----------------------------------------------------------------------------
 -- Key

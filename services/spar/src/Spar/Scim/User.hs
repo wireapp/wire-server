@@ -76,7 +76,6 @@ import Spar.App (getUserByUrefUnsafe, getUserByUrefViaOldIssuerUnsafe, getUserId
 import qualified Spar.App
 import Spar.Intra.BrigApp as Intra
 import qualified Spar.Intra.BrigApp as Brig
-import Spar.Options
 import Spar.Scim.Auth ()
 import Spar.Scim.Types
 import qualified Spar.Scim.Types as ST
@@ -120,6 +119,7 @@ import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
+import Wire.ServerOptions.Spar
 
 ----------------------------------------------------------------------------
 -- UserDB instance

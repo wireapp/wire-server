@@ -22,8 +22,6 @@ import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Index.Eval qualified as IndexEval
 import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
-import Brig.Options (Opts (galley))
-import Brig.Options qualified as BrigOpts
 import Control.Lens ((.~))
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -34,6 +32,8 @@ import System.Random as Random
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString
+import Wire.ServerOptions.Brig (Opts (galley))
+import Wire.ServerOptions.Brig qualified as BrigOpts
 
 -- FUTUREWORK: Make Bloodhound capable of getting a mapping and add test here to make sure
 -- the intended mapping is set on the created index. Also add a test to ensure when the index

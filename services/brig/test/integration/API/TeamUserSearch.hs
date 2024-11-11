@@ -21,7 +21,6 @@ import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeSta
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
 import Bilge (Manager, MonadHttp)
-import Brig.Options qualified as Opt
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
 import Data.ByteString.Conversion (toByteString)
@@ -37,6 +36,7 @@ import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
 import Wire.API.User (User (..), userEmail, userId)
 import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Search
+import Wire.ServerOptions.Brig qualified as Opt
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 

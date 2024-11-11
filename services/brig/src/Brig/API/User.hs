@@ -79,7 +79,6 @@ import Brig.Effects.ConnectionStore
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
-import Brig.Options hiding (internalEvents)
 import Brig.Team.Email
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
@@ -146,6 +145,7 @@ import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPass
 import Wire.PropertySubsystem as PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra
+import Wire.ServerOptions.Brig hiding (internalEvents)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem as User

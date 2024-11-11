@@ -28,7 +28,6 @@ import API.Team.Util
 import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
-import Brig.Options qualified as Opts
 import Brig.ZAuth (ZAuth, runZAuth)
 import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Value)
@@ -71,6 +70,7 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.HashPassword
+import Wire.ServerOptions.Brig qualified as Opts
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to

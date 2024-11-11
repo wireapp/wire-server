@@ -48,7 +48,6 @@ import Amazonka.DynamoDB qualified as DDB
 import Amazonka.SES qualified as SES
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
-import Brig.Options qualified as Opt
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
@@ -68,6 +67,7 @@ import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
 import Wire.AWS
+import Wire.ServerOptions.Brig qualified as Opt
 
 data Env = Env
   { _logger :: !Logger,

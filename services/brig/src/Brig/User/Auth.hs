@@ -39,7 +39,6 @@ import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
 import Brig.Data.Client
-import Brig.Options qualified as Opt
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
 import Brig.ZAuth qualified as ZAuth
@@ -77,6 +76,7 @@ import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.ServerOptions.Brig qualified as Opt
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)

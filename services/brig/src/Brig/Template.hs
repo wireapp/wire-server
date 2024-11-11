@@ -34,7 +34,6 @@ module Brig.Template
   )
 where
 
-import Brig.Options
 import Control.Exception (catchJust)
 import Data.ByteString qualified as BS
 import Data.Map.Strict qualified as Map
@@ -45,6 +44,7 @@ import Imports hiding (readFile)
 import System.IO.Error (isDoesNotExistError)
 import Wire.API.User
 import Wire.EmailSubsystem.Template (Localised (Localised))
+import Wire.ServerOptions.Brig
 
 -- | See 'genTemplateBranding'.
 type TemplateBranding = Text -> Text

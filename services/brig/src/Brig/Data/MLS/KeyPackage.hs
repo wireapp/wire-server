@@ -26,7 +26,6 @@ where
 
 import Brig.API.MLS.KeyPackages.Validation
 import Brig.App
-import Brig.Options
 import Cassandra
 import Control.Arrow
 import Control.Error
@@ -42,6 +41,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
+import Wire.ServerOptions.Brig
 
 insertKeyPackages ::
   (MonadClient m) =>

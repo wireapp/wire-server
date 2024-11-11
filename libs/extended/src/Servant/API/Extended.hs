@@ -19,14 +19,18 @@
 -- errors instead of plaintext.
 module Servant.API.Extended where
 
+import Data.Bifunctor
 import Data.ByteString
 import Data.ByteString.Lazy qualified as BL
 import Data.EitherR (fmapL)
 import Data.Kind
+import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Servant
 import Data.Typeable
+import Data.Yaml as Y
 import GHC.TypeLits
 import Imports
+import Network.HTTP.Media qualified as M
 import Network.HTTP.Types hiding (Header, ResponseHeaders)
 import Network.Wai
 import Servant.API
@@ -116,3 +120,18 @@ instance
 
 instance (RoutesToPaths rest) => RoutesToPaths (ReqBodyCustomError' mods list tag a :> rest) where
   getRoutes = getRoutes @rest
+
+data YAML
+
+instance Accept YAML where
+  contentTypes _ =
+    "application"
+      M.// "yaml"
+      M./: ("charset", "utf-8")
+      NE.:| ["application" M.// "yaml"]
+
+instance {-# OVERLAPPABLE #-} (ToJSON a) => MimeRender YAML a where
+  mimeRender _ = fromStrict . Y.encode
+
+instance {-# OVERLAPPABLE #-} (FromJSON a) => MimeUnrender YAML a where
+  mimeUnrender _ = first show . Y.decodeEither' . toStrict

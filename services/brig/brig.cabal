@@ -128,7 +128,6 @@ library
     Brig.IO.Intra
     Brig.IO.Journal
     Brig.IO.Logging
-    Brig.Options
     Brig.Provider.API
     Brig.Provider.DB
     Brig.Provider.Email
@@ -136,7 +135,6 @@ library
     Brig.Provider.Template
     Brig.Queue
     Brig.Queue.Stomp
-    Brig.Queue.Types
     Brig.RPC
     Brig.Run
     Brig.Schema.Run
@@ -257,7 +255,6 @@ library
     , imports
     , insert-ordered-containers
     , iproute                               >=1.5
-    , iso639                                >=0.1
     , jose
     , jwt-tools
     , lens                                  >=3.8

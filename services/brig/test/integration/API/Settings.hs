@@ -20,8 +20,6 @@ module API.Settings (tests) where
 import API.Team.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Options (Opts)
-import Brig.Options qualified as Opt
 import Control.Arrow ((&&&))
 import Control.Lens
 import Data.Aeson
@@ -38,6 +36,8 @@ import Wire.API.Team.Member (rolePermissions)
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.ServerOptions.Brig (Opts)
+import Wire.ServerOptions.Brig qualified as Opt
 
 allEmailVisibilities :: [EmailVisibilityConfig]
 allEmailVisibilities = [EmailVisibleIfOnTeam, EmailVisibleIfOnSameTeam (), EmailVisibleToSelf]

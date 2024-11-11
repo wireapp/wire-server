@@ -19,7 +19,6 @@ module API.SystemSettings (tests) where
 
 import Bilge
 import Bilge.Assert
-import Brig.Options
 import Control.Lens
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (toByteString')
@@ -32,6 +31,7 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Routes.Version
 import Wire.API.SystemSettings
+import Wire.ServerOptions.Brig
 
 tests :: Opts -> Manager -> IO TestTree
 tests opts m = pure $ do

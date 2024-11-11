@@ -21,7 +21,6 @@ module API.Federation where
 import API.Search.Util (refreshIndex)
 import Bilge hiding (head)
 import Bilge.Assert
-import Brig.Options qualified as Opt
 import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
@@ -49,6 +48,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap (UserMap))
+import Wire.ServerOptions.Brig qualified as Opt
 
 -- Note: POST /federation/send-connection-action is implicitly tested in API.User.Connection
 tests :: Manager -> Opt.Opts -> Brig -> FedClient 'Brig -> IO TestTree

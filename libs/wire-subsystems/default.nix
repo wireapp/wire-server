@@ -24,6 +24,8 @@
 , currency-codes
 , data-default
 , data-timeout
+, dns
+, email-validate
 , errors
 , exceptions
 , extended
@@ -47,6 +49,7 @@
 , mime-mail
 , network
 , network-conduit-tls
+, openapi3
 , pipes
 , polysemy
 , polysemy-plugin
@@ -86,6 +89,7 @@
 , wire-api-federation
 , wire-otel
 , witherable
+, yaml
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -113,6 +117,7 @@ mkDerivation {
     currency-codes
     data-default
     data-timeout
+    dns
     errors
     exceptions
     extended
@@ -133,6 +138,7 @@ mkDerivation {
     mime-mail
     network
     network-conduit-tls
+    openapi3
     polysemy
     polysemy-plugin
     polysemy-time
@@ -169,13 +175,17 @@ mkDerivation {
   testHaskellDepends = [
     aeson
     async
+    attoparsec
     base
     bilge
+    bloodhound
     bytestring
     cassandra-util
     containers
     crypton
     data-default
+    dns
+    email-validate
     errors
     extended
     hspec
@@ -204,6 +214,7 @@ mkDerivation {
     types-common
     wire-api
     wire-api-federation
+    yaml
   ];
   testToolDepends = [ hspec-discover ];
   license = lib.licenses.agpl3Only;

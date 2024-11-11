@@ -22,7 +22,6 @@ import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
-import Brig.Options qualified as BrigOpts
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
 import Data.Aeson qualified as Aeson
@@ -60,6 +59,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.API.User hiding (assetKey)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.ServerOptions.Brig qualified as BrigOpts
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.

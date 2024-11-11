@@ -24,7 +24,6 @@ module Federation.Util where
 
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
-import Brig.Options qualified as Opt
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (finally, throwIO)
 import Control.Lens ((.~), (?~), (^.))
@@ -73,6 +72,7 @@ import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.ServerOptions.Brig qualified as Opt
 
 -- | Starts a server which will return the bytestring passed to this
 -- function, and makes the action passed to this function run in a modified brig
