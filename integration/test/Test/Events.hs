@@ -309,6 +309,34 @@ testTransientEvents = do
 
       assertNoEvent eventsChan
 
+testChannelLimit :: (HasCallStack) => App ()
+testChannelLimit = withModifiedBackend
+  ( def
+      { cannonCfg =
+          setField "rabbitMqMaxChannels" (2 :: Int)
+            >=> setField "rabbitMqMaxConnections" (1 :: Int)
+      }
+  )
+  $ \domain -> do
+    alice <- randomUser domain def
+    clients <-
+      replicateM 3
+        $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
+        >>= getJSON 201
+        >>= (%. "id")
+        >>= asString
+
+    lowerCodensity $ do
+      acks <- for clients $ \c -> do
+        (events0, ack0) <- createEventsWebSocket alice c
+        e <- Codensity $ \k -> assertEvent events0 k
+        lift $ do
+          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+          e %. "data.event.payload.0.client.id" `shouldMatch` c
+          tag <- e %. "data.delivery_tag"
+          pure (sendAck ack0 tag False)
+      lift $ sequenceA_ acks
+
 ----------------------------------------------------------------------
 -- helpers
 

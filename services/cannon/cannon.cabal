@@ -110,6 +110,7 @@ library
     , servant-conduit
     , servant-server
     , strict                                >=0.3.2
+    , temporary
     , text                                  >=1.1
     , tinylog                               >=0.10
     , transformers

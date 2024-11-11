@@ -1,3 +1,4 @@
+{-# OPTIONS -Wwarn #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Cannon.RabbitMqConsumerApp where
@@ -10,17 +11,21 @@ import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout
-import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
+import Control.Exception (Handler (..), bracket, catch, catches, evaluate, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
 import Data.Id
 import Data.List.Extra hiding (delete)
 import Data.Timeout (TimeoutUnit (..), (#))
+import Debug.Trace
 import Imports hiding (min, threadDelay)
 import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
+import System.IO (hPutStrLn)
+import System.IO.Temp
+import System.IO.Unsafe
 import System.Logger qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Event.WebSocketProtocol
@@ -85,7 +90,8 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
         sendNotifications wsConn wsVar
     )
       `catches` [ handleClientMisbehaving wsConn,
-                  handleWebSocketExceptions wsConn
+                  handleWebSocketExceptions wsConn,
+                  handleOtherExceptions wsConn
                 ]
   where
     logClient =
@@ -99,6 +105,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
       -- start a reader thread for client messages
       -- this needs to run asynchronously in order to promptly react to
       -- client-side connection termination
+      -- TODO: read websocket directly instead of using an MVar?
       a <- async $ forever $ do
         catch
           ( do
@@ -108,7 +115,6 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
           $ \err -> putMVar wsVar (Left err)
       pure (wsConn, a)
 
-    -- this is only needed in case of asynchronous exceptions
     closeWebSocket (wsConn, a) = do
       cancel a
       logCloseWebsocket
@@ -170,6 +176,11 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               Log.msg (Log.val "Client sent unexpected ack message")
                 . logClient
             WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString)
+
+    handleOtherExceptions wsConn = Handler $
+      \(err :: SomeException) -> do
+        WS.sendCloseCode wsConn 1003 ("internal-error" :: ByteString)
+        throwIO err
 
     sendNotifications ::
       WS.Connection ->

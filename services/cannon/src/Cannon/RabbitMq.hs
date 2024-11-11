@@ -151,44 +151,47 @@ createChannel pool queue = do
   inner <- lift newEmptyMVar
   msgVar <- lift newEmptyMVar
 
-  -- TODO: handle exceptions in the manager thread
+  let handleException e = do
+        retry <- case (Q.isNormalChannelClose e, fromException e) of
+          (True, _) -> do
+            Log.info pool.logger $
+              Log.msg (Log.val "RabbitMQ channel is closed normally, not attempting to reopen channel")
+            pure False
+          (_, Just (Q.ConnectionClosedException {})) -> do
+            Log.info pool.logger $
+              Log.msg (Log.val "RabbitMQ connection is closed, not attempting to reopen channel")
+            pure False -- TODO: change this to true?
+          _ -> do
+            logException pool.logger "RabbitMQ channel closed" e
+            pure True
+        putMVar closedVar retry
+
   let manageChannel = do
         conn <- acquireConnection pool
         chan <- Q.openChannel conn.inner
+        Q.addChannelExceptionHandler chan handleException
         putMVar inner chan
         void $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
           putMVar msgVar (Just (message, envelope))
 
-        Q.addChannelExceptionHandler chan $ \e -> do
-          void $ takeMVar inner
-          releaseConnection pool conn
-
-          retry <- case (Q.isNormalChannelClose e, fromException e) of
-            (True, _) -> do
-              Log.info pool.logger $
-                Log.msg (Log.val "RabbitMQ channel is closed normally, not attempting to reopen channel")
-              pure False
-            (_, Just (Q.ConnectionClosedException {})) -> do
-              Log.info pool.logger $
-                Log.msg (Log.val "RabbitMQ connection is closed, not attempting to reopen channel")
-              pure False -- TODO: change this to true?
-            _ -> do
-              logException pool.logger "RabbitMQ channel closed" e
-              pure True
-
-          putMVar closedVar retry
-
         retry <- takeMVar closedVar
-        if retry
-          then -- TODO: exponential backoff?
-            manageChannel
-          else putMVar msgVar Nothing
 
-  -- TODO: leaking async
+        -- TODO: releaseConnection
+
+        -- TODO: put this in a bracket
+        catch (Q.closeChannel chan) $ \(_ :: SomeException) -> pure ()
+
+        when retry manageChannel
+
+  lift . void . mask_ $
+    async $
+      catch manageChannel handleException
+        `finally` putMVar msgVar Nothing
+
   Codensity $ \k -> do
-    void . mask_ $ async manageChannel
     let chan = RabbitMqChannel {inner = inner, msgVar = msgVar}
-    k chan `finally` (readMVar inner >>= Q.closeChannel)
+    finally (k chan) $
+      putMVar closedVar False
 
 acquireConnection :: RabbitMqPool -> IO PooledConnection
 acquireConnection pool = do
@@ -219,6 +222,7 @@ acquireConnection pool = do
 
 findConnection :: RabbitMqPool -> IO (Maybe PooledConnection)
 findConnection pool = (>>= either throwIO pure) . atomically . runExceptT $ do
+  -- TODO: use MaybeT
   conns <- lift $ readTVar pool.connections
   if null conns
     then pure Nothing
@@ -226,7 +230,7 @@ findConnection pool = (>>= either throwIO pure) . atomically . runExceptT $ do
       let pconn = minimumOn (.numChannels) conns
       if pconn.numChannels >= pool.opts.maxChannels
         then
-          if length conns >= pool.opts.maxChannels
+          if length conns >= pool.opts.maxConnections
             then throwE TooManyChannels
             else pure Nothing
         else pure (Just pconn)
