@@ -25,6 +25,7 @@ import Cassandra.Settings as C
 import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
 import qualified Data.Conduit.List as CL
+import Data.Id
 import qualified Database.CQL.Protocol as CQL
 import Imports
 import Options.Applicative
@@ -37,22 +38,34 @@ selectServices client =
   where
     cql :: C.PrepQuery C.R () (CQL.TupleType ServiceProviderRow)
     cql =
-      "SELECT team, provider, service FROM service_whitelist"
+      "SELECT team, service, provider FROM service_whitelist"
 
-process :: ClientState -> IO [ServiceProviderRow]
-process brigClient =
-  runConduit
-    $ selectServices brigClient
-    .| Conduit.concat
-    .| CL.consume
+lookupService :: ClientState -> ProviderId -> ServiceId -> IO (Maybe ServiceRow)
+lookupService client providerId serviceId = do
+  fmap CQL.asRecord <$$> runClient client $ retry x1 (query1 cql (params One (providerId, serviceId)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId) (CQL.TupleType ServiceRow)
+    cql = "select base_url, enabled from service where provider = ? AND id = ?"
+
+process :: ClientState -> ClientState -> IO [String]
+process brigClient galleyClient =
+  runConduit $
+    selectServices brigClient
+      .| Conduit.concat
+      .| Conduit.mapM (\row -> toBotInfo row <$> lookupService galleyClient (row.providerId) (row.serviceId))
+      .| Conduit.map toCsv
+      .| CL.consume
 
 main :: IO ()
 main = do
   opts <- execParser (info (helper <*> optsParser) desc)
   logger <- initLogger
   brigClient <- initCas opts.brigDb logger
-  teamMembers <- process brigClient
-  for_ teamMembers $ \tm -> Log.info logger $ Log.msg (show tm)
+  galleyClient <- initCas opts.galleyDb logger
+  csvLines <- process brigClient galleyClient
+  let csv = unlines csvLines
+  putStrLn "team,service,provider,base_url,enabled"
+  putStrLn csv
   where
     initLogger =
       Log.new

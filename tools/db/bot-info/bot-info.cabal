@@ -22,13 +22,14 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-    -- , base
+    , bytestring-conversion
     , cassandra-util
     , conduit
     , cql
     , imports
     , lens
     , optparse-applicative
+    , string-conversions
     , tinylog
     , types-common
 

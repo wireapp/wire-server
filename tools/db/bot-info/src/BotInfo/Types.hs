@@ -22,7 +22,10 @@ module BotInfo.Types where
 
 import Cassandra as C
 import Control.Lens
+import Data.ByteString.Conversion.To
 import Data.Id
+import Data.Misc (HttpsUrl)
+import Data.String.Conversions (cs)
 import Data.Text.Strict.Lens
 import Database.CQL.Protocol hiding (Result)
 import Imports
@@ -35,12 +38,13 @@ data CassandraSettings = CassandraSettings
   }
 
 data Opts = Opts
-  { brigDb :: CassandraSettings
+  { brigDb :: CassandraSettings,
+    galleyDb :: CassandraSettings
   }
 
 optsParser :: Parser Opts
 optsParser =
-  Opts <$> brigCassandraParser
+  Opts <$> brigCassandraParser <*> galleyCassandraParser
 
 brigCassandraParser :: Parser CassandraSettings
 brigCassandraParser =
@@ -71,6 +75,35 @@ brigCassandraParser =
               )
         )
 
+galleyCassandraParser :: Parser CassandraSettings
+galleyCassandraParser =
+  CassandraSettings
+    <$> strOption
+      ( long "galley-cassandra-host"
+          <> metavar "HOST"
+          <> help "Cassandra Host for galley"
+          <> value "localhost"
+          <> showDefault
+      )
+    <*> option
+      auto
+      ( long "galley-cassandra-port"
+          <> metavar "PORT"
+          <> help "Cassandra Port for galley"
+          <> value 9042
+          <> showDefault
+      )
+    <*> ( C.Keyspace
+            . view packed
+            <$> strOption
+              ( long "galley-cassandra-keyspace"
+                  <> metavar "STRING"
+                  <> help "Cassandra Keyspace for galley"
+                  <> value "galley_test"
+                  <> showDefault
+              )
+        )
+
 data ServiceProviderRow = ServiceProviderRow
   { teamId :: TeamId,
     serviceId :: ServiceId,
@@ -79,3 +112,34 @@ data ServiceProviderRow = ServiceProviderRow
   deriving (Show, Generic)
 
 recordInstance ''ServiceProviderRow
+
+data ServiceRow = ServiceRow
+  { url :: HttpsUrl,
+    enabled :: Bool
+  }
+  deriving (Show, Generic)
+
+recordInstance ''ServiceRow
+
+data BotInfo = BotInfo
+  { teamId :: TeamId,
+    serviceId :: ServiceId,
+    providerId :: ProviderId,
+    url :: Maybe HttpsUrl,
+    enabled :: Maybe Bool
+  }
+  deriving (Show, Generic)
+
+toBotInfo :: ServiceProviderRow -> Maybe ServiceRow -> BotInfo
+toBotInfo sp sr = BotInfo (sp.teamId) (sp.serviceId) (sp.providerId) ((.url) <$> sr) ((.enabled) <$> sr)
+
+toCsv :: BotInfo -> String
+toCsv bi =
+  intercalate
+    ","
+    [ show bi.teamId,
+      show bi.serviceId,
+      show bi.providerId,
+      maybe "N/A" (cs . toByteString) bi.url,
+      maybe "N/A" show bi.enabled
+    ]
