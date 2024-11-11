@@ -4,17 +4,21 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
+, bytestring-conversion
 , cassandra-util
 , conduit
+, containers
 , cql
 , gitignoreSource
 , imports
 , lens
 , lib
 , optparse-applicative
-, time
+, string-conversions
 , tinylog
+, transformers
 , types-common
+, wire-api
 }:
 mkDerivation {
   pname = "bot-info";
@@ -23,15 +27,19 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
+    bytestring-conversion
     cassandra-util
     conduit
+    containers
     cql
     imports
     lens
     optparse-applicative
-    time
+    string-conversions
     tinylog
+    transformers
     types-common
+    wire-api
   ];
   executableHaskellDepends = [ base ];
   description = "get bot info from cassandra";

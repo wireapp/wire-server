@@ -50,13 +50,14 @@ lookupService client providerId serviceId = do
     cql :: PrepQuery R (ProviderId, ServiceId) (CQL.TupleType ServiceRow)
     cql = "select base_url, enabled from service where provider = ? AND id = ?"
 
-lookupTeamOwnerEmail :: MVar (Map TeamId (Maybe EmailAddress)) -> ClientState -> ClientState -> TeamId -> IO (Maybe EmailAddress)
-lookupTeamOwnerEmail cache brig galley teamId = do
+lookupTeamOwnerEmail :: Log.Logger -> MVar (Map TeamId (Maybe EmailAddress)) -> ClientState -> ClientState -> TeamId -> IO (Maybe EmailAddress)
+lookupTeamOwnerEmail logger cache brig galley teamId = do
   emailCache <- readMVar cache
   maybe fromDb pure $ Map.lookup teamId emailCache
   where
     fromDb :: IO (Maybe EmailAddress)
     fromDb = do
+      Log.info logger $ Log.msg ("New team: " <> show teamId)
       mFromDb <- lookupEmailInDb brig galley teamId
       modifyMVar_ cache (pure . Map.insert teamId mFromDb)
       pure mFromDb
@@ -72,8 +73,8 @@ lookupEmailInDb brig galley team = runMaybeT $ do
     selectEmailFromUser :: C.PrepQuery C.R (Identity UserId) (Identity (Maybe EmailAddress))
     selectEmailFromUser = "SELECT email FROM user WHERE id = ?"
 
-process :: MVar (Map TeamId (Maybe EmailAddress)) -> ClientState -> ClientState -> IO [String]
-process cache brigClient galleyClient =
+process :: Log.Logger -> MVar (Map TeamId (Maybe EmailAddress)) -> ClientState -> ClientState -> IO [String]
+process logger cache brigClient galleyClient =
   runConduit $
     selectServices brigClient
       .| Conduit.concat
@@ -81,7 +82,7 @@ process cache brigClient galleyClient =
         ( \row -> do
             toBotInfo row
               <$> lookupService galleyClient (row.providerId) (row.serviceId)
-              <*> lookupTeamOwnerEmail cache brigClient galleyClient row.teamId
+              <*> lookupTeamOwnerEmail logger cache brigClient galleyClient row.teamId
         )
       .| Conduit.map toCsv
       .| CL.consume
@@ -93,7 +94,7 @@ main = do
   brigClient <- initCas opts.brigDb logger
   galleyClient <- initCas opts.galleyDb logger
   cache <- newMVar Map.empty
-  csvLines <- process cache brigClient galleyClient
+  csvLines <- process logger cache brigClient galleyClient
   let csv = unlines csvLines
   putStrLn "team,email,service,provider,host,enabled"
   putStrLn csv
