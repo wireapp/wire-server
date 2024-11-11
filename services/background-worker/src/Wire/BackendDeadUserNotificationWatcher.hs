@@ -93,6 +93,11 @@ startWorker amqp = do
   mVar <- newEmptyMVar
   connOpts <- mkConnectionOpts amqp
 
+  -- This function will open a connection to rabbitmq and start the consumer.
+  -- We use an mvar to signal when the connection is closed so we can re-open it.
+  -- If the empty mvar is filled, we know the connection itself was closed and we need to re-open it.
+  -- If the mvar is filled with a connection, we know the connection itself is fine,
+  -- so we only need to re-open the channel
   let openConnection connM = do
         mConn <- lowerCodensity $ do
           conn <- case connM of
