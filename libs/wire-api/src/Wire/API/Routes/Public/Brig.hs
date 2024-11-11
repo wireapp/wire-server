@@ -1546,8 +1546,9 @@ type CallingAPI =
 
 type TeamsAPI =
   Named
-    "send-team-invitation"
+    "send-team-invitation@v6"
     ( Summary "Create and send a new team invitation."
+        :> Until V7
         :> Description
              "Invitations are sent by email. The maximum allowed number of \
              \pending team invitations is equal to the team size."
@@ -1562,7 +1563,7 @@ type TeamsAPI =
         :> "teams"
         :> Capture "tid" TeamId
         :> "invitations"
-        :> ReqBody '[JSON] InvitationRequest
+        :> VersionedReqBody V6 '[JSON] InvitationRequest
         :> MultiVerb1
              'POST
              '[JSON]
@@ -1572,6 +1573,34 @@ type TeamsAPI =
                  (Respond 201 "Invitation was created and sent." Invitation)
              )
     )
+    :<|> Named
+           "send-team-invitation"
+           ( Summary "Create and send a new team invitation."
+               :> From V7
+               :> Description
+                    "Invitations are sent by email. The maximum allowed number of \
+                    \pending team invitations is equal to the team size."
+               :> CanThrow 'NoEmail
+               :> CanThrow 'NoIdentity
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'BlacklistedEmail
+               :> CanThrow 'TooManyTeamInvitations
+               :> CanThrow 'InsufficientTeamPermissions
+               :> CanThrow 'InvalidInvitationCode
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> ReqBody '[JSON] InvitationRequest
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( WithHeaders
+                        '[Header "Location" InvitationLocation]
+                        (Invitation, InvitationLocation)
+                        (Respond 201 "Invitation was created and sent." Invitation)
+                    )
+           )
     :<|> Named
            "get-team-invitations"
            ( Summary "List the sent team invitations"
