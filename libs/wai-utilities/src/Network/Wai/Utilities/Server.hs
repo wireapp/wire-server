@@ -348,7 +348,7 @@ rethrow5xx getRequestId logger app req k = app req k'
     k' resp@WaiInt.ResponseRaw {} = do
       -- See Note [Raw Response]
       let logMsg =
-            field "canoncalpath" (show $ pathInfo req)
+            field "canonicalpath" (show $ pathInfo req)
               . field "rawpath" (rawPathInfo req)
               . field "request" (fromMaybe defRequestId $ getRequestId req)
               . msg (val "ResponseRaw - cannot collect metrics or log info on errors")

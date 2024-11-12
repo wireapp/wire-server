@@ -39,6 +39,11 @@ spec:
         - name: "gundeck-config"
           configMap:
             name: "gundeck"
+        {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+        - name: "rabbitmq-ca"
+          secret:
+            secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+        {{- end }}
         {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
         - name: "gundeck-cassandra"
           secret:
@@ -77,7 +82,21 @@ spec:
           - name: "additional-redis-ca"
             mountPath: "/etc/wire/gundeck/additional-redis-ca/"
           {{- end }}
+          {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+          - name: "rabbitmq-ca"
+            mountPath: "/etc/wire/gundeck/rabbitmq-ca/"
+          {{- end }}
           env:
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: gundeck
+                key: rabbitmqUsername
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: gundeck
+                key: rabbitmqPassword
           {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID
             valueFrom:

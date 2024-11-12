@@ -14,6 +14,7 @@ testEnv :: IO Env
 testEnv = do
   http2Manager <- initHttp2Manager
   logger <- Logger.new Logger.defSettings
+  let cassandra = undefined
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
   httpManager <- newManager defaultManagerSettings

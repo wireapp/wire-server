@@ -10,6 +10,7 @@ module Network.AMQP.Extended
     mkRabbitMqChannelMVar,
     demoteOpts,
     RabbitMqTlsOpts (..),
+    mkConnectionOpts,
   )
 where
 
@@ -155,7 +156,6 @@ withConnection ::
   (Q.Connection -> m a) ->
   m a
 withConnection l AmqpEndpoint {..} k = do
-  (username, password) <- liftIO $ readCredsFromEnv
   -- Jittered exponential backoff with 1ms as starting delay and 1s as total
   -- wait time.
   let policy = limitRetriesByCumulativeDelay 1_000_000 $ fullJitterBackoff 1000
@@ -173,17 +173,22 @@ withConnection l AmqpEndpoint {..} k = do
           )
           ( const $ do
               Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-              mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
-              liftIO $
-                Q.openConnection'' $
-                  Q.defaultConnectionOpts
-                    { Q.coServers = [(host, fromIntegral port)],
-                      Q.coVHost = vHost,
-                      Q.coAuth = [Q.plain username password],
-                      Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
-                    }
+              connOpts <- mkConnectionOpts AmqpEndpoint {..}
+              liftIO $ Q.openConnection'' connOpts
           )
   bracket getConn (liftIO . Q.closeConnection) k
+
+mkConnectionOpts :: (MonadIO m) => AmqpEndpoint -> m Q.ConnectionOpts
+mkConnectionOpts AmqpEndpoint {..} = do
+  mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
+  (username, password) <- liftIO $ readCredsFromEnv
+  pure
+    Q.defaultConnectionOpts
+      { Q.coServers = [(host, fromIntegral port)],
+        Q.coVHost = vHost,
+        Q.coAuth = [Q.plain username password],
+        Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
+      }
 
 -- | Connects with RabbitMQ and opens a channel. If the channel is closed for
 -- some reasons, reopens the channel. If the connection is closed for some
@@ -218,15 +223,8 @@ openConnectionWithRetries l AmqpEndpoint {..} hooks = do
               )
               ( const $ do
                   Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-                  mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
-                  liftIO $
-                    Q.openConnection'' $
-                      Q.defaultConnectionOpts
-                        { Q.coServers = [(host, fromIntegral port)],
-                          Q.coVHost = vHost,
-                          Q.coAuth = [Q.plain username password],
-                          Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
-                        }
+                  connOpts <- mkConnectionOpts AmqpEndpoint {..}
+                  liftIO $ Q.openConnection'' connOpts
               )
       bracket getConn (liftIO . Q.closeConnection) $ \conn -> do
         liftBaseWith $ \runInIO ->

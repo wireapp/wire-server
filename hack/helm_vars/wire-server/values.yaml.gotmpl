@@ -80,7 +80,7 @@ brig:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
     authSettings:
       userTokenTimeout: 120
@@ -205,7 +205,23 @@ cannon:
       memory: 512Mi
   drainTimeout: 0
   config:
+    cassandra:
+      host: {{ .Values.cassandraHost }}
+      replicaCount: 1
     disabledAPIVersions: []
+    rabbitmq:
+      port: 5671
+      adminPort: 15671
+      enableTls: true
+      insecureSkipVerifyTls: false
+      tlsCaSecretRef:
+        name: "rabbitmq-certificate"
+        key: "ca.crt"
+  secrets:
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
+
 cargohold:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -252,7 +268,7 @@ galley:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
     enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     settings:
@@ -373,6 +389,14 @@ gundeck:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
     {{- end }}
+    rabbitmq:
+      port: 5671
+      adminPort: 15671
+      enableTls: true
+      insecureSkipVerifyTls: false
+      tlsCaSecretRef:
+        name: "rabbitmq-certificate"
+        key: "ca.crt"
     redis:
       host: redis-ephemeral-master
       connectionMode: master
@@ -395,6 +419,9 @@ gundeck:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
     redisPassword: very-secure-redis-master-password
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
   tests:
     {{- if .Values.uploadXml }}
     config:
@@ -518,13 +545,21 @@ background-worker:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
       remotesRefreshInterval: 1000000 # 1s
+    cassandra:
+      host: {{ .Values.cassandraHost }}
+      replicaCount: 1
+      {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+      {{- end }}
     rabbitmq:
       port: 5671
       adminPort: 15671
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
   secrets:
     rabbitmq:

@@ -87,6 +87,7 @@ library
     , bilge                                 >=0.12
     , bytestring                            >=0.10
     , bytestring-conversion                 >=0.2
+    , cassandra-util
     , conduit                               >=1.3.4.2
     , data-timeout                          >=0.3
     , exceptions                            >=0.6
@@ -97,6 +98,7 @@ library
     , hs-opentelemetry-sdk
     , http-types                            >=0.8
     , imports
+    , kan-extensions
     , lens                                  >=4.4
     , lens-family-core                      >=1.1
     , metrics-wai                           >=0.4

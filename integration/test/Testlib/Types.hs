@@ -379,11 +379,6 @@ getMLSState = do
   ref <- asks (.mls)
   liftIO $ readIORef ref
 
-setMLSState :: MLSState -> App ()
-setMLSState s = do
-  ref <- asks (.mls)
-  liftIO $ writeIORef ref s
-
 modifyMLSState :: (MLSState -> MLSState) -> App ()
 modifyMLSState f = do
   ref <- asks (.mls)

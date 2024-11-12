@@ -267,6 +267,7 @@ spec = do
           ]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
+      let cassandra = undefined
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -283,6 +284,7 @@ spec = do
     it "should retry fetching domains if a request fails" $ do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
+      let cassandra = undefined
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
