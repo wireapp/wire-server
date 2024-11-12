@@ -1,1 +1,3 @@
-New endpoint `GET /events` for consuming events is added
+New endpoint `GET /events` for consuming events is added.
+
+When a client misses notifications because it was offline for too long, it needs to know this information so it can do a full synchronisation. This appears as the first notification in `GET /events` endpoint whenever the system detects this happening. The next acknowledgement of the message makes this notification not appear anymore until the next notification is missed.
