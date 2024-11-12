@@ -41,6 +41,22 @@ type CannonAPI =
         -- FUTUREWORK: Consider higher-level web socket combinator
         :> WebSocketPending
     )
+    :<|> Named
+           "consume-events"
+           ( Summary "Consume events over a websocket connection"
+               :> "events"
+               :> ZUser
+               :> QueryParam'
+                    [ -- Make this optional in https://wearezeta.atlassian.net/browse/WPB-11173
+                      Required,
+                      Strict,
+                      Description "Client ID"
+                    ]
+                    "client"
+                    ClientId
+               -- FUTUREWORK: Consider higher-level web socket combinator
+               :> WebSocketPending
+           )
 
 data CannonAPITag
 

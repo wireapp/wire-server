@@ -165,8 +165,8 @@ testInvitePersonalUserToLargeTeam = do
   traverse_ (connectTwoUsers knut) [alice, dawn, eli]
 
   addFailureContext ("tid: " <> tid) $ do
-    uidContext <- mkContextUserIds [("owner", owner), ("alice", alice), ("knut", knut), ("dawn", dawn), ("eli", eli)]
-    addFailureContext uidContext $ do
+    let uids = [("owner", owner), ("alice", alice), ("knut", knut), ("dawn", dawn), ("eli", eli)]
+    addUsersToFailureContext uids $ do
       lastTeamNotif <-
         getTeamNotifications owner Nothing `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
@@ -204,16 +204,6 @@ testInvitePersonalUserToLargeTeam = do
         resp.json %. "notifications.1.payload.0.type" `shouldMatch` "team.member-join"
         resp.json %. "notifications.1.payload.0.team" `shouldMatch` tid
         resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` objId knut
-
-mkContextUserIds :: (MakesValue user) => [(String, user)] -> App String
-mkContextUserIds =
-  fmap (intercalate "\n")
-    . traverse
-      ( \(name, user) -> do
-          uid <- objQidObject user %. "id" & asString
-          domain <- objDomain user
-          pure $ name <> ": " <> uid <> "@" <> domain
-      )
 
 testInvitePersonalUserToTeamMultipleInvitations :: (HasCallStack) => App ()
 testInvitePersonalUserToTeamMultipleInvitations = do

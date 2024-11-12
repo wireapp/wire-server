@@ -9,6 +9,7 @@
 , amazonka-core
 , amazonka-sns
 , amazonka-sqs
+, amqp
 , async
 , attoparsec
 , auto-update
@@ -22,6 +23,7 @@
 , containers
 , criterion
 , crypton-x509-store
+, data-timeout
 , errors
 , exceptions
 , extended
@@ -69,6 +71,7 @@
 , tasty-hunit
 , tasty-quickcheck
 , text
+, these
 , time
 , tinylog
 , tls
@@ -98,6 +101,7 @@ mkDerivation {
     amazonka-core
     amazonka-sns
     amazonka-sqs
+    amqp
     async
     attoparsec
     auto-update
@@ -108,6 +112,7 @@ mkDerivation {
     cassandra-util
     containers
     crypton-x509-store
+    data-timeout
     errors
     exceptions
     extended
@@ -135,6 +140,7 @@ mkDerivation {
     servant
     servant-server
     text
+    these
     time
     tinylog
     tls

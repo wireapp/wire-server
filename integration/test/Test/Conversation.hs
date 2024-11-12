@@ -492,15 +492,14 @@ testSynchroniseUserRemovalNotification domain = do
   otherDomain <- make domain
   [alice, bob] <- createAndConnectUsers [ownDomain, otherDomain]
   runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
-    (conv, charlie, client) <-
+    (conv, charlie) <-
       runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
         charlie <- randomUser dynBackend.berDomain def
-        client <- objId $ bindResponse (addClient charlie def) $ getJSON 201
         mapM_ (connectTwoUsers charlie) [alice, bob]
         conv <-
           postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
             >>= getJSON 201
-        pure (conv, charlie, client)
+        pure (conv, charlie)
 
     let newConvName = "The new conversation name"
     bindResponse (changeConversationName alice conv newConvName) $ \resp ->
@@ -508,10 +507,10 @@ testSynchroniseUserRemovalNotification domain = do
     bindResponse (removeMember alice conv charlie) $ \resp ->
       resp.status `shouldMatchInt` 200
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      nameNotif <- awaitNotification charlie client noValue isConvNameChangeNotif
+      nameNotif <- awaitNotification charlie noValue isConvNameChangeNotif
       nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       nameNotif %. "payload.0.data.name" `shouldMatch` newConvName
-      leaveNotif <- awaitNotification charlie client noValue isConvLeaveNotif
+      leaveNotif <- awaitNotification charlie noValue isConvLeaveNotif
       leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
 testConvRenaming :: (HasCallStack) => App ()
@@ -648,19 +647,18 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
         notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
 
   runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
-    (bob, bobClient) <- runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
+    bob <- runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
       bob <- randomUser dynBackend.berDomain def
-      bobClient <- objId $ bindResponse (addClient bob def) $ getJSON 201
       connectTwoUsers alice bob
       mem <- bob %. "qualified_id"
       void $ addMembers alice conv def {users = [mem]} >>= getBody 200
-      pure (bob, bobClient)
+      pure bob
     withWebSocket alice $ \ws -> do
       void $ deleteTeamConversation team conv alice >>= getBody 200
       notif <- awaitMatch isConvDeleteNotif ws
       assertNotification notif
     void $ runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      notif <- awaitNotification bob bobClient noValue isConvDeleteNotif
+      notif <- awaitNotification bob noValue isConvDeleteNotif
       assertNotification notif
 
 testDeleteTeamMemberLimitedEventFanout :: (HasCallStack) => App ()

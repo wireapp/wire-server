@@ -101,6 +101,7 @@ library
     Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
     Wire.API.Event.Team
+    Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
     Wire.API.Internal.BulkPush

@@ -29,6 +29,8 @@ config:
     # tlsCaSecretRef:
     #   name: <secret-name>
     #   key: <ca-attribute>
+  cassandra:
+    host: aws-cassandra
 
   backendNotificationPusher:
     pushBackoffMinWait: 10000 # in microseconds, so 10ms

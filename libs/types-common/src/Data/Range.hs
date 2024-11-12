@@ -42,9 +42,13 @@ module Data.Range
     rnil,
     rcons,
     (<|),
+    runcons,
     rinc,
     rappend,
     rsingleton,
+    rconcat,
+    rangeSetToList,
+    rangeListToSet,
 
     -- * 'Arbitrary' generators
     Ranged (..),
@@ -86,6 +90,7 @@ import Data.Text qualified as T
 import Data.Text.Ascii (AsciiChar, AsciiChars, AsciiText, fromAsciiChars)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy qualified as TL
+import Data.Type.Bool
 import Data.Type.Ord
 import GHC.TypeNats
 import Imports
@@ -308,12 +313,24 @@ rcast (Range a) = Range a
 rnil :: (Monoid a) => Range 0 0 a
 rnil = Range mempty
 
-rcons, (<|) :: (n <= m) => a -> Range n m [a] -> Range n (m + 1) [a]
+rcons, (<|) :: (n <= m) => a -> Range n m [a] -> Range (n + 1) (m + 1) [a]
 rcons a (Range aa) = Range (a : aa)
 
 infixr 5 <|
 
 (<|) = rcons
+
+runcons ::
+  ( n <= m,
+    n' ~ If (n >=? 1) (n - 1) 0,
+    m' ~ If (m >=? 1) (m - 1) 0
+  ) =>
+  Range n m [a] ->
+  Maybe (a, Range n' m' [a])
+runcons r =
+  case fromRange r of
+    [] -> Nothing
+    (x : xs) -> Just (x, Range xs)
 
 rinc :: (Integral a, n <= m) => Range n m a -> Range n (m + 1) a
 rinc (Range a) = Range (a + 1)
@@ -329,6 +346,20 @@ rangedNumToParamSchema _ =
   toParamSchema (Proxy @a)
     & S.minimum_ ?~ fromKnownNat (Proxy @n)
     & S.maximum_ ?~ fromKnownNat (Proxy @m)
+
+rconcat :: Range n m [Range 0 1 [a]] -> Range 0 m [a]
+rconcat (Range rs) = Range $ concatMap fromRange rs
+
+-- | Going from a set to a List should keep the same range because the number of
+-- elements cannot grow or shrink.
+rangeSetToList :: Range n m (Set a) -> Range n m [a]
+rangeSetToList = Range . Set.toList . fromRange
+
+-- | A list can only shrink when it is converted to a Set, so the min bound
+-- changes to 0 if the list can be empty, otherwise the min bound is 1 as the
+-- list is guaranteed to have at least 1 element.
+rangeListToSet :: (If (n >=? 1) (n' ~ 1) (n' ~ 0), Ord a) => Range n m [a] -> Range n' m (Set a)
+rangeListToSet = Range . Set.fromList . fromRange
 
 -----------------------------------------------------------------------------
 

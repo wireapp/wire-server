@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Cannon.WS
-  ( Env,
+  ( Env (..),
     WS,
     env,
     runWS,
@@ -52,6 +52,7 @@ import Bilge.Retry
 import Cannon.Dict (Dict)
 import Cannon.Dict qualified as D
 import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
+import Cassandra (ClientState)
 import Conduit
 import Control.Concurrent.Timeout
 import Control.Lens ((^.))
@@ -67,6 +68,7 @@ import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Imports hiding (threadDelay)
+import Network.AMQP.Extended
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -145,7 +147,9 @@ data Env = Env
     dict :: !(Dict Key Websocket),
     rand :: !GenIO,
     clock :: !Clock,
-    drainOpts :: DrainOpts
+    drainOpts :: DrainOpts,
+    rabbitmq :: !AmqpEndpoint,
+    cassandra :: ClientState
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -191,8 +195,10 @@ env ::
   GenIO ->
   Clock ->
   DrainOpts ->
+  AmqpEndpoint ->
+  ClientState ->
   Env
-env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId defRequestId)
+env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e

@@ -1,0 +1,2 @@
+- RabbitMQ queues have been introduced for client notifications
+- New internal endpoint `POST /i/users/:uid/clients/:cid/consumable-notifications` is added

@@ -1,5 +1,5 @@
 ---
-# This helfile is used for the setup of two ephemeral backends on kubernetes
+# This helmfile is used for the setup of two ephemeral backends on kubernetes
 # during integration testing (including federation integration tests spanning
 # over 2 backends)
 # This helmfile is used via the './hack/bin/integration-setup-federation.sh' via

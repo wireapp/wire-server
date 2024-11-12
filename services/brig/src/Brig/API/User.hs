@@ -34,7 +34,6 @@ module Brig.API.User
     Data.lookupName,
     Data.lookupUser,
     Data.lookupRichInfoMultiUsers,
-    removeEmail,
     revokeIdentity,
     deleteUserNoVerify,
     deleteUsersNoVerify,

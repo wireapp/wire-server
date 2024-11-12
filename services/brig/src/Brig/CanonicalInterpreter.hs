@@ -22,6 +22,7 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
+import Network.AMQP
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
@@ -114,6 +115,8 @@ type BrigLowerLevelEffects =
      PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
+     NotificationSubsystem,
+     Input Channel,
      Error UserSubsystemError,
      Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
@@ -140,7 +143,6 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
-     NotificationSubsystem,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -250,7 +252,6 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
@@ -277,6 +278,8 @@ runBrigToIO e (AppT ma) = do
               . mapError authenticationSubsystemErrorToHttpError
               . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
+              . runInputSem (readChannel e.rabbitmqChannel)
+              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig

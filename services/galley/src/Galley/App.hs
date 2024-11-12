@@ -292,7 +292,7 @@ evalGalley e =
     . interpretExternalAccess
     . runRpcWithHttp (e ^. manager) (e ^. reqId)
     . runGundeckAPIAccess (e ^. options . gundeck)
-    . runNotificationSubsystemGundeck (notificationSubssystemConfig e)
+    . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
     . interpretSparAccess
     . interpretBrigAccess
   where

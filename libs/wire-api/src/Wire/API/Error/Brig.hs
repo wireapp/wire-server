@@ -102,6 +102,7 @@ data BrigError
   | PropertyValueTooLarge
   | UserAlreadyInATeam
   | MLSServicesNotAllowed
+  | NotificationQueueConnectionError
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -304,3 +305,5 @@ type instance MapError 'PropertyValueTooLarge = 'StaticError 403 "property-value
 type instance MapError 'UserAlreadyInATeam = 'StaticError 403 "user-already-in-a-team" "Switching teams is not allowed"
 
 type instance MapError 'MLSServicesNotAllowed = 'StaticError 409 "mls-services-not-allowed" "Services not allowed in MLS"
+
+type instance MapError 'NotificationQueueConnectionError = 'StaticError 500 "internal-server-error" "Internal server error"

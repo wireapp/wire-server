@@ -1,0 +1,1 @@
+Notifications are now also sent via RabbitMQ. Therefore, if federation is enabled, RabbitMQ is a required configuration in Brig.

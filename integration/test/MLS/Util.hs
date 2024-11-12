@@ -835,9 +835,6 @@ createApplicationMessage convId cid messageContent = do
         groupInfo = Nothing
       }
 
-setMLSCiphersuite :: ConvId -> Ciphersuite -> App ()
-setMLSCiphersuite convId suite = modifyMLSState $ \mls -> mls {convs = Map.adjust (\conv -> conv {ciphersuite = suite}) convId mls.convs}
-
 leaveConv ::
   (HasCallStack) =>
   ConvId ->

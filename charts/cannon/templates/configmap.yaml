@@ -1,25 +1,46 @@
 apiVersion: v1
 data:
+  {{- with .Values }}
   cannon.yaml: |
-    logFormat: {{ .Values.config.logFormat }}
-    logLevel: {{ .Values.config.logLevel }}
-    logNetStrings: {{ .Values.config.logNetStrings }}
+    logFormat: {{ .config.logFormat }}
+    logLevel: {{ .config.logLevel }}
+    logNetStrings: {{ .config.logNetStrings }}
 
     cannon:
       host: 0.0.0.0
-      port: {{ .Values.service.externalPort }}
+      port: {{ .service.externalPort }}
       externalHostFile: /etc/wire/cannon/externalHost/host.txt
 
     gundeck:
       host: gundeck
       port: 8080
 
-    drainOpts:
-      gracePeriodSeconds: {{ .Values.config.drainOpts.gracePeriodSeconds }}
-      millisecondsBetweenBatches: {{ .Values.config.drainOpts.millisecondsBetweenBatches }}
-      minBatchSize: {{ .Values.config.drainOpts.minBatchSize }}
+    cassandra:
+      endpoint:
+        host: {{ .config.cassandra.host }}
+        port: 9042
+      keyspace: gundeck
 
-    disabledAPIVersions: {{ toJson .Values.config.disabledAPIVersions }}
+    {{- with .config.rabbitmq }}
+    rabbitmq:
+      host: {{ .host }}
+      port: {{ .port }}
+      vHost: {{ .vHost }}
+      enableTls: {{ .enableTls }}
+      insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
+      {{- if .tlsCaSecretRef }}
+      caCert: /etc/wire/gundeck/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      {{- end }}
+    {{- end }}
+
+    drainOpts:
+      gracePeriodSeconds: {{ .config.drainOpts.gracePeriodSeconds }}
+      millisecondsBetweenBatches: {{ .config.drainOpts.millisecondsBetweenBatches }}
+      minBatchSize: {{ .config.drainOpts.minBatchSize }}
+
+    disabledAPIVersions: {{ toJson .config.disabledAPIVersions }}
+  {{- end }}
+
 
 kind: ConfigMap
 metadata:

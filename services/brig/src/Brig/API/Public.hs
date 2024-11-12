@@ -173,7 +173,7 @@ import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
-import Wire.UserSubsystem hiding (checkHandle, checkHandles, removeEmail, requestEmailChange)
+import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
@@ -362,8 +362,8 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
-    Member (ConnectionStore InternalPaging) r,
     Member IndexedUserStore r,
+    Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
     Member (Input UserSubsystemConfig) r
   ) =>
@@ -454,7 +454,7 @@ servantSitemap =
     userClientAPI =
       Named @"add-client-v6" addClient
         :<|> Named @"add-client" addClient
-        :<|> Named @"update-client" updateClient
+        :<|> Named @"update-client" API.updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients-v6" listClients
         :<|> Named @"list-clients" listClients
@@ -679,9 +679,6 @@ deleteClient ::
   (Handler r) ()
 deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
-
-updateClient :: UserId -> ClientId -> Public.UpdateClient -> (Handler r) ()
-updateClient usr clt upd = wrapClientE (API.updateClient usr clt upd) !>> clientError
 
 listClients :: UserId -> (Handler r) [Public.Client]
 listClients zusr =
