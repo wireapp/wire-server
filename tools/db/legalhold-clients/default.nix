@@ -15,6 +15,7 @@
 , time
 , tinylog
 , types-common
+, wire-api
 }:
 mkDerivation {
   pname = "legalhold-clients";
@@ -32,6 +33,7 @@ mkDerivation {
     time
     tinylog
     types-common
+    wire-api
   ];
   executableHaskellDepends = [ base ];
   description = "get legalhold client info from cassandra";

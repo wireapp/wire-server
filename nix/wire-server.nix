@@ -87,6 +87,7 @@ let
     rabbitmq-consumer = [ "rabbitmq-consumer" ];
     test-stats = [ "test-stats" ];
     team-info = [ "team-info" ];
+    legalhold-clients = [ "legalhold-clients" ];
   };
 
   inherit (lib) attrsets;

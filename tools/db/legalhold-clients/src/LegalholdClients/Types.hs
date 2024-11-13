@@ -28,6 +28,7 @@ import Data.Time
 import Database.CQL.Protocol hiding (Result)
 import Imports
 import Options.Applicative
+import Wire.API.User.Client (ClientType)
 
 data CassandraSettings = CassandraSettings
   { host :: String,
@@ -74,6 +75,8 @@ brigCassandraParser =
 
 data ClientRow = ClientRow
   { id :: ClientId,
+    user :: UserId,
+    clientType :: ClientType,
     createdAt :: UTCTime,
     lastActive :: Maybe UTCTime
   }
@@ -81,6 +84,13 @@ data ClientRow = ClientRow
 
 recordInstance ''ClientRow
 
-toCsvRow :: ClientRow -> String
-toCsvRow cr =
-  show (clientToText cr.id) <> "," <> show cr.createdAt <> "," <> maybe "N/A" show cr.lastActive
+data ClientInfo = ClientInfo
+  { client :: ClientRow,
+    team :: Maybe TeamId
+  }
+  deriving (Generic)
+
+toCsvRow :: ClientInfo -> String
+toCsvRow ci =
+  let cr = ci.client
+   in maybe "N/A" show ci.team <> "," <> show (clientToText cr.id) <> "," <> show cr.createdAt <> "," <> maybe "N/A" show cr.lastActive

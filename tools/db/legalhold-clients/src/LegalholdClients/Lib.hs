@@ -24,11 +24,13 @@ import Cassandra.Settings as C
 import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
 import qualified Data.Conduit.List as CL
+import Data.Id
 import qualified Database.CQL.Protocol as CQL
 import Imports
 import LegalholdClients.Types
 import Options.Applicative
 import qualified System.Logger as Log
+import Wire.API.User.Client (ClientType (..))
 
 selectClients :: ClientState -> ConduitM () [ClientRow] IO ()
 selectClients client =
@@ -37,13 +39,23 @@ selectClients client =
   where
     cql :: C.PrepQuery C.R () (CQL.TupleType ClientRow)
     cql =
-      "SELECT client, tstamp, last_active FROM clients"
+      "SELECT client, user, type, tstamp, last_active FROM clients"
 
-process :: ClientState -> IO [ClientRow]
+addTeam :: ClientState -> ClientRow -> IO ClientInfo
+addTeam client cr = do
+  ClientInfo cr <$> runClient client ((runIdentity =<<) <$> retry x1 (query1 cql (params One (Identity cr.user))))
+  where
+    cql :: C.PrepQuery C.R (Identity UserId) (Identity (Maybe TeamId))
+    cql =
+      "SELECT team FROM user WHERE id = ?"
+
+process :: ClientState -> IO [ClientInfo]
 process brigClient =
   runConduit
     $ selectClients brigClient
     .| Conduit.concat
+    .| CL.filter (\cr -> cr.clientType == LegalHoldClientType)
+    .| CL.mapM (addTeam brigClient)
     .| CL.consume
 
 main :: IO ()
@@ -53,7 +65,7 @@ main = do
   brigClient <- initCas opts.brigDb logger
   clients <- process brigClient
   let csv = fmap toCsvRow clients
-  putStrLn "client_id,timestamp,last_active"
+  putStrLn "team,client_id,timestamp,last_active"
   putStrLn $ unlines csv
   where
     initLogger =

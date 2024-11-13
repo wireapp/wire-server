@@ -31,6 +31,7 @@ library
     , time
     , tinylog
     , types-common
+    , wire-api
 
   default-extensions:
     AllowAmbiguousTypes
