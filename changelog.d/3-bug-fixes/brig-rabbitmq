@@ -1,0 +1,1 @@
+brig now only requires rabbitmq if federation is enabled
