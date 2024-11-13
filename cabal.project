@@ -50,6 +50,7 @@ packages:
   , tools/db/phone-users/
   , tools/db/repair-handles/
   , tools/db/team-info/
+  , tools/db/legalhold-clients/
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/rabbitmq-consumer
