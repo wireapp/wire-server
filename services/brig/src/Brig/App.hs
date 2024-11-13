@@ -67,7 +67,6 @@ module Brig.App
     rabbitmqChannelLens,
     disabledVersionsLens,
     enableSFTFederationLens,
-    readChannel,
 
     -- * App Monad
     AppT (..),
@@ -141,31 +140,23 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
-import Polysemy.Error (throw)
-import Polysemy.Error qualified as Polysemy
 import Polysemy.Fail
 import Polysemy.Final
 import Polysemy.Input (Input, input)
-import Polysemy.TinyLog (TinyLog)
-import Polysemy.TinyLog qualified as P
 import Prometheus
 import Ssl.Util
 import System.FSNotify qualified as FS
 import System.Logger.Class hiding (Settings, settings)
 import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
-import System.Timeout (timeout)
 import Util.Options
 import Util.SuffixNamer
-import Wire.API.Error (errorToWai)
-import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
-import Wire.Error (HttpError (StdError))
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
 import Wire.UserKeyStore
@@ -211,15 +202,23 @@ data Env = Env
     indexEnv :: IndexEnv,
     randomPrekeyLocalLock :: Maybe (MVar ()),
     keyPackageLocalLock :: MVar (),
-    rabbitmqChannel :: MVar Q.Channel,
+    rabbitmqChannel :: Maybe (MVar Q.Channel),
     disabledVersions :: Set Version,
     enableSFTFederation :: Maybe Bool
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 
+validateOptions :: Opts -> IO ()
+validateOptions o =
+  case (o.federatorInternal, o.rabbitmq) of
+    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
+    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
+    _ -> pure ()
+
 newEnv :: Opts -> IO Env
 newEnv opts = do
+  validateOptions opts
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
@@ -262,7 +261,7 @@ newEnv opts = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- Q.mkRabbitMqChannelMVar lgr opts.rabbitmq
+  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) opts.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   pure $!
@@ -628,21 +627,6 @@ instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
 
 instance HasRequestId (AppT r) where
   getRequestId = asks (.requestId)
-
-readChannel ::
-  ( Member (Embed IO) r,
-    Member (Polysemy.Error HttpError) r,
-    Member TinyLog r
-  ) =>
-  MVar Q.Channel ->
-  Sem r Q.Channel
-readChannel chanMVar = do
-  mChan <- liftIO $ timeout 1_000_000 $ readMVar chanMVar
-  maybe onNothing pure mChan
-  where
-    onNothing = do
-      P.err $ Log.msg @Text "failed to connect to RabbitMQ"
-      throw $ StdError $ errorToWai @'E.NotificationQueueConnectionError
 
 -------------------------------------------------------------------------------
 -- Ad hoc interpreters
