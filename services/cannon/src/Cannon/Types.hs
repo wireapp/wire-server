@@ -20,6 +20,7 @@
 module Cannon.Types
   ( Env (..),
     Cannon,
+    connectionLimit,
     mapConcurrentlyCannon,
     mkEnv,
     runCannon,
@@ -42,6 +43,7 @@ import Control.Monad.Catch
 import Data.Id
 import Data.Text.Encoding
 import Imports
+import Network.AMQP qualified as Q
 import Network.AMQP.Extended (AmqpEndpoint)
 import Prometheus
 import Servant qualified
@@ -49,13 +51,17 @@ import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
 
+connectionLimit :: Int
+connectionLimit = 128
+
 -----------------------------------------------------------------------------
 -- Cannon monad
 
 data Env = Env
   { opts :: !Opts,
     applog :: !Logger,
-    dict :: !(Dict Key Websocket),
+    websockets :: !(Dict Key Websocket),
+    rabbitConnections :: (Dict Key Q.Connection),
     reqId :: !RequestId,
     env :: !WS.Env
   }
@@ -95,20 +101,21 @@ mkEnv ::
   ClientState ->
   Logger ->
   Dict Key Websocket ->
+  Dict Key Q.Connection ->
   Manager ->
   GenIO ->
   Clock ->
   AmqpEndpoint ->
   Env
-mkEnv external o cs l d p g t rabbitmqOpts =
-  Env o l d (RequestId defRequestId) $
-    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts) rabbitmqOpts cs
+mkEnv external o cs l d conns p g t rabbitmqOpts =
+  Env o l d conns (RequestId defRequestId) $
+    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d conns g t (o ^. drainOpts) rabbitmqOpts cs
 
 runCannon :: Env -> Cannon a -> IO a
 runCannon e c = runReaderT (unCannon c) e
 
 clients :: Cannon (Dict Key Websocket)
-clients = Cannon $ asks dict
+clients = Cannon $ asks websockets
 
 wsenv :: Cannon WS.Env
 wsenv = Cannon $ do

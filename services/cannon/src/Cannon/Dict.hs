@@ -25,6 +25,7 @@ module Cannon.Dict
     lookup,
     size,
     toList,
+    keys,
   )
 where
 
@@ -38,6 +39,9 @@ import Imports hiding (lookup, toList)
 newtype Dict a b = Dict
   { _map :: Vector (IORef (SizedHashMap a b))
   }
+
+keys :: (MonadIO m) => Dict b v -> m [b]
+keys d = toList d <&> map fst
 
 size :: (MonadIO m) => Dict a b -> m Int
 size d = liftIO $ sum <$> mapM (fmap SHM.size . readIORef) (_map d)
