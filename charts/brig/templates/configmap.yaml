@@ -80,6 +80,7 @@ data:
     federatorInternal:
       host: federator
       port: 8080
+    {{- end }}
 
     {{- with .rabbitmq }}
     rabbitmq:
@@ -91,7 +92,6 @@ data:
       {{- if .tlsCaSecretRef }}
       caCert: /etc/wire/brig/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
       {{- end }}
-    {{- end }}
     {{- end }}
 
     {{- with .aws }}
