@@ -75,17 +75,17 @@ lookupEmailInDb brig galley team = runMaybeT $ do
 
 process :: Log.Logger -> MVar (Map TeamId (Maybe EmailAddress)) -> ClientState -> ClientState -> IO [String]
 process logger cache brigClient galleyClient =
-  runConduit $
-    selectServices brigClient
-      .| Conduit.concat
-      .| Conduit.mapM
-        ( \row -> do
-            toBotInfo row
-              <$> lookupService galleyClient (row.providerId) (row.serviceId)
-              <*> lookupTeamOwnerEmail logger cache brigClient galleyClient row.teamId
-        )
-      .| Conduit.map toCsv
-      .| CL.consume
+  runConduit
+    $ selectServices brigClient
+    .| Conduit.concat
+    .| Conduit.mapM
+      ( \row -> do
+          toBotInfo row
+            <$> lookupService galleyClient (row.providerId) (row.serviceId)
+            <*> lookupTeamOwnerEmail logger cache brigClient galleyClient row.teamId
+      )
+    .| Conduit.map toCsv
+    .| CL.consume
 
 main :: IO ()
 main = do
