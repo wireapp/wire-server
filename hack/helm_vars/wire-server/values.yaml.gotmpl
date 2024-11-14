@@ -57,6 +57,7 @@ brig:
       nginz: https://kube-staging-nginz-https.zinfra.io
       teamCreatorWelcome: https://teams.wire.com/login
       teamMemberWelcome: https://wire.com/download
+      accountPages: https://account.wire.com
     cassandra:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
@@ -134,7 +135,7 @@ brig:
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
-      # These values are insecure, against anyone getting hold of the hash, 
+      # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
       setPasswordHashingOptions:
         algorithm: argon2id
@@ -281,7 +282,7 @@ galley:
       federationDomain: integration.example.com
       disabledAPIVersions: []
 
-      # These values are insecure, against anyone getting hold of the hash, 
+      # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
       passwordHashingOptions:
         algorithm: argon2id
