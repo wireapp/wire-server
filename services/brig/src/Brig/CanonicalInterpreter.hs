@@ -22,7 +22,6 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
-import Network.AMQP
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
@@ -116,7 +115,6 @@ type BrigLowerLevelEffects =
      DeleteQueue,
      Wire.Events.Events,
      NotificationSubsystem,
-     Input Channel,
      Error UserSubsystemError,
      Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
@@ -278,7 +276,6 @@ runBrigToIO e (AppT ma) = do
               . mapError authenticationSubsystemErrorToHttpError
               . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
-              . runInputSem (readChannel e.rabbitmqChannel)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents

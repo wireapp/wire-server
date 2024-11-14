@@ -316,7 +316,7 @@ testGetUserByQualifiedHandleFailure brig = do
 
 testGetUserByQualifiedHandleNoFederation :: Opt.Opts -> Brig -> Http ()
 testGetUserByQualifiedHandleNoFederation opt brig = do
-  let newOpts = opt {Opt.federatorInternal = Nothing}
+  let newOpts = opt {Opt.federatorInternal = Nothing, Opt.rabbitmq = Nothing}
   someUser <- randomUser brig
   withSettingsOverrides newOpts $
     get
