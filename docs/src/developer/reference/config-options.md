@@ -801,6 +801,27 @@ This setting is required to be present for all the services (brig, cannon, cargo
 
 The default value (provided under `charts/<service>/values.yaml`) is `[ development ]` and disables the development versions. To enable all versions including the development versions set the value to be empty: `[]`.
 
+### Team invitation URL for personal users
+
+To configure the team invitation URL for personal users that is sent vai email, `emailSMS.team.tExistingUserInvitationUrl` should be set to the desired URL, e.g.:
+
+```yaml
+brig:
+  config
+    emailSMS:
+      team:
+        tExistingUserInvitationUrl: '{{ .Values.accountUrl }}/accept-invitation/?team-code=${code}'
+```
+
+In some environments the `team` config section does not exist. In this case brig's configmap constructs the URL from the account pages URL which then must be set under `externalUrls.accountPages` e.g. as follows:
+
+```yaml
+brig:
+  config:
+    externalUrls:
+      accountPages: https://account.wire.com
+```
+
 ## Settings in cargohold
 
 AWS S3 (or an alternative provider / service) is used to upload and download

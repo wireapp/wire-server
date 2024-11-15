@@ -1,0 +1,1 @@
+If brig's server values config has the field `emailSMS.team`, the correct value for the personal user to team invitation URL must be set under `emailSMS.team.tExistingUserInvitationUrl`. Otherwise the URL will point to a path under the account pages and therefore a value for `externalUrls.accountPages` is required.
