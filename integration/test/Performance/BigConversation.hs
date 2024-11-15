@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 module Performance.BigConversation where
 
 import API.BrigCommon
@@ -12,10 +14,15 @@ import qualified System.CryptoBox as Cryptobox
 import Testlib.Prelude
 import UnliftIO (pooledMapConcurrentlyN)
 import UnliftIO.Temporary
+import Criterion.Main (runMode)
+import Options.Applicative.Common (evalParser)
+import Control.Monad.Reader (MonadReader(ask))
 
 testCreateBigMLSConversation :: App ()
 testCreateBigMLSConversation = do
-  (owner, _tid, members) <- createTeam OwnDomain 2000
+  let teamSize = 20
+  let clientsPerUser = 1
+  (owner, _tid, members) <- createTeam OwnDomain teamSize
   let genPrekeyInBox box i = do
         pk <- assertCrytoboxSuccess =<< liftIO (Cryptobox.newPrekey box i)
         pkBS <- liftIO $ Cryptobox.copyBytes pk.prekey
@@ -38,12 +45,18 @@ testCreateBigMLSConversation = do
                 }
         createMLSClient def mlsClientOpts user
   ownerClient <- createClient owner
-  _memClients <- pooledMapConcurrentlyN 64 createClient members
-  createConv <- appToIO $ do
-    convId <- createNewGroup def ownerClient
-    void $ sendAndConsumeCommitBundle =<< createAddCommit ownerClient convId members
-  let benchmarkable = toBenchmarkable (\n -> replicateM_ (fromIntegral n) createConv)
-  liftIO $ benchmarkWith (defaultConfig {resamples = 5}) benchmarkable
+  _memClients <- pooledMapConcurrentlyN 64 (replicateM_ clientsPerUser . createClient) members
+  let createConv n = do
+        convId <- createNewGroup def ownerClient
+        void $ sendAndConsumeCommitBundle =<< createAddCommit ownerClient convId (take n members)
+  let conf = defaultConfig { reportFile = Just $ "big-conversation-" <> show clientsPerUser <> "-clients-per-user.html" }
+  case evalParser $ parseWith conf of
+    Nothing -> assertFailure "Failed to parse criterion options"
+    Just mode -> do
+      e <- ask
+      let mkBenchmark n = bench ("conversation with " <> show n <> " members") $ nfIO (runAppWithEnv e $ createConv n)
+      let benchmarks = mkBenchmark <$> [10]
+      liftIO $ runMode mode benchmarks
 
 assertCrytoboxSuccess :: (Show a) => Cryptobox.Result a -> App a
 assertCrytoboxSuccess = \case

@@ -4,7 +4,8 @@ import Data.Proxy
 import GHC.TypeLits
 import Imports
 
-type HardTruncationLimit = (2000 :: Nat)
+-- TODO: do not merge this change...
+type HardTruncationLimit = (6000 :: Nat)
 
 hardTruncationLimit :: (Integral a) => a
 hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
