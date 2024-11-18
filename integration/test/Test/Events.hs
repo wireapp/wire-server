@@ -16,7 +16,6 @@ import qualified Network.WebSockets as WS
 import Notifications
 import SetupHelpers
 import Testlib.Prelude hiding (assertNoEvent)
-import Testlib.Printing
 import UnliftIO hiding (handle)
 
 -- FUTUREWORK: Investigate why these tests are failing without
@@ -79,7 +78,7 @@ testConsumeEventsForDifferentUsers = do
       lift $ assertClientAdd aliceClientId aliceEventsChan aliceAckChan
       lift $ assertClientAdd bobClientId bobEventsChan bobAckChan
   where
-    assertClientAdd :: (HasCallStack) => String -> TChan Value -> TChan Value -> App ()
+    assertClientAdd :: (HasCallStack) => String -> MVar Value -> MVar (Maybe Value) -> App ()
     assertClientAdd clientId eventsChan ackChan = do
       deliveryTag <- assertEvent eventsChan $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
@@ -344,11 +343,10 @@ createEventsWebSocket ::
   (HasCallStack, MakesValue uid) =>
   uid ->
   String ->
-  Codensity App (TChan Value, TChan Value)
+  Codensity App (MVar Value, MVar (Maybe Value))
 createEventsWebSocket user cid = do
-  closeWS <- liftIO newEmptyMVar
-  eventsChan <- liftIO newTChanIO
-  ackChan <- liftIO newTChanIO
+  eventsChan <- liftIO newEmptyMVar
+  ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
   uid <- lift $ objId =<< objQidObject user
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
@@ -366,15 +364,15 @@ createEventsWebSocket user cid = do
       wsRead conn = forever $ do
         bs <- WS.receiveData conn
         case decodeStrict' bs of
-          Just n -> atomically $ writeTChan eventsChan n
+          Just n -> putMVar eventsChan n
           Nothing ->
             error $ "Failed to decode events: " ++ show bs
 
       wsWrite conn = forever $ do
-        eitherAck <- race (readMVar closeWS) (atomically $ readTChan ackChan)
-        case eitherAck of
-          Left () -> WS.sendClose conn (Text.pack "")
-          Right ack -> WS.sendBinaryData conn (encode ack)
+        mAck <- takeMVar ackChan
+        case mAck of
+          Nothing -> WS.sendClose conn (Text.pack "")
+          Just ack -> WS.sendBinaryData conn (encode ack)
 
   wsThread <- Codensity $ \k -> do
     withAsync
@@ -389,43 +387,26 @@ createEventsWebSocket user cid = do
       )
       k
 
-  Codensity $ \k -> do
-    x <- k (eventsChan, ackChan)
+  Codensity $ \k ->
+    k (eventsChan, ackChan) `finally` do
+      putMVar ackChan Nothing
+      liftIO $ wait wsThread
 
-    -- Ensure all the acks are sent before closing the websocket
-    isAckChanEmpty <-
-      retrying
-        (limitRetries 5 <> constantDelay 10_000)
-        (\_ isEmpty -> pure $ not isEmpty)
-        (\_ -> atomically $ isEmptyTChan ackChan)
-    unless isAckChanEmpty $ do
-      putStrLn $ colored yellow $ "The ack chan is not empty after 50ms, some acks may not make it to the server"
+ackFullSync :: (HasCallStack) => MVar (Maybe Value) -> App ()
+ackFullSync ackChan =
+  putMVar ackChan
+    $ Just (object ["type" .= "ack_full_sync"])
 
-    void $ tryPutMVar closeWS ()
-
-    timeout 1_000_000 (wait wsThread) >>= \case
-      Nothing ->
-        putStrLn $ colored yellow $ "The websocket thread did not close after waiting for 1s"
-      Just () -> pure ()
-
-    pure x
-
-sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
-sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
-
-ackFullSync :: (HasCallStack) => TChan Value -> App ()
-ackFullSync ackChan = do
-  sendMsg ackChan
-    $ object ["type" .= "ack_full_sync"]
-
-ackEvent :: (HasCallStack) => TChan Value -> Value -> App ()
+ackEvent :: (HasCallStack) => MVar (Maybe Value) -> Value -> App ()
 ackEvent ackChan event = do
   deliveryTag <- event %. "data.delivery_tag"
   sendAck ackChan deliveryTag False
 
-sendAck :: (HasCallStack) => TChan Value -> Value -> Bool -> App ()
-sendAck ackChan deliveryTag multiple = do
-  sendMsg ackChan
+sendAck :: (HasCallStack) => MVar (Maybe Value) -> Value -> Bool -> App ()
+sendAck ackChan deliveryTag multiple =
+  do
+    putMVar ackChan
+    $ Just
     $ object
       [ "type" .= "ack",
         "data"
@@ -435,26 +416,26 @@ sendAck ackChan deliveryTag multiple = do
             ]
       ]
 
-assertEvent :: (HasCallStack) => TChan Value -> ((HasCallStack) => Value -> App a) -> App a
+assertEvent :: (HasCallStack) => MVar Value -> ((HasCallStack) => Value -> App a) -> App a
 assertEvent eventsChan expectations = do
-  timeout 10_000_000 (atomically (readTChan eventsChan)) >>= \case
-    Nothing -> assertFailure "No event received for 10s"
+  timeout 10_000_000 (takeMVar eventsChan) >>= \case
+    Nothing -> assertFailure "No event received for 1s"
     Just e -> do
       pretty <- prettyJSON e
       addFailureContext ("event:\n" <> pretty)
         $ expectations e
 
-assertNoEvent :: (HasCallStack) => TChan Value -> App ()
+assertNoEvent :: (HasCallStack) => MVar Value -> App ()
 assertNoEvent eventsChan = do
-  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
+  timeout 1_000_000 (takeMVar eventsChan) >>= \case
     Nothing -> pure ()
     Just e -> do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
 
-consumeAllEvents :: TChan Value -> TChan Value -> App ()
+consumeAllEvents :: MVar Value -> MVar (Maybe Value) -> App ()
 consumeAllEvents eventsChan ackChan = do
-  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
+  timeout 1_000_000 (takeMVar eventsChan) >>= \case
     Nothing -> pure ()
     Just e -> do
       ackEvent ackChan e
