@@ -317,13 +317,49 @@ createEventsWebSocket ::
   uid ->
   String ->
   Codensity App (TChan Value, TChan Value)
-createEventsWebSocket uid cid = do
-  closeWS <- lift newEmptyMVar
-  (eventsChan, ackChan, wsThread) <-
-    Codensity
-      $ bracket
-        (setup closeWS)
-        (\(_, _, wsThread) -> cancel wsThread)
+createEventsWebSocket user cid = do
+  closeWS <- liftIO newEmptyMVar
+  eventsChan <- liftIO newTChanIO
+  ackChan <- liftIO newTChanIO
+  serviceMap <- lift $ getServiceMap =<< objDomain user
+  uid <- lift $ objId =<< objQidObject user
+  let HostPort caHost caPort = serviceHostPort serviceMap Cannon
+      path = "/events?client=" <> cid
+      caHdrs = [(fromString "Z-User", toByteString' uid)]
+      app conn =
+        race_
+          ( wsRead conn `catch` \(e :: WS.ConnectionException) ->
+              case e of
+                WS.CloseRequest {} -> pure ()
+                _ -> throwIO e
+          )
+          (wsWrite conn)
+
+      wsRead conn = forever $ do
+        bs <- WS.receiveData conn
+        case decodeStrict' bs of
+          Just n -> atomically $ writeTChan eventsChan n
+          Nothing ->
+            error $ "Failed to decode events: " ++ show bs
+
+      wsWrite conn = forever $ do
+        eitherAck <- race (readMVar closeWS) (atomically $ readTChan ackChan)
+        case eitherAck of
+          Left () -> WS.sendClose conn (Text.pack "")
+          Right ack -> WS.sendBinaryData conn (encode ack)
+
+  wsThread <- Codensity $ \k -> do
+    withAsync
+      ( liftIO
+          $ WS.runClientWith
+            caHost
+            (fromIntegral caPort)
+            path
+            WS.defaultConnectionOptions
+            caHdrs
+            app
+      )
+      k
 
   Codensity $ \k -> do
     x <- k (eventsChan, ackChan)
@@ -345,12 +381,6 @@ createEventsWebSocket uid cid = do
       Just () -> pure ()
 
     pure x
-  where
-    setup :: (HasCallStack) => MVar () -> App (TChan Value, TChan Value, Async ())
-    setup closeWS = do
-      (eventsChan, ackChan) <- liftIO $ (,) <$> newTChanIO <*> newTChanIO
-      wsThread <- eventsWebSocket uid cid eventsChan ackChan closeWS
-      pure (eventsChan, ackChan, wsThread)
 
 sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
 sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
@@ -401,41 +431,3 @@ consumeAllEvents eventsChan ackChan = do
     Just e -> do
       ackEvent ackChan e
       consumeAllEvents eventsChan ackChan
-
-eventsWebSocket :: (MakesValue user) => user -> String -> TChan Value -> TChan Value -> MVar () -> App (Async ())
-eventsWebSocket user clientId eventsChan ackChan closeWS = do
-  serviceMap <- getServiceMap =<< objDomain user
-  uid <- objId =<< objQidObject user
-  let HostPort caHost caPort = serviceHostPort serviceMap Cannon
-      path = "/events?client=" <> clientId
-      caHdrs = [(fromString "Z-User", toByteString' uid)]
-      app conn = do
-        r <-
-          async $ wsRead conn `catch` \(e :: WS.ConnectionException) ->
-            case e of
-              WS.CloseRequest {} -> pure ()
-              _ -> throwIO e
-        w <- async $ wsWrite conn
-        void $ waitAny [r, w]
-
-      wsRead conn = forever $ do
-        bs <- WS.receiveData conn
-        case decodeStrict' bs of
-          Just n -> atomically $ writeTChan eventsChan n
-          Nothing ->
-            error $ "Failed to decode events: " ++ show bs
-
-      wsWrite conn = forever $ do
-        eitherAck <- race (readMVar closeWS) (atomically $ readTChan ackChan)
-        case eitherAck of
-          Left () -> WS.sendClose conn (Text.pack "")
-          Right ack -> WS.sendBinaryData conn (encode ack)
-  liftIO
-    $ async
-    $ WS.runClientWith
-      caHost
-      (fromIntegral caPort)
-      path
-      WS.defaultConnectionOptions
-      caHdrs
-      app
