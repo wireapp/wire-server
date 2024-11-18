@@ -1,5 +1,5 @@
 dependencies:
 - name: cassandra
-  version: 9.7.7 # cassandra 4.0.7
+  version: 11.4.2 # cassandra 4.1.6
   repository: https://charts.bitnami.com/bitnami
   alias: cassandra-ephemeral
