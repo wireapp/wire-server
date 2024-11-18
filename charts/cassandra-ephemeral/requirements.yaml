@@ -1,5 +1,5 @@
 dependencies:
 - name: cassandra
-  version: 0.13.3
-  repository: https://charts.helm.sh/incubator
+  version: 9.7.7 # cassandra 4.0.7
+  repository: https://charts.bitnami.com/bitnami
   alias: cassandra-ephemeral
