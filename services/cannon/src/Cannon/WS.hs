@@ -40,6 +40,7 @@ module Cannon.WS
     connIdent,
     Key,
     mkKey,
+    mkKeyRabbit,
     key2bytes,
     client,
     sendMsg,
@@ -68,6 +69,7 @@ import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Imports hiding (threadDelay)
+import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -89,6 +91,9 @@ newtype Key = Key
 
 mkKey :: UserId -> ConnId -> Key
 mkKey u c = Key (toByteString' u, fromConnId c)
+
+mkKeyRabbit :: UserId -> ClientId -> Key
+mkKeyRabbit u c = Key (toByteString' u, toByteString' c)
 
 key2bytes :: Key -> ByteString
 key2bytes (Key (u, c)) = u <> "." <> c
@@ -144,7 +149,8 @@ data Env = Env
     reqId :: !RequestId,
     logg :: !Logger,
     manager :: !Manager,
-    dict :: !(Dict Key Websocket),
+    websockets :: !(Dict Key Websocket),
+    rabbitConnections :: !(Dict Key Q.Connection),
     rand :: !GenIO,
     clock :: !Clock,
     drainOpts :: DrainOpts,
@@ -192,6 +198,7 @@ env ::
   Logger ->
   Manager ->
   Dict Key Websocket ->
+  Dict Key Q.Connection ->
   GenIO ->
   Clock ->
   DrainOpts ->
@@ -206,13 +213,13 @@ runWS e m = liftIO $ runReaderT (_conn m) e
 registerLocal :: Key -> Websocket -> WS ()
 registerLocal k c = do
   trace $ client (key2bytes k) . msg (val "register")
-  d <- WS $ asks dict
+  d <- WS $ asks websockets
   D.insert k c d
 
 unregisterLocal :: Key -> Websocket -> WS Bool
 unregisterLocal k c = do
   trace $ client (key2bytes k) . msg (val "unregister")
-  d <- WS $ asks dict
+  d <- WS $ asks websockets
   D.removeIf (maybe False ((connIdent c ==) . connIdent)) k d
 
 registerRemote :: Key -> Maybe ClientId -> WS ()
@@ -250,7 +257,7 @@ sendMsg message k c = do
     traceLog m = trace $ client kb . msg (logMsg m)
 
     logMsg :: (WebSocketsData a) => a -> Builder
-    logMsg m = val "sendMsgConduit: \"" +++ L.take 128 (toLazyByteString m) +++ val "...\""
+    logMsg m = val "sendMsgConduit: \"" +++ L.take 129 (toLazyByteString m) +++ val "...\""
 
     kb = key2bytes k
 
@@ -294,7 +301,7 @@ sendMsg message k c = do
 drain :: WS ()
 drain = do
   opts <- asks drainOpts
-  websockets <- asks dict
+  websockets <- asks websockets
   numberOfConns <- fromIntegral <$> D.size websockets
   let maxNumberOfBatches = (opts ^. gracePeriodSeconds * 1000) `div` (opts ^. millisecondsBetweenBatches)
       computedBatchSize = numberOfConns `div` maxNumberOfBatches

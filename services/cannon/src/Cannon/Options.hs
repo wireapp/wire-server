@@ -79,7 +79,7 @@ data DrainOpts = DrainOpts
     -- there are not many users connected. Must not be set to 0.
     _drainOptsMillisecondsBetweenBatches :: Word64,
     -- | Batch size is calculated considering actual number of websockets and
-    -- gracePeriod. If this number is too little, '_drainOptsMinBatchSize' is
+    -- gracePeriod. If this number is too small, '_drainOptsMinBatchSize' is
     -- used.
     _drainOptsMinBatchSize :: Word64
   }
