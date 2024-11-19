@@ -78,7 +78,6 @@ run o = withTracer \tracer -> do
   e <-
     mkEnv ext o cassandra g
       <$> D.empty connectionLimit
-      -- TODO: think about how we're storing these connections, perhaps list is not efficient enough
       <*> D.empty connectionLimit
       <*> newManager defaultManagerSettings {managerConnCount = connectionLimit}
       <*> createSystemRandom
