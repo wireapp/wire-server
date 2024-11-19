@@ -15,20 +15,50 @@ import Testlib.Prelude
 import UnliftIO (pooledMapConcurrentlyN)
 import UnliftIO.Temporary
 
-testCreateBigMLSConversation :: App ()
-testCreateBigMLSConversation = do
-  let teamSize = 100
-  let batchSize = 10
-  (_, ownerClient, _, members, _) <- createTeamAndClients teamSize
-  convId <- createNewGroup def ownerClient
-  let memberChunks = chunksOf batchSize members
-  for_ memberChunks $ \chunk -> do
-    (size, time) <- timeIt $ do
-      msg <- createAddCommit ownerClient convId chunk
-      void $ sendAndConsumeCommitBundle msg
-      pure (BS.length msg.message)
-    putStrLn $ "Sent " <> show size <> " bytes in " <> show time
-    pure (size, time)
+-- | A size saying how big an MLS conversation is. Each size is mapped to a
+-- number via the 'sizeToNumber' function.
+data ConversationSize
+  = Tiny
+  | Small
+  | Medium
+  | Big
+  | Large
+  | VeryLarge
+  deriving (Eq, Generic, Show)
+
+sizeToNumber :: ConversationSize -> Word
+sizeToNumber Tiny = 20
+sizeToNumber Small = 100
+sizeToNumber Medium = 500
+sizeToNumber Big = 1000
+sizeToNumber Large = 5000
+sizeToNumber VeryLarge = 10000
+
+batchForSize :: ConversationSize -> Word
+batchForSize Tiny = 10
+batchForSize Small = 20
+batchForSize Medium = 100
+batchForSize Big = 100
+batchForSize Large = 250
+batchForSize VeryLarge = 500
+
+testCreateBigMLSConversation :: ConversationSize -> App ()
+testCreateBigMLSConversation convSize = do
+  let teamSize = sizeToNumber convSize
+  let batchSize = fromIntegral . batchForSize $ convSize
+  totalTime <-
+    fmap snd $ timeIt do
+      (_, ownerClient, _, members, _) <- createTeamAndClients . fromIntegral $ teamSize
+      convId <- createNewGroup def ownerClient
+      let memberChunks = chunksOf batchSize members
+      for_ memberChunks $ \chunk -> do
+        (size, time) <- timeIt $ do
+          msg <- createAddCommit ownerClient convId chunk
+          void $ sendAndConsumeCommitBundle msg
+          pure (BS.length msg.message)
+        putStrLn $ "Sent " <> show size <> " bytes in " <> show time
+        pure (size, time)
+  putStrLn $ "Total time: " <> show totalTime
 
 timeIt :: App a -> App (a, NominalDiffTime)
 timeIt action = do
