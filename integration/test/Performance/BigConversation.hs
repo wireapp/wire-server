@@ -3,26 +3,43 @@
 module Performance.BigConversation where
 
 import API.BrigCommon
-import Criterion
-import Criterion.Main.Options
-import Criterion.Types
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
+import Data.List.Extra (chunksOf)
 import qualified Data.Text.Encoding as Text
+import Data.Time (NominalDiffTime, diffUTCTime, getCurrentTime)
 import MLS.Util
 import SetupHelpers
 import qualified System.CryptoBox as Cryptobox
 import Testlib.Prelude
 import UnliftIO (pooledMapConcurrentlyN)
 import UnliftIO.Temporary
-import Criterion.Main (runMode)
-import Options.Applicative.Common (evalParser)
-import Control.Monad.Reader (MonadReader(ask))
 
 testCreateBigMLSConversation :: App ()
 testCreateBigMLSConversation = do
-  let teamSize = 20
-  let clientsPerUser = 1
-  (owner, _tid, members) <- createTeam OwnDomain teamSize
+  let teamSize = 100
+  let batchSize = 10
+  (_, ownerClient, _, members, _) <- createTeamAndClients teamSize
+  convId <- createNewGroup def ownerClient
+  let memberChunks = chunksOf batchSize members
+  for_ memberChunks $ \chunk -> do
+    (size, time) <- timeIt $ do
+      msg <- createAddCommit ownerClient convId chunk
+      void $ sendAndConsumeCommitBundle msg
+      pure (BS.length msg.message)
+    putStrLn $ "Sent " <> show size <> " bytes in " <> show time
+    pure (size, time)
+
+timeIt :: App a -> App (a, NominalDiffTime)
+timeIt action = do
+  start <- liftIO getCurrentTime
+  result <- action
+  end <- liftIO getCurrentTime
+  pure (result, diffUTCTime end start)
+
+createTeamAndClients :: Int -> App (Value, ClientIdentity, String, [Value], [ClientIdentity])
+createTeamAndClients teamSize = do
+  (owner, tid, members) <- createTeam OwnDomain teamSize
   let genPrekeyInBox box i = do
         pk <- assertCrytoboxSuccess =<< liftIO (Cryptobox.newPrekey box i)
         pkBS <- liftIO $ Cryptobox.copyBytes pk.prekey
@@ -45,18 +62,9 @@ testCreateBigMLSConversation = do
                 }
         createMLSClient def mlsClientOpts user
   ownerClient <- createClient owner
-  _memClients <- pooledMapConcurrentlyN 64 (replicateM_ clientsPerUser . createClient) members
-  let createConv n = do
-        convId <- createNewGroup def ownerClient
-        void $ sendAndConsumeCommitBundle =<< createAddCommit ownerClient convId (take n members)
-  let conf = defaultConfig { reportFile = Just $ "big-conversation-" <> show clientsPerUser <> "-clients-per-user.html" }
-  case evalParser $ parseWith conf of
-    Nothing -> assertFailure "Failed to parse criterion options"
-    Just mode -> do
-      e <- ask
-      let mkBenchmark n = bench ("conversation with " <> show n <> " members") $ nfIO (runAppWithEnv e $ createConv n)
-      let benchmarks = mkBenchmark <$> [10]
-      liftIO $ runMode mode benchmarks
+  memClients <- pooledMapConcurrentlyN 64 createClient members
+  for_ memClients $ uploadNewKeyPackage def
+  pure (owner, ownerClient, tid, members, memClients)
 
 assertCrytoboxSuccess :: (Show a) => Cryptobox.Result a -> App a
 assertCrytoboxSuccess = \case

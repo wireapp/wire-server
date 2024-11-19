@@ -326,6 +326,7 @@ createAddCommit cid convId users = do
   kps <- fmap concat . for users $ \user -> do
     bundle <- claimKeyPackages conv.ciphersuite cid user >>= getJSON 200
     unbundleKeyPackages bundle
+  putStrLn $ "Creating commit with " <> show (length kps) <> " clients"
   createAddCommitWithKeyPackages cid convId kps
 
 withTempKeyPackageFile :: ByteString -> ContT a App FilePath
@@ -371,6 +372,7 @@ createAddCommitWithKeyPackages cid convId clientsAndKeyPackages = do
       )
       Nothing
 
+  liftIO $ appendFile "commit-sizes.txt" ((show (BS.length commit)) <> "\n")
   modifyMLSState $ \mls ->
     mls
       { convs =

@@ -149,9 +149,9 @@ performanceTestingOverrides =
             "legalHoldUserTokenTimeout" .= (4838400 :: Int),
             "legalHoldAccessTokenTimeout" .= (900 :: Int)
           ]
-      maxTeamSize = 6000
-      maxConvSize = 6000
-      maxFanoutSize = 6000
+      maxTeamSize = 65000
+      maxConvSize = 65000
+      maxFanoutSize = 65000
    in def
         { brigCfg =
             -- Ensure that users don't get logged out quickly, as the tests
