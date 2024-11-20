@@ -167,32 +167,24 @@ createChannel pool queue = do
         putMVar closedVar retry
 
   let manageChannel = do
-        conn <- acquireConnection pool
-        chan <- Q.openChannel conn.inner
-        Q.addChannelExceptionHandler chan handleException
-        putMVar inner chan
-        void $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
-          putMVar msgVar (Just (message, envelope))
-
-        retry <- takeMVar closedVar
-
-        -- TODO: releaseConnection
-
-        -- TODO: put this in a bracket
-        catch (Q.closeChannel chan) $ \(_ :: SomeException) -> pure ()
+        retry <- lowerCodensity $ do
+          conn <- Codensity $ bracket (acquireConnection pool) (releaseConnection pool)
+          chan <- Codensity $ bracket (Q.openChannel conn.inner) $ \c ->
+            catch (Q.closeChannel c) $ \(_ :: SomeException) -> pure ()
+          liftIO $ Q.addChannelExceptionHandler chan handleException
+          putMVar inner chan
+          void $ liftIO $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
+            putMVar msgVar (Just (message, envelope))
+          takeMVar closedVar
 
         when retry manageChannel
 
-  lift . void . mask_ $
-    async $
-      catch manageChannel handleException
-        `finally` putMVar msgVar Nothing
-
-  Codensity $ \k -> do
-    let chan = RabbitMqChannel {inner = inner, msgVar = msgVar}
-    finally (k chan) $
-      -- TODO: this might cause a channel leak
-      tryPutMVar closedVar False
+  void $
+    Codensity $
+      withAsync $
+        catch manageChannel handleException
+          `finally` putMVar msgVar Nothing
+  pure RabbitMqChannel {inner = inner, msgVar = msgVar}
 
 acquireConnection :: RabbitMqPool -> IO PooledConnection
 acquireConnection pool = do
