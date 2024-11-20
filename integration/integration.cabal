@@ -179,6 +179,7 @@ library
     Testlib.App
     Testlib.Assertions
     Testlib.Cannon
+    Testlib.Cannon.ConsumableNotifications
     Testlib.Certs
     Testlib.Env
     Testlib.HTTP

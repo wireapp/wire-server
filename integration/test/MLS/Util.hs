@@ -38,6 +38,7 @@ import System.IO.Temp
 import System.Posix.Files
 import System.Process
 import Testlib.Assertions
+import qualified Testlib.Cannon.ConsumableNotifications as CN
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Prelude
@@ -570,6 +571,78 @@ createExternalCommit convId cid mgi = do
 data MLSNotificationTag = MLSNotificationMessageTag | MLSNotificationWelcomeTag
   deriving (Show, Eq, Ord)
 
+consumingMassagesViaNewCapability :: (HasCallStack) => MLSProtocol -> MessagePackage -> Codensity App ()
+consumingMassagesViaNewCapability mlsProtocol mp = Codensity $ \k -> do
+  conv <- getMLSConv mp.convId
+  -- clients that should receive the message itself
+  let oldClients = Set.delete mp.sender conv.members
+  -- clients that should receive a welcome message
+  let newClients = Set.delete mp.sender conv.newMembers
+  -- all clients that should receive some MLS notification, together with the
+  -- expected notification tag
+  let clients =
+        map (,MLSNotificationMessageTag) (toList oldClients)
+          <> map (,MLSNotificationWelcomeTag) (toList newClients)
+
+  let newUsers =
+        Set.delete mp.sender.user $
+          Set.difference
+            (Set.map (.user) newClients)
+            (Set.map (.user) oldClients)
+
+  let uidsWithClients =
+        fmap
+          ((\c -> (c.user, (object ["domain" .= c.domain, "id" .= c.user], c.client))) . fst)
+          clients
+
+  CN.withEventsWebSockets (fmap snd uidsWithClients) $ \chans -> do
+    r <- k ()
+
+    -- if the conversation is actually MLS (and not mixed), pick one client for
+    -- each new user and wait for its join event. In Mixed protocol, the user is
+    -- already in the conversation so they do not get a member-join
+    -- notification.
+    when (mlsProtocol == MLSProtocolMLS) $ do
+      let uidsWithChannels = zip uidsWithClients chans
+      let newUserChans = uidsWithChannels & filter (\((uid, _), _) -> Set.member uid newUsers) & fmap snd
+      let assertJoin e = do
+            eventType <- e %. "data.event.payload.0.type" & asString
+            pure $ eventType == "conversation.member-join"
+
+      traverse_
+        ( \(eventChan, ackChan) ->
+            CN.awaitMatch assertJoin eventChan
+              >>= CN.ackEvent ackChan
+        )
+        newUserChans
+
+    -- at this point we know that every new user has been added to the
+    -- conversation
+    for_ (zip clients chans) $ \((cid, t), (eventChan, ackChan)) -> case t of
+      MLSNotificationMessageTag -> do
+        event <-
+          CN.awaitMatch
+            ( \e -> do
+                eventType <- e %. "data.event.payload.0.type" & asString
+                pure $ eventType == "conversation.mls-message-add"
+            )
+            eventChan
+        CN.ackEvent ackChan event
+        eventData <- event %. "data.event.payload.0.data" & asByteString
+        void $ mlsCliConsume mp.convId conv.ciphersuite cid eventData
+      MLSNotificationWelcomeTag -> do
+        event <-
+          CN.awaitMatch
+            ( \e -> do
+                eventType <- e %. "data.event.payload.0.type" & asString
+                pure $ eventType == "conversation.mls-welcome"
+            )
+            eventChan
+        CN.ackEvent ackChan event
+        eventData <- event %. "data.event.payload.0.data" & asByteString
+        void $ fromWelcome mp.convId conv.ciphersuite cid eventData
+    pure r
+
 consumingMessages :: (HasCallStack) => MLSProtocol -> MessagePackage -> Codensity App ()
 consumingMessages mlsProtocol mp = Codensity $ \k -> do
   conv <- getMLSConv mp.convId
@@ -588,6 +661,7 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
           Set.difference
             (Set.map (.user) newClients)
             (Set.map (.user) oldClients)
+
   withWebSockets (map fst clients) $ \wss -> do
     r <- k ()
 
@@ -863,3 +937,43 @@ getSubConvId user convId subConvName =
   getSubConversation user convId subConvName
     >>= getJSON 200
     >>= objConvId
+
+-- FUTUREWORK: we assume all clients in the conversation have the new consumable-notification capability
+-- to support both the legacy and the new capability,
+-- we need to add it to the client identity and store it in the local MLS state
+sendAndConsumeCommitBundleNew :: (HasCallStack) => MessagePackage -> App Value
+sendAndConsumeCommitBundleNew = sendAndConsumeCommitBundleWithProtocolNew MLSProtocolMLS
+
+-- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
+-- update the test state accordingly.
+sendAndConsumeCommitBundleWithProtocolNew :: (HasCallStack) => MLSProtocol -> MessagePackage -> App Value
+sendAndConsumeCommitBundleWithProtocolNew protocol mp = do
+  lowerCodensity $ do
+    consumingMassagesViaNewCapability protocol mp
+    lift $ do
+      r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
+
+      -- if the sender is a new member (i.e. it's an external commit), then
+      -- process the welcome message directly
+      do
+        conv <- getMLSConv mp.convId
+        when (Set.member mp.sender conv.newMembers) $
+          traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
+
+      -- increment epoch and add new clients
+      modifyMLSState $ \mls ->
+        mls
+          { convs =
+              Map.adjust
+                ( \conv ->
+                    conv
+                      { epoch = conv.epoch + 1,
+                        members = conv.members <> conv.newMembers,
+                        newMembers = mempty
+                      }
+                )
+                mp.convId
+                mls.convs
+          }
+
+      pure r

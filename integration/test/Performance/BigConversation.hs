@@ -3,6 +3,7 @@
 module Performance.BigConversation where
 
 import API.BrigCommon
+import API.Galley (getConversation)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import Data.List.Extra (chunksOf)
@@ -12,8 +13,9 @@ import MLS.Util
 import SetupHelpers
 import qualified System.CryptoBox as Cryptobox
 import Testlib.Prelude
-import UnliftIO (pooledMapConcurrentlyN)
+import UnliftIO (modifyIORef', newIORef, pooledMapConcurrentlyN, readIORef)
 import UnliftIO.Temporary
+import Prelude (writeFile)
 
 -- | A size saying how big an MLS conversation is. Each size is mapped to a
 -- number via the 'sizeToNumber' function.
@@ -38,27 +40,54 @@ batchForSize :: ConversationSize -> Word
 batchForSize Tiny = 10
 batchForSize Small = 20
 batchForSize Medium = 100
-batchForSize Big = 100
-batchForSize Large = 250
+batchForSize Big = 250
+batchForSize Large = 500
 batchForSize VeryLarge = 500
 
-testCreateBigMLSConversation :: ConversationSize -> App ()
-testCreateBigMLSConversation convSize = do
-  let teamSize = sizeToNumber convSize
-  let batchSize = fromIntegral . batchForSize $ convSize
-  totalTime <-
-    fmap snd $ timeIt do
-      (_, ownerClient, _, members, _) <- createTeamAndClients . fromIntegral $ teamSize
+testCreateBigMLSConversation :: App ()
+testCreateBigMLSConversation = do
+  domain <- OwnDomain & asString
+  let teamSize = 11
+  let batchSize = 20
+  let clientNotifCapability = Consumable
+  putStrLn $ "Creating a team with " <> show teamSize <> " members"
+  (owner, ownerClient, _, members, c1 : c2 : _) <- createTeamAndClients domain clientNotifCapability teamSize
+  putStrLn $ "Creating a conversation with " <> show teamSize <> " members in batches of " <> show batchSize
+  convSize <- liftIO $ newIORef (1 :: Int)
+  (convId, totalTime) <-
+    timeIt do
       convId <- createNewGroup def ownerClient
       let memberChunks = chunksOf batchSize members
       for_ memberChunks $ \chunk -> do
         (size, time) <- timeIt $ do
           msg <- createAddCommit ownerClient convId chunk
-          void $ sendAndConsumeCommitBundle msg
+          void $ case clientNotifCapability of
+            Legacy -> sendAndConsumeCommitBundle msg
+            Consumable -> sendAndConsumeCommitBundleNew msg
           pure (BS.length msg.message)
-        putStrLn $ "Sent " <> show size <> " bytes in " <> show time
+        cs <- liftIO $ readIORef convSize
+        putStrLn $ "Sent " <> show size <> " bytes in " <> show time <> ", adding " <> show (length chunk) <> " members to conv of size: " <> show cs
+        liftIO $ modifyIORef' convSize (+ (length chunk))
         pure (size, time)
+      pure convId
   putStrLn $ "Total time: " <> show totalTime
+  do
+    conv <- getConversation owner (convIdToQidObject convId) >>= getJSON 200
+    otherMembers <- conv %. "members.others" & asList
+    length otherMembers `shouldMatchInt` (teamSize - 1)
+  (bytes, timeRemoval) <- timeIt $ do
+    commit <- createRemoveCommit ownerClient convId [c1, c2]
+    -- m <- showMessage def ownerClient commit.message
+    -- prettyJSON m >>= liftIO . writeFile "removal.json"
+    case clientNotifCapability of
+      Legacy -> void $ sendAndConsumeCommitBundle commit
+      Consumable -> void $ sendAndConsumeCommitBundleNew commit
+    pure (BS.length commit.message)
+  putStrLn $ "Sent " <> show bytes <> " bytes in " <> show timeRemoval <> " for removing 2 members"
+  do
+    conv <- getConversation owner (convIdToQidObject convId) >>= getJSON 200
+    otherMembers <- conv %. "members.others" & asList
+    length otherMembers `shouldMatchInt` (teamSize - 3)
 
 timeIt :: App a -> App (a, NominalDiffTime)
 timeIt action = do
@@ -67,9 +96,9 @@ timeIt action = do
   end <- liftIO getCurrentTime
   pure (result, diffUTCTime end start)
 
-createTeamAndClients :: Int -> App (Value, ClientIdentity, String, [Value], [ClientIdentity])
-createTeamAndClients teamSize = do
-  (owner, tid, members) <- createTeam OwnDomain teamSize
+createTeamAndClients :: String -> ClientNotifCapability -> Int -> App (Value, ClientIdentity, String, [Value], [ClientIdentity])
+createTeamAndClients domain clientNotifCapability teamSize = do
+  (owner, tid, members) <- createTeam domain teamSize
   let genPrekeyInBox box i = do
         pk <- assertCrytoboxSuccess =<< liftIO (Cryptobox.newPrekey box i)
         pkBS <- liftIO $ Cryptobox.copyBytes pk.prekey
@@ -87,7 +116,10 @@ createTeamAndClients teamSize = do
                 { clientArgs =
                     def
                       { prekeys = Just [firstPrekey],
-                        lastPrekey = Just lastPrekey
+                        lastPrekey = Just lastPrekey,
+                        acapabilities = case clientNotifCapability of
+                          Legacy -> Nothing
+                          Consumable -> Just ["consumable-notifications"]
                       }
                 }
         createMLSClient def mlsClientOpts user
@@ -100,3 +132,5 @@ assertCrytoboxSuccess :: (Show a) => Cryptobox.Result a -> App a
 assertCrytoboxSuccess = \case
   Cryptobox.Success x -> pure x
   e -> assertFailure $ "Cryptobox exception: " <> show e
+
+data ClientNotifCapability = Legacy | Consumable
