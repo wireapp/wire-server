@@ -52,7 +52,7 @@ data TeamStatus
 
 instance S.ToSchema TeamStatus where
   schema =
-    S.enum @Text "Access" $
+    S.enum @Text "TeamStatus" $
       mconcat
         [ S.element "active" Active,
           S.element "pending_delete" PendingDelete,
