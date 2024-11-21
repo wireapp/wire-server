@@ -658,7 +658,7 @@ testMigrationToNewIndex opts brig = do
 
     -- Run Migrations
     let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
-        esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
+        esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ (ES.IndexName oldESIndex))
         esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
         reindexSettings = ReindexFromAnotherIndexSettings esOldConnectionSettings newIndexName 5
         esNewConnectionSettings = esOldConnectionSettings {esIndex = newIndexName}
