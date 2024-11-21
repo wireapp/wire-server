@@ -40,6 +40,8 @@ import Brig.Index.Options qualified as IndexOpts
 import Brig.Options (ElasticSearchOpts)
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
+import Cassandra qualified as C
+import Cassandra.Options qualified as CassOpts
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (Value, decode)
@@ -70,6 +72,7 @@ import Text.RawString.QQ (r)
 import URI.ByteString qualified as URI
 import UnliftIO (Concurrently (..), async, bracket, cancel, runConcurrently)
 import Util
+import Util.Options (Endpoint)
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
 import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
@@ -95,7 +98,11 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         testWithBothIndices opts mgr "user with umlaut" $ testSearchWithUmlaut brig,
         testWithBothIndices opts mgr "user with japanese name" $ testSearchCJK brig,
-        test mgr "migration to new index" $ testMigrationToNewIndex opts brig,
+        testGroup "index migration" $
+          [ test mgr "migration to new index from existing index" $ testMigrationToNewIndex opts brig runReindexFromAnotherIndex,
+            test mgr "migration to new index from database" $ testMigrationToNewIndex opts brig (runReindexFromDatabase Reindex),
+            test mgr "migration to new index from database (force sync)" $ testMigrationToNewIndex opts brig (runReindexFromDatabase ReindexSameOrNewer)
+          ],
         testGroup "team A: SearchVisibilityStandard (= unrestricted outbound search)" $
           [ testGroup "team A: SearchableByOwnTeam (= restricted inbound search)" $
               [ testWithBothIndices opts mgr "  I. non-team user cannot find team A member by display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley FeatureStatusDisabled,
@@ -613,8 +620,13 @@ testSearchOtherDomain opts brig = do
 -- cluster. This test spins up a proxy server to pass requests to our only ES
 -- server. The proxy server ensures that only requests to the 'old' index go
 -- through.
-testMigrationToNewIndex :: (TestConstraints m, MonadUnliftIO m) => Opt.Opts -> Brig -> m ()
-testMigrationToNewIndex opts brig = do
+testMigrationToNewIndex ::
+  (TestConstraints m, MonadUnliftIO m) =>
+  Opt.Opts ->
+  Brig ->
+  (Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()) ->
+  m ()
+testMigrationToNewIndex opts brig reindexCommand = do
   withOldESProxy opts $ \oldESUrl oldESIndex -> do
     let optsOldIndex =
           opts
@@ -658,9 +670,9 @@ testMigrationToNewIndex opts brig = do
 
     -- Run Migrations
     let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
-        esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ (ES.IndexName oldESIndex))
+        oldIndexName = ES.IndexName oldESIndex
+        esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
         esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
-        reindexSettings = ReindexFromAnotherIndexSettings esOldConnectionSettings newIndexName 5
         esNewConnectionSettings = esOldConnectionSettings {esIndex = newIndexName}
         replicas = 2
         shards = 2
@@ -675,7 +687,7 @@ testMigrationToNewIndex opts brig = do
     logger <- Log.create Log.StdOut
     liftIO $ do
       runCommand logger $ Create esSettings opts.galley
-      runCommand logger $ ReindexFromAnotherIndex reindexSettings
+      reindexCommand logger opts oldIndexName
 
     -- Phase 3: Using old index for search, writing to both indices, migrations have run
     refreshIndex brig
@@ -708,6 +720,44 @@ testMigrationToNewIndex opts brig = do
     -- Searching should work for phase3 users
     assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+
+runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
+runReindexFromAnotherIndex logger opts oldIndexName =
+  let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
+      esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
+      esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
+      reindexSettings = ReindexFromAnotherIndexSettings esOldConnectionSettings newIndexName 5
+   in runCommand logger $ ReindexFromAnotherIndex reindexSettings
+
+runReindexFromDatabase ::
+  (ElasticSettings -> CassandraSettings -> Endpoint -> Command) ->
+  Log.Logger ->
+  Opt.Opts ->
+  ES.IndexName ->
+  IO ()
+runReindexFromDatabase syncCommand logger opts oldIndexName =
+  let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
+      esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
+      esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
+      esNewConnectionSettings = esOldConnectionSettings {esIndex = newIndexName}
+      replicas = 2
+      shards = 2
+      refreshInterval = 5
+      elasticSettings :: ElasticSettings =
+        IndexOpts.localElasticSettings
+          & IndexOpts.esConnection .~ esNewConnectionSettings
+          & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
+          & IndexOpts.esIndexShardCount .~ shards
+          & IndexOpts.esIndexRefreshInterval .~ refreshInterval
+      cassandraSettings :: CassandraSettings =
+        ( localCassandraSettings
+            & IndexOpts.cHost .~ (Text.unpack opts.cassandra.endpoint.host)
+            & IndexOpts.cPort .~ (opts.cassandra.endpoint.port)
+            & IndexOpts.cKeyspace .~ (C.Keyspace opts.cassandra.keyspace)
+        )
+
+      endpoint :: Endpoint = opts.galley
+   in runCommand logger $ syncCommand elasticSettings cassandraSettings endpoint
 
 toESConnectionSettings :: ElasticSearchOpts -> ESConnectionSettings
 toESConnectionSettings opts = ESConnectionSettings {..}
