@@ -669,24 +669,10 @@ testMigrationToNewIndex opts brig reindexCommand = do
     assertCanFindByName brig phase1TeamUser1 phase2TeamUser
 
     -- Run Migrations
-    let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
-        oldIndexName = ES.IndexName oldESIndex
-        esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
-        esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
-        esNewConnectionSettings = esOldConnectionSettings {esIndex = newIndexName}
-        replicas = 2
-        shards = 2
-        refreshInterval = 5
-        esSettings =
-          IndexOpts.localElasticSettings
-            & IndexOpts.esConnection .~ esNewConnectionSettings
-            & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
-            & IndexOpts.esIndexShardCount .~ shards
-            & IndexOpts.esIndexRefreshInterval .~ refreshInterval
-
+    let oldIndexName = ES.IndexName oldESIndex
     logger <- Log.create Log.StdOut
     liftIO $ do
-      runCommand logger $ Create esSettings opts.galley
+      createCommand logger opts oldIndexName
       reindexCommand logger opts oldIndexName
 
     -- Phase 3: Using old index for search, writing to both indices, migrations have run
@@ -720,6 +706,23 @@ testMigrationToNewIndex opts brig reindexCommand = do
     -- Searching should work for phase3 users
     assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+
+createCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
+createCommand logger opts oldIndexName =
+  let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
+      esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
+      esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
+      esNewConnectionSettings = esOldConnectionSettings {esIndex = newIndexName}
+      replicas = 2
+      shards = 2
+      refreshInterval = 5
+      esSettings =
+        IndexOpts.localElasticSettings
+          & IndexOpts.esConnection .~ esNewConnectionSettings
+          & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
+          & IndexOpts.esIndexShardCount .~ shards
+          & IndexOpts.esIndexRefreshInterval .~ refreshInterval
+   in runCommand logger $ Create esSettings opts.galley
 
 runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
 runReindexFromAnotherIndex logger opts oldIndexName =
