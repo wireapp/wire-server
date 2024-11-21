@@ -191,7 +191,8 @@ createChannel pool queue = do
   Codensity $ \k -> do
     let chan = RabbitMqChannel {inner = inner, msgVar = msgVar}
     finally (k chan) $
-      putMVar closedVar False
+      -- TODO: this might cause a channel leak
+      tryPutMVar closedVar False
 
 acquireConnection :: RabbitMqPool -> IO PooledConnection
 acquireConnection pool = do

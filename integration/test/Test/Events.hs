@@ -317,7 +317,7 @@ testChannelLimit = withModifiedBackend
   )
   $ \domain -> do
     alice <- randomUser domain def
-    clients <-
+    (client0 : clients) <-
       replicateM 3
         $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
         >>= getJSON 201
@@ -325,21 +325,24 @@ testChannelLimit = withModifiedBackend
         >>= asString
 
     lowerCodensity $ do
-      acks <- for clients $ \c -> do
+      for_ clients $ \c -> do
         ws <- createEventsWebSocket alice c
         e <- Codensity $ \k -> assertEvent ws k
         lift $ do
           e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
           e %. "data.event.payload.0.client.id" `shouldMatch` c
-          tag <- e %. "data.delivery_tag"
-          pure (sendAck ws tag False)
-      lift $ sequenceA_ acks
+          e %. "data.delivery_tag"
+
+      -- the first client fails to connect because the server runs out of channels
+      do
+        ws <- createEventsWebSocket alice client0
+        lift $ assertNoEvent ws
 
 ----------------------------------------------------------------------
 -- helpers
 
 data EventWebSocket = EventWebSocket
-  { events :: MVar Value,
+  { events :: Chan (Either WS.ConnectionException Value),
     ack :: MVar (Maybe Value)
   }
 
@@ -349,7 +352,7 @@ createEventsWebSocket ::
   String ->
   Codensity App EventWebSocket
 createEventsWebSocket user cid = do
-  eventsChan <- liftIO newEmptyMVar
+  eventsChan <- liftIO newChan
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
   uid <- lift $ objId =<< objQidObject user
@@ -358,17 +361,13 @@ createEventsWebSocket user cid = do
       caHdrs = [(fromString "Z-User", toByteString' uid)]
       app conn =
         race_
-          ( wsRead conn `catch` \(e :: WS.ConnectionException) ->
-              case e of
-                WS.CloseRequest {} -> pure ()
-                _ -> throwIO e
-          )
+          (wsRead conn `catch` (writeChan eventsChan . Left))
           (wsWrite conn)
 
       wsRead conn = forever $ do
         bs <- WS.receiveData conn
         case decodeStrict' bs of
-          Just n -> putMVar eventsChan n
+          Just n -> writeChan eventsChan (Right n)
           Nothing ->
             error $ "Failed to decode events: " ++ show bs
 
@@ -424,25 +423,31 @@ sendAck ws deliveryTag multiple =
 
 assertEvent :: (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
 assertEvent ws expectations = do
-  timeout 10_000_000 (takeMVar ws.events) >>= \case
-    Nothing -> assertFailure "No event received for 10s"
-    Just e -> do
+  timeout 10_000_000 (readChan ws.events) >>= \case
+    Nothing -> assertFailure "No event received for 1s"
+    Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+    Just (Right e) -> do
       pretty <- prettyJSON e
       addFailureContext ("event:\n" <> pretty)
         $ expectations e
 
 assertNoEvent :: (HasCallStack) => EventWebSocket -> App ()
 assertNoEvent ws = do
-  timeout 1_000_000 (takeMVar ws.events) >>= \case
+  timeout 1_000_000 (readChan ws.events) >>= \case
     Nothing -> pure ()
-    Just e -> do
+    Just (Left _) -> pure ()
+    Just (Right e) -> do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
-  timeout 1_000_000 (takeMVar ws.events) >>= \case
+  timeout 1_000_000 (readChan ws.events) >>= \case
     Nothing -> pure ()
-    Just e -> do
+    Just (Left e) ->
+      assertFailure
+        $ "Websocket closed while consuming all events: "
+        <> displayException e
+    Just (Right e) -> do
       ackEvent ws e
       consumeAllEvents ws
