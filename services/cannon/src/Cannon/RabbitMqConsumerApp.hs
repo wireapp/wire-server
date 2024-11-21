@@ -84,10 +84,10 @@ rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
   wsVar <- newEmptyMVar
 
-  bracket (openWebSocket wsVar) closeWebSocket $ \(wsConn, _) ->
+  bracket openWebSocket closeWebSocket $ \wsConn ->
     ( do
-        sendFullSyncMessageIfNeeded wsVar wsConn uid cid e
-        sendNotifications wsConn wsVar
+        sendFullSyncMessageIfNeeded wsConn uid cid e
+        sendNotifications wsConn
     )
       `catches` [ handleClientMisbehaving wsConn,
                   handleWebSocketExceptions wsConn,
@@ -98,25 +98,11 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
       Log.field "user" (idToText uid)
         . Log.field "client" (clientToText cid)
 
-    openWebSocket wsVar = do
-      wsConn <-
-        acceptRequest pendingConn
-          `catch` rejectOnError pendingConn
-      -- start a reader thread for client messages
-      -- this needs to run asynchronously in order to promptly react to
-      -- client-side connection termination
-      -- TODO: read websocket directly instead of using an MVar?
-      a <- async $ forever $ do
-        catch
-          ( do
-              msg <- getClientMessage wsConn
-              putMVar wsVar (Right msg)
-          )
-          $ \err -> putMVar wsVar (Left err)
-      pure (wsConn, a)
+    openWebSocket =
+      acceptRequest pendingConn
+        `catch` rejectOnError pendingConn
 
-    closeWebSocket (wsConn, a) = do
-      cancel a
+    closeWebSocket wsConn = do
       logCloseWebsocket
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
@@ -182,11 +168,8 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
         WS.sendCloseCode wsConn 1003 ("internal-error" :: ByteString)
         throwIO err
 
-    sendNotifications ::
-      WS.Connection ->
-      MVar (Either ConnectionException MessageClientToServer) ->
-      IO ()
-    sendNotifications wsConn wsVar = lowerCodensity $ do
+    sendNotifications :: WS.Connection -> IO ()
+    sendNotifications wsConn = lowerCodensity $ do
       chan <- createChannel e.pool (clientNotificationQueueName uid cid)
 
       let consumeRabbitMq = forever $ do
@@ -196,10 +179,9 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
                 logSendFailure err
                 throwIO err
 
-      -- get ack from wsVar and forward to rabbitmq
+      -- get ack from websocket and forward to rabbitmq
       let consumeWebsocket = forever $ do
-            v <- takeMVar wsVar
-            either throwIO pure v >>= \case
+            getClientMessage wsConn >>= \case
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
@@ -248,16 +230,15 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 -- | Check if client has missed messages. If so, send a full synchronisation
 -- message and wait for the corresponding ack.
 sendFullSyncMessageIfNeeded ::
-  MVar (Either ConnectionException MessageClientToServer) ->
   WS.Connection ->
   UserId ->
   ClientId ->
   Env ->
   IO ()
-sendFullSyncMessageIfNeeded wsVar wsConn uid cid env = do
+sendFullSyncMessageIfNeeded wsConn uid cid env = do
   row <- C.runClient env.cassandra do
     retry x5 $ query1 q (params LocalQuorum (uid, cid))
-  for_ row $ \_ -> sendFullSyncMessage uid cid wsVar wsConn env
+  for_ row $ \_ -> sendFullSyncMessage uid cid wsConn env
   where
     q :: PrepQuery R (UserId, ClientId) (Identity (Maybe UserId))
     q =
@@ -268,15 +249,13 @@ sendFullSyncMessageIfNeeded wsVar wsConn uid cid env = do
 sendFullSyncMessage ::
   UserId ->
   ClientId ->
-  MVar (Either ConnectionException MessageClientToServer) ->
   WS.Connection ->
   Env ->
   IO ()
-sendFullSyncMessage uid cid wsVar wsConn env = do
+sendFullSyncMessage uid cid wsConn env = do
   let event = encode EventFullSync
   WS.sendBinaryData wsConn event
-  res <- takeMVar wsVar >>= either throwIO pure
-  case res of
+  getClientMessage wsConn >>= \case
     AckMessage _ -> throwIO UnexpectedAck
     AckFullSync ->
       C.runClient env.cassandra do
