@@ -17,6 +17,7 @@ import Control.Concurrent.Async
 import Control.Exception
 import Control.Monad.Codensity
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe
 import Control.Retry
 import Data.List.Extra
 import Imports
@@ -41,7 +42,6 @@ data PooledConnection = PooledConnection
 data RabbitMqPool = RabbitMqPool
   { opts :: RabbitMqPoolOptions,
     nextId :: TVar Word64,
-    -- TODO: use a priority queue
     connections :: TVar [PooledConnection],
     logger :: Logger,
     deadVar :: MVar ()
@@ -62,8 +62,8 @@ createRabbitMqPool opts logger = Codensity $ bracket create destroy
         atomically $
           (,) <$> newTVar 0 <*> newTVar []
       let pool = RabbitMqPool {..}
-      -- -- create one connection
-      -- void $ createConnection pool
+      -- create one connection
+      void $ createConnection pool
       pure pool
     destroy pool = putMVar pool.deadVar ()
 
@@ -159,8 +159,8 @@ createChannel pool queue = do
             pure False
           (_, Just (Q.ConnectionClosedException {})) -> do
             Log.info pool.logger $
-              Log.msg (Log.val "RabbitMQ connection is closed, not attempting to reopen channel")
-            pure False -- TODO: change this to true?
+              Log.msg (Log.val "RabbitMQ connection was closed unexpectedly")
+            pure True
           _ -> do
             logException pool.logger "RabbitMQ channel closed" e
             pure True
@@ -214,19 +214,16 @@ acquireConnection pool = do
     pure pconn'
 
 findConnection :: RabbitMqPool -> IO (Maybe PooledConnection)
-findConnection pool = (>>= either throwIO pure) . atomically . runExceptT $ do
-  -- TODO: use MaybeT
-  conns <- lift $ readTVar pool.connections
-  if null conns
-    then pure Nothing
-    else do
-      let pconn = minimumOn (.numChannels) conns
-      if pconn.numChannels >= pool.opts.maxChannels
-        then
-          if length conns >= pool.opts.maxConnections
-            then throwE TooManyChannels
-            else pure Nothing
-        else pure (Just pconn)
+findConnection pool = (>>= either throwIO pure) . atomically . runExceptT . runMaybeT $ do
+  conns <- lift . lift $ readTVar pool.connections
+  guard (notNull conns)
+
+  let pconn = minimumOn (.numChannels) conns
+  when (pconn.numChannels >= pool.opts.maxChannels) $
+    if length conns >= pool.opts.maxConnections
+      then lift $ throwE TooManyChannels
+      else mzero
+  pure pconn
 
 releaseConnection :: RabbitMqPool -> PooledConnection -> IO ()
 releaseConnection pool conn = atomically $ do
