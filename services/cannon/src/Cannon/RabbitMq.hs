@@ -162,7 +162,8 @@ createChannel pool queue = do
               Log.msg (Log.val "RabbitMQ connection was closed unexpectedly")
             pure True
           _ -> do
-            logException pool.logger "RabbitMQ channel closed" e
+            unless (fromException e == Just AsyncCancelled) $
+              logException pool.logger "RabbitMQ channel closed" e
             pure True
         putMVar closedVar retry
 
