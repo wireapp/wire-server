@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -33,12 +34,15 @@ import API.User.Util
 import Bilge
 import Bilge.Assert
 import Brig.App (initHttpManagerWithTLSConfig)
+import Brig.Index.Eval (runCommand)
+import Brig.Index.Options
+import Brig.Index.Options qualified as IndexOpts
+import Brig.Options (ElasticSearchOpts)
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
 import Control.Lens ((.~), (?~), (^.))
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Retry
-import Data.Aeson (FromJSON, Value, decode)
+import Control.Monad.Catch (MonadCatch)
+import Data.Aeson (Value, decode)
 import Data.Aeson qualified as Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
@@ -58,6 +62,7 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Test qualified as WaiTest
 import Safe (headMay)
+import System.Logger qualified as Log
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -653,8 +658,24 @@ testMigrationToNewIndex opts brig = do
 
     -- Run Migrations
     let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
-    taskNodeId <- assertRight =<< runBH opts (ES.reindexAsync $ ES.mkReindexRequest (ES.IndexName oldESIndex) newIndexName)
-    runBH opts $ waitForTaskToComplete @ES.ReindexResponse taskNodeId
+        esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
+        esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
+        reindexSettings = ReindexFromAnotherIndexSettings esOldConnectionSettings newIndexName 5
+        esNewConnectionSettings = esOldConnectionSettings {esIndex = newIndexName}
+        replicas = 2
+        shards = 2
+        refreshInterval = 5
+        esSettings =
+          IndexOpts.localElasticSettings
+            & IndexOpts.esConnection .~ esNewConnectionSettings
+            & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
+            & IndexOpts.esIndexShardCount .~ shards
+            & IndexOpts.esIndexRefreshInterval .~ refreshInterval
+
+    logger <- Log.create Log.StdOut
+    liftIO $ do
+      runCommand logger $ Create esSettings opts.galley
+      runCommand logger $ ReindexFromAnotherIndex reindexSettings
 
     -- Phase 3: Using old index for search, writing to both indices, migrations have run
     refreshIndex brig
@@ -688,6 +709,16 @@ testMigrationToNewIndex opts brig = do
     assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase3TeamUser
 
+toESConnectionSettings :: ElasticSearchOpts -> ESConnectionSettings
+toESConnectionSettings opts = ESConnectionSettings {..}
+  where
+    toText (ES.Server url) = url
+    esServer = (fromRight undefined . URI.parseURI URI.strictURIParserOptions . Text.encodeUtf8 . toText) opts.url
+    esIndex = opts.index
+    esCaCert = opts.caCert
+    esInsecureSkipVerifyTls = opts.insecureSkipVerifyTls
+    esCredentials = opts.credentials
+
 withOldESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> (Text -> Text -> m a) -> m a
 withOldESProxy opts f = do
   indexName <- randomHandle
@@ -711,18 +742,6 @@ indexProxyServer idx opts mgr =
             then Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
             else Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
    in waiProxyTo proxyApp Wai.defaultOnExc mgr
-
-waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => ES.TaskNodeId -> m ()
-waitForTaskToComplete taskNodeId = do
-  let policy = constantDelay 100000 <> limitRetries 30
-  let retryCondition _ = fmap not . isTaskComplete
-  task <- retrying policy retryCondition (const $ ES.getTask @m @a taskNodeId)
-  taskCompleted <- isTaskComplete task
-  liftIO $ assertBool "Timed out waiting for task" taskCompleted
-  where
-    isTaskComplete :: Either ES.EsError (ES.TaskResponse a) -> m Bool
-    isTaskComplete (Left e) = liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
-    isTaskComplete (Right taskRes) = pure $ ES.taskResponseCompleted taskRes
 
 testWithBothIndices :: Opt.Opts -> Manager -> TestName -> WaiTest.Session a -> TestTree
 testWithBothIndices opts mgr name f = do
