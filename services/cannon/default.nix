@@ -13,6 +13,7 @@
 , bytestring-conversion
 , cassandra-util
 , conduit
+, containers
 , criterion
 , data-timeout
 , exceptions

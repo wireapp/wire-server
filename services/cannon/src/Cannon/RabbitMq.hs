@@ -20,6 +20,7 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry
 import Data.List.Extra
+import Data.Map qualified as Map
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
@@ -33,16 +34,16 @@ data RabbitMqPoolException
 
 instance Exception RabbitMqPoolException
 
-data PooledConnection = PooledConnection
+data PooledConnection key = PooledConnection
   { connId :: Word64,
     inner :: Q.Connection,
-    numChannels :: !Int
+    channels :: !(Map key Q.Channel)
   }
 
-data RabbitMqPool = RabbitMqPool
+data RabbitMqPool key = RabbitMqPool
   { opts :: RabbitMqPoolOptions,
     nextId :: TVar Word64,
-    connections :: TVar [PooledConnection],
+    connections :: TVar [PooledConnection key],
     logger :: Logger,
     deadVar :: MVar ()
   }
@@ -53,7 +54,7 @@ data RabbitMqPoolOptions = RabbitMqPoolOptions
     endpoint :: AmqpEndpoint
   }
 
-createRabbitMqPool :: RabbitMqPoolOptions -> Logger -> Codensity IO RabbitMqPool
+createRabbitMqPool :: (Ord key) => RabbitMqPoolOptions -> Logger -> Codensity IO (RabbitMqPool key)
 createRabbitMqPool opts logger = Codensity $ bracket create destroy
   where
     create = do
@@ -67,7 +68,7 @@ createRabbitMqPool opts logger = Codensity $ bracket create destroy
       pure pool
     destroy pool = putMVar pool.deadVar ()
 
-createConnection :: RabbitMqPool -> IO PooledConnection
+createConnection :: (Ord key) => RabbitMqPool key -> IO (PooledConnection key)
 createConnection pool = mask_ $ do
   conn <- openConnection pool
   pconn <- atomically $ do
@@ -76,7 +77,7 @@ createConnection pool = mask_ $ do
     let c =
           PooledConnection
             { connId = connId,
-              numChannels = 0,
+              channels = mempty,
               inner = conn
             }
     modifyTVar pool.connections (c :)
@@ -101,7 +102,7 @@ createConnection pool = mask_ $ do
     putMVar closedVar ()
   pure pconn
 
-openConnection :: RabbitMqPool -> IO Q.Connection
+openConnection :: RabbitMqPool key -> IO Q.Connection
 openConnection pool = do
   (username, password) <- readCredsFromEnv
   recovering
@@ -145,8 +146,8 @@ ackMessage chan deliveryTag multiple = do
   inner <- readMVar chan.inner
   Q.ackMsg inner deliveryTag multiple
 
-createChannel :: RabbitMqPool -> Text -> Codensity IO RabbitMqChannel
-createChannel pool queue = do
+createChannel :: (Ord key) => RabbitMqPool key -> Text -> key -> Codensity IO RabbitMqChannel
+createChannel pool queue key = do
   closedVar <- lift newEmptyMVar
   inner <- lift newEmptyMVar
   msgVar <- lift newEmptyMVar
@@ -169,14 +170,23 @@ createChannel pool queue = do
 
   let manageChannel = do
         retry <- lowerCodensity $ do
-          conn <- Codensity $ bracket (acquireConnection pool) (releaseConnection pool)
+          conn <- Codensity $ bracket (acquireConnection pool) (releaseConnection pool key)
           chan <- Codensity $ bracket (Q.openChannel conn.inner) $ \c ->
             catch (Q.closeChannel c) $ \(_ :: SomeException) -> pure ()
-          liftIO $ Q.addChannelExceptionHandler chan handleException
-          putMVar inner chan
-          void $ liftIO $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
-            putMVar msgVar (Just (message, envelope))
-          takeMVar closedVar
+          connSize <- atomically $ do
+            let conn' = conn {channels = Map.insert key chan conn.channels}
+            conns <- readTVar pool.connections
+            writeTVar pool.connections $!
+              map (\c -> if c.connId == conn'.connId then conn' else c) conns
+            pure $ Map.size conn'.channels
+          if connSize > pool.opts.maxChannels
+            then pure True
+            else do
+              liftIO $ Q.addChannelExceptionHandler chan handleException
+              putMVar inner chan
+              void $ liftIO $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
+                putMVar msgVar (Just (message, envelope))
+              takeMVar closedVar
 
         when retry manageChannel
 
@@ -187,50 +197,42 @@ createChannel pool queue = do
           `finally` putMVar msgVar Nothing
   pure RabbitMqChannel {inner = inner, msgVar = msgVar}
 
-acquireConnection :: RabbitMqPool -> IO PooledConnection
+acquireConnection :: (Ord key) => RabbitMqPool key -> IO (PooledConnection key)
 acquireConnection pool = do
-  pconn <-
-    findConnection pool >>= \case
-      Nothing -> do
-        bracketOnError
-          ( do
-              conn <- createConnection pool
-              -- if we have too many connections at this point, give up
-              numConnections <-
-                atomically $
-                  length <$> readTVar pool.connections
-              when (numConnections > pool.opts.maxConnections) $
-                throw TooManyChannels
-              pure conn
-          )
-          (\conn -> Q.closeConnection conn.inner)
-          pure
-      Just conn -> pure conn
+  findConnection pool >>= \case
+    Nothing -> do
+      bracketOnError
+        ( do
+            conn <- createConnection pool
+            -- if we have too many connections at this point, give up
+            numConnections <- -- TODO should be moved to the body
+              atomically $
+                length <$> readTVar pool.connections
+            when (numConnections > pool.opts.maxConnections) $
+              throw TooManyChannels
+            pure conn
+        )
+        (\conn -> Q.closeConnection conn.inner)
+        pure
+    Just conn -> pure conn
 
-  atomically $ do
-    let pconn' = pconn {numChannels = succ (numChannels pconn)}
-    conns <- readTVar pool.connections
-    writeTVar pool.connections $!
-      map (\c -> if c.connId == pconn'.connId then pconn' else c) conns
-    pure pconn'
-
-findConnection :: RabbitMqPool -> IO (Maybe PooledConnection)
-findConnection pool = (>>= either throwIO pure) . atomically . runExceptT . runMaybeT $ do
+findConnection :: RabbitMqPool key -> IO (Maybe (PooledConnection key))
+findConnection pool = (either throwIO pure <=< (atomically . runExceptT . runMaybeT)) $ do
   conns <- lift . lift $ readTVar pool.connections
   guard (notNull conns)
 
-  let pconn = minimumOn (.numChannels) conns
-  when (pconn.numChannels >= pool.opts.maxChannels) $
+  let pconn = minimumOn (Map.size . (.channels)) $ conns
+  when (Map.size pconn.channels >= pool.opts.maxChannels) $
     if length conns >= pool.opts.maxConnections
       then lift $ throwE TooManyChannels
       else mzero
   pure pconn
 
-releaseConnection :: RabbitMqPool -> PooledConnection -> IO ()
-releaseConnection pool conn = atomically $ do
+releaseConnection :: (Ord key) => RabbitMqPool key -> key -> PooledConnection key -> IO ()
+releaseConnection pool key conn = atomically $ do
   modifyTVar pool.connections $ map $ \c ->
     if c.connId == conn.connId
-      then c {numChannels = pred (numChannels c)}
+      then c {channels = Map.delete key c.channels}
       else c
 
 logConnectionError :: Logger -> Bool -> SomeException -> RetryStatus -> IO ()

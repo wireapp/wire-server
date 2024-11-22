@@ -87,7 +87,7 @@ import Wire.API.Presence
 newtype Key = Key
   { _key :: (ByteString, ByteString)
   }
-  deriving (Eq, Show, Hashable)
+  deriving (Eq, Show, Hashable, Ord)
 
 mkKey :: UserId -> ConnId -> Key
 mkKey u c = Key (toByteString' u, fromConnId c)
@@ -155,7 +155,7 @@ data Env = Env
     clock :: !Clock,
     drainOpts :: DrainOpts,
     cassandra :: ClientState,
-    pool :: RabbitMqPool
+    pool :: RabbitMqPool Key
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -203,7 +203,7 @@ env ::
   Clock ->
   DrainOpts ->
   ClientState ->
-  RabbitMqPool ->
+  RabbitMqPool Key ->
   Env
 env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
 

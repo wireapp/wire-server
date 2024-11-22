@@ -53,7 +53,7 @@ import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
 
-connectionLimit :: Int
+connectionLimit :: Int -- TODO rename to max number of buckets in Dict
 connectionLimit = 128
 
 -----------------------------------------------------------------------------

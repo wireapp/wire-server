@@ -11,21 +11,17 @@ import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout
-import Control.Exception (Handler (..), bracket, catch, catches, evaluate, throwIO, try)
+import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
 import Data.Id
 import Data.List.Extra hiding (delete)
 import Data.Timeout (TimeoutUnit (..), (#))
-import Debug.Trace
 import Imports hiding (min, threadDelay)
 import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
-import System.IO (hPutStrLn)
-import System.IO.Temp
-import System.IO.Unsafe
 import System.Logger qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Event.WebSocketProtocol
@@ -82,8 +78,6 @@ drainRabbitQueues e = do
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
-  wsVar <- newEmptyMVar
-
   bracket openWebSocket closeWebSocket $ \wsConn ->
     ( do
         sendFullSyncMessageIfNeeded wsConn uid cid e
@@ -170,7 +164,8 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
     sendNotifications :: WS.Connection -> IO ()
     sendNotifications wsConn = lowerCodensity $ do
-      chan <- createChannel e.pool (clientNotificationQueueName uid cid)
+      let key = mkKeyRabbit uid cid
+      chan <- createChannel e.pool (clientNotificationQueueName uid cid) key
 
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
