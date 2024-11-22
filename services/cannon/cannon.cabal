@@ -86,6 +86,7 @@ library
     , async                                 >=2.0
     , base                                  >=4.6     && <5
     , bilge                                 >=0.12
+    , binary
     , bytestring                            >=0.10
     , bytestring-conversion                 >=0.2
     , cassandra-util

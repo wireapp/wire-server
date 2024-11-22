@@ -1,80 +1,24 @@
-{-# OPTIONS -Wwarn #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Cannon.RabbitMqConsumerApp where
 
 import Cannon.App (rejectOnError)
-import Cannon.Dict qualified as D
-import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
-import Control.Concurrent.Timeout
 import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
 import Data.Id
-import Data.List.Extra hiding (delete)
-import Data.Timeout (TimeoutUnit (..), (#))
 import Imports hiding (min, threadDelay)
 import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import System.Logger qualified as Log
-import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
-
-drainRabbitQueues :: Env -> IO ()
-drainRabbitQueues e = do
-  conns <- D.toList e.rabbitConnections
-  numberOfConns <- fromIntegral <$> D.size e.rabbitConnections
-
-  let opts = e.drainOpts
-      maxNumberOfBatches = (opts ^. gracePeriodSeconds * 1000) `div` (opts ^. millisecondsBetweenBatches)
-      computedBatchSize = numberOfConns `div` maxNumberOfBatches
-      batchSize = max (opts ^. minBatchSize) computedBatchSize
-
-  logDraining e.logg numberOfConns batchSize (opts ^. minBatchSize) computedBatchSize maxNumberOfBatches
-
-  -- Sleeps for the grace period + 1 second. If the sleep completes, it means
-  -- that draining didn't finish, and we should log that.
-  timeoutAction <- async $ do
-    -- Allocate 1 second more than the grace period to allow for overhead of
-    -- spawning threads.
-    liftIO $ threadDelay $ ((opts ^. gracePeriodSeconds) # Second + 1 # Second)
-    logExpired e.logg (opts ^. gracePeriodSeconds)
-
-  for_ (chunksOf (fromIntegral batchSize) conns) $ \batch -> do
-    -- 16 was chosen with a roll of a fair dice.
-    void . async $ pooledMapConcurrentlyN_ 16 (uncurry (closeConn e.logg)) batch
-    liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond)
-  cancel timeoutAction
-  Log.info e.logg $ Log.msg (Log.val "Draining complete")
-  where
-    closeConn :: Log.Logger -> Key -> Q.Connection -> IO ()
-    closeConn l key conn = do
-      Log.info l $
-        Log.msg (Log.val "closing rabbitmq connection")
-          . Log.field "key" (show key)
-      Q.closeConnection conn
-      void $ D.remove key e.rabbitConnections
-
-    logExpired :: Log.Logger -> Word64 -> IO ()
-    logExpired l period = do
-      Log.err l $ Log.msg (Log.val "Drain grace period expired") . Log.field "gracePeriodSeconds" period
-
-    logDraining :: Log.Logger -> Word64 -> Word64 -> Word64 -> Word64 -> Word64 -> IO ()
-    logDraining l count b min batchSize m = do
-      Log.info l $
-        Log.msg (Log.val "draining all rabbitmq connections")
-          . Log.field "numberOfConns" count
-          . Log.field "computedBatchSize" b
-          . Log.field "minBatchSize" min
-          . Log.field "batchSize" batchSize
-          . Log.field "maxNumberOfBatches" m
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do

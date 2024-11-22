@@ -61,6 +61,7 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error, Key)
+import Data.Binary.Builder qualified as B
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
@@ -94,6 +95,9 @@ mkKey u c = Key (toByteString' u, fromConnId c)
 
 mkKeyRabbit :: UserId -> ClientId -> Key
 mkKeyRabbit u c = Key (toByteString' u, toByteString' c)
+
+instance ToByteString Key where
+  builder = B.fromByteString . key2bytes
 
 key2bytes :: Key -> ByteString
 key2bytes (Key (u, c)) = u <> "." <> c

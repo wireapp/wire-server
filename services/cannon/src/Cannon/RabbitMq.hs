@@ -1,4 +1,3 @@
-{-# OPTIONS -Wwarn #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Cannon.RabbitMq
@@ -6,6 +5,7 @@ module Cannon.RabbitMq
     RabbitMqPoolOptions (..),
     RabbitMqPool,
     createRabbitMqPool,
+    drainRabbitMqPool,
     RabbitMqChannel (..),
     createChannel,
     getMessage,
@@ -13,19 +13,25 @@ module Cannon.RabbitMq
   )
 where
 
+import Cannon.Options
 import Control.Concurrent.Async
+import Control.Concurrent.Timeout
 import Control.Exception
+import Control.Lens ((^.))
 import Control.Monad.Codensity
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry
+import Data.ByteString.Conversion
 import Data.List.Extra
 import Data.Map qualified as Map
-import Imports
+import Data.Timeout
+import Imports hiding (threadDelay)
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import System.Logger (Logger)
 import System.Logger qualified as Log
+import UnliftIO (pooledMapConcurrentlyN_)
 
 data RabbitMqPoolException
   = TooManyChannels
@@ -44,6 +50,8 @@ data RabbitMqPool key = RabbitMqPool
   { opts :: RabbitMqPoolOptions,
     nextId :: TVar Word64,
     connections :: TVar [PooledConnection key],
+    -- | draining mode
+    draining :: TVar Bool,
     logger :: Logger,
     deadVar :: MVar ()
   }
@@ -59,19 +67,81 @@ createRabbitMqPool opts logger = Codensity $ bracket create destroy
   where
     create = do
       deadVar <- newEmptyMVar
-      (nextId, connections) <-
+      (nextId, connections, draining) <-
         atomically $
-          (,) <$> newTVar 0 <*> newTVar []
+          (,,) <$> newTVar 0 <*> newTVar [] <*> newTVar False
       let pool = RabbitMqPool {..}
       -- create one connection
       void $ createConnection pool
       pure pool
     destroy pool = putMVar pool.deadVar ()
 
+drainRabbitMqPool :: (ToByteString key) => RabbitMqPool key -> DrainOpts -> IO ()
+drainRabbitMqPool pool opts = do
+  atomically $ writeTVar pool.draining True
+
+  channels :: [(key, Q.Channel)] <- atomically $ do
+    conns <- readTVar pool.connections
+    pure $ concat [Map.assocs c.channels | c <- conns]
+  let numberOfChannels = fromIntegral (length channels)
+
+  let maxNumberOfBatches =
+        (opts ^. gracePeriodSeconds * 1000)
+          `div` (opts ^. millisecondsBetweenBatches)
+      computedBatchSize = numberOfChannels `div` maxNumberOfBatches
+      batchSize = max (opts ^. minBatchSize) computedBatchSize
+
+  logDraining
+    pool.logger
+    numberOfChannels
+    batchSize
+    (opts ^. minBatchSize)
+    computedBatchSize
+    maxNumberOfBatches
+
+  -- Sleep for the grace period + 1 second. If the sleep completes, it means
+  -- that draining didn't finish, and we should log that.
+  withAsync
+    ( do
+        -- Allocate 1 second more than the grace period to allow for overhead of
+        -- spawning threads.
+        liftIO $ threadDelay $ ((opts ^. gracePeriodSeconds) # Second + 1 # Second)
+        logExpired pool.logger (opts ^. gracePeriodSeconds)
+    )
+    $ \_ -> do
+      for_ (chunksOf (fromIntegral batchSize) channels) $ \batch -> do
+        -- 16 was chosen with a roll of a fair dice.
+        void . async $ pooledMapConcurrentlyN_ 16 (closeChannel pool.logger) batch
+        liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond)
+  Log.info pool.logger $ Log.msg (Log.val "Draining complete")
+  where
+    closeChannel :: (ToByteString key) => Log.Logger -> (key, Q.Channel) -> IO ()
+    closeChannel l (key, chan) = do
+      Log.info l $
+        Log.msg (Log.val "closing rabbitmq channel")
+          . Log.field "key" (toByteString' key)
+      Q.closeChannel chan
+
+    logExpired :: Log.Logger -> Word64 -> IO ()
+    logExpired l period = do
+      Log.err l $ Log.msg (Log.val "Drain grace period expired") . Log.field "gracePeriodSeconds" period
+
+    logDraining :: Log.Logger -> Word64 -> Word64 -> Word64 -> Word64 -> Word64 -> IO ()
+    logDraining l count b minB batchSize m = do
+      Log.info l $
+        Log.msg (Log.val "draining all rabbitmq channels")
+          . Log.field "numberOfChannels" count
+          . Log.field "computedBatchSize" b
+          . Log.field "minBatchSize" minB
+          . Log.field "batchSize" batchSize
+          . Log.field "maxNumberOfBatches" m
+
 createConnection :: (Ord key) => RabbitMqPool key -> IO (PooledConnection key)
 createConnection pool = mask_ $ do
   conn <- openConnection pool
-  pconn <- atomically $ do
+  mpconn <- runMaybeT . atomically $ do
+    -- do not create new connections when in draining mode
+    readTVar pool.draining >>= guard . not
     connId <- readTVar pool.nextId
     writeTVar pool.nextId $! succ connId
     let c =
@@ -82,6 +152,7 @@ createConnection pool = mask_ $ do
             }
     modifyTVar pool.connections (c :)
     pure c
+  pconn <- maybe (throwIO TooManyChannels) pure mpconn
 
   closedVar <- newEmptyMVar
   -- Fire and forget: the thread will terminate by itself as soon as the
