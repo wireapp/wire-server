@@ -33,6 +33,7 @@ import Imports
 import Options.Applicative
 import qualified System.Logger as Log
 import Wire.API.User (EmailAddress)
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 
 selectServices :: ClientState -> ConduitM () [ServiceProviderRow] IO ()
 selectServices client =
@@ -42,6 +43,14 @@ selectServices client =
     cql :: C.PrepQuery C.R () (CQL.TupleType ServiceProviderRow)
     cql =
       "SELECT team, service, provider FROM service_whitelist"
+
+isTeamActive :: ClientState -> ServiceProviderRow -> IO Bool
+isTeamActive client spr = do
+  mStatus <- (runIdentity =<<) <$> runClient client (retry x1 (query1 cql (params One (Identity spr.teamId))))
+  pure $ mStatus == Just Active
+  where
+    cql :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamStatus))
+    cql = "SELECT status FROM team WHERE team = ?"
 
 lookupService :: ClientState -> ProviderId -> ServiceId -> IO (Maybe ServiceRow)
 lookupService client providerId serviceId = do
@@ -78,6 +87,7 @@ process logger cache brigClient galleyClient =
   runConduit
     $ selectServices brigClient
     .| Conduit.concat
+    .| Conduit.filterM (isTeamActive galleyClient)
     .| Conduit.mapM
       ( \row -> do
           toBotInfo row

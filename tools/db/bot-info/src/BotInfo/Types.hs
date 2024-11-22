@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -31,6 +32,7 @@ import Database.CQL.Protocol hiding (Result)
 import Imports
 import Options.Applicative
 import Wire.API.User (EmailAddress)
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 
 data CassandraSettings = CassandraSettings
   { host :: String,
@@ -146,3 +148,21 @@ toCsv bi =
       maybe "N/A" (cs . toByteString) bi.url,
       maybe "N/A" show bi.enabled
     ]
+
+instance Cql TeamStatus where
+  ctype = Tagged IntColumn
+
+  toCql Active = CqlInt 0
+  toCql PendingDelete = CqlInt 1
+  toCql Deleted = CqlInt 2
+  toCql Suspended = CqlInt 3
+  toCql PendingActive = CqlInt 4
+
+  fromCql (CqlInt i) = case i of
+    0 -> pure Active
+    1 -> pure PendingDelete
+    2 -> pure Deleted
+    3 -> pure Suspended
+    4 -> pure PendingActive
+    n -> Left $ "unexpected team-status: " ++ show n
+  fromCql _ = Left "team-status: int expected"
