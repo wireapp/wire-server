@@ -80,7 +80,7 @@ drainRabbitMqPool :: (ToByteString key) => RabbitMqPool key -> DrainOpts -> IO (
 drainRabbitMqPool pool opts = do
   atomically $ writeTVar pool.draining True
 
-  channels :: [(key, Q.Channel)] <- atomically $ do
+  channels <- atomically $ do
     conns <- readTVar pool.connections
     pure $ concat [Map.assocs c.channels | c <- conns]
   let numberOfChannels = fromIntegral (length channels)
