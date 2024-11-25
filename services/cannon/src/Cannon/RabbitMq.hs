@@ -111,8 +111,9 @@ drainRabbitMqPool pool opts = do
     $ \_ -> do
       for_ (chunksOf (fromIntegral batchSize) channels) $ \batch -> do
         -- 16 was chosen with a roll of a fair dice.
-        void . async $ pooledMapConcurrentlyN_ 16 (closeChannel pool.logger) batch
-        liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond)
+        concurrently
+          (pooledMapConcurrentlyN_ 16 (closeChannel pool.logger) batch)
+          (liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond))
   Log.info pool.logger $ Log.msg (Log.val "Draining complete")
   where
     closeChannel :: (ToByteString key) => Log.Logger -> (key, Q.Channel) -> IO ()
