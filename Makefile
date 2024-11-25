@@ -125,6 +125,11 @@ ci-safe:
 ci:
 	@echo -en "\n\n\nplease choose between goals ci-fast and ci-safe.\n\n\n"
 
+.PHONY: perf-test
+perf-test:
+	make c package=all
+	./dist/run-services --mode performance -- ./dist/integration --suite performance
+
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley
 .PHONY: cr
@@ -132,7 +137,10 @@ cr: c db-migrate
 	./dist/run-services
 
 crm: c db-migrate
-	./dist/run-services -m
+	./dist/run-services --mode manual
+
+crp: c db-migrate
+	./dist/run-services --mode performance
 
 # Run integration from new test suite
 # Usage: make devtest

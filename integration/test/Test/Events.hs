@@ -7,14 +7,12 @@ import API.Galley
 import API.Gundeck
 import qualified Control.Concurrent.Timeout as Timeout
 import Control.Retry
-import Data.ByteString.Conversion (toByteString')
-import qualified Data.Text as Text
 import Data.Timeout
-import qualified Network.WebSockets as WS
 import Notifications
 import SetupHelpers
+import Testlib.Cannon.ConsumableNotifications
 import Testlib.Prelude hiding (assertNoEvent)
-import Testlib.Printing
+import qualified Testlib.Prelude as Old
 import UnliftIO hiding (handle)
 
 -- FUTUREWORK: Investigate why these tests are failing without
@@ -105,7 +103,7 @@ testConsumeEventsWhileHavingLegacyClients = do
       newClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
       newClientId <- newClient %. "id" & asString
 
-      oldNotif <- awaitMatch isUserClientAddNotif oldWS
+      oldNotif <- Old.awaitMatch isUserClientAddNotif oldWS
       oldNotif %. "payload.0.client.id" `shouldMatch` newClientId
 
       withEventsWebSocket alice newClientId $ \eventsChan _ ->
@@ -303,133 +301,3 @@ testTransientEvents = do
           ackEvent ackChan e
 
       assertNoEvent eventsChan
-
-----------------------------------------------------------------------
--- helpers
-
-withEventsWebSockets :: forall uid a. (HasCallStack, MakesValue uid) => [(uid, String)] -> ([(TChan Value, TChan Value)] -> App a) -> App a
-withEventsWebSockets userClients k = go [] $ reverse userClients
-  where
-    go :: [(TChan Value, TChan Value)] -> [(uid, String)] -> App a
-    go chans [] = k chans
-    go chans ((uid, cid) : remaining) =
-      withEventsWebSocket uid cid $ \eventsChan ackChan ->
-        go ((eventsChan, ackChan) : chans) remaining
-
-withEventsWebSocket :: (HasCallStack, MakesValue uid) => uid -> String -> (TChan Value -> TChan Value -> App a) -> App a
-withEventsWebSocket uid cid k = do
-  closeWS <- newEmptyMVar
-  bracket (setup closeWS) (\(_, _, wsThread) -> cancel wsThread) $ \(eventsChan, ackChan, wsThread) -> do
-    x <- k eventsChan ackChan
-
-    -- Ensure all the acks are sent before closing the websocket
-    isAckChanEmpty <-
-      retrying
-        (limitRetries 5 <> constantDelay 10_000)
-        (\_ isEmpty -> pure $ not isEmpty)
-        (\_ -> atomically $ isEmptyTChan ackChan)
-    unless isAckChanEmpty $ do
-      putStrLn $ colored yellow $ "The ack chan is not empty after 50ms, some acks may not make it to the server"
-
-    void $ tryPutMVar closeWS ()
-
-    timeout 1_000_000 (wait wsThread) >>= \case
-      Nothing ->
-        putStrLn $ colored yellow $ "The websocket thread did not close after waiting for 1s"
-      Just () -> pure ()
-
-    pure x
-  where
-    setup :: (HasCallStack) => MVar () -> App (TChan Value, TChan Value, Async ())
-    setup closeWS = do
-      (eventsChan, ackChan) <- liftIO $ (,) <$> newTChanIO <*> newTChanIO
-      wsThread <- eventsWebSocket uid cid eventsChan ackChan closeWS
-      pure (eventsChan, ackChan, wsThread)
-
-sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
-sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
-
-ackFullSync :: (HasCallStack) => TChan Value -> App ()
-ackFullSync ackChan = do
-  sendMsg ackChan
-    $ object ["type" .= "ack_full_sync"]
-
-ackEvent :: (HasCallStack) => TChan Value -> Value -> App ()
-ackEvent ackChan event = do
-  deliveryTag <- event %. "data.delivery_tag"
-  sendAck ackChan deliveryTag False
-
-sendAck :: (HasCallStack) => TChan Value -> Value -> Bool -> App ()
-sendAck ackChan deliveryTag multiple = do
-  sendMsg ackChan
-    $ object
-      [ "type" .= "ack",
-        "data"
-          .= object
-            [ "delivery_tag" .= deliveryTag,
-              "multiple" .= multiple
-            ]
-      ]
-
-assertEvent :: (HasCallStack) => TChan Value -> ((HasCallStack) => Value -> App a) -> App a
-assertEvent eventsChan expectations = do
-  timeout 10_000_000 (atomically (readTChan eventsChan)) >>= \case
-    Nothing -> assertFailure "No event received for 10s"
-    Just e -> do
-      pretty <- prettyJSON e
-      addFailureContext ("event:\n" <> pretty)
-        $ expectations e
-
-assertNoEvent :: (HasCallStack) => TChan Value -> App ()
-assertNoEvent eventsChan = do
-  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
-    Nothing -> pure ()
-    Just e -> do
-      eventJSON <- prettyJSON e
-      assertFailure $ "Did not expect event: \n" <> eventJSON
-
-consumeAllEvents :: TChan Value -> TChan Value -> App ()
-consumeAllEvents eventsChan ackChan = do
-  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
-    Nothing -> pure ()
-    Just e -> do
-      ackEvent ackChan e
-      consumeAllEvents eventsChan ackChan
-
-eventsWebSocket :: (MakesValue user) => user -> String -> TChan Value -> TChan Value -> MVar () -> App (Async ())
-eventsWebSocket user clientId eventsChan ackChan closeWS = do
-  serviceMap <- getServiceMap =<< objDomain user
-  uid <- objId =<< objQidObject user
-  let HostPort caHost caPort = serviceHostPort serviceMap Cannon
-      path = "/events?client=" <> clientId
-      caHdrs = [(fromString "Z-User", toByteString' uid)]
-      app conn = do
-        r <-
-          async $ wsRead conn `catch` \(e :: WS.ConnectionException) ->
-            case e of
-              WS.CloseRequest {} -> pure ()
-              _ -> throwIO e
-        w <- async $ wsWrite conn
-        void $ waitAny [r, w]
-
-      wsRead conn = forever $ do
-        bs <- WS.receiveData conn
-        case decodeStrict' bs of
-          Just n -> atomically $ writeTChan eventsChan n
-          Nothing ->
-            error $ "Failed to decode events: " ++ show bs
-
-      wsWrite conn = forever $ do
-        eitherAck <- race (readMVar closeWS) (atomically $ readTChan ackChan)
-        case eitherAck of
-          Left () -> WS.sendClose conn (Text.pack "")
-          Right ack -> WS.sendBinaryData conn (encode ack)
-  liftIO
-    $ async
-    $ WS.runClientWith
-      caHost
-      (fromIntegral caPort)
-      path
-      WS.defaultConnectionOptions
-      caHdrs
-      app
