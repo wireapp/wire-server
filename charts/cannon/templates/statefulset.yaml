@@ -92,6 +92,17 @@ spec:
 {{ toYaml .Values.resources | indent 12 }}
       {{- end }}
       - name: cannon
+        env:
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: cannon
+              key: rabbitmqUsername
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cannon
+              key: rabbitmqPassword
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
