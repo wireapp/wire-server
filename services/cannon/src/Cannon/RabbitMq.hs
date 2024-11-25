@@ -273,18 +273,14 @@ acquireConnection pool = do
   findConnection pool >>= \case
     Nothing -> do
       bracketOnError
-        ( do
-            conn <- createConnection pool
-            -- if we have too many connections at this point, give up
-            numConnections <- -- TODO should be moved to the body
-              atomically $
-                length <$> readTVar pool.connections
-            when (numConnections > pool.opts.maxConnections) $
-              throw TooManyChannels
-            pure conn
-        )
-        (\conn -> Q.closeConnection conn.inner)
-        pure
+        (createConnection pool)
+        (Q.closeConnection . (.inner))
+        $ \conn -> do
+          -- if we have too many connections at this point, give up
+          numConnections <- atomically $ length <$> readTVar pool.connections
+          when (numConnections > pool.opts.maxConnections) $
+            throw TooManyChannels
+          pure conn
     Just conn -> pure conn
 
 findConnection :: RabbitMqPool key -> IO (Maybe (PooledConnection key))
