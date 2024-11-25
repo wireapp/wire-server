@@ -9,6 +9,7 @@
 , async
 , base
 , bilge
+, binary
 , bytestring
 , bytestring-conversion
 , cassandra-util
@@ -44,6 +45,7 @@
 , tasty-quickcheck
 , text
 , tinylog
+, transformers
 , types-common
 , unix
 , unliftio
@@ -70,10 +72,12 @@ mkDerivation {
     async
     base
     bilge
+    binary
     bytestring
     bytestring-conversion
     cassandra-util
     conduit
+    containers
     data-timeout
     exceptions
     extended
@@ -96,6 +100,7 @@ mkDerivation {
     strict
     text
     tinylog
+    transformers
     types-common
     unix
     unliftio
