@@ -28,7 +28,7 @@ import Cannon.App (maxPingInterval)
 import Cannon.Dict qualified as D
 import Cannon.Options
 import Cannon.RabbitMq
-import Cannon.Types (Cannon, applog, clients, connectionLimit, env, mkEnv, runCannon, runCannonToServant)
+import Cannon.Types hiding (Env)
 import Cannon.WS hiding (drainOpts, env)
 import Cassandra.Util (defInitCassandra)
 import Control.Concurrent
@@ -84,9 +84,9 @@ run o = lowerCodensity $ do
   cassandra <- lift $ defInitCassandra (o ^. cassandraOpts) g
 
   e <- do
-    d1 <- D.empty connectionLimit
-    d2 <- D.empty connectionLimit
-    man <- lift $ newManager defaultManagerSettings {managerConnCount = connectionLimit}
+    d1 <- D.empty numDictSlices
+    d2 <- D.empty numDictSlices
+    man <- lift $ newManager defaultManagerSettings {managerConnCount = 128}
     rnd <- lift createSystemRandom
     clk <- lift mkClock
     mkEnv ext o cassandra g d1 d2 man rnd clk (o ^. Cannon.Options.rabbitmq)
