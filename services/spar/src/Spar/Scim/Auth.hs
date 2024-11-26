@@ -37,7 +37,9 @@ where
 
 import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
+import Data.Code as Code
 import Data.Id
+import Data.Misc
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import Imports
@@ -138,7 +140,18 @@ createScimTokenV6 ::
   -- | Request body
   CreateScimToken ->
   Sem r CreateScimTokenResponseV6
-createScimTokenV6 zusr req = responseToV6 <$> createScimToken zusr req
+createScimTokenV6 zusr Api.CreateScimToken {..} = do
+  teamid <- guardScimTokenCreation zusr password verificationCode
+  idps <- IdPConfigStore.getConfigsByTeam teamid
+  mIdpId <- case idps of
+    [config] -> pure . Just $ config ^. SAML.idpId
+    [] -> pure Nothing
+    -- NB: if the following case does not result in errors, 'validateScimUser' needs to
+    -- be changed.  currently, it relies on the fact that there is never more than one IdP.
+    -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
+    _ -> throwSparSem $ E.SparProvisioningMoreThanOneIdP E.TwoIdpsAndScimTokenForbidden
+
+  responseToV6 <$> createScimTokenUnchecked teamid name description mIdpId
   where
     responseToV6 :: CreateScimTokenResponse -> CreateScimTokenResponseV6
     responseToV6 (CreateScimTokenResponse token info) = CreateScimTokenResponseV6 token (infoToV6 info)
@@ -166,44 +179,65 @@ createScimToken ::
   CreateScimToken ->
   Sem r CreateScimTokenResponse
 createScimToken zusr Api.CreateScimToken {..} = do
+  teamid <- guardScimTokenCreation zusr password verificationCode
+  mIdPId <- maybe (pure Nothing) (\idpid -> IdPConfigStore.getConfig idpid $> Just idpid) idp
+  createScimTokenUnchecked teamid name description mIdPId
+
+guardScimTokenCreation ::
+  forall r.
+  ( Member (Input Opts) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member (Error E.SparError) r
+  ) =>
+  -- | Who is trying to create a token
+  Maybe UserId ->
+  Maybe PlainTextPassword6 ->
+  Maybe Code.Value ->
+  Sem r TeamId
+guardScimTokenCreation zusr password verificationCode = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   BrigAccess.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
   tokenNumber <- length <$> ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
     throwSparSem E.SparProvisioningTokenLimitReached
-  idps <- IdPConfigStore.getConfigsByTeam teamid
+  pure teamid
 
-  let caseOneOrNoIdP :: Maybe SAML.IdPId -> Sem r CreateScimTokenResponse
-      caseOneOrNoIdP midpid = do
-        token <-
-          ScimToken . T.decodeUtf8With lenientDecode . ES.encode
-            <$> Random.bytes 32
-        tokenid <- Random.scimTokenId
-        -- FUTUREWORK(fisx): the fact that we're using @Now.get@
-        -- here means that the 'Now' effect should not contain
-        -- types from saml2-web-sso. We can just use 'UTCTime'
-        -- there, right?
-        now <- Now.get
-        let info =
-              ScimTokenInfo
-                { stiId = tokenid,
-                  stiTeam = teamid,
-                  stiCreatedAt = now,
-                  stiIdP = midpid,
-                  stiDescr = description,
-                  stiName = fromMaybe (idToText tokenid) name
-                }
-        ScimTokenStore.insert token info
-        pure $ CreateScimTokenResponse token info
-
-  case idps of
-    [idp] -> caseOneOrNoIdP . Just $ idp ^. SAML.idpId
-    [] -> caseOneOrNoIdP Nothing
-    -- NB: if the following case does not result in errors, 'validateScimUser' needs to
-    -- be changed.  currently, it relies on the fact that there is never more than one IdP.
-    -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
-    _ -> throwSparSem $ E.SparProvisioningMoreThanOneIdP E.TwoIdpsAndScimTokenForbidden
+-- Create a token for user's team.
+createScimTokenUnchecked ::
+  forall r.
+  ( Member Random r,
+    Member ScimTokenStore r,
+    Member Now r
+  ) =>
+  TeamId ->
+  Maybe Text ->
+  Text ->
+  Maybe SAML.IdPId ->
+  Sem r CreateScimTokenResponse
+createScimTokenUnchecked teamid mName desc mIdPId = do
+  token <-
+    ScimToken . T.decodeUtf8With lenientDecode . ES.encode
+      <$> Random.bytes 32
+  tokenid <- Random.scimTokenId
+  -- FUTUREWORK(fisx): the fact that we're using @Now.get@
+  -- here means that the 'Now' effect should not contain
+  -- types from saml2-web-sso. We can just use 'UTCTime'
+  -- there, right?
+  now <- Now.get
+  let info =
+        ScimTokenInfo
+          { stiId = tokenid,
+            stiTeam = teamid,
+            stiCreatedAt = now,
+            stiIdP = mIdPId,
+            stiDescr = desc,
+            stiName = fromMaybe (idToText tokenid) mName
+          }
+  ScimTokenStore.insert token info
+  pure $ CreateScimTokenResponse token info
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenDelete}
 --

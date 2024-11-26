@@ -19,7 +19,7 @@ import Testlib.Prelude
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
   (owner, _tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner def >>= \resp -> resp.json %. "token" >>= asString
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   scimUser <- randomScimUser
   bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
     res.status `shouldMatchInt` 201
@@ -41,7 +41,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
   (owner, tid, _) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   void $ registerTestIdPWithMeta owner >>= getJSON 201
-  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
   email <- randomEmail
   extId <- randomExternalId
   scimUser <- randomScimUserWith extId email
@@ -135,7 +135,7 @@ registerTestIdPWithMeta owner = do
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner def >>= \resp -> resp.json %. "token" >>= asString
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   email <- randomEmail
   extId <- randomExternalId
   scimUser <- randomScimUserWith extId email
@@ -231,7 +231,7 @@ testSparExternalIdDifferentFromEmail = do
 testSparExternalIdUpdateToANonEmail :: (HasCallStack) => App ()
 testSparExternalIdUpdateToANonEmail = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner def >>= \resp -> resp.json %. "token" >>= asString
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   scimUser <- randomScimUser >>= removeField "emails"
   email <- scimUser %. "externalId" >>= asString
   userId <- bindResponse (createScimUser OwnDomain tok scimUser) $ \resp -> do
@@ -247,7 +247,7 @@ testSparExternalIdUpdateToANonEmail = do
 testSparMigrateFromExternalIdOnlyToEmail :: (HasCallStack) => Tagged "mailUnchanged" Bool -> App ()
 testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner def >>= \resp -> resp.json %. "token" >>= asString
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   scimUser <- randomScimUser >>= removeField "emails"
   email <- scimUser %. "externalId" >>= asString
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
@@ -315,8 +315,8 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
 testSparCreateScimTokenNoName :: (HasCallStack) => App ()
 testSparCreateScimTokenNoName = do
   (owner, _tid, mem : _) <- createTeam OwnDomain 2
-  createScimToken owner def >>= assertSuccess
-  createScimToken owner def >>= assertSuccess
+  createScimTokenV6 owner def >>= assertSuccess
+  createScimTokenV6 owner def >>= assertSuccess
   tokens <- bindResponse (getScimTokens owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     tokens <- resp.json %. "tokens" >>= asList
@@ -338,7 +338,7 @@ testSparCreateScimTokenWithName :: (HasCallStack) => App ()
 testSparCreateScimTokenWithName = do
   (owner, _tid, _) <- createTeam OwnDomain 1
   let expected = "my scim token"
-  createScimToken owner (def {name = Just expected}) >>= assertSuccess
+  createScimTokenV6 owner (def {name = Just expected}) >>= assertSuccess
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
   for_ tokens $ \token -> do
     token %. "name" `shouldMatch` expected
@@ -347,33 +347,34 @@ testCreateMultipleIdps :: (HasCallStack) => App ()
 testCreateMultipleIdps = do
   (owner, tid, _) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  registerTestIdPWithMeta owner >>= assertSuccess
-  registerTestIdPWithMeta owner >>= assertSuccess
-  createScimToken owner (def {name = Just "foobar"}) >>= assertSuccess
+  idp1 <- registerTestIdPWithMeta owner >>= getJSON 201 >>= (%. "id") >>= asString
+  idp2 <- registerTestIdPWithMeta owner >>= getJSON 201 >>= (%. "id") >>= asString
+  createScimToken owner (def {name = Just "foobar", idp = Just idp1}) >>= assertSuccess
+  createScimToken owner (def {name = Just "bazqux", idp = Just idp2}) >>= assertSuccess
 
-data NumServices = None | One | Two | Three
-  deriving (Eq, Show, Enum, Bounded, Generic)
+-- data NumServices = None | One | Two | Three
+--   deriving (Eq, Show, Enum, Bounded, Generic)
 
-data Connection where
-  SamlFirst :: NumServices -> NumServices -> Connection
-  ScimFirst :: NumServices -> NumServices -> Connection
-  deriving (Eq, Show)
+-- data Connection where
+--   SamlFirst :: NumServices -> NumServices -> Connection
+--   ScimFirst :: NumServices -> NumServices -> Connection
+--   deriving (Eq, Show)
 
-instance Enum Connection where
-  -- this instance is a bit odd and not at all exhaustive.  instead, it is finite: it writes
-  -- down a list of connection lists that we want to test.
-  toEnum = _
-  fromEnum = error "no fromEnum on this weird `instance Enum Connection`."
+-- instance Enum Connection where
+--   -- this instance is a bit odd and not at all exhaustive.  instead, it is finite: it writes
+--   -- down a list of connection lists that we want to test.
+--   toEnum = _
+--   fromEnum = error "no fromEnum on this weird `instance Enum Connection`."
 
-testCreateIdpsAndScimsV7 :: (HasCallStack) => NumServices -> NumServices -> [Connection] -> App ()
-testCreateIdpsAndScimsV7 _idp _saml _conns = do
-  -- TODO:
-  -- test status code && maybe label of all create calls
-  -- test that scim and idp entries are connected (or not)
-  -- test that provision users are connected (or not)
-  _
+-- testCreateIdpsAndScimsV7 :: (HasCallStack) => NumServices -> NumServices -> [Connection] -> App ()
+-- testCreateIdpsAndScimsV7 _idp _saml _conns = do
+--   -- TODO:
+--   -- test status code && maybe label of all create calls
+--   -- test that scim and idp entries are connected (or not)
+--   -- test that provision users are connected (or not)
+--   _
 
--- TODO:
--- can we allow two scims associated with one saml?  => yes, that's fine.
--- can we allow two samls associated with one scim?  => nah, that should be an error.  otherwise how does scim know which idp to associate with the user?
--- allow scim without saml, but deprecate idp-without-scim use case.  (i think there is already a ticket for that.)
+-- -- TODO:
+-- -- can we allow two scims associated with one saml?  => yes, that's fine.
+-- -- can we allow two samls associated with one scim?  => nah, that should be an error.  otherwise how does scim know which idp to associate with the user?
+-- -- allow scim without saml, but deprecate idp-without-scim use case.  (i think there is already a ticket for that.)

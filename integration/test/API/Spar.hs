@@ -27,6 +27,12 @@ instance ToJSON CreateScimToken where
   toJSON = genericToJSON $ defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_scim_auth_tokens
+createScimTokenV6 :: (HasCallStack, MakesValue caller) => caller -> CreateScimToken -> App Response
+createScimTokenV6 caller payload = do
+  req <- baseRequest caller Spar (ExplicitVersion 6) "/scim/auth-tokens"
+  j <- make payload
+  submit "POST" $ req & addJSON j
+
 createScimToken :: (HasCallStack, MakesValue caller) => caller -> CreateScimToken -> App Response
 createScimToken caller payload = do
   req <- baseRequest caller Spar Versioned "/scim/auth-tokens"
