@@ -113,6 +113,11 @@ spec:
           mountPath: /etc/wire/cannon/externalHost
         - name: cannon-config
           mountPath: /etc/wire/cannon/conf
+        {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+        - name: "rabbitmq-ca"
+          secret:
+            secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+        {{- end }}
         ports:
         - name: http
           containerPort: {{ .Values.service.internalPort }}
