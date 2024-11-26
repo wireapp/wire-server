@@ -338,7 +338,7 @@ testSparCreateScimTokenWithName :: (HasCallStack) => App ()
 testSparCreateScimTokenWithName = do
   (owner, _tid, _) <- createTeam OwnDomain 1
   let expected = "my scim token"
-  createScimToken owner (def { name = Just expected }) >>= assertSuccess
+  createScimToken owner (def {name = Just expected}) >>= assertSuccess
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
   for_ tokens $ \token -> do
     token %. "name" `shouldMatch` expected
@@ -349,4 +349,4 @@ testCreateMultipleIdps = do
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   registerTestIdPWithMeta owner >>= assertSuccess
   registerTestIdPWithMeta owner >>= assertSuccess
-  createScimToken owner (def { name = Just "foobar" }) >>= assertSuccess
+  createScimToken owner (def {name = Just "foobar"}) >>= assertSuccess
