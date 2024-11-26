@@ -43,6 +43,7 @@ import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.Printing
+import Data.Time (getCurrentTime, diffUTCTime)
 
 mkClientIdentity :: (MakesValue u, MakesValue c) => u -> c -> App ClientIdentity
 mkClientIdentity u c = do
@@ -665,26 +666,27 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
   withWebSockets (map fst clients) $ \wss -> do
     r <- k ()
 
-    -- if the conversation is actually MLS (and not mixed), pick one client for
-    -- each new user and wait for its join event. In Mixed protocol, the user is
-    -- already in the conversation so they do not get a member-join
-    -- notification.
-    when (mlsProtocol == MLSProtocolMLS) $
-      traverse_
-        (awaitMatch (\n -> isMemberJoinNotif n))
-        ( flip Map.restrictKeys newUsers
-            . Map.mapKeys ((.user) . fst)
-            . Map.fromList
-            . toList
-            $ zip clients wss
-        )
+    logTime ("await and consume MLS notifications for " <> show (length clients)) $ do
+      -- if the conversation is actually MLS (and not mixed), pick one client for
+      -- each new user and wait for its join event. In Mixed protocol, the user is
+      -- already in the conversation so they do not get a member-join
+      -- notification.
+      when (mlsProtocol == MLSProtocolMLS) $
+        traverse_
+          (awaitMatch (\n -> isMemberJoinNotif n))
+          ( flip Map.restrictKeys newUsers
+              . Map.mapKeys ((.user) . fst)
+              . Map.fromList
+              . toList
+              $ zip clients wss
+          )
 
-    -- at this point we know that every new user has been added to the
-    -- conversation
-    for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
-      MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
-    pure r
+      -- at this point we know that every new user has been added to the
+      -- conversation
+      for_ (zip clients wss) $ \((cid, t), ws) -> case t of
+        MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
+        MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
+      pure r
 
 consumeMessageWithPredicate :: (HasCallStack) => (Value -> App Bool) -> ConvId -> Ciphersuite -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
 consumeMessageWithPredicate p convId cs cid mmp ws = do
@@ -759,32 +761,33 @@ sendAndConsumeCommitBundleWithProtocol protocol mp = do
   lowerCodensity $ do
     consumingMessages protocol mp
     lift $ do
-      r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
+      r <- logTime "POST /mls/commit-bundles" $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
-      -- if the sender is a new member (i.e. it's an external commit), then
-      -- process the welcome message directly
-      do
-        conv <- getMLSConv mp.convId
-        when (Set.member mp.sender conv.newMembers) $
-          traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
+      logTime "modify local state" $ do
+        -- if the sender is a new member (i.e. it's an external commit), then
+        -- process the welcome message directly
+        do
+          conv <- getMLSConv mp.convId
+          when (Set.member mp.sender conv.newMembers) $
+            traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
 
-      -- increment epoch and add new clients
-      modifyMLSState $ \mls ->
-        mls
-          { convs =
-              Map.adjust
-                ( \conv ->
-                    conv
-                      { epoch = conv.epoch + 1,
-                        members = conv.members <> conv.newMembers,
-                        newMembers = mempty
-                      }
-                )
-                mp.convId
-                mls.convs
-          }
+        -- increment epoch and add new clients
+        modifyMLSState $ \mls ->
+          mls
+            { convs =
+                Map.adjust
+                  ( \conv ->
+                      conv
+                        { epoch = conv.epoch + 1,
+                          members = conv.members <> conv.newMembers,
+                          newMembers = mempty
+                        }
+                  )
+                  mp.convId
+                  mls.convs
+            }
 
-      pure r
+        pure r
 
 consumeWelcome :: (HasCallStack) => ClientIdentity -> MessagePackage -> WebSocket -> App ()
 consumeWelcome cid mp ws = do
@@ -977,3 +980,12 @@ sendAndConsumeCommitBundleWithProtocolNew protocol mp = do
           }
 
       pure r
+
+logTime :: (HasCallStack) => String -> App a -> App a
+logTime desc action = do
+  start <- liftIO getCurrentTime
+  res <- action
+  end <- liftIO getCurrentTime
+  let diff = diffUTCTime end start
+  liftIO $ putStrLn $ desc <> " took " <> show diff
+  pure res

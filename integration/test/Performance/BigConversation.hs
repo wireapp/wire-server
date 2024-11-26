@@ -17,39 +17,12 @@ import UnliftIO (modifyIORef', newIORef, pooledMapConcurrentlyN, readIORef)
 import UnliftIO.Temporary
 import Prelude (writeFile)
 
--- | A size saying how big an MLS conversation is. Each size is mapped to a
--- number via the 'sizeToNumber' function.
-data ConversationSize
-  = Tiny
-  | Small
-  | Medium
-  | Big
-  | Large
-  | VeryLarge
-  deriving (Eq, Generic, Show)
-
-sizeToNumber :: ConversationSize -> Word
-sizeToNumber Tiny = 20
-sizeToNumber Small = 100
-sizeToNumber Medium = 500
-sizeToNumber Big = 1000
-sizeToNumber Large = 5000
-sizeToNumber VeryLarge = 10000
-
-batchForSize :: ConversationSize -> Word
-batchForSize Tiny = 10
-batchForSize Small = 20
-batchForSize Medium = 100
-batchForSize Big = 250
-batchForSize Large = 500
-batchForSize VeryLarge = 500
-
 testCreateBigMLSConversation :: App ()
 testCreateBigMLSConversation = do
   domain <- OwnDomain & asString
-  let teamSize = 11
-  let batchSize = 20
-  let clientNotifCapability = Consumable
+  let teamSize = 501
+  let batchSize = 500
+  let clientNotifCapability = Legacy
   putStrLn $ "Creating a team with " <> show teamSize <> " members"
   (owner, ownerClient, _, members, c1 : c2 : _) <- createTeamAndClients domain clientNotifCapability teamSize
   putStrLn $ "Creating a conversation with " <> show teamSize <> " members in batches of " <> show batchSize
@@ -59,31 +32,30 @@ testCreateBigMLSConversation = do
       convId <- createNewGroup def ownerClient
       let memberChunks = chunksOf batchSize members
       for_ memberChunks $ \chunk -> do
-        (size, time) <- timeIt $ do
-          msg <- createAddCommit ownerClient convId chunk
+        ((commitSize, bundleSize), time) <- timeIt $ do
+          msg <- logTime "create add-commit" $ createAddCommit ownerClient convId chunk
           void $ case clientNotifCapability of
             Legacy -> sendAndConsumeCommitBundle msg
             Consumable -> sendAndConsumeCommitBundleNew msg
-          pure (BS.length msg.message)
+          pure (BS.length msg.message, BS.length (mkBundle msg))
         cs <- liftIO $ readIORef convSize
-        putStrLn $ "Sent " <> show size <> " bytes in " <> show time <> ", adding " <> show (length chunk) <> " members to conv of size: " <> show cs
+        putStrLn $ "Sent " <> show commitSize <> " bytes (bundle: " <> show bundleSize <> " bytes) in " <> show time <> ", adding " <> show (length chunk) <> " members to conv of size: " <> show cs
         liftIO $ modifyIORef' convSize (+ (length chunk))
-        pure (size, time)
       pure convId
   putStrLn $ "Total time: " <> show totalTime
   do
     conv <- getConversation owner (convIdToQidObject convId) >>= getJSON 200
     otherMembers <- conv %. "members.others" & asList
     length otherMembers `shouldMatchInt` (teamSize - 1)
-  (bytes, timeRemoval) <- timeIt $ do
-    commit <- createRemoveCommit ownerClient convId [c1, c2]
+  ((commitSize, bundleSize), time) <- timeIt $ do
+    commit <- logTime "create removal commit" $ createRemoveCommit ownerClient convId [c1, c2]
     -- m <- showMessage def ownerClient commit.message
     -- prettyJSON m >>= liftIO . writeFile "removal.json"
     case clientNotifCapability of
       Legacy -> void $ sendAndConsumeCommitBundle commit
       Consumable -> void $ sendAndConsumeCommitBundleNew commit
-    pure (BS.length commit.message)
-  putStrLn $ "Sent " <> show bytes <> " bytes in " <> show timeRemoval <> " for removing 2 members"
+    pure (BS.length commit.message, BS.length (mkBundle commit))
+  putStrLn $ "Sent " <> show commitSize <> " bytes in " <> show timeRemoval <> " for removing 2 members"
   do
     conv <- getConversation owner (convIdToQidObject convId) >>= getJSON 200
     otherMembers <- conv %. "members.others" & asList
