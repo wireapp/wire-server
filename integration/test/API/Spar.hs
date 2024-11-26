@@ -12,17 +12,26 @@ getScimTokens caller = do
   req <- baseRequest caller Spar Versioned "/scim/auth-tokens"
   submit "GET" req
 
--- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_scim_auth_tokens
-createScimToken :: (HasCallStack, MakesValue caller) => caller -> App Response
-createScimToken caller = do
-  req <- baseRequest caller Spar Versioned "/scim/auth-tokens"
-  submit "POST" $ req & addJSONObject ["password" .= defPassword, "description" .= "integration test"]
+data CreateScimToken = CreateScimToken
+  { password :: String,
+    description :: Maybe String,
+    name :: Maybe String,
+    idp :: Maybe String
+  }
+  deriving stock (Generic, Show)
+
+instance Default CreateScimToken where
+  def = CreateScimToken defPassword (Just "integration test") Nothing Nothing
+
+instance ToJSON CreateScimToken where
+  toJSON = genericToJSON $ defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_scim_auth_tokens
-createScimTokenWithName :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
-createScimTokenWithName caller name = do
+createScimToken :: (HasCallStack, MakesValue caller) => caller -> CreateScimToken -> App Response
+createScimToken caller payload = do
   req <- baseRequest caller Spar Versioned "/scim/auth-tokens"
-  submit "POST" $ req & addJSONObject ["password" .= defPassword, "description" .= "integration test", "name" .= name]
+  j <- make payload
+  submit "POST" $ req & addJSON j
 
 putScimTokenName :: (HasCallStack, MakesValue caller) => caller -> String -> String -> App Response
 putScimTokenName caller token name = do

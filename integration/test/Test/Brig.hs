@@ -246,7 +246,7 @@ testDeleteEmail = do
       associateUsrWithSSO = do
         void $ setTeamFeatureStatus owner tid "sso" "enabled"
         registerTestIdPWithMeta owner >>= assertSuccess
-        tok <- createScimToken owner >>= getJSON 200 >>= (%. "token") >>= asString
+        tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
         void $ findUsersByExternalId owner tok email
 
       searchShouldBe :: (HasCallStack) => String -> App ()
