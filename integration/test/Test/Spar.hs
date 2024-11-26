@@ -350,3 +350,30 @@ testCreateMultipleIdps = do
   registerTestIdPWithMeta owner >>= assertSuccess
   registerTestIdPWithMeta owner >>= assertSuccess
   createScimToken owner (def {name = Just "foobar"}) >>= assertSuccess
+
+data NumServices = None | One | Two | Three
+  deriving (Eq, Show, Enum, Bounded, Generic)
+
+data Connection where
+  SamlFirst :: NumServices -> NumServices -> Connection
+  ScimFirst :: NumServices -> NumServices -> Connection
+  deriving (Eq, Show)
+
+instance Enum Connection where
+  -- this instance is a bit odd and not at all exhaustive.  instead, it is finite: it writes
+  -- down a list of connection lists that we want to test.
+  toEnum = _
+  fromEnum = error "no fromEnum on this weird `instance Enum Connection`."
+
+testCreateIdpsAndScimsV7 :: (HasCallStack) => NumServices -> NumServices -> [Connection] -> App ()
+testCreateIdpsAndScimsV7 _idp _saml _conns = do
+  -- TODO:
+  -- test status code && maybe label of all create calls
+  -- test that scim and idp entries are connected (or not)
+  -- test that provision users are connected (or not)
+  _
+
+-- TODO:
+-- can we allow two scims associated with one saml?  => yes, that's fine.
+-- can we allow two samls associated with one scim?  => nah, that should be an error.  otherwise how does scim know which idp to associate with the user?
+-- allow scim without saml, but deprecate idp-without-scim use case.  (i think there is already a ticket for that.)
