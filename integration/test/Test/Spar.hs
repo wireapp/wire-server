@@ -8,9 +8,7 @@ import API.Common (randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import Control.Concurrent (threadDelay)
-import Data.Attoparsec.Internal.Types (Success)
-import Data.IORef
-import Data.Map (Map, (!))
+import Data.Map ((!))
 import qualified Data.Map as Map
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
@@ -368,7 +366,8 @@ fromNumServices Three = 3
 data ExpectedResult = ExpectSuccess | ExpectFailure String
   deriving (Eq, Show, Generic)
 
--- (this represents api calls, not test cases)
+-- | DSL with relevant api calls (not test cases).  This should make writing down different
+-- test cases very concise and not cost any generality.
 data Step samlRef scimRef
   = MkScim scimRef (Maybe samlRef) ExpectedResult
   | MkSaml samlRef (Maybe scimRef) ExpectedResult
