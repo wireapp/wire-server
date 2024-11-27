@@ -23,6 +23,7 @@ library
     Cannon.App
     Cannon.Dict
     Cannon.Options
+    Cannon.RabbitMq
     Cannon.RabbitMqConsumerApp
     Cannon.Run
     Cannon.Types
@@ -85,10 +86,12 @@ library
     , async                                 >=2.0
     , base                                  >=4.6     && <5
     , bilge                                 >=0.12
+    , binary
     , bytestring                            >=0.10
     , bytestring-conversion                 >=0.2
     , cassandra-util
     , conduit                               >=1.3.4.2
+    , containers
     , data-timeout                          >=0.3
     , exceptions                            >=0.6
     , extended
@@ -111,6 +114,7 @@ library
     , strict                                >=0.3.2
     , text                                  >=1.1
     , tinylog                               >=0.10
+    , transformers
     , types-common                          >=0.16
     , unix
     , unliftio

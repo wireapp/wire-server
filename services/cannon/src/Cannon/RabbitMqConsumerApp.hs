@@ -3,141 +3,68 @@
 module Cannon.RabbitMqConsumerApp where
 
 import Cannon.App (rejectOnError)
-import Cannon.Dict qualified as D
-import Cannon.Options
+import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
-import Control.Concurrent.Timeout
 import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
 import Data.Id
-import Data.List.Extra hiding (delete)
-import Data.Timeout (TimeoutUnit (..), (#))
 import Imports hiding (min, threadDelay)
 import Network.AMQP qualified as Q
-import Network.AMQP.Extended (withConnection)
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import System.Logger qualified as Log
-import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
 
-drainRabbitQueues :: Env -> IO ()
-drainRabbitQueues e = do
-  conns <- D.toList e.rabbitConnections
-  numberOfConns <- fromIntegral <$> D.size e.rabbitConnections
-
-  let opts = e.drainOpts
-      maxNumberOfBatches = (opts ^. gracePeriodSeconds * 1000) `div` (opts ^. millisecondsBetweenBatches)
-      computedBatchSize = numberOfConns `div` maxNumberOfBatches
-      batchSize = max (opts ^. minBatchSize) computedBatchSize
-
-  logDraining e.logg numberOfConns batchSize (opts ^. minBatchSize) computedBatchSize maxNumberOfBatches
-
-  -- Sleeps for the grace period + 1 second. If the sleep completes, it means
-  -- that draining didn't finish, and we should log that.
-  timeoutAction <- async $ do
-    -- Allocate 1 second more than the grace period to allow for overhead of
-    -- spawning threads.
-    liftIO $ threadDelay $ ((opts ^. gracePeriodSeconds) # Second + 1 # Second)
-    logExpired e.logg (opts ^. gracePeriodSeconds)
-
-  for_ (chunksOf (fromIntegral batchSize) conns) $ \batch -> do
-    -- 16 was chosen with a roll of a fair dice.
-    void . async $ pooledMapConcurrentlyN_ 16 (uncurry (closeConn e.logg)) batch
-    liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond)
-  cancel timeoutAction
-  Log.info e.logg $ Log.msg (Log.val "Draining complete")
-  where
-    closeConn :: Log.Logger -> Key -> Q.Connection -> IO ()
-    closeConn l key conn = do
-      Log.info l $
-        Log.msg (Log.val "closing rabbitmq connection")
-          . Log.field "key" (show key)
-      Q.closeConnection conn
-      void $ D.remove key e.rabbitConnections
-
-    logExpired :: Log.Logger -> Word64 -> IO ()
-    logExpired l period = do
-      Log.err l $ Log.msg (Log.val "Drain grace period expired") . Log.field "gracePeriodSeconds" period
-
-    logDraining :: Log.Logger -> Word64 -> Word64 -> Word64 -> Word64 -> Word64 -> IO ()
-    logDraining l count b min batchSize m = do
-      Log.info l $
-        Log.msg (Log.val "draining all rabbitmq connections")
-          . Log.field "numberOfConns" count
-          . Log.field "computedBatchSize" b
-          . Log.field "minBatchSize" min
-          . Log.field "batchSize" batchSize
-          . Log.field "maxNumberOfBatches" m
-
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
-  wsVar <- newEmptyMVar
-  msgVar <- newEmptyMVar
-
-  bracket (openWebSocket wsVar) closeWebSocket $ \(wsConn, _) ->
+  bracket openWebSocket closeWebSocket $ \wsConn ->
     ( do
-        sendFullSyncMessageIfNeeded wsVar wsConn uid cid e
-        sendNotifications wsConn msgVar wsVar
+        sendFullSyncMessageIfNeeded wsConn uid cid e
+        sendNotifications wsConn
     )
       `catches` [ handleClientMisbehaving wsConn,
-                  handleWebSocketExceptions wsConn
+                  handleWebSocketExceptions wsConn,
+                  handleOtherExceptions wsConn
                 ]
   where
     logClient =
       Log.field "user" (idToText uid)
         . Log.field "client" (clientToText cid)
 
-    openWebSocket wsVar = do
-      wsConn <-
-        acceptRequest pendingConn
-          `catch` rejectOnError pendingConn
-      -- start a reader thread for client messages
-      -- this needs to run asynchronously in order to promptly react to
-      -- client-side connection termination
-      a <- async $ forever $ do
-        catch
-          ( do
-              msg <- getClientMessage wsConn
-              putMVar wsVar (Right msg)
-          )
-          $ \err -> putMVar wsVar (Left err)
-      pure (wsConn, a)
+    openWebSocket =
+      acceptRequest pendingConn
+        `catch` rejectOnError pendingConn
 
-    -- this is only needed in case of asynchronous exceptions
-    closeWebSocket (wsConn, a) = do
-      cancel a
+    closeWebSocket wsConn = do
       logCloseWebsocket
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
 
-    -- Create a rabbitmq consumer that receives messages and saves them into an MVar
-    createConsumer ::
-      Q.Channel ->
-      MVar (Either Q.AMQPException EventData) ->
-      IO Q.ConsumerTag
-    createConsumer chan msgVar = do
-      Q.consumeMsgs chan (clientNotificationQueueName uid cid) Q.Ack $
-        \(msg, envelope) -> case eitherDecode @QueuedNotification msg.msgBody of
-          Left err -> do
-            logParseError err
-            -- This message cannot be parsed, make sure it doesn't requeue. There
-            -- is no need to throw an error and kill the websocket as this is
-            -- probably caused by a bug or someone messing with RabbitMQ.
-            --
-            -- The bug case is slightly dangerous as it could drop a lot of events
-            -- en masse, if at some point we decide that Events should not be
-            -- pushed as JSONs, hopefully we think of the parsing side if/when
-            -- that happens.
-            Q.rejectEnv envelope False
-          Right notif ->
-            putMVar msgVar . Right $
-              EventData notif envelope.envDeliveryTag
+    getEventData :: RabbitMqChannel -> IO EventData
+    getEventData chan = do
+      (msg, envelope) <- getMessage chan
+      case eitherDecode @QueuedNotification msg.msgBody of
+        Left err -> do
+          logParseError err
+          -- This message cannot be parsed, make sure it doesn't requeue. There
+          -- is no need to throw an error and kill the websocket as this is
+          -- probably caused by a bug or someone messing with RabbitMQ.
+          --
+          -- The bug case is slightly dangerous as it could drop a lot of events
+          -- en masse, if at some point we decide that Events should not be
+          -- pushed as JSONs, hopefully we think of the parsing side if/when
+          -- that happens.
+          Q.rejectEnv envelope False
+          -- try again
+          getEventData chan
+        Right notif -> do
+          logEvent notif
+          pure $ EventData notif envelope.envDeliveryTag
 
     handleWebSocketExceptions wsConn =
       Handler $
@@ -173,54 +100,31 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               Log.msg (Log.val "Client sent unexpected ack message")
                 . logClient
             WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString)
-    sendNotifications ::
-      WS.Connection ->
-      MVar (Either Q.AMQPException EventData) ->
-      MVar (Either ConnectionException MessageClientToServer) ->
-      IO ()
-    sendNotifications wsConn msgVar wsVar = lowerCodensity $ do
-      -- create rabbitmq connection
-      conn <- Codensity $ withConnection e.logg e.rabbitmq
 
-      -- Store it in the env
+    handleOtherExceptions wsConn = Handler $
+      \(err :: SomeException) -> do
+        WS.sendCloseCode wsConn 1003 ("internal-error" :: ByteString)
+        throwIO err
+
+    sendNotifications :: WS.Connection -> IO ()
+    sendNotifications wsConn = lowerCodensity $ do
       let key = mkKeyRabbit uid cid
-      D.insert key conn e.rabbitConnections
+      chan <- createChannel e.pool (clientNotificationQueueName uid cid) key
 
-      -- create rabbitmq channel
-      amqpChan <- Codensity $ bracket (Q.openChannel conn) Q.closeChannel
-
-      -- propagate rabbitmq connection failure
-      lift $ Q.addConnectionClosedHandler conn True $ do
-        void $ D.remove key e.rabbitConnections
-        putMVar msgVar $
-          Left (Q.ConnectionClosedException Q.Normal "")
-
-      -- register consumer that pushes rabbitmq messages into msgVar
-      void $
-        Codensity $
-          bracket
-            (createConsumer amqpChan msgVar)
-            (Q.cancelConsumer amqpChan)
-
-      -- get data from msgVar and push to client
       let consumeRabbitMq = forever $ do
-            eventData' <- takeMVar msgVar
-            either throwIO pure eventData' >>= \eventData -> do
-              logEvent eventData.event
-              catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
-                \(err :: SomeException) -> do
-                  logSendFailure err
-                  void $ D.remove key e.rabbitConnections
-                  throwIO err
+            eventData <- getEventData chan
+            catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
+              \(err :: SomeException) -> do
+                logSendFailure err
+                throwIO err
 
-      -- get ack from wsVar and forward to rabbitmq
+      -- get ack from websocket and forward to rabbitmq
       let consumeWebsocket = forever $ do
-            v <- takeMVar wsVar
-            either throwIO pure v >>= \case
+            getClientMessage wsConn >>= \case
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
-                void $ Q.ackMsg amqpChan ackData.deliveryTag ackData.multiple
+                void $ ackMessage chan ackData.deliveryTag ackData.multiple
 
       -- run both loops concurrently, so that
       --  - notifications are delivered without having to wait for acks
@@ -265,16 +169,15 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 -- | Check if client has missed messages. If so, send a full synchronisation
 -- message and wait for the corresponding ack.
 sendFullSyncMessageIfNeeded ::
-  MVar (Either ConnectionException MessageClientToServer) ->
   WS.Connection ->
   UserId ->
   ClientId ->
   Env ->
   IO ()
-sendFullSyncMessageIfNeeded wsVar wsConn uid cid env = do
+sendFullSyncMessageIfNeeded wsConn uid cid env = do
   row <- C.runClient env.cassandra do
     retry x5 $ query1 q (params LocalQuorum (uid, cid))
-  for_ row $ \_ -> sendFullSyncMessage uid cid wsVar wsConn env
+  for_ row $ \_ -> sendFullSyncMessage uid cid wsConn env
   where
     q :: PrepQuery R (UserId, ClientId) (Identity (Maybe UserId))
     q =
@@ -285,15 +188,13 @@ sendFullSyncMessageIfNeeded wsVar wsConn uid cid env = do
 sendFullSyncMessage ::
   UserId ->
   ClientId ->
-  MVar (Either ConnectionException MessageClientToServer) ->
   WS.Connection ->
   Env ->
   IO ()
-sendFullSyncMessage uid cid wsVar wsConn env = do
+sendFullSyncMessage uid cid wsConn env = do
   let event = encode EventFullSync
   WS.sendBinaryData wsConn event
-  res <- takeMVar wsVar >>= either throwIO pure
-  case res of
+  getClientMessage wsConn >>= \case
     AckMessage _ -> throwIO UnexpectedAck
     AckFullSync ->
       C.runClient env.cassandra do

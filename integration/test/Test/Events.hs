@@ -6,6 +6,8 @@ import API.Common
 import API.Galley
 import API.Gundeck
 import qualified Control.Concurrent.Timeout as Timeout
+import Control.Monad.Codensity
+import Control.Monad.Trans.Class
 import Control.Retry
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.Text as Text
@@ -14,193 +16,186 @@ import qualified Network.WebSockets as WS
 import Notifications
 import SetupHelpers
 import Testlib.Prelude hiding (assertNoEvent)
-import Testlib.Printing
 import UnliftIO hiding (handle)
 
--- FUTUREWORK: Investigate why these tests are failing without
--- `withModifiedBackend`; No events are received otherwise.
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
 testConsumeEventsOneWebSocket = do
-  withModifiedBackend def \domain -> do
-    alice <- randomUser domain def
+  alice <- randomUser OwnDomain def
 
-    lastNotifResp <-
-      retrying
-        (constantDelay 10_000 <> limitRetries 10)
-        (\_ resp -> pure $ resp.status == 404)
-        (\_ -> getLastNotification alice def)
-    lastNotifId <- lastNotifResp.json %. "id" & asString
+  lastNotifResp <-
+    retrying
+      (constantDelay 10_000 <> limitRetries 10)
+      (\_ resp -> pure $ resp.status == 404)
+      (\_ -> getLastNotification alice def)
+  lastNotifId <- lastNotifResp.json %. "id" & asString
 
-    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    clientId <- objId client
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
 
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      deliveryTag <- assertEvent eventsChan $ \e -> do
-        e %. "type" `shouldMatch` "event"
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
-        e %. "data.delivery_tag"
-      assertNoEvent eventsChan
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    deliveryTag <- assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.delivery_tag"
+    assertNoEvent ws
 
-      sendAck ackChan deliveryTag False
-      assertNoEvent eventsChan
+    sendAck ws deliveryTag False
+    assertNoEvent ws
 
-      handle <- randomHandle
-      putHandle alice handle >>= assertSuccess
+    handle <- randomHandle
+    putHandle alice handle >>= assertSuccess
 
-      assertEvent eventsChan $ \e -> do
-        e %. "type" `shouldMatch` "event"
-        e %. "data.event.payload.0.type" `shouldMatch` "user.update"
-        e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+    assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
 
-    -- No new notifications should be stored in Cassandra as the user doesn't have
-    -- any legacy clients
-    getNotifications alice def {since = Just lastNotifId} `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      shouldBeEmpty $ resp.json %. "notifications"
+  -- No new notifications should be stored in Cassandra as the user doesn't have
+  -- any legacy clients
+  getNotifications alice def {since = Just lastNotifId} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    shouldBeEmpty $ resp.json %. "notifications"
 
 testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
 testConsumeEventsForDifferentUsers = do
-  withModifiedBackend def $ \domain -> do
-    alice <- randomUser domain def
-    bob <- randomUser domain def
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
 
-    aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    aliceClientId <- objId aliceClient
+  aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  aliceClientId <- objId aliceClient
 
-    bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    bobClientId <- objId bobClient
+  bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  bobClientId <- objId bobClient
 
-    withEventsWebSockets [(alice, aliceClientId), (bob, bobClientId)] $ \[(aliceEventsChan, aliceAckChan), (bobEventsChan, bobAckChan)] -> do
-      assertClientAdd aliceClientId aliceEventsChan aliceAckChan
-      assertClientAdd bobClientId bobEventsChan bobAckChan
+  lowerCodensity $ do
+    aliceWS <- createEventsWebSocket alice aliceClientId
+    bobWS <- createEventsWebSocket bob bobClientId
+    lift $ assertClientAdd aliceClientId aliceWS
+    lift $ assertClientAdd bobClientId bobWS
   where
-    assertClientAdd :: (HasCallStack) => String -> TChan Value -> TChan Value -> App ()
-    assertClientAdd clientId eventsChan ackChan = do
-      deliveryTag <- assertEvent eventsChan $ \e -> do
+    assertClientAdd :: (HasCallStack) => String -> EventWebSocket -> App ()
+    assertClientAdd clientId ws = do
+      deliveryTag <- assertEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "data.event.payload.0.client.id" `shouldMatch` clientId
         e %. "data.delivery_tag"
-      assertNoEvent eventsChan
-      sendAck ackChan deliveryTag False
+      assertNoEvent ws
+      sendAck ws deliveryTag False
 
 testConsumeEventsWhileHavingLegacyClients :: (HasCallStack) => App ()
 testConsumeEventsWhileHavingLegacyClients = do
-  withModifiedBackend def $ \domain -> do
-    alice <- randomUser domain def
+  alice <- randomUser OwnDomain def
 
-    -- Even if alice has no clients, the notifications should still be persisted
-    -- in Cassandra. This choice is kinda arbitrary as these notifications
-    -- probably don't mean much, however, it ensures backwards compatibility.
-    lastNotifId <-
-      awaitNotification alice noValue (const $ pure True) >>= \notif -> do
-        notif %. "payload.0.type" `shouldMatch` "user.activate"
-        -- There is only one notification (at the time of writing), so we assume
-        -- it to be the last one.
-        notif %. "id" & asString
+  -- Even if alice has no clients, the notifications should still be persisted
+  -- in Cassandra. This choice is kinda arbitrary as these notifications
+  -- probably don't mean much, however, it ensures backwards compatibility.
+  lastNotifId <-
+    awaitNotification alice noValue (const $ pure True) >>= \notif -> do
+      notif %. "payload.0.type" `shouldMatch` "user.activate"
+      -- There is only one notification (at the time of writing), so we assume
+      -- it to be the last one.
+      notif %. "id" & asString
 
-    oldClient <- addClient alice def {acapabilities = Just []} >>= getJSON 201
+  oldClient <- addClient alice def {acapabilities = Just []} >>= getJSON 201
 
-    withWebSocket (alice, "anything-but-conn", oldClient %. "id") $ \oldWS -> do
-      newClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-      newClientId <- newClient %. "id" & asString
+  withWebSocket (alice, "anything-but-conn", oldClient %. "id") $ \oldWS -> do
+    newClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    newClientId <- newClient %. "id" & asString
 
-      oldNotif <- awaitMatch isUserClientAddNotif oldWS
-      oldNotif %. "payload.0.client.id" `shouldMatch` newClientId
+    oldNotif <- awaitMatch isUserClientAddNotif oldWS
+    oldNotif %. "payload.0.client.id" `shouldMatch` newClientId
 
-      withEventsWebSocket alice newClientId $ \eventsChan _ ->
-        assertEvent eventsChan $ \e -> do
-          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-          e %. "data.event.payload.0.client.id" `shouldMatch` newClientId
+    runCodensity (createEventsWebSocket alice newClientId) $ \ws ->
+      assertEvent ws $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` newClientId
 
-    -- All notifs are also in Cassandra because of the legacy client
-    getNotifications alice def {since = Just lastNotifId} `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json %. "notifications.0.payload.0.type" `shouldMatch` "user.client-add"
-      resp.json %. "notifications.1.payload.0.type" `shouldMatch` "user.client-add"
+  -- All notifs are also in Cassandra because of the legacy client
+  getNotifications alice def {since = Just lastNotifId} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "notifications.0.payload.0.type" `shouldMatch` "user.client-add"
+    resp.json %. "notifications.1.payload.0.type" `shouldMatch` "user.client-add"
 
 testConsumeEventsAcks :: (HasCallStack) => App ()
 testConsumeEventsAcks = do
-  withModifiedBackend def $ \domain -> do
-    alice <- randomUser domain def
-    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    clientId <- objId client
+  alice <- randomUser OwnDomain def
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
 
-    withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
-      assertEvent eventsChan $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
 
-    -- without ack, we receive the same event again
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      deliveryTag <- assertEvent eventsChan $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
-        e %. "data.delivery_tag"
-      sendAck ackChan deliveryTag False
+  -- without ack, we receive the same event again
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    deliveryTag <- assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.delivery_tag"
+    sendAck ws deliveryTag False
 
-    withEventsWebSocket alice clientId $ \eventsChan _ -> do
-      assertNoEvent eventsChan
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    assertNoEvent ws
 
 testConsumeEventsMultipleAcks :: (HasCallStack) => App ()
 testConsumeEventsMultipleAcks = do
-  withModifiedBackend def $ \domain -> do
-    alice <- randomUser domain def
-    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    clientId <- objId client
+  alice <- randomUser OwnDomain def
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
 
-    handle <- randomHandle
-    putHandle alice handle >>= assertSuccess
+  handle <- randomHandle
+  putHandle alice handle >>= assertSuccess
 
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      assertEvent eventsChan $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
 
-      deliveryTag <- assertEvent eventsChan $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.update"
-        e %. "data.event.payload.0.user.handle" `shouldMatch` handle
-        e %. "data.delivery_tag"
+    deliveryTag <- assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+      e %. "data.delivery_tag"
 
-      sendAck ackChan deliveryTag True
+    sendAck ws deliveryTag True
 
-    withEventsWebSocket alice clientId $ \eventsChan _ -> do
-      assertNoEvent eventsChan
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    assertNoEvent ws
 
 testConsumeEventsAckNewEventWithoutAckingOldOne :: (HasCallStack) => App ()
 testConsumeEventsAckNewEventWithoutAckingOldOne = do
-  withModifiedBackend def $ \domain -> do
-    alice <- randomUser domain def
-    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    clientId <- objId client
+  alice <- randomUser OwnDomain def
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
 
-    handle <- randomHandle
-    putHandle alice handle >>= assertSuccess
+  handle <- randomHandle
+  putHandle alice handle >>= assertSuccess
 
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      assertEvent eventsChan $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
 
-      deliveryTagHandleAdd <- assertEvent eventsChan $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.update"
-        e %. "data.event.payload.0.user.handle" `shouldMatch` handle
-        e %. "data.delivery_tag"
+    deliveryTagHandleAdd <- assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+      e %. "data.delivery_tag"
 
-      -- Only ack the handle add delivery tag
-      sendAck ackChan deliveryTagHandleAdd False
+    -- Only ack the handle add delivery tag
+    sendAck ws deliveryTagHandleAdd False
 
-    -- Expect client-add event to be delivered again.
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      deliveryTagClientAdd <- assertEvent eventsChan $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
-        e %. "data.delivery_tag"
+  -- Expect client-add event to be delivered again.
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    deliveryTagClientAdd <- assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.delivery_tag"
 
-      sendAck ackChan deliveryTagClientAdd False
+    sendAck ws deliveryTagClientAdd False
 
-    withEventsWebSocket alice clientId $ \eventsChan _ -> do
-      assertNoEvent eventsChan
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    assertNoEvent ws
 
 testEventsDeadLettered :: (HasCallStack) => App ()
 testEventsDeadLettered = do
@@ -219,22 +214,22 @@ testEventsDeadLettered = do
     handle1 <- randomHandle
     putHandle alice handle1 >>= assertSuccess
 
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      assertEvent eventsChan $ \e -> do
+    runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+      assertEvent ws $ \e -> do
         e %. "type" `shouldMatch` "notifications.missed"
 
       -- Until we ack the full sync, we can't get new events
-      ackFullSync ackChan
+      ackFullSync ws
 
       -- withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
       -- Now we can see the next event
-      assertEvent eventsChan $ \e -> do
+      assertEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.update"
         e %. "data.event.payload.0.user.handle" `shouldMatch` handle1
-        ackEvent ackChan e
+        ackEvent ws e
 
       -- We've consumed the whole queue.
-      assertNoEvent eventsChan
+      assertNoEvent ws
 
 testTransientEventsDoNotTriggerDeadLetters :: (HasCallStack) => App ()
 testTransientEventsDoNotTriggerDeadLetters = do
@@ -246,14 +241,14 @@ testTransientEventsDoNotTriggerDeadLetters = do
     clientId <- objId client
 
     -- consume it
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      assertEvent eventsChan $ \e -> do
+    runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+      assertEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "type" `shouldMatch` "event"
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "data.event.payload.0.client.id" `shouldMatch` clientId
         deliveryTag <- e %. "data.delivery_tag"
-        sendAck ackChan deliveryTag False
+        sendAck ws deliveryTag False
 
     -- Self conv ID is same as user's ID, we'll use this to send typing
     -- indicators, so we don't have to create another conv.
@@ -261,107 +256,153 @@ testTransientEventsDoNotTriggerDeadLetters = do
     -- Typing status is transient, currently no one is listening.
     sendTypingStatus alice selfConvId "started" >>= assertSuccess
 
-    withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
-      assertNoEvent eventsChan
+    runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+      assertNoEvent ws
 
 testTransientEvents :: (HasCallStack) => App ()
 testTransientEvents = do
-  withModifiedBackend def $ \domain -> do
+  alice <- randomUser OwnDomain def
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
+
+  -- Self conv ID is same as user's ID, we'll use this to send typing
+  -- indicators, so we don't have to create another conv.
+  selfConvId <- objQidObject alice
+
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    consumeAllEvents ws
+    sendTypingStatus alice selfConvId "started" >>= assertSuccess
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` selfConvId
+      deliveryTag <- e %. "data.delivery_tag"
+      sendAck ws deliveryTag False
+
+  handle1 <- randomHandle
+  putHandle alice handle1 >>= assertSuccess
+
+  sendTypingStatus alice selfConvId "stopped" >>= assertSuccess
+
+  handle2 <- randomHandle
+  putHandle alice handle2 >>= assertSuccess
+
+  -- We shouldn't see the stopped typing status because we were not connected to
+  -- the websocket when it was sent. The other events should still show up in
+  -- order.
+  runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
+    for_ [handle1, handle2] $ \handle ->
+      assertEvent ws $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+        e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+        ackEvent ws e
+
+    assertNoEvent ws
+
+testChannelLimit :: (HasCallStack) => App ()
+testChannelLimit = withModifiedBackend
+  ( def
+      { cannonCfg =
+          setField "rabbitMqMaxChannels" (2 :: Int)
+            >=> setField "rabbitMqMaxConnections" (1 :: Int)
+      }
+  )
+  $ \domain -> do
     alice <- randomUser domain def
-    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    clientId <- objId client
+    (client0 : clients) <-
+      replicateM 3
+        $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
+        >>= getJSON 201
+        >>= (%. "id")
+        >>= asString
 
-    -- Self conv ID is same as user's ID, we'll use this to send typing
-    -- indicators, so we don't have to create another conv.
-    selfConvId <- objQidObject alice
+    lowerCodensity $ do
+      for_ clients $ \c -> do
+        ws <- createEventsWebSocket alice c
+        e <- Codensity $ \k -> assertEvent ws k
+        lift $ do
+          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+          e %. "data.event.payload.0.client.id" `shouldMatch` c
+          e %. "data.delivery_tag"
 
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      consumeAllEvents eventsChan ackChan
-      sendTypingStatus alice selfConvId "started" >>= assertSuccess
-      assertEvent eventsChan $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
-        e %. "data.event.payload.0.qualified_conversation" `shouldMatch` selfConvId
-        deliveryTag <- e %. "data.delivery_tag"
-        sendAck ackChan deliveryTag False
-
-    handle1 <- randomHandle
-    putHandle alice handle1 >>= assertSuccess
-
-    sendTypingStatus alice selfConvId "stopped" >>= assertSuccess
-
-    handle2 <- randomHandle
-    putHandle alice handle2 >>= assertSuccess
-
-    -- We shouldn't see the stopped typing status because we were not connected to
-    -- the websocket when it was sent. The other events should still show up in
-    -- order.
-    withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-      for_ [handle1, handle2] $ \handle ->
-        assertEvent eventsChan $ \e -> do
-          e %. "data.event.payload.0.type" `shouldMatch` "user.update"
-          e %. "data.event.payload.0.user.handle" `shouldMatch` handle
-          ackEvent ackChan e
-
-      assertNoEvent eventsChan
+      -- the first client fails to connect because the server runs out of channels
+      do
+        ws <- createEventsWebSocket alice client0
+        lift $ assertNoEvent ws
 
 ----------------------------------------------------------------------
 -- helpers
 
-withEventsWebSockets :: forall uid a. (HasCallStack, MakesValue uid) => [(uid, String)] -> ([(TChan Value, TChan Value)] -> App a) -> App a
-withEventsWebSockets userClients k = go [] $ reverse userClients
-  where
-    go :: [(TChan Value, TChan Value)] -> [(uid, String)] -> App a
-    go chans [] = k chans
-    go chans ((uid, cid) : remaining) =
-      withEventsWebSocket uid cid $ \eventsChan ackChan ->
-        go ((eventsChan, ackChan) : chans) remaining
+data EventWebSocket = EventWebSocket
+  { events :: Chan (Either WS.ConnectionException Value),
+    ack :: MVar (Maybe Value)
+  }
 
-withEventsWebSocket :: (HasCallStack, MakesValue uid) => uid -> String -> (TChan Value -> TChan Value -> App a) -> App a
-withEventsWebSocket uid cid k = do
-  closeWS <- newEmptyMVar
-  bracket (setup closeWS) (\(_, _, wsThread) -> cancel wsThread) $ \(eventsChan, ackChan, wsThread) -> do
-    x <- k eventsChan ackChan
+createEventsWebSocket ::
+  (HasCallStack, MakesValue uid) =>
+  uid ->
+  String ->
+  Codensity App EventWebSocket
+createEventsWebSocket user cid = do
+  eventsChan <- liftIO newChan
+  ackChan <- liftIO newEmptyMVar
+  serviceMap <- lift $ getServiceMap =<< objDomain user
+  uid <- lift $ objId =<< objQidObject user
+  let HostPort caHost caPort = serviceHostPort serviceMap Cannon
+      path = "/events?client=" <> cid
+      caHdrs = [(fromString "Z-User", toByteString' uid)]
+      app conn =
+        race_
+          (wsRead conn `catch` (writeChan eventsChan . Left))
+          (wsWrite conn)
 
-    -- Ensure all the acks are sent before closing the websocket
-    isAckChanEmpty <-
-      retrying
-        (limitRetries 5 <> constantDelay 10_000)
-        (\_ isEmpty -> pure $ not isEmpty)
-        (\_ -> atomically $ isEmptyTChan ackChan)
-    unless isAckChanEmpty $ do
-      putStrLn $ colored yellow $ "The ack chan is not empty after 50ms, some acks may not make it to the server"
+      wsRead conn = forever $ do
+        bs <- WS.receiveData conn
+        case decodeStrict' bs of
+          Just n -> writeChan eventsChan (Right n)
+          Nothing ->
+            error $ "Failed to decode events: " ++ show bs
 
-    void $ tryPutMVar closeWS ()
+      wsWrite conn = do
+        mAck <- takeMVar ackChan
+        case mAck of
+          Nothing -> WS.sendClose conn (Text.pack "")
+          Just ack ->
+            WS.sendBinaryData conn (encode ack)
+              >> wsWrite conn
 
-    timeout 1_000_000 (wait wsThread) >>= \case
-      Nothing ->
-        putStrLn $ colored yellow $ "The websocket thread did not close after waiting for 1s"
-      Just () -> pure ()
+  wsThread <- Codensity $ \k -> do
+    withAsync
+      ( liftIO
+          $ WS.runClientWith
+            caHost
+            (fromIntegral caPort)
+            path
+            WS.defaultConnectionOptions
+            caHdrs
+            app
+      )
+      k
 
-    pure x
-  where
-    setup :: (HasCallStack) => MVar () -> App (TChan Value, TChan Value, Async ())
-    setup closeWS = do
-      (eventsChan, ackChan) <- liftIO $ (,) <$> newTChanIO <*> newTChanIO
-      wsThread <- eventsWebSocket uid cid eventsChan ackChan closeWS
-      pure (eventsChan, ackChan, wsThread)
+  Codensity $ \k ->
+    k (EventWebSocket eventsChan ackChan) `finally` do
+      putMVar ackChan Nothing
+      liftIO $ wait wsThread
 
-sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
-sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
+ackFullSync :: (HasCallStack) => EventWebSocket -> App ()
+ackFullSync ws =
+  putMVar ws.ack
+    $ Just (object ["type" .= "ack_full_sync"])
 
-ackFullSync :: (HasCallStack) => TChan Value -> App ()
-ackFullSync ackChan = do
-  sendMsg ackChan
-    $ object ["type" .= "ack_full_sync"]
-
-ackEvent :: (HasCallStack) => TChan Value -> Value -> App ()
-ackEvent ackChan event = do
+ackEvent :: (HasCallStack) => EventWebSocket -> Value -> App ()
+ackEvent ws event = do
   deliveryTag <- event %. "data.delivery_tag"
-  sendAck ackChan deliveryTag False
+  sendAck ws deliveryTag False
 
-sendAck :: (HasCallStack) => TChan Value -> Value -> Bool -> App ()
-sendAck ackChan deliveryTag multiple = do
-  sendMsg ackChan
+sendAck :: (HasCallStack) => EventWebSocket -> Value -> Bool -> App ()
+sendAck ws deliveryTag multiple =
+  do
+    putMVar $ ws.ack
+    $ Just
     $ object
       [ "type" .= "ack",
         "data"
@@ -371,65 +412,33 @@ sendAck ackChan deliveryTag multiple = do
             ]
       ]
 
-assertEvent :: (HasCallStack) => TChan Value -> ((HasCallStack) => Value -> App a) -> App a
-assertEvent eventsChan expectations = do
-  timeout 10_000_000 (atomically (readTChan eventsChan)) >>= \case
-    Nothing -> assertFailure "No event received for 10s"
-    Just e -> do
+assertEvent :: (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
+assertEvent ws expectations = do
+  timeout 10_000_000 (readChan ws.events) >>= \case
+    Nothing -> assertFailure "No event received for 1s"
+    Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+    Just (Right e) -> do
       pretty <- prettyJSON e
       addFailureContext ("event:\n" <> pretty)
         $ expectations e
 
-assertNoEvent :: (HasCallStack) => TChan Value -> App ()
-assertNoEvent eventsChan = do
-  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
+assertNoEvent :: (HasCallStack) => EventWebSocket -> App ()
+assertNoEvent ws = do
+  timeout 1_000_000 (readChan ws.events) >>= \case
     Nothing -> pure ()
-    Just e -> do
+    Just (Left _) -> pure ()
+    Just (Right e) -> do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
 
-consumeAllEvents :: TChan Value -> TChan Value -> App ()
-consumeAllEvents eventsChan ackChan = do
-  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
+consumeAllEvents :: EventWebSocket -> App ()
+consumeAllEvents ws = do
+  timeout 1_000_000 (readChan ws.events) >>= \case
     Nothing -> pure ()
-    Just e -> do
-      ackEvent ackChan e
-      consumeAllEvents eventsChan ackChan
-
-eventsWebSocket :: (MakesValue user) => user -> String -> TChan Value -> TChan Value -> MVar () -> App (Async ())
-eventsWebSocket user clientId eventsChan ackChan closeWS = do
-  serviceMap <- getServiceMap =<< objDomain user
-  uid <- objId =<< objQidObject user
-  let HostPort caHost caPort = serviceHostPort serviceMap Cannon
-      path = "/events?client=" <> clientId
-      caHdrs = [(fromString "Z-User", toByteString' uid)]
-      app conn = do
-        r <-
-          async $ wsRead conn `catch` \(e :: WS.ConnectionException) ->
-            case e of
-              WS.CloseRequest {} -> pure ()
-              _ -> throwIO e
-        w <- async $ wsWrite conn
-        void $ waitAny [r, w]
-
-      wsRead conn = forever $ do
-        bs <- WS.receiveData conn
-        case decodeStrict' bs of
-          Just n -> atomically $ writeTChan eventsChan n
-          Nothing ->
-            error $ "Failed to decode events: " ++ show bs
-
-      wsWrite conn = forever $ do
-        eitherAck <- race (readMVar closeWS) (atomically $ readTChan ackChan)
-        case eitherAck of
-          Left () -> WS.sendClose conn (Text.pack "")
-          Right ack -> WS.sendBinaryData conn (encode ack)
-  liftIO
-    $ async
-    $ WS.runClientWith
-      caHost
-      (fromIntegral caPort)
-      path
-      WS.defaultConnectionOptions
-      caHdrs
-      app
+    Just (Left e) ->
+      assertFailure
+        $ "Websocket closed while consuming all events: "
+        <> displayException e
+    Just (Right e) -> do
+      ackEvent ws e
+      consumeAllEvents ws

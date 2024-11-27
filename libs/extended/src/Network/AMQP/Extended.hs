@@ -11,6 +11,8 @@ module Network.AMQP.Extended
     demoteOpts,
     RabbitMqTlsOpts (..),
     mkConnectionOpts,
+    mkTLSSettings,
+    readCredsFromEnv,
   )
 where
 

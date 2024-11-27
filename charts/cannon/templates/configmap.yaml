@@ -29,7 +29,7 @@ data:
       enableTls: {{ .enableTls }}
       insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
       {{- if .tlsCaSecretRef }}
-      caCert: /etc/wire/gundeck/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      caCert: /etc/wire/cannon/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
       {{- end }}
     {{- end }}
 

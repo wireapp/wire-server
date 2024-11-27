@@ -32,12 +32,15 @@ module Cannon.Options
     drainOpts,
     rabbitmq,
     cassandraOpts,
+    rabbitMqMaxConnections,
+    rabbitMqMaxChannels,
     Opts,
     gracePeriodSeconds,
     millisecondsBetweenBatches,
     minBatchSize,
     disabledAPIVersions,
     DrainOpts,
+    validateOpts,
   )
 where
 
@@ -98,11 +101,22 @@ data Opts = Opts
     _optsLogFormat :: !(Maybe (Last LogFormat)),
     _optsDrainOpts :: DrainOpts,
     _optsDisabledAPIVersions :: !(Set VersionExp),
-    _optsCassandraOpts :: !CassandraOpts
+    _optsCassandraOpts :: !CassandraOpts,
+    -- | Maximum number of rabbitmq connections. Must be strictly positive.
+    _optsRabbitMqMaxConnections :: Int,
+    -- | Maximum number of rabbitmq channels per connection. Must be strictly positive.
+    _optsRabbitMqMaxChannels :: Int
   }
   deriving (Show, Generic)
 
 makeFields ''Opts
+
+validateOpts :: Opts -> IO ()
+validateOpts opts = do
+  when (opts._optsRabbitMqMaxConnections <= 0) $ do
+    fail "rabbitMqMaxConnections must be strictly positive"
+  when (opts._optsRabbitMqMaxChannels <= 0) $ do
+    fail "rabbitMqMaxChannels must be strictly positive"
 
 instance FromJSON Opts where
   parseJSON = withObject "CannonOpts" $ \o ->
@@ -116,3 +130,5 @@ instance FromJSON Opts where
       <*> o .: "drainOpts"
       <*> o .: "disabledAPIVersions"
       <*> o .: "cassandra"
+      <*> o .:? "rabbitMqMaxConnections" .!= 1000
+      <*> o .:? "rabbitMqMaxChannels" .!= 300

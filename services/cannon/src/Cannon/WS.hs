@@ -53,6 +53,7 @@ import Bilge.Retry
 import Cannon.Dict (Dict)
 import Cannon.Dict qualified as D
 import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
+import Cannon.RabbitMq
 import Cassandra (ClientState)
 import Conduit
 import Control.Concurrent.Timeout
@@ -60,6 +61,7 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error, Key)
+import Data.Binary.Builder qualified as B
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
@@ -70,7 +72,6 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Imports hiding (threadDelay)
 import Network.AMQP qualified as Q
-import Network.AMQP.Extended
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -87,13 +88,16 @@ import Wire.API.Presence
 newtype Key = Key
   { _key :: (ByteString, ByteString)
   }
-  deriving (Eq, Show, Hashable)
+  deriving (Eq, Show, Hashable, Ord)
 
 mkKey :: UserId -> ConnId -> Key
 mkKey u c = Key (toByteString' u, fromConnId c)
 
 mkKeyRabbit :: UserId -> ClientId -> Key
 mkKeyRabbit u c = Key (toByteString' u, toByteString' c)
+
+instance ToByteString Key where
+  builder = B.fromByteString . key2bytes
 
 key2bytes :: Key -> ByteString
 key2bytes (Key (u, c)) = u <> "." <> c
@@ -154,8 +158,8 @@ data Env = Env
     rand :: !GenIO,
     clock :: !Clock,
     drainOpts :: DrainOpts,
-    rabbitmq :: !AmqpEndpoint,
-    cassandra :: ClientState
+    cassandra :: ClientState,
+    pool :: RabbitMqPool Key
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -202,8 +206,8 @@ env ::
   GenIO ->
   Clock ->
   DrainOpts ->
-  AmqpEndpoint ->
   ClientState ->
+  RabbitMqPool Key ->
   Env
 env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
 

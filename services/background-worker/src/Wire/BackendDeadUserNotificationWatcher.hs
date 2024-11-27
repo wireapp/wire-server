@@ -99,15 +99,25 @@ startWorker amqp = do
   -- If the mvar is filled with a connection, we know the connection itself is fine,
   -- so we only need to re-open the channel
   let openConnection connM = do
+        -- keep track of whether the connection is being closed normally
+        closingRef <- newIORef False
+
         mConn <- lowerCodensity $ do
           conn <- case connM of
             Nothing -> do
               -- Open the rabbit mq connection
-              conn <- Codensity $ bracket (liftIO $ Q.openConnection'' connOpts) (liftIO . Q.closeConnection)
+              conn <- Codensity
+                $ bracket
+                  (liftIO $ Q.openConnection'' connOpts)
+                $ \conn -> do
+                  writeIORef closingRef True
+                  liftIO $ Q.closeConnection conn
               -- We need to recover from connection closed by restarting it
               liftIO $ Q.addConnectionClosedHandler conn True do
-                Log.err env.logger $
-                  Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed.")
+                closing <- readIORef closingRef
+                unless closing $ do
+                  Log.err env.logger $
+                    Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed.")
                 putMVar mVar Nothing
               runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
               pure conn
@@ -118,9 +128,10 @@ startWorker amqp = do
 
           -- If the channel stops, we need to re-open
           liftIO $ Q.addChannelExceptionHandler chan $ \e -> do
-            Log.err env.logger $
-              Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
-                . Log.field "exception" (displayException e)
+            unless (Q.isNormalChannelClose e) $
+              Log.err env.logger $
+                Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
+                  . Log.field "exception" (displayException e)
             runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
             putMVar mVar (Just conn)
 

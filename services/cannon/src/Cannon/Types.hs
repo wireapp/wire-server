@@ -20,7 +20,7 @@
 module Cannon.Types
   ( Env (..),
     Cannon,
-    connectionLimit,
+    numDictSlices,
     mapConcurrentlyCannon,
     mkEnv,
     runCannon,
@@ -34,12 +34,14 @@ import Bilge (Manager)
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
 import Cannon.Options
+import Cannon.RabbitMq
 import Cannon.WS (Clock, Key, Websocket)
 import Cannon.WS qualified as WS
 import Cassandra (ClientState)
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens ((^.))
 import Control.Monad.Catch
+import Control.Monad.Codensity
 import Data.Id
 import Data.Text.Encoding
 import Imports
@@ -51,8 +53,8 @@ import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
 
-connectionLimit :: Int
-connectionLimit = 128
+numDictSlices :: Int
+numDictSlices = 128
 
 -----------------------------------------------------------------------------
 -- Cannon monad
@@ -106,10 +108,31 @@ mkEnv ::
   GenIO ->
   Clock ->
   AmqpEndpoint ->
-  Env
-mkEnv external o cs l d conns p g t rabbitmqOpts =
-  Env o l d conns (RequestId defRequestId) $
-    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d conns g t (o ^. drainOpts) rabbitmqOpts cs
+  Codensity IO Env
+mkEnv external o cs l d conns p g t endpoint = do
+  let poolOpts =
+        RabbitMqPoolOptions
+          { endpoint = endpoint,
+            maxConnections = o ^. rabbitMqMaxConnections,
+            maxChannels = o ^. rabbitMqMaxChannels
+          }
+  pool <- createRabbitMqPool poolOpts l
+  let wsEnv =
+        WS.env
+          external
+          (o ^. cannon . port)
+          (encodeUtf8 $ o ^. gundeck . host)
+          (o ^. gundeck . port)
+          l
+          p
+          d
+          conns
+          g
+          t
+          (o ^. drainOpts)
+          cs
+          pool
+  pure $ Env o l d conns (RequestId defRequestId) wsEnv
 
 runCannon :: Env -> Cannon a -> IO a
 runCannon e c = runReaderT (unCannon c) e
