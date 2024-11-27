@@ -354,6 +354,24 @@ testCreateMultipleIdps = do
   createScimToken owner (def {name = Just "foobar", idp = Just idp1}) >>= assertSuccess
   createScimToken owner (def {name = Just "bazqux", idp = Just idp2}) >>= assertSuccess
 
+-- | Create a few saml IdPs and a few scim peers.  Randomize the order in which they are
+-- created, and which peers / IdPs they are associated with.
+testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
+testCreateIdpsAndScimsV7 = do
+  runSteps
+    [ MkScim "scim1" Nothing ExpectSuccess,
+      MkSaml "saml1" Nothing ExpectSuccess,
+      MkSaml "saml2" Nothing ExpectSuccess,
+      MkScim "scim2" (Just "saml1") ExpectSuccess,
+      MkScim "scim3" (Just "saml1") ExpectSuccess,
+      MkScim "scim4" (Just "saml2") ExpectSuccess,
+      MkScim "scim5" Nothing ExpectSuccess,
+      MkSaml "saml3" (Just "scim5") ExpectSuccess
+    ]
+  runSteps
+    [ MkScim "scim1" (Just "no_saml_unfortunately") (ExpectFailure (400, "idp-not-found"))
+    ]
+
 data NumServices = None | One | Two | Three
   deriving (Eq, Show, Enum, Bounded, Generic)
 
@@ -414,17 +432,6 @@ runSteps steps = do
             resp.status `shouldMatchInt` 400
             pure state
       go owner state' steps
-
--- | Create a few saml IdPs and a few scim peers.  Randomize the order in which they are
--- created, and which peers / IdPs they are associated with.
-testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
-testCreateIdpsAndScimsV7 = do
-  runSteps
-    [ MkScim "scim1" Nothing ExpectSuccess,
-      MkSaml "saml1" Nothing ExpectSuccess
-    ]
-
--- runSteps tid owner [MkSaml "saml1" Just "doesnotexist"] -- should fail
 
 {-
 @@
