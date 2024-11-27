@@ -363,7 +363,7 @@ fromNumServices One = 1
 fromNumServices Two = 2
 fromNumServices Three = 3
 
-data ExpectedResult = ExpectSuccess | ExpectFailure String
+data ExpectedResult = ExpectSuccess | ExpectFailure (Int, String)
   deriving (Eq, Show, Generic)
 
 -- | DSL with relevant api calls (not test cases).  This should make writing down different
@@ -378,12 +378,18 @@ data TestState samlRef scimRef = TestState
     allScims :: Map scimRef String
   }
 
-runSteps :: String -> Value -> [Step String String] -> App ()
-runSteps _tid owner = go (TestState mempty mempty)
+emptyTestState :: TestState Text Text
+emptyTestState = TestState mempty mempty
+
+runSteps :: (HasCallStack) => [Step String String] -> App ()
+runSteps steps = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  go owner emptyTestState steps
   where
-    go :: TestState String String -> [Step String String] -> App ()
-    go _ [] = pure ()
-    go state (MkScim scimRef mbSamlRef expected : steps) = do
+    go :: Value -> TestState String String -> [Step String String] -> App ()
+    go owner _ [] = pure ()
+    go owner state (MkScim scimRef mbSamlRef expected : steps) = do
       let mIdPId = mbSamlRef <&> \r -> state.allIdps ! r
       let p = def {name = Just scimRef, idp = mIdPId}
       state' <- bindResponse (createScimToken owner p) $ \resp -> do
@@ -395,8 +401,8 @@ runSteps _tid owner = go (TestState mempty mempty)
           ExpectFailure label -> do
             resp.status `shouldMatchInt` 400
             pure state
-      go state' steps
-    go state (MkSaml samlRef mbScimRef expected : steps) = do
+      go owner state' steps
+    go owner state (MkSaml samlRef mbScimRef expected : steps) = do
       let _mScimId = mbScimRef <&> \r -> state.allScims ! r
       state' <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
         case expected of
@@ -407,17 +413,13 @@ runSteps _tid owner = go (TestState mempty mempty)
           ExpectFailure label -> do
             resp.status `shouldMatchInt` 400
             pure state
-      go state' steps
+      go owner state' steps
 
 -- | Create a few saml IdPs and a few scim peers.  Randomize the order in which they are
 -- created, and which peers / IdPs they are associated with.
 testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
 testCreateIdpsAndScimsV7 = do
-  (owner, tid, []) <- createTeam OwnDomain 1
-  void $ setTeamFeatureStatus owner tid "sso" "enabled"
   runSteps
-    tid
-    owner
     [ MkScim "scim1" Nothing ExpectSuccess,
       MkSaml "saml1" Nothing ExpectSuccess
     ]
