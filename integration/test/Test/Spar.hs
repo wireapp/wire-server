@@ -405,7 +405,7 @@ runSteps steps = do
   where
     go :: Value -> StringState -> [StringStep] -> App ()
     go _ _ [] = pure ()
-    go owner state (MkScim scimRef mbSamlRef expected : steps') = do
+    go owner state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
       let mIdPId = mbSamlRef <&> \r -> state.allIdps ! r
       let p = def {name = Just scimRef, idp = mIdPId}
       state' <- bindResponse (createScimToken owner p) $ \resp -> do
@@ -413,7 +413,7 @@ runSteps steps = do
           ExpectSuccess -> validateScimRegistration state scimRef resp
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
       go owner state' steps'
-    go owner state (MkSaml samlRef expected : steps') = do
+    go owner state (next@(MkSaml samlRef expected) : steps') = addFailureContext (show next) do
       state' <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
         case expected of
           ExpectSuccess -> validateSamlRegistration state samlRef resp
