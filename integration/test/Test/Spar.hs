@@ -360,78 +360,84 @@ testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
 testCreateIdpsAndScimsV7 = do
   runSteps
     [ MkScim "scim1" Nothing ExpectSuccess,
-      MkSaml "saml1" Nothing ExpectSuccess,
-      MkSaml "saml2" Nothing ExpectSuccess,
+      MkSaml "saml1" ExpectSuccess,
+      MkSaml "saml2" ExpectSuccess,
       MkScim "scim2" (Just "saml1") ExpectSuccess,
       MkScim "scim3" (Just "saml1") ExpectSuccess,
       MkScim "scim4" (Just "saml2") ExpectSuccess,
-      MkScim "scim5" Nothing ExpectSuccess,
-      MkSaml "saml3" (Just "scim5") ExpectSuccess
+      MkScim "scim5" Nothing ExpectSuccess
     ]
   runSteps
-    [ MkScim "scim1" (Just "no_saml_unfortunately") (ExpectFailure (400, "idp-not-found"))
+    [ MkScim "scim1" (Just "no_saml_unfortunately") (ExpectFailure 400 "idp-not-found")
     ]
 
-data NumServices = None | One | Two | Three
-  deriving (Eq, Show, Enum, Bounded, Generic)
-
-fromNumServices :: NumServices -> Int
-fromNumServices None = 0
-fromNumServices One = 1
-fromNumServices Two = 2
-fromNumServices Three = 3
-
-data ExpectedResult = ExpectSuccess | ExpectFailure (Int, String)
+data ExpectedResult = ExpectSuccess | ExpectFailure Int String
   deriving (Eq, Show, Generic)
 
 -- | DSL with relevant api calls (not test cases).  This should make writing down different
 -- test cases very concise and not cost any generality.
 data Step samlRef scimRef
   = MkScim scimRef (Maybe samlRef) ExpectedResult
-  | MkSaml samlRef (Maybe scimRef) ExpectedResult
+  | -- | No expected result here; delete is idempotent.
+    RmScim scimRef
+  | -- | you can't associate a saml idp with a existing scim peer when creating the idp.
+    -- do that by replacing the scim token and associating the new one during creation.
+    MkSaml samlRef ExpectedResult
   deriving (Show)
 
-data TestState samlRef scimRef = TestState
+type StringStep = Step String String
+
+data State samlRef scimRef = State
   { allIdps :: Map samlRef String,
     allScims :: Map scimRef String
   }
 
-emptyTestState :: TestState Text Text
-emptyTestState = TestState mempty mempty
+type StringState = State String String
 
-runSteps :: (HasCallStack) => [Step String String] -> App ()
+emptyState :: StringState
+emptyState = State mempty mempty
+
+runSteps :: (HasCallStack) => [StringStep] -> App ()
 runSteps steps = do
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  go owner emptyTestState steps
+  go owner emptyState steps
   where
-    go :: Value -> TestState String String -> [Step String String] -> App ()
-    go owner _ [] = pure ()
-    go owner state (MkScim scimRef mbSamlRef expected : steps) = do
+    go :: Value -> StringState -> [StringStep] -> App ()
+    go _ _ [] = pure ()
+    go owner state (MkScim scimRef mbSamlRef expected : steps') = do
       let mIdPId = mbSamlRef <&> \r -> state.allIdps ! r
       let p = def {name = Just scimRef, idp = mIdPId}
       state' <- bindResponse (createScimToken owner p) $ \resp -> do
         case expected of
-          ExpectSuccess -> do
-            resp.status `shouldMatchInt` 200
-            scimId <- resp.json %. "info.id" >>= asString
-            pure $ state {allScims = Map.insert scimRef scimId (allScims state)}
-          ExpectFailure label -> do
-            resp.status `shouldMatchInt` 400
-            pure state
-      go owner state' steps
-    go owner state (MkSaml samlRef mbScimRef expected : steps) = do
-      let _mScimId = mbScimRef <&> \r -> state.allScims ! r
+          ExpectSuccess -> validateScimRegistration state scimRef resp
+          ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
+      go owner state' steps'
+    go owner state (MkSaml samlRef expected : steps') = do
       state' <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
         case expected of
-          ExpectSuccess -> do
-            resp.status `shouldMatchInt` 201
-            samlId <- resp.json %. "id" >>= asString
-            pure $ state {allIdps = Map.insert samlRef samlId (allIdps state)}
-          ExpectFailure label -> do
-            resp.status `shouldMatchInt` 400
-            pure state
-      go owner state' steps
+          ExpectSuccess -> validateSamlRegistration state samlRef resp
+          ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
+      go owner state' steps'
+
+    validateScimRegistration :: StringState -> String -> Response -> App StringState
+    validateScimRegistration state scimRef resp = do
+      resp.status `shouldMatchInt` 200
+      scimId <- resp.json %. "info.id" >>= asString
+      pure $ state {allScims = Map.insert scimRef scimId (allScims state)}
+
+    validateSamlRegistration :: StringState -> String -> Response -> App StringState
+    validateSamlRegistration state samlRef resp = do
+      resp.status `shouldMatchInt` 201
+      samlId <- resp.json %. "id" >>= asString
+      pure $ state {allIdps = Map.insert samlRef samlId (allIdps state)}
+
+    validateError :: Response -> Int -> String -> App ()
+    validateError resp errStatus errLabel = do
+      do
+        resp.status `shouldMatchInt` errStatus
+        resp.json %. "status" `shouldMatchInt` errStatus
+        resp.json %. "label" `shouldMatch` errLabel
 
 {-
 @@
