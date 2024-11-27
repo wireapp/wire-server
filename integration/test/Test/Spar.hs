@@ -8,6 +8,10 @@ import API.Common (randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import Control.Concurrent (threadDelay)
+import Data.Attoparsec.Internal.Types (Success)
+import Data.IORef
+import Data.Map (Map, (!))
+import qualified Data.Map as Map
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
@@ -361,38 +365,65 @@ fromNumServices One = 1
 fromNumServices Two = 2
 fromNumServices Three = 3
 
+data ExpectedResult = ExpectSuccess | ExpectFailure String
+  deriving (Eq, Show, Generic)
+
 -- (this represents api calls, not test cases)
 data Step samlRef scimRef
-  = MkScim { scimName :: scimRef, scimAssoc :: Maybe samlRef, scimExpectedResponse :: Response}
-  | MkSaml { samlRef (Maybe scimRef), scimExpectedResponse :: Response}
-  deriving (Eq, Show)
+  = MkScim scimRef (Maybe samlRef) ExpectedResult
+  | MkSaml samlRef (Maybe scimRef) ExpectedResult
+  deriving (Show)
 
-runSteps :: Value -> Value -> [Step Text Text] -> App ()
-runSteps tid owner = go =<< newIORef ([], [])
+data TestState samlRef scimRef = TestState
+  { allIdps :: Map samlRef String,
+    allScims :: Map scimRef String
+  }
+
+runSteps :: String -> Value -> [Step String String] -> App ()
+runSteps _tid owner = go (TestState mempty mempty)
   where
-    go :: ([UUID], [UUID]) -> _
+    go :: TestState String String -> [Step String String] -> App ()
     go _ [] = pure ()
-    go _ (MkScim scimRef mbSamlRef : steps) = do
-     mbSamlUUID <- for mbSamlRef $ \samlRef -> do
-      allIdps <- do
-        getAllIdps tid owner
-      -- filter for samlRef, if not found then crash (poorly written test).
-      pure undefined
-    createScimToken scimRef mbSamlUUID
-    runSteps tid owner steps
-
+    go state (MkScim scimRef mbSamlRef expected : steps) = do
+      let mIdPId = mbSamlRef <&> \r -> state.allIdps ! r
+      let p = def {name = Just scimRef, idp = mIdPId}
+      state' <- bindResponse (createScimToken owner p) $ \resp -> do
+        case expected of
+          ExpectSuccess -> do
+            resp.status `shouldMatchInt` 200
+            scimId <- resp.json %. "info.id" >>= asString
+            pure $ state {allScims = Map.insert scimRef scimId (allScims state)}
+          ExpectFailure label -> do
+            resp.status `shouldMatchInt` 400
+            pure state
+      go state' steps
+    go state (MkSaml samlRef mbScimRef expected : steps) = do
+      let _mScimId = mbScimRef <&> \r -> state.allScims ! r
+      state' <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
+        case expected of
+          ExpectSuccess -> do
+            resp.status `shouldMatchInt` 201
+            samlId <- resp.json %. "id" >>= asString
+            pure $ state {allIdps = Map.insert samlRef samlId (allIdps state)}
+          ExpectFailure label -> do
+            resp.status `shouldMatchInt` 400
+            pure state
+      go state' steps
 
 -- | Create a few saml IdPs and a few scim peers.  Randomize the order in which they are
 -- created, and which peers / IdPs they are associated with.
-testCreateIdpsAndScimsV7 :: (HasCallStack) => Tagged "#saml idps: " NumServices -> Tagged "#scim peers: " NumServices -> App ()
-testCreateIdpsAndScimsV7 numSaml numScim = do
-  (tid, owner) <- undefined
-  runSteps tid owner [MkScim "scim1" [],
-                      MkSaml "saml1" Nothing,
-                      MkScim "scim2" (Just "saml1"),
-                      MkScim "scim3" Nothing
-                     ]
-  runSteps tid owner [MkSaml "saml1" Just "doesnotexist"] -- should fail
+testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
+testCreateIdpsAndScimsV7 = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  runSteps
+    tid
+    owner
+    [ MkScim "scim1" Nothing ExpectSuccess,
+      MkSaml "saml1" Nothing ExpectSuccess
+    ]
+
+-- runSteps tid owner [MkSaml "saml1" Just "doesnotexist"] -- should fail
 
 {-
 @@
