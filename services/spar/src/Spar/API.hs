@@ -522,7 +522,6 @@ idpCreateXML ::
 idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
-  assertNoScimOrNoIdP teamid
   idp <-
     maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
       >>= validateNewIdP apiversion idpmeta teamid mReplaces
@@ -531,24 +530,6 @@ idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersi
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
-
--- | In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
--- data contains no information about the idp issuer, only the user name, so no valid saml
--- credentials can be created.  To fix this, we need to implement a way to associate scim
--- tokens with IdPs.  https://wearezeta.atlassian.net/browse/SQSERVICES-165
-assertNoScimOrNoIdP ::
-  ( Member ScimTokenStore r,
-    Member (Error SparError) r,
-    Member IdPConfigStore r
-  ) =>
-  TeamId ->
-  Sem r ()
-assertNoScimOrNoIdP teamid = do
-  numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
-  numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
-  when (numTokens > 0 && numIdps > 0) $
-    throwSparSem $
-      SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
