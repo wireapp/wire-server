@@ -114,7 +114,6 @@ import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Password
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Member (legalHoldStatus)
@@ -796,9 +795,9 @@ changePassword uid cp = do
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do
       -- We are updating the pwd here anyway, so we don't care about the pwd status
-      unless (verifyPassword pw' pw) $
+      unlessM (lift . liftSem $ HashPassword.verifyPassword pw' pw) $
         throwE InvalidCurrentPassword
-      when (verifyPassword newpw pw) $
+      whenM (lift . liftSem $ HashPassword.verifyPassword newpw pw) $
         throwE ChangePasswordMustDiffer
       lift $ liftSem (upsertHashedPassword uid hashedNewPw) >> wrapClient (Auth.revokeAllCookies uid)
 
@@ -829,7 +828,8 @@ deleteSelfUser ::
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member HashPassword r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -867,7 +867,7 @@ deleteSelfUser luid@(tUnqualified -> uid) pwd = do
         Nothing -> throwE DeleteUserInvalidPassword
         Just p -> do
           -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
-          unless (verifyPassword pw p) $
+          unlessM (lift . liftSem $ HashPassword.verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
           lift . liftSem $ deleteAccount a >> pure Nothing
     sendCode a target = do
