@@ -100,6 +100,7 @@ import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Team.Feature
 import Wire.GundeckAPIAccess
+import Wire.HashPassword
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Paging.Cassandra
@@ -122,6 +123,7 @@ type GalleyEffects1 =
      ProposalStore,
      ConversationStore,
      SubConversationStore,
+     HashPassword,
      Random,
      CustomBackendStore,
      TeamFeatureStore,
