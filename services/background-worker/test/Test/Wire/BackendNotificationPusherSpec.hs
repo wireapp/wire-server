@@ -351,8 +351,8 @@ mockApi mockAdmin =
       deleteQueue = mockListDeleteQueue mockAdmin
     }
 
-mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Queue]
-mockListQueuesByVHost MockRabbitMqAdmin {..} vhost = do
+mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Maybe Text -> Maybe Bool -> Servant.Handler [Queue]
+mockListQueuesByVHost MockRabbitMqAdmin {..} vhost _ _ = do
   atomically $ modifyTVar listQueuesVHostCalls (<> [vhost])
   readTVarIO broken >>= \case
     True -> throwError $ Servant.err500

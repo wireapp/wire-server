@@ -24,6 +24,8 @@ data AdminAPI route = AdminAPI
         :- "api"
           :> "queues"
           :> Capture "vhost" VHost
+          :> QueryParam "name" Text
+          :> QueryParam "use_regex" Bool
           :> Get '[JSON] [Queue],
     deleteQueue ::
       route

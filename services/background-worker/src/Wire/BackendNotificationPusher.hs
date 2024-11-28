@@ -282,7 +282,7 @@ getRemoteDomains adminClient = do
     go :: AppT IO [Domain]
     go = do
       vhost <- asks rabbitmqVHost
-      queues <- liftIO $ listQueuesByVHost adminClient vhost
+      queues <- liftIO $ listQueuesByVHost adminClient vhost (Just "backend-notifications\\..*") (Just True)
       let notifQueuesSuffixes = mapMaybe (\q -> Text.stripPrefix "backend-notifications." q.name) queues
       catMaybes <$> traverse (\d -> either (\e -> logInvalidDomain d e >> pure Nothing) (pure . Just) $ mkDomain d) notifQueuesSuffixes
     logInvalidDomain d e =
