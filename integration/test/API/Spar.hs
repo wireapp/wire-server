@@ -82,7 +82,7 @@ updateScimUser domain scimToken userId scimUser = do
 
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
 createIdp user metadata = do
-  req <- baseRequest user Spar Unversioned "/identity-providers"
+  req <- baseRequest user Spar Versioned "/identity-providers"
   submit "POST" $ req
     & addQueryParams [("api_version", "v2")]
     & addXML (fromLT $ SAML.encode metadata)
