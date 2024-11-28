@@ -8,7 +8,6 @@ import API.Common (randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import Control.Concurrent (threadDelay)
-import Data.Map ((!))
 import qualified Data.Map as Map
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
@@ -363,6 +362,7 @@ testCreateIdpsAndScimsV7 = do
     ]
   runSteps
     [ MkScim "scim1" Nothing ExpectSuccess,
+      MkSaml "saml1" ExpectSuccess,
       MkSaml "saml2" ExpectSuccess,
       MkScim "scim2" (Just "saml1") ExpectSuccess,
       -- two scims can be associated with one idp
@@ -375,6 +375,15 @@ testCreateIdpsAndScimsV7 = do
   -- expressed in the API.)
   runSteps
     [ MkScim "scim1" (Just "no_saml_unfortunately") (ExpectFailure 400 "idp-not-found")
+    ]
+  runSteps
+    [ MkScim "saml1" (Just "no_scim_unfortunately") (ExpectFailure 400 "not-found")
+    ]
+  runSteps
+    [ MkScim "saml1" Nothing ExpectSuccess,
+      MkScim "scim1" (Just "saml1") ExpectSuccess,
+      RmScim "scim1",
+      MkScim "scim2" (Just "saml1") ExpectSuccess
     ]
 
 -- | DSL with relevant api calls (not test cases).  This should make writing down different
