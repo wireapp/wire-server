@@ -359,14 +359,20 @@ testCreateMultipleIdps = do
 testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
 testCreateIdpsAndScimsV7 = do
   runSteps
+    [ MkSaml "saml1" ExpectSuccess
+    ]
+  runSteps
     [ MkScim "scim1" Nothing ExpectSuccess,
-      MkSaml "saml1" ExpectSuccess,
       MkSaml "saml2" ExpectSuccess,
       MkScim "scim2" (Just "saml1") ExpectSuccess,
+      -- two scims can be associated with one idp
       MkScim "scim3" (Just "saml1") ExpectSuccess,
       MkScim "scim4" (Just "saml2") ExpectSuccess,
       MkScim "scim5" Nothing ExpectSuccess
     ]
+  -- two saml idps cannot associate with the same scim peer: it would be unclear which idp the
+  -- next user is supposed to be provisioned for.  (not need to test, because it cannot be
+  -- expressed in the API.)
   runSteps
     [ MkScim "scim1" (Just "no_saml_unfortunately") (ExpectFailure 400 "idp-not-found")
     ]
@@ -375,7 +381,7 @@ testCreateIdpsAndScimsV7 = do
 -- test cases very concise and not cost any generality.
 data Step samlRef scimRef
   = MkScim scimRef (Maybe samlRef) ExpectedResult
-  | -- | No expected result here; delete is idempotent.
+  | -- | `RmScim` has expected result: delete is idempotent.
     RmScim scimRef
   | -- | you can't associate a saml idp with a existing scim peer when creating the idp.
     -- do that by replacing the scim token and associating the new one during creation.
@@ -438,20 +444,3 @@ runSteps steps = do
         resp.status `shouldMatchInt` errStatus
         resp.json %. "status" `shouldMatchInt` errStatus
         resp.json %. "label" `shouldMatch` errLabel
-
-{-
-@@
-    -- TODO:
-    -- test status code && maybe label of all create calls
-    -- test that scim and idp entries are connected (or not)
-    -- test that provision users are connected (or not)
-    -- login all users
-    -- NOT?: login saml users if there is no scim in the picture; this is deprecated.
-    undefined
--}
-
--- TODO:
--- can we allow two scims associated with one saml?  => yes, that's fine.
--- can we allow two samls associated with one scim?  => nah, that should be an error.  otherwise how does scim know which idp to associate with the user?
--- allow scim without saml, but deprecate idp-without-scim use case.  (i think there is already a ticket for that.)
--- can scim peer just be redirected to different saml idp?  i think we should delete services and recreate them instead.  => association only happen at creation time!
