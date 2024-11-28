@@ -1,3 +1,17 @@
+0.4.0.6:
+  - bump dependencies
+  - re-introduce putUser function accidentally removed in 0.4.0.3
+
+0.4.0.4:
+  - update README
+
+0.4.0.3:
+  - drop client function for putUser
+  - bump ormulu
+  - bump dependencies
+  - make delete user idempotent (do not throw 404)
+  - clean up email address type
+
 0.4.0:
   - update dependencies
 

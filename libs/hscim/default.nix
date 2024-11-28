@@ -47,7 +47,7 @@
 }:
 mkDerivation {
   pname = "hscim";
-  version = "0.4.0.2";
+  version = "0.4.0.6";
   src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
