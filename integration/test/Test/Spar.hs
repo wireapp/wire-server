@@ -431,7 +431,7 @@ runSteps steps = do
       let p = def {name = Just scimRef, idp = mIdPId}
       state' <- bindResponse (createScimToken owner p) $ \resp -> do
         case expected of
-          ExpectSuccess -> validateScimRegistration state scimRef resp
+          ExpectSuccess -> validateScimRegistration state scimRef mIdPId resp
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
       validateState owner state'
       go owner state' steps'
@@ -448,15 +448,23 @@ runSteps steps = do
       let tokenId = state.allScims Map.! scimRef
       state' <- bindResponse (deleteScimToken owner tokenId) $ \resp -> do
         resp.status `shouldMatchInt` 204
-        pure $ state {allScims = Map.delete scimRef (allScims state)}
+        pure
+          $ state
+            { allScims = Map.delete scimRef (allScims state),
+              allScimAssocs = Map.delete tokenId (allScimAssocs state)
+            }
       validateState owner state'
       go owner state' steps'
 
-    validateScimRegistration :: StringState -> String -> Response -> App StringState
-    validateScimRegistration state scimRef resp = do
+    validateScimRegistration :: StringState -> String -> Maybe String -> Response -> App StringState
+    validateScimRegistration state scimRef mIdPId resp = do
       resp.status `shouldMatchInt` 200
       scimId <- resp.json %. "info.id" >>= asString
-      pure $ state {allScims = Map.insert scimRef scimId (allScims state)}
+      pure
+        $ state
+          { allScims = Map.insert scimRef scimId (allScims state),
+            allScimAssocs = maybe id (Map.insert scimId) mIdPId $ allScimAssocs state
+          }
 
     validateSamlRegistration :: StringState -> String -> Response -> App StringState
     validateSamlRegistration state samlRef resp = do
@@ -483,11 +491,13 @@ runSteps steps = do
 
       do
         -- are all local associations the same as on spar?
-        let fetch :: Value -> App (Maybe (String, String))
-            fetch tokInfo = undefined
+        let toScimIdpPair tokInfo = do
+              mIdp <- lookupField tokInfo "idp"
+              case mIdp of
+                Just idp -> Just <$> ((,) <$> (tokInfo %. "id" >>= asString) <*> asString idp)
+                Nothing -> pure Nothing
 
-        sparState :: Map String String <- Map.fromList . catMaybes <$> (fetch `mapM` allScims)
-
+        sparState <- Map.fromList . catMaybes <$> (toScimIdpPair `mapM` allScims)
         sparState `shouldMatch` state.allScimAssocs
 
       print (allIdps, allScims)
