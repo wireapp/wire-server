@@ -338,7 +338,7 @@ createToken ::
   (HasCallStack) =>
   UserId ->
   CreateScimToken ->
-  TestSpar CreateScimTokenResponse
+  TestSpar CreateScimTokenResponseV6
 createToken zusr payload = do
   env <- ask
   r <-
@@ -536,7 +536,8 @@ createToken_ ::
 createToken_ userid payload spar_ = do
   call
     . post
-    $ ( spar_
+    $ ( versioned "v6"
+          . spar_
           . paths ["scim", "auth-tokens"]
           . zUser userid
           . contentJson
