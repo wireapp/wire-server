@@ -667,7 +667,8 @@ checkReusableCode ::
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
-    Member (Input Opts) r
+    Member (Input Opts) r,
+    Member HashPassword r
   ) =>
   ConversationCode ->
   Sem r ()
@@ -749,7 +750,8 @@ joinConversationByReusableCode ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TeamStore r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member HashPassword r
   ) =>
   Local UserId ->
   ConnId ->

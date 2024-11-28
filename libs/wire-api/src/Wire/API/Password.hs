@@ -22,15 +22,18 @@ module Wire.API.Password
   ( Password (..),
     PasswordStatus (..),
     genPassword,
-    mkSafePassword,
-    verifyPassword,
-    verifyPasswordWithStatus,
     PasswordReqBody (..),
+
+    -- * Hashing Functions
+    mkSafePassword,
+    mkSafePasswordScrypt,
+    verifyPasswordWithStatusInternal,
+
+    -- * Misc
     argon2OptsFromHashingOpts,
 
     -- * Only for testing
     hashPasswordArgon2idWithSalt,
-    mkSafePasswordScrypt,
     parsePassword,
   )
 where
@@ -155,13 +158,8 @@ mkSafePasswordScrypt = fmap ScryptPassword . hashPasswordScrypt . Text.encodeUtf
 mkSafePassword :: (MonadIO m) => Argon2.Options -> PlainTextPassword' t -> m Password
 mkSafePassword opts = fmap Argon2Password . hashPasswordArgon2id opts . Text.encodeUtf8 . fromPlainTextPassword
 
--- | Verify a plaintext password from user input against a stretched
--- password from persistent storage.
-verifyPassword :: PlainTextPassword' t -> Password -> Bool
-verifyPassword = (fst .) . verifyPasswordWithStatus
-
-verifyPasswordWithStatus :: PlainTextPassword' t -> Password -> (Bool, PasswordStatus)
-verifyPasswordWithStatus (fromPlainTextPassword -> plain) hashed =
+verifyPasswordWithStatusInternal :: PlainTextPassword' t -> Password -> (Bool, PasswordStatus)
+verifyPasswordWithStatusInternal (fromPlainTextPassword -> plain) hashed =
   case hashed of
     (Argon2Password Argon2HashedPassword {..}) ->
       let producedKey = hashPasswordWithOptions opts (Text.encodeUtf8 plain) salt
