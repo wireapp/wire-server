@@ -202,6 +202,8 @@ shouldMatchRange a (lower, upper) = do
     pa <- prettyJSON xa
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\nin range (" <> show lower <> ", " <> show upper <> ") (including bounds)"
 
+-- | Match on sorted lists (sets where elements may occur more than once).  (Maybe this should
+-- be called `shouldMatchMultiSet`?)
 shouldMatchSet ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   a ->
