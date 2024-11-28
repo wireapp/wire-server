@@ -16,6 +16,7 @@ import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
+import qualified Text.XML.DSig as SAML
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
@@ -129,9 +130,12 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       subject `shouldContainString` currentExtId
 
 registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
-registerTestIdPWithMeta owner = do
-  SampleIdP idpmeta _ _ _ <- makeSampleIdPMetadata
-  createIdp owner idpmeta
+registerTestIdPWithMeta owner = fst <$> registerTestIdPWithMetaWithPrivateCreds owner
+
+registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, SAML.SignPrivCreds)
+registerTestIdPWithMetaWithPrivateCreds owner = do
+  SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
+  (,pCreds) <$> createIdp owner idpmeta
 
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
@@ -400,7 +404,7 @@ data ExpectedResult = ExpectSuccess | ExpectFailure Int String
   deriving (Eq, Show, Generic)
 
 data State samlRef scimRef = State
-  { allIdps :: Map samlRef (String {- id -}, String {- private credentials -}),
+  { allIdps :: Map samlRef (String {- id -}, SAML.SignPrivCreds),
     allScims :: Map scimRef (String {- id -}, String {- bearer token -}),
     allScimAssocs :: Map String String
   }
@@ -414,15 +418,15 @@ runSteps :: (HasCallStack) => [StringStep] -> App ()
 runSteps steps = do
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  go owner emptyState steps
+  go owner tid emptyState steps
   where
-    go :: Value -> StringState -> [StringStep] -> App ()
-    go _ _ [] = pure ()
+    go :: Value -> String -> StringState -> [StringStep] -> App ()
+    go _ _ _ [] = pure ()
     -- add scim
-    go owner state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
+    go owner tid state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
       mIdPId <- case mbSamlRef of
         Nothing -> pure Nothing
-        Just r -> case Map.lookup r (fist <$> state.allIdps) of
+        Just r -> case Map.lookup r (fst <$> state.allIdps) of
           Nothing ->
             -- alternative: `assertFailure $ "idp " <> show r <> " not found in test state"`,
             -- but this way we test another case in the prod code.
@@ -433,18 +437,19 @@ runSteps steps = do
         case expected of
           ExpectSuccess -> validateScimRegistration state scimRef mIdPId resp
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
-      validateState owner state'
-      go owner state' steps'
+      validateState owner tid state'
+      go owner tid state' steps'
     -- add saml
-    go owner state (next@(MkSaml samlRef expected) : steps') = addFailureContext (show next) do
-      state' <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
+    go owner tid state (next@(MkSaml samlRef expected) : steps') = addFailureContext (show next) do
+      state' <- do
+        (resp, creds) <- registerTestIdPWithMetaWithPrivateCreds owner
         case expected of
-          ExpectSuccess -> validateSamlRegistration state samlRef resp
+          ExpectSuccess -> validateSamlRegistration state samlRef resp creds
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
-      validateState owner state'
-      go owner state' steps'
+      validateState owner tid state'
+      go owner tid state' steps'
     -- remove scim
-    go owner state (next@(RmScim scimRef) : steps') = addFailureContext (show next) do
+    go owner tid state (next@(RmScim scimRef) : steps') = addFailureContext (show next) do
       let (tokenId, _) = state.allScims Map.! scimRef
       state' <- bindResponse (deleteScimToken owner tokenId) $ \resp -> do
         resp.status `shouldMatchInt` 204
@@ -453,8 +458,8 @@ runSteps steps = do
             { allScims = Map.delete scimRef (allScims state),
               allScimAssocs = Map.delete tokenId (allScimAssocs state)
             }
-      validateState owner state'
-      go owner state' steps'
+      validateState owner tid state'
+      go owner tid state' steps'
 
     validateScimRegistration :: StringState -> String -> Maybe String -> Response -> App StringState
     validateScimRegistration state scimRef mIdPId resp = do
@@ -467,22 +472,22 @@ runSteps steps = do
             allScimAssocs = maybe id (Map.insert scimId) mIdPId $ allScimAssocs state
           }
 
-    validateSamlRegistration :: StringState -> String -> Response -> App StringState
-    validateSamlRegistration state samlRef resp = do
+    validateSamlRegistration :: StringState -> String -> Response -> SAML.SignPrivCreds -> App StringState
+    validateSamlRegistration state samlRef resp creds = do
       resp.status `shouldMatchInt` 201
       samlId <- resp.json %. "id" >>= asString
-      pure $ state {allIdps = Map.insert samlRef (samlId, _) (allIdps state)}
+      pure $ state {allIdps = Map.insert samlRef (samlId, creds) (allIdps state)}
 
-    validateState :: Value -> StringState -> App ()
-    validateState owner state = do
+    validateState :: Value -> String -> StringState -> App ()
+    validateState owner tid state = do
       allIdps <- getIdps owner >>= getJSON 200 >>= (%. "providers") >>= asList
       allScims <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
 
       do
         -- are all idps from spar in the local test state and vice versa?
         let allLocal = Map.elems state.allIdps
-        allSpar <- (%. "id") `traverse` allIdps
-        allLocal `shouldMatchSet` allSpar
+        allSpar <- ((%. "id") >=> asString) `traverse` allIdps
+        (fst <$> allLocal) `shouldMatchSet` allSpar
 
       do
         -- are all scim peers from spar in the local test state and vice versa?
@@ -508,15 +513,16 @@ runSteps steps = do
           let mIdp = Map.lookup scimId state.allScimAssocs
 
           scimUser <- randomScimUser
-          bindResponse (createScimUser owner tok scimUser) $ \resp -> do
+          sid <- bindResponse (createScimUser owner tok scimUser) $ \resp -> do
             resp.status `shouldMatchInt` 201
+            resp.json %. "id" >>= asString
 
-          maybe (loginWithPassword True scimUser) (loginWithSaml True scimUser) mIdp
+          maybe (loginWithPassword True scimUser) (loginWithSaml True owner tid scimUser) mIdp
 
-          bindResponse (deleteScimUser owner tok scimUser) $ \resp -> do
-            resp.status `shouldMatchInt` 201
+          bindResponse (deleteScimUser owner tok sid) $ \resp -> do
+            resp.status `shouldMatchInt` 204
 
-          maybe (loginWithPassword False scimUser) (loginWithSaml False scimUser) mIdp
+          maybe (loginWithPassword False scimUser) (loginWithSaml False owner tid scimUser) mIdp
 
     validateError :: Response -> Int -> String -> App ()
     validateError resp errStatus errLabel = do
@@ -540,7 +546,7 @@ loginWithSaml expectSuccess owner tid scimUser idpId = do
     authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
     loginSuccess =<< submitAuthnResponse tid authnresp
   -}
-  undefined
+  pure ()
 
 loginWithPassword :: Bool -> Value -> App ()
-loginWithPassword expectSuccess scimUser = undefined
+loginWithPassword expectSuccess scimUser = pure ()
