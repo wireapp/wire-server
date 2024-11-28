@@ -130,6 +130,13 @@ http {
       0 "";
   }
 
+  map "$requset_method $uri" $rate_limited_hashing_by_zuser_with_exceptions {
+      {{- range $exception :=  .Values.user_rate_limit_hashing_exceptions }}
+      "{{ $exception }}" '';
+      {{- end }}
+      default $zauth_user;
+  }
+
   map $http_origin $cors_header {
       default "";
     {{ range $origin := .Values.nginx_conf.allowlisted_origins }}

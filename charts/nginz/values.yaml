@@ -60,6 +60,14 @@ nginx_conf:
   rate_limit_reqs_per_user: "30r/s"
   rate_limit_reqs_per_addr: "15r/m"
 
+  # TODO: Expalin these
+  user_rate_limit_hashing_exceptions:
+    - ~GET /self$
+    - ~PUT /self$
+    - ~HEAD /self/password$
+    - ~GET /clients/[^/]+$
+    - ~PUT /clients/[^/]+$
+
   # This value must be a list of strings. Each string is copied verbatim into
   # the nginx.conf after the default 'limit_req_zone' directives. This should be
   # used to create request zones which can then be specified in
@@ -70,6 +78,8 @@ nginx_conf:
     - limit_req_zone $rate_limited_by_zuser zone=key_package_claims_per_user:12m rate=3000r/m;
     - limit_req_zone $rate_limited_by_zuser_path zone=key_package_claims_per_user_per_target:12m rate=100r/m;
     - limit_req_zone $rate_limited_by_zuser zone=one2one_conv:12m rate=3000r/m;
+    - limit_req_zone $rate_limted_by_addr zone=hashes_per_addr:12m rate=3r/h; # TODO: Review this number
+    - limit_req_zone $rate_limited_hashing_by_zuser zone=hashes_per_user:12m rate=10r/h; # TODO: review this number
 
   # The origins from which we allow CORS requests. These are combined with
   # 'external_env_domain' and 'additional_external_env_domains' to form a full
@@ -183,6 +193,8 @@ nginx_conf:
       oauth_scope: self
       envs:
       - all
+      specific_rate_limits:
+      - zone: hashes_per_user
     - path: /self/name
       envs:
       - all
@@ -195,6 +207,8 @@ nginx_conf:
     - path: /self/password
       envs:
       - all
+      specific_rate_limits:
+      - zone: hashes_per_user
     - path: /self/supported-protocols
       envs:
       - all
@@ -216,6 +230,11 @@ nginx_conf:
     - path: /invitations
       envs:
       - all
+    - path: ^/clients/[^/]+$
+      envs:
+      - all
+      specific_rate_limits:
+      - zone: hashes_per_user
     - path: /clients
       envs:
       - all
@@ -247,6 +266,8 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+      specific_rate_limits:
+      - zone: hashes_per_addr
     - path: /provider/activate
       envs:
       - all
@@ -264,6 +285,8 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+      specific_rate_limits:
+        - zone: hashes_per_addr
     - path: /provider/email
       envs:
       - all
@@ -272,6 +295,8 @@ nginx_conf:
       envs:
       - all
       allow_credentials: true
+      specific_rate_limits:
+      - zone: hashes_per_user
     - path: /provider/pid
       envs:
       - all
@@ -307,6 +332,8 @@ nginx_conf:
       - all
       allow_credentials: true
       disable_zauth: true
+      specific_rate_limits:
+        - zone: hashes_per_addr
     - path: /activate
       envs:
       - all
@@ -320,6 +347,8 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+      specific_rate_limits:
+        - zone: hashes_per_addr
     - path: /login/send
       envs:
       - all
@@ -378,6 +407,11 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - paths: /cookies/remove
+      envs:
+      - all
+      specific_rate_limits:
+      - zone: hashes_per_user
     - path: /cookies
       envs:
       - all
@@ -392,6 +426,8 @@ nginx_conf:
       - all
       disable_zauth: true
       allow_credentials: true
+      specific_rate_limits:
+      - zone: hashes_per_addr
     - path: /onboarding
       envs:
       - all
