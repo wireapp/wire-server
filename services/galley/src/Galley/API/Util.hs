@@ -77,7 +77,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.Password
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
@@ -87,6 +86,8 @@ import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
+import Wire.HashPassword (HashPassword)
+import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
 
 ensureAccessRole ::
@@ -654,7 +655,8 @@ newConversationEventPush e users =
 verifyReusableCode ::
   ( Member CodeStore r,
     Member (ErrorS 'CodeNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r
+    Member (ErrorS 'InvalidConversationPassword) r,
+    Member HashPassword r
   ) =>
   Bool ->
   Maybe PlainTextPassword8 ->
@@ -668,7 +670,7 @@ verifyReusableCode checkPw mPtpw convCode = do
     throwS @'CodeNotFound
   case (checkPw, mPtpw, mPw) of
     (True, Just ptpw, Just pw) ->
-      unless (verifyPassword ptpw pw) $ throwS @'InvalidConversationPassword
+      unlessM (HashPassword.verifyPassword ptpw pw) $ throwS @'InvalidConversationPassword
     (True, Nothing, Just _) ->
       throwS @'InvalidConversationPassword
     (_, _, _) -> pure ()
