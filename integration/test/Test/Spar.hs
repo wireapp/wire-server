@@ -421,7 +421,11 @@ runSteps steps = do
     go :: Value -> StringState -> [StringStep] -> App ()
     go _ _ [] = pure ()
     go owner state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
-      let mIdPId = mbSamlRef <&> \r -> state.allIdps ! r
+      mIdPId <- case mbSamlRef of
+        Nothing -> pure Nothing
+        Just r -> case Map.lookup r state.allIdps of
+          Nothing -> assertFailure $ "idp " <> show r <> " not found in test state"
+          Just i -> pure $ Just i
       let p = def {name = Just scimRef, idp = mIdPId}
       state' <- bindResponse (createScimToken owner p) $ \resp -> do
         case expected of
