@@ -440,6 +440,12 @@ runSteps steps = do
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
       validateState state'
       go owner state' steps'
+    go owner state (next@(RmScim scimRef) : steps') = addFailureContext (show next) do
+      let tokenId = state.allScims Map.! scimRef
+      state' <- bindResponse (deleteScimToken owner tokenId) $ \resp -> do
+        resp.status `shouldMatchInt` 204
+        pure $ state {allScims = Map.delete scimRef (allScims state)}
+      go owner state' steps'
 
     validateScimRegistration :: StringState -> String -> Response -> App StringState
     validateScimRegistration state scimRef resp = do
@@ -454,7 +460,7 @@ runSteps steps = do
       pure $ state {allIdps = Map.insert samlRef samlId (allIdps state)}
 
     validateState :: StringState -> App ()
-    validateState state = do
+    validateState _state = do
       -- test that scim and idp entries are connected (or not)
       -- test that provision users are connected (or not)
       -- login provisioned users
