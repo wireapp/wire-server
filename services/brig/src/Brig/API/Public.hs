@@ -1331,7 +1331,8 @@ deleteSelfUser ::
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
-    Member Events r
+    Member Events r,
+    Member HashPassword r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
