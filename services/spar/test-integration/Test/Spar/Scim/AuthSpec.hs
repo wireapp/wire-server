@@ -175,31 +175,21 @@ testTokenLimit = do
   -- Create two tokens
   (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
-  _ <-
+  replicateM_ 8 $
     createToken
       owner
       CreateScimToken
-        { description = "testTokenLimit / #1",
+        { description = "testTokenLimit / #1-8",
           password = Just defPassword,
           verificationCode = Nothing,
           name = Nothing,
           idp = Nothing
         }
-  _ <-
-    createToken
-      owner
-      CreateScimToken
-        { description = "testTokenLimit / #2",
-          password = Just defPassword,
-          verificationCode = Nothing,
-          name = Nothing,
-          idp = Nothing
-        }
-  -- Try to create the third token and see that it fails
+  -- Try to create the ninth token and see that it fails
   createToken_
     owner
     CreateScimToken
-      { description = "testTokenLimit / #3",
+      { description = "testTokenLimit / #8",
         password = Just defPassword,
         verificationCode = Nothing,
         name = Nothing,
