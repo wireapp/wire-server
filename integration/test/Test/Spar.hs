@@ -371,9 +371,6 @@ testCreateIdpsAndScimsV7 = do
     [ MkScim "scim1" (Just "no_saml_unfortunately") (ExpectFailure 400 "idp-not-found")
     ]
 
-data ExpectedResult = ExpectSuccess | ExpectFailure Int String
-  deriving (Eq, Show, Generic)
-
 -- | DSL with relevant api calls (not test cases).  This should make writing down different
 -- test cases very concise and not cost any generality.
 data Step samlRef scimRef
@@ -386,6 +383,9 @@ data Step samlRef scimRef
   deriving (Show)
 
 type StringStep = Step String String
+
+data ExpectedResult = ExpectSuccess | ExpectFailure Int String
+  deriving (Eq, Show, Generic)
 
 data State samlRef scimRef = State
   { allIdps :: Map samlRef String,
