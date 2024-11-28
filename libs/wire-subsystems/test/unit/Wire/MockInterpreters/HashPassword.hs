@@ -5,13 +5,17 @@ import Data.Misc
 import Data.Text.Encoding qualified as Text
 import Imports
 import Polysemy
+import Util.Options
 import Wire.API.Password as Password
 import Wire.HashPassword
+import Wire.HashPassword.Argon2id
+import Wire.HashPassword.Interpreter
 
 staticHashPasswordInterpreter :: InterpreterFor HashPassword r
 staticHashPasswordInterpreter = interpret $ \case
   HashPassword6 password -> hashPassword password
   HashPassword8 password -> hashPassword password
+  VerifyPasswordWithStatus plain hashed -> pure $ verifyPasswordWithStatusImpl PasswordHashingScrypt plain hashed
 
 hashPassword :: (Monad m) => PlainTextPassword' t -> m Password
 hashPassword password =

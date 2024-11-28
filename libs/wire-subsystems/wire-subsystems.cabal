@@ -103,6 +103,9 @@ library
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
     Wire.HashPassword
+    Wire.HashPassword.Argon2id
+    Wire.HashPassword.Interpreter
+    Wire.HashPassword.Scrypt
     Wire.IndexedUserStore
     Wire.IndexedUserStore.Bulk
     Wire.IndexedUserStore.Bulk.ElasticSearch
@@ -250,6 +253,7 @@ test-suite wire-subsystems-tests
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
+    Wire.HashPassword.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
