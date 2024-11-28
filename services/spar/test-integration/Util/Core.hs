@@ -48,6 +48,7 @@ module Util.Core
     call,
     endpointToReq,
     mkVersionedRequest,
+    versioned,
 
     -- * Other
     randomEmail,
@@ -1334,3 +1335,23 @@ getIdPByIssuer issuer tid = do
   runSpar $ case idpApiVersion of
     WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe issuer
     WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe issuer tid
+
+-- | Note: Apply this function last when composing (Request -> Request) functions
+versioned :: ByteString -> Request -> Request
+versioned newVersion r = r {HTTP.path = setVersion newVersion (HTTP.path r)}
+  where
+    setVersion :: ByteString -> ByteString -> ByteString
+    setVersion v p =
+      let p' = removeSlash' p
+       in v <> "/" <> fromMaybe p' (removeVersionPrefix p')
+    removeSlash' :: ByteString -> ByteString
+    removeSlash' s = case B8.uncons s of
+      Just ('/', s') -> s'
+      _ -> s
+
+    removeVersionPrefix :: ByteString -> Maybe ByteString
+    removeVersionPrefix bs = do
+      let (x, s) = B8.splitAt 1 bs
+      guard (x == B8.pack "v")
+      (_, s') <- B8.readInteger s
+      pure (B8.tail s')

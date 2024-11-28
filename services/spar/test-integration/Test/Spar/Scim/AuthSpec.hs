@@ -93,7 +93,7 @@ testCreateToken = do
   -- Create a token
   (owner, _tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
-  CreateScimTokenResponse token _ <-
+  CreateScimTokenResponseV6 token _ <-
     createToken
       owner
       CreateScimToken
@@ -133,7 +133,7 @@ testCreateTokenWithVerificationCode = do
   void $ retryNUntil 6 ((==) 200 . statusCode) $ requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
   code <- getVerificationCode (env ^. teBrig) owner Public.CreateScimToken
   let reqWithCode = CreateScimToken "testCreateToken" (Just defPassword) (Just code) Nothing Nothing
-  CreateScimTokenResponse token _ <- createToken owner reqWithCode
+  CreateScimTokenResponseV6 token _ <- createToken owner reqWithCode
 
   -- Try to do @GET /Users@ and check that it succeeds
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
@@ -432,7 +432,7 @@ testDeletedTokensAreUnusable = do
   -- Create a token
   (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
-  CreateScimTokenResponse token tokenInfo <-
+  CreateScimTokenResponseV6 token tokenInfo <-
     createToken
       owner
       CreateScimToken
@@ -459,7 +459,7 @@ testDeletedTokensAreUnlistable = do
   env <- ask
   (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
-  CreateScimTokenResponse _ tokenInfo <-
+  CreateScimTokenResponseV6 _ tokenInfo <-
     createToken
       owner
       CreateScimToken
