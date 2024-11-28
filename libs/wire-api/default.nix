@@ -247,6 +247,7 @@ mkDerivation {
     proto-lens
     QuickCheck
     random
+    saml2-web-sso
     schema-profunctor
     servant
     servant-server
