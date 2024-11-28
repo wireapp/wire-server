@@ -4,10 +4,12 @@ module Test.Spar where
 
 import qualified API.Brig as Brig
 import API.BrigInternal as BrigInternal
-import API.Common (randomEmail, randomExternalId, randomHandle)
+import API.Common (defPassword, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
+import API.Nginz (login)
 import API.Spar
 import Control.Concurrent (threadDelay)
+import Data.Map ((!))
 import qualified Data.Map as Map
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
@@ -510,19 +512,21 @@ runSteps steps = do
         -- login.
         -- (auto-provisioning with saml without scim is intentionally not tested.)
         for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
-          let mIdp = Map.lookup scimId state.allScimAssocs
+          let mIdp = (state.allIdps !) <$> Map.lookup scimId state.allScimAssocs
 
           scimUser <- randomScimUser
-          sid <- bindResponse (createScimUser owner tok scimUser) $ \resp -> do
+          email <- scimUser %. "externalId" >>= asString
+          uid <- bindResponse (createScimUser owner tok scimUser) $ \resp -> do
             resp.status `shouldMatchInt` 201
             resp.json %. "id" >>= asString
+          registerUser OwnDomain tid email
 
-          maybe (loginWithPassword True scimUser) (loginWithSaml True owner tid scimUser) mIdp
+          maybe (loginWithPassword 200 scimUser) (loginWithSaml True owner tid scimUser) mIdp
 
-          bindResponse (deleteScimUser owner tok sid) $ \resp -> do
+          bindResponse (deleteScimUser owner tok uid) $ \resp -> do
             resp.status `shouldMatchInt` 204
 
-          maybe (loginWithPassword False scimUser) (loginWithSaml False owner tid scimUser) mIdp
+          maybe (loginWithPassword 403 scimUser) (loginWithSaml False owner tid scimUser) mIdp
 
     validateError :: Response -> Int -> String -> App ()
     validateError resp errStatus errLabel = do
@@ -531,7 +535,7 @@ runSteps steps = do
         resp.json %. "code" `shouldMatchInt` errStatus
         resp.json %. "label" `shouldMatch` errLabel
 
-loginWithSaml :: Bool -> Value -> String -> Value -> String -> App ()
+loginWithSaml :: (HasCallStack) => Bool -> Value -> String -> Value -> (String, SAML.SignPrivCreds) -> App ()
 loginWithSaml expectSuccess owner tid scimUser idpId = do
   let apiVer = "v2"
   {-
@@ -548,5 +552,8 @@ loginWithSaml expectSuccess owner tid scimUser idpId = do
   -}
   pure ()
 
-loginWithPassword :: Bool -> Value -> App ()
-loginWithPassword expectSuccess scimUser = pure ()
+loginWithPassword :: (HasCallStack) => Int -> Value -> App ()
+loginWithPassword expectedStatus scimUser = do
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  bindResponse (login OwnDomain email defPassword) $ \resp -> do
+    resp.status `shouldMatchInt` expectedStatus
