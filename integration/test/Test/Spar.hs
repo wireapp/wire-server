@@ -420,6 +420,7 @@ runSteps steps = do
   where
     go :: Value -> StringState -> [StringStep] -> App ()
     go _ _ [] = pure ()
+    -- add scim
     go owner state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
       mIdPId <- case mbSamlRef of
         Nothing -> pure Nothing
@@ -433,6 +434,7 @@ runSteps steps = do
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
       validateState state'
       go owner state' steps'
+    -- add saml
     go owner state (next@(MkSaml samlRef expected) : steps') = addFailureContext (show next) do
       state' <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
         case expected of
@@ -440,6 +442,7 @@ runSteps steps = do
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
       validateState state'
       go owner state' steps'
+    -- remove scim
     go owner state (next@(RmScim scimRef) : steps') = addFailureContext (show next) do
       let tokenId = state.allScims Map.! scimRef
       state' <- bindResponse (deleteScimToken owner tokenId) $ \resp -> do
