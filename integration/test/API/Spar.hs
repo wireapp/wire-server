@@ -57,6 +57,13 @@ createScimUser domain token scimUser = do
   body <- make scimUser
   submit "POST" $ req & addJSON body . addHeader "Authorization" ("Bearer " <> token)
 
+deleteScimUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+deleteScimUser domain token sid = do
+  req <- baseRequest domain Spar Versioned "/scim/v2/Users"
+  submit "DELETE" $ req
+    & addQueryParams [("id", sid)]
+    & addHeader "Authorization" ("Bearer " <> token)
+
 findUsersByExternalId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 findUsersByExternalId domain scimToken externalId = do
   req <- baseRequest domain Spar Versioned "/scim/v2/Users"

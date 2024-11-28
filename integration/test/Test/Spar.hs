@@ -400,8 +400,8 @@ data ExpectedResult = ExpectSuccess | ExpectFailure Int String
   deriving (Eq, Show, Generic)
 
 data State samlRef scimRef = State
-  { allIdps :: Map samlRef String,
-    allScims :: Map scimRef String,
+  { allIdps :: Map samlRef (String {- id -}, String {- private credentials -}),
+    allScims :: Map scimRef (String {- id -}, String {- bearer token -}),
     allScimAssocs :: Map String String
   }
 
@@ -422,7 +422,7 @@ runSteps steps = do
     go owner state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
       mIdPId <- case mbSamlRef of
         Nothing -> pure Nothing
-        Just r -> case Map.lookup r state.allIdps of
+        Just r -> case Map.lookup r (fist <$> state.allIdps) of
           Nothing ->
             -- alternative: `assertFailure $ "idp " <> show r <> " not found in test state"`,
             -- but this way we test another case in the prod code.
@@ -445,7 +445,7 @@ runSteps steps = do
       go owner state' steps'
     -- remove scim
     go owner state (next@(RmScim scimRef) : steps') = addFailureContext (show next) do
-      let tokenId = state.allScims Map.! scimRef
+      let (tokenId, _) = state.allScims Map.! scimRef
       state' <- bindResponse (deleteScimToken owner tokenId) $ \resp -> do
         resp.status `shouldMatchInt` 204
         pure
@@ -460,9 +460,10 @@ runSteps steps = do
     validateScimRegistration state scimRef mIdPId resp = do
       resp.status `shouldMatchInt` 200
       scimId <- resp.json %. "info.id" >>= asString
+      tok <- resp.json %. "token" >>= asString
       pure
         $ state
-          { allScims = Map.insert scimRef scimId (allScims state),
+          { allScims = Map.insert scimRef (scimId, tok) (allScims state),
             allScimAssocs = maybe id (Map.insert scimId) mIdPId $ allScimAssocs state
           }
 
@@ -470,7 +471,7 @@ runSteps steps = do
     validateSamlRegistration state samlRef resp = do
       resp.status `shouldMatchInt` 201
       samlId <- resp.json %. "id" >>= asString
-      pure $ state {allIdps = Map.insert samlRef samlId (allIdps state)}
+      pure $ state {allIdps = Map.insert samlRef (samlId, _) (allIdps state)}
 
     validateState :: Value -> StringState -> App ()
     validateState owner state = do
@@ -485,7 +486,7 @@ runSteps steps = do
 
       do
         -- are all scim peers from spar in the local test state and vice versa?
-        let allLocal = Map.elems state.allScims
+        let allLocal = fst <$> Map.elems state.allScims
         allSpar <- (%. "id") `traverse` allScims
         allLocal `shouldMatchSet` allSpar
 
@@ -501,14 +502,21 @@ runSteps steps = do
         sparState `shouldMatch` state.allScimAssocs
 
       do
-        -- provision one user for every scim
-        -- auto-provision one user for every unassociated saml
-        -- login all newly created users => expect session token
-        -- delete all newly created users
-        -- login all newly created users => expect failure
-        _
+        -- login.
+        -- (auto-provisioning with saml without scim is intentionally not tested.)
+        for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
+          let mIdp = Map.lookup scimId state.allScimAssocs
 
-      print (allIdps, allScims)
+          scimUser <- randomScimUser
+          bindResponse (createScimUser owner tok scimUser) $ \resp -> do
+            resp.status `shouldMatchInt` 201
+
+          maybe (loginWithPassword True scimUser) (loginWithSaml True scimUser) mIdp
+
+          bindResponse (deleteScimUser owner tok scimUser) $ \resp -> do
+            resp.status `shouldMatchInt` 201
+
+          maybe (loginWithPassword False scimUser) (loginWithSaml False scimUser) mIdp
 
     validateError :: Response -> Int -> String -> App ()
     validateError resp errStatus errLabel = do
@@ -516,3 +524,23 @@ runSteps steps = do
         resp.status `shouldMatchInt` errStatus
         resp.json %. "code" `shouldMatchInt` errStatus
         resp.json %. "label" `shouldMatch` errLabel
+
+loginWithSaml :: Bool -> Value -> String -> Value -> String -> App ()
+loginWithSaml expectSuccess owner tid scimUser idpId = do
+  let apiVer = "v2"
+  {-
+    (idp, (_, privcreds)) <- registerTestIdPWithMeta owner
+    liftIO $ fromMaybe defWireIdPAPIVersion (idp ^. idpExtraInfo . apiVersion) `shouldBe` apiVer
+    spmeta <- getTestSPMetadata tid
+    authnreq <- negotiateAuthnRequest idp
+    let audiencePath = case apiVer of
+          WireIdPAPIV1 -> "/sso/finalize-login"
+          WireIdPAPIV2 -> "/sso/finalize-login/" <> toByteString' tid
+    liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
+    authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+    loginSuccess =<< submitAuthnResponse tid authnresp
+  -}
+  undefined
+
+loginWithPassword :: Bool -> Value -> App ()
+loginWithPassword expectSuccess scimUser = undefined
