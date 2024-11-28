@@ -293,11 +293,11 @@ registerUser domain tid email = do
 
 activateEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
 activateEmail domain email = do
-  (key, code) <- bindResponse (BrigInternal.getActivationCode domain email) $ \res -> do
+  (actkey, code) <- bindResponse (BrigInternal.getActivationCode domain email) $ \res -> do
     (,)
       <$> (res.json %. "key" >>= asString)
       <*> (res.json %. "code" >>= asString)
-  Brig.activate domain key code >>= assertSuccess
+  Brig.activate domain actkey code >>= assertSuccess
 
 checkSparGetUserAndFindByExtId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> (Value -> App ()) -> App ()
 checkSparGetUserAndFindByExtId domain tok extId uid k = do
@@ -401,13 +401,14 @@ data ExpectedResult = ExpectSuccess | ExpectFailure Int String
 
 data State samlRef scimRef = State
   { allIdps :: Map samlRef String,
-    allScims :: Map scimRef String
+    allScims :: Map scimRef String,
+    allScimAssocs :: Map String String
   }
 
 type StringState = State String String
 
 emptyState :: StringState
-emptyState = State mempty mempty
+emptyState = State mempty mempty mempty
 
 runSteps :: (HasCallStack) => [StringStep] -> App ()
 runSteps steps = do
@@ -432,7 +433,7 @@ runSteps steps = do
         case expected of
           ExpectSuccess -> validateScimRegistration state scimRef resp
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
-      validateState state'
+      validateState owner state'
       go owner state' steps'
     -- add saml
     go owner state (next@(MkSaml samlRef expected) : steps') = addFailureContext (show next) do
@@ -440,7 +441,7 @@ runSteps steps = do
         case expected of
           ExpectSuccess -> validateSamlRegistration state samlRef resp
           ExpectFailure errStatus errLabel -> validateError resp errStatus errLabel $> state
-      validateState state'
+      validateState owner state'
       go owner state' steps'
     -- remove scim
     go owner state (next@(RmScim scimRef) : steps') = addFailureContext (show next) do
@@ -448,6 +449,7 @@ runSteps steps = do
       state' <- bindResponse (deleteScimToken owner tokenId) $ \resp -> do
         resp.status `shouldMatchInt` 204
         pure $ state {allScims = Map.delete scimRef (allScims state)}
+      validateState owner state'
       go owner state' steps'
 
     validateScimRegistration :: StringState -> String -> Response -> App StringState
@@ -462,8 +464,33 @@ runSteps steps = do
       samlId <- resp.json %. "id" >>= asString
       pure $ state {allIdps = Map.insert samlRef samlId (allIdps state)}
 
-    validateState :: StringState -> App ()
-    validateState _state = do
+    validateState :: Value -> StringState -> App ()
+    validateState owner state = do
+      allIdps <- getIdps owner >>= getJSON 200 >>= (%. "providers") >>= asList
+      allScims <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
+
+      do
+        -- are all idps from spar in the local test state and vice versa?
+        let allLocal = Map.elems state.allIdps
+        allSpar <- (%. "id") `traverse` allIdps
+        allLocal `shouldMatchSet` allSpar
+
+      do
+        -- are all scim peers from spar in the local test state and vice versa?
+        let allLocal = Map.elems state.allScims
+        allSpar <- (%. "id") `traverse` allScims
+        allLocal `shouldMatchSet` allSpar
+
+      do
+        -- are all local associations the same as on spar?
+        let fetch :: Value -> App (Maybe (String, String))
+            fetch tokInfo = undefined
+
+        sparState :: Map String String <- Map.fromList . catMaybes <$> (fetch `mapM` allScims)
+
+        sparState `shouldMatch` state.allScimAssocs
+
+      print (allIdps, allScims)
       -- test that scim and idp entries are connected (or not)
       -- test that provision users are connected (or not)
       -- login provisioned users

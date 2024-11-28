@@ -87,3 +87,9 @@ createIdp user metadata = do
     & addQueryParams [("api_version", "v2")]
     & addXML (fromLT $ SAML.encode metadata)
     & addHeader "Content-Type" "application/xml"
+
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-get-all
+getIdps :: (HasCallStack, MakesValue user) => user -> App Response
+getIdps user = do
+  req <- baseRequest user Spar Versioned "/identity-providers"
+  submit "GET" req
