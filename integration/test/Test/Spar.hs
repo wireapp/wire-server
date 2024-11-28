@@ -500,13 +500,15 @@ runSteps steps = do
         sparState <- Map.fromList . catMaybes <$> (toScimIdpPair `mapM` allScims)
         sparState `shouldMatch` state.allScimAssocs
 
+      do
+        -- provision one user for every scim
+        -- auto-provision one user for every unassociated saml
+        -- login all newly created users => expect session token
+        -- delete all newly created users
+        -- login all newly created users => expect failure
+        _
+
       print (allIdps, allScims)
-      -- test that scim and idp entries are connected (or not)
-      -- test that provision users are connected (or not)
-      -- login provisioned users
-      -- NOT?: login saml users if there is no scim in the picture; this is deprecated.
-      -- test saml -without-scim use case.
-      pure ()
 
     validateError :: Response -> Int -> String -> App ()
     validateError resp errStatus errLabel = do
