@@ -563,6 +563,9 @@ runSteps steps = do
         resp.json %. "code" `shouldMatchInt` errStatus
         resp.json %. "label" `shouldMatch` errLabel
 
+-- | Given a team configured with saml sso, attempt a login with valid credentials.  This
+-- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
+-- scim-provisioned users as well as saml auto-provisioning without scim.
 loginWithSaml :: (HasCallStack) => Bool -> String -> Value -> (SamlId, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
 loginWithSaml expectSuccess tid scimUser (SamlId iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
