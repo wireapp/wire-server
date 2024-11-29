@@ -1,10 +1,15 @@
 module API.Spar where
 
 import API.Common (defPassword)
+import qualified Data.ByteString.Base64.Lazy as EL
+import Data.String.Conversions (cs)
 import Data.String.Conversions.Monomorphic (fromLT)
 import GHC.Stack
+import Network.HTTP.Client.MultipartFormData
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import Testlib.Prelude
+import qualified Text.XML as XML
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_scim_auth_tokens
 getScimTokens :: (HasCallStack, MakesValue caller) => caller -> App Response
@@ -109,3 +114,9 @@ negotiateAuthnRequest :: (HasCallStack, MakesValue domain) => domain -> String -
 negotiateAuthnRequest domain idpId = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["sso", "initiate-login", idpId]
   submit "GET" req
+
+submitAuthnResponse :: (HasCallStack, MakesValue domain) => domain -> String -> SAML.SignedAuthnResponse -> App Response
+submitAuthnResponse domain tid (SAML.SignedAuthnResponse authnresp) = do
+  baseRequest domain Spar Versioned (joinHttpPath ["sso", "finalize-login", tid])
+    >>= formDataBody [partLBS (cs "SAMLResponse") . EL.encode . XML.renderLBS XML.def $ authnresp]
+    >>= submit "POST"

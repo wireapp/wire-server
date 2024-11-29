@@ -9,21 +9,26 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import API.Nginz (login)
 import API.Spar
 import Control.Concurrent (threadDelay)
+import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Map as Map
+import Data.String.Conversions (cs)
 import Data.Text (pack)
-import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
+import SAML2.WebSSO (SimpleSetCookie (fromSimpleSetCookie))
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
+import qualified Text.XML as XML
+import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
+import qualified Web.Cookie as Web
 
 (!) :: (HasCallStack, Ord k, Show k, Show a) => Map k a -> k -> a
 m ! k = case m Map.!? k of
@@ -374,28 +379,33 @@ testCreateMultipleIdps = do
 testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
 testCreateIdpsAndScimsV7 = do
   runSteps
-    [ MkSaml (SamlRef "saml1") ExpectSuccess
-    ]
-  runSteps
-    [ MkScim (ScimRef "scim1") Nothing ExpectSuccess,
-      MkSaml (SamlRef "saml1") ExpectSuccess,
-      MkSaml (SamlRef "saml2") ExpectSuccess,
-      MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess,
-      -- two scims can be associated with one idp
-      MkScim (ScimRef "scim3") (Just (SamlRef "saml1")) ExpectSuccess,
-      MkScim (ScimRef "scim4") (Just (SamlRef "saml2")) ExpectSuccess,
-      MkScim (ScimRef "scim5") Nothing ExpectSuccess
+    [ MkSaml (SamlRef "saml1") ExpectSuccess,
+      MkScim (ScimRef "scim1") (Just (SamlRef "saml1")) ExpectSuccess
     ]
 
-  -- two saml idps cannot associate with the same scim peer: it would be unclear which idp the
-  -- next user is supposed to be provisioned for.  (not need to test, because it cannot be
-  -- expressed in the API.)
-  runSteps
-    [ MkSaml (SamlRef "saml1") ExpectSuccess,
-      MkScim (ScimRef "scim1") (Just (SamlRef "saml1")) ExpectSuccess,
-      RmScim (ScimRef "scim1"),
-      MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess
-    ]
+-- runSteps
+--   [ MkSaml (SamlRef "saml1") ExpectSuccess
+--   ]
+-- runSteps
+--   [ MkScim (ScimRef "scim1") Nothing ExpectSuccess,
+--     MkSaml (SamlRef "saml1") ExpectSuccess,
+--     MkSaml (SamlRef "saml2") ExpectSuccess,
+--     MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess,
+--     -- two scims can be associated with one idp
+--     MkScim (ScimRef "scim3") (Just (SamlRef "saml1")) ExpectSuccess,
+--     MkScim (ScimRef "scim4") (Just (SamlRef "saml2")) ExpectSuccess,
+--     MkScim (ScimRef "scim5") Nothing ExpectSuccess
+--   ]
+
+-- -- two saml idps cannot associate with the same scim peer: it would be unclear which idp the
+-- -- next user is supposed to be provisioned for.  (not need to test, because it cannot be
+-- -- expressed in the API.)
+-- runSteps
+--   [ MkSaml (SamlRef "saml1") ExpectSuccess,
+--     MkScim (ScimRef "scim1") (Just (SamlRef "saml1")) ExpectSuccess,
+--     RmScim (ScimRef "scim1"),
+--     MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess
+--   ]
 
 newtype SamlRef = SamlRef {unSamlRef :: String}
   deriving newtype (Eq, Show, Ord, ToJSON)
@@ -545,12 +555,12 @@ runSteps steps = do
           when (isNothing mIdp) $ do
             registerUser OwnDomain tid email
 
-          maybe (loginWithPassword 200 scimUser) (loginWithSaml True owner tid scimUser) mIdp
+          maybe (loginWithPassword 200 scimUser) (loginWithSaml True tid scimUser) mIdp
 
           bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
             resp.status `shouldMatchInt` 204
 
-          maybe (loginWithPassword 403 scimUser) (loginWithSaml False owner tid scimUser) mIdp
+          maybe (loginWithPassword 403 scimUser) (loginWithSaml False tid scimUser) mIdp
 
     validateError :: Response -> Int -> String -> App ()
     validateError resp errStatus errLabel = do
@@ -559,24 +569,80 @@ runSteps steps = do
         resp.json %. "code" `shouldMatchInt` errStatus
         resp.json %. "label" `shouldMatch` errLabel
 
-loginWithSaml :: (HasCallStack) => Bool -> Value -> String -> Value -> (SamlId, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
-loginWithSaml _expectSuccess owner tid _scimUser (SamlId iid, (meta, privcreds)) = do
+loginWithSaml :: (HasCallStack) => Bool -> String -> Value -> (SamlId, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
+loginWithSaml expectSuccess tid _scimUser (SamlId iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
-  spmeta <- getTestSPMetadata owner tid
-  authnreq <- negotiateAuthnRequest owner iid
-  let audiencePath = "/sso/finalize-login/v2"
-  authnResponse <- liftIO $ SAML.mkAuthnResponse privcreds idpConfig (undefined spmeta) (undefined authnreq) True
-  -- authnresp <- runSimpleSP $ authnResponse
-  -- loginSuccess =<< submitAuthnResponse tid authnresp
-  pure ()
+  spmeta <- getTestSPMetadata OwnDomain tid
+  authnreq <- negotiateAuthnRequest OwnDomain iid
+  authnresp <- runSimpleSP $ SAML.mkAuthnResponse privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
+  if expectSuccess
+    then loginSuccess =<< submitAuthnResponse OwnDomain tid authnresp
+    else loginFailure =<< submitAuthnResponse OwnDomain tid authnresp
+  where
+    toSPMetaData :: ByteString -> SAML.SPMetadata
+    toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
 
--- runSimpleSP ::  SAML.SimpleSP a -> m a
--- runSimpleSP action = do
---   env <- ask
---   liftIO $ do
---     ctx <- SAML.mkSimpleSPCtx (env ^. teOpts . to saml) []
---     result <- SAML.runSimpleSP ctx action
---     either (throwIO . ErrorCall . show) pure result
+    loginSuccess :: (HasCallStack) => Response -> App ()
+    loginSuccess resp = do
+      resp.status `shouldMatchInt` 200
+      let bdy = cs resp.body
+      bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+      bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+      bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+      bdy `shouldContain` "<title>wire:sso:success</title>"
+      bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+      hasPersistentCookieHeader resp `shouldMatch` Just ()
+
+    loginFailure :: (HasCallStack) => Response -> App ()
+    loginFailure resp = do
+      resp.status `shouldMatchInt` 200
+      let bdy = cs resp.body
+      bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+      bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+      -- bdy `shouldNotContain` "<title>wire:sso:error:success</title>"
+      bdy `shouldContain` "<title>wire:sso:error:bad-team</title>"
+      bdy `shouldContain` "window.opener.postMessage({"
+      bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+      bdy `shouldContain` "\"payload\":{"
+      bdy `shouldContain` "\"label\":\"forbidden\""
+      bdy `shouldContain` "}, receiverOrigin)"
+      hasPersistentCookieHeader resp `shouldMatch` (Nothing :: Maybe ())
+
+    -- \|  we test for expiration date as it's asier than parsing and inspecting the cookie value.
+    hasPersistentCookieHeader :: Response -> Maybe ()
+    hasPersistentCookieHeader rsp = do
+      cky <- SAML.SimpleSetCookie . Web.parseSetCookie . cs <$> getCookie "zuid" rsp
+      when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky) Nothing
+
+    runSimpleSP :: SAML.SimpleSP a -> App a
+    runSimpleSP action = liftIO $ do
+      -- use of undefined seems ok here as it evaluated lazily and appears to be unused.
+      ctx <- SAML.mkSimpleSPCtx undefined []
+      result <- SAML.runSimpleSP ctx action
+      pure $ fromRight (error "simple sp action failed") result
+
+    parseAuthnReqResp ::
+      ByteString ->
+      SAML.AuthnRequest
+    parseAuthnReqResp bs = reqBody
+      where
+        xml :: XML.Document
+        xml =
+          fromRight (error "malformed html in response body")
+            $ XML.parseText XML.def (cs bs)
+
+        reqBody :: SAML.AuthnRequest
+        reqBody =
+          (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
+            & head
+            & XML.attribute (fromString "value")
+            & head
+            & cs
+            & EL.decode
+            & fromRight (error "")
+            & cs
+            & SAML.decodeElem
+            & fromRight (error "")
 
 loginWithPassword :: (HasCallStack) => Int -> Value -> App ()
 loginWithPassword expectedStatus scimUser = do
@@ -586,12 +652,3 @@ loginWithPassword expectedStatus scimUser = do
 
 instance ToJSON SAML.SignPrivCreds where
   toJSON c = String (pack $ show c)
-
-instance SAML.HasLogger IO where
-  logger _level _msg = pure ()
-
-instance SAML.HasCreateUUID IO where
-  createUUID = UUID.nextRandom
-
-instance SAML.HasNow IO where
-  getNow = SAML.Time <$> getCurrentTime

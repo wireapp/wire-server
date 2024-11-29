@@ -279,4 +279,5 @@ library
     , wire-message-proto-lens
     , wreq
     , xml
+    , xml-conduit
     , yaml
