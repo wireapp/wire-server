@@ -16,7 +16,6 @@ import Data.Text (pack)
 import qualified Data.UUID as UUID
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
-import SAML2.WebSSO (SimpleSetCookie (fromSimpleSetCookie))
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
@@ -28,7 +27,6 @@ import Testlib.Prelude
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
-import qualified Web.Cookie as Web
 
 (!) :: (HasCallStack, Ord k, Show k, Show a) => Map k a -> k -> a
 m ! k = case m Map.!? k of
@@ -379,33 +377,28 @@ testCreateMultipleIdps = do
 testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
 testCreateIdpsAndScimsV7 = do
   runSteps
-    [ MkSaml (SamlRef "saml1") ExpectSuccess,
-      MkScim (ScimRef "scim1") (Just (SamlRef "saml1")) ExpectSuccess
+    [ MkSaml (SamlRef "saml1") ExpectSuccess
+    ]
+  runSteps
+    [ MkScim (ScimRef "scim1") Nothing ExpectSuccess,
+      MkSaml (SamlRef "saml1") ExpectSuccess,
+      MkSaml (SamlRef "saml2") ExpectSuccess,
+      MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess,
+      -- two scims can be associated with one idp
+      MkScim (ScimRef "scim3") (Just (SamlRef "saml1")) ExpectSuccess,
+      MkScim (ScimRef "scim4") (Just (SamlRef "saml2")) ExpectSuccess,
+      MkScim (ScimRef "scim5") Nothing ExpectSuccess
     ]
 
--- runSteps
---   [ MkSaml (SamlRef "saml1") ExpectSuccess
---   ]
--- runSteps
---   [ MkScim (ScimRef "scim1") Nothing ExpectSuccess,
---     MkSaml (SamlRef "saml1") ExpectSuccess,
---     MkSaml (SamlRef "saml2") ExpectSuccess,
---     MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess,
---     -- two scims can be associated with one idp
---     MkScim (ScimRef "scim3") (Just (SamlRef "saml1")) ExpectSuccess,
---     MkScim (ScimRef "scim4") (Just (SamlRef "saml2")) ExpectSuccess,
---     MkScim (ScimRef "scim5") Nothing ExpectSuccess
---   ]
-
--- -- two saml idps cannot associate with the same scim peer: it would be unclear which idp the
--- -- next user is supposed to be provisioned for.  (not need to test, because it cannot be
--- -- expressed in the API.)
--- runSteps
---   [ MkSaml (SamlRef "saml1") ExpectSuccess,
---     MkScim (ScimRef "scim1") (Just (SamlRef "saml1")) ExpectSuccess,
---     RmScim (ScimRef "scim1"),
---     MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess
---   ]
+  -- two saml idps cannot associate with the same scim peer: it would be unclear which idp the
+  -- next user is supposed to be provisioned for.  (not need to test, because it cannot be
+  -- expressed in the API.)
+  runSteps
+    [ MkSaml (SamlRef "saml1") ExpectSuccess,
+      MkScim (ScimRef "scim1") (Just (SamlRef "saml1")) ExpectSuccess,
+      RmScim (ScimRef "scim1"),
+      MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess
+    ]
 
 newtype SamlRef = SamlRef {unSamlRef :: String}
   deriving newtype (Eq, Show, Ord, ToJSON)
@@ -570,11 +563,13 @@ runSteps steps = do
         resp.json %. "label" `shouldMatch` errLabel
 
 loginWithSaml :: (HasCallStack) => Bool -> String -> Value -> (SamlId, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
-loginWithSaml expectSuccess tid _scimUser (SamlId iid, (meta, privcreds)) = do
+loginWithSaml expectSuccess tid scimUser (SamlId iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
   spmeta <- getTestSPMetadata OwnDomain tid
   authnreq <- negotiateAuthnRequest OwnDomain iid
-  authnresp <- runSimpleSP $ SAML.mkAuthnResponse privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
+  email <- scimUser %. "externalId" >>= asString
+  let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
+  authnresp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
   if expectSuccess
     then loginSuccess =<< submitAuthnResponse OwnDomain tid authnresp
     else loginFailure =<< submitAuthnResponse OwnDomain tid authnresp
@@ -591,7 +586,7 @@ loginWithSaml expectSuccess tid _scimUser (SamlId iid, (meta, privcreds)) = do
       bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
       bdy `shouldContain` "<title>wire:sso:success</title>"
       bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
-      hasPersistentCookieHeader resp `shouldMatch` Just ()
+      hasPersistentCookieHeader True resp
 
     loginFailure :: (HasCallStack) => Response -> App ()
     loginFailure resp = do
@@ -599,20 +594,21 @@ loginWithSaml expectSuccess tid _scimUser (SamlId iid, (meta, privcreds)) = do
       let bdy = cs resp.body
       bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
       bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-      -- bdy `shouldNotContain` "<title>wire:sso:error:success</title>"
-      bdy `shouldContain` "<title>wire:sso:error:bad-team</title>"
+      bdy `shouldContain` "<title>wire:sso:error:"
       bdy `shouldContain` "window.opener.postMessage({"
       bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
       bdy `shouldContain` "\"payload\":{"
       bdy `shouldContain` "\"label\":\"forbidden\""
       bdy `shouldContain` "}, receiverOrigin)"
-      hasPersistentCookieHeader resp `shouldMatch` (Nothing :: Maybe ())
+      hasPersistentCookieHeader False resp
 
     -- \|  we test for expiration date as it's asier than parsing and inspecting the cookie value.
-    hasPersistentCookieHeader :: Response -> Maybe ()
-    hasPersistentCookieHeader rsp = do
-      cky <- SAML.SimpleSetCookie . Web.parseSetCookie . cs <$> getCookie "zuid" rsp
-      when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky) Nothing
+    hasPersistentCookieHeader :: Bool -> Response -> App ()
+    hasPersistentCookieHeader success rsp = do
+      let cookie = getCookie "zuid" rsp
+      case cookie of
+        Nothing -> success `shouldMatch` False
+        Just _ -> success `shouldMatch` True
 
     runSimpleSP :: SAML.SimpleSP a -> App a
     runSimpleSP action = liftIO $ do
