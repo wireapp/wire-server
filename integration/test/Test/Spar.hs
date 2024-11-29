@@ -570,50 +570,47 @@ loginWithSaml expectSuccess tid scimUser (SamlId iid, (meta, privcreds)) = do
   authnreq <- initiateSamlLogin OwnDomain iid
   email <- scimUser %. "externalId" >>= asString
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
-  authnresp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  if expectSuccess
-    then loginSuccess =<< finalizeSamlLogin OwnDomain tid authnresp
-    else loginFailure =<< finalizeSamlLogin OwnDomain tid authnresp
+  authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
+  loginResp <- finalizeSamlLogin OwnDomain tid authnResp
+  validateLoginResp loginResp
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
 
-    loginSuccess :: (HasCallStack) => Response -> App ()
-    loginSuccess resp = do
-      resp.status `shouldMatchInt` 200
-      let bdy = cs resp.body
-      bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-      bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-      bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-      bdy `shouldContain` "<title>wire:sso:success</title>"
-      bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
-      hasPersistentCookieHeader True resp
+    validateLoginResp :: (HasCallStack) => Response -> App ()
+    validateLoginResp resp =
+      if expectSuccess
+        then do
+          resp.status `shouldMatchInt` 200
+          let bdy = cs resp.body
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+          bdy `shouldContain` "<title>wire:sso:success</title>"
+          bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+          hasPersistentCookieHeader resp
+        else do
+          resp.status `shouldMatchInt` 200
+          let bdy = cs resp.body
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+          bdy `shouldContain` "<title>wire:sso:error:"
+          bdy `shouldContain` "window.opener.postMessage({"
+          bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+          bdy `shouldContain` "\"payload\":{"
+          bdy `shouldContain` "\"label\":\"forbidden\""
+          bdy `shouldContain` "}, receiverOrigin)"
+          hasPersistentCookieHeader resp
 
-    loginFailure :: (HasCallStack) => Response -> App ()
-    loginFailure resp = do
-      resp.status `shouldMatchInt` 200
-      let bdy = cs resp.body
-      bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-      bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-      bdy `shouldContain` "<title>wire:sso:error:"
-      bdy `shouldContain` "window.opener.postMessage({"
-      bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
-      bdy `shouldContain` "\"payload\":{"
-      bdy `shouldContain` "\"label\":\"forbidden\""
-      bdy `shouldContain` "}, receiverOrigin)"
-      hasPersistentCookieHeader False resp
-
-    -- we test for expiration date as it's asier than parsing and inspecting the cookie value.
-    hasPersistentCookieHeader :: Bool -> Response -> App ()
-    hasPersistentCookieHeader success rsp = do
+    hasPersistentCookieHeader :: Response -> App ()
+    hasPersistentCookieHeader rsp = do
       let cookie = getCookie "zuid" rsp
       case cookie of
-        Nothing -> success `shouldMatch` False
-        Just _ -> success `shouldMatch` True
+        Nothing -> expectSuccess `shouldMatch` False
+        Just _ -> expectSuccess `shouldMatch` True
 
     runSimpleSP :: SAML.SimpleSP a -> App a
     runSimpleSP action = liftIO $ do
-      -- use of undefined seems ok here as it evaluated lazily and appears to be unused.
       ctx <- SAML.mkSimpleSPCtx undefined []
       result <- SAML.runSimpleSP ctx action
       pure $ fromRight (error "simple sp action failed") result
