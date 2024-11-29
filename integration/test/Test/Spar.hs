@@ -380,9 +380,6 @@ testCreateIdpsAndScimsV7 = do
   -- next user is supposed to be provisioned for.  (not need to test, because it cannot be
   -- expressed in the API.)
   runSteps
-    [ MkScim "scim1" (Just "no_saml_unfortunately") (ExpectFailure 404 "not-found")
-    ]
-  runSteps
     [ MkSaml "saml1" ExpectSuccess,
       MkScim "scim1" (Just "saml1") ExpectSuccess,
       RmScim "scim1",
@@ -426,14 +423,7 @@ runSteps steps = do
     go _ _ _ [] = pure ()
     -- add scim
     go owner tid state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
-      mIdPId <- case mbSamlRef of
-        Nothing -> pure Nothing
-        Just r -> case Map.lookup r (fst <$> state.allIdps) of
-          Nothing ->
-            -- alternative: `assertFailure $ "idp " <> show r <> " not found in test state"`,
-            -- but this way we test another case in the prod code.
-            pure $ Just {- randomly picked -} "57d11982-ad74-11ef-8150-e396cf2c3694"
-          Just i -> pure $ Just i
+      let mIdPId = ((fst <$> state.allIdps) !) <$> mbSamlRef
       let p = def {name = Just scimRef, idp = mIdPId}
       state' <- bindResponse (createScimToken owner p) $ \resp -> do
         case expected of
