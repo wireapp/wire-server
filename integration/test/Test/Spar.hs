@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-ambiguous-fields -Wunused-matches -Wwarn #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields -Wunused-matches -Wwarn -Wno-orphans #-}
 
 module Test.Spar where
 
@@ -11,8 +11,13 @@ import API.Spar
 import Control.Concurrent (threadDelay)
 import qualified Data.Map as Map
 import Data.Text (pack)
+import Data.Time (getCurrentTime)
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
+import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import Testlib.JSON
@@ -139,10 +144,10 @@ testSparExternalIdDifferentFromEmailWithIdp = do
 registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
 registerTestIdPWithMeta owner = fst <$> registerTestIdPWithMetaWithPrivateCreds owner
 
-registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, SAML.SignPrivCreds)
+registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
 registerTestIdPWithMetaWithPrivateCreds owner = do
   SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
-  (,pCreds) <$> createIdp owner idpmeta
+  (,(idpmeta, pCreds)) <$> createIdp owner idpmeta
 
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
@@ -423,7 +428,7 @@ data ExpectedResult = ExpectSuccess | ExpectFailure Int String
 
 data State = State
   { allIdps :: Map SamlRef SamlId,
-    allIdpCredsById :: Map SamlId SAML.SignPrivCreds,
+    allIdpCredsById :: Map SamlId (SAML.IdPMetadata, SAML.SignPrivCreds),
     allScims :: Map ScimRef (ScimId, ScimToken),
     allScimAssocs :: Map ScimId SamlId
   }
@@ -484,7 +489,7 @@ runSteps steps = do
             allScimAssocs = maybe id (Map.insert (ScimId scimId)) mIdPId $ allScimAssocs state
           }
 
-    validateSamlRegistration :: State -> SamlRef -> Response -> SAML.SignPrivCreds -> App State
+    validateSamlRegistration :: State -> SamlRef -> Response -> (SAML.IdPMetadata, SAML.SignPrivCreds) -> App State
     validateSamlRegistration state samlRef resp creds = do
       resp.status `shouldMatchInt` 201
       samlId <- resp.json %. "id" >>= asString
@@ -526,7 +531,7 @@ runSteps steps = do
         -- login.
         -- (auto-provisioning with saml without scim is intentionally not tested.)
         for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
-          let mIdp :: Maybe (SamlId, SAML.SignPrivCreds)
+          let mIdp :: Maybe (SamlId, (SAML.IdPMetadata, SAML.SignPrivCreds))
               mIdp = do
                 i <- Map.lookup scimId state.allScimAssocs
                 c <- Map.lookup i state.allIdpCredsById
@@ -554,16 +559,24 @@ runSteps steps = do
         resp.json %. "code" `shouldMatchInt` errStatus
         resp.json %. "label" `shouldMatch` errLabel
 
-loginWithSaml :: (HasCallStack) => Bool -> Value -> String -> Value -> (SamlId, SAML.SignPrivCreds) -> App ()
-loginWithSaml expectSuccess owner tid scimUser (idpId, privCreds) = do
-  {-
-    let audiencePath = "/sso/finalize-login/" <> toByteString' tid
-    (authnreq ^. rqIssuer . fromIssuer . to URI.uriPath) `shouldMatch` audiencePath
-    authnresp <- mkAuthnResponse privcreds idp spmeta authnreq True
-    bindResponse (submitAuthnResponse tid authnresp) $ \resp -> do
-      undefined
-  -}
+loginWithSaml :: (HasCallStack) => Bool -> Value -> String -> Value -> (SamlId, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
+loginWithSaml _expectSuccess owner tid _scimUser (SamlId iid, (meta, privcreds)) = do
+  let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
+  spmeta <- getTestSPMetadata owner tid
+  authnreq <- negotiateAuthnRequest owner iid
+  let audiencePath = "/sso/finalize-login/v2"
+  authnResponse <- liftIO $ SAML.mkAuthnResponse privcreds idpConfig (undefined spmeta) (undefined authnreq) True
+  -- authnresp <- runSimpleSP $ authnResponse
+  -- loginSuccess =<< submitAuthnResponse tid authnresp
   pure ()
+
+-- runSimpleSP ::  SAML.SimpleSP a -> m a
+-- runSimpleSP action = do
+--   env <- ask
+--   liftIO $ do
+--     ctx <- SAML.mkSimpleSPCtx (env ^. teOpts . to saml) []
+--     result <- SAML.runSimpleSP ctx action
+--     either (throwIO . ErrorCall . show) pure result
 
 loginWithPassword :: (HasCallStack) => Int -> Value -> App ()
 loginWithPassword expectedStatus scimUser = do
@@ -573,3 +586,12 @@ loginWithPassword expectedStatus scimUser = do
 
 instance ToJSON SAML.SignPrivCreds where
   toJSON c = String (pack $ show c)
+
+instance SAML.HasLogger IO where
+  logger _level _msg = pure ()
+
+instance SAML.HasCreateUUID IO where
+  createUUID = UUID.nextRandom
+
+instance SAML.HasNow IO where
+  getNow = SAML.Time <$> getCurrentTime

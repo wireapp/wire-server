@@ -99,3 +99,13 @@ getIdps :: (HasCallStack, MakesValue user) => user -> App Response
 getIdps user = do
   req <- baseRequest user Spar Versioned "/identity-providers"
   submit "GET" req
+
+getTestSPMetadata :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getTestSPMetadata domain tid = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["sso", "metadata", tid]
+  submit "GET" req
+
+negotiateAuthnRequest :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+negotiateAuthnRequest domain idpId = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["sso", "initiate-login", idpId]
+  submit "GET" req
