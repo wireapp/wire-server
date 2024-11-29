@@ -519,7 +519,8 @@ runSteps steps = do
           uid <- bindResponse (createScimUser owner tok scimUser) $ \resp -> do
             resp.status `shouldMatchInt` 201
             resp.json %. "id" >>= asString
-          registerUser OwnDomain tid email
+          when (isNothing mIdp) $ do
+            registerUser OwnDomain tid email
 
           maybe (loginWithPassword 200 scimUser) (loginWithSaml True owner tid scimUser) mIdp
 
