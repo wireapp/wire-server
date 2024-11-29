@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Test.Spar where
 
@@ -561,6 +561,3 @@ loginWithPassword expectedStatus scimUser = do
   email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
   bindResponse (login OwnDomain email defPassword) $ \resp -> do
     resp.status `shouldMatchInt` expectedStatus
-
-instance ToJSON SAML.SignPrivCreds where
-  toJSON c = String (pack $ show c)
