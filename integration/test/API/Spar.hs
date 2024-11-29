@@ -105,18 +105,21 @@ getIdps user = do
   req <- baseRequest user Spar Versioned "/identity-providers"
   submit "GET" req
 
-getTestSPMetadata :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-getTestSPMetadata domain tid = do
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/sso-team-metadata
+getSPMetadata :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getSPMetadata domain tid = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["sso", "metadata", tid]
   submit "GET" req
 
-negotiateAuthnRequest :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-negotiateAuthnRequest domain idpId = do
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-req
+initiateSamlLogin :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+initiateSamlLogin domain idpId = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["sso", "initiate-login", idpId]
   submit "GET" req
 
-submitAuthnResponse :: (HasCallStack, MakesValue domain) => domain -> String -> SAML.SignedAuthnResponse -> App Response
-submitAuthnResponse domain tid (SAML.SignedAuthnResponse authnresp) = do
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-resp
+finalizeSamlLogin :: (HasCallStack, MakesValue domain) => domain -> String -> SAML.SignedAuthnResponse -> App Response
+finalizeSamlLogin domain tid (SAML.SignedAuthnResponse authnresp) = do
   baseRequest domain Spar Versioned (joinHttpPath ["sso", "finalize-login", tid])
     >>= formDataBody [partLBS (cs "SAMLResponse") . EL.encode . XML.renderLBS XML.def $ authnresp]
     >>= submit "POST"

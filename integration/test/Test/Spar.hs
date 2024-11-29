@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-ambiguous-fields -Wunused-matches -Wwarn -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-orphans #-}
 
 module Test.Spar where
 
@@ -379,6 +379,7 @@ testCreateIdpsAndScimsV7 = do
   runSteps
     [ MkSaml (SamlRef "saml1") ExpectSuccess
     ]
+
   runSteps
     [ MkScim (ScimRef "scim1") Nothing ExpectSuccess,
       MkSaml (SamlRef "saml1") ExpectSuccess,
@@ -392,7 +393,7 @@ testCreateIdpsAndScimsV7 = do
 
   -- two saml idps cannot associate with the same scim peer: it would be unclear which idp the
   -- next user is supposed to be provisioned for.  (not need to test, because it cannot be
-  -- expressed in the API.)
+  -- expressed in the API.)  but two scim can connect to the same saml:
   runSteps
     [ MkSaml (SamlRef "saml1") ExpectSuccess,
       MkScim (ScimRef "scim1") (Just (SamlRef "saml1")) ExpectSuccess,
@@ -565,14 +566,14 @@ runSteps steps = do
 loginWithSaml :: (HasCallStack) => Bool -> String -> Value -> (SamlId, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
 loginWithSaml expectSuccess tid scimUser (SamlId iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
-  spmeta <- getTestSPMetadata OwnDomain tid
-  authnreq <- negotiateAuthnRequest OwnDomain iid
+  spmeta <- getSPMetadata OwnDomain tid
+  authnreq <- initiateSamlLogin OwnDomain iid
   email <- scimUser %. "externalId" >>= asString
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
   authnresp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
   if expectSuccess
-    then loginSuccess =<< submitAuthnResponse OwnDomain tid authnresp
-    else loginFailure =<< submitAuthnResponse OwnDomain tid authnresp
+    then loginSuccess =<< finalizeSamlLogin OwnDomain tid authnresp
+    else loginFailure =<< finalizeSamlLogin OwnDomain tid authnresp
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
@@ -602,7 +603,7 @@ loginWithSaml expectSuccess tid scimUser (SamlId iid, (meta, privcreds)) = do
       bdy `shouldContain` "}, receiverOrigin)"
       hasPersistentCookieHeader False resp
 
-    -- \|  we test for expiration date as it's asier than parsing and inspecting the cookie value.
+    -- we test for expiration date as it's asier than parsing and inspecting the cookie value.
     hasPersistentCookieHeader :: Bool -> Response -> App ()
     hasPersistentCookieHeader success rsp = do
       let cookie = getCookie "zuid" rsp
