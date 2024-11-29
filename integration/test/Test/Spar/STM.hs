@@ -59,21 +59,6 @@ testCreateIdpsAndScimsV7 = do
       MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess
     ]
 
-newtype SamlRef = SamlRef {_unSamlRef :: String}
-  deriving newtype (Eq, Show, Ord, ToJSON)
-
-newtype ScimRef = ScimRef {unScimRef :: String}
-  deriving newtype (Eq, Show, Ord, ToJSON)
-
-newtype SamlId = SamlId {unSamlId :: String}
-  deriving newtype (Eq, Show, Ord, ToJSON)
-
-newtype ScimId = ScimId {unScimId :: String}
-  deriving newtype (Eq, Show, Ord, ToJSON, ToJSONKey)
-
-newtype ScimToken = ScimToken {unScimToken :: String}
-  deriving newtype (Eq, Show, Ord, ToJSON)
-
 -- | DSL with relevant api calls (not test cases).  This should make writing down different
 -- test cases very concise and not cost any generality.
 data Step
@@ -98,6 +83,21 @@ data State = State
 
 emptyState :: State
 emptyState = State mempty mempty mempty mempty
+
+newtype SamlRef = SamlRef {_unSamlRef :: String}
+  deriving newtype (Eq, Show, Ord, ToJSON)
+
+newtype ScimRef = ScimRef {unScimRef :: String}
+  deriving newtype (Eq, Show, Ord, ToJSON)
+
+newtype SamlId = SamlId {unSamlId :: String}
+  deriving newtype (Eq, Show, Ord, ToJSON)
+
+newtype ScimId = ScimId {unScimId :: String}
+  deriving newtype (Eq, Show, Ord, ToJSON, ToJSONKey)
+
+newtype ScimToken = ScimToken {unScimToken :: String}
+  deriving newtype (Eq, Show, Ord, ToJSON)
 
 runSteps :: (HasCallStack) => [Step] -> App ()
 runSteps steps = do
@@ -140,86 +140,86 @@ runSteps steps = do
       validateState owner tid state'
       go owner tid state' steps'
 
-    validateScimRegistration :: State -> ScimRef -> Maybe SamlId -> Response -> App State
-    validateScimRegistration state scimRef mIdPId resp = do
-      resp.status `shouldMatchInt` 200
-      scimId <- resp.json %. "info.id" >>= asString
-      tok <- resp.json %. "token" >>= asString
-      pure
-        $ state
-          { allScims = Map.insert scimRef (ScimId scimId, ScimToken tok) (allScims state),
-            allScimAssocs = maybe id (Map.insert (ScimId scimId)) mIdPId $ allScimAssocs state
-          }
+validateScimRegistration :: State -> ScimRef -> Maybe SamlId -> Response -> App State
+validateScimRegistration state scimRef mIdPId resp = do
+  resp.status `shouldMatchInt` 200
+  scimId <- resp.json %. "info.id" >>= asString
+  tok <- resp.json %. "token" >>= asString
+  pure
+    $ state
+      { allScims = Map.insert scimRef (ScimId scimId, ScimToken tok) (allScims state),
+        allScimAssocs = maybe id (Map.insert (ScimId scimId)) mIdPId $ allScimAssocs state
+      }
 
-    validateSamlRegistration :: State -> SamlRef -> Response -> (SAML.IdPMetadata, SAML.SignPrivCreds) -> App State
-    validateSamlRegistration state samlRef resp creds = do
-      resp.status `shouldMatchInt` 201
-      samlId <- resp.json %. "id" >>= asString
-      pure
-        $ state
-          { allIdps = Map.insert samlRef (SamlId samlId) state.allIdps,
-            allIdpCredsById = Map.insert (SamlId samlId) creds state.allIdpCredsById
-          }
+validateSamlRegistration :: State -> SamlRef -> Response -> (SAML.IdPMetadata, SAML.SignPrivCreds) -> App State
+validateSamlRegistration state samlRef resp creds = do
+  resp.status `shouldMatchInt` 201
+  samlId <- resp.json %. "id" >>= asString
+  pure
+    $ state
+      { allIdps = Map.insert samlRef (SamlId samlId) state.allIdps,
+        allIdpCredsById = Map.insert (SamlId samlId) creds state.allIdpCredsById
+      }
 
-    validateState :: Value -> String -> State -> App ()
-    validateState owner tid state = do
-      allIdps <- getIdps owner >>= getJSON 200 >>= (%. "providers") >>= asList
-      allScims <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
+validateState :: Value -> String -> State -> App ()
+validateState owner tid state = do
+  allIdps <- getIdps owner >>= getJSON 200 >>= (%. "providers") >>= asList
+  allScims <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
 
-      do
-        -- are all idps from spar in the local test state and vice versa?
-        let allLocal = Map.elems state.allIdps
-        allSpar <- ((%. "id") >=> asString) `traverse` allIdps
-        allLocal `shouldMatchSet` allSpar
+  do
+    -- are all idps from spar in the local test state and vice versa?
+    let allLocal = Map.elems state.allIdps
+    allSpar <- ((%. "id") >=> asString) `traverse` allIdps
+    allLocal `shouldMatchSet` allSpar
 
-      do
-        -- are all scim peers from spar in the local test state and vice versa?
-        let allLocal = fst <$> Map.elems state.allScims
-        allSpar <- (%. "id") `traverse` allScims
-        allLocal `shouldMatchSet` allSpar
+  do
+    -- are all scim peers from spar in the local test state and vice versa?
+    let allLocal = fst <$> Map.elems state.allScims
+    allSpar <- (%. "id") `traverse` allScims
+    allLocal `shouldMatchSet` allSpar
 
-      do
-        -- are all local associations the same as on spar?
-        let toScimIdpPair tokInfo = do
-              mIdp <- lookupField tokInfo "idp"
-              case mIdp of
-                Just idp -> Just <$> ((,) <$> (tokInfo %. "id" >>= asString) <*> asString idp)
-                Nothing -> pure Nothing
+  do
+    -- are all local associations the same as on spar?
+    let toScimIdpPair tokInfo = do
+          mIdp <- lookupField tokInfo "idp"
+          case mIdp of
+            Just idp -> Just <$> ((,) <$> (tokInfo %. "id" >>= asString) <*> asString idp)
+            Nothing -> pure Nothing
 
-        sparState <- Map.fromList . catMaybes <$> (toScimIdpPair `mapM` allScims)
-        sparState `shouldMatch` state.allScimAssocs
+    sparState <- Map.fromList . catMaybes <$> (toScimIdpPair `mapM` allScims)
+    sparState `shouldMatch` state.allScimAssocs
 
-      do
-        -- login.
-        -- (auto-provisioning with saml without scim is intentionally not tested.)
-        for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
-          let mIdp :: Maybe (String {- id -}, (SAML.IdPMetadata, SAML.SignPrivCreds))
-              mIdp = do
-                i <- Map.lookup scimId state.allScimAssocs
-                c <- Map.lookup i state.allIdpCredsById
-                pure (unSamlId i, c)
+  do
+    -- login.
+    -- (auto-provisioning with saml without scim is intentionally not tested.)
+    for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
+      let mIdp :: Maybe (String {- id -}, (SAML.IdPMetadata, SAML.SignPrivCreds))
+          mIdp = do
+            i <- Map.lookup scimId state.allScimAssocs
+            c <- Map.lookup i state.allIdpCredsById
+            pure (unSamlId i, c)
 
-          scimUser <- randomScimUser
-          email <- scimUser %. "externalId" >>= asString
-          uid <- bindResponse (createScimUser owner (unScimToken tok) scimUser) $ \resp -> do
-            resp.status `shouldMatchInt` 201
-            resp.json %. "id" >>= asString
-          when (isNothing mIdp) $ do
-            registerUser OwnDomain tid email
+      scimUser <- randomScimUser
+      email <- scimUser %. "externalId" >>= asString
+      uid <- bindResponse (createScimUser owner (unScimToken tok) scimUser) $ \resp -> do
+        resp.status `shouldMatchInt` 201
+        resp.json %. "id" >>= asString
+      when (isNothing mIdp) $ do
+        registerUser OwnDomain tid email
 
-          maybe (loginWithPassword 200 scimUser) (loginWithSaml True tid scimUser) mIdp
+      maybe (loginWithPassword 200 scimUser) (loginWithSaml True tid scimUser) mIdp
 
-          bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
-            resp.status `shouldMatchInt` 204
+      bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
+        resp.status `shouldMatchInt` 204
 
-          maybe (loginWithPassword 403 scimUser) (loginWithSaml False tid scimUser) mIdp
+      maybe (loginWithPassword 403 scimUser) (loginWithSaml False tid scimUser) mIdp
 
-    validateError :: Response -> Int -> String -> App ()
-    validateError resp errStatus errLabel = do
-      do
-        resp.status `shouldMatchInt` errStatus
-        resp.json %. "code" `shouldMatchInt` errStatus
-        resp.json %. "label" `shouldMatch` errLabel
+validateError :: Response -> Int -> String -> App ()
+validateError resp errStatus errLabel = do
+  do
+    resp.status `shouldMatchInt` errStatus
+    resp.json %. "code" `shouldMatchInt` errStatus
+    resp.json %. "label" `shouldMatch` errLabel
 
 loginWithPassword :: (HasCallStack) => Int -> Value -> App ()
 loginWithPassword expectedStatus scimUser = do
