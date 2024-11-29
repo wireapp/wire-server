@@ -124,7 +124,11 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
-                void $ ackMessage chan ackData.deliveryTag ackData.multiple
+                success <- ackMessage chan ackData.deliveryTag ackData.multiple
+                unless success $ do
+                  Log.info e.logg $
+                    Log.msg (Log.val "Client ack unsuccessful")
+                      . logClient
 
       -- run both loops concurrently, so that
       --  - notifications are delivered without having to wait for acks
