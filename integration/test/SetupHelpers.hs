@@ -9,11 +9,13 @@ import API.Cargohold
 import API.Common
 import API.Galley
 import API.GalleyInternal (legalholdWhitelistTeam)
+import API.Spar
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Base16 as Base16
+import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import qualified Data.CaseInsensitive as CI
@@ -22,12 +24,20 @@ import Data.Function
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
+import qualified Data.UUID as UUID
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Vector (fromList)
 import GHC.Stack
+import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.API.Example as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import Testlib.JSON
 import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
+import qualified Text.XML as XML
+import qualified Text.XML.Cursor as XML
+import qualified Text.XML.DSig as SAML
 import UnliftIO (pooledForConcurrentlyN)
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
@@ -414,3 +424,81 @@ addUsersToFailureContext namesAndUsers action = do
         pure $ name <> ": " <> id_ <> "@" <> domain
   allLines <- unlines <$> (mapM mkLine namesAndUsers)
   addFailureContext allLines action
+
+-- | Given a team configured with saml sso, attempt a login with valid credentials.  This
+-- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
+-- scim-provisioned users as well as saml auto-provisioning without scim.
+loginWithSaml :: (HasCallStack) => Bool -> String -> Value -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
+loginWithSaml expectSuccess tid scimUser (iid, (meta, privcreds)) = do
+  let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
+  spmeta <- getSPMetadata OwnDomain tid
+  authnreq <- initiateSamlLogin OwnDomain iid
+  email <- scimUser %. "externalId" >>= asString
+  let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
+  authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
+  loginResp <- finalizeSamlLogin OwnDomain tid authnResp
+  validateLoginResp loginResp
+  where
+    toSPMetaData :: ByteString -> SAML.SPMetadata
+    toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
+
+    validateLoginResp :: (HasCallStack) => Response -> App ()
+    validateLoginResp resp =
+      if expectSuccess
+        then do
+          resp.status `shouldMatchInt` 200
+          let bdy = cs resp.body
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+          bdy `shouldContain` "<title>wire:sso:success</title>"
+          bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+          hasPersistentCookieHeader resp
+        else do
+          resp.status `shouldMatchInt` 200
+          let bdy = cs resp.body
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+          bdy `shouldContain` "<title>wire:sso:error:"
+          bdy `shouldContain` "window.opener.postMessage({"
+          bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+          bdy `shouldContain` "\"payload\":{"
+          bdy `shouldContain` "\"label\":\"forbidden\""
+          bdy `shouldContain` "}, receiverOrigin)"
+          hasPersistentCookieHeader resp
+
+    hasPersistentCookieHeader :: Response -> App ()
+    hasPersistentCookieHeader rsp = do
+      let cookie = getCookie "zuid" rsp
+      case cookie of
+        Nothing -> expectSuccess `shouldMatch` False
+        Just _ -> expectSuccess `shouldMatch` True
+
+    runSimpleSP :: SAML.SimpleSP a -> App a
+    runSimpleSP action = liftIO $ do
+      ctx <- SAML.mkSimpleSPCtx undefined []
+      result <- SAML.runSimpleSP ctx action
+      pure $ fromRight (error "simple sp action failed") result
+
+    parseAuthnReqResp ::
+      ByteString ->
+      SAML.AuthnRequest
+    parseAuthnReqResp bs = reqBody
+      where
+        xml :: XML.Document
+        xml =
+          fromRight (error "malformed html in response body") $
+            XML.parseText XML.def (cs bs)
+
+        reqBody :: SAML.AuthnRequest
+        reqBody =
+          (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
+            & head
+            & XML.attribute (fromString "value")
+            & head
+            & cs
+            & EL.decode
+            & fromRight (error "")
+            & cs
+            & SAML.decodeElem
+            & fromRight (error "")
