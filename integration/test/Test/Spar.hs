@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields -Wunused-matches -Wwarn #-}
 
 module Test.Spar where
 
@@ -9,16 +9,22 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import API.Nginz (login)
 import API.Spar
 import Control.Concurrent (threadDelay)
-import Data.Map ((!))
 import qualified Data.Map as Map
+import Data.Text (pack)
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
+import Debug.Trace
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
+
+(!) :: (HasCallStack, Ord k, Show k, Show a) => Map k a -> k -> a
+m ! k = case m Map.!? k of
+  Nothing -> error $ "(!) failed: " <> show (m, k)
+  Just a -> a
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
@@ -364,67 +370,79 @@ testCreateMultipleIdps = do
 testCreateIdpsAndScimsV7 :: (HasCallStack) => App ()
 testCreateIdpsAndScimsV7 = do
   runSteps
-    [ MkSaml "saml1" ExpectSuccess
+    [ MkSaml (SamlRef "saml1") ExpectSuccess
     ]
   runSteps
-    [ MkScim "scim1" Nothing ExpectSuccess,
-      MkSaml "saml1" ExpectSuccess,
-      MkSaml "saml2" ExpectSuccess,
-      MkScim "scim2" (Just "saml1") ExpectSuccess,
+    [ MkScim (ScimRef "scim1") Nothing ExpectSuccess,
+      MkSaml (SamlRef "saml1") ExpectSuccess,
+      MkSaml (SamlRef "saml2") ExpectSuccess,
+      MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess,
       -- two scims can be associated with one idp
-      MkScim "scim3" (Just "saml1") ExpectSuccess,
-      MkScim "scim4" (Just "saml2") ExpectSuccess,
-      MkScim "scim5" Nothing ExpectSuccess
+      MkScim (ScimRef "scim3") (Just (SamlRef "saml1")) ExpectSuccess,
+      MkScim (ScimRef "scim4") (Just (SamlRef "saml2")) ExpectSuccess,
+      MkScim (ScimRef "scim5") Nothing ExpectSuccess
     ]
+
   -- two saml idps cannot associate with the same scim peer: it would be unclear which idp the
   -- next user is supposed to be provisioned for.  (not need to test, because it cannot be
   -- expressed in the API.)
   runSteps
-    [ MkSaml "saml1" ExpectSuccess,
-      MkScim "scim1" (Just "saml1") ExpectSuccess,
-      RmScim "scim1",
-      MkScim "scim2" (Just "saml1") ExpectSuccess
+    [ MkSaml (SamlRef "saml1") ExpectSuccess,
+      MkScim (ScimRef "scim1") (Just (SamlRef "saml1")) ExpectSuccess,
+      RmScim (ScimRef "scim1"),
+      MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess
     ]
+
+newtype SamlRef = SamlRef {unSamlRef :: String}
+  deriving newtype (Eq, Show, Ord)
+
+newtype ScimRef = ScimRef {unScimRef :: String}
+  deriving newtype (Eq, Show, Ord)
+
+newtype SamlId = SamlId {unSamlId :: String}
+  deriving newtype (Eq, Show, Ord)
+
+newtype ScimId = ScimId {unScimId :: String}
+  deriving newtype (Eq, Show, Ord)
 
 -- | DSL with relevant api calls (not test cases).  This should make writing down different
 -- test cases very concise and not cost any generality.
-data Step samlRef scimRef
-  = MkScim scimRef (Maybe samlRef) ExpectedResult
+data Step
+  = MkScim ScimRef (Maybe SamlRef) ExpectedResult
   | -- | `RmScim` has expected result: delete is idempotent.
-    RmScim scimRef
+    RmScim ScimRef
   | -- | you can't associate a saml idp with a existing scim peer when creating the idp.
     -- do that by replacing the scim token and associating the new one during creation.
-    MkSaml samlRef ExpectedResult
+    MkSaml SamlRef ExpectedResult
   deriving (Show)
-
-type StringStep = Step String String
 
 data ExpectedResult = ExpectSuccess | ExpectFailure Int String
   deriving (Eq, Show, Generic)
 
-data State samlRef scimRef = State
-  { allIdps :: Map samlRef (String {- id -}, SAML.SignPrivCreds),
-    allScims :: Map scimRef (String {- id -}, String {- bearer token -}),
+data State = State
+  { allIdps :: Map SamlRef (String {- id -}),
+    allIdpCredsById :: Map SamlRef SAML.SignPrivCreds,
+    allScims :: Map ScimRef (String {- id -}, String {- bearer token -}),
     allScimAssocs :: Map String String
   }
+  deriving (Eq, Show)
 
-type StringState = State String String
+emptyState :: State
+emptyState = State mempty mempty mempty mempty
 
-emptyState :: StringState
-emptyState = State mempty mempty mempty
-
-runSteps :: (HasCallStack) => [StringStep] -> App ()
+runSteps :: (HasCallStack) => [Step] -> App ()
 runSteps steps = do
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   go owner tid emptyState steps
   where
-    go :: Value -> String -> StringState -> [StringStep] -> App ()
+    go :: Value -> String -> State -> [Step] -> App ()
     go _ _ _ [] = pure ()
     -- add scim
     go owner tid state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
-      let mIdPId = ((fst <$> state.allIdps) !) <$> mbSamlRef
-      let p = def {name = Just scimRef, idp = mIdPId}
+      let mIdPId = (state.allIdps !) <$> mbSamlRef
+
+      let p = def {name = Just (unScimRef scimRef), idp = mIdPId}
       state' <- bindResponse (createScimToken owner p) $ \resp -> do
         case expected of
           ExpectSuccess -> validateScimRegistration state scimRef mIdPId resp
@@ -453,7 +471,7 @@ runSteps steps = do
       validateState owner tid state'
       go owner tid state' steps'
 
-    validateScimRegistration :: StringState -> String -> Maybe String -> Response -> App StringState
+    validateScimRegistration :: State -> ScimRef -> Maybe SamlRef -> Response -> App State
     validateScimRegistration state scimRef mIdPId resp = do
       resp.status `shouldMatchInt` 200
       scimId <- resp.json %. "info.id" >>= asString
@@ -464,13 +482,17 @@ runSteps steps = do
             allScimAssocs = maybe id (Map.insert scimId) mIdPId $ allScimAssocs state
           }
 
-    validateSamlRegistration :: StringState -> String -> Response -> SAML.SignPrivCreds -> App StringState
+    validateSamlRegistration :: State -> SamlRef -> Response -> SAML.SignPrivCreds -> App State
     validateSamlRegistration state samlRef resp creds = do
       resp.status `shouldMatchInt` 201
       samlId <- resp.json %. "id" >>= asString
-      pure $ state {allIdps = Map.insert samlRef (samlId, creds) (allIdps state)}
+      pure
+        $ state
+          { allIdps = Map.insert samlRef samlId state.allIdps,
+            allIdpCredsById = Map.insert samlRef creds state.allIdpCredsById
+          }
 
-    validateState :: Value -> String -> StringState -> App ()
+    validateState :: Value -> String -> State -> App ()
     validateState owner tid state = do
       allIdps <- getIdps owner >>= getJSON 200 >>= (%. "providers") >>= asList
       allScims <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
@@ -479,7 +501,7 @@ runSteps steps = do
         -- are all idps from spar in the local test state and vice versa?
         let allLocal = Map.elems state.allIdps
         allSpar <- ((%. "id") >=> asString) `traverse` allIdps
-        (fst <$> allLocal) `shouldMatchSet` allSpar
+        allLocal `shouldMatchSet` allSpar
 
       do
         -- are all scim peers from spar in the local test state and vice versa?
@@ -502,7 +524,13 @@ runSteps steps = do
         -- login.
         -- (auto-provisioning with saml without scim is intentionally not tested.)
         for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
-          let mIdp = (state.allIdps !) <$> Map.lookup scimId state.allScimAssocs
+          let mIdp :: Maybe (String {- id -}, SAML.SignPrivCreds)
+              mIdp = do
+                i :: String <- Map.lookup scimId state.allScimAssocs
+                traceShowM ("*************", i)
+                c :: SAML.SignPrivCreds <- Map.lookup i state.allIdpCredsById
+                traceShowM ("*************", c)
+                pure (i, c)
 
           scimUser <- randomScimUser
           email <- scimUser %. "externalId" >>= asString
@@ -527,24 +555,28 @@ runSteps steps = do
         resp.json %. "label" `shouldMatch` errLabel
 
 loginWithSaml :: (HasCallStack) => Bool -> Value -> String -> Value -> (String, SAML.SignPrivCreds) -> App ()
-loginWithSaml expectSuccess owner tid scimUser idpId = do
-  let apiVer = "v2"
+loginWithSaml expectSuccess owner tid scimUser (idpId, privCreds) = do
+  authnreq <- negotiateAuthnRequest idp
   {-
-    (idp, (_, privcreds)) <- registerTestIdPWithMeta owner
-    liftIO $ fromMaybe defWireIdPAPIVersion (idp ^. idpExtraInfo . apiVersion) `shouldBe` apiVer
-    spmeta <- getTestSPMetadata tid
-    authnreq <- negotiateAuthnRequest idp
-    let audiencePath = case apiVer of
-          WireIdPAPIV1 -> "/sso/finalize-login"
-          WireIdPAPIV2 -> "/sso/finalize-login/" <> toByteString' tid
-    liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
-    authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
-    loginSuccess =<< submitAuthnResponse tid authnresp
+    let audiencePath = "/sso/finalize-login/" <> toByteString' tid
+    (authnreq ^. rqIssuer . fromIssuer . to URI.uriPath) `shouldMatch` audiencePath
+    authnresp <- mkAuthnResponse privcreds idp spmeta authnreq True
+    bindResponse (submitAuthnResponse tid authnresp) $ \resp -> do
+      undefined
   -}
   pure ()
+
+negotiateAuthnRequest = undefined
+
+mkAuthnResponse = undefined
+
+submitAuthnResponse = undefined
 
 loginWithPassword :: (HasCallStack) => Int -> Value -> App ()
 loginWithPassword expectedStatus scimUser = do
   email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
   bindResponse (login OwnDomain email defPassword) $ \resp -> do
     resp.status `shouldMatchInt` expectedStatus
+
+instance ToJSON SAML.SignPrivCreds where
+  toJSON c = String (pack $ show c)
