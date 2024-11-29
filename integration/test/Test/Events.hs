@@ -9,9 +9,11 @@ import qualified Control.Concurrent.Timeout as Timeout
 import Control.Monad.Codensity
 import Control.Monad.Trans.Class
 import Control.Retry
+import Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.Text as Text
 import Data.Timeout
+import qualified Network.HTTP.Client as HTTP
 import qualified Network.WebSockets as WS
 import Notifications
 import SetupHelpers
@@ -318,16 +320,52 @@ testChannelLimit = withModifiedBackend
     lowerCodensity $ do
       for_ clients $ \c -> do
         ws <- createEventsWebSocket alice c
-        e <- Codensity $ \k -> assertEvent ws k
-        lift $ do
+        lift $ assertEvent ws $ \e -> do
           e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
           e %. "data.event.payload.0.client.id" `shouldMatch` c
-          e %. "data.delivery_tag"
 
       -- the first client fails to connect because the server runs out of channels
       do
         ws <- createEventsWebSocket alice client0
         lift $ assertNoEvent ws
+
+testChannelRestore :: (HasCallStack) => App ()
+testChannelRestore = do
+  alice <- randomUser OwnDomain def
+  [c1, c2] <-
+    replicateM 2
+      $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
+      >>= getJSON 201
+      >>= (%. "id")
+      >>= asString
+
+  lowerCodensity $ do
+    ws <- createEventsWebSocket alice c1
+    lift $ do
+      assertEvent ws $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` c1
+        ackEvent ws e
+
+      assertEvent ws $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` c2
+
+        -- TODO: retry a few times
+        Timeout.threadDelay (10 # Second)
+        killConnection
+
+        Timeout.threadDelay (10 # Second)
+        ackEvent ws e
+
+      -- get the unacked message again
+      assertEvent ws $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` c2
+
+        ackEvent ws e
+
+      assertNoEvent ws
 
 ----------------------------------------------------------------------
 -- helpers
@@ -442,3 +480,40 @@ consumeAllEvents ws = do
     Just (Right e) -> do
       ackEvent ws e
       consumeAllEvents ws
+
+killConnection :: App ()
+killConnection = do
+  -- TODO: get rabbitmq url and auth from configuration
+
+  name <- do
+    req <- liftIO $ HTTP.parseRequest "http://localhost:15672/api/connections"
+    bindResponse
+      ( submit "GET" $ req
+          & HTTP.applyBasicAuth
+            (B8.pack "guest")
+            (B8.pack "alpaca-grapefruit")
+      )
+      $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        connections <- asList resp.json
+        connection <-
+          assertOne
+            =<< filterM
+              ( \c -> do
+                  name <- traverse asString =<< lookupField c "user_provided_name"
+                  vhost <- c %. "vhost" & asString
+                  pure $ name == Just "pool 0" && vhost == "backendA"
+              )
+              connections
+        connection %. "name" & asString
+
+  do
+    req <- liftIO $ HTTP.parseRequest ("http://localhost:15672/api/connections/" <> name)
+    bindResponse
+      ( submit "DELETE" $ req
+          & HTTP.applyBasicAuth
+            (B8.pack "guest")
+            (B8.pack "alpaca-grapefruit")
+      )
+      $ \resp -> do
+        resp.status `shouldMatchInt` 204

@@ -220,7 +220,7 @@ startDynamicBackend resource beOverrides = do
       def
         { sparCfg = setField "saml.logLevel" ("Warn" :: String),
           brigCfg = setField "logLevel" ("Warn" :: String),
-          cannonCfg = setField "logLevel" ("Warn" :: String),
+          cannonCfg = setField "logLevel" ("Debug" :: String),
           cargoholdCfg = setField "logLevel" ("Warn" :: String),
           galleyCfg = setField "logLevel" ("Warn" :: String),
           gundeckCfg = setField "logLevel" ("Warn" :: String),

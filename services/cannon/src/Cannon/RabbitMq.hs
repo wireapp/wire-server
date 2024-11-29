@@ -26,6 +26,7 @@ import Data.ByteString.Conversion
 import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as T
 import Data.Timeout
 import Imports hiding (threadDelay)
 import Network.AMQP qualified as Q
@@ -177,6 +178,7 @@ createConnection pool = mask_ $ do
 
 openConnection :: RabbitMqPool key -> IO Q.Connection
 openConnection pool = do
+  numConnections <- atomically $ length <$> readTVar pool.connections
   (username, password) <- readCredsFromEnv
   recovering
     rabbitMqRetryPolicy
@@ -200,7 +202,9 @@ openConnection pool = do
                   ],
                 Q.coVHost = pool.opts.endpoint.vHost,
                 Q.coAuth = [Q.plain username password],
-                Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
+                Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings,
+                -- the name is used by tests to identify pool connections
+                Q.coName = Just ("pool " <> T.pack (show numConnections))
               }
     )
 
