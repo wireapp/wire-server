@@ -1,8 +1,15 @@
+-- 'putMapping' is incorrectly deprecated in bloodhound
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
+
 module Wire.IndexedUserStore.MigrationStore.ElasticSearch where
 
 import Data.Aeson
+import Data.ByteString.Char8 qualified as BS
+import Data.Either
 import Data.Text qualified as Text
+import Data.Text.Encoding (encodeUtf8)
 import Database.Bloodhound qualified as ES
+import Database.Bloodhound.Common.Requests qualified as ESR
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -20,24 +27,33 @@ interpretIndexedUserMigrationStoreES env = interpret $ \case
 
 ensureMigrationIndexImpl :: (Member TinyLog r, Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> Sem r ()
 ensureMigrationIndexImpl env = do
-  unlessM (ES.runBH env $ ES.indexExists migrationIndexName) $ do
+  exists <-
+    either (\l -> logAndThrow CreateMigrationIndexFailed l) pure
+      <$> liftIO (ES.runBH env (ES.indexExists migrationIndexName))
+  unlessM exists $ do
     Log.info $
       Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
-    ES.runBH env (ES.createIndexWith [] 1 migrationIndexName)
+    liftIO (ES.runBH env . ES.performBHRequest . ES.keepBHResponse $ (ESR.createIndexWith [] 1 migrationIndexName))
       >>= throwIfNotCreated CreateMigrationIndexFailed
-  ES.runBH env (ES.putMapping migrationIndexName migrationMappingName migrationIndexMapping)
+  liftIO (ES.runBH env . ES.performBHRequest . ES.keepBHResponse $ (ESR.putMapping @Value migrationIndexName migrationIndexMapping))
     >>= throwIfNotCreated PutMappingFailed
   where
-    throwIfNotCreated mkErr response =
-      unless (ES.isSuccess response) $
-        throw $
-          mkErr (show response)
+    throwIfNotCreated :: (Member TinyLog r, Member (Error MigrationException) r) => (String -> MigrationException) -> Either ES.EsError (ES.BHResponse a b, c) -> Sem r ()
+    throwIfNotCreated mkErr (Left e) = logAndThrow mkErr e
+    throwIfNotCreated mkErr (Right (resp, _)) =
+      unless (ES.isSuccess resp) $ logAndThrow mkErr resp
+
+    logAndThrow :: (Member TinyLog r, Member (Error MigrationException) r, Show e) => (String -> MigrationException) -> e -> Sem r a
+    logAndThrow mkErr errMsg = do
+      Log.warn $
+        Log.msg (Log.val ("An OpenSearch/ElasticSearch error occurred: " `BS.append` (encodeUtf8 . Text.pack . show) errMsg))
+      throw $
+        mkErr (show errMsg)
 
 getLatestMigrationVersionImpl :: (Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> Sem r MigrationVersion
 getLatestMigrationVersionImpl env = do
-  reply <- ES.runBH env $ ES.searchByIndex migrationIndexName (ES.mkSearch Nothing Nothing)
-  resp <- liftIO $ ES.parseEsResponse reply
-  result <- either (throw . FetchMigrationVersionsFailed . show) pure resp
+  reply <- liftIO $ ES.runBH env $ ES.searchByIndex @MigrationVersion migrationIndexName (ES.mkSearch Nothing Nothing)
+  result <- either (throw . FetchMigrationVersionsFailed . show) pure reply
   let versions = map ES.hitSource $ ES.hits . ES.searchHits $ result
   case versions of
     [] ->
@@ -49,20 +65,23 @@ getLatestMigrationVersionImpl env = do
 
 persistMigrationVersionImpl :: (Member (Embed IO) r, Member TinyLog r, Member (Error MigrationException) r) => ES.BHEnv -> MigrationVersion -> Sem r ()
 persistMigrationVersionImpl env v = do
-  let docId = ES.DocId . Text.pack . show $ migrationVersion v
-  persistResponse <- ES.runBH env $ ES.indexDocument migrationIndexName migrationMappingName ES.defaultIndexDocumentSettings v docId
-  if ES.isCreated persistResponse
-    then do
-      Log.info $
-        Log.msg (Log.val "Migration success recorded")
-          . Log.field "migrationVersion" v
-    else throw $ PersistVersionFailed v $ show persistResponse
+  let docIdText = Text.pack . show $ migrationVersion v
+      docId = ES.DocId docIdText
+  persistResponse <-
+    liftIO . ES.runBH env . ES.performBHRequest . ES.keepBHResponse $
+      (ESR.indexDocument migrationIndexName ES.defaultIndexDocumentSettings v docId)
+  case persistResponse of
+    Left _ -> throw $ PersistVersionFailed v $ show persistResponse
+    Right (resp, doc) ->
+      if (ES.idxDocId doc == docIdText) && ES.isCreated resp
+        then do
+          Log.info $
+            Log.msg (Log.val "Migration success recorded")
+              . Log.field "migrationVersion" v
+        else throw $ PersistVersionFailed v $ show persistResponse
 
 migrationIndexName :: ES.IndexName
-migrationIndexName = ES.IndexName "wire_brig_migrations"
-
-migrationMappingName :: ES.MappingName
-migrationMappingName = ES.MappingName "wire_brig_migrations"
+migrationIndexName = [ES.qqIndexName|wire_brig_migrations|]
 
 migrationIndexMapping :: Value
 migrationIndexMapping =

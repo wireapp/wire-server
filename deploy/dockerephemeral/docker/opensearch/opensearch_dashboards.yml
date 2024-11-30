@@ -1,0 +1,8 @@
+opensearch.hosts: [https://opensearch:9200]
+opensearch.ssl.verificationMode: none
+opensearch.username: elastic
+opensearch.password: changeme
+
+# Use this setting if you are running opensearch-dashboards without https
+opensearch_security.cookie.secure: false
+server.host: '0.0.0.0'

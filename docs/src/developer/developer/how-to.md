@@ -211,3 +211,20 @@ Note: Simply deleting the namespaces is insufficient, because it leaves some res
 We support two different ways of managing the docker-compose instance of rabbitmq:
 * A web console interface is available [here](http://localhost:15672)
 * `rabbitmqadmin` CLI is made available in the dev environment
+
+## How to use opensearch-dashboards
+
+Our docker-compose setup contains a configured
+[`opensearch-dashboards`](https://opensearch.org/docs/latest/dashboards/)
+instance:
+
+- URL: http://localhost:5601
+- Username: `elastic`
+- Password: `changeme`
+
+To search in indices, *Index patterns* need to be created; identifying which
+indices you care for. This is IMHO a bit hidden in the UI, so I'm stating it
+here for future reference:
+
+- `Management` -> `Stack Management` -> `Index patterns`
+- http://localhost:5601/app/management/opensearch-dashboards/indexPatterns
