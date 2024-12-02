@@ -170,6 +170,7 @@ library
     Test.Search
     Test.Services
     Test.Spar
+    Test.Spar.STM
     Test.Swagger
     Test.Teams
     Test.TeamSettings
@@ -279,4 +280,5 @@ library
     , wire-message-proto-lens
     , wreq
     , xml
+    , xml-conduit
     , yaml

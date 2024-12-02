@@ -211,7 +211,7 @@ lookupFieldM = fmap MaybeT . lookupField
 -- If the field key has no dots then returns Nothing if the key is missing from the
 -- object.
 --
--- If the field key has dots (describes a nested lookuyp) then returns Nothing
+-- If the field key has dots (describes a nested lookup) then returns Nothing
 -- if the last component of the key field selector is missing from nested
 -- object. If any other component is missing this function raises an
 -- AssertionFailure.

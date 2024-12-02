@@ -424,7 +424,9 @@ data CreateScimToken = CreateScimToken
     -- | User code (sent by email), for 2nd factor to 'password'
     verificationCode :: !(Maybe Code.Value),
     -- | Optional name for the token
-    name :: Maybe Text
+    name :: Maybe Text,
+    -- | Optional IdP that created users will "belong" to
+    idp :: Maybe SAML.IdPId
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateScimToken)
@@ -438,6 +440,7 @@ createScimTokenSchema v =
       <*> password .= optField "password" (maybeWithDefault A.Null schema)
       <*> verificationCode .= optField "verification_code" (maybeWithDefault A.Null schema)
       <*> (if isJust v then const Nothing else (.name)) .= maybe_ (optField "name" schema)
+      <*> (if isJust v then const Nothing else (fmap SAML.fromIdPId . idp)) .= maybe_ (optField "idp" (SAML.IdPId <$> uuidSchema))
 
 instance ToSchema CreateScimToken where
   schema = createScimTokenSchema Nothing

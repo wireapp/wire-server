@@ -635,6 +635,7 @@ test-suite wire-api-golden-tests
     , lens
     , pem
     , proto-lens
+    , saml2-web-sso
     , string-conversions
     , tasty
     , tasty-hunit

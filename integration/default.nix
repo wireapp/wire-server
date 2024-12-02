@@ -86,6 +86,7 @@
 , wire-message-proto-lens
 , wreq
 , xml
+, xml-conduit
 , yaml
 }:
 mkDerivation {
@@ -182,6 +183,7 @@ mkDerivation {
     wire-message-proto-lens
     wreq
     xml
+    xml-conduit
     yaml
   ];
   license = lib.licenses.agpl3Only;

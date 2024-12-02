@@ -10,7 +10,6 @@ import API.Spar
 import Control.Concurrent (threadDelay)
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
-import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
@@ -19,7 +18,7 @@ import Testlib.Prelude
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
   (owner, _tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   scimUser <- randomScimUser
   bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
     res.status `shouldMatchInt` 201
@@ -41,7 +40,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
   (owner, tid, _) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   void $ registerTestIdPWithMeta owner >>= getJSON 201
-  tok <- createScimToken owner >>= getJSON 200 >>= (%. "token") >>= asString
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
   email <- randomEmail
   extId <- randomExternalId
   scimUser <- randomScimUserWith extId email
@@ -127,15 +126,10 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       subject <- u %. "sso_id.subject" >>= asString
       subject `shouldContainString` currentExtId
 
-registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
-registerTestIdPWithMeta owner = do
-  SampleIdP idpmeta _ _ _ <- makeSampleIdPMetadata
-  createIdp owner idpmeta
-
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   email <- randomEmail
   extId <- randomExternalId
   scimUser <- randomScimUserWith extId email
@@ -231,7 +225,7 @@ testSparExternalIdDifferentFromEmail = do
 testSparExternalIdUpdateToANonEmail :: (HasCallStack) => App ()
 testSparExternalIdUpdateToANonEmail = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   scimUser <- randomScimUser >>= removeField "emails"
   email <- scimUser %. "externalId" >>= asString
   userId <- bindResponse (createScimUser OwnDomain tok scimUser) $ \resp -> do
@@ -247,7 +241,7 @@ testSparExternalIdUpdateToANonEmail = do
 testSparMigrateFromExternalIdOnlyToEmail :: (HasCallStack) => Tagged "mailUnchanged" Bool -> App ()
 testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   scimUser <- randomScimUser >>= removeField "emails"
   email <- scimUser %. "externalId" >>= asString
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
@@ -292,11 +286,11 @@ registerUser domain tid email = do
 
 activateEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
 activateEmail domain email = do
-  (key, code) <- bindResponse (BrigInternal.getActivationCode domain email) $ \res -> do
+  (actkey, code) <- bindResponse (BrigInternal.getActivationCode domain email) $ \res -> do
     (,)
       <$> (res.json %. "key" >>= asString)
       <*> (res.json %. "code" >>= asString)
-  Brig.activate domain key code >>= assertSuccess
+  Brig.activate domain actkey code >>= assertSuccess
 
 checkSparGetUserAndFindByExtId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> (Value -> App ()) -> App ()
 checkSparGetUserAndFindByExtId domain tok extId uid k = do
@@ -315,8 +309,8 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
 testSparCreateScimTokenNoName :: (HasCallStack) => App ()
 testSparCreateScimTokenNoName = do
   (owner, _tid, mem : _) <- createTeam OwnDomain 2
-  createScimToken owner >>= assertSuccess
-  createScimToken owner >>= assertSuccess
+  createScimTokenV6 owner def >>= assertSuccess
+  createScimTokenV6 owner def >>= assertSuccess
   tokens <- bindResponse (getScimTokens owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     tokens <- resp.json %. "tokens" >>= asList
@@ -334,11 +328,34 @@ testSparCreateScimTokenNoName = do
       tokenId <- token %. "id" >>= asString
       token %. "name" `shouldMatch` ("token:" <> tokenId)
 
+-- | in V6, create idp then scim without idp id and idp id is unique
+testSparCreateScimTokenAssocImplicitly :: (HasCallStack) => App ()
+testSparCreateScimTokenAssocImplicitly = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  samlIdpId <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "id"
+  resp2 <- createScimTokenV6 owner def >>= getJSON 200
+  resp2 %. "info.idp" `shouldMatch` samlIdpId
+
+-- | in V6, name should be ignored
 testSparCreateScimTokenWithName :: (HasCallStack) => App ()
 testSparCreateScimTokenWithName = do
   (owner, _tid, _) <- createTeam OwnDomain 1
-  let expected = "my scim token"
-  createScimTokenWithName owner expected >>= assertSuccess
+  let notExpected = "my scim token"
+  createScimTokenV6 owner (def {name = Just notExpected}) >>= assertSuccess
+  token <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList >>= assertOne
+  assoc <- token %. "id"
+  token %. "name" `shouldMatch` Just assoc
+
+-- | in V6, create two idps then one scim should fail
+testSparCreateTwoScimTokensForOneIdp :: (HasCallStack) => App ()
+testSparCreateTwoScimTokensForOneIdp = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  registerTestIdPWithMeta owner >>= assertSuccess
+  registerTestIdPWithMeta owner >>= assertSuccess
+  createScimTokenV6 owner def >>= assertStatus 400
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
-  for_ tokens $ \token -> do
-    token %. "name" `shouldMatch` expected
+  length tokens `shouldMatchInt` 0

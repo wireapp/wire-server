@@ -93,14 +93,15 @@ testCreateToken = do
   -- Create a token
   (owner, _tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
-  CreateScimTokenResponse token _ <-
+  CreateScimTokenResponseV6 token _ <-
     createToken
       owner
       CreateScimToken
         { description = "testCreateToken",
           password = Just defPassword,
           verificationCode = Nothing,
-          name = Nothing
+          name = Nothing,
+          idp = Nothing
         }
   -- Try to do @GET /Users@ and check that it succeeds
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
@@ -121,18 +122,18 @@ testCreateTokenWithVerificationCode = do
   user <- getUserBrig owner
   let email = fromMaybe undefined (userEmail =<< user)
 
-  let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing Nothing
+  let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing Nothing Nothing
   createTokenFailsWith owner reqMissingCode 403 "code-authentication-required"
 
   void $ requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
-  let reqWrongCode = CreateScimToken "testCreateToken" (Just defPassword) (Just wrongCode) Nothing
+  let reqWrongCode = CreateScimToken "testCreateToken" (Just defPassword) (Just wrongCode) Nothing Nothing
   createTokenFailsWith owner reqWrongCode 403 "code-authentication-failed"
 
   void $ retryNUntil 6 ((==) 200 . statusCode) $ requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
   code <- getVerificationCode (env ^. teBrig) owner Public.CreateScimToken
-  let reqWithCode = CreateScimToken "testCreateToken" (Just defPassword) (Just code) Nothing
-  CreateScimTokenResponse token _ <- createToken owner reqWithCode
+  let reqWithCode = CreateScimToken "testCreateToken" (Just defPassword) (Just code) Nothing Nothing
+  CreateScimTokenResponseV6 token _ <- createToken owner reqWithCode
 
   -- Try to do @GET /Users@ and check that it succeeds
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
@@ -174,32 +175,25 @@ testTokenLimit = do
   -- Create two tokens
   (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
-  _ <-
+  replicateM_ 8 $
     createToken
       owner
       CreateScimToken
-        { description = "testTokenLimit / #1",
+        { description = "testTokenLimit / #1-8",
           password = Just defPassword,
           verificationCode = Nothing,
-          name = Nothing
+          name = Nothing,
+          idp = Nothing
         }
-  _ <-
-    createToken
-      owner
-      CreateScimToken
-        { description = "testTokenLimit / #2",
-          password = Just defPassword,
-          verificationCode = Nothing,
-          name = Nothing
-        }
-  -- Try to create the third token and see that it fails
+  -- Try to create the ninth token and see that it fails
   createToken_
     owner
     CreateScimToken
-      { description = "testTokenLimit / #3",
+      { description = "testTokenLimit / #8",
         password = Just defPassword,
         verificationCode = Nothing,
-        name = Nothing
+        name = Nothing,
+        idp = Nothing
       }
     (env ^. teSpar)
     !!! checkErr 403 (Just "token-limit-reached")
@@ -218,13 +212,13 @@ testNumIdPs = do
         SAML.SampleIdP metadata _ _ _ <- SAML.makeSampleIdPMetadata
         void $ call $ Util.callIdpCreate apiversion spar (Just owner) metadata
 
-  createToken owner (CreateScimToken "eins" (Just defPassword) Nothing Nothing)
+  createToken owner (CreateScimToken "eins" (Just defPassword) Nothing Nothing Nothing)
     >>= deleteToken owner . (.stiId) . (.info)
   addSomeIdP
-  createToken owner (CreateScimToken "zwei" (Just defPassword) Nothing Nothing)
+  createToken owner (CreateScimToken "zwei" (Just defPassword) Nothing Nothing Nothing)
     >>= deleteToken owner . (.stiId) . (.info)
   addSomeIdP
-  createToken_ owner (CreateScimToken "drei" (Just defPassword) Nothing Nothing) (env ^. teSpar)
+  createToken_ owner (CreateScimToken "drei" (Just defPassword) Nothing Nothing Nothing) (env ^. teSpar)
     !!! checkErr 400 (Just "more-than-one-idp")
 
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -251,7 +245,8 @@ testCreateTokenAuthorizesOnlyAdmins = do
             { description = "testCreateToken",
               password = Just defPassword,
               verificationCode = Nothing,
-              name = Nothing
+              name = Nothing,
+              idp = Nothing
             }
           (env ^. teSpar)
 
@@ -280,7 +275,8 @@ testCreateTokenRequiresPassword = do
       { description = "testCreateTokenRequiresPassword",
         password = Nothing,
         verificationCode = Nothing,
-        name = Nothing
+        name = Nothing,
+        idp = Nothing
       }
     (env ^. teSpar)
     !!! checkErr 403 (Just "access-denied")
@@ -291,7 +287,8 @@ testCreateTokenRequiresPassword = do
       { description = "testCreateTokenRequiresPassword",
         password = Just (plainTextPassword6Unsafe "wrong password"),
         verificationCode = Nothing,
-        name = Nothing
+        name = Nothing,
+        idp = Nothing
       }
     (env ^. teSpar)
     !!! checkErr 403 (Just "access-denied")
@@ -319,7 +316,8 @@ testListTokens = do
         { description = "testListTokens / #1",
           password = Just defPassword,
           verificationCode = Nothing,
-          name = Nothing
+          name = Nothing,
+          idp = Nothing
         }
   _ <-
     createToken
@@ -328,7 +326,8 @@ testListTokens = do
         { description = "testListTokens / #2",
           password = Just defPassword,
           verificationCode = Nothing,
-          name = Nothing
+          name = Nothing,
+          idp = Nothing
         }
   -- Check that the token is on the list
   list <- (.scimTokenListTokens) <$> listTokens owner
@@ -423,14 +422,15 @@ testDeletedTokensAreUnusable = do
   -- Create a token
   (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
-  CreateScimTokenResponse token tokenInfo <-
+  CreateScimTokenResponseV6 token tokenInfo <-
     createToken
       owner
       CreateScimToken
         { description = "testDeletedTokensAreUnusable",
           password = Just defPassword,
           verificationCode = Nothing,
-          name = Nothing
+          name = Nothing,
+          idp = Nothing
         }
   -- An operation with the token should succeed
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
@@ -449,14 +449,15 @@ testDeletedTokensAreUnlistable = do
   env <- ask
   (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   _ <- registerTestIdP owner
-  CreateScimTokenResponse _ tokenInfo <-
+  CreateScimTokenResponseV6 _ tokenInfo <-
     createToken
       owner
       CreateScimToken
         { description = "testDeletedTokensAreUnlistable",
           password = Just defPassword,
           verificationCode = Nothing,
-          name = Nothing
+          name = Nothing,
+          idp = Nothing
         }
   -- Delete the token
   deleteToken owner tokenInfo.stiId
