@@ -89,4 +89,5 @@ hself: hsuper: {
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
+  wire-server-enterprise = hsuper.wire-server-enterprise-remote;
 }

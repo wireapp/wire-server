@@ -46,6 +46,7 @@ import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Imports hiding (head)
+import Lib (isEnterprise)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
@@ -60,6 +61,7 @@ import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
 import System.Logger (msg, val, (.=), (~~))
+import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Util.Timeout
@@ -81,6 +83,7 @@ import Wire.UserStore
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (app, e) <- mkApp opts
+  Log.info e.appLogger $ "WIRE_ENTERPRISE_ENABLED" .= (show isEnterprise)
   s <- Server.newSettings (server e)
   internalEventListener <-
     Async.async $

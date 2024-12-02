@@ -177,8 +177,14 @@ let
       manualOverrides
       executables
       staticExecutables
+      wireServerEnterprise
     ];
   };
+
+  wireServerEnterprise = hself: hsuper:
+    {
+      wire-server-enterprise = hsuper.wire-server-enterprise-remote;
+    };
 
   extractExec = localMods@{ enableOptimization, enableDocs, enableTests }: hPkgName: execName:
     pkgs.stdenv.mkDerivation {

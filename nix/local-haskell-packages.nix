@@ -3,6 +3,7 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { gitignoreSource }: hsuper: hself: {
+  wire-server-enterprise = hself.callPackage ../external/wire-server-enterprise/default.nix { inherit gitignoreSource; };
   integration = hself.callPackage ../integration/default.nix { inherit gitignoreSource; };
   bilge = hself.callPackage ../libs/bilge/default.nix { inherit gitignoreSource; };
   brig-types = hself.callPackage ../libs/brig-types/default.nix { inherit gitignoreSource; };

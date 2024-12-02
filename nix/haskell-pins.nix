@@ -225,15 +225,12 @@ let
       };
     };
 
-    wire-server-enterprise = # if isEnterprise then
-      { src =builtins.fetchGit {
-        url = "ssh://git@github.com/wireapp/wire-server-enterprise.git"; # "https://github.com/wireapp/wire-server-enterprise.git";
+    wire-server-enterprise-remote = {
+      src = builtins.fetchGit {
+        url = "ssh://git@github.com/wireapp/wire-server-enterprise.git";
         ref = "main";
-        };};
-#    } else {
-#      src = ./libs/enterprise-mock;
-#    };
-
+      };
+    };
 
     tinylog = {
       src = fetchgit {
