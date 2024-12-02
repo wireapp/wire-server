@@ -1,0 +1,1 @@
+This leaves much of the heavy lifting to get Nix derivations for Haskell/Cabal packages to Nix.
