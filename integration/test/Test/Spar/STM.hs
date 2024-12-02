@@ -110,7 +110,6 @@ runSteps steps = do
     -- add scim
     go owner tid state (next@(MkScim scimRef mbSamlRef expected) : steps') = addFailureContext (show next) do
       let mIdPId = (state.allIdps !) <$> mbSamlRef
-
       let p = def {name = Just (unScimRef scimRef), idp = unSamlId <$> mIdPId}
       state' <- bindResponse (createScimToken owner p) $ \resp -> do
         case expected of
