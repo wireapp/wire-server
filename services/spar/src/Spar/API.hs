@@ -517,7 +517,7 @@ idpCreateXML ::
   SAML.IdPMetadata ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
-  Maybe (Range 1 32 Text) ->
+  Maybe (Range 1 32 Text {- human-readable idp name -}) ->
   Sem r IdP
 idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp

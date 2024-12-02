@@ -87,18 +87,23 @@ data State = State
 emptyState :: State
 emptyState = State mempty mempty mempty mempty
 
+-- (SamlName)
 newtype SamlRef = SamlRef {_unSamlRef :: String}
   deriving newtype (Eq, Show, Ord, ToJSON)
 
+-- (ScimName)
 newtype ScimRef = ScimRef {unScimRef :: String}
   deriving newtype (Eq, Show, Ord, ToJSON)
 
+-- (UUID)
 newtype SamlId = SamlId {unSamlId :: String}
   deriving newtype (Eq, Show, Ord, ToJSON)
 
+-- (UUID)
 newtype ScimId = ScimId {unScimId :: String}
   deriving newtype (Eq, Show, Ord, ToJSON, ToJSONKey)
 
+-- (for auth)
 newtype ScimToken = ScimToken {unScimToken :: String}
   deriving newtype (Eq, Show, Ord, ToJSON)
 
