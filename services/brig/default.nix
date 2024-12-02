@@ -152,6 +152,7 @@
 , wire-api
 , wire-api-federation
 , wire-otel
+, wire-server-enterprise
 , wire-subsystems
 , yaml
 , zauth
@@ -277,6 +278,7 @@ mkDerivation {
     wire-api
     wire-api-federation
     wire-otel
+    wire-server-enterprise
     wire-subsystems
     zauth
   ];

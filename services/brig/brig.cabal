@@ -320,6 +320,7 @@ library
     , wire-api
     , wire-api-federation
     , wire-otel
+    , wire-server-enterprise
     , wire-subsystems
     , zauth                                 >=0.10.3
 
