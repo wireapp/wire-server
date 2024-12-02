@@ -39,14 +39,17 @@ testCreateIdpsAndScimsV7 = do
     ]
 
   runSteps
-    [ MkScim (ScimRef "scim1") Nothing ExpectSuccess,
+    [ -- create a single, unassociated scim.
+      MkScim (ScimRef "scim1") Nothing ExpectSuccess,
+      -- create a single, unassociated saml idp.
       MkSaml (SamlRef "saml1") ExpectSuccess,
+      -- new in V7: if there is a saml idp but not referenced in request, do not connect.
+      MkScim (ScimRef "scim1-solo") Nothing ExpectSuccess,
+      -- 2 idps with scim is ok now.
       MkSaml (SamlRef "saml2") ExpectSuccess,
-      MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess,
       -- two scims can be associated with one idp
-      MkScim (ScimRef "scim3") (Just (SamlRef "saml1")) ExpectSuccess,
-      MkScim (ScimRef "scim4") (Just (SamlRef "saml2")) ExpectSuccess,
-      MkScim (ScimRef "scim5") Nothing ExpectSuccess
+      MkScim (ScimRef "scim2") (Just (SamlRef "saml1")) ExpectSuccess,
+      MkScim (ScimRef "scim3") (Just (SamlRef "saml1")) ExpectSuccess
     ]
 
   -- two saml idps cannot associate with the same scim peer: it would be unclear which idp the
