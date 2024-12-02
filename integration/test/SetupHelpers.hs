@@ -32,6 +32,7 @@ import GHC.Stack
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Testlib.JSON
 import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
@@ -424,6 +425,14 @@ addUsersToFailureContext namesAndUsers action = do
         pure $ name <> ": " <> id_ <> "@" <> domain
   allLines <- unlines <$> (mapM mkLine namesAndUsers)
   addFailureContext allLines action
+
+registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
+registerTestIdPWithMeta owner = fst <$> registerTestIdPWithMetaWithPrivateCreds owner
+
+registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
+registerTestIdPWithMetaWithPrivateCreds owner = do
+  SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
+  (,(idpmeta, pCreds)) <$> createIdp owner idpmeta
 
 -- | Given a team configured with saml sso, attempt a login with valid credentials.  This
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test

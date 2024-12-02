@@ -4,21 +4,16 @@ module Test.Spar where
 
 import qualified API.Brig as Brig
 import API.BrigInternal as BrigInternal
-import API.Common (defPassword, randomEmail, randomExternalId, randomHandle)
+import API.Common (randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
-import API.Nginz (login)
 import API.Spar
 import Control.Concurrent (threadDelay)
-import qualified Data.Map as Map
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
-import qualified SAML2.WebSSO as SAML
-import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
-import qualified Text.XML.DSig as SAML
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
@@ -130,14 +125,6 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       u %. "email" `shouldMatch` newEmail
       subject <- u %. "sso_id.subject" >>= asString
       subject `shouldContainString` currentExtId
-
-registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
-registerTestIdPWithMeta owner = fst <$> registerTestIdPWithMetaWithPrivateCreds owner
-
-registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
-registerTestIdPWithMetaWithPrivateCreds owner = do
-  SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
-  (,(idpmeta, pCreds)) <$> createIdp owner idpmeta
 
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do

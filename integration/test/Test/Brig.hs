@@ -14,7 +14,6 @@ import Data.String.Conversions
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import GHC.Stack
-import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import System.IO.Extra
 import Testlib.Assertions
@@ -264,8 +263,3 @@ testDeleteEmail = do
   associateUsrWithSSO
   deleteSelfEmail usr >>= assertSuccess
   searchShouldBe "empty"
-
-registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
-registerTestIdPWithMeta owner = do
-  SampleIdP idpmeta _ _ _ <- makeSampleIdPMetadata
-  createIdp owner idpmeta
