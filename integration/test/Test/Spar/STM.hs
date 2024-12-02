@@ -165,53 +165,63 @@ validateState owner tid state = do
   allIdps <- getIdps owner >>= getJSON 200 >>= (%. "providers") >>= asList
   allScims <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
 
-  do
-    -- are all idps from spar in the local test state and vice versa?
-    let allLocal = Map.elems state.allIdps
-    allSpar <- ((%. "id") >=> asString) `traverse` allIdps
-    allLocal `shouldMatchSet` allSpar
+  validateStateSyncTestAndProdIdps owner tid state allIdps allScims
+  validateStateSyncTestAndProdScims owner tid state allIdps allScims
+  validateStateSyncTestAndProdAssocs owner tid state allIdps allScims
+  validateStateLoginAllUsers owner tid state allIdps allScims
 
-  do
-    -- are all scim peers from spar in the local test state and vice versa?
-    let allLocal = fst <$> Map.elems state.allScims
-    allSpar <- (%. "id") `traverse` allScims
-    allLocal `shouldMatchSet` allSpar
+-- | are all idps from spar in the local test state and vice versa?
+validateStateSyncTestAndProdIdps :: Value -> String -> State -> [Value] -> [Value] -> App ()
+validateStateSyncTestAndProdIdps owner tid state allIdps allScims = do
+  let allLocal = Map.elems state.allIdps
+  allSpar <- ((%. "id") >=> asString) `traverse` allIdps
+  allLocal `shouldMatchSet` allSpar
 
-  do
-    -- are all local associations the same as on spar?
-    let toScimIdpPair tokInfo = do
-          mIdp <- lookupField tokInfo "idp"
-          case mIdp of
-            Just idp -> Just <$> ((,) <$> (tokInfo %. "id" >>= asString) <*> asString idp)
-            Nothing -> pure Nothing
+-- | are all scim peers from spar in the local test state and vice versa?
+validateStateSyncTestAndProdScims :: Value -> String -> State -> [Value] -> [Value] -> App ()
+validateStateSyncTestAndProdScims owner tid state allIdps allScims = do
+  let allLocal = fst <$> Map.elems state.allScims
+  allSpar <- (%. "id") `traverse` allScims
+  allLocal `shouldMatchSet` allSpar
 
-    sparState <- Map.fromList . catMaybes <$> (toScimIdpPair `mapM` allScims)
-    sparState `shouldMatch` state.allScimAssocs
+-- | are all local associations the same as on spar?
+validateStateSyncTestAndProdAssocs :: Value -> String -> State -> [Value] -> [Value] -> App ()
+validateStateSyncTestAndProdAssocs owner tid state allIdps allScims = do
+  let toScimIdpPair tokInfo = do
+        mIdp <- lookupField tokInfo "idp"
+        case mIdp of
+          Just idp -> Just <$> ((,) <$> (tokInfo %. "id" >>= asString) <*> asString idp)
+          Nothing -> pure Nothing
 
-  do
-    -- login.
-    -- (auto-provisioning with saml without scim is intentionally not tested.)
-    for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
-      let mIdp :: Maybe (String {- id -}, (SAML.IdPMetadata, SAML.SignPrivCreds))
-          mIdp = do
-            i <- Map.lookup scimId state.allScimAssocs
-            c <- Map.lookup i state.allIdpCredsById
-            pure (unSamlId i, c)
+  sparState <- Map.fromList . catMaybes <$> (toScimIdpPair `mapM` allScims)
+  sparState `shouldMatch` state.allScimAssocs
 
-      scimUser <- randomScimUser
-      email <- scimUser %. "externalId" >>= asString
-      uid <- bindResponse (createScimUser owner (unScimToken tok) scimUser) $ \resp -> do
-        resp.status `shouldMatchInt` 201
-        resp.json %. "id" >>= asString
-      when (isNothing mIdp) $ do
-        registerUser OwnDomain tid email
+-- | login.  (auto-provisioning with saml without scim is intentionally not tested.)
+-- (performance: only login users that have just been created, so that throughout a `[Step]`,
+-- every user is only logged in once.)
+validateStateLoginAllUsers :: Value -> String -> State -> [Value] -> [Value] -> App ()
+validateStateLoginAllUsers owner tid state allIdps allScims = do
+  for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
+    let mIdp :: Maybe (String {- id -}, (SAML.IdPMetadata, SAML.SignPrivCreds))
+        mIdp = do
+          i <- Map.lookup scimId state.allScimAssocs
+          c <- Map.lookup i state.allIdpCredsById
+          pure (unSamlId i, c)
 
-      maybe (loginWithPassword 200 scimUser) (loginWithSaml True tid scimUser) mIdp
+    scimUser <- randomScimUser
+    email <- scimUser %. "externalId" >>= asString
+    uid <- bindResponse (createScimUser owner (unScimToken tok) scimUser) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "id" >>= asString
+    when (isNothing mIdp) $ do
+      registerUser OwnDomain tid email
 
-      bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
-        resp.status `shouldMatchInt` 204
+    maybe (loginWithPassword 200 scimUser) (loginWithSaml True tid scimUser) mIdp
 
-      maybe (loginWithPassword 403 scimUser) (loginWithSaml False tid scimUser) mIdp
+    bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
+      resp.status `shouldMatchInt` 204
+
+    maybe (loginWithPassword 403 scimUser) (loginWithSaml False tid scimUser) mIdp
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do
