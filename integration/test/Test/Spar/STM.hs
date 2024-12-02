@@ -173,28 +173,28 @@ validateState owner tid state = do
   allIdps <- getIdps owner >>= getJSON 200 >>= (%. "providers") >>= asList
   allScims <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
 
-  validateStateSyncTestAndProdIdps owner tid state allIdps allScims
-  validateStateSyncTestAndProdScims owner tid state allIdps allScims
-  validateStateSyncTestAndProdAssocs owner tid state allIdps allScims
-  validateStateLoginAllUsers owner tid state allIdps allScims
+  validateStateSyncTestAndProdIdps state allIdps
+  validateStateSyncTestAndProdScims state allScims
+  validateStateSyncTestAndProdAssocs state allScims
+  validateStateLoginAllUsers owner tid state
 
 -- | are all idps from spar in the local test state and vice versa?
-validateStateSyncTestAndProdIdps :: Value -> String -> State -> [Value] -> [Value] -> App ()
-validateStateSyncTestAndProdIdps owner tid state allIdps allScims = do
+validateStateSyncTestAndProdIdps :: State -> [Value] -> App ()
+validateStateSyncTestAndProdIdps state allIdps = do
   let allLocal = Map.elems state.allIdps
   allSpar <- ((%. "id") >=> asString) `traverse` allIdps
   allLocal `shouldMatchSet` allSpar
 
 -- | are all scim peers from spar in the local test state and vice versa?
-validateStateSyncTestAndProdScims :: Value -> String -> State -> [Value] -> [Value] -> App ()
-validateStateSyncTestAndProdScims owner tid state allIdps allScims = do
+validateStateSyncTestAndProdScims :: State -> [Value] -> App ()
+validateStateSyncTestAndProdScims state allScims = do
   let allLocal = fst <$> Map.elems state.allScims
   allSpar <- (%. "id") `traverse` allScims
   allLocal `shouldMatchSet` allSpar
 
 -- | are all local associations the same as on spar?
-validateStateSyncTestAndProdAssocs :: Value -> String -> State -> [Value] -> [Value] -> App ()
-validateStateSyncTestAndProdAssocs owner tid state allIdps allScims = do
+validateStateSyncTestAndProdAssocs :: State -> [Value] -> App ()
+validateStateSyncTestAndProdAssocs state allScims = do
   let toScimIdpPair tokInfo = do
         mIdp <- lookupField tokInfo "idp"
         case mIdp of
@@ -207,8 +207,8 @@ validateStateSyncTestAndProdAssocs owner tid state allIdps allScims = do
 -- | login.  (auto-provisioning with saml without scim is intentionally not tested.)
 -- (performance: only login users that have just been created, so that throughout a `[Step]`,
 -- every user is only logged in once.)
-validateStateLoginAllUsers :: Value -> String -> State -> [Value] -> [Value] -> App ()
-validateStateLoginAllUsers owner tid state allIdps allScims = do
+validateStateLoginAllUsers :: Value -> String -> State -> App ()
+validateStateLoginAllUsers owner tid state = do
   for_ (Map.elems state.allScims) $ \(scimId, tok) -> do
     let mIdp :: Maybe (String {- id -}, (SAML.IdPMetadata, SAML.SignPrivCreds))
         mIdp = do
