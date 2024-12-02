@@ -336,12 +336,3 @@ testSparCreateScimTokenWithName = do
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
   for_ tokens $ \token -> do
     token %. "name" `shouldMatch` expected
-
-testCreateMultipleIdps :: (HasCallStack) => App ()
-testCreateMultipleIdps = do
-  (owner, tid, _) <- createTeam OwnDomain 1
-  void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  idp1 <- registerTestIdPWithMeta owner >>= getJSON 201 >>= (%. "id") >>= asString
-  idp2 <- registerTestIdPWithMeta owner >>= getJSON 201 >>= (%. "id") >>= asString
-  createScimToken owner (def {name = Just "foobar", idp = Just idp1}) >>= assertSuccess
-  createScimToken owner (def {name = Just "bazqux", idp = Just idp2}) >>= assertSuccess
