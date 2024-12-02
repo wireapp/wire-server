@@ -328,16 +328,16 @@ testSparCreateScimTokenNoName = do
       tokenId <- token %. "id" >>= asString
       token %. "name" `shouldMatch` ("token:" <> tokenId)
 
--- | create idp then scim without idp name => assoc implicitly in v6
+-- | in V6, create idp then scim without idp id and idp id is unique
 testSparCreateScimTokenAssocImplicitly :: (HasCallStack) => App ()
 testSparCreateScimTokenAssocImplicitly = do
   (owner, tid, _) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  resp <- registerTestIdPWithMeta owner
-  resp.status `shouldMatchInt` 201
+  samlIdpId <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "id"
   resp2 <- createScimTokenV6 owner def >>= getJSON 200
-  assoc <- resp2 %. "info.idp"
-  assoc %. "idp" `shouldMatch` (Nothing @Value)
+  resp2 %. "info.idp" `shouldMatch` samlIdpId
 
 -- | in V6, name should be ignored
 testSparCreateScimTokenWithName :: (HasCallStack) => App ()
@@ -346,16 +346,16 @@ testSparCreateScimTokenWithName = do
   let notExpected = "my scim token"
   createScimTokenV6 owner (def {name = Just notExpected}) >>= assertSuccess
   token <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList >>= assertOne
-  token %. "name" `shouldMatch` (Nothing @Value)
+  assoc <- token %. "id"
+  token %. "name" `shouldMatch` Just assoc
 
--- | create two idps then one scim => fail in v6
+-- | in V6, create two idps then one scim should fail
 testSparCreateTwoScimTokensForOneIdp :: (HasCallStack) => App ()
 testSparCreateTwoScimTokensForOneIdp = do
   (owner, tid, _) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  (resp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
-  resp.status `shouldMatchInt` 201
-  createScimTokenV6 owner def >>= assertSuccess
+  registerTestIdPWithMeta owner >>= assertSuccess
+  registerTestIdPWithMeta owner >>= assertSuccess
   createScimTokenV6 owner def >>= assertStatus 400
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
-  length tokens `shouldMatchInt` 1
+  length tokens `shouldMatchInt` 0
