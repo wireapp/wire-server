@@ -40,6 +40,7 @@ packages:
   , services/galley/
   , services/gundeck/
   , services/proxy/
+  , services/wire-server-enterprise
   , services/spar/
   , tools/db/assets/
   , tools/db/auto-whitelist/
