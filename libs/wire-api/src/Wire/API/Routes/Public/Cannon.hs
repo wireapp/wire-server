@@ -28,6 +28,7 @@ type CannonAPI =
   Named
     "await-notifications"
     ( Summary "Establish websocket connection"
+        -- Description "This is the legacy variant of \"consume-events\""
         :> "await"
         :> ZUser
         :> ZConn
@@ -44,6 +45,8 @@ type CannonAPI =
     :<|> Named
            "consume-events"
            ( Summary "Consume events over a websocket connection"
+               :> Description "This is the rabbitMQ-based variant of \"await-notifications\""
+               -- :> From 'V8 -- cannon is not versioned yet
                :> "events"
                :> ZUser
                :> QueryParam'

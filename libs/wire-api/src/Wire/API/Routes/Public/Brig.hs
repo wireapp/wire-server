@@ -750,9 +750,9 @@ type UserClientAPI =
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
-    "add-client-v6"
+    "add-client@v7"
     ( Summary "Register a new client"
-        :> Until 'V7
+        :> Until 'V8
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
         :> CanThrow 'MalformedPrekeys
@@ -761,20 +761,20 @@ type UserClientAPI =
         :> ZLocalUser
         :> ZConn
         :> "clients"
-        :> ReqBody '[JSON] NewClient
+        :> VersionedReqBody 'V7 '[JSON] NewClient
         :> MultiVerb1
              'POST
              '[JSON]
              ( WithHeaders
                  ClientHeaders
                  Client
-                 (VersionedRespond 'V6 201 "Client registered" Client)
+                 (VersionedRespond 'V7 201 "Client registered" Client)
              )
     )
     :<|> Named
            "add-client"
            ( Summary "Register a new client"
-               :> From 'V7
+               :> From 'V8
                :> CanThrow 'TooManyClients
                :> CanThrow 'MissingAuth
                :> CanThrow 'MalformedPrekeys
@@ -794,6 +794,17 @@ type UserClientAPI =
                     )
            )
     :<|> Named
+           "update-client@v7"
+           ( Summary "Update a registered client"
+               :> Until 'V8
+               :> CanThrow 'MalformedPrekeys
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> VersionedReqBody 'V7 '[JSON] UpdateClient
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Client updated")
+           )
+    :<|> Named
            "update-client"
            ( Summary "Update a registered client"
                :> CanThrow 'MalformedPrekeys
@@ -801,7 +812,7 @@ type UserClientAPI =
                :> "clients"
                :> CaptureClientId "client"
                :> ReqBody '[JSON] UpdateClient
-               :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Client updated"] ()
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Client updated")
            )
     :<|>
     -- This endpoint can lead to the following events being sent:
@@ -817,21 +828,21 @@ type UserClientAPI =
           :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
       )
     :<|> Named
-           "list-clients-v6"
+           "list-clients@v7"
            ( Summary "List the registered clients"
-               :> Until 'V7
+               :> Until 'V8
                :> ZUser
                :> "clients"
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    ( VersionedRespond 'V6 200 "List of clients" [Client]
+                    ( VersionedRespond 'V7 200 "List of clients" [Client]
                     )
            )
     :<|> Named
            "list-clients"
            ( Summary "List the registered clients"
-               :> From 'V7
+               :> From 'V8
                :> ZUser
                :> "clients"
                :> MultiVerb1
@@ -841,9 +852,9 @@ type UserClientAPI =
                     )
            )
     :<|> Named
-           "get-client-v6"
+           "get-client@v7"
            ( Summary "Get a registered client by ID"
-               :> Until 'V7
+               :> Until 'V8
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -851,14 +862,14 @@ type UserClientAPI =
                     'GET
                     '[JSON]
                     '[ EmptyErrorForLegacyReasons 404 "Client not found",
-                       VersionedRespond 'V6 200 "Client found" Client
+                       VersionedRespond 'V7 200 "Client found" Client
                      ]
                     (Maybe Client)
            )
     :<|> Named
            "get-client"
            ( Summary "Get a registered client by ID"
-               :> From 'V7
+               :> From 'V8
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -869,6 +880,19 @@ type UserClientAPI =
                        Respond 200 "Client found" Client
                      ]
                     (Maybe Client)
+           )
+    :<|> Named
+           "get-client-capabilities@v7"
+           ( Summary "Read back what the client has been posting about itself"
+               :> Until 'V8
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> "capabilities"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V7 200 "capabilities" ClientCapabilityList)
            )
     :<|> Named
            "get-client-capabilities"
