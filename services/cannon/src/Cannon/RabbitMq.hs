@@ -25,7 +25,6 @@ import Control.Retry
 import Data.ByteString.Conversion
 import Data.List.Extra
 import Data.Map qualified as Map
-import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Timeout
 import Imports hiding (threadDelay)
@@ -211,26 +210,17 @@ openConnection pool = do
 data RabbitMqChannel = RabbitMqChannel
   { -- | The current channel. The var is empty while the channel is being
     -- re-established.
-    inner :: MVar (Q.Channel, IORef (Set Word64)),
+    inner :: MVar Q.Channel,
     msgVar :: MVar (Maybe (Q.Message, Q.Envelope))
   }
 
 getMessage :: RabbitMqChannel -> IO (Q.Message, Q.Envelope)
-getMessage chan = do
-  (msg, envelope) <- takeMVar chan.msgVar >>= maybe (throwIO ChannelClosed) pure
-  (_, unacked) <- readMVar chan.inner
-  atomicModifyIORef' unacked $ \s ->
-    (Set.insert envelope.envDeliveryTag s, ())
-  pure (msg, envelope)
+getMessage chan = takeMVar chan.msgVar >>= maybe (throwIO ChannelClosed) pure
 
-ackMessage :: RabbitMqChannel -> Word64 -> Bool -> IO Bool
+ackMessage :: RabbitMqChannel -> Word64 -> Bool -> IO ()
 ackMessage chan deliveryTag multiple = do
-  (inner, unacked) <- readMVar chan.inner
-  correctChannel <- atomicModifyIORef' unacked $ \s ->
-    (Set.delete deliveryTag s, Set.member deliveryTag s)
-  when correctChannel $
-    Q.ackMsg inner deliveryTag multiple
-  pure correctChannel
+  inner <- readMVar chan.inner
+  Q.ackMsg inner deliveryTag multiple
 
 createChannel :: (Ord key) => RabbitMqPool key -> Text -> key -> Codensity IO RabbitMqChannel
 createChannel pool queue key = do
@@ -269,8 +259,7 @@ createChannel pool queue key = do
             then pure True
             else do
               liftIO $ Q.addChannelExceptionHandler chan handleException
-              unacked <- newIORef mempty
-              putMVar inner (chan, unacked)
+              putMVar inner chan
               void $ liftIO $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
                 putMVar msgVar (Just (message, envelope))
               retry <- takeMVar closedVar
