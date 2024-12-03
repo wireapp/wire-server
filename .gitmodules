@@ -1,3 +1,7 @@
 [submodule "libs/wire-message-proto-lens/generic-message-proto"]
 	path = libs/wire-message-proto-lens/generic-message-proto
 	url = https://github.com/wireapp/generic-message-proto
+[submodule "services/wire-server-enterprise"]
+	path = services/wire-server-enterprise
+	url = git@github.com:wireapp/wire-server-enterprise
+	branch = main
