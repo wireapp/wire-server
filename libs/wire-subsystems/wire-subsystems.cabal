@@ -118,6 +118,8 @@ library
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
+    Wire.RateLimit
+    Wire.RateLimit.Interpreter
     Wire.Rpc
     Wire.SessionStore
     Wire.SessionStore.Cassandra
@@ -174,6 +176,7 @@ library
     , exceptions
     , extended
     , extra
+    , hashable
     , HaskellNet
     , HaskellNet-SSL
     , HsOpenSSL
@@ -183,8 +186,10 @@ library
     , http-types
     , http2-manager
     , imports
+    , iproute
     , iso639
     , lens
+    , lrucaching
     , memory
     , mime
     , mime-mail
@@ -211,6 +216,7 @@ library
     , time-out
     , time-units
     , tinylog
+    , token-bucket
     , transformers
     , types-common
     , unliftio
@@ -263,6 +269,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
+    Wire.RateLimited.InterpreterSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
@@ -283,6 +290,7 @@ test-suite wire-subsystems-tests
     , extended
     , hspec
     , imports
+    , iproute
     , iso639
     , lens
     , mime-mail

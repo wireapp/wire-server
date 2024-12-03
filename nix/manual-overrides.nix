@@ -8,6 +8,8 @@ hself: hsuper: {
   # FUTUREWORK: investigate whether all of these tests need to fail
   # ----------------
 
+  brig-closed-source = hlib.setCabalFlags "" hsuper.brig;
+
   # tests don't compile because `replicateM` isn't in scope. this dependency should be dropped asap
   wai-route = hlib.dontCheck hsuper.wai-route;
 
@@ -59,6 +61,7 @@ hself: hsuper: {
   # (we can unfortunately not do anything here but update nixpkgs)
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
+  lrucaching = hlib.markUnbroken hsuper.lrucaching;
 
   # -----------------
   # version overrides
