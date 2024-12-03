@@ -491,17 +491,14 @@ idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 --
--- NOTE(mangoiv): currently registering an IdP and scim token works as follows:
--- - an owner creates a team with some teamId
--- - the owner registers and IdP
--- - the owner registers a scim token and passes the idp id along to associate
---   the scim token with the IdP
+-- The human-readable name argument `mHandle` is guaranteed to be unique for historical
+-- reasons.  At some point, we wanted to use it to refer to IdPs in the backend API.  The new
+-- idea is to use the IdP ID instead, and use names only for UI purposes (`ES branch` is
+-- easier to remember than `6a410704-b147-11ef-9cb0-33193c475ba4`).
 --
--- This doesn't support some flows we may want to support, like: (1) register
--- a scim token and then associate an IdP with it; (2) have scim token and
--- create an idp that is *not* associated with it; ...
---
--- Related internal docs: https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/1107001440/2024-03-27+scim+user+provisioning+and+saml2+sso+associating+scim+peers+and+saml2+idps
+-- Related docs:
+-- (on associating scim peers with idps) https://docs.wire.com/understand/single-sign-on/understand/main.html#associating-scim-tokens-with-saml-idps-for-authentication
+-- (internal) https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/1107001440/2024-03-27+scim+user+provisioning+and+saml2+sso+associating+scim+peers+and+saml2+idps
 idpCreateXML ::
   ( Member Random r,
     Member (Logger String) r,
@@ -517,9 +514,9 @@ idpCreateXML ::
   SAML.IdPMetadata ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
-  Maybe (Range 1 32 Text {- human-readable idp name -}) ->
+  Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle {- unique human-readable idp name -} = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   idp <-
