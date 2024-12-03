@@ -160,9 +160,10 @@ createScimTokenV6 zusr createTok = do
     infoToV6 :: ScimTokenInfo -> ScimTokenInfoV6
     infoToV6 ScimTokenInfo {..} = ScimTokenInfoV6 {..}
 
--- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
+-- | Create a token for the user's team.
 --
--- Create a token for user's team.
+-- > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
+-- > (on associating scim peers with idps) https://docs.wire.com/understand/single-sign-on/understand/main.html#associating-scim-tokens-with-saml-idps-for-authentication
 createScimToken ::
   forall r.
   ( Member Random r,

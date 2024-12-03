@@ -460,8 +460,8 @@ If you already have a SCIM token and want to associate it with a SAML
 IdP, delete the SCIM token and create a new one.  The user accounts
 provisioned with that token will remain unaffected.
 
-If you do not provide a SAML IdP, the behavior differes based on the
-version you use:
+If you do not provide a SAML IdP when creating it, the behavior
+differs based on the version you use:
 
 **V6 and below:** If there is a unique IdP registered with your team,
 associate implicitly.  Otherwise, do not associate.
