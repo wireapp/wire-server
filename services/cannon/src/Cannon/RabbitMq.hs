@@ -269,7 +269,9 @@ createChannel pool queue key = do
               putMVar inner (chan, unacked)
               void $ liftIO $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
                 putMVar msgVar (Just (message, envelope))
-              takeMVar closedVar
+              retry <- takeMVar closedVar
+              void $ takeMVar inner
+              pure retry
 
         when retry manageChannel
 
