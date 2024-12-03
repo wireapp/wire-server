@@ -15,20 +15,12 @@ cat >"$warningFile" <<EOF
 # dependencies are added or removed.
 EOF
 
-# shellcheck disable=SC2016
-echo "$cabalFiles" \
-    | xargs -I {} bash -c 'cd $(dirname {}); cat $0 > default.nix' "$warningFile"
-
-# shellcheck disable=SC2016
-echo "$cabalFiles" \
-    | xargs -I {} bash -c 'cd $(dirname {}); cabal2nix . --no-hpack --extra-arguments gitignoreSource | sed "s/src = \.\/\./src = gitignoreSource .\/./g" >> default.nix; nixpkgs-fmt default.nix &> /dev/null'
-
 overridesFile="$ROOT_DIR/nix/local-haskell-packages.nix"
 
-cat "$warningFile" <(echo "{ gitignoreSource }: hsuper: hself: {") > "$overridesFile"
+cat "$warningFile" <(echo "hsuper: hself: {") > "$overridesFile"
 # shellcheck disable=SC2016
 echo "$cabalFiles" \
-    | xargs -I {} bash -c 'name=$(basename {} | sed "s|.cabal||"); echo "  $name = hself.callPackage $(realpath --relative-to='"$ROOT_DIR/nix"' "$(dirname {})")/default.nix { inherit gitignoreSource; };"' >> "$overridesFile"
+    | xargs -I {} bash -c 'name=$(basename {} | sed "s|.cabal||"); echo "  $name = hself.callCabal2nix \"$name\" $(realpath --relative-to='"$ROOT_DIR/nix"' "$(dirname {})") { };"' >> "$overridesFile"
 echo "}" >> "$overridesFile"
 
 # ensure the file is formatted

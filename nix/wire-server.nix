@@ -8,8 +8,8 @@
 # 1. nix/local-haskell-packages.nix: This file provides a list of overrides
 # which add the local packages from this repository into the nixpkgs haskell
 # package set. This file is generated using `make regen-local-nix-derivations`
-# which uses cabal2nix to generate nix derivations for each haskell package in
-# this repository.
+# which uses callCabal2nix to generate nix derivations for each haskell package
+# in this repository.
 #
 # 2. nix/haskell-pins.nix: This file provides a list of overrides for haskell
 # packages we wish to pin to a certain version, either because we have had to
@@ -56,19 +56,6 @@ let
       };
     });
 
-  gitignoreSource =
-    let
-      gitignoreSrc = pkgs.fetchFromGitHub {
-        owner = "hercules-ci";
-        repo = "gitignore.nix";
-        # put the latest commit sha of gitignore Nix library here:
-        rev = "a20de23b925fd8264fd7fad6454652e142fd7f73";
-        # use what nix suggests in the mismatch message here:
-        sha256 = "sha256:07vg2i9va38zbld9abs9lzqblz193vc5wvqd6h7amkmwf66ljcgh";
-      };
-    in
-    (import gitignoreSrc { inherit (pkgs) lib; }).gitignoreSource;
-
   # Mapping from package -> [executable]
   executablesMap = {
     brig = [ "brig" "brig-index" "brig-integration" "brig-schema" ];
@@ -102,7 +89,6 @@ let
     # on.
     let
       defaultPkgs = import ./local-haskell-packages.nix
-        { inherit gitignoreSource; }
         hsuper
         hself;
 
