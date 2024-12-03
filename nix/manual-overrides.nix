@@ -60,6 +60,7 @@ hself: hsuper: {
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
   system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
+  lrucaching = hlib.markUnbroken hsuper.lrucaching;
 
   # -----------------
   # version overrides
