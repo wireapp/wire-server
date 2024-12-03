@@ -60,7 +60,8 @@ data RabbitMqPool key = RabbitMqPool
 data RabbitMqPoolOptions = RabbitMqPoolOptions
   { maxConnections :: Int,
     maxChannels :: Int,
-    endpoint :: AmqpEndpoint
+    endpoint :: AmqpEndpoint,
+    retryEnabled :: Bool
   }
 
 createRabbitMqPool :: (Ord key) => RabbitMqPoolOptions -> Logger -> Codensity IO (RabbitMqPool key)
@@ -228,7 +229,6 @@ createChannel pool queue key = do
   inner <- lift newEmptyMVar
   msgVar <- lift newEmptyMVar
 
-  let retryEnabled = False -- TODO: configure this in pool
   let handleException e = do
         retry <- case (Q.isNormalChannelClose e, fromException e) of
           (True, _) -> do
@@ -238,11 +238,11 @@ createChannel pool queue key = do
           (_, Just (Q.ConnectionClosedException {})) -> do
             Log.info pool.logger $
               Log.msg (Log.val "RabbitMQ connection was closed unexpectedly")
-            pure retryEnabled
+            pure pool.opts.retryEnabled
           _ -> do
             unless (fromException e == Just AsyncCancelled) $
               logException pool.logger "RabbitMQ channel closed" e
-            pure retryEnabled
+            pure pool.opts.retryEnabled
         putMVar closedVar retry
 
   let manageChannel = do
