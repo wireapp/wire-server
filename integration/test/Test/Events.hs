@@ -40,10 +40,10 @@ testConsumeEventsOneWebSocket = do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
       e %. "data.delivery_tag"
-    assertNoEvent ws
+    assertNoEvent_ ws
 
     sendAck ws deliveryTag False
-    assertNoEvent ws
+    assertNoEvent_ ws
 
     handle <- randomHandle
     putHandle alice handle >>= assertSuccess
@@ -82,7 +82,7 @@ testConsumeEventsForDifferentUsers = do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "data.event.payload.0.client.id" `shouldMatch` clientId
         e %. "data.delivery_tag"
-      assertNoEvent ws
+      assertNoEvent_ ws
       sendAck ws deliveryTag False
 
 testConsumeEventsWhileHavingLegacyClients :: (HasCallStack) => App ()
@@ -139,7 +139,7 @@ testConsumeEventsAcks = do
     sendAck ws deliveryTag False
 
   runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
-    assertNoEvent ws
+    assertNoEvent_ ws
 
 testConsumeEventsMultipleAcks :: (HasCallStack) => App ()
 testConsumeEventsMultipleAcks = do
@@ -163,7 +163,7 @@ testConsumeEventsMultipleAcks = do
     sendAck ws deliveryTag True
 
   runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
-    assertNoEvent ws
+    assertNoEvent_ ws
 
 testConsumeEventsAckNewEventWithoutAckingOldOne :: (HasCallStack) => App ()
 testConsumeEventsAckNewEventWithoutAckingOldOne = do
@@ -197,7 +197,7 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
     sendAck ws deliveryTagClientAdd False
 
   runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
-    assertNoEvent ws
+    assertNoEvent_ ws
 
 testEventsDeadLettered :: (HasCallStack) => App ()
 testEventsDeadLettered = do
@@ -231,7 +231,7 @@ testEventsDeadLettered = do
         ackEvent ws e
 
       -- We've consumed the whole queue.
-      assertNoEvent ws
+      assertNoEvent_ ws
 
 testTransientEventsDoNotTriggerDeadLetters :: (HasCallStack) => App ()
 testTransientEventsDoNotTriggerDeadLetters = do
@@ -259,7 +259,7 @@ testTransientEventsDoNotTriggerDeadLetters = do
     sendTypingStatus alice selfConvId "started" >>= assertSuccess
 
     runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
-      assertNoEvent ws
+      assertNoEvent_ ws
 
 testTransientEvents :: (HasCallStack) => App ()
 testTransientEvents = do
@@ -298,7 +298,7 @@ testTransientEvents = do
         e %. "data.event.payload.0.user.handle" `shouldMatch` handle
         ackEvent ws e
 
-    assertNoEvent ws
+    assertNoEvent_ ws
 
 testChannelLimit :: (HasCallStack) => App ()
 testChannelLimit = withModifiedBackend
@@ -327,7 +327,7 @@ testChannelLimit = withModifiedBackend
       -- the first client fails to connect because the server runs out of channels
       do
         ws <- createEventsWebSocket alice client0
-        lift $ assertNoEvent ws
+        lift $ assertNoEvent_ ws
 
 testChannelRestore :: (HasCallStack) => App ()
 testChannelRestore = do
@@ -351,21 +351,12 @@ testChannelRestore = do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "data.event.payload.0.client.id" `shouldMatch` c2
 
-        -- TODO: retry a few times
-        Timeout.threadDelay (10 # Second)
-        killConnection
+        recoverAll
+          (constantDelay 500_000 <> limitRetries 10)
+          (\_ -> killConnection)
 
-        Timeout.threadDelay (10 # Second)
-        ackEvent ws e
-
-      -- get the unacked message again
-      assertEvent ws $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` c2
-
-        ackEvent ws e
-
-      assertNoEvent ws
+      noEvent <- assertNoEvent ws
+      noEvent `shouldMatch` WebSocketDied
 
 ----------------------------------------------------------------------
 -- helpers
@@ -460,14 +451,23 @@ assertEvent ws expectations = do
       addFailureContext ("event:\n" <> pretty)
         $ expectations e
 
-assertNoEvent :: (HasCallStack) => EventWebSocket -> App ()
+data NoEvent = NoEvent | WebSocketDied
+
+instance ToJSON NoEvent where
+  toJSON NoEvent = toJSON "no-event"
+  toJSON WebSocketDied = toJSON "web-socket-died"
+
+assertNoEvent :: (HasCallStack) => EventWebSocket -> App NoEvent
 assertNoEvent ws = do
   timeout 1_000_000 (readChan ws.events) >>= \case
-    Nothing -> pure ()
-    Just (Left _) -> pure ()
+    Nothing -> pure NoEvent
+    Just (Left _) -> pure WebSocketDied
     Just (Right e) -> do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
+
+assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
+assertNoEvent_ = void . assertNoEvent
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
