@@ -774,7 +774,7 @@ type UserClientAPI =
     :<|> Named
            "add-client"
            ( Summary "Register a new client"
-               :> From 'V6
+               :> From 'V7
                :> CanThrow 'TooManyClients
                :> CanThrow 'MissingAuth
                :> CanThrow 'MalformedPrekeys
