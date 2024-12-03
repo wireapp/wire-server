@@ -12,6 +12,7 @@ staticHashPasswordInterpreter :: InterpreterFor HashPassword r
 staticHashPasswordInterpreter = interpret $ \case
   HashPassword6 password -> hashPassword password
   HashPassword8 password -> hashPassword password
+  VerifyPasswordWithStatus plain hashed -> pure $ Password.verifyPasswordWithStatusInternal plain hashed
 
 hashPassword :: (Monad m) => PlainTextPassword' t -> m Password
 hashPassword password =
