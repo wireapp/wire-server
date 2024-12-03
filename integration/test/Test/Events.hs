@@ -7,6 +7,7 @@ import API.Galley
 import API.Gundeck
 import qualified Control.Concurrent.Timeout as Timeout
 import Control.Monad.Codensity
+import Control.Monad.RWS (asks)
 import Control.Monad.Trans.Class
 import Control.Retry
 import Data.ByteString.Char8 as B8
@@ -17,7 +18,9 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.WebSockets as WS
 import Notifications
 import SetupHelpers
+import System.Environment (getEnv)
 import Testlib.Prelude hiding (assertNoEvent)
+import Testlib.ResourcePool (backendA)
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -329,8 +332,8 @@ testChannelLimit = withModifiedBackend
         ws <- createEventsWebSocket alice client0
         lift $ assertNoEvent_ ws
 
-testChannelRestore :: (HasCallStack) => App ()
-testChannelRestore = do
+testChannelKilled :: (HasCallStack) => App ()
+testChannelKilled = do
   alice <- randomUser OwnDomain def
   [c1, c2] <-
     replicateM 2
@@ -353,7 +356,7 @@ testChannelRestore = do
 
         recoverAll
           (constantDelay 500_000 <> limitRetries 10)
-          (\_ -> killConnection)
+          (const $ killConnection backendA)
 
       noEvent <- assertNoEvent ws
       noEvent `shouldMatch` WebSocketDied
@@ -481,17 +484,19 @@ consumeAllEvents ws = do
       ackEvent ws e
       consumeAllEvents ws
 
-killConnection :: App ()
-killConnection = do
-  -- TODO: get rabbitmq url and auth from configuration
-
+killConnection :: BackendResource -> App ()
+killConnection backend = do
+  rabbitMqConfig <- asks (.rabbitMQConfig)
+  let url = "http://" <> rabbitMqConfig.host <> ":" <> show rabbitMqConfig.adminPort <> "/api/connections/"
+  userName <- liftIO $ getEnv "RABBITMQ_USERNAME"
+  password <- liftIO $ getEnv "RABBITMQ_PASSWORD"
   name <- do
-    req <- liftIO $ HTTP.parseRequest "http://localhost:15672/api/connections"
+    req <- liftIO $ HTTP.parseRequest url
     bindResponse
       ( submit "GET" $ req
           & HTTP.applyBasicAuth
-            (B8.pack "guest")
-            (B8.pack "alpaca-grapefruit")
+            (B8.pack userName)
+            (B8.pack password)
       )
       $ \resp -> do
         resp.status `shouldMatchInt` 200
@@ -502,18 +507,19 @@ killConnection = do
               ( \c -> do
                   name <- traverse asString =<< lookupField c "user_provided_name"
                   vhost <- c %. "vhost" & asString
-                  pure $ name == Just "pool 0" && vhost == "backendA"
+                  -- We assume that there is only one connection, which is why we use "pool 0"
+                  pure $ name == Just "pool 0" && vhost == backend.berVHost
               )
               connections
         connection %. "name" & asString
 
   do
-    req <- liftIO $ HTTP.parseRequest ("http://localhost:15672/api/connections/" <> name)
+    req <- liftIO $ HTTP.parseRequest (url <> name)
     bindResponse
       ( submit "DELETE" $ req
           & HTTP.applyBasicAuth
-            (B8.pack "guest")
-            (B8.pack "alpaca-grapefruit")
+            (B8.pack userName)
+            (B8.pack password)
       )
       $ \resp -> do
         resp.status `shouldMatchInt` 204
