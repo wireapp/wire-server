@@ -313,7 +313,9 @@ pushViaRabbitMq p = do
               RecipientClientsAll ->
                 Set.singleton $ userRoutingKey r._recipientId
               RecipientClientsSome (toList -> cs) ->
-                Set.fromList $ map (clientRoutingKey r._recipientId) cs
+                Set.fromList $
+                  temporaryRoutingKey r._recipientId
+                    : map (clientRoutingKey r._recipientId) cs
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq routingKey qMsg
 

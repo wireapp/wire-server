@@ -80,6 +80,7 @@ import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
 import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)
+import Wire.API.Notification
 import Wire.API.Presence
 
 -----------------------------------------------------------------------------
@@ -93,7 +94,7 @@ newtype Key = Key
 mkKey :: UserId -> ConnId -> Key
 mkKey u c = Key (toByteString' u, fromConnId c)
 
-mkKeyRabbit :: UserId -> ClientId -> Key
+mkKeyRabbit :: UserId -> RabbitMqClientId -> Key
 mkKeyRabbit u c = Key (toByteString' u, toByteString' c)
 
 instance ToByteString Key where
