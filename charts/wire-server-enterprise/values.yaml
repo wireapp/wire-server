@@ -1,0 +1,19 @@
+replicaCount: 1
+
+image:
+  repository: quay.io/wire/wire-server-enterprise
+  tag: do-not-use
+
+resources:
+  requests:
+    memory: "200Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+
+service:
+  internalPort: 8080
+
+metrics:
+  serviceMonitor:
+    enabled: false

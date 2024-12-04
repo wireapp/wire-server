@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wire-server-enterprise
+  labels:
+    app: wire-server-enterprise
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: wire-server-enterprise
+  template:
+    metadata:
+      labels:
+        app: wire-server-enterprise
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      imagePullSecrets:
+      - name: wire-server-enterprise-readonly-pull-secret
+      containers:
+        - name: wire-server-enterprise
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          ports:
+            - containerPort: {{ .Values.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.service.internalPort }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
