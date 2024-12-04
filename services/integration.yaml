@@ -156,6 +156,7 @@ dynamicBackends:
 
 rabbitmq:
   host: localhost
+  port: 15671
   adminPort: 15672
 
 cassandra:

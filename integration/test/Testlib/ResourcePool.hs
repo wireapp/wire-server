@@ -84,7 +84,7 @@ deleteAllRabbitMQQueues rc resource = do
         RabbitMqAdminOpts
           { host = rc.host,
             port = 0,
-            adminPort = fromIntegral rc.adminPort,
+            adminPort = fromIntegral rc.port,
             vHost = T.pack resource.berVHost,
             tls = Just $ RabbitMqTlsOpts Nothing True
           }
