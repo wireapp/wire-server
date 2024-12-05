@@ -375,15 +375,6 @@ db-migrate: c
 libzauth:
 	$(MAKE) -C libs/libzauth install
 
-#################################
-# Useful when using Haskell IDE Engine
-# https://github.com/haskell/haskell-ide-engine
-#
-# Run this again after changes to libraries or dependencies.
-.PHONY: hie.yaml
-hie.yaml:
-	echo -e 'cradle:\n  cabal: {}' > hie.yaml
-
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
 # (see also docs/developer/processes.md)
