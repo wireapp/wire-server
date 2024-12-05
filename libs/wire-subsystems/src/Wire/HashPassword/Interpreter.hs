@@ -24,14 +24,14 @@ runHashPassword ::
 runHashPassword opts =
   interpret $
     \case
-      HashPassword6 pw6 -> hashFunction pw6
-      HashPassword8 pw8 -> hashFunction pw8
+      HashPassword6 pw6 -> hashPasswordImpl opts pw6
+      HashPassword8 pw8 -> hashPasswordImpl opts pw8
       VerifyPasswordWithStatus plain pwd -> pure $ verifyPasswordWithStatusImpl opts plain pwd
-  where
-    hashFunction :: PlainTextPassword' t -> Sem r Password
-    hashFunction = case opts of
-      PasswordHashingArgon2id o -> mkSafePasswordArgon2id (argon2OptsFromHashingOpts o)
-      PasswordHashingScrypt -> mkSafePasswordScrypt
+
+hashPasswordImpl :: (Member Random r) => PasswordHashingOptions -> PlainTextPassword' t -> Sem r Password
+hashPasswordImpl opts = case opts of
+  PasswordHashingArgon2id o -> mkSafePasswordArgon2id (argon2OptsFromHashingOpts o)
+  PasswordHashingScrypt -> mkSafePasswordScrypt
 
 verifyPasswordWithStatusImpl :: PasswordHashingOptions -> PlainTextPassword' t -> Password -> (Bool, PasswordStatus)
 verifyPasswordWithStatusImpl hashingOpts (fromPlainTextPassword -> plain) hashed =

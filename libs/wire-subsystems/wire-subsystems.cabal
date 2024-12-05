@@ -262,6 +262,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.PasswordStore
     Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
+    Wire.MockInterpreters.RateLimit
     Wire.MockInterpreters.SessionStore
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
