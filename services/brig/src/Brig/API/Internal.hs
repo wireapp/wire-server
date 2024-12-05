@@ -168,6 +168,7 @@ servantSitemap =
     :<|> internalSearchIndexAPI
     :<|> federationRemotesAPI
     :<|> Provider.internalProviderAPI
+    :<|> enterpriseLoginApi
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -426,6 +427,9 @@ getVerificationCode uid action = runMaybeT do
 internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
+
+enterpriseLoginApi :: ServerT BrigIRoutes.EnterpriseLoginApi (Handler r)
+enterpriseLoginApi = Named @"domain-registration-lock" _
 
 ---------------------------------------------------------------------------
 -- Handlers

@@ -2,11 +2,13 @@ module Wire.API.EnterpriseLogin where
 
 import Data.Id
 import Data.Misc
+import qualified SAML2.WebSSO as SAML
+import Imports
 
 data DomainRedirect
   = None
   | Locked
-  | SSO
+  | SSO SAML.IdPId
   | Backend HttpsUrl
   | NoRegistration
   | PreAuthorized
@@ -16,4 +18,4 @@ data TeamInvite
   | NotAllowed
   | Team TeamId
 
-data DnsVerificationToken = DnsVerificationToken
+newtype DnsVerificationToken = DnsVerificationToken { unDnsVerificationToken :: Text }

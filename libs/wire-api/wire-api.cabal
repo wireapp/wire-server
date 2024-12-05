@@ -162,6 +162,7 @@ library
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
+    Wire.API.Routes.Internal.Brig.EnterpriseLogin
     Wire.API.Routes.Internal.Brig.OAuth
     Wire.API.Routes.Internal.Brig.SearchIndex
     Wire.API.Routes.Internal.Cannon
