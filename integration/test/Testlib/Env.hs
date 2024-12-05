@@ -39,6 +39,7 @@ serviceHostPort m Spar = m.spar
 serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
+serviceHostPort m WireServerEnterprise = m.wireServerEnterprise
 
 mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 mkGlobalEnv cfgFile = do
