@@ -67,6 +67,7 @@ module Brig.App
     rabbitmqChannelLens,
     disabledVersionsLens,
     enableSFTFederationLens,
+    rateLimitEnvLens,
 
     -- * App Monad
     AppT (..),
@@ -157,6 +158,7 @@ import Wire.API.Routes.Version
 import Wire.API.User.Identity
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
+import Wire.RateLimit.Interpreter
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
 import Wire.UserKeyStore
@@ -204,7 +206,8 @@ data Env = Env
     keyPackageLocalLock :: MVar (),
     rabbitmqChannel :: Maybe (MVar Q.Channel),
     disabledVersions :: Set Version,
-    enableSFTFederation :: Maybe Bool
+    enableSFTFederation :: Maybe Bool,
+    rateLimitEnv :: RateLimitEnv
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
@@ -264,6 +267,7 @@ newEnv opts = do
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) opts.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
+  rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -299,7 +303,8 @@ newEnv opts = do
         keyPackageLocalLock = kpLock,
         rabbitmqChannel = rabbitChan,
         disabledVersions = allDisabledVersions,
-        enableSFTFederation = opts.multiSFT
+        enableSFTFederation = opts.multiSFT,
+        rateLimitEnv
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
