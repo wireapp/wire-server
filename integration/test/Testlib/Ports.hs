@@ -23,6 +23,7 @@ port (ServiceInternal Gundeck) bn = mkPort 8086 bn
 port (ServiceInternal Nginz) bn = mkPort 8080 bn
 port (ServiceInternal Spar) bn = mkPort 8088 bn
 port (ServiceInternal Stern) bn = mkPort 8091 bn
+port (ServiceInternal WireServerEnterprise) bn = mkPort 8079 bn
 
 portForDyn :: (Num a) => PortNamespace -> Int -> a
 portForDyn ns i = port ns (DynamicBackend i)
