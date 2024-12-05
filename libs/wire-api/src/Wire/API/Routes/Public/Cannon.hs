@@ -22,12 +22,14 @@ import Servant
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Version
 import Wire.API.Routes.WebSocket
 
 type CannonAPI =
   Named
     "await-notifications"
     ( Summary "Establish websocket connection"
+        :> Until 'V9
         :> "await"
         :> ZUser
         :> ZConn
