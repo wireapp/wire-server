@@ -58,6 +58,7 @@ import Data.Handle
 import Data.HavePendingInvitations
 import Data.Id as Id
 import Data.Map.Strict qualified as Map
+import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -110,6 +111,7 @@ import Wire.InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
+import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.TeamInvitationSubsystem
@@ -153,7 +155,9 @@ servantSitemap ::
     Member (Embed IO) r,
     Member ActivationCodeStore r,
     Member (Input UserSubsystemConfig) r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member (Polysemy.Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -210,7 +214,9 @@ accountAPI ::
     Member (Embed IO) r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member (Polysemy.Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -495,12 +501,14 @@ createUserNoVerify ::
     Member (Input (Local ())) r,
     Member HashPassword r,
     Member PasswordResetCodeStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Polysemy.Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
-  NewUser ->
+  NewUser PlainTextPassword8 ->
   (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
-  result <- API.createUser uData
+  result <- API.createUser RateLimitInternal uData
   let acc = createdAccount result
   let uid = userId acc
   let eac = createdEmailActivation result
@@ -515,7 +523,6 @@ createUserNoVerifySpar ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member HashPassword r,
     Member PasswordResetCodeStore r
   ) =>
   NewUserSpar ->

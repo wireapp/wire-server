@@ -44,6 +44,7 @@ import Util.Options
 import Wire.API.MLS.Keys
 import Wire.API.Team.Member
 import Wire.NotificationSubsystem.Interpreter
+import Wire.RateLimit.Interpreter (RateLimitEnv)
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
@@ -63,7 +64,8 @@ data Env = Env
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
-    _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl)
+    _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl),
+    _passwordHashingRateLimitEnv :: RateLimitEnv
   }
 
 -- | Environment specific to the communication with external

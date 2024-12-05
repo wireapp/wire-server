@@ -68,13 +68,11 @@ import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
-import Polysemy
 import Wire.API.Password
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
-import Wire.HashPassword
 
 -- | Preconditions:
 --
@@ -85,8 +83,7 @@ import Wire.HashPassword
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
 newAccount ::
-  (Member HashPassword r) =>
-  NewUser ->
+  NewUser Password ->
   Maybe InvitationId ->
   Maybe TeamId ->
   Maybe Handle ->
@@ -100,7 +97,7 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  passwd <- maybe (pure Nothing) (fmap Just . liftSem . hashPassword8) pass
+  -- passwd <- maybe (pure Nothing) (fmap Just . liftSem . hashPassword8 (RateLimitIp ipAddr)) pass
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
@@ -110,10 +107,9 @@ newAccount u inv tid mbHandle = do
       now <- liftIO =<< asks (.currentTime)
       pure . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> pure Nothing
-  pure (user uid domain (locale defLoc) expiry, passwd)
+  pure (user uid domain (locale defLoc) expiry, u.newUserPassword)
   where
     ident = newUserIdentity u
-    pass = newUserPassword u
     name = newUserDisplayName u
     pict = fromMaybe noPict (newUserPict u)
     assets = newUserAssets u

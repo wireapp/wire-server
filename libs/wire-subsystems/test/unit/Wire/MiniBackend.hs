@@ -75,10 +75,9 @@ import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.InvitationStore
 import Wire.MockInterpreters
-import Wire.MockInterpreters.ActivationCodeStore (inMemoryActivationCodeStoreInterpreter)
-import Wire.MockInterpreters.InvitationStore (inMemoryInvitationStoreInterpreter)
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
+import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Metrics
@@ -147,7 +146,8 @@ instance Arbitrary NotPendingSSOIdWithEmailStoredUser where
 type AllErrors =
   [ Error UserSubsystemError,
     Error FederationError,
-    Error AuthenticationSubsystemError
+    Error AuthenticationSubsystemError,
+    Error RateLimitExceeded
   ]
 
 type MiniBackendEffects = UserSubsystem ': MiniBackendLowerEffects
@@ -171,6 +171,7 @@ type MiniBackendLowerEffects =
     FederationConfigStore,
     PasswordResetCodeStore,
     SessionStore,
+    RateLimit,
     HashPassword,
     DeleteQueue,
     Events,
@@ -433,6 +434,7 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
         . miniEventInterpreter
         . inMemoryDeleteQueueInterpreter
         . staticHashPasswordInterpreter
+        . noRateLimit
         . runInMemorySessionStore
         . runInMemoryPasswordResetCodeStore
         . runFederationConfigStoreInMemory
@@ -484,7 +486,7 @@ liftUserStoreState = interpret $ \case
   Put newUsers -> modify $ \b -> b {users = newUsers}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case

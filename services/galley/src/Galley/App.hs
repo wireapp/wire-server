@@ -107,9 +107,12 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
+import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
+import Wire.RateLimit
+import Wire.RateLimit.Interpreter
 import Wire.Rpc
 import Wire.Sem.Delay
 import Wire.Sem.Logger qualified
@@ -175,6 +178,7 @@ createEnv o l = do
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
     <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
     <*> pure codeURIcfg
+    <*> newRateLimitEnv (o ^. settings . passwordHashingRateLimit)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l =
@@ -254,6 +258,8 @@ evalGalley e =
     . mapError toResponse
     . runInputConst e
     . runInputConst (e ^. cstate)
+    . mapError httpErrorToJSONResponse
+    . mapError rateLimitExceededToHttpError
     . mapError toResponse -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
@@ -279,6 +285,7 @@ evalGalley e =
     . interpretCustomBackendStoreToCassandra
     . randomToIO
     . runHashPassword e._options._settings._passwordHashingOptions
+    . interpretRateLimit e._passwordHashingRateLimitEnv
     . interpretSubConversationStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretProposalStoreToCassandra

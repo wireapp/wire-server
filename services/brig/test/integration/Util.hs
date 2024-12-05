@@ -432,7 +432,7 @@ postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid bri
           ]
             <> ["password" .= defPassword | hasPassword]
       p = case Aeson.parse parseJSON o of
-        Aeson.Success (p_ :: NewUser) -> p_
+        Aeson.Success (p_ :: NewUser PlainTextPassword8) -> p_
         bad -> error $ show (bad, o)
       bdy = if validateBody then Bilge.json p else Bilge.json o
   post (brig . path "/i/users" . bdy)

@@ -31,7 +31,7 @@ import Data.LanguageCodes qualified
       ( SN
       ),
   )
-import Data.Misc (plainTextPassword8Unsafe)
+import Data.Misc
 import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.UUID qualified as UUID (fromString)
@@ -42,7 +42,7 @@ import Wire.API.User
 import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
 
-testObject_NewUser_user_1 :: NewUser
+testObject_NewUser_user_1 :: NewUser PlainTextPassword8
 testObject_NewUser_user_1 =
   NewUser
     { newUserDisplayName =
@@ -81,10 +81,10 @@ testObject_NewUser_user_1 =
       newUserSupportedProtocols = Nothing
     }
 
-testObject_NewUser_user_2 :: NewUser
+testObject_NewUser_user_2 :: NewUser PlainTextPassword8
 testObject_NewUser_user_2 = emptyNewUser (Name {fromName = "\NUL`)\a|>}\EM5z\70179\t>w\SO\1007537"})
 
-testObject_NewUser_user_3 :: NewUser
+testObject_NewUser_user_3 :: NewUser PlainTextPassword8
 testObject_NewUser_user_3 = testObject_NewUser_user_2 {newUserExpiresIn = Just (unsafeRange 378975)}
 
 invCode :: InvitationCode
@@ -96,7 +96,7 @@ invCode =
           (validate "RUne0vse27qsm5jxGmL0xQaeuEOqcqr65rU=")
     }
 
-testObject_NewUser_user_4 :: NewUser
+testObject_NewUser_user_4 :: NewUser PlainTextPassword8
 testObject_NewUser_user_4 =
   ( emptyNewUser
       (Name {fromName = "test name"})
@@ -104,7 +104,7 @@ testObject_NewUser_user_4 =
     { newUserOrigin = Just (NewUserOriginInvitationCode invCode)
     }
 
-testObject_NewUser_user_5 :: NewUser
+testObject_NewUser_user_5 :: NewUser PlainTextPassword8
 testObject_NewUser_user_5 =
   ( emptyNewUser
       (Name {fromName = "test name"})
@@ -113,7 +113,7 @@ testObject_NewUser_user_5 =
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }
 
-testObject_NewUser_user_6 :: NewUser
+testObject_NewUser_user_6 :: NewUser PlainTextPassword8
 testObject_NewUser_user_6 =
   ( emptyNewUser
       (Name {fromName = "test name"})
@@ -124,7 +124,7 @@ testObject_NewUser_user_6 =
   where
     tid = Id (fromJust (UUID.fromString "00007b0e-0000-3489-0000-075c00005be7"))
 
-testObject_NewUser_user_7 :: NewUser
+testObject_NewUser_user_7 :: NewUser PlainTextPassword8
 testObject_NewUser_user_7 =
   ( emptyNewUser
       (Name {fromName = "test name"})
@@ -151,7 +151,7 @@ testObject_NewUser_user_7 =
           bnuCurrency = Just XUA
         }
 
-testObject_NewUser_user_8 :: NewUser
+testObject_NewUser_user_8 :: NewUser PlainTextPassword8
 testObject_NewUser_user_8 =
   ( emptyNewUser
       (Name {fromName = "test name"})
