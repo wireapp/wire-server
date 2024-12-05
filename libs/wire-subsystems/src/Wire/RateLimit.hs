@@ -24,6 +24,10 @@ data RateLimitKey
   deriving anyclass (Hashable)
   deriving (Arbitrary) via (GenericUniform RateLimitKey)
 
+withIpAddress :: RateLimitKey -> a -> (IpAddr -> a) -> a
+withIpAddress (RateLimitIp ip) _ f = f ip
+withIpAddress _ x _ = x
+
 data RateLimit m a where
   -- | To be run before an action which should be rate limited. Returns min.
   -- wait time in microseconds before the rate limit is lifted. 0 means, no rate
