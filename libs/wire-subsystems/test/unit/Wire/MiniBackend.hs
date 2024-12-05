@@ -79,6 +79,7 @@ import Wire.InvitationStore
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
+import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Metrics
@@ -147,7 +148,8 @@ instance Arbitrary NotPendingSSOIdWithEmailStoredUser where
 type AllErrors =
   [ Error UserSubsystemError,
     Error FederationError,
-    Error AuthenticationSubsystemError
+    Error AuthenticationSubsystemError,
+    Error RateLimitExceeded
   ]
 
 type MiniBackendEffects = UserSubsystem ': MiniBackendLowerEffects
@@ -187,6 +189,7 @@ type MiniBackendLowerEffects =
      DRS.DomainRegistrationStore,
      PasswordResetCodeStore,
      SessionStore,
+     RateLimit,
      HashPassword,
      DeleteQueue,
      Events,
@@ -217,6 +220,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticHashPasswordInterpreter
+    . noRateLimit
     . runInMemorySessionStore
     . runInMemoryPasswordResetCodeStore
     . inMemoryDomainRegistrationStoreInterpreter
@@ -528,7 +532,7 @@ liftUserStoreState = interpret $ \case
   Put newUsers -> modify $ \b -> b {users = newUsers}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case

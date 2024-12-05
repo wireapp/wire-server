@@ -111,6 +111,7 @@ data BrigError
   | DomainVerificationPaymentRequired
   | DomainVerificationNotEnabled
   | DomainVerificationChallengeNotFound
+  | RateLimitExceeded
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -331,3 +332,5 @@ type instance MapError 'DomainVerificationPaymentRequired = 'StaticError 402 "do
 type instance MapError 'DomainVerificationNotEnabled = 'StaticError 503 "enterprise-service-not-enabled" "Enterprise service not enabled"
 
 type instance MapError 'DomainVerificationChallengeNotFound = 'StaticError 404 "challenge-not-found" "Challenge not found"
+
+type instance MapError 'RateLimitExceeded = 'StaticError 429 "too-many-requests" "Please try again later."

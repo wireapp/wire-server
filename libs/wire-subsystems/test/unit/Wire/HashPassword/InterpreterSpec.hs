@@ -5,6 +5,7 @@ import Data.Misc
 import Data.Text qualified as Text
 import Imports
 import Polysemy
+import Polysemy.Error
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -12,67 +13,75 @@ import Util.Options
 import Wire.API.Password
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
-import Wire.MockInterpreters (runRandomPure)
+import Wire.MockInterpreters
+import Wire.RateLimit
 import Wire.Sem.Random (Random)
 
-runDependentEffects :: Sem '[Random] a -> a
-runDependentEffects = run . runRandomPure
+runDependentEffects :: Sem '[Random, RateLimit, Error RateLimitExceeded] a -> a
+runDependentEffects =
+  run
+    . runErrorUnsafe
+    . noRateLimit
+    . runRandomPure
+
+rateLimitKey :: RateLimitKey
+rateLimitKey = RateLimitIp (IpAddr "0.0.0.0")
 
 spec :: Spec
 spec = describe "HashPassword.Interpreter" $ do
   -- Scrypt tests take too long to run, so we limit max success here
   prop "Scrypt: hashPassword6/verify roundtrip" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword6) ->
-    let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword6 pw
-        isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword pw hashed
+    let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword6 rateLimitKey pw
+        isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
   prop "Scrypt: hashPassword8/verify roundtrip" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword8) ->
-    let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 pw
-        isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword pw hashed
+    let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 rateLimitKey pw
+        isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
   prop "Scrypt: hash/verify: wrong password" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword8) (wrongPw :: PlainTextPassword8) ->
-    let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 pw
-        isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword wrongPw hashed
+    let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 rateLimitKey pw
+        isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword rateLimitKey wrongPw hashed
      in pw /= wrongPw ==> isVerified === False
 
   prop "Scrypt: hash/verify: verify with differentOptions" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword8) ->
-    let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 pw
-        isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword pw hashed
+    let hashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 rateLimitKey pw
+        isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
   prop "Argon2id: hashPassword6/verify roundtrip" $ \(pw :: PlainTextPassword6) ->
-    let hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword6 pw
-        isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword pw hashed
+    let hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword6 rateLimitKey pw
+        isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
   prop "Argon2id: hashPassword8/verify roundtrip" $ \(pw :: PlainTextPassword8) ->
-    let hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword8 pw
-        isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword pw hashed
+    let hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword8 rateLimitKey pw
+        isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
   prop "Argon2id: hash/verify: wrong password" $ \(pw :: PlainTextPassword8) (wrongPw :: PlainTextPassword8) ->
-    let hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword8 pw
-        isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword wrongPw hashed
+    let hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword8 rateLimitKey pw
+        isVerified = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPassword rateLimitKey wrongPw hashed
      in pw /= wrongPw ==> isVerified === False
 
   prop "Argon2id: hash/verify: verify with differentOptions" $ \(pw :: PlainTextPassword8) ->
-    let hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword8 pw
-        isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword pw hashed
+    let hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword8 rateLimitKey pw
+        isVerified = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPassword rateLimitKey pw hashed
      in isVerified === True
 
   prop "verifyPasswordWithStatus: scrypt password" $ withMaxSuccess 20 $ \(pw :: PlainTextPassword8) ->
-    let scryptHashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 pw
-        (_, statusWithScrypt) = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPasswordWithStatus pw scryptHashed
-        (_, statusWithArgon2id) = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPasswordWithStatus pw scryptHashed
+    let scryptHashed = runDependentEffects . runHashPassword PasswordHashingScrypt $ hashPassword8 rateLimitKey pw
+        (_, statusWithScrypt) = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPasswordWithStatus rateLimitKey pw scryptHashed
+        (_, statusWithArgon2id) = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPasswordWithStatus rateLimitKey pw scryptHashed
      in statusWithScrypt === PasswordStatusOk
           .&. statusWithArgon2id === PasswordStatusNeedsUpdate
 
   prop "verifyPasswordWithStatus: argon2id password" $ \(pw :: PlainTextPassword8) ->
-    let argon2Hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword8 pw
-        (_, statusWithScrypt) = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPasswordWithStatus pw argon2Hashed
-        (_, statusWithArgon2id) = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPasswordWithStatus pw argon2Hashed
-        (_, statusWithDifferentArgon2id) = runDependentEffects . runHashPassword slowArgon2IdOptions $ verifyPasswordWithStatus pw argon2Hashed
+    let argon2Hashed = runDependentEffects . runHashPassword fastArgon2IdOptions $ hashPassword8 rateLimitKey pw
+        (_, statusWithScrypt) = runDependentEffects . runHashPassword PasswordHashingScrypt $ verifyPasswordWithStatus rateLimitKey pw argon2Hashed
+        (_, statusWithArgon2id) = runDependentEffects . runHashPassword fastArgon2IdOptions $ verifyPasswordWithStatus rateLimitKey pw argon2Hashed
+        (_, statusWithDifferentArgon2id) = runDependentEffects . runHashPassword slowArgon2IdOptions $ verifyPasswordWithStatus rateLimitKey pw argon2Hashed
      in statusWithScrypt === PasswordStatusOk
           .&. statusWithArgon2id === PasswordStatusOk
           .&.
@@ -89,7 +98,7 @@ spec = describe "HashPassword.Interpreter" $ do
         Right hashed -> do
           let isVerified =
                 runDependentEffects . runHashPassword fastArgon2IdOptions $
-                  verifyPassword (plainTextPassword8Unsafe plain) hashed
+                  verifyPassword rateLimitKey (plainTextPassword8Unsafe plain) hashed
           isVerified `shouldBe` True
 
 -- Password and hashes generated using the old code, but verified using the new one.

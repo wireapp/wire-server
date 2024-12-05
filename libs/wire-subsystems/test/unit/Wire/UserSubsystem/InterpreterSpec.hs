@@ -37,6 +37,7 @@ import Wire.InvitationStore (StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
 import Wire.MockInterpreters
+import Wire.RateLimit
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
@@ -96,6 +97,7 @@ spec = describe "UserSubsystem.Interpreter" do
               run
                 . runErrorUnsafe @UserSubsystemError
                 . runErrorUnsafe @AuthenticationSubsystemError
+                . runErrorUnsafe @RateLimitExceeded
                 . runError @FederationError
                 . interpretFederationStack localBackend online Nothing config
                 $ getUserProfiles
@@ -588,6 +590,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 run
                   . runErrorUnsafe
                   . runErrorUnsafe @AuthenticationSubsystemError
+                  . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing}
@@ -603,6 +606,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   run
                     . runErrorUnsafe
                     . runErrorUnsafe @AuthenticationSubsystemError
+                    . runErrorUnsafe @RateLimitExceeded
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
@@ -618,6 +622,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   run
                     . runErrorUnsafe
                     . runErrorUnsafe @AuthenticationSubsystemError
+                    . runErrorUnsafe @RateLimitExceeded
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
@@ -634,6 +639,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 run
                   . runErrorUnsafe
                   . runErrorUnsafe @AuthenticationSubsystemError
+                  . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack
                     localBackend
@@ -697,6 +703,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 res = run
                   . runErrorUnsafe
                   . runErrorUnsafe @AuthenticationSubsystemError
+                  . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
@@ -711,6 +718,7 @@ spec = describe "UserSubsystem.Interpreter" do
             let res :: Either UserSubsystemError () = run
                   . runErrorUnsafe
                   . runErrorUnsafe @AuthenticationSubsystemError
+                  . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
@@ -734,6 +742,7 @@ spec = describe "UserSubsystem.Interpreter" do
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runErrorUnsafe @AuthenticationSubsystemError
+                . runErrorUnsafe @RateLimitExceeded
                 . runError
                 $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
@@ -748,6 +757,7 @@ spec = describe "UserSubsystem.Interpreter" do
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runErrorUnsafe @AuthenticationSubsystemError
+                . runErrorUnsafe @RateLimitExceeded
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id

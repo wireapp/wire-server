@@ -281,6 +281,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.PasswordStore
     Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
+    Wire.MockInterpreters.RateLimit
     Wire.MockInterpreters.SessionStore
     Wire.MockInterpreters.SparAPIAccess
     Wire.MockInterpreters.TinyLog
@@ -290,8 +291,8 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
-    Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
+    Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec

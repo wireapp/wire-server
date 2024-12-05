@@ -1,4 +1,4 @@
-module Wire.MockInterpreters.HashPassword where
+module Wire.MockInterpreters.HashPassword (staticHashPasswordInterpreter, hashPassword) where
 
 import Crypto.KDF.Argon2 as Argon2
 import Data.Misc
