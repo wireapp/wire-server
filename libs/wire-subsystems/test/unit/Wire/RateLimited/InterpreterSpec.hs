@@ -15,7 +15,7 @@ import Wire.RateLimit.Interpreter
 
 defaultTestConfig :: Int -> TokenBucketConfig -> TokenBucketConfig -> TokenBucketConfig -> RateLimitConfig
 defaultTestConfig maxRateLimitedKeys ipAddrLimit userLimit internalLimit =
-  RateLimitConfig {ipv4CidrBlock = 32, ipv6CidrBlock = 128, ..}
+  RateLimitConfig {ipv4CidrBlock = 32, ipv6CidrBlock = 128, ipAddressExceptions = [], ..}
 
 spec :: Spec
 spec = do
@@ -186,7 +186,8 @@ spec = do
               internalLimit = tbConfig,
               ipv4CidrBlock = 24,
               ipv6CidrBlock = 128,
-              maxRateLimitedKeys = 2
+              maxRateLimitedKeys = 2,
+              ipAddressExceptions = []
             }
       runM . interpretRateLimit env $ do
         range1_ip1_wait <- checkRateLimit range1_ip1
@@ -211,7 +212,8 @@ spec = do
               internalLimit = tbConfig,
               ipv4CidrBlock = 32,
               ipv6CidrBlock = 64,
-              maxRateLimitedKeys = 10
+              maxRateLimitedKeys = 10,
+              ipAddressExceptions = []
             }
       runM . interpretRateLimit env $ do
         range1_ip1_wait <- checkRateLimit range1_ip1
@@ -221,6 +223,41 @@ spec = do
           range1_ip1_wait `shouldBe` 0
           range1_ip2_wait `shouldNotBe` 0
           range2_ip1_wait `shouldBe` 0
+
+    -- Too much work to write a property test
+    it "should allow adding IP Address exceptions" $ do
+      let ipv4CidrBlock = 16
+          -- This is smaller than the ipv4CidrBlock to cover some edge cases
+          exceptionRange = IpAddrRange "10.0.0.0/24"
+          excIp1 = RateLimitIp . IpAddr $ "10.0.0.1"
+          excIp2 = RateLimitIp . IpAddr $ "10.0.0.244"
+          -- This IP is chosen to be in the same /16 range as any IP in the
+          -- exceptionRange, i.e. 10.0.0.0/16
+          limitedIp = RateLimitIp . IpAddr $ "10.0.1.1"
+      let tbConfig = TokenBucketConfig {burst = 1, inverseRate = 1_000_000}
+      env <-
+        newRateLimitEnv $
+          RateLimitConfig
+            { ipAddrLimit = tbConfig,
+              userLimit = tbConfig,
+              internalLimit = tbConfig,
+              ipv4CidrBlock,
+              ipv6CidrBlock = 64,
+              maxRateLimitedKeys = 10,
+              ipAddressExceptions = [exceptionRange]
+            }
+      runM . interpretRateLimit env $ do
+        limitedIpWait1 <- checkRateLimit limitedIp
+        limitedIpWait2 <- checkRateLimit limitedIp
+        excIp1Wait1 <- checkRateLimit excIp1
+        excIp1Wait2 <- checkRateLimit excIp1
+        excIp2Wait1 <- checkRateLimit excIp2
+        excIp2Wait2 <- checkRateLimit excIp2
+        liftIO $ do
+          limitedIpWait1 `shouldBe` 0
+          limitedIpWait2 `shouldNotBe` 0
+
+          [excIp1Wait1, excIp1Wait2, excIp2Wait1, excIp2Wait2] `shouldBe` [0, 0, 0, 0]
 
   describe "tryRateLimit" $ do
     prop "executes an operation only when allowed by rate limit" $ \(key :: RateLimitKey) -> ioProperty $ do
