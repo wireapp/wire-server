@@ -291,6 +291,7 @@ upgradePersonalToTeam luid bNewTeam = do
       pure $ CreateUserTeam tid (fromRange newTeam.newTeamName)
 
     liftSem $ updateUserTeam uid tid
+    liftSem $ User.internalUpdateSearchIndex uid
     liftSem $ Intra.sendUserEvent uid Nothing (teamUpdated uid tid)
     initAccountFeatureConfig uid
 

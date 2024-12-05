@@ -296,6 +296,16 @@ testUpgradePersonalToTeam = do
     shouldBeNull $ owner %. "created_at"
     shouldBeNull $ owner %. "created_by"
 
+  mem <- createTeamMember alice' def
+  I.refreshIndex OwnDomain
+
+  bindResponse (searchTeamAll alice') $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    actualIds <- for docs ((%. "id") >=> asString)
+    expectedIds <- for [alice', mem] ((%. "id") >=> asString)
+    actualIds `shouldMatchSet` expectedIds
+
 testUpgradePersonalToTeamAlreadyInATeam :: (HasCallStack) => App ()
 testUpgradePersonalToTeamAlreadyInATeam = do
   (alice, _, _) <- createTeam OwnDomain 0
