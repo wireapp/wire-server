@@ -43,6 +43,10 @@ stern:
   host: 127.0.0.1
   port: 8091
 
+wireServerEnterprise:
+  host: 127.0.0.1
+  port: 8079
+
 # client-API:
 # webapp ---> load balancer  ---> nginx-ingress (TLS termination) ---> nginz ----> brig
 #
@@ -115,6 +119,9 @@ backendTwo:
   stern:
     host: 127.0.0.1
     port: 9091
+  wireServerEnterprise:
+    host: 127.0.0.1
+    port: 9079
 
   originDomain: b.example.com
 
@@ -200,6 +207,9 @@ federation-v0:
   stern:
     host: 127.0.0.1
     port: 21091
+  wireServerEnterprise:
+    host: 127.0.0.1
+    port: 21079
 
 federation-v1:
   originDomain: federation-v1.example.com
@@ -239,5 +249,8 @@ federation-v1:
   stern:
     host: 127.0.0.1
     port: 22091
+  wireServerEnterprise:
+    host: 127.0.0.1
+    port: 22079
 
 integrationTestHostName: "localhost"
