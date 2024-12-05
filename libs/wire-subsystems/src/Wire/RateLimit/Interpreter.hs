@@ -39,7 +39,8 @@ data RateLimitConfig = RateLimitConfig
     ipv6CidrBlock :: Int,
     -- | Maximum size of RateLimitKey -> TokenBucket map. When full the least
     -- recently used keys are dropped first.
-    maxRateLimitedKeys :: Int
+    maxRateLimitedKeys :: Int,
+    ipAddressExceptions :: [IpAddrRange]
   }
   deriving (Show, Eq, Generic)
 

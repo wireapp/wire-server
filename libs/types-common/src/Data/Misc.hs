@@ -29,6 +29,7 @@ module Data.Misc
   ( -- * IpAddr / Port
     IpAddr (..),
     Port (..),
+    IpAddrRange (..),
 
     -- * Location
     Latitude (..),
@@ -75,7 +76,7 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Hashable
-import Data.IP (IP (IPv4, IPv6), IPv4, IPv6, toIPv4, toIPv6b)
+import Data.IP
 import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
@@ -160,6 +161,22 @@ instance ToSchema IpAddr where
 
 instance ToSchema Port where
   schema = Port <$> portNumber .= schema
+
+newtype IpAddrRange = IpAddrRange {ipAddrRange :: IPRange}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema IpAddrRange)
+
+instance ToSchema IpAddrRange where
+  schema = toText .= parsedText "IpAddrRange" fromText
+    where
+      toText :: IpAddrRange -> Text
+      toText = Text.pack . show . ipAddrRange
+
+      fromText :: Text -> Either String IpAddrRange
+      fromText =
+        maybe (Left "Failed to parse IP Address Range") (Right . IpAddrRange)
+          . readMaybe
+          . Text.unpack
 
 --------------------------------------------------------------------------------
 -- Location

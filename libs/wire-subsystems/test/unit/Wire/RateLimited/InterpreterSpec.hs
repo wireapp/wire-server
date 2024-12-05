@@ -15,7 +15,7 @@ import Wire.RateLimit.Interpreter
 
 defaultTestConfig :: Int -> TokenBucketConfig -> TokenBucketConfig -> TokenBucketConfig -> RateLimitConfig
 defaultTestConfig maxRateLimitedKeys ipAddrLimit userLimit internalLimit =
-  RateLimitConfig {ipv4CidrBlock = 32, ipv6CidrBlock = 128, ..}
+  RateLimitConfig {ipv4CidrBlock = 32, ipv6CidrBlock = 128, ipAddressExceptions = [], ..}
 
 spec :: Spec
 spec = do
@@ -186,7 +186,8 @@ spec = do
               internalLimit = tbConfig,
               ipv4CidrBlock = 24,
               ipv6CidrBlock = 128,
-              maxRateLimitedKeys = 2
+              maxRateLimitedKeys = 2,
+              ipAddressExceptions = []
             }
       runM . interpretRateLimit env $ do
         range1_ip1_wait <- checkRateLimit range1_ip1
@@ -211,7 +212,8 @@ spec = do
               internalLimit = tbConfig,
               ipv4CidrBlock = 32,
               ipv6CidrBlock = 64,
-              maxRateLimitedKeys = 10
+              maxRateLimitedKeys = 10,
+              ipAddressExceptions = []
             }
       runM . interpretRateLimit env $ do
         range1_ip1_wait <- checkRateLimit range1_ip1
