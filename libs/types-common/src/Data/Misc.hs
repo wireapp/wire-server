@@ -29,6 +29,8 @@ module Data.Misc
   ( -- * IpAddr / Port
     IpAddr (..),
     Port (..),
+    IpAddrRange (..),
+    addrMatchesRange,
 
     -- * Location
     Latitude (..),
@@ -82,7 +84,7 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Hashable
-import Data.IP (IP (IPv4, IPv6), IPv4, IPv6, toIPv4, toIPv6b)
+import Data.IP
 import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
@@ -167,6 +169,31 @@ instance ToSchema IpAddr where
 
 instance ToSchema Port where
   schema = Port <$> portNumber .= schema
+
+newtype IpAddrRange = IpAddrRange {ipAddrRange :: IPRange}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema IpAddrRange)
+
+instance ToSchema IpAddrRange where
+  schema = toText .= parsedText "IpAddrRange" fromText
+    where
+      toText :: IpAddrRange -> Text
+      toText = Text.pack . show . ipAddrRange
+
+      fromText :: Text -> Either String IpAddrRange
+      fromText =
+        maybe (Left "Failed to parse IP Address Range") (Right . IpAddrRange)
+          . readMaybe
+          . Text.unpack
+
+addrMatchesRange :: IpAddr -> IpAddrRange -> Bool
+addrMatchesRange (IpAddr unwrappedIp) (IpAddrRange unwrappedRange) =
+  go unwrappedIp unwrappedRange
+  where
+    go (IPv4 ip) (IPv4Range range) = ip `isMatchedTo` range
+    go (IPv6 ip) (IPv6Range range) = ip `isMatchedTo` range
+    go (IPv6 ipv6) (IPv4Range rangev4) = ipv6 `isMatchedTo` ipv4RangeToIPv6 rangev4
+    go (IPv4 ipv4) (IPv6Range rangev6) = ipv4ToIPv6 ipv4 `isMatchedTo` rangev6
 
 --------------------------------------------------------------------------------
 -- Location

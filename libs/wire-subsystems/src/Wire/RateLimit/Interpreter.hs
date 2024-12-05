@@ -39,7 +39,8 @@ data RateLimitConfig = RateLimitConfig
     ipv6CidrBlock :: Int,
     -- | Maximum size of RateLimitKey -> TokenBucket map. When full the least
     -- recently used keys are dropped first.
-    maxRateLimitedKeys :: Int
+    maxRateLimitedKeys :: Int,
+    ipAddressExceptions :: [IpAddrRange]
   }
   deriving (Show, Eq, Generic)
 
@@ -66,31 +67,32 @@ interpretRateLimit env = interpret $ \case
 
 checkRateLimitImpl :: RateLimitEnv -> RateLimitKey -> IO Word64
 checkRateLimitImpl env origKey = do
-  -- Seems like unnecessary in most cases, but avoids IO in the
-  -- 'atomicModifyIORef'
-  newBucket <- newTokenBucket
-  let key = maskIp env.config origKey
-  bucket <- atomicModifyIORef env.tokenBucketsRef $ \tokenBuckets ->
-    case LruCache.lookup key tokenBuckets of
-      Nothing -> do
-        (LruCache.insert key newBucket tokenBuckets, newBucket)
-      Just (bucket, newBuckets) ->
-        (newBuckets, bucket)
-  -- putStrLn $ "Got bucket for: " <> show key
-  let tokenBucketConfig = case key of
-        RateLimitIp {} -> env.config.ipAddrLimit
-        RateLimitUser {} -> env.config.userLimit
-        RateLimitProvider {} -> env.config.userLimit
-        RateLimitInternal -> env.config.internalLimit
-  tokenBucketTryAlloc1 bucket tokenBucketConfig.burst tokenBucketConfig.inverseRate
+  let isExcepted = withIpAddress origKey False $ \ip ->
+        any (addrMatchesRange ip) env.config.ipAddressExceptions
+  if isExcepted
+    then pure 0
+    else do
+      let maskedKey = withIpAddress origKey origKey (RateLimitIp . maskIp env.config)
+      -- Seems unnecessary in most cases, but avoids IO in the
+      -- 'atomicModifyIORef'
+      newBucket <- newTokenBucket
+      bucket <- atomicModifyIORef env.tokenBucketsRef $ \tokenBuckets ->
+        case LruCache.lookup maskedKey tokenBuckets of
+          Nothing -> do
+            (LruCache.insert maskedKey newBucket tokenBuckets, newBucket)
+          Just (bucket, newBuckets) ->
+            (newBuckets, bucket)
+      let tokenBucketConfig = case maskedKey of
+            RateLimitIp {} -> env.config.ipAddrLimit
+            RateLimitUser {} -> env.config.userLimit
+            RateLimitProvider {} -> env.config.userLimit
+            RateLimitInternal -> env.config.internalLimit
+      tokenBucketTryAlloc1 bucket tokenBucketConfig.burst tokenBucketConfig.inverseRate
 
-maskIp :: RateLimitConfig -> RateLimitKey -> RateLimitKey
-maskIp _ key@RateLimitUser {} = key
-maskIp _ key@RateLimitInternal = key
-maskIp _ key@RateLimitProvider {} = key
-maskIp RateLimitConfig {ipv4CidrBlock} (RateLimitIp (IpAddr (IPv4 ip))) =
-  RateLimitIp . IpAddr . IPv4 $
+maskIp :: RateLimitConfig -> IpAddr -> IpAddr
+maskIp RateLimitConfig {ipv4CidrBlock} ((IpAddr (IPv4 ip))) =
+  IpAddr . IPv4 $
     ip `masked` intToMask ipv4CidrBlock
-maskIp RateLimitConfig {ipv6CidrBlock} (RateLimitIp (IpAddr (IPv6 ip))) =
-  RateLimitIp . IpAddr . IPv6 $
+maskIp RateLimitConfig {ipv6CidrBlock} ((IpAddr (IPv6 ip))) =
+  IpAddr . IPv6 $
     ip `masked` intToMask ipv6CidrBlock
