@@ -42,7 +42,7 @@ streamData userId connId clientId con = do
   e <- wsenv
   liftIO $ wsapp (mkKey userId connId) clientId e con
 
-consumeEvents :: UserId -> ClientId -> PendingConnection -> Cannon ()
-consumeEvents userId clientId con = do
+consumeEvents :: UserId -> Maybe ClientId -> PendingConnection -> Cannon ()
+consumeEvents userId mClientId con = do
   e <- wsenv
-  liftIO $ rabbitMQWebSocketApp userId clientId e con
+  liftIO $ rabbitMQWebSocketApp userId mClientId e con
