@@ -265,6 +265,12 @@ searchTeam user q = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
   submit "GET" (req & addQueryParams [("q", q)])
 
+searchTeamAll :: (HasCallStack, MakesValue user) => user -> App Response
+searchTeamAll user = do
+  tid <- user %. "team" & asString
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
+  submit "GET" (req & addQueryParams [("q", ""), ("size", "100"), ("sortby", "created_at"), ("sortorder", "desc")])
+
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
   req <- baseRequest domain Brig Unversioned $ "/api-version"
