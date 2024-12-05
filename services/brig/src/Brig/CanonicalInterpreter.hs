@@ -55,6 +55,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
+import Wire.HashPassword.Interpreter
 import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
@@ -70,6 +71,8 @@ import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
 import Wire.PropertySubsystem
 import Wire.PropertySubsystem.Interpreter
+import Wire.RateLimit
+import Wire.RateLimit.Interpreter
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -121,9 +124,11 @@ type BrigLowerLevelEffects =
      Error Wire.API.Federation.Error.FederationError,
      Error VerificationCodeSubsystemError,
      Error PropertySubsystemError,
+     Error RateLimitExceeded,
      Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      HashPassword,
+     RateLimit,
      UserKeyStore,
      UserStore,
      IndexedUserStore,
@@ -267,9 +272,11 @@ runBrigToIO e (AppT ma) = do
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
+              . interpretRateLimit e.rateLimitEnv
               . runHashPassword e.settings.passwordHashingOptions
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
+              . mapError rateLimitExceededToHttpError
               . mapError propertySubsystemErrorToHttpError
               . mapError verificationCodeSubsystemErrorToHttpError
               . mapError (StdError . federationErrorToWai)

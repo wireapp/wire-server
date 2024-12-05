@@ -1,10 +1,12 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -27,6 +29,7 @@ module Data.Misc
   ( -- * IpAddr / Port
     IpAddr (..),
     Port (..),
+    IpAddrRange (..),
 
     -- * Location
     Latitude (..),
@@ -72,7 +75,8 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
+import Data.Hashable
+import Data.IP
 import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
@@ -90,10 +94,20 @@ import URI.ByteString hiding (Port, portNumber)
 import URI.ByteString.QQ qualified as URI.QQ
 
 --------------------------------------------------------------------------------
+-- Orphans
+
+deriving anyclass instance Hashable IP
+
+deriving anyclass instance Hashable IPv4
+
+deriving anyclass instance Hashable IPv6
+
+--------------------------------------------------------------------------------
 -- IpAddr / Port
 
 newtype IpAddr = IpAddr {ipAddr :: IP}
   deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Hashable)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema IpAddr)
 
 instance S.ToParamSchema IpAddr where
@@ -117,7 +131,6 @@ instance Read IpAddr where
 
 instance NFData IpAddr where rnf (IpAddr a) = seq a ()
 
--- TODO: Add an arbitrary instance for IPv6
 instance Arbitrary IpAddr where
   arbitrary = IpAddr <$> QC.oneof [IPv4 <$> genIPv4, IPv6 <$> genIPv6]
     where
@@ -149,13 +162,33 @@ instance ToSchema IpAddr where
 instance ToSchema Port where
   schema = Port <$> portNumber .= schema
 
+newtype IpAddrRange = IpAddrRange {ipAddrRange :: IPRange}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema IpAddrRange)
+
+instance ToSchema IpAddrRange where
+  schema = toText .= parsedText "IpAddrRange" fromText
+    where
+      toText :: IpAddrRange -> Text
+      toText = Text.pack . show . ipAddrRange
+
+      fromText :: Text -> Either String IpAddrRange
+      fromText =
+        maybe (Left "Failed to parse IP Address Range") (Right . IpAddrRange)
+          . readMaybe
+          . Text.unpack
+
 --------------------------------------------------------------------------------
 -- Location
 
 -- FUTUREWORK: why not use these in 'Location'?
-newtype Latitude = Latitude Double deriving (NFData, Generic)
+newtype Latitude = Latitude Double
+  deriving newtype (NFData)
+  deriving stock (Generic)
 
-newtype Longitude = Longitude Double deriving (NFData, Generic)
+newtype Longitude = Longitude Double
+  deriving newtype (NFData)
+  deriving stock (Generic)
 
 instance Cql Latitude where
   ctype = Tagged DoubleColumn

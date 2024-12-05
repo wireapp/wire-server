@@ -104,6 +104,10 @@ let
       };
     };
 
+    wire-server-enterprise = {
+      src = ./submodules/wire-server-enterprise;
+    };
+
     # PR: https://github.com/dpwright/HaskellNet-SSL/pull/33
     HaskellNet-SSL = {
       src = fetchgit {

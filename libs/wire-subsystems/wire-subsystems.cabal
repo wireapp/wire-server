@@ -95,6 +95,9 @@ library
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
     Wire.HashPassword
+    Wire.HashPassword.Argon2id
+    Wire.HashPassword.Interpreter
+    Wire.HashPassword.Scrypt
     Wire.IndexedUserStore
     Wire.IndexedUserStore.Bulk
     Wire.IndexedUserStore.Bulk.ElasticSearch
@@ -115,6 +118,8 @@ library
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
+    Wire.RateLimit
+    Wire.RateLimit.Interpreter
     Wire.Rpc
     Wire.SessionStore
     Wire.SessionStore.Cassandra
@@ -171,6 +176,7 @@ library
     , exceptions
     , extended
     , extra
+    , hashable
     , HaskellNet
     , HaskellNet-SSL
     , HsOpenSSL
@@ -180,8 +186,10 @@ library
     , http-types
     , http2-manager
     , imports
+    , iproute
     , iso639
     , lens
+    , lrucaching
     , memory
     , mime
     , mime-mail
@@ -208,6 +216,7 @@ library
     , time-out
     , time-units
     , tinylog
+    , token-bucket
     , transformers
     , types-common
     , unliftio
@@ -235,6 +244,7 @@ test-suite wire-subsystems-tests
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.HashPassword.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
@@ -252,6 +262,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.PasswordStore
     Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
+    Wire.MockInterpreters.RateLimit
     Wire.MockInterpreters.SessionStore
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
@@ -259,6 +270,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
+    Wire.RateLimited.InterpreterSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
@@ -279,6 +291,7 @@ test-suite wire-subsystems-tests
     , extended
     , hspec
     , imports
+    , iproute
     , iso639
     , lens
     , mime-mail

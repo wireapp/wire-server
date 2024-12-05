@@ -15,7 +15,7 @@ spec :: Spec
 spec = do
   describe "ActivationCodeStore effect" $ do
     prop "a code can be looked up" $ \emailKey config ->
-      let c = code emailKey
+      let c = emailKeyToCode emailKey
           localBackend =
             def {activationCodes = Map.singleton emailKey (Nothing, c)}
           result =
@@ -29,7 +29,7 @@ spec = do
               lookupActivationCode emailKey
        in result === Nothing
     prop "newly added code can be looked up" $ \emailKey mUid config ->
-      let c = code emailKey
+      let c = emailKeyToCode emailKey
           localBackend = def
           (actCode, lookupRes) =
             runNoFederationStack localBackend Nothing config $ do
