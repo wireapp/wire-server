@@ -22,6 +22,7 @@ import Servant
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Version
 import Wire.API.Routes.WebSocket
 
 type CannonAPI =
@@ -29,6 +30,7 @@ type CannonAPI =
     "await-notifications"
     ( Summary "Establish websocket connection"
         -- Description "This is the legacy variant of \"consume-events\""
+        :> Until 'V9
         :> "await"
         :> ZUser
         :> ZConn
