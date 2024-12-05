@@ -17,3 +17,8 @@ service:
 metrics:
   serviceMonitor:
     enabled: false
+
+config:
+  logLevel: Info
+  logFormat: StructuredJSON
+  logNetStrings: false

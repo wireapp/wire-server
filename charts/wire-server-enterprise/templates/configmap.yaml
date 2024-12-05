@@ -2,4 +2,19 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: wire-server-enterprise
-data: {}
+  labels:
+    app: wire-server-enterprise
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  {{- with .Values.config }}
+  wire-server-enterprise.yaml: |
+    logNetStrings: {{ .logNetStrings }}
+    logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+
+    wireServerEnterprise:
+      host: 0.0.0.0
+      port: 8080
+  {{- end }}

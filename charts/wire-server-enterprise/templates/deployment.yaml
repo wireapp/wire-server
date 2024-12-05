@@ -28,6 +28,10 @@ spec:
     spec:
       imagePullSecrets:
       - name: wire-server-enterprise-readonly-pull-secret
+      volumes:
+        - name: "wire-server-enterprise-config"
+          configMap:
+            name: "wire-server-enterprise"
       containers:
         - name: wire-server-enterprise
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -46,3 +50,6 @@ spec:
               port: {{ .Values.service.internalPort }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+          - name: "wire-server-enterprise-config"
+            mountPath: "/etc/wire/wire-server-enterprise/conf"
