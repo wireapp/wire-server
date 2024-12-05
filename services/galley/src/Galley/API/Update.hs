@@ -79,7 +79,7 @@ import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.Map.Strict qualified as Map
-import Data.Misc (HttpsUrl)
+import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
@@ -132,6 +132,7 @@ import Wire.API.ServantProto (RawProto (..))
 import Wire.API.User.Client
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
+import Wire.RateLimit
 
 acceptConv ::
   ( Member ConversationStore r,
@@ -499,7 +500,9 @@ addCodeUnqualifiedWithReqBody ::
     Member (Input UTCTime) r,
     Member HashPassword r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   UserId ->
   Maybe Text ->
@@ -523,7 +526,9 @@ addCodeUnqualified ::
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member HashPassword r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   Maybe CreateConversationCodeRequest ->
   UserId ->
@@ -549,7 +554,9 @@ addCode ::
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   Maybe ZHostValue ->
@@ -569,7 +576,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
     Nothing -> do
       ttl <- realToFrac . unGuestLinkTTLSeconds . fromMaybe defGuestLinkTTLSeconds . view (settings . guestLinkTTLSeconds) <$> input
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout ttl)
-      mPw <- for (mReq >>= (.password)) HashPassword.hashPassword8
+      mPw <- for (mReq >>= (.password)) $ HashPassword.hashPassword8 (RateLimitUser (tUnqualified lusr))
       E.createCode code mPw
       now <- input
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
@@ -668,12 +675,15 @@ checkReusableCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (Input Opts) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
+  IpAddr ->
   ConversationCode ->
   Sem r ()
-checkReusableCode convCode = do
-  code <- verifyReusableCode False Nothing convCode
+checkReusableCode origIp convCode = do
+  code <- verifyReusableCode (RateLimitIp origIp) False Nothing convCode
   conv <- E.getConversation (codeConversation code) >>= noteS @'ConvNotFound
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
     Query.ensureGuestLinksEnabled (Data.convTeam conv)
@@ -751,14 +761,16 @@ joinConversationByReusableCode ::
     Member MemberStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   ConnId ->
   JoinConversationByCode ->
   Sem r (UpdateResult Event)
 joinConversationByReusableCode lusr zcon req = do
-  c <- verifyReusableCode True req.password req.code
+  c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) True req.password req.code
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (Data.convTeam conv)
   joinConversation lusr zcon conv CodeAccess

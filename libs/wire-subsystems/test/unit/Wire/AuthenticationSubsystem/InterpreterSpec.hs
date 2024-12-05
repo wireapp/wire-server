@@ -4,7 +4,7 @@ module Wire.AuthenticationSubsystem.InterpreterSpec (spec) where
 
 import Data.Domain
 import Data.Id
-import Data.Misc (PlainTextPassword', PlainTextPassword8)
+import Data.Misc
 import Data.Qualified
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time
@@ -30,6 +30,7 @@ import Wire.HashPassword
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
+import Wire.RateLimit
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
 import Wire.SessionStore
@@ -40,6 +41,8 @@ import Wire.UserStore
 type AllEffects =
   [ AuthenticationSubsystem,
     Error AuthenticationSubsystemError,
+    Error RateLimitExceeded,
+    RateLimit,
     HashPassword,
     Now,
     State UTCTime,
@@ -75,14 +78,18 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
     . evalState defaultTime
     . interpretNowAsState
     . staticHashPasswordInterpreter
+    . noRateLimit
+    . runErrorUnsafe
     . runError
     . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
 
 verifyPasswordPure :: PlainTextPassword' t -> Password -> Bool
 verifyPasswordPure plain hashed =
   run
+    . runErrorUnsafe
+    . noRateLimit
     . staticHashPasswordInterpreter
-    $ verifyPassword plain hashed
+    $ verifyPassword (RateLimitIp (IpAddr "0.0.0.0")) plain hashed
 
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do

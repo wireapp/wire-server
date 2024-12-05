@@ -89,6 +89,7 @@ import Wire.API.User.Auth.ReAuth
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
+import Wire.RateLimit
 
 ensureAccessRole ::
   ( Member BrigAccess r,
@@ -656,21 +657,24 @@ verifyReusableCode ::
   ( Member CodeStore r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
+  RateLimitKey ->
   Bool ->
   Maybe PlainTextPassword8 ->
   ConversationCode ->
   Sem r DataTypes.Code
-verifyReusableCode checkPw mPtpw convCode = do
+verifyReusableCode rateLimitKey checkPw mPtpw convCode = do
   (c, mPw) <-
     getCode (conversationKey convCode) DataTypes.ReusableCode
       >>= noteS @'CodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
     throwS @'CodeNotFound
   case (checkPw, mPtpw, mPw) of
-    (True, Just ptpw, Just pw) ->
-      unlessM (HashPassword.verifyPassword ptpw pw) $ throwS @'InvalidConversationPassword
+    (True, Just ptpw, Just pw) -> do
+      unlessM (HashPassword.verifyPassword rateLimitKey ptpw pw) $ throwS @'InvalidConversationPassword
     (True, Nothing, Just _) ->
       throwS @'InvalidConversationPassword
     (_, _, _) -> pure ()

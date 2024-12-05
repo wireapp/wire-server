@@ -450,7 +450,8 @@ instance APIError NonFederatingBackends where
   toResponse e =
     JSONResponse
       { status = nonFederatingBackendsStatus,
-        value = toJSON e
+        value = toJSON e,
+        headers = []
       }
 
 nonFederatingBackendsStatus :: HTTP.Status
@@ -502,7 +503,8 @@ instance APIError UnreachableBackends where
   toResponse e =
     JSONResponse
       { status = unreachableBackendsStatus,
-        value = toJSON e
+        value = toJSON e,
+        headers = []
       }
 
 unreachableBackendsStatus :: HTTP.Status

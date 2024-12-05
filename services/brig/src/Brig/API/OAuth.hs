@@ -46,6 +46,7 @@ import Data.Time
 import Imports hiding (exp)
 import OpenSSL.Random (randBytes)
 import Polysemy (Member)
+import Polysemy.Error qualified as Polysemy
 import Servant hiding (Handler, Tagged)
 import Wire.API.Error
 import Wire.API.Error.Brig (BrigError (AccessDenied))
@@ -60,6 +61,7 @@ import Wire.AuthenticationSubsystem.Error
 import Wire.Error
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
+import Wire.RateLimit
 import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
 import Wire.Sem.Now (Now)
@@ -68,7 +70,7 @@ import Wire.Sem.Now qualified as Now
 --------------------------------------------------------------------------------
 -- API Internal
 
-internalOauthAPI :: (Member HashPassword r) => ServerT I.OAuthAPI (Handler r)
+internalOauthAPI :: (Member HashPassword r, Member (Polysemy.Error RateLimitExceeded) r, Member RateLimit r) => ServerT I.OAuthAPI (Handler r)
 internalOauthAPI =
   Named @"create-oauth-client" registerOAuthClient
     :<|> Named @"i-get-oauth-client" getOAuthClientById
@@ -97,7 +99,7 @@ oauthAPI =
 --------------------------------------------------------------------------------
 -- Handlers
 
-registerOAuthClient :: (Member HashPassword r) => OAuthClientConfig -> (Handler r) OAuthClientCredentials
+registerOAuthClient :: forall r. (Member HashPassword r, Member (Polysemy.Error RateLimitExceeded) r, Member RateLimit r) => OAuthClientConfig -> (Handler r) OAuthClientCredentials
 registerOAuthClient (OAuthClientConfig name uri) = do
   guardOAuthEnabled
   credentials@(OAuthClientCredentials cid secret) <- OAuthClientCredentials <$> randomId <*> createSecret
@@ -108,11 +110,11 @@ registerOAuthClient (OAuthClientConfig name uri) = do
     createSecret :: (MonadIO m) => m OAuthClientPlainTextSecret
     createSecret = OAuthClientPlainTextSecret <$> rand32Bytes
 
-    hashClientSecret :: (Member HashPassword r) => OAuthClientPlainTextSecret -> (Handler r) Password
+    hashClientSecret :: OAuthClientPlainTextSecret -> (Handler r) Password
     hashClientSecret =
       lift
         . liftSem
-        . HashPassword.hashPassword8
+        . HashPassword.hashPassword8 RateLimitInternal
         . plainTextPassword8Unsafe
         . toText
         . unOAuthClientPlainTextSecret

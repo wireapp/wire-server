@@ -70,7 +70,6 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import Wire.HashPassword
 import Wire.HashPassword.Interpreter
 import Wire.Sem.Random.IO
 
@@ -198,7 +197,7 @@ testLoginWith6CharPassword opts brig db = do
 
     updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
-      p <- liftIO $ runM . randomToIO . runHashPassword opts.settings.passwordHashingOptions $ hashPassword6 t
+      p <- liftIO $ runM . randomToIO $ hashPasswordImpl opts.settings.passwordHashingOptions t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()

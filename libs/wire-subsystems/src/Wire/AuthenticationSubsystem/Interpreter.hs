@@ -46,6 +46,7 @@ import Wire.HashPassword
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore (PasswordStore, upsertHashedPassword)
 import Wire.PasswordStore qualified as PasswordStore
+import Wire.RateLimit
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.SessionStore
@@ -66,7 +67,9 @@ interpretAuthenticationSubsystem ::
     Member (Input (Maybe AllowlistEmailDomains)) r,
     Member PasswordStore r,
     Member EmailSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
@@ -104,7 +107,9 @@ instance Exception PasswordResetError where
 authenticateEitherImpl ::
   ( Member UserStore r,
     Member HashPassword r,
-    Member PasswordStore r
+    Member PasswordStore r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   UserId ->
   PlainTextPassword6 ->
@@ -119,15 +124,16 @@ authenticateEitherImpl uid plaintext = do
       Just (_, PendingInvitation) -> throw AuthPendingInvitation
       Just (Nothing, _) -> throw AuthInvalidCredentials
       Just (Just password, Active) -> do
-        verifyPasswordWithStatus plaintext password >>= \case
+        verifyPasswordWithStatus rateLimitKey plaintext password >>= \case
           (False, _) -> throw AuthInvalidCredentials
-          (True, PasswordStatusNeedsUpdate) -> do
-            (hashAndUpdatePwd uid plaintext)
+          (True, PasswordStatusNeedsUpdate) -> hashAndUpdatePwd plaintext
           (True, _) -> pure ()
   where
-    hashAndUpdatePwd u pwd = do
-      hashed <- hashPassword6 pwd
-      upsertHashedPassword u hashed
+    rateLimitKey = RateLimitUser uid
+    hashAndUpdatePwd pwd = do
+      tryHashPassword6 rateLimitKey pwd >>= \case
+        Left _ -> pure ()
+        Right hashed -> upsertHashedPassword uid hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If
@@ -137,7 +143,9 @@ reauthenticateEitherImpl ::
   ( Member UserStore r,
     Member UserSubsystem r,
     Member (Input (Local ())) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   UserId ->
   Maybe (PlainTextPassword' t) ->
@@ -154,6 +162,7 @@ reauthenticateEitherImpl user plaintextMaybe =
         Just (Just pw', Active) -> maybeReAuth pw'
         Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
+    rateLimitKey = RateLimitUser user
     maybeReAuth pw' = case plaintextMaybe of
       Nothing -> do
         local <- input
@@ -163,7 +172,7 @@ reauthenticateEitherImpl user plaintextMaybe =
         unless isSaml $
           throw ReAuthMissingPassword
       Just p ->
-        unlessM (verifyPassword p pw') do
+        unlessM (verifyPassword rateLimitKey p pw') do
           throw (ReAuthError AuthInvalidCredentials)
 
 createPasswordResetCodeImpl ::
@@ -278,7 +287,9 @@ resetPasswordImpl ::
     Member UserSubsystem r,
     Member HashPassword r,
     Member SessionStore r,
-    Member PasswordStore r
+    Member PasswordStore r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   PasswordResetIdentity ->
   PasswordResetCode ->
@@ -291,9 +302,10 @@ resetPasswordImpl ident code pw = do
   case muid of
     Nothing -> throw AuthenticationSubsystemInvalidPasswordResetCode
     Just uid -> do
+      let rateLimitKey = RateLimitUser uid
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
-      hashedPw <- hashPassword8 pw
+      hashedPw <- hashPassword8 rateLimitKey pw
       PasswordStore.upsertHashedPassword uid hashedPw
       codeDelete key
       deleteAllCookies uid
@@ -313,7 +325,7 @@ resetPasswordImpl ident code pw = do
       mCurrentPassword <- PasswordStore.lookupHashedPassword uid
       case mCurrentPassword of
         Just currentPassword ->
-          whenM (verifyPassword newPassword currentPassword) $
+          whenM (verifyPassword (RateLimitUser uid) newPassword currentPassword) $
             throw AuthenticationSubsystemResetPasswordMustDiffer
         _ -> pure ()
 
@@ -335,7 +347,9 @@ resetPasswordImpl ident code pw = do
 verifyProviderPasswordImpl ::
   ( Member PasswordStore r,
     Member (Error AuthenticationSubsystemError) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   ProviderId ->
   PlainTextPassword6 ->
@@ -345,12 +359,14 @@ verifyProviderPasswordImpl pid plaintext = do
   password <-
     PasswordStore.lookupHashedProviderPassword pid
       >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
-  verifyPasswordWithStatus plaintext password
+  verifyPasswordWithStatus (RateLimitProvider pid) plaintext password
 
 verifyUserPasswordImpl ::
   ( Member PasswordStore r,
     Member (Error AuthenticationSubsystemError) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   UserId ->
   PlainTextPassword6 ->
@@ -359,12 +375,14 @@ verifyUserPasswordImpl uid plaintext = do
   password <-
     PasswordStore.lookupHashedPassword uid
       >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
-  verifyPasswordWithStatus plaintext password
+  verifyPasswordWithStatus (RateLimitUser uid) plaintext password
 
 verifyUserPasswordErrorImpl ::
   ( Member PasswordStore r,
     Member (Error AuthenticationSubsystemError) r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->

@@ -104,6 +104,7 @@ addUser dom opts = do
   name <- maybe randomName pure opts.name
   submit "POST" $
     req
+      & addClientIP
       & addJSONObject
         ( [ "name" .= name,
             "email" .= opts.email,
@@ -554,7 +555,7 @@ newProvider user provider = do
   req <-
     baseRequest user Brig Versioned $
       joinHttpPath ["provider", "register"]
-  submit "POST" (addJSON p req) `bindResponse` \resp -> do
+  submit "POST" (req & addJSON p & addClientIP) `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json
 

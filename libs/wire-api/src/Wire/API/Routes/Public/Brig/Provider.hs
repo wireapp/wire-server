@@ -19,6 +19,7 @@ module Wire.API.Routes.Public.Brig.Provider where
 
 import Data.Code qualified as Code
 import Data.Id (ProviderId)
+import Data.Misc
 import Imports
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
@@ -55,6 +56,7 @@ type ProviderAPI =
         :> CanThrow 'VerificationCodeThrottled
         :> "provider"
         :> "register"
+        :> Header' '[Required, Strict] "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewProvider
         :> MultiVerb1 'POST '[JSON] (Respond 201 "" NewProviderResponse)
     )
@@ -115,6 +117,7 @@ type ProviderAPI =
                :> "provider"
                :> "password-reset"
                :> "complete"
+               :> Header' '[Required, Strict] "X-Forwarded-For" IpAddr
                :> ReqBody '[JSON] CompletePasswordReset
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )

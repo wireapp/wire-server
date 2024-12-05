@@ -49,6 +49,7 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
+import Data.Misc (PlainTextPassword8)
 import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
@@ -174,7 +175,7 @@ type AccountAPI =
            -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
            -- - UserIdentityUpdated event to created user, if email or phone get activated
            ( "users"
-               :> ReqBody '[Servant.JSON] NewUser
+               :> ReqBody '[Servant.JSON] (NewUser PlainTextPassword8)
                :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
            )
     :<|> Named
