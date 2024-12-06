@@ -87,6 +87,8 @@ library
     Wire.EmailSubsystem
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
+    Wire.EnterpriseLoginSubsystem
+    Wire.EnterpriseLoginSubsystem.Interpreter
     Wire.Error
     Wire.Events
     Wire.FederationAPIAccess
