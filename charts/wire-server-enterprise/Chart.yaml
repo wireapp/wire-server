@@ -1,0 +1,4 @@
+apiVersion: v1
+description: additional enterprise features for wire-server
+name: wire-server-enterprise
+version: 0.0.42

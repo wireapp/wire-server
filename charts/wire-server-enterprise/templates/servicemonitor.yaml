@@ -1,0 +1,19 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: wire-server-enterprise
+  labels:
+    app: wire-server-enterprise
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  endpoints:
+    - port: http
+      path: /i/metrics
+  selector:
+    matchLabels:
+      app: wire-server-enterprise
+      release: {{ .Release.Name }}
+{{- end }}
