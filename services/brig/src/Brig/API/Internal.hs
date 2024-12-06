@@ -429,7 +429,14 @@ internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
 
 enterpriseLoginApi :: ServerT BrigIRoutes.EnterpriseLoginApi (Handler r)
-enterpriseLoginApi = Named @"domain-registration-lock" _
+enterpriseLoginApi =
+  Named @"domain-registration-lock" (const $ pure NoContent)
+    :<|> Named @"domain-registration-unlock" (const $ pure NoContent)
+    :<|> Named @"domain-registration-pre-authorize" (const $ pure NoContent)
+    :<|> Named @"domain-registration-unauthorize" (const $ pure NoContent)
+    :<|> Named @"domain-registration-update" (\_d _p -> pure NoContent)
+    :<|> Named @"domain-registration-delete" (\_d -> pure NoContent)
+    :<|> Named @"domain-registration-get" (\_d -> pure undefined)
 
 ---------------------------------------------------------------------------
 -- Handlers
