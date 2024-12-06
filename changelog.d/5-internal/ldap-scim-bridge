@@ -1,0 +1,1 @@
+Upgraded ldap-scim-bridge helm chart to use tag 0.9 for container image
