@@ -325,8 +325,6 @@ createUser ::
 createUser new = do
   email <- fetchAndValidateEmail new
 
-  -- lift $ liftSem $ blockListInsert (fromJust (error "bämmmm") email)
-
   -- get invitation and existing account
   (mNewTeamUser, teamInvitation, tid) <-
     case newUserTeam new of
