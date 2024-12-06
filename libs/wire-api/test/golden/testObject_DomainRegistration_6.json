@@ -1,0 +1,6 @@
+{
+    "dns_verification_token": "wire-domain-<auth-token>::example.com",
+    "domain": "example.com",
+    "domain_redirect": "pre-authorized",
+    "team_invite": "allowed"
+}

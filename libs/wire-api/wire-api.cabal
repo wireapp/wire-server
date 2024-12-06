@@ -592,6 +592,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
     Test.Wire.API.Golden.Manual.CreateScimTokenResponse
+    Test.Wire.API.Golden.Manual.EnterpriseLogin
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
     Test.Wire.API.Golden.Manual.FederationDomainConfig
     Test.Wire.API.Golden.Manual.FederationRestriction
