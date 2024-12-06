@@ -2,8 +2,10 @@
 
 module Wire.API.EnterpriseLogin where
 
-import Control.Lens (Field1 (_1), makePrisms)
+import Control.Arrow
+import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
 import Data.Domain
 import Data.Id
 import Data.Misc
@@ -19,6 +21,7 @@ data DomainRedirect
   | Backend HttpsUrl
   | NoRegistration
   | PreAuthorized
+  deriving stock (Eq, Show)
 
 makePrisms ''DomainRedirect
 
@@ -30,52 +33,56 @@ data DomainRedirectTag
   | NoRegistrationTag
   | PreAuthorizedTag
   deriving (Eq, Enum, Bounded)
+  deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRedirectTag
 
-tagSchema :: ValueSchema NamedSwaggerDoc DomainRedirectTag
-tagSchema =
-  enum @Text "DomainRedirect Tag" $
-    mconcat
-      [ element "none" NoneTag,
-        element "locked" LockedTag,
-        element "sso" SSOTag,
-        element "backend" BackendTag,
-        element "no-registration" NoRegistrationTag,
-        element "pre-authorized" PreAuthorizedTag
-      ]
+instance ToSchema DomainRedirectTag where
+  schema =
+    enum @Text "DomainRedirect Tag" $
+      mconcat
+        [ element "none" NoneTag,
+          element "locked" LockedTag,
+          element "sso" SSOTag,
+          element "backend" BackendTag,
+          element "no-registration" NoRegistrationTag,
+          element "pre-authorized" PreAuthorizedTag
+        ]
 
-domainRedirectSchema :: ValueSchema NamedSwaggerDoc DomainRedirect
+domainRedirectTagSchema :: ObjectSchema SwaggerDoc DomainRedirectTag
+domainRedirectTagSchema = field "domain_redirect" schema
+
+domainRedirectSchema :: ObjectSchema SwaggerDoc DomainRedirect
 domainRedirectSchema =
-  object "DomainRedirect" $
-    fromTagged
-      <$> toTagged
-        .= bind
-          (fst .= field "tag" tagSchema)
-          (snd .= fieldOver _1 "value" untaggedSchema)
+  snd
+    <$> (toTagged &&& id)
+      .= bind
+        (fst .= domainRedirectTagSchema)
+        (snd .= dispatch domainRedirectDataSchema)
   where
-    toTagged :: DomainRedirect -> (DomainRedirectTag, DomainRedirect)
-    toTagged None = (NoneTag, None)
-    toTagged Locked = (LockedTag, Locked)
-    toTagged (SSO idpid) = (SSOTag, SSO idpid)
-    toTagged (Backend url) = (BackendTag, Backend url)
-    toTagged NoRegistration = (NoRegistrationTag, NoRegistration)
-    toTagged PreAuthorized = (PreAuthorizedTag, PreAuthorized)
+    toTagged :: DomainRedirect -> DomainRedirectTag
+    toTagged None = NoneTag
+    toTagged Locked = LockedTag
+    toTagged (SSO _) = SSOTag
+    toTagged (Backend _) = BackendTag
+    toTagged NoRegistration = NoRegistrationTag
+    toTagged PreAuthorized = PreAuthorizedTag
 
-    fromTagged :: (DomainRedirectTag, DomainRedirect) -> DomainRedirect
-    fromTagged = snd
+    domainRedirectDataSchema :: DomainRedirectTag -> ObjectSchema SwaggerDoc DomainRedirect
+    domainRedirectDataSchema = \case
+      NoneTag -> tag _None (pure ())
+      LockedTag -> tag _Locked (pure ())
+      SSOTag -> tag _SSO samlIdPIdSchema
+      BackendTag -> tag _Backend backendUrlSchema
+      NoRegistrationTag -> tag _NoRegistration (pure ())
+      PreAuthorizedTag -> tag _PreAuthorized (pure ())
 
-    untaggedSchema = dispatch $ \case
-      NoneTag -> tag _None null_
-      LockedTag -> tag _Locked null_
-      SSOTag -> tag _SSO (unnamed samlIdPIdSchema)
-      BackendTag -> tag _Backend (unnamed schema)
-      NoRegistrationTag -> tag _NoRegistration null_
-      PreAuthorizedTag -> tag _PreAuthorized null_
+samlIdPIdSchema :: ObjectSchema SwaggerDoc SAML.IdPId
+samlIdPIdSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_idp_id" uuidSchema
 
-samlIdPIdSchema :: ValueSchema NamedSwaggerDoc SAML.IdPId
-samlIdPIdSchema = SAML.IdPId <$> SAML.fromIdPId .= uuidSchema
+backendUrlSchema :: ObjectSchema SwaggerDoc HttpsUrl
+backendUrlSchema = field "backend_url" schema
 
 instance ToSchema DomainRedirect where
-  schema = domainRedirectSchema
+  schema = object "DomainRedirect " domainRedirectSchema
 
 deriving via (Schema DomainRedirect) instance FromJSON DomainRedirect
 
@@ -87,6 +94,7 @@ data TeamInvite
   = Allowed
   | NotAllowed
   | Team TeamId
+  deriving stock (Eq, Show)
 
 makePrisms ''TeamInvite
 
@@ -95,40 +103,41 @@ data TeamInviteTag
   | NotAllowedTag
   | TeamTag
   deriving (Eq, Enum, Bounded)
+  deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema TeamInviteTag
 
-teamInviteTagSchema :: ValueSchema NamedSwaggerDoc TeamInviteTag
-teamInviteTagSchema =
-  enum @Text "TeamInvite Tag" $
-    mconcat
-      [ element "allowed" AllowedTag,
-        element "not-allowed" NotAllowedTag,
-        element "team" TeamTag
-      ]
+instance ToSchema TeamInviteTag where
+  schema =
+    enum @Text "TeamInvite Tag" $
+      mconcat
+        [ element "allowed" AllowedTag,
+          element "not-allowed" NotAllowedTag,
+          element "team" TeamTag
+        ]
 
-teamInviteSchema :: ValueSchema NamedSwaggerDoc TeamInvite
+teamInviteTagSchema :: ObjectSchema SwaggerDoc TeamInviteTag
+teamInviteTagSchema = field "team_invite" schema
+
+teamInviteSchema :: ObjectSchema SwaggerDoc TeamInvite
 teamInviteSchema =
-  object "TeamInvite" $
-    fromTagged
-      <$> toTagged
-        .= bind
-          (fst .= field "tag" teamInviteTagSchema)
-          (snd .= fieldOver _1 "value" untaggedSchema)
+  snd
+    <$> (toTagged &&& id)
+      .= bind
+        (fst .= teamInviteTagSchema)
+        (snd .= dispatch teamInviteDataSchema)
   where
-    toTagged :: TeamInvite -> (TeamInviteTag, TeamInvite)
-    toTagged Allowed = (AllowedTag, Allowed)
-    toTagged NotAllowed = (NotAllowedTag, NotAllowed)
-    toTagged (Team teamId) = (TeamTag, Team teamId)
+    toTagged :: TeamInvite -> TeamInviteTag
+    toTagged Allowed = AllowedTag
+    toTagged NotAllowed = NotAllowedTag
+    toTagged (Team _) = TeamTag
 
-    fromTagged :: (TeamInviteTag, TeamInvite) -> TeamInvite
-    fromTagged = snd
-
-    untaggedSchema = dispatch $ \case
-      AllowedTag -> tag _Allowed null_
-      NotAllowedTag -> tag _NotAllowed null_
-      TeamTag -> tag _Team (unnamed schema)
+    teamInviteDataSchema :: TeamInviteTag -> ObjectSchema SwaggerDoc TeamInvite
+    teamInviteDataSchema = \case
+      AllowedTag -> tag _Allowed (pure ())
+      NotAllowedTag -> tag _NotAllowed (pure ())
+      TeamTag -> tag _Team (field "team" schema)
 
 instance ToSchema TeamInvite where
-  schema = teamInviteSchema
+  schema = object "TeamInvite" teamInviteSchema
 
 deriving via (Schema TeamInvite) instance FromJSON TeamInvite
 
@@ -137,6 +146,7 @@ deriving via (Schema TeamInvite) instance ToJSON TeamInvite
 deriving via (Schema TeamInvite) instance OpenApi.ToSchema TeamInvite
 
 newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: Text}
+  deriving stock (Eq, Show)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DnsVerificationToken
 
 instance ToSchema DnsVerificationToken where
@@ -146,21 +156,23 @@ data DomainRegistrationUpdate = DomainRegistrationUpdate
   { domainRedirect :: DomainRedirect,
     teamInvite :: TeamInvite
   }
+  deriving stock (Eq, Show)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRegistrationUpdate
 
 instance ToSchema DomainRegistrationUpdate where
   schema =
     object "DomainRegistrationUpdate" $
       DomainRegistrationUpdate
-        <$> (.domainRedirect) .= field "domain-redirect" schema
-        <*> (.teamInvite) .= field "team-invite" schema
+        <$> (.domainRedirect) .= domainRedirectSchema
+        <*> (.teamInvite) .= teamInviteSchema
 
 data DomainRegistration = DomainRegistration
   { domain :: Domain,
     domainRedirect :: DomainRedirect,
     teamInvite :: TeamInvite,
-    dnsVerificationToken :: DnsVerificationToken
+    dnsVerificationToken :: Maybe DnsVerificationToken
   }
+  deriving stock (Eq, Show)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRegistration
 
 instance ToSchema DomainRegistration where
@@ -168,6 +180,6 @@ instance ToSchema DomainRegistration where
     object "DomainRegistration" $
       DomainRegistration
         <$> (.domain) .= field "domain" schema
-        <*> (.domainRedirect) .= field "domain-redirect" schema
-        <*> (.teamInvite) .= field "team-invite" schema
-        <*> (.dnsVerificationToken) .= field "dns-verification-token" schema
+        <*> (.domainRedirect) .= domainRedirectSchema
+        <*> (.teamInvite) .= teamInviteSchema
+        <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
