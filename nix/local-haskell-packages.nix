@@ -42,6 +42,7 @@
   gundeck = hself.callPackage ../services/gundeck/default.nix { inherit gitignoreSource; };
   proxy = hself.callPackage ../services/proxy/default.nix { inherit gitignoreSource; };
   spar = hself.callPackage ../services/spar/default.nix { inherit gitignoreSource; };
+  wire-server-enterprise = hself.callPackage ../services/wire-server-enterprise/default.nix { inherit gitignoreSource; };
   assets = hself.callPackage ../tools/db/assets/default.nix { inherit gitignoreSource; };
   auto-whitelist = hself.callPackage ../tools/db/auto-whitelist/default.nix { inherit gitignoreSource; };
   find-undead = hself.callPackage ../tools/db/find-undead/default.nix { inherit gitignoreSource; };
