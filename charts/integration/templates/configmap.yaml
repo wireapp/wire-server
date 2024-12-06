@@ -65,7 +65,8 @@ data:
 
     rabbitmq:
       host: rabbitmq
-      adminPort: 15671
+      port: 15671
+      adminPort: 15672
 
     backendTwo:
 
