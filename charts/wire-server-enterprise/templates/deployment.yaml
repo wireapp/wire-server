@@ -53,3 +53,4 @@ spec:
           volumeMounts:
           - name: "wire-server-enterprise-config"
             mountPath: "/etc/wire/wire-server-enterprise/conf"
+      automountServiceAccountToken: false
