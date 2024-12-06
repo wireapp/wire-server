@@ -2,6 +2,7 @@
 
 module Wire.API.EnterpriseLogin where
 
+import Cassandra qualified as C
 import Control.Arrow
 import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
@@ -32,7 +33,7 @@ data DomainRedirectTag
   | BackendTag
   | NoRegistrationTag
   | PreAuthorizedTag
-  deriving (Eq, Enum, Bounded)
+  deriving (Show, Ord, Eq, Enum, Bounded)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRedirectTag
 
 instance ToSchema DomainRedirectTag where
@@ -102,7 +103,7 @@ data TeamInviteTag
   = AllowedTag
   | NotAllowedTag
   | TeamTag
-  deriving (Eq, Enum, Bounded)
+  deriving (Show, Ord, Eq, Enum, Bounded)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema TeamInviteTag
 
 instance ToSchema TeamInviteTag where
@@ -183,3 +184,40 @@ instance ToSchema DomainRegistration where
         <*> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
+
+--------------------------------------------------------------------------------
+-- CQL instances
+
+instance C.Cql DomainRedirectTag where
+  ctype = C.Tagged C.IntColumn
+
+  toCql NoneTag = C.CqlInt 1
+  toCql LockedTag = C.CqlInt 2
+  toCql SSOTag = C.CqlInt 3
+  toCql BackendTag = C.CqlInt 4
+  toCql NoRegistrationTag = C.CqlInt 5
+  toCql PreAuthorizedTag = C.CqlInt 6
+
+  fromCql (C.CqlInt i) = case i of
+    1 -> pure NoneTag
+    2 -> pure LockedTag
+    3 -> pure SSOTag
+    4 -> pure BackendTag
+    5 -> pure NoRegistrationTag
+    6 -> pure PreAuthorizedTag
+    n -> Left $ "Unexpected DomainRedirectTag value: " ++ show n
+  fromCql _ = Left "DomainRedirectTag value: int expected"
+
+instance C.Cql TeamInviteTag where
+  ctype = C.Tagged C.IntColumn
+
+  toCql AllowedTag = C.CqlInt 1
+  toCql NotAllowedTag = C.CqlInt 2
+  toCql TeamTag = C.CqlInt 3
+
+  fromCql (C.CqlInt i) = case i of
+    1 -> pure AllowedTag
+    2 -> pure NotAllowedTag
+    3 -> pure TeamTag
+    n -> Left $ "Unexpected TeamInviteTag value: " ++ show n
+  fromCql _ = Left "TeamInviteTag value: int expected"
