@@ -18,7 +18,7 @@ data StoredDomainRegistration = StoredDomainRegistration
     idpId :: Maybe SAML.IdPId,
     backendUrl :: Maybe HttpsUrl,
     team :: Maybe TeamId,
-    dnsVerificationCode :: Maybe Text
+    dnsVerificationToken :: Maybe DnsVerificationToken
   }
   deriving (Show, Eq, Ord, Generic)
 

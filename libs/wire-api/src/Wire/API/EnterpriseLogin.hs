@@ -147,7 +147,7 @@ deriving via (Schema TeamInvite) instance ToJSON TeamInvite
 deriving via (Schema TeamInvite) instance OpenApi.ToSchema TeamInvite
 
 newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: Text}
-  deriving stock (Eq, Show)
+  deriving stock (Ord, Eq, Show)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DnsVerificationToken
 
 instance ToSchema DnsVerificationToken where
@@ -221,3 +221,9 @@ instance C.Cql TeamInviteTag where
     3 -> pure TeamTag
     n -> Left $ "Unexpected TeamInviteTag value: " ++ show n
   fromCql _ = Left "TeamInviteTag value: int expected"
+
+instance C.Cql DnsVerificationToken where
+  ctype = C.Tagged C.TextColumn
+  toCql = C.CqlText . unDnsVerificationToken
+  fromCql (C.CqlText t) = Right $ DnsVerificationToken t
+  fromCql _ = Left "DnsVerificationToken value: text expected"
