@@ -436,7 +436,7 @@ enterpriseLoginApi =
     :<|> Named @"domain-registration-unlock" (lift . liftSem . unlockDomain)
     :<|> Named @"domain-registration-pre-authorize" (lift . liftSem . preAuthorize)
     :<|> Named @"domain-registration-unauthorize" (const $ pure NoContent)
-    :<|> Named @"domain-registration-update" (\_d _p -> pure NoContent)
+    :<|> Named @"domain-registration-update" (\d p -> lift . liftSem $ updateDomainRegistration d p)
     :<|> Named @"domain-registration-delete" (\_d -> pure NoContent)
     :<|> Named @"domain-registration-get" (lift . liftSem . getDomainRegistration)
 

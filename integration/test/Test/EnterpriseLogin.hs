@@ -109,8 +109,30 @@ testDomainRegistrationPreAuthorizeFailsIfLocked = do
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
     resp.json %. "team_invite" `shouldMatch` "allowed"
 
--- testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite :: App ()
--- testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite = error "todo"
+testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite :: App ()
+testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite = do
+  domain <- randomDomain
+  -- it should not yet exist
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+  let update =
+        object
+          [ "domain_redirect" .= "none",
+            "team_invite" .= "team",
+            "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
+          ]
+  bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
+    resp.status `shouldMatchInt` 204
+  -- pre-authorize
+  bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 204
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
+    resp.json %. "team_invite" `shouldMatch` "team"
+    resp.json %. "team" `shouldMatch` "3bc23f21-dc03-4922-9563-c3beedf895db"
+    lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe Value)
 
 testDomainRegistrationUnlockDoesNotCreateEntry :: App ()
 testDomainRegistrationUnlockDoesNotCreateEntry = do
@@ -121,3 +143,55 @@ testDomainRegistrationUnlockDoesNotCreateEntry = do
     resp.status `shouldMatchInt` 404
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 404
+
+testDomainRegistrationUpdate :: App ()
+testDomainRegistrationUpdate = do
+  domain <- randomDomain
+  -- it should not yet exist
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+  updateDomain domain
+    $ object
+      [ "domain_redirect" .= "backend",
+        "backend_url" .= "https://example.com",
+        "team_invite" .= "not-allowed"
+      ]
+  updateDomain domain
+    $ object
+      [ "domain_redirect" .= "sso",
+        "sso_idp_id" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
+        "team_invite" .= "allowed"
+      ]
+  updateDomain domain
+    $ object
+      [ "domain_redirect" .= "no-registration",
+        "team_invite" .= "team",
+        "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
+      ]
+  where
+    updateDomain :: String -> Value -> App ()
+    updateDomain domain update = do
+      -- update
+      bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
+        resp.status `shouldMatchInt` 204
+      -- idempotent
+      bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
+        resp.status `shouldMatchInt` 204
+      -- it got created
+      bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "domain" `shouldMatch` domain
+        resp.json %. "domain_redirect" `shouldMatch` (update %. "domain_redirect")
+        resp.json %. "team_invite" `shouldMatch` (update %. "team_invite")
+        mUrl <- lookupField update "backend_url"
+        case mUrl of
+          Just url -> resp.json %. "backend_url" `shouldMatch` url
+          Nothing -> lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe Value)
+        mSsoId <- lookupField update "sso_idp_id"
+        case mSsoId of
+          Just ssoId -> resp.json %. "sso_idp_id" `shouldMatch` ssoId
+          Nothing -> lookupField resp.json "sso_idp_id" `shouldMatch` (Nothing :: Maybe Value)
+        mTid <- lookupField update "team"
+        case mTid of
+          Just tid -> resp.json %. "team" `shouldMatch` tid
+          Nothing -> lookupField resp.json "team" `shouldMatch` (Nothing :: Maybe Value)

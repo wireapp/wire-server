@@ -35,7 +35,24 @@ runEnterpriseLoginSubsystem = interpret $
     LockDomain domain -> lockDomainImpl domain
     UnlockDomain domain -> unlockDomainImpl domain
     PreAuthorize domain -> preAuthorizeImpl domain
+    UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
+
+updateDomainRegistrationImpl ::
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  Domain ->
+  DomainRegistrationUpdate ->
+  Sem r ()
+updateDomainRegistrationImpl domain update = do
+  mDr <- tryGetDomainRegistrationImpl domain
+  case mDr of
+    Just dr -> do
+      let dr' = dr {teamInvite = update.teamInvite, domainRedirect = update.domainRedirect} :: DomainRegistration
+      upsert $ toStored dr'
+    Nothing -> upsert $ toStored $ DomainRegistration domain update.domainRedirect update.teamInvite Nothing
 
 lockDomainImpl ::
   ( Member DomainRegistrationStore r
@@ -80,10 +97,25 @@ getDomainRegistrationImpl ::
   Domain ->
   Sem r DomainRegistration
 getDomainRegistrationImpl domain = do
-  mDr <- lookup domain
-  case mDr of
+  mSdr <- tryGetDomainRegistrationImpl domain
+  case mSdr of
+    Just dr -> pure dr
     Nothing -> throw EnterpriseLoginSubsystemErrorNotFound
-    Just sdr -> do
+
+tryGetDomainRegistrationImpl ::
+  forall r.
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  Domain ->
+  Sem r (Maybe DomainRegistration)
+tryGetDomainRegistrationImpl domain = do
+  mSdr <- lookup domain
+  maybe (pure Nothing) (fmap Just . deserialize) mSdr
+  where
+    deserialize :: StoredDomainRegistration -> Sem r DomainRegistration
+    deserialize sdr = do
       let mDomainRegistration = fromStored sdr
       case mDomainRegistration of
         Nothing -> do
@@ -100,17 +132,21 @@ fromStored sdr =
   where
     getTeamInvite :: StoredDomainRegistration -> Maybe TeamInvite
     getTeamInvite = \case
-      StoredDomainRegistration _ _ ti _ _ _ _ -> case ti of
-        AllowedTag -> Just Allowed
-        NotAllowedTag -> Just NotAllowed
+      StoredDomainRegistration _ _ ti _ _ tid _ -> case (ti, tid) of
+        (AllowedTag, _) -> Just Allowed
+        (NotAllowedTag, _) -> Just NotAllowed
+        (TeamTag, Just teamId) -> Just $ Team teamId
         _ -> Nothing
 
     getDomainRedirect :: StoredDomainRegistration -> Maybe DomainRedirect
     getDomainRedirect = \case
-      StoredDomainRegistration _ dr _ _ _ _ _ -> case dr of
-        NoneTag -> Just None
-        LockedTag -> Just Locked
-        PreAuthorizedTag -> Just PreAuthorized
+      StoredDomainRegistration _ dr _ ssoId url _ _ -> case (dr, ssoId, url) of
+        (NoneTag, _, _) -> Just None
+        (LockedTag, _, _) -> Just Locked
+        (PreAuthorizedTag, _, _) -> Just PreAuthorized
+        (SSOTag, Just idpId, _) -> Just $ SSO idpId
+        (BackendTag, _, Just beUrl) -> Just $ Backend beUrl
+        (NoRegistrationTag, _, _) -> Just NoRegistration
         _ -> Nothing
 
 toStored :: DomainRegistration -> StoredDomainRegistration

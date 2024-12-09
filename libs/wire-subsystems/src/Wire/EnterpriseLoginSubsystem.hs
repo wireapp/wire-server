@@ -10,6 +10,7 @@ data EnterpriseLoginSubsystem m a where
   LockDomain :: Domain -> EnterpriseLoginSubsystem m ()
   UnlockDomain :: Domain -> EnterpriseLoginSubsystem m ()
   PreAuthorize :: Domain -> EnterpriseLoginSubsystem m ()
+  UpdateDomainRegistration :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
 
 makeSem ''EnterpriseLoginSubsystem

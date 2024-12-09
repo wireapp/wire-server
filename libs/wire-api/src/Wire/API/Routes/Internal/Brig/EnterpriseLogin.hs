@@ -86,7 +86,7 @@ type EnterpriseLoginApi =
                :> "domain-registration"
                :> Capture "domain" Domain
                :> ReqBody '[JSON] DomainRegistrationUpdate
-               :> Put '[JSON] NoContent
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 204 "Domain updated")
            )
     :<|> Named
            "domain-registration-delete"
