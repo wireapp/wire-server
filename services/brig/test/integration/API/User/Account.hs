@@ -298,7 +298,13 @@ testCreateUserEmptyName brig = do
         RequestBodyLBS . encode $
           object
             ["name" .= ("" :: Text)]
-  post (brig . path "/register" . contentJson . body p)
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
 
 -- @END
@@ -314,7 +320,13 @@ testCreateUserLongName brig = do
         RequestBodyLBS . encode $
           object
             ["name" .= (nameTooLong :: Text)]
-  post (brig . path "/register" . contentJson . body p)
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
 
 -- @END
@@ -326,7 +338,13 @@ testCreateUserAnon brig galley = do
           object
             ["name" .= ("Mr. Pink" :: Text)]
   rs <-
-    post (brig . path "/register" . contentJson . body p)
+    post
+      ( brig
+          . path "/register"
+          . contentJson
+          . body p
+          . header "X-Forwarded-For" "127.0.0.42"
+      )
       <!! const 201 === statusCode
   -- Every registered user gets a cookie.
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rs
@@ -352,7 +370,13 @@ testCreateUserPending _ brig = do
               "password" .= defPassword
             ]
   rs <-
-    post (brig . path "/register" . contentJson . body p)
+    post
+      ( brig
+          . path "/register"
+          . contentJson
+          . body p
+          . header "X-Forwarded-For" "127.0.0.42"
+      )
       <!! const 201 === statusCode
   -- Even though activation is pending, the user gets an access cookie,
   -- i.e. every user starts out as a "Wireless" user.
@@ -391,9 +415,16 @@ testCreateUserConflict _ brig = do
               "email" .= (fromEmail <$> userEmail u), -- dup. email
               "password" .= defPassword
             ]
-  post (brig . path "/register" . contentJson . body p) !!! do
-    const 409 === statusCode
-    const (Just "key-exists") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 409 === statusCode
+      const (Just "key-exists") === fmap Error.label . responseJsonMaybe
   -- untrusted email domains
   u2 <- createUserUntrustedEmail "conflict" brig
   let Just email = userEmail u2
@@ -406,9 +437,16 @@ testCreateUserConflict _ brig = do
               "email" .= (T.takeWhile (/= '+') loc <> "@" <> dom), -- dup. email
               "password" .= defPassword
             ]
-  post (brig . path "/register" . contentJson . body p2) !!! do
-    const 409 === statusCode
-    const (Just "key-exists") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p2
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 409 === statusCode
+      const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
 -- @END
 
@@ -426,7 +464,13 @@ testCreateUserInvalidEmail _ brig = do
               "email" .= ("invalid@" :: Text),
               "password" .= defPassword
             ]
-  post (brig . path "/register" . contentJson . body reqPhone)
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body reqPhone
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
 
 -- @END
@@ -439,15 +483,29 @@ testCreateUserBlacklist _ brig aws =
     ensureBlacklist typ = do
       e <- randomEmail
       flip finally (removeBlacklist brig e) $ do
-        post (brig . path "/register" . contentJson . body (p e)) !!! const 201 === statusCode
+        post
+          ( brig
+              . path "/register"
+              . contentJson
+              . body (p e)
+              . header "X-Forwarded-For" "127.0.0.42"
+          )
+          !!! const 201 === statusCode
         -- If we are using a local env, we need to fake this bounce
         unless (Util.isRealSESEnv aws) $
           forceBlacklist typ e
         -- Typically bounce/complaint messages arrive instantaneously
         awaitBlacklist 30 e
-        post (brig . path "/register" . contentJson . body (p e)) !!! do
-          const 403 === statusCode
-          const (Just "blacklisted-email") === fmap Error.label . responseJsonMaybe
+        post
+          ( brig
+              . path "/register"
+              . contentJson
+              . body (p e)
+              . header "X-Forwarded-For" "127.0.0.42"
+          )
+          !!! do
+            const 403 === statusCode
+            const (Just "blacklisted-email") === fmap Error.label . responseJsonMaybe
     p email =
       RequestBodyLBS . encode $
         object
@@ -483,11 +541,29 @@ testCreateUserExternalSSO brig = do
           ["name" .= ("foo" :: Text)]
             <> ["sso_id" .= Just ssoid | withsso]
             <> ["team_id" .= Just teamid | withteam]
-  post (brig . path "/register" . contentJson . body (p False True))
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (p False True)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
-  post (brig . path "/register" . contentJson . body (p True False))
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (p True False)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
-  post (brig . path "/register" . contentJson . body (p True True))
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (p True True)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
 
 testActivateWithExpiry :: Opt.Opts -> Brig -> Timeout -> Http ()
@@ -1405,6 +1481,7 @@ testTooManyMembersForLegalhold opts brig = do
           . path "/register"
           . contentJson
           . body (accept inviteeEmail inviteeCode)
+          . header "X-Forwarded-For" "127.0.0.42"
       )
       !!! do
         const 403 === statusCode

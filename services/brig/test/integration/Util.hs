@@ -333,7 +333,15 @@ createAnonUser = createAnonUserExpiry Nothing
 createAnonUserExpiry :: (HasCallStack) => Maybe Integer -> Text -> Brig -> Http User
 createAnonUserExpiry expires name brig = do
   let p = RequestBodyLBS . encode $ object ["name" .= name, "expires_in" .= expires]
-  r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
+  r <-
+    post
+      ( brig
+          . path "/register"
+          . contentJson
+          . body p
+          . header "X-Forwarded-For" "127.0.0.42"
+      )
+      <!! const 201 === statusCode
   responseJsonError r
 
 requestActivationCode :: (HasCallStack) => Brig -> Int -> Either EmailAddress Phone -> Http ()
@@ -449,7 +457,13 @@ postUserRegister payload brig = do
 
 postUserRegister' :: (MonadHttp m) => Object -> Brig -> m ResponseLBS
 postUserRegister' payload brig = do
-  post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload))
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (RequestBodyLBS $ encode payload)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
 
 deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword6 -> Brig -> m ResponseLBS
 deleteUser u p brig =
