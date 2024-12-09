@@ -8,14 +8,11 @@ testDomainRegistrationLock :: App ()
 testDomainRegistrationLock = do
   domain <- randomDomain
   -- it should not yet exist
-  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 404
+  assertStatus 404 =<< getDomainRegistration OwnDomain domain
   -- add to deny-list
-  bindResponse (domainRegistrationLock OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationLock OwnDomain domain
   -- idempotent
-  bindResponse (domainRegistrationLock OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationLock OwnDomain domain
   -- it got created
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -23,8 +20,7 @@ testDomainRegistrationLock = do
     resp.json %. "domain_redirect" `shouldMatch` "locked"
     resp.json %. "team_invite" `shouldMatch` "allowed"
   -- remove from deny-list
-  bindResponse (domainRegistrationUnlock OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationUnlock OwnDomain domain
   -- check that it got removed
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -36,14 +32,12 @@ testDomainRegistrationLockPreviousValueOverwritten :: App ()
 testDomainRegistrationLockPreviousValueOverwritten = do
   domain <- randomDomain
   -- pre-authorize
-  bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationPreAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
   -- lock
-  bindResponse (domainRegistrationLock OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationLock OwnDomain domain
   -- check that it got overwritten
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -53,8 +47,7 @@ testDomainRegistrationUnlockErrorIfNotLocked :: App ()
 testDomainRegistrationUnlockErrorIfNotLocked = do
   domain <- randomDomain
   -- pre-authorize
-  bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationPreAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
@@ -67,14 +60,11 @@ testDomainRegistrationPreAuthorize :: App ()
 testDomainRegistrationPreAuthorize = do
   domain <- randomDomain
   -- it should not yet exist
-  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 404
+  assertStatus 404 =<< getDomainRegistration OwnDomain domain
   -- pre-authorize
-  bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationPreAuthorize OwnDomain domain
   -- idempotent
-  bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationPreAuthorize OwnDomain domain
   -- it got created
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -86,8 +76,7 @@ testDomainRegistrationPreAuthorizeFailsIfLocked :: App ()
 testDomainRegistrationPreAuthorizeFailsIfLocked = do
   domain <- randomDomain
   -- add to deny-list
-  bindResponse (domainRegistrationLock OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationLock OwnDomain domain
   -- pre-authorize
   bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 400
@@ -97,11 +86,9 @@ testDomainRegistrationPreAuthorizeFailsIfLocked = do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "locked"
   -- remove from deny-list
-  bindResponse (domainRegistrationUnlock OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationUnlock OwnDomain domain
   -- now it should work
-  bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationPreAuthorize OwnDomain domain
   -- domain redirect should be pre-authorized
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -113,19 +100,16 @@ testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite :: App ()
 testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite = do
   domain <- randomDomain
   -- it should not yet exist
-  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 404
+  assertStatus 404 =<< getDomainRegistration OwnDomain domain
   let update =
         object
           [ "domain_redirect" .= "none",
             "team_invite" .= "team",
             "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
           ]
-  bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
   -- pre-authorize
-  bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  assertStatus 204 =<< domainRegistrationPreAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain" `shouldMatch` domain
@@ -134,22 +118,20 @@ testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite = do
     resp.json %. "team" `shouldMatch` "3bc23f21-dc03-4922-9563-c3beedf895db"
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe Value)
 
-testDomainRegistrationUnlockDoesNotCreateEntry :: App ()
-testDomainRegistrationUnlockDoesNotCreateEntry = do
+testDomainRegistrationDoesNotCreateEntry :: App ()
+testDomainRegistrationDoesNotCreateEntry = do
   domain <- randomDomain
-  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-  bindResponse (domainRegistrationUnlock OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 404
-  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 404
+  assertStatus 404 =<< getDomainRegistration OwnDomain domain
+  assertStatus 404 =<< domainRegistrationUnlock OwnDomain domain
+  assertStatus 404 =<< domainRegistrationUnAuthorize OwnDomain domain
+  assertStatus 404 =<< getDomainRegistration OwnDomain domain
 
 testDomainRegistrationUpdate :: App ()
 testDomainRegistrationUpdate = do
   domain <- randomDomain
   -- it should not yet exist
-  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 404
+  assertStatus 404 =<< getDomainRegistration OwnDomain domain
+  -- TODO: check invariants for domain_redirect and team_invite combination
   updateDomain domain
     $ object
       [ "domain_redirect" .= "backend",
@@ -172,11 +154,9 @@ testDomainRegistrationUpdate = do
     updateDomain :: String -> Value -> App ()
     updateDomain domain update = do
       -- update
-      bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
-        resp.status `shouldMatchInt` 204
+      assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
       -- idempotent
-      bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
-        resp.status `shouldMatchInt` 204
+      assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
       -- it got created
       bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
         resp.status `shouldMatchInt` 200
@@ -195,3 +175,8 @@ testDomainRegistrationUpdate = do
         case mTid of
           Just tid -> resp.json %. "team" `shouldMatch` tid
           Nothing -> lookupField resp.json "team" `shouldMatch` (Nothing :: Maybe Value)
+
+testDomainRegistrationUnAuthorize :: App ()
+testDomainRegistrationUnAuthorize = do
+  domain <- randomDomain
+  _

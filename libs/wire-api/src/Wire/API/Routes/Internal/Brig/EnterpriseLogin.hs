@@ -74,7 +74,7 @@ type EnterpriseLoginApi =
                :> "domain-registration"
                :> Capture "domain" Domain
                :> "unauthorize"
-               :> Post '[JSON] NoContent
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Domain un-authorized")
            )
     :<|> Named
            "domain-registration-update"

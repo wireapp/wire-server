@@ -34,9 +34,21 @@ runEnterpriseLoginSubsystem = interpret $
   \case
     LockDomain domain -> lockDomainImpl domain
     UnlockDomain domain -> unlockDomainImpl domain
-    PreAuthorize domain -> preAuthorizeImpl domain
+    PreAuthorizeDomain domain -> preAuthorizeImpl domain
+    UnAuthorizeDomain domain -> unauthorizeImpl domain
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
+
+unauthorizeImpl ::
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  Domain ->
+  Sem r ()
+unauthorizeImpl domain = do
+  _dr <- getDomainRegistrationImpl domain
+  pure ()
 
 updateDomainRegistrationImpl ::
   ( Member DomainRegistrationStore r,
