@@ -120,6 +120,7 @@ library
     Test.Conversation
     Test.Demo
     Test.EJPD
+    Test.EnterpriseLogin
     Test.Errors
     Test.Events
     Test.ExternalPartner
