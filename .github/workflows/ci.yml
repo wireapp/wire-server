@@ -11,9 +11,10 @@ jobs:
       id-token: write
       contents: read
     steps:
-     - uses: actions/checkout@v2
+     - uses: actions/checkout@v4
        with:
          submodules: true
+         token: '${{ secrets.GH_DOCS_WORKFLOW }}'
      - uses: cachix/install-nix-action@v27
      - uses: cachix/cachix-action@v15
        with:

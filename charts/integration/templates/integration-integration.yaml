@@ -93,6 +93,11 @@ spec:
       secret:
         secretName: {{ include "cassandraTlsSecretName" .Values.config }}
     {{- end }}
+
+    - name: wire-server-enterprise-config
+      configMap:
+        name: wire-server-enterprise
+
   restartPolicy: Never
 
   initContainers:
@@ -283,6 +288,9 @@ spec:
     - name: "integration-cassandra"
       mountPath: "/etc/wire/spar/cassandra"
     {{- end }}
+
+    - name: wire-server-enterprise-config
+      mountPath: /etc/wire/wire-server-enterprise/conf
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"

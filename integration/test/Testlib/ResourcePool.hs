@@ -48,7 +48,8 @@ resourceServiceMap resource =
           spar = g Spar,
           -- FUTUREWORK: Set to g Proxy, when we add Proxy to spawned services
           proxy = HostPort "127.0.0.1" 9087,
-          stern = g Stern
+          stern = g Stern,
+          wireServerEnterprise = g WireServerEnterprise
         }
 
 acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m, HasCallStack) => Int -> ResourcePool a -> Codensity m [a]

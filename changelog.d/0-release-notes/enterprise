@@ -1,0 +1,3 @@
+This release contains a new module: `wire-server-enterprise`. This module
+represents a service which contains all non-open-source features. Wire can still
+be deployed and run without this service.

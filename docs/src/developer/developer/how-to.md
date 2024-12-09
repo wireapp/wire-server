@@ -211,3 +211,22 @@ Note: Simply deleting the namespaces is insufficient, because it leaves some res
 We support two different ways of managing the docker-compose instance of rabbitmq:
 * A web console interface is available [here](http://localhost:15672)
 * `rabbitmqadmin` CLI is made available in the dev environment
+
+## Avoid Github HTTPS authentication for wire-server-enterprise
+
+Having to provide HTTPS authentication credentials is annoying. Unfortunately,
+we have to use HTTPS Git repository URLs in for submodules, because some
+Concourse tasks require them (cannot clone with SSH.)
+
+A hacky workaround is to rewrite the URLs in the `~/.gitconfig`:
+
+```
+git config --global url."git@github.com:".insteadOf "https://github.com/"
+```
+
+This leads to such entry:
+
+```
+[url "git@github.com:"]
+        insteadOf = https://github.com/
+```
