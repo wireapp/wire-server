@@ -20,11 +20,11 @@ import System.Logger qualified as Log
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
 
-rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
-rabbitMQWebSocketApp uid cid e pendingConn = do
+rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Env -> ServerApp
+rabbitMQWebSocketApp uid mcid e pendingConn = do
   bracket openWebSocket closeWebSocket $ \wsConn ->
     ( do
-        sendFullSyncMessageIfNeeded wsConn uid cid e
+        traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
         sendNotifications wsConn
     )
       `catches` [ handleClientMisbehaving wsConn,
@@ -34,7 +34,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
   where
     logClient =
       Log.field "user" (idToText uid)
-        . Log.field "client" (clientToText cid)
+        . Log.field "client" (maybe "<temporary>" clientToText mcid)
 
     openWebSocket =
       acceptRequest pendingConn
@@ -171,10 +171,10 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 sendFullSyncMessageIfNeeded ::
   WS.Connection ->
   UserId ->
-  ClientId ->
   Env ->
+  ClientId ->
   IO ()
-sendFullSyncMessageIfNeeded wsConn uid cid env = do
+sendFullSyncMessageIfNeeded wsConn uid env cid = do
   row <- C.runClient env.cassandra do
     retry x5 $ query1 q (params LocalQuorum (uid, cid))
   for_ row $ \_ -> sendFullSyncMessage uid cid wsConn env
