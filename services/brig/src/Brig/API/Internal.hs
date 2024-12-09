@@ -93,7 +93,7 @@ import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.EmailSubsystem (EmailSubsystem)
-import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem, getDomainRegistration, lockDomain, unlockDomain)
+import Wire.EnterpriseLoginSubsystem
 import Wire.Events (Events)
 import Wire.Events qualified as Events
 import Wire.FederationConfigStore
@@ -434,7 +434,7 @@ enterpriseLoginApi :: (Member EnterpriseLoginSubsystem r) => ServerT BrigIRoutes
 enterpriseLoginApi =
   Named @"domain-registration-lock" (lift . liftSem . lockDomain)
     :<|> Named @"domain-registration-unlock" (lift . liftSem . unlockDomain)
-    :<|> Named @"domain-registration-pre-authorize" (const $ pure NoContent)
+    :<|> Named @"domain-registration-pre-authorize" (lift . liftSem . preAuthorize)
     :<|> Named @"domain-registration-unauthorize" (const $ pure NoContent)
     :<|> Named @"domain-registration-update" (\_d _p -> pure NoContent)
     :<|> Named @"domain-registration-delete" (\_d -> pure NoContent)

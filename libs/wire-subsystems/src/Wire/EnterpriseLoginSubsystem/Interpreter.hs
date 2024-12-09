@@ -32,9 +32,18 @@ runEnterpriseLoginSubsystem ::
   Sem r a
 runEnterpriseLoginSubsystem = interpret $
   \case
-    LockDomain domain -> upsert $ StoredDomainRegistration domain LockedTag AllowedTag Nothing Nothing Nothing Nothing
+    LockDomain domain -> lockDomainImpl domain
     UnlockDomain domain -> unlockDomainImpl domain
+    PreAuthorize domain -> preAuthorizeImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
+
+lockDomainImpl ::
+  ( Member DomainRegistrationStore r
+  ) =>
+  Domain ->
+  Sem r ()
+lockDomainImpl domain =
+  upsert $ StoredDomainRegistration domain LockedTag AllowedTag Nothing Nothing Nothing Nothing
 
 unlockDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -49,6 +58,20 @@ unlockDomainImpl domain = do
     Locked -> upsert $ toStored $ dr {domainRedirect = None}
     _ -> throw EnterpriseLoginSubsystemUnlockError
 
+preAuthorizeImpl ::
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r
+  ) =>
+  Domain ->
+  Sem r ()
+preAuthorizeImpl domain = do
+  mDr <- lookup domain
+  case mDr of
+    Nothing -> upsert $ StoredDomainRegistration domain PreAuthorizedTag AllowedTag Nothing Nothing Nothing Nothing
+    Just sdr | sdr.domainRedirect == NoneTag -> upsert $ sdr {domainRedirect = PreAuthorizedTag}
+    Just sdr | sdr.domainRedirect == PreAuthorizedTag -> pure ()
+    _ -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
+
 getDomainRegistrationImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
@@ -57,8 +80,8 @@ getDomainRegistrationImpl ::
   Domain ->
   Sem r DomainRegistration
 getDomainRegistrationImpl domain = do
-  mStoredDomainRegistration <- lookup domain
-  case mStoredDomainRegistration of
+  mDr <- lookup domain
+  case mDr of
     Nothing -> throw EnterpriseLoginSubsystemErrorNotFound
     Just sdr -> do
       let mDomainRegistration = fromStored sdr
@@ -79,6 +102,7 @@ fromStored sdr =
     getTeamInvite = \case
       StoredDomainRegistration _ _ ti _ _ _ _ -> case ti of
         AllowedTag -> Just Allowed
+        NotAllowedTag -> Just NotAllowed
         _ -> Nothing
 
     getDomainRedirect :: StoredDomainRegistration -> Maybe DomainRedirect
@@ -86,6 +110,7 @@ fromStored sdr =
       StoredDomainRegistration _ dr _ _ _ _ _ -> case dr of
         NoneTag -> Just None
         LockedTag -> Just Locked
+        PreAuthorizedTag -> Just PreAuthorized
         _ -> Nothing
 
 toStored :: DomainRegistration -> StoredDomainRegistration

@@ -62,7 +62,7 @@ type EnterpriseLoginApi =
                :> "domain-registration"
                :> Capture "domain" Domain
                :> "preauthorize"
-               :> Post '[JSON] NoContent
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Domain pre-authorized")
            )
     :<|> Named
            "domain-registration-unauthorize"
