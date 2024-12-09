@@ -247,3 +247,11 @@ releases:
         value: {{ .Values.federationDomain2 }}
     needs:
       - 'databases-ephemeral'
+
+  - name: wire-server-enterprise
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/wire-server-enterprise'
+
+  - name: wire-server-enterprise
+    namespace: '{{ .Values.namespace2 }}'
+    chart: '../.local/charts/wire-server-enterprise'
