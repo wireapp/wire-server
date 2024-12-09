@@ -124,7 +124,13 @@ registerUser name brig = do
               "email" .= fromEmail e,
               "password" .= defPassword
             ]
-  post (brig . path "/register" . contentJson . body p)
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
 
 activateEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> EmailAddress -> m ()
 activateEmail brig email = do

@@ -27,12 +27,13 @@ where
 import API.Team.Util qualified as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
+import Brig.Options qualified as Opts
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout (threadDelay, timeout)
-import Control.Lens ((^.))
+import Control.Lens (over, (^.))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.ByteString qualified as BS
@@ -100,12 +101,13 @@ import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Auth (CookieType (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.RateLimit.Interpreter
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeStore.Cassandra qualified as VerificationCodeStore
 
-tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
-tests dom conf p db b c g n = do
+tests :: Domain -> Opts.Opts -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
+tests dom brigOpts conf p db b c g n = do
   pure $
     testGroup
       "provider"
@@ -126,7 +128,7 @@ tests dom conf p db b c g n = do
             test p "add-get" $ testAddGetService conf db b,
             test p "update" $ testUpdateService conf db b,
             test p "update-conn" $ testUpdateServiceConn conf db b,
-            test p "search (tag/prefix)" $ testListServices conf db b,
+            test p "search (tag/prefix)" $ testListServices brigOpts conf db b,
             test p "delete" $ testDeleteService conf db b g c
           ],
         testGroup
@@ -437,8 +439,8 @@ testUpdateServiceConn config db brig = do
     assertEqual "token" newTokens (serviceTokens _svc)
     assertBool "enabled" (serviceEnabled _svc)
 
-testListServices :: Config -> DB.ClientState -> Brig -> Http ()
-testListServices config db brig = do
+testListServices :: Opts.Opts -> Config -> DB.ClientState -> Brig -> Http ()
+testListServices brigOpts config db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
   uid <- randomId
@@ -459,8 +461,11 @@ testListServices config db brig = do
   uniq <- UUID.toText . toUUID <$> randomId
   new <- defNewService config
   let mkName n = Name (uniq <> "|" <> n)
-  svcs <- mapM (addGetService brig pid . mkNew new) (taggedServiceNames uniq)
-  mapM_ (enableService brig pid . serviceId) svcs
+      noRateLimitOpts = brigOpts & over (Opts.settingsLens . Opts.passwordHashingRateLimitLens) (\cfg -> cfg {userLimit = TokenBucketConfig 10 0})
+  svcs <- withSettingsOverrides noRateLimitOpts $ do
+    svcs <- mapM (addGetService brig pid . mkNew new) (taggedServiceNames uniq)
+    mapM_ (enableService brig pid . serviceId) svcs
+    pure svcs
   let services :: [(ServiceId, Name)]
       services = map (serviceId &&& serviceName) svcs
   -- This is how we're going to call our /services endpoint. Every time we
@@ -1078,6 +1083,7 @@ registerProvider brig new =
       . path "/provider/register"
       . contentJson
       . body (RequestBodyLBS (encode new))
+      . header "X-Forwarded-For" "127.0.0.42"
 
 getProviderActivationCodeInternal ::
   Brig ->
@@ -1215,10 +1221,11 @@ getProviderProfile brig pid uid =
       . header "Z-User" (toByteString' uid)
 
 addService ::
+  (MonadHttp m) =>
   Brig ->
   ProviderId ->
   NewService ->
-  Http ResponseLBS
+  m ResponseLBS
 addService brig pid new =
   post $
     brig
@@ -1229,10 +1236,11 @@ addService brig pid new =
       . body (RequestBodyLBS (encode new))
 
 getService ::
+  (MonadHttp m) =>
   Brig ->
   ProviderId ->
   ServiceId ->
-  Http ResponseLBS
+  m ResponseLBS
 getService brig pid sid =
   get $
     brig
@@ -1285,11 +1293,12 @@ updateService brig pid sid upd =
       . body (RequestBodyLBS (encode upd))
 
 updateServiceConn ::
+  (MonadHttp m) =>
   Brig ->
   ProviderId ->
   ServiceId ->
   UpdateServiceConn ->
-  Http ResponseLBS
+  m ResponseLBS
 updateServiceConn brig pid sid upd =
   put $
     brig
@@ -1704,7 +1713,7 @@ randomProvider db brig = do
   let Just prv = responseJsonMaybe _rs
   pure prv
 
-addGetService :: (HasCallStack) => Brig -> ProviderId -> NewService -> Http Service
+addGetService :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Brig -> ProviderId -> NewService -> m Service
 addGetService brig pid new = do
   _rs <- addService brig pid new <!! const 201 === statusCode
   let Just srs = responseJsonMaybe _rs
@@ -1713,7 +1722,7 @@ addGetService brig pid new = do
   let Just svc = responseJsonMaybe _rs
   pure svc
 
-enableService :: (HasCallStack) => Brig -> ProviderId -> ServiceId -> Http ()
+enableService :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Brig -> ProviderId -> ServiceId -> m ()
 enableService brig pid sid = do
   let upd =
         (mkUpdateServiceConn defProviderPassword)
