@@ -25,6 +25,7 @@ import Control.Retry
 import Data.ByteString.Conversion
 import Data.List.Extra
 import Data.Map qualified as Map
+import Data.Text qualified as T
 import Data.Timeout
 import Imports hiding (threadDelay)
 import Network.AMQP qualified as Q
@@ -59,7 +60,8 @@ data RabbitMqPool key = RabbitMqPool
 data RabbitMqPoolOptions = RabbitMqPoolOptions
   { maxConnections :: Int,
     maxChannels :: Int,
-    endpoint :: AmqpEndpoint
+    endpoint :: AmqpEndpoint,
+    retryEnabled :: Bool
   }
 
 createRabbitMqPool :: (Ord key) => RabbitMqPoolOptions -> Logger -> Codensity IO (RabbitMqPool key)
@@ -176,6 +178,7 @@ createConnection pool = mask_ $ do
 
 openConnection :: RabbitMqPool key -> IO Q.Connection
 openConnection pool = do
+  numConnections <- atomically $ length <$> readTVar pool.connections
   (username, password) <- readCredsFromEnv
   recovering
     rabbitMqRetryPolicy
@@ -199,7 +202,9 @@ openConnection pool = do
                   ],
                 Q.coVHost = pool.opts.endpoint.vHost,
                 Q.coAuth = [Q.plain username password],
-                Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
+                Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings,
+                -- the name is used by tests to identify pool connections
+                Q.coName = Just ("pool " <> T.pack (show numConnections))
               }
     )
 
@@ -233,11 +238,11 @@ createChannel pool queue key = do
           (_, Just (Q.ConnectionClosedException {})) -> do
             Log.info pool.logger $
               Log.msg (Log.val "RabbitMQ connection was closed unexpectedly")
-            pure True
+            pure pool.opts.retryEnabled
           _ -> do
             unless (fromException e == Just AsyncCancelled) $
               logException pool.logger "RabbitMQ channel closed" e
-            pure True
+            pure pool.opts.retryEnabled
         putMVar closedVar retry
 
   let manageChannel = do
@@ -258,7 +263,9 @@ createChannel pool queue key = do
               putMVar inner chan
               void $ liftIO $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
                 putMVar msgVar (Just (message, envelope))
-              takeMVar closedVar
+              retry <- takeMVar closedVar
+              void $ takeMVar inner
+              pure retry
 
         when retry manageChannel
 
