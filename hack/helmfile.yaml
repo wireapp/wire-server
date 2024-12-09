@@ -251,7 +251,13 @@ releases:
   - name: wire-server-enterprise
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/wire-server-enterprise'
+    values:
+      - secrets:
+          configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
 
   - name: wire-server-enterprise
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/wire-server-enterprise'
+    values:
+      - secrets:
+          configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
