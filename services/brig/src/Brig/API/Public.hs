@@ -209,6 +209,22 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
+versionedSwaggerDocsAPI (Just (VersionNumber V9)) =
+  swaggerSchemaUIServer $
+    ( serviceSwagger @VersionAPITag @'V9
+        <> serviceSwagger @BrigAPITag @'V9
+        <> serviceSwagger @GalleyAPITag @'V9
+        <> serviceSwagger @SparAPITag @'V9
+        <> serviceSwagger @CargoholdAPITag @'V9
+        <> serviceSwagger @CannonAPITag @'V9
+        <> serviceSwagger @GundeckAPITag @'V9
+        <> serviceSwagger @ProxyAPITag @'V9
+        <> serviceSwagger @OAuthAPITag @'V9
+    )
+      & S.info . S.title .~ "Wire-Server API"
+      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V9) Nothing mempty]
+      & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V8)) =
   swaggerSchemaUIServer $
     ( serviceSwagger @VersionAPITag @'V8
