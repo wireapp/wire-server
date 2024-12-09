@@ -12,6 +12,8 @@ import Data.Id
 import Data.Misc
 import Data.OpenApi qualified as OpenApi
 import Data.Schema
+import Data.Text.Ascii (Ascii, AsciiText (toText))
+import Data.Text.Ascii qualified as Ascii
 import Imports
 import SAML2.WebSSO qualified as SAML
 
@@ -146,7 +148,7 @@ deriving via (Schema TeamInvite) instance ToJSON TeamInvite
 
 deriving via (Schema TeamInvite) instance OpenApi.ToSchema TeamInvite
 
-newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: Text}
+newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: Ascii}
   deriving stock (Ord, Eq, Show)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DnsVerificationToken
 
@@ -223,7 +225,7 @@ instance C.Cql TeamInviteTag where
   fromCql _ = Left "TeamInviteTag value: int expected"
 
 instance C.Cql DnsVerificationToken where
-  ctype = C.Tagged C.TextColumn
-  toCql = C.CqlText . unDnsVerificationToken
-  fromCql (C.CqlText t) = Right $ DnsVerificationToken t
+  ctype = C.Tagged C.AsciiColumn
+  toCql = C.toCql . toText . unDnsVerificationToken
+  fromCql (C.CqlAscii t) = DnsVerificationToken <$> Ascii.validate t
   fromCql _ = Left "DnsVerificationToken value: text expected"

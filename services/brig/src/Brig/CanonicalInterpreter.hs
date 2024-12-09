@@ -40,11 +40,16 @@ import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.DeleteQueue
+import Wire.DomainRegistrationStore
+import Wire.DomainRegistrationStore.Cassandra
 import Wire.EmailSending
 import Wire.EmailSending.SES
 import Wire.EmailSending.SMTP
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Interpreter
+import Wire.EnterpriseLoginSubsystem
+import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError, enterpriseLoginSubsystemErrorToHttpError)
+import Wire.EnterpriseLoginSubsystem.Interpreter (runEnterpriseLoginSubsystem)
 import Wire.Error
 import Wire.Events
 import Wire.FederationAPIAccess qualified
@@ -103,7 +108,8 @@ import Wire.VerificationCodeSubsystem.Interpreter
 type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
      TeamInvitationSubsystem,
-     UserSubsystem
+     UserSubsystem,
+     EnterpriseLoginSubsystem
    ]
     `Append` BrigLowerLevelEffects
 
@@ -115,6 +121,7 @@ type BrigLowerLevelEffects =
      DeleteQueue,
      Wire.Events.Events,
      NotificationSubsystem,
+     Error EnterpriseLoginSubsystemError,
      Error UserSubsystemError,
      Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
@@ -123,6 +130,7 @@ type BrigLowerLevelEffects =
      Error PropertySubsystemError,
      Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
+     DomainRegistrationStore,
      HashPassword,
      UserKeyStore,
      UserStore,
@@ -268,6 +276,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
               . runHashPassword e.settings.passwordHashingOptions
+              . interpretDomainRegistrationStoreToCassandra e.casClient
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
               . mapError propertySubsystemErrorToHttpError
@@ -276,12 +285,14 @@ runBrigToIO e (AppT ma) = do
               . mapError authenticationSubsystemErrorToHttpError
               . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
+              . mapError enterpriseLoginSubsystemErrorToHttpError
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
+              . runEnterpriseLoginSubsystem
               . userSubsystemInterpreter
               . runTeamInvitationSubsystem teamInvitationSubsystemConfig
               . authSubsystemInterpreter

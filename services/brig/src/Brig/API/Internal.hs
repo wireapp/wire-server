@@ -93,6 +93,7 @@ import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem, getDomainRegistration, lockDomain)
 import Wire.Events (Events)
 import Wire.Events qualified as Events
 import Wire.FederationConfigStore
@@ -151,7 +152,8 @@ servantSitemap ::
     Member HashPassword r,
     Member (Embed IO) r,
     Member ActivationCodeStore r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -428,15 +430,15 @@ internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
 
-enterpriseLoginApi :: ServerT BrigIRoutes.EnterpriseLoginApi (Handler r)
+enterpriseLoginApi :: (Member EnterpriseLoginSubsystem r) => ServerT BrigIRoutes.EnterpriseLoginApi (Handler r)
 enterpriseLoginApi =
-  Named @"domain-registration-lock" (const $ pure NoContent)
+  Named @"domain-registration-lock" (\d -> lift $ liftSem $ lockDomain d $> NoContent)
     :<|> Named @"domain-registration-unlock" (const $ pure NoContent)
     :<|> Named @"domain-registration-pre-authorize" (const $ pure NoContent)
     :<|> Named @"domain-registration-unauthorize" (const $ pure NoContent)
     :<|> Named @"domain-registration-update" (\_d _p -> pure NoContent)
     :<|> Named @"domain-registration-delete" (\_d -> pure NoContent)
-    :<|> Named @"domain-registration-get" (\_d -> pure undefined)
+    :<|> Named @"domain-registration-get" (\d -> lift $ liftSem $ getDomainRegistration d)
 
 ---------------------------------------------------------------------------
 -- Handlers

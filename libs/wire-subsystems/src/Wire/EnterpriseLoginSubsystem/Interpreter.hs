@@ -5,24 +5,49 @@ module Wire.EnterpriseLoginSubsystem.Interpreter
   )
 where
 
+import Data.ByteString.Conversion (toByteString')
+import Data.Domain (Domain)
 import Imports hiding (lookup)
 import Polysemy
+import Polysemy.Error (Error, throw)
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
+import System.Logger.Message qualified as Log
 import Wire.API.EnterpriseLogin
 import Wire.DomainRegistrationStore
 import Wire.EnterpriseLoginSubsystem
+import Wire.EnterpriseLoginSubsystem.Error
 
 runEnterpriseLoginSubsystem ::
-  ( Member DomainRegistrationStore r
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
   ) =>
   Sem (EnterpriseLoginSubsystem ': r) a ->
   Sem r a
 runEnterpriseLoginSubsystem = interpret $
   \case
     LockDomain domain -> upsert $ StoredDomainRegistration domain LockedTag AllowedTag Nothing Nothing Nothing Nothing
-    GetDomainRegistration domain -> do
-      mStoredDomainRegistration <- lookup domain
-      let mDomainRegistration = mStoredDomainRegistration >>= fromStored
-      pure mDomainRegistration
+    GetDomainRegistration domain -> getDomainRegistrationImpl domain
+
+getDomainRegistrationImpl ::
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  Domain ->
+  Sem r DomainRegistration
+getDomainRegistrationImpl domain = do
+  mStoredDomainRegistration <- lookup domain
+  case mStoredDomainRegistration of
+    Nothing -> throw EnterpriseLoginSubsystemErrorNotFound
+    Just sdr -> do
+      let mDomainRegistration = fromStored sdr
+      case mDomainRegistration of
+        Nothing -> do
+          Log.err $ Log.field "domain" (toByteString' domain) . Log.msg (Log.val "Invalid stored domain registration")
+          throw EnterpriseLoginSubsystemInternalError
+        Just dr -> pure dr
 
 fromStored :: StoredDomainRegistration -> Maybe DomainRegistration
 fromStored sdr =
