@@ -101,6 +101,7 @@ createPopulatedBindingTeamWithNames brig names = do
             . path "/register"
             . contentJson
             . body (acceptWithName name inviteeEmail inviteeCode)
+            . header "X-Forwarded-For" "127.0.0.42"
         )
         <!! const 201 === statusCode
     let invitee :: User = responseJsonUnsafe rsp2
@@ -178,6 +179,7 @@ inviteAndRegisterUser u tid brig = do
           . path "/register"
           . contentJson
           . body (accept inviteeEmail inviteeCode)
+          . header "X-Forwarded-For" "127.0.0.42"
       )
       <!! const 201
         === statusCode
@@ -317,6 +319,7 @@ register e t brig =
                   "team" .= t
                 ]
           )
+        . header "X-Forwarded-For" "127.0.0.42"
     )
 
 register' :: EmailAddress -> NewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
@@ -335,6 +338,7 @@ register' e t c brig =
                   "team" .= t
                 ]
           )
+        . header "X-Forwarded-For" "127.0.0.42"
     )
 
 getInvitationInfo :: Brig -> InvitationCode -> (MonadIO m, MonadHttp m) => m (Maybe Invitation)

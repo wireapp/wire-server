@@ -20,6 +20,7 @@ module Wire.API.Routes.Public.Galley.Conversation where
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Id
+import Data.Misc
 import Data.Range
 import Data.SOP (I (..), NS (..))
 import Imports hiding (head)
@@ -823,6 +824,7 @@ type ConversationAPI =
                :> CanThrow 'CodeNotFound
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidConversationPassword
+               :> Header' [Required, Strict] "X-Forwarded-For" IpAddr
                :> "conversations"
                :> "code-check"
                :> ReqBody '[Servant.JSON] ConversationCode

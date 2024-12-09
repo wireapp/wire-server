@@ -59,6 +59,7 @@ hself: hsuper: {
   # (we can unfortunately not do anything here but update nixpkgs)
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
+  lrucaching = hlib.markUnbroken hsuper.lrucaching;
 
   # -----------------
   # version overrides
