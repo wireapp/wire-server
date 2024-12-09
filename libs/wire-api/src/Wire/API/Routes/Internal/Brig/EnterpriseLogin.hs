@@ -20,6 +20,7 @@ module Wire.API.Routes.Internal.Brig.EnterpriseLogin where
 import Data.Domain
 import Servant
 import Wire.API.EnterpriseLogin
+import Wire.API.Routes.MultiVerb (MultiVerb1, RespondEmpty)
 import Wire.API.Routes.Named
 
 --------------------------------------------------------------------------------
@@ -35,7 +36,7 @@ type EnterpriseLoginApi =
         :> "domain-registration"
         :> Capture "domain" Domain
         :> "lock"
-        :> Post '[JSON] NoContent
+        :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Domain added to deny-list")
     )
     :<|> Named
            "domain-registration-unlock"
@@ -47,7 +48,7 @@ type EnterpriseLoginApi =
                :> "domain-registration"
                :> Capture "domain" Domain
                :> "unlock"
-               :> Post '[JSON] NoContent
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Domain removed to deny-list")
            )
     :<|> Named
            "domain-registration-pre-authorize"
