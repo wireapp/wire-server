@@ -346,6 +346,7 @@ registerInvitation brig email name inviteeCode shouldSucceed = do
           . path "/register"
           . contentJson
           . json (acceptWithName name email inviteeCode)
+          . header "X-Forwarded-For" "127.0.0.42"
       )
       <!! const (if shouldSucceed then 201 else 400) === statusCode
 
