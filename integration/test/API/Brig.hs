@@ -800,6 +800,7 @@ registerUser domain email inviteeCode = do
   req <- baseRequest domain Brig Versioned "register"
   submit "POST" $
     req
+      & addClientIP
       & addJSONObject
         [ "name" .= "Alice",
           "email" .= email,

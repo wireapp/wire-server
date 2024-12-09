@@ -17,36 +17,42 @@ import Testlib.Prelude
 -- - Attempting to reset the password again to the same new password should fail.
 testPasswordResetShouldSucceedButFailOnWrongInputs :: (HasCallStack) => App ()
 testPasswordResetShouldSucceedButFailOnWrongInputs = do
-  u <- randomUser OwnDomain def
-  email <- u %. "email" & asString
-  passwordReset u email >>= assertSuccess
-  -- Even though a password reset is now in progress
-  -- we expect a successful response from a subsequent request to not leak any information
-  -- about the requested email.
-  passwordReset u email >>= assertSuccess
+  let noRateLimitCfg =
+        def
+          { brigCfg =
+              setField "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" (0 :: Int)
+          }
+  withModifiedBackend noRateLimitCfg $ \domain -> do
+    u <- randomUser domain def
+    email <- u %. "email" & asString
+    passwordReset u email >>= assertSuccess
+    -- Even though a password reset is now in progress
+    -- we expect a successful response from a subsequent request to not leak any information
+    -- about the requested email.
+    passwordReset u email >>= assertSuccess
 
-  (key, code) <- getPasswordResetData email
-  let newPassword = "newpassword"
+    (key, code) <- getPasswordResetData domain email
+    let newPassword = "newpassword"
 
-  -- complete password reset with incorrect key/code should fail
-  completePasswordReset u "wrong-key" code newPassword >>= assertStatus 400
-  login u email newPassword >>= assertStatus 403
-  completePasswordReset u key "wrong-code" newPassword >>= assertStatus 400
-  login u email newPassword >>= assertStatus 403
+    -- complete password reset with incorrect key/code should fail
+    completePasswordReset u "wrong-key" code newPassword >>= assertStatus 400
+    login u email newPassword >>= assertStatus 403
+    completePasswordReset u key "wrong-code" newPassword >>= assertStatus 400
+    login u email newPassword >>= assertStatus 403
 
-  -- complete password reset with correct key and code should succeed
-  completePasswordReset u key code newPassword >>= assertSuccess
+    -- complete password reset with correct key and code should succeed
+    completePasswordReset u key code newPassword >>= assertSuccess
 
-  -- try login with old password should fail
-  login u email defPassword >>= assertStatus 403
-  -- login with new password should succeed
-  login u email newPassword >>= assertSuccess
-  -- reset password again to the same new password should fail
-  passwordReset u email >>= assertSuccess
-  (nextKey, nextCode) <- getPasswordResetData email
-  bindResponse (completePasswordReset u nextKey nextCode newPassword) $ \resp -> do
-    resp.status `shouldMatchInt` 409
-    resp.json %. "label" `shouldMatch` "password-must-differ"
+    -- try login with old password should fail
+    login u email defPassword >>= assertStatus 403
+    -- login with new password should succeed
+    login u email newPassword >>= assertSuccess
+    -- reset password again to the same new password should fail
+    passwordReset u email >>= assertSuccess
+    (nextKey, nextCode) <- getPasswordResetData domain email
+    bindResponse (completePasswordReset u nextKey nextCode newPassword) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "password-must-differ"
 
 -- @END
 
@@ -66,7 +72,7 @@ testPasswordResetAfterEmailUpdate = do
 
   -- initiate password reset
   passwordReset u email >>= assertSuccess
-  (key, code) <- getPasswordResetData email
+  (key, code) <- getPasswordResetData OwnDomain email
 
   -- activate new email
   bindResponse (getActivationCode u newEmail) $ \resp -> do
@@ -89,7 +95,7 @@ testPasswordResetInvalidPasswordLength = do
   u <- randomUser OwnDomain def
   email <- u %. "email" & asString
   passwordReset u email >>= assertSuccess
-  (key, code) <- getPasswordResetData email
+  (key, code) <- getPasswordResetData OwnDomain email
 
   -- complete password reset with a password that is too short should fail
   let shortPassword = "123456"
@@ -98,8 +104,8 @@ testPasswordResetInvalidPasswordLength = do
   -- try login with new password should fail
   login u email shortPassword >>= assertStatus 403
 
-getPasswordResetData :: String -> App (String, String)
-getPasswordResetData email = do
-  bindResponse (getPasswordResetCode OwnDomain email) $ \resp -> do
+getPasswordResetData :: (HasCallStack, MakesValue domain) => domain -> String -> App (String, String)
+getPasswordResetData domain email = do
+  bindResponse (getPasswordResetCode domain email) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (,) <$> (resp.json %. "key" & asString) <*> (resp.json %. "code" & asString)
