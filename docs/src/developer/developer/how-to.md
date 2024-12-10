@@ -135,8 +135,12 @@ Start by deploying a published release (see 2.1 or 2.2).
 ```
 export NAMESPACE=$USER
 export DOCKER_TAG=2.116.32
+export ENTERPRISE_IMAGE_PULL_SECRET=... # .dockerconfigjson of wire+wire_server_enterprise quay.io robot
 make kube-integration-setup
 ```
+
+(You may consider to export `ENTERPRISE_IMAGE_PULL_SECRET` in `.envrc.local` as
+well.)
 
 Then build and push the `brig` image by running
 
