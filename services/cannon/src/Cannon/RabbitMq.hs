@@ -178,7 +178,11 @@ createConnection pool = mask_ $ do
 
 openConnection :: RabbitMqPool key -> IO Q.Connection
 openConnection pool = do
-  numConnections <- atomically $ length <$> readTVar pool.connections
+  -- This might not be the correct connection ID that will eventually be
+  -- assigned to this connection, since there are potential races with other
+  -- connections being opened at the same time. However, this is only used to
+  -- name the connection, and we only rely on names for tests, so it is fine.
+  connId <- atomically $ readTVar pool.nextId
   (username, password) <- readCredsFromEnv
   recovering
     rabbitMqRetryPolicy
@@ -204,7 +208,7 @@ openConnection pool = do
                 Q.coAuth = [Q.plain username password],
                 Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings,
                 -- the name is used by tests to identify pool connections
-                Q.coName = Just ("pool " <> T.pack (show numConnections))
+                Q.coName = Just ("pool " <> T.pack (show connId))
               }
     )
 
