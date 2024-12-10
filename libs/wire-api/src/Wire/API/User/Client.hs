@@ -158,6 +158,17 @@ instance ToSchema ClientCapability where
       element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
         <> element "consumable-notifications" ClientSupportsConsumableNotifications
 
+data ClientCapabilityV7 = ClientSupportsLegalholdImplicitConsentV7
+  deriving (Eq)
+
+capabilitySchemaV7 :: ValueSchema NamedSwaggerDoc ClientCapabilityV7
+capabilitySchemaV7 =
+  enum @Text "ClientCapabilityV7" $
+    element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsentV7
+
+clientCapabilityFromV7 :: ClientCapabilityV7 -> ClientCapability
+clientCapabilityFromV7 ClientSupportsLegalholdImplicitConsentV7 = ClientSupportsLegalholdImplicitConsent
+
 instance C.Cql ClientCapability where
   ctype = C.Tagged C.IntColumn
 
@@ -197,17 +208,25 @@ capabilitiesSchema ::
 capabilitiesSchema mVersion =
   named objName $
     ClientCapabilityList
-      <$> (Set.toList . dropIncompatibleCapabilities . fromClientCapabilityList) .= (Set.fromList <$> array schema)
+      <$> (Set.toList . fromClientCapabilityList) .= (Set.fromList <$> listSchema)
   where
     objName =
       case mVersion of
         Nothing -> "ClientCapabilityList"
         Just v -> "ClientCapabilityList" <> Text.pack (show v)
-    dropIncompatibleCapabilities :: Set ClientCapability -> Set ClientCapability
-    dropIncompatibleCapabilities caps =
+
+    listSchema :: ValueSchema SwaggerDoc [ClientCapability]
+    listSchema =
       case mVersion of
-        Just v | v <= V7 -> Set.delete ClientSupportsConsumableNotifications caps
-        _ -> caps
+        Just v
+          | v <= V7 ->
+              map clientCapabilityFromV7
+                <$> mapMaybe toCapabilityV7 .= array (capabilitySchemaV7)
+        _ -> array schema
+
+    toCapabilityV7 :: ClientCapability -> Maybe ClientCapabilityV7
+    toCapabilityV7 ClientSupportsConsumableNotifications = Nothing
+    toCapabilityV7 ClientSupportsLegalholdImplicitConsent = Just ClientSupportsLegalholdImplicitConsentV7
 
 --------------------------------------------------------------------------------
 -- UserClientMap
