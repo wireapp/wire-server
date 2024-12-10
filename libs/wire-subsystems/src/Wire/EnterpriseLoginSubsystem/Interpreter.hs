@@ -307,14 +307,14 @@ sendAuditMail url subject mBefore mAfter = do
         toLazyText $
           url
             <> " called;\nOld value:\n"
-            <> fromLazyText (decodeUtf8 (maybe "N/A" Aeson.encodePretty mBefore))
+            <> fromLazyText (decodeUtf8 (maybe "null" Aeson.encodePretty mBefore))
             <> "\nNew value:\n"
-            <> fromLazyText (decodeUtf8 (maybe "deleted" Aeson.encodePretty mAfter))
+            <> fromLazyText (decodeUtf8 (maybe "null" Aeson.encodePretty mAfter))
   Log.info $
-    Log.field "url" (encodeUtf8 $ toLazyText url)
-      . Log.field "old_value" (maybe "N/A" Aeson.encode mBefore)
-      . Log.field "new_value" (maybe "N/A" Aeson.encode mAfter)
-      . Log.msg (Log.val "Domain registration audit log")
+    Log.msg (Log.val "Domain registration audit log")
+      . Log.field "url" (encodeUtf8 $ toLazyText url)
+      . Log.field "old_value" (maybe "null" Aeson.encode mBefore)
+      . Log.field "new_value" (maybe "null" Aeson.encode mAfter)
   mConfig <- input
   for_ mConfig $ \config -> do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
