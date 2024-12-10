@@ -47,8 +47,14 @@ unauthorizeImpl ::
   Domain ->
   Sem r ()
 unauthorizeImpl domain = do
-  _dr <- getDomainRegistrationImpl domain
-  pure ()
+  dr <- getDomainRegistrationImpl domain
+  case dr.domainRedirect of
+    PreAuthorized -> upsert $ toStored dr {domainRedirect = None}
+    Backend _ -> upsert $ toStored dr {domainRedirect = None}
+    NoRegistration -> upsert $ toStored dr {domainRedirect = None}
+    None -> pure ()
+    Locked -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
+    SSO _ -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
 
 updateDomainRegistrationImpl ::
   ( Member DomainRegistrationStore r,

@@ -176,7 +176,88 @@ testDomainRegistrationUpdate = do
           Just tid -> resp.json %. "team" `shouldMatch` tid
           Nothing -> lookupField resp.json "team" `shouldMatch` (Nothing :: Maybe Value)
 
-testDomainRegistrationUnAuthorize :: App ()
-testDomainRegistrationUnAuthorize = do
+testDomainRegistrationPreAuthorizedToUnAuthorize :: App ()
+testDomainRegistrationPreAuthorizedToUnAuthorize = do
   domain <- randomDomain
-  _
+  let update =
+        object
+          [ "domain_redirect" .= "pre-authorized",
+            "team_invite" .= "allowed"
+          ]
+  assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
+  assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
+  assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "none"
+    resp.json %. "team_invite" `shouldMatch` "allowed"
+
+testDomainRegistrationBackendToUnAuthorize :: App ()
+testDomainRegistrationBackendToUnAuthorize = do
+  domain <- randomDomain
+  let update =
+        object
+          [ "domain_redirect" .= "backend",
+            "backend_url" .= "https://example.com",
+            "team_invite" .= "allowed"
+          ]
+  assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
+  assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
+  assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "none"
+    resp.json %. "team_invite" `shouldMatch` "allowed"
+
+testDomainRegistrationNoRegistrationToUnAuthorize :: App ()
+testDomainRegistrationNoRegistrationToUnAuthorize = do
+  domain <- randomDomain
+  let update =
+        object
+          [ "domain_redirect" .= "no-registration",
+            "team_invite" .= "allowed"
+          ]
+  assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
+  assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
+  assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "none"
+    resp.json %. "team_invite" `shouldMatch` "allowed"
+
+testDomainRegistrationUnAuthorizeFailureWhenLocked :: App ()
+testDomainRegistrationUnAuthorizeFailureWhenLocked = do
+  domain <- randomDomain
+  let update =
+        object
+          [ "domain_redirect" .= "locked",
+            "team_invite" .= "allowed"
+          ]
+  assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
+  assertStatus 400 =<< domainRegistrationUnAuthorize OwnDomain domain
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "locked"
+    resp.json %. "team_invite" `shouldMatch` "allowed"
+
+testDomainRegistrationUnAuthorizeFailureWhenSso :: App ()
+testDomainRegistrationUnAuthorizeFailureWhenSso = do
+  domain <- randomDomain
+  let update =
+        object
+          [ "domain_redirect" .= "sso",
+            "sso_idp_id" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
+            "team_invite" .= "team",
+            "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
+          ]
+  assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
+  assertStatus 400 =<< domainRegistrationUnAuthorize OwnDomain domain
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "sso"
+    resp.json %. "team_invite" `shouldMatch` "team"
