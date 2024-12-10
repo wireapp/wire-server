@@ -22,6 +22,7 @@ import Servant
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Version
 import Wire.API.Routes.WebSocket
 
 type CannonAPI =
@@ -46,7 +47,7 @@ type CannonAPI =
            "consume-events"
            ( Summary "Consume events over a websocket connection"
                :> Description "This is the rabbitMQ-based variant of \"await-notifications\""
-               -- :> From 'V8 -- cannon is not versioned yet
+               :> From 'V8
                :> "events"
                :> ZUser
                :> QueryParam'

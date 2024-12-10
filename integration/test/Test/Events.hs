@@ -346,9 +346,15 @@ createEventsWebSocket user cid = do
   eventsChan <- liftIO newChan
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
+  apiVersion <- lift $ getAPIVersionFor $ objDomain user
+  let minAPIVersion = 8
+  lift
+    . when (apiVersion < minAPIVersion)
+    $ assertFailure ("Events websocket can only be created when APIVersion is at least " <> show minAPIVersion)
+
   uid <- lift $ objId =<< objQidObject user
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
-      path = "/events?client=" <> cid
+      path = "/v" <> show apiVersion <> "/events?client=" <> cid
       caHdrs = [(fromString "Z-User", toByteString' uid)]
       app conn =
         race_
