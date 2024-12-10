@@ -291,6 +291,7 @@ let
       stern
       brig-templates
       background-worker
+      wire-server-enterprise
       pkgs.nginz
       pkgs.mls-test-cli
       pkgs.awscli2
