@@ -166,6 +166,9 @@ createConnection pool = mask_ $ do
     v <- race (takeMVar closedVar) (readMVar pool.deadVar)
     when (isRight v) $
       -- close connection and ignore exceptions
+      -- close connection and ignore exceptions
+
+      -- close connection and ignore exceptions
       catch @SomeException (Q.closeConnection conn) $
         \_ -> pure ()
     atomically $ do
@@ -182,7 +185,7 @@ openConnection pool = do
   -- assigned to this connection, since there are potential races with other
   -- connections being opened at the same time. However, this is only used to
   -- name the connection, and we only rely on names for tests, so it is fine.
-  connId <- atomically $ readTVar pool.nextId
+  connId <- readTVarIO pool.nextId
   (username, password) <- readCredsFromEnv
   recovering
     rabbitMqRetryPolicy
