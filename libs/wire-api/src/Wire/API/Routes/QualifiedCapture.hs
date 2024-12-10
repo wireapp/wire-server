@@ -90,10 +90,8 @@ instance
       qualify handler domain value = handler (Qualified value domain)
 
 instance
-  ( KnownSymbol capture,
-    ToHttpApiData a,
-    HasClient m api,
-    KnownSymbol (AppendSymbol capture "_domain")
+  ( ToHttpApiData a,
+    HasClient m api
   ) =>
   HasClient m (QualifiedCapture' mods capture a :> api)
   where
