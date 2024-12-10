@@ -88,6 +88,7 @@ import Data.Qualified
 import Data.SOP hiding (fn)
 import Data.Schema
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
@@ -179,20 +180,29 @@ newtype ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList ::
 instance ToSchema ClientCapabilityList where
   schema = capabilitiesSchema Nothing
 
+instance ToSchema (Versioned V6 ClientCapabilityList) where
+  schema =
+    object "ClientCapabilityListV6Wrapper" $
+      Versioned
+        <$> unVersioned .= field "capabilities" (capabilitiesSchema (Just V6))
+
 instance ToSchema (Versioned V7 ClientCapabilityList) where
   schema =
-    object "ClientCapabilityListV7" $
-      Versioned
-        <$> unVersioned .= field "capabilities" (capabilitiesSchema (Just V7))
+    Versioned
+      <$> unVersioned .= capabilitiesSchema (Just V7)
 
 capabilitiesSchema ::
   Maybe Version ->
   ValueSchema NamedSwaggerDoc ClientCapabilityList
 capabilitiesSchema mVersion =
-  named "ClientCapabilityList" $
+  named objName $
     ClientCapabilityList
       <$> (Set.toList . dropIncompatibleCapabilities . fromClientCapabilityList) .= (Set.fromList <$> array schema)
   where
+    objName =
+      case mVersion of
+        Nothing -> "ClientCapabilityList"
+        Just v -> "ClientCapabilityList" <> Text.pack (show v)
     dropIncompatibleCapabilities :: Set ClientCapability -> Set ClientCapability
     dropIncompatibleCapabilities caps =
       case mVersion of
@@ -528,21 +538,32 @@ clientSchema mVersion =
     caps = case mVersion of
       -- broken capability serialisation for backwards compatibility
       Just v
-        | v <= V7 ->
+        | v <= V6 ->
+            dimap Versioned unVersioned $ schema @(Versioned V6 ClientCapabilityList)
+        | v == V7 ->
             dimap Versioned unVersioned $ schema @(Versioned V7 ClientCapabilityList)
       _ -> schema @ClientCapabilityList
 
 instance ToSchema Client where
   schema = clientSchema Nothing
 
+instance ToSchema (Versioned 'V6 Client) where
+  schema = Versioned <$> unVersioned .= clientSchema (Just V6)
+
 instance ToSchema (Versioned 'V7 Client) where
   schema = Versioned <$> unVersioned .= clientSchema (Just V7)
+
+instance {-# OVERLAPPING #-} ToSchema (Versioned 'V6 [Client]) where
+  schema =
+    Versioned
+      <$> unVersioned
+        .= named "ClientListV6" (array (clientSchema (Just V6)))
 
 instance {-# OVERLAPPING #-} ToSchema (Versioned 'V7 [Client]) where
   schema =
     Versioned
       <$> unVersioned
-        .= named "ClientList" (array (clientSchema (Just V7)))
+        .= named "ClientListV7" (array (clientSchema (Just V7)))
 
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
@@ -754,6 +775,9 @@ newClientSchema mVersion =
 instance ToSchema NewClient where
   schema = newClientSchema Nothing
 
+instance ToSchema (Versioned 'V6 NewClient) where
+  schema = Versioned <$> unVersioned .= newClientSchema (Just V6)
+
 instance ToSchema (Versioned 'V7 NewClient) where
   schema = Versioned <$> unVersioned .= newClientSchema (Just V7)
 
@@ -834,6 +858,9 @@ updateClientSchema mVersion =
 
 instance ToSchema UpdateClient where
   schema = updateClientSchema Nothing
+
+instance ToSchema (Versioned 'V6 UpdateClient) where
+  schema = Versioned <$> unVersioned .= updateClientSchema (Just V6)
 
 instance ToSchema (Versioned 'V7 UpdateClient) where
   schema = Versioned <$> unVersioned .= updateClientSchema (Just V7)

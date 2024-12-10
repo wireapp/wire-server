@@ -750,9 +750,9 @@ type UserClientAPI =
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
-    "add-client@v7"
+    "add-client@v6"
     ( Summary "Register a new client"
-        :> Until 'V8
+        :> Until 'V7
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
         :> CanThrow 'MalformedPrekeys
@@ -761,16 +761,39 @@ type UserClientAPI =
         :> ZLocalUser
         :> ZConn
         :> "clients"
-        :> VersionedReqBody 'V7 '[JSON] NewClient
+        :> VersionedReqBody 'V6 '[JSON] NewClient
         :> MultiVerb1
              'POST
              '[JSON]
              ( WithHeaders
                  ClientHeaders
                  Client
-                 (VersionedRespond 'V7 201 "Client registered" Client)
+                 (VersionedRespond 'V6 201 "Client registered" Client)
              )
     )
+    :<|> Named
+           "add-client@v7"
+           ( Summary "Register a new client"
+               :> From 'V7
+               :> Until 'V8
+               :> CanThrow 'TooManyClients
+               :> CanThrow 'MissingAuth
+               :> CanThrow 'MalformedPrekeys
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
+               :> ZLocalUser
+               :> ZConn
+               :> "clients"
+               :> VersionedReqBody 'V7 '[JSON] NewClient
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( WithHeaders
+                        ClientHeaders
+                        Client
+                        (VersionedRespond 'V7 201 "Client registered" Client)
+                    )
+           )
     :<|> Named
            "add-client"
            ( Summary "Register a new client"
@@ -794,8 +817,20 @@ type UserClientAPI =
                     )
            )
     :<|> Named
+           "update-client@v6"
+           ( Summary "Update a registered client"
+               :> Until 'V7
+               :> CanThrow 'MalformedPrekeys
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> VersionedReqBody 'V6 '[JSON] UpdateClient
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Client updated")
+           )
+    :<|> Named
            "update-client@v7"
            ( Summary "Update a registered client"
+               :> From 'V7
                :> Until 'V8
                :> CanThrow 'MalformedPrekeys
                :> ZUser
@@ -807,6 +842,7 @@ type UserClientAPI =
     :<|> Named
            "update-client"
            ( Summary "Update a registered client"
+               :> From 'V8
                :> CanThrow 'MalformedPrekeys
                :> ZUser
                :> "clients"
@@ -828,8 +864,21 @@ type UserClientAPI =
           :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
       )
     :<|> Named
+           "list-clients@v6"
+           ( Summary "List the registered clients"
+               :> Until 'V7
+               :> ZUser
+               :> "clients"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( VersionedRespond 'V6 200 "List of clients" [Client]
+                    )
+           )
+    :<|> Named
            "list-clients@v7"
            ( Summary "List the registered clients"
+               :> From 'V7
                :> Until 'V8
                :> ZUser
                :> "clients"
@@ -852,8 +901,24 @@ type UserClientAPI =
                     )
            )
     :<|> Named
+           "get-client@v6"
+           ( Summary "Get a registered client by ID"
+               :> Until 'V7
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                       VersionedRespond 'V6 200 "Client found" Client
+                     ]
+                    (Maybe Client)
+           )
+    :<|> Named
            "get-client@v7"
            ( Summary "Get a registered client by ID"
+               :> From 'V7
                :> Until 'V8
                :> ZUser
                :> "clients"
@@ -882,8 +947,22 @@ type UserClientAPI =
                     (Maybe Client)
            )
     :<|> Named
+           "get-client-capabilities@v6"
+           ( Summary "Read back what the client has been posting about itself"
+               :> Until 'V7
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> "capabilities"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V6 200 "capabilities" ClientCapabilityList)
+           )
+    :<|> Named
            "get-client-capabilities@v7"
            ( Summary "Read back what the client has been posting about itself"
+               :> From 'V7
                :> Until 'V8
                :> ZUser
                :> "clients"
@@ -897,6 +976,7 @@ type UserClientAPI =
     :<|> Named
            "get-client-capabilities"
            ( Summary "Read back what the client has been posting about itself"
+               :> From 'V8
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
