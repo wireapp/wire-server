@@ -1,5 +1,6 @@
 module Brig.API.Public.Swagger
   ( VersionedSwaggerDocsAPI,
+    RealVersionedSwaggerDocsAPI,
     InternalEndpointsSwaggerDocsAPI,
     VersionedSwaggerDocsAPIBase,
     SwaggerDocsAPIBase,
@@ -41,6 +42,8 @@ type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader VersionNumber :> SwaggerDocsAPIBase
 
+type RealVersionedSwaggerDocsAPI = "real-api" :> Header' '[Required, Servant.Strict] VersionHeader VersionNumber :> SwaggerDocsAPIBase
+
 type ServiceSwaggerDocsAPIBase :: Symbol -> Kind.Type
 type ServiceSwaggerDocsAPIBase service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
 
@@ -69,6 +72,7 @@ type FederationSwaggerDocsAPI =
 
 type DocsAPI =
   VersionedSwaggerDocsAPI
+    :<|> RealVersionedSwaggerDocsAPI
     :<|> NotificationSchemasAPI
     :<|> InternalEndpointsSwaggerDocsAPI
     :<|> FederationSwaggerDocsAPI

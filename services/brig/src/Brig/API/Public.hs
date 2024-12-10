@@ -95,6 +95,7 @@ import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
+import Servant.OpenApi (HasOpenApi)
 import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
@@ -186,6 +187,7 @@ import Wire.VerificationCodeSubsystem
 docsAPI :: Servant.Server DocsAPI
 docsAPI =
   versionedSwaggerDocsAPI
+    :<|> realVersionedSwaggerDocsAPI
     :<|> pure eventNotificationSchemas
     :<|> internalEndpointsSwaggerDocsAPIs
     :<|> federatedEndpointsSwaggerDocsAPIs
@@ -270,7 +272,9 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
             <> mconcat
               [ [ v <> ": ",
                   renderLink "swagger-ui" ("/" <> v <> "/api/swagger-ui") <> "; ",
-                  renderLink "swagger.json" ("/" <> v <> "/api/swagger.json"),
+                  renderLink "swagger.json" ("/" <> v <> "/api/swagger.json") <> "; ",
+                  renderLink "real-swagger-ui" ("/" <> v <> "/real-api/swagger-ui") <> "; ",
+                  renderLink "real-swagger.json" ("/" <> v <> "/real-api/swagger.json"),
                   "<br>"
                 ]
                 | v <- versionToLByteString <$> [minBound :: Version ..]
@@ -313,6 +317,46 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 
         renderLink :: LByteString -> LByteString -> LByteString
         renderLink caption url = "<a href=\"" <> url <> "\">" <> caption <> "</a>"
+
+realVersionedSwaggerDocsAPI :: Servant.Server RealVersionedSwaggerDocsAPI
+realVersionedSwaggerDocsAPI (VersionNumber V8) = realVersionedSwaggerDocsEndpoints @V8
+realVersionedSwaggerDocsAPI (VersionNumber V7) = realVersionedSwaggerDocsEndpoints @V7
+realVersionedSwaggerDocsAPI (VersionNumber V6) = realVersionedSwaggerDocsEndpoints @V6
+realVersionedSwaggerDocsAPI (VersionNumber V5) = realVersionedSwaggerDocsEndpoints @V5
+realVersionedSwaggerDocsAPI (VersionNumber V4) = realVersionedSwaggerDocsEndpoints @V4
+realVersionedSwaggerDocsAPI (VersionNumber V3) = realVersionedSwaggerDocsEndpoints @V3
+realVersionedSwaggerDocsAPI (VersionNumber V2) = realVersionedSwaggerDocsEndpoints @V2
+realVersionedSwaggerDocsAPI (VersionNumber V1) = realVersionedSwaggerDocsEndpoints @V1
+realVersionedSwaggerDocsAPI (VersionNumber V0) = realVersionedSwaggerDocsEndpoints @V0
+
+realVersionedSwaggerDocsEndpoints ::
+  forall (v :: Version).
+  ( HasOpenApi (SpecialisedAPIRoutes v BrigAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GalleyAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v SparAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CargoholdAPITag),
+    -- HasOpenApi (SpecialisedAPIRoutes v CannonAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GundeckAPITag),
+    -- HasOpenApi (SpecialisedAPIRoutes v ProxyAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v OAuthAPITag)
+  ) =>
+  Servant.Server SwaggerDocsAPIBase
+realVersionedSwaggerDocsEndpoints =
+  swaggerSchemaUIServer $
+    ( serviceSwagger @VersionAPITag @v
+        <> serviceSwagger @BrigAPITag @v
+        <> serviceSwagger @GalleyAPITag @v
+        <> serviceSwagger @SparAPITag @v
+        <> serviceSwagger @CargoholdAPITag @v
+        <> serviceSwagger @CannonAPITag @v
+        <> serviceSwagger @GundeckAPITag @v
+        <> serviceSwagger @ProxyAPITag @v
+        <> serviceSwagger @OAuthAPITag @v
+    )
+      & S.info . S.title .~ "Wire-Server API"
+      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V8) Nothing mempty]
+      & cleanupSwagger
 
 -- | Serves Swagger docs for internal endpoints.
 internalEndpointsSwaggerDocsAPI ::
