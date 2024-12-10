@@ -131,7 +131,6 @@ testDomainRegistrationUpdate = do
   domain <- randomDomain
   -- it should not yet exist
   assertStatus 404 =<< getDomainRegistration OwnDomain domain
-  -- TODO: check invariants for domain_redirect and team_invite combination
   updateDomain domain
     $ object
       [ "domain_redirect" .= "backend",
@@ -176,6 +175,20 @@ testDomainRegistrationUpdate = do
           Just tid -> resp.json %. "team" `shouldMatch` tid
           Nothing -> lookupField resp.json "team" `shouldMatch` (Nothing :: Maybe Value)
 
+testDomainRegistrationUpdateInvalidCases :: App ()
+testDomainRegistrationUpdateInvalidCases = do
+  domain <- randomDomain
+  checkUpdateFails domain $ object ["domain_redirect" .= "locked", "team_invite" .= "not-allowed"]
+  checkUpdateFails domain $ object ["domain_redirect" .= "locked", "team_invite" .= "team", "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"]
+  checkUpdateFails domain $ object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com", "team_invite" .= "team", "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"]
+  checkUpdateFails domain $ object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com", "team_invite" .= "allowed"]
+  where
+    checkUpdateFails :: String -> Value -> App ()
+    checkUpdateFails domain update = do
+      bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "update-failure"
+
 testDomainRegistrationPreAuthorizedToUnAuthorize :: App ()
 testDomainRegistrationPreAuthorizedToUnAuthorize = do
   domain <- randomDomain
@@ -200,7 +213,7 @@ testDomainRegistrationBackendToUnAuthorize = do
         object
           [ "domain_redirect" .= "backend",
             "backend_url" .= "https://example.com",
-            "team_invite" .= "allowed"
+            "team_invite" .= "not-allowed"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
   assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
@@ -209,7 +222,7 @@ testDomainRegistrationBackendToUnAuthorize = do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "none"
-    resp.json %. "team_invite" `shouldMatch` "allowed"
+    resp.json %. "team_invite" `shouldMatch` "not-allowed"
 
 testDomainRegistrationNoRegistrationToUnAuthorize :: App ()
 testDomainRegistrationNoRegistrationToUnAuthorize = do

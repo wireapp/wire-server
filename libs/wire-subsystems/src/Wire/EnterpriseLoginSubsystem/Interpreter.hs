@@ -69,6 +69,7 @@ updateDomainRegistrationImpl ::
   DomainRegistrationUpdate ->
   Sem r ()
 updateDomainRegistrationImpl domain update = do
+  validate update
   mDr <- tryGetDomainRegistrationImpl domain
   case mDr of
     Just dr -> do
@@ -189,3 +190,10 @@ toStored dr =
     fromDomainRedirect (Backend url) = (BackendTag, Nothing, Just url)
     fromDomainRedirect NoRegistration = (NoRegistrationTag, Nothing, Nothing)
     fromDomainRedirect PreAuthorized = (PreAuthorizedTag, Nothing, Nothing)
+
+validate :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainRegistrationUpdate -> Sem r ()
+validate dr = do
+  case dr.domainRedirect of
+    Locked -> when (dr.teamInvite /= Allowed) $ throw (EnterpriseLoginSubsystemErrorUpdateFailure "Team invite must be allowed for a locked domain")
+    Backend _ -> when (dr.teamInvite /= NotAllowed) $ throw (EnterpriseLoginSubsystemErrorUpdateFailure "Team invite must be not-allowed for a backend domain")
+    _ -> pure ()

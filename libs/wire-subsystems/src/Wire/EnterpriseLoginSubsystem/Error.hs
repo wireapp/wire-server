@@ -10,6 +10,7 @@ data EnterpriseLoginSubsystemError
   | EnterpriseLoginSubsystemInternalError
   | EnterpriseLoginSubsystemUnlockError
   | EnterpriseLoginSubsystemErrorInvalidDomainRedirect
+  | EnterpriseLoginSubsystemErrorUpdateFailure LText
   deriving (Show, Eq)
 
 instance Exception EnterpriseLoginSubsystemError
@@ -21,3 +22,4 @@ enterpriseLoginSubsystemErrorToHttpError =
     EnterpriseLoginSubsystemInternalError -> Wai.mkError status500 "internal-error" "Internal Server Error"
     EnterpriseLoginSubsystemUnlockError -> Wai.mkError status400 "unlock-error" "Domain can only be unlocked from a locked state"
     EnterpriseLoginSubsystemErrorInvalidDomainRedirect -> Wai.mkError status400 "invalid-domain-redirect" "Invalid domain redirect"
+    EnterpriseLoginSubsystemErrorUpdateFailure msg -> Wai.mkError status400 "update-failure" msg
