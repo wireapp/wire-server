@@ -88,7 +88,6 @@ import Data.Qualified
 import Data.SOP hiding (fn)
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
@@ -206,15 +205,10 @@ capabilitiesSchema ::
   Maybe Version ->
   ValueSchema NamedSwaggerDoc ClientCapabilityList
 capabilitiesSchema mVersion =
-  named objName $
+  named (versionedName mVersion "ClientCapabilityList") $
     ClientCapabilityList
       <$> (Set.toList . fromClientCapabilityList) .= (Set.fromList <$> listSchema)
   where
-    objName =
-      case mVersion of
-        Nothing -> "ClientCapabilityList"
-        Just v -> "ClientCapabilityList" <> Text.pack (show v)
-
     listSchema :: ValueSchema SwaggerDoc [ClientCapability]
     listSchema =
       case mVersion of
@@ -540,7 +534,7 @@ mlsPublicKeysSchema =
 
 clientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Client
 clientSchema mVersion =
-  object "Client" $
+  object (versionedName mVersion "Client") $
     Client
       <$> clientId .= field "id" schema
       <*> clientType .= field "type" schema
