@@ -261,3 +261,18 @@ testDomainRegistrationUnAuthorizeFailureWhenSso = do
     resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "team_invite" `shouldMatch` "team"
+
+testDomainRegistrationDelete :: App ()
+testDomainRegistrationDelete = do
+  domain <- randomDomain
+  let update =
+        object
+          [ "domain_redirect" .= "sso",
+            "sso_idp_id" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
+            "team_invite" .= "team",
+            "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
+          ]
+  assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
+  assertStatus 204 =<< deleteDomainRegistration OwnDomain domain
+  assertStatus 404 =<< getDomainRegistration OwnDomain domain
+  assertStatus 204 =<< deleteDomainRegistration OwnDomain domain

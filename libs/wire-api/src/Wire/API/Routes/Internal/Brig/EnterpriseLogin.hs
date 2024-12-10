@@ -96,7 +96,7 @@ type EnterpriseLoginApi =
                     \This also means that the domain is removed from the deny-list and is not pre-authorized."
                :> "domain-registration"
                :> Capture "domain" Domain
-               :> Delete '[JSON] NoContent
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "Domain deleted")
            )
     :<|> Named
            "domain-registration-get"

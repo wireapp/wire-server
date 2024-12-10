@@ -37,7 +37,11 @@ runEnterpriseLoginSubsystem = interpret $
     PreAuthorizeDomain domain -> preAuthorizeImpl domain
     UnAuthorizeDomain domain -> unauthorizeImpl domain
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
+    DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
+
+deleteDomainImpl :: (Member DomainRegistrationStore r) => Domain -> Sem r ()
+deleteDomainImpl domain = delete domain
 
 unauthorizeImpl ::
   ( Member DomainRegistrationStore r,

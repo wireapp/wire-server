@@ -12,6 +12,7 @@ data EnterpriseLoginSubsystem m a where
   PreAuthorizeDomain :: Domain -> EnterpriseLoginSubsystem m ()
   UnAuthorizeDomain :: Domain -> EnterpriseLoginSubsystem m ()
   UpdateDomainRegistration :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
+  DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
 
 makeSem ''EnterpriseLoginSubsystem
