@@ -10,17 +10,16 @@ import Control.Monad.Codensity
 import Control.Monad.RWS (asks)
 import Control.Monad.Trans.Class
 import Control.Retry
-import Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.Text as Text
 import Data.Timeout
-import qualified Network.HTTP.Client as HTTP
+import Network.AMQP.Extended
+import Network.RabbitMqAdmin
 import qualified Network.WebSockets as WS
 import Notifications
 import SetupHelpers
-import System.Environment (getEnv)
 import Testlib.Prelude hiding (assertNoEvent)
-import Testlib.ResourcePool (backendA)
+import Testlib.ResourcePool (acquireResources)
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -333,33 +332,36 @@ testChannelLimit = withModifiedBackend
         lift $ assertNoEvent_ ws
 
 testChannelKilled :: (HasCallStack) => App ()
-testChannelKilled = do
-  alice <- randomUser OwnDomain def
+testChannelKilled = lowerCodensity $ do
+  pool <- lift $ asks (.resourcePool)
+  [backend] <- acquireResources 1 pool
+  domain <- startDynamicBackend backend mempty
+  alice <- lift $ randomUser domain def
   [c1, c2] <-
-    replicateM 2
+    lift
+      $ replicateM 2
       $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
       >>= getJSON 201
       >>= (%. "id")
       >>= asString
 
-  lowerCodensity $ do
-    ws <- createEventsWebSocket alice c1
-    lift $ do
-      assertEvent ws $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` c1
-        ackEvent ws e
+  ws <- createEventsWebSocket alice c1
+  lift $ do
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` c1
+      ackEvent ws e
 
-      assertEvent ws $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` c2
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` c2
 
-        recoverAll
-          (constantDelay 500_000 <> limitRetries 10)
-          (const $ killConnection backendA)
+      recoverAll
+        (constantDelay 500_000 <> limitRetries 10)
+        (const (killConnection backend))
 
-      noEvent <- assertNoEvent ws
-      noEvent `shouldMatch` WebSocketDied
+    noEvent <- assertNoEvent ws
+    noEvent `shouldMatch` WebSocketDied
 
 ----------------------------------------------------------------------
 -- helpers
@@ -484,42 +486,24 @@ consumeAllEvents ws = do
       ackEvent ws e
       consumeAllEvents ws
 
-killConnection :: BackendResource -> App ()
+killConnection :: (HasCallStack) => BackendResource -> App ()
 killConnection backend = do
-  rabbitMqConfig <- asks (.rabbitMQConfig)
-  let url = "http://" <> rabbitMqConfig.host <> ":" <> show rabbitMqConfig.adminPort <> "/api/connections/"
-  userName <- liftIO $ getEnv "RABBITMQ_USERNAME"
-  password <- liftIO $ getEnv "RABBITMQ_PASSWORD"
+  rc <- asks (.rabbitMQConfig)
+  let opts =
+        RabbitMqAdminOpts
+          { host = rc.host,
+            port = 0,
+            adminPort = fromIntegral rc.adminPort,
+            vHost = Text.pack backend.berVHost,
+            tls = Just $ RabbitMqTlsOpts Nothing True
+          }
+  servantClient <- liftIO $ mkRabbitMqAdminClientEnv opts
   name <- do
-    req <- liftIO $ HTTP.parseRequest url
-    bindResponse
-      ( submit "GET" $ req
-          & HTTP.applyBasicAuth
-            (B8.pack userName)
-            (B8.pack password)
-      )
-      $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        connections <- asList resp.json
-        connection <-
-          assertOne
-            =<< filterM
-              ( \c -> do
-                  name <- traverse asString =<< lookupField c "user_provided_name"
-                  vhost <- c %. "vhost" & asString
-                  -- We assume that there is only one connection, which is why we use "pool 0"
-                  pure $ name == Just "pool 0" && vhost == backend.berVHost
-              )
-              connections
-        connection %. "name" & asString
+    connections <- liftIO $ listConnectionsByVHost servantClient opts.vHost
+    connection <-
+      assertOne
+        [ c | c <- connections, c.userProvidedName == Just (Text.pack "pool 0")
+        ]
+    pure connection.name
 
-  do
-    req <- liftIO $ HTTP.parseRequest (url <> name)
-    bindResponse
-      ( submit "DELETE" $ req
-          & HTTP.applyBasicAuth
-            (B8.pack userName)
-            (B8.pack password)
-      )
-      $ \resp -> do
-        resp.status `shouldMatchInt` 204
+  void $ liftIO $ deleteConnection servantClient name

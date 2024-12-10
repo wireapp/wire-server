@@ -348,7 +348,9 @@ mockApi :: MockRabbitMqAdmin -> AdminAPI (AsServerT Servant.Handler)
 mockApi mockAdmin =
   AdminAPI
     { listQueuesByVHost = mockListQueuesByVHost mockAdmin,
-      deleteQueue = mockListDeleteQueue mockAdmin
+      deleteQueue = mockListDeleteQueue mockAdmin,
+      listConnectionsByVHost = mockListConnectionsByVHost mockAdmin,
+      deleteConnection = mockDeleteConnection mockAdmin
     }
 
 mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Queue]
@@ -361,6 +363,12 @@ mockListQueuesByVHost MockRabbitMqAdmin {..} vhost = do
 mockListDeleteQueue :: MockRabbitMqAdmin -> Text -> Text -> Servant.Handler NoContent
 mockListDeleteQueue _ _ _ = do
   pure NoContent
+
+mockListConnectionsByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Connection]
+mockListConnectionsByVHost _ _ = pure []
+
+mockDeleteConnection :: MockRabbitMqAdmin -> Text -> Servant.Handler NoContent
+mockDeleteConnection _ _ = pure NoContent
 
 mockRabbitMqAdminApp :: MockRabbitMqAdmin -> Application
 mockRabbitMqAdminApp mockAdmin = genericServe (mockApi mockAdmin)
