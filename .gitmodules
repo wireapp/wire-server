@@ -4,4 +4,4 @@
 [submodule "services/wire-server-enterprise"]
 	path = services/wire-server-enterprise
 	url = https://github.com/wireapp/wire-server-enterprise
-	branch = sventennie/simplest-servant-service
+	branch = main
