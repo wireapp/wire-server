@@ -49,7 +49,7 @@ import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Interpreter
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError, enterpriseLoginSubsystemErrorToHttpError)
-import Wire.EnterpriseLoginSubsystem.Interpreter (runEnterpriseLoginSubsystem)
+import Wire.EnterpriseLoginSubsystem.Interpreter
 import Wire.Error
 import Wire.Events
 import Wire.FederationAPIAccess qualified
@@ -149,6 +149,7 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
+     Input (Maybe EnterpriseLoginSubsystemConfig),
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -258,6 +259,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
+              . runInputConst (mkEnterpriseLoginSubsystemConfig e)
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
@@ -299,6 +301,12 @@ runBrigToIO e (AppT ma) = do
           )
     )
     $ runReaderT ma e
+
+mkEnterpriseLoginSubsystemConfig :: Env -> Maybe EnterpriseLoginSubsystemConfig
+mkEnterpriseLoginSubsystemConfig env = do
+  recipient <- env.settings.auditRecipient
+  let sender = env.emailSender
+  pure $ EnterpriseLoginSubsystemConfig {auditEmailSender = sender, auditEmailRecipient = recipient}
 
 rethrowHttpErrorIO :: (Member (Final IO) r) => InterpreterFor (Error HttpError) r
 rethrowHttpErrorIO act = do

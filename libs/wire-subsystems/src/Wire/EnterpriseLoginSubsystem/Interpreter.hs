@@ -8,6 +8,7 @@ module Wire.EnterpriseLoginSubsystem.Interpreter
   )
 where
 
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain, domainText)
@@ -15,7 +16,7 @@ import Data.Id
 import Data.Misc (HttpsUrl (..))
 import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
 import Data.Text.Lazy.Builder (Builder)
-import Data.Text.Lazy.Encoding (decodeUtf8)
+import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Imports hiding (lookup)
 import Network.Mail.Mime (Address (Address), Mail (mailHeaders, mailParts, mailTo), emptyMail, plainPart)
 import Polysemy
@@ -41,7 +42,7 @@ runEnterpriseLoginSubsystem ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
     Member EmailSending r
   ) =>
   Sem (EnterpriseLoginSubsystem ': r) a ->
@@ -60,7 +61,7 @@ deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -77,7 +78,7 @@ unauthorizeImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -103,7 +104,7 @@ updateDomainRegistrationImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -130,7 +131,7 @@ lockDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -149,7 +150,7 @@ unlockDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -170,7 +171,7 @@ preAuthorizeImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -292,7 +293,10 @@ mkAuditMail from to subject body =
     }
 
 sendAuditMail ::
-  (Member (Input EnterpriseLoginSubsystemConfig) r, Member EmailSending r) =>
+  ( Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member TinyLog r,
+    Member EmailSending r
+  ) =>
   Builder ->
   Text ->
   Maybe DomainRegistration ->
@@ -306,6 +310,12 @@ sendAuditMail url subject mBefore mAfter = do
             <> fromLazyText (decodeUtf8 (maybe "N/A" Aeson.encodePretty mBefore))
             <> "\nNew value:\n"
             <> fromLazyText (decodeUtf8 (maybe "deleted" Aeson.encodePretty mAfter))
-  config <- input
-  let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
-  sendMail mail
+  Log.info $
+    Log.field "url" (encodeUtf8 $ toLazyText url)
+      . Log.field "old_value" (maybe "N/A" Aeson.encode mBefore)
+      . Log.field "new_value" (maybe "N/A" Aeson.encode mAfter)
+      . Log.msg (Log.val "Domain registration audit log")
+  mConfig <- input
+  for_ mConfig $ \config -> do
+    let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
+    sendMail mail
