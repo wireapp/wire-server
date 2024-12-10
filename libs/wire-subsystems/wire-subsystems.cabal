@@ -151,6 +151,7 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson
+    , aeson-pretty
     , amazonka
     , amazonka-core
     , amazonka-ses
