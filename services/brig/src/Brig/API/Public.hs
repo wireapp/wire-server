@@ -453,15 +453,20 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client@v7" addClient
+      Named @"add-client@v6" addClient
+        :<|> Named @"add-client@v7" addClient
         :<|> Named @"add-client" addClient
+        :<|> Named @"update-client@v6" API.updateClient
         :<|> Named @"update-client@v7" API.updateClient
         :<|> Named @"update-client" API.updateClient
         :<|> Named @"delete-client" deleteClient
+        :<|> Named @"list-clients@v6" listClients
         :<|> Named @"list-clients@v7" listClients
         :<|> Named @"list-clients" listClients
+        :<|> Named @"get-client@v6" getClient
         :<|> Named @"get-client@v7" getClient
         :<|> Named @"get-client" getClient
+        :<|> Named @"get-client-capabilities@v6" getClientCapabilities
         :<|> Named @"get-client-capabilities@v7" getClientCapabilities
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys

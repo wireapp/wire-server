@@ -32,6 +32,7 @@ module Wire.API.Routes.Version
     Version (..),
     versionInt,
     versionText,
+    versionedName,
     VersionNumber (..),
     VersionExp (..),
     supportedVersions,
@@ -107,6 +108,10 @@ supportedVersions = [minBound .. maxBound]
 
 maxAvailableVersion :: Set Version -> Maybe Version
 maxAvailableVersion disabled = Set.lookupMax $ Set.fromList supportedVersions \\ disabled
+
+versionedName :: Maybe Version -> Text -> Text
+versionedName Nothing unversionedName = unversionedName
+versionedName (Just v) unversionedName = unversionedName <> Text.pack (show v)
 
 ----------------------------------------------------------------------
 

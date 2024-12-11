@@ -121,7 +121,9 @@ tests =
             (testObject_ClientCapabilityList_2, "testObject_ClientCapabilityList_2.json")
           ],
       testGroup "ClientCapabilityListV6 - non-round-trip" $
-        [testToJSON testObject_ClientCapabilityList_3 "testObject_ClientCapabilityList_3.json"],
+        [ testToJSON testObject_ClientCapabilityList_3 "testObject_ClientCapabilityList_3.json",
+          testToJSON testObject_ClientCapabilityList_3_V7 "testObject_ClientCapabilityList_3_V7.json"
+        ],
       testGroup "ClientCapabilityList" $
         testObjects
           [ (testObject_ClientCapabilityList_4, "testObject_ClientCapabilityList_4.json"),
