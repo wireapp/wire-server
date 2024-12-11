@@ -1723,15 +1723,24 @@
         ],
         "type": "object"
       },
-      "CreateScimToken": {
+      "CreateScimTokenResponseV7": {
+        "properties": {
+          "info": {
+            "$ref": "#/components/schemas/ScimTokenInfoV7"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "info"
+        ],
+        "type": "object"
+      },
+      "CreateScimTokenV7": {
         "properties": {
           "description": {
-            "type": "string"
-          },
-          "idp": {
-            "$ref": "#/components/schemas/UUID"
-          },
-          "name": {
             "type": "string"
           },
           "password": {
@@ -1745,21 +1754,6 @@
         },
         "required": [
           "description"
-        ],
-        "type": "object"
-      },
-      "CreateScimTokenResponse": {
-        "properties": {
-          "info": {
-            "$ref": "#/components/schemas/ScimTokenInfo"
-          },
-          "token": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "token",
-          "info"
         ],
         "type": "object"
       },
@@ -5107,7 +5101,7 @@
         ],
         "type": "object"
       },
-      "ScimTokenInfo": {
+      "ScimTokenInfoV7": {
         "properties": {
           "created_at": {
             "$ref": "#/components/schemas/UTCTime"
@@ -5121,9 +5115,6 @@
           "idp": {
             "$ref": "#/components/schemas/UUID"
           },
-          "name": {
-            "type": "string"
-          },
           "team": {
             "$ref": "#/components/schemas/UUID"
           }
@@ -5132,33 +5123,21 @@
           "team",
           "id",
           "created_at",
-          "description",
-          "name"
+          "description"
         ],
         "type": "object"
       },
-      "ScimTokenList": {
+      "ScimTokenListV7": {
         "properties": {
           "tokens": {
             "items": {
-              "$ref": "#/components/schemas/ScimTokenInfo"
+              "$ref": "#/components/schemas/ScimTokenInfoV7"
             },
             "type": "array"
           }
         },
         "required": [
           "tokens"
-        ],
-        "type": "object"
-      },
-      "ScimTokenName": {
-        "properties": {
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
         ],
         "type": "object"
       },
@@ -15715,36 +15694,6 @@
         "summary": "Verify account deletion with a code."
       }
     },
-    "/events": {
-      "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"consume-events\"]\n\nThis is the rabbitMQ-based variant of \"await-notifications\"",
-        "externalDocs": {
-          "description": "RFC 6455",
-          "url": "https://datatracker.ietf.org/doc/html/rfc6455"
-        },
-        "operationId": "consume-events",
-        "parameters": [
-          {
-            "description": "Client ID",
-            "in": "query",
-            "name": "client",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "101": {
-            "description": "Connection upgraded."
-          },
-          "426": {
-            "description": "Upgrade required."
-          }
-        },
-        "summary": "Consume events over a websocket connection"
-      }
-    },
     "/feature-configs": {
       "get": {
         "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"get-all-feature-configs-for-user\"]\n\nGets feature configs for a user. If the user is a member of a team and has the required permissions, this will return the team's feature configs.If the user is not a member of a team, this will return the personal feature configs (the server defaults).\nOAuth scope: `read:feature_configs`",
@@ -22147,14 +22096,14 @@
         }
       },
       "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"auth-tokens-list\"]\n\n",
-        "operationId": "auth-tokens-list",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"auth-tokens-list@v7\"]\n\n",
+        "operationId": "auth-tokens-list@v7",
         "responses": {
           "200": {
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScimTokenList"
+                  "$ref": "#/components/schemas/ScimTokenListV7"
                 }
               }
             },
@@ -22201,13 +22150,13 @@
         }
       },
       "post": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"auth-tokens-create\"]\n\n",
-        "operationId": "auth-tokens-create",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"auth-tokens-create@v7\"]\n\n",
+        "operationId": "auth-tokens-create@v7",
         "requestBody": {
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/CreateScimToken"
+                "$ref": "#/components/schemas/CreateScimTokenV7"
               }
             }
           },
@@ -22218,87 +22167,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateScimTokenResponse"
-                }
-              }
-            },
-            "description": ""
-          },
-          "403": {
-            "content": {
-              "application/json;charset=utf-8": {
-                "schema": {
-                  "example": {
-                    "code": 403,
-                    "label": "code-authentication-required",
-                    "message": "Code authentication is required"
-                  },
-                  "properties": {
-                    "code": {
-                      "enum": [
-                        403
-                      ],
-                      "type": "integer"
-                    },
-                    "label": {
-                      "enum": [
-                        "code-authentication-required",
-                        "code-authentication-failed"
-                      ],
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "label",
-                    "message"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Code authentication is required (label: `code-authentication-required`)\n\nCode authentication failed (label: `code-authentication-failed`)"
-          }
-        }
-      }
-    },
-    "/scim/auth-tokens/{id}": {
-      "put": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"auth-tokens-put-name\"]\n\n",
-        "operationId": "auth-tokens-put-name",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json;charset=utf-8": {
-              "schema": {
-                "$ref": "#/components/schemas/ScimTokenName"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json;charset=utf-8": {
-                "schema": {
-                  "example": [],
-                  "items": {},
-                  "maxItems": 0,
-                  "type": "array"
+                  "$ref": "#/components/schemas/CreateScimTokenResponseV7"
                 }
               }
             },
