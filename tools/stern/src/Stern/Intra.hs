@@ -97,7 +97,6 @@ import Data.Text.Encoding.Error
 import Data.Text.Lazy as LT (pack)
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
-import Network.HTTP.Client qualified as HC
 import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode, statusMessage)
@@ -1052,28 +1051,18 @@ deleteOAuthClient cid = do
 
 enterpriseLogin :: SS.ServerT EnterpriseLoginApi Handler
 enterpriseLogin =
-  Named @"domain-registration-lock" (useClientAsServerHandler1 domRegLock)
-    :<|> Named @"domain-registration-unlock" (useClientAsServerHandler1 domRegUnlock)
-    :<|> Named @"domain-registration-pre-authorize" (useClientAsServerHandler1 domRegPreAuthorize)
-    :<|> Named @"domain-registration-unauthorize" (useClientAsServerHandler1 domRegUnauthorize)
-    :<|> Named @"domain-registration-update" (useClientAsServerHandler2 domRegUpdate)
-    :<|> Named @"domain-registration-delete" (useClientAsServerHandler1 domRegDelete)
-    :<|> Named @"domain-registration-get" (useClientAsServerHandler1 domRegGet)
+  Named @"domain-registration-lock" (runClientToHandler . domRegLock)
+    :<|> Named @"domain-registration-unlock" (runClientToHandler . domRegUnlock)
+    :<|> Named @"domain-registration-pre-authorize" (runClientToHandler . domRegPreAuthorize)
+    :<|> Named @"domain-registration-unauthorize" (runClientToHandler . domRegUnauthorize)
+    :<|> Named @"domain-registration-update" (\d p -> runClientToHandler (domRegUpdate d p))
+    :<|> Named @"domain-registration-delete" (runClientToHandler . domRegDelete)
+    :<|> Named @"domain-registration-get" (runClientToHandler . domRegGet)
 
-useClientAsServerHandler1 :: (Domain -> SC.ClientM a) -> (Domain -> Handler a)
-useClientAsServerHandler1 client dom = do
-  manager <- lift $ asks (.httpManager)
-  brig <- lift $ asks (.brig)
-  let url = SC.BaseUrl SC.Http (BS.unpack (HC.host brig)) (HC.port brig) ""
-  let clientEnv = SC.mkClientEnv manager url
-  res <- liftIO $ SC.runClientM (client dom) clientEnv
-  either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
-
-useClientAsServerHandler2 :: (Domain -> DomainRegistrationUpdate -> SC.ClientM a) -> (Domain -> DomainRegistrationUpdate -> Handler a)
-useClientAsServerHandler2 client dom upd = do
-  manager <- lift $ asks (.httpManager)
-  brig <- lift $ asks (.brig)
-  res <- liftIO $ SC.runClientM (client dom upd) (SC.mkClientEnv manager (SC.BaseUrl SC.Http (BS.unpack (HC.host brig)) (HC.port brig) ""))
+runClientToHandler :: SC.ClientM a -> Handler a
+runClientToHandler client = do
+  clientEnv <- asks (.servantClientEnv)
+  res <- liftIO $ SC.runClientM client clientEnv
   either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
 
 domRegLock :: Domain -> SC.ClientM NoContent
