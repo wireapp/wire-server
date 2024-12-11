@@ -432,12 +432,12 @@ internalSearchIndexAPI =
 
 enterpriseLoginApi :: (Member EnterpriseLoginSubsystem r) => ServerT BrigIRoutes.EnterpriseLoginApi (Handler r)
 enterpriseLoginApi =
-  Named @"domain-registration-lock" (lift . liftSem . lockDomain)
-    :<|> Named @"domain-registration-unlock" (lift . liftSem . unlockDomain)
-    :<|> Named @"domain-registration-pre-authorize" (lift . liftSem . preAuthorizeDomain)
-    :<|> Named @"domain-registration-unauthorize" (lift . liftSem . unAuthorizeDomain)
-    :<|> Named @"domain-registration-update" (\d p -> lift . liftSem $ updateDomainRegistration d p)
-    :<|> Named @"domain-registration-delete" (lift . liftSem . deleteDomain)
+  Named @"domain-registration-lock" (fmap (const NoContent) . lift . liftSem . lockDomain)
+    :<|> Named @"domain-registration-unlock" (fmap (const NoContent) . lift . liftSem . unlockDomain)
+    :<|> Named @"domain-registration-pre-authorize" (fmap (const NoContent) . lift . liftSem . preAuthorizeDomain)
+    :<|> Named @"domain-registration-unauthorize" (fmap (const NoContent) . lift . liftSem . unAuthorizeDomain)
+    :<|> Named @"domain-registration-update" (\d p -> fmap (const NoContent) . lift . liftSem $ updateDomainRegistration d p)
+    :<|> Named @"domain-registration-delete" (fmap (const NoContent) . lift . liftSem . deleteDomain)
     :<|> Named @"domain-registration-get" (lift . liftSem . getDomainRegistration)
 
 ---------------------------------------------------------------------------

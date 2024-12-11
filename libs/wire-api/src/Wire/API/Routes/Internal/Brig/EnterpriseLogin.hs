@@ -36,7 +36,7 @@ type EnterpriseLoginApi =
         :> "domain-registration"
         :> Capture "domain" Domain
         :> "lock"
-        :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Domain added to deny-list")
+        :> PostNoContent
     )
     :<|> Named
            "domain-registration-unlock"
@@ -48,7 +48,7 @@ type EnterpriseLoginApi =
                :> "domain-registration"
                :> Capture "domain" Domain
                :> "unlock"
-               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Domain removed to deny-list")
+               :> PostNoContent
            )
     :<|> Named
            "domain-registration-pre-authorize"
@@ -62,7 +62,7 @@ type EnterpriseLoginApi =
                :> "domain-registration"
                :> Capture "domain" Domain
                :> "preauthorize"
-               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Domain pre-authorized")
+               :> PostNoContent
            )
     :<|> Named
            "domain-registration-unauthorize"
@@ -74,7 +74,7 @@ type EnterpriseLoginApi =
                :> "domain-registration"
                :> Capture "domain" Domain
                :> "unauthorize"
-               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Domain un-authorized")
+               :> PostNoContent
            )
     :<|> Named
            "domain-registration-update"
@@ -86,7 +86,7 @@ type EnterpriseLoginApi =
                :> "domain-registration"
                :> Capture "domain" Domain
                :> ReqBody '[JSON] DomainRegistrationUpdate
-               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 204 "Domain updated")
+               :> PutNoContent
            )
     :<|> Named
            "domain-registration-delete"
@@ -96,7 +96,7 @@ type EnterpriseLoginApi =
                     \This also means that the domain is removed from the deny-list and is not pre-authorized."
                :> "domain-registration"
                :> Capture "domain" Domain
-               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "Domain deleted")
+               :> DeleteNoContent
            )
     :<|> Named
            "domain-registration-get"
