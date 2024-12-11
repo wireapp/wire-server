@@ -338,7 +338,7 @@ createToken ::
   (HasCallStack) =>
   UserId ->
   CreateScimToken ->
-  TestSpar CreateScimTokenResponseV6
+  TestSpar CreateScimTokenResponseV7
 createToken zusr payload = do
   env <- ask
   r <-

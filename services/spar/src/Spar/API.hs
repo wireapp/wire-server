@@ -208,6 +208,7 @@ apiIDP =
   Named @"idp-get" idpGet -- get, json, captures idp id
     :<|> Named @"idp-get-raw" idpGetRaw -- get, raw xml, capture idp id
     :<|> Named @"idp-get-all" idpGetAll -- get, json
+    :<|> Named @"idp-create@v7" idpCreateV7
     :<|> Named @"idp-create" idpCreate -- post, created
     :<|> Named @"idp-update" idpUpdate -- put, okay
     :<|> Named @"idp-delete" idpDelete -- delete, no content
@@ -469,26 +470,6 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
       mUserIssuer <- (>>= userIssuer) <$> getAccount NoPendingInvitations uid
       pure $ mUserIssuer == Just idpIssuer
 
--- | This handler only does the json parsing, and leaves all authorization checks and
--- application logic to 'idpCreateXML'.
-idpCreate ::
-  ( Member Random r,
-    Member (Logger String) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
-    Member ScimTokenStore r,
-    Member IdPRawMetadataStore r,
-    Member IdPConfigStore r,
-    Member (Error SparError) r
-  ) =>
-  Maybe UserId ->
-  IdPMetadataInfo ->
-  Maybe SAML.IdPId ->
-  Maybe WireIdPAPIVersion ->
-  Maybe (Range 1 32 Text) ->
-  Sem r IdP
-idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
-
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 --
 -- The human-readable name argument `mHandle` is guaranteed to be unique for historical
@@ -499,7 +480,7 @@ idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 -- Related docs:
 -- (on associating scim peers with idps) https://docs.wire.com/understand/single-sign-on/understand/main.html#associating-scim-tokens-with-saml-idps-for-authentication
 -- (internal) https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/1107001440/2024-03-27+scim+user+provisioning+and+saml2+sso+associating+scim+peers+and+saml2+idps
-idpCreateXML ::
+idpCreate ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
@@ -510,13 +491,12 @@ idpCreateXML ::
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
-  Text ->
-  SAML.IdPMetadata ->
+  IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreate zusr (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   idp <-
@@ -527,6 +507,44 @@ idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersi
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
+
+idpCreateV7 ::
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member (Error SparError) r
+  ) =>
+  Maybe UserId ->
+  IdPMetadataInfo ->
+  Maybe SAML.IdPId ->
+  Maybe WireIdPAPIVersion ->
+  Maybe (Range 1 32 Text) ->
+  Sem r IdP
+idpCreateV7 zusr idpmeta mReplaces mApiversion mHandle = do
+  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
+  assertNoScimOrNoIdP teamid
+  idpCreate zusr idpmeta mReplaces mApiversion mHandle
+  where
+    -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
+    -- data contains no information about the idp issuer, only the user name, so no valid saml
+    -- credentials can be created. Only relevant for api versions 0..6.
+    assertNoScimOrNoIdP ::
+      ( Member ScimTokenStore r,
+        Member (Error SparError) r,
+        Member IdPConfigStore r
+      ) =>
+      TeamId ->
+      Sem r ()
+    assertNoScimOrNoIdP teamid = do
+      numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
+      numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
+      when (numTokens > 0 && numIdps > 0) $
+        throwSparSem $
+          SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request

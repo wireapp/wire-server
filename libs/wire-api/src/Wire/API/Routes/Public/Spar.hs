@@ -114,6 +114,7 @@ type APIIDP =
   Named "idp-get" (ZOptUser :> IdpGet)
     :<|> Named "idp-get-raw" (ZOptUser :> IdpGetRaw)
     :<|> Named "idp-get-all" (ZOptUser :> IdpGetAll)
+    :<|> Named "idp-create@v7" (Until 'V8 :> ZOptUser :> IdpCreate) -- (change is semantic, see handler)
     :<|> Named "idp-create" (ZOptUser :> IdpCreate)
     :<|> Named "idp-update" (ZOptUser :> IdpUpdate)
     :<|> Named "idp-delete" (ZOptUser :> IdpDelete)
@@ -189,21 +190,21 @@ data ScimSite tag route = ScimSite
   deriving (Generic)
 
 type APIScimToken =
-  Named "auth-tokens-create@v6" (Until 'V7 :> ZOptUser :> APIScimTokenCreateV6)
-    :<|> Named "auth-tokens-create" (From 'V7 :> ZOptUser :> APIScimTokenCreate)
-    :<|> Named "auth-tokens-put-name" (From 'V7 :> ZUser :> APIScimTokenPutName)
+  Named "auth-tokens-create@v7" (Until 'V8 :> ZOptUser :> APIScimTokenCreateV7)
+    :<|> Named "auth-tokens-create" (From 'V8 :> ZOptUser :> APIScimTokenCreate)
+    :<|> Named "auth-tokens-put-name" (From 'V8 :> ZUser :> APIScimTokenPutName)
     :<|> Named "auth-tokens-delete" (ZOptUser :> APIScimTokenDelete)
-    :<|> Named "auth-tokens-list@v6" (Until 'V7 :> ZOptUser :> APIScimTokenListV6)
-    :<|> Named "auth-tokens-list" (From 'V7 :> ZOptUser :> APIScimTokenList)
+    :<|> Named "auth-tokens-list@v7" (Until 'V8 :> ZOptUser :> APIScimTokenListV7)
+    :<|> Named "auth-tokens-list" (From 'V8 :> ZOptUser :> APIScimTokenList)
 
 type APIScimTokenPutName =
   Capture "id" ScimTokenId
     :> ReqBody '[JSON] ScimTokenName
     :> Put '[JSON] ()
 
-type APIScimTokenCreateV6 =
-  VersionedReqBody 'V6 '[JSON] CreateScimToken
-    :> Post '[JSON] CreateScimTokenResponseV6
+type APIScimTokenCreateV7 =
+  VersionedReqBody 'V7 '[JSON] CreateScimToken
+    :> Post '[JSON] CreateScimTokenResponseV7
 
 type APIScimTokenCreate =
   ReqBody '[JSON] CreateScimToken
@@ -216,8 +217,8 @@ type APIScimTokenDelete =
 type APIScimTokenList =
   Get '[JSON] ScimTokenList
 
-type APIScimTokenListV6 =
-  Get '[JSON] ScimTokenListV6
+type APIScimTokenListV7 =
+  Get '[JSON] ScimTokenListV7
 
 data SparAPITag
 
