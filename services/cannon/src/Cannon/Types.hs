@@ -114,7 +114,8 @@ mkEnv external o cs l d conns p g t endpoint = do
         RabbitMqPoolOptions
           { endpoint = endpoint,
             maxConnections = o ^. rabbitMqMaxConnections,
-            maxChannels = o ^. rabbitMqMaxChannels
+            maxChannels = o ^. rabbitMqMaxChannels,
+            retryEnabled = False
           }
   pool <- createRabbitMqPool poolOpts l
   let wsEnv =

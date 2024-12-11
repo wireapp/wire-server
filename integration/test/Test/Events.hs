@@ -7,15 +7,19 @@ import API.Galley
 import API.Gundeck
 import qualified Control.Concurrent.Timeout as Timeout
 import Control.Monad.Codensity
+import Control.Monad.RWS (asks)
 import Control.Monad.Trans.Class
 import Control.Retry
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.Text as Text
 import Data.Timeout
+import Network.AMQP.Extended
+import Network.RabbitMqAdmin
 import qualified Network.WebSockets as WS
 import Notifications
 import SetupHelpers
 import Testlib.Prelude hiding (assertNoEvent)
+import Testlib.ResourcePool (acquireResources)
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -38,10 +42,10 @@ testConsumeEventsOneWebSocket = do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
       e %. "data.delivery_tag"
-    assertNoEvent ws
+    assertNoEvent_ ws
 
     sendAck ws deliveryTag False
-    assertNoEvent ws
+    assertNoEvent_ ws
 
     handle <- randomHandle
     putHandle alice handle >>= assertSuccess
@@ -80,7 +84,7 @@ testConsumeEventsForDifferentUsers = do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "data.event.payload.0.client.id" `shouldMatch` clientId
         e %. "data.delivery_tag"
-      assertNoEvent ws
+      assertNoEvent_ ws
       sendAck ws deliveryTag False
 
 testConsumeEventsWhileHavingLegacyClients :: (HasCallStack) => App ()
@@ -137,7 +141,7 @@ testConsumeEventsAcks = do
     sendAck ws deliveryTag False
 
   runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
-    assertNoEvent ws
+    assertNoEvent_ ws
 
 testConsumeEventsMultipleAcks :: (HasCallStack) => App ()
 testConsumeEventsMultipleAcks = do
@@ -161,7 +165,7 @@ testConsumeEventsMultipleAcks = do
     sendAck ws deliveryTag True
 
   runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
-    assertNoEvent ws
+    assertNoEvent_ ws
 
 testConsumeEventsAckNewEventWithoutAckingOldOne :: (HasCallStack) => App ()
 testConsumeEventsAckNewEventWithoutAckingOldOne = do
@@ -195,7 +199,7 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
     sendAck ws deliveryTagClientAdd False
 
   runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
-    assertNoEvent ws
+    assertNoEvent_ ws
 
 testEventsDeadLettered :: (HasCallStack) => App ()
 testEventsDeadLettered = do
@@ -229,7 +233,7 @@ testEventsDeadLettered = do
         ackEvent ws e
 
       -- We've consumed the whole queue.
-      assertNoEvent ws
+      assertNoEvent_ ws
 
 testTransientEventsDoNotTriggerDeadLetters :: (HasCallStack) => App ()
 testTransientEventsDoNotTriggerDeadLetters = do
@@ -257,7 +261,7 @@ testTransientEventsDoNotTriggerDeadLetters = do
     sendTypingStatus alice selfConvId "started" >>= assertSuccess
 
     runCodensity (createEventsWebSocket alice clientId) $ \ws -> do
-      assertNoEvent ws
+      assertNoEvent_ ws
 
 testTransientEvents :: (HasCallStack) => App ()
 testTransientEvents = do
@@ -296,7 +300,7 @@ testTransientEvents = do
         e %. "data.event.payload.0.user.handle" `shouldMatch` handle
         ackEvent ws e
 
-    assertNoEvent ws
+    assertNoEvent_ ws
 
 testChannelLimit :: (HasCallStack) => App ()
 testChannelLimit = withModifiedBackend
@@ -318,16 +322,46 @@ testChannelLimit = withModifiedBackend
     lowerCodensity $ do
       for_ clients $ \c -> do
         ws <- createEventsWebSocket alice c
-        e <- Codensity $ \k -> assertEvent ws k
-        lift $ do
+        lift $ assertEvent ws $ \e -> do
           e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
           e %. "data.event.payload.0.client.id" `shouldMatch` c
-          e %. "data.delivery_tag"
 
       -- the first client fails to connect because the server runs out of channels
       do
         ws <- createEventsWebSocket alice client0
-        lift $ assertNoEvent ws
+        lift $ assertNoEvent_ ws
+
+testChannelKilled :: (HasCallStack) => App ()
+testChannelKilled = lowerCodensity $ do
+  pool <- lift $ asks (.resourcePool)
+  [backend] <- acquireResources 1 pool
+  domain <- startDynamicBackend backend mempty
+  alice <- lift $ randomUser domain def
+  [c1, c2] <-
+    lift
+      $ replicateM 2
+      $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
+      >>= getJSON 201
+      >>= (%. "id")
+      >>= asString
+
+  ws <- createEventsWebSocket alice c1
+  lift $ do
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` c1
+      ackEvent ws e
+
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` c2
+
+      recoverAll
+        (constantDelay 500_000 <> limitRetries 10)
+        (const (killConnection backend))
+
+    noEvent <- assertNoEvent ws
+    noEvent `shouldMatch` WebSocketDied
 
 ----------------------------------------------------------------------
 -- helpers
@@ -428,14 +462,23 @@ assertEvent ws expectations = do
       addFailureContext ("event:\n" <> pretty)
         $ expectations e
 
-assertNoEvent :: (HasCallStack) => EventWebSocket -> App ()
+data NoEvent = NoEvent | WebSocketDied
+
+instance ToJSON NoEvent where
+  toJSON NoEvent = toJSON "no-event"
+  toJSON WebSocketDied = toJSON "web-socket-died"
+
+assertNoEvent :: (HasCallStack) => EventWebSocket -> App NoEvent
 assertNoEvent ws = do
   timeout 1_000_000 (readChan ws.events) >>= \case
-    Nothing -> pure ()
-    Just (Left _) -> pure ()
+    Nothing -> pure NoEvent
+    Just (Left _) -> pure WebSocketDied
     Just (Right e) -> do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
+
+assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
+assertNoEvent_ = void . assertNoEvent
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
@@ -448,3 +491,25 @@ consumeAllEvents ws = do
     Just (Right e) -> do
       ackEvent ws e
       consumeAllEvents ws
+
+killConnection :: (HasCallStack) => BackendResource -> App ()
+killConnection backend = do
+  rc <- asks (.rabbitMQConfig)
+  let opts =
+        RabbitMqAdminOpts
+          { host = rc.host,
+            port = 0,
+            adminPort = fromIntegral rc.adminPort,
+            vHost = Text.pack backend.berVHost,
+            tls = Just $ RabbitMqTlsOpts Nothing True
+          }
+  servantClient <- liftIO $ mkRabbitMqAdminClientEnv opts
+  name <- do
+    connections <- liftIO $ listConnectionsByVHost servantClient opts.vHost
+    connection <-
+      assertOne
+        [ c | c <- connections, c.userProvidedName == Just (Text.pack "pool 0")
+        ]
+    pure connection.name
+
+  void $ liftIO $ deleteConnection servantClient name
