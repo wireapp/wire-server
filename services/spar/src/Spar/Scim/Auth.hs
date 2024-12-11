@@ -100,11 +100,11 @@ apiScimToken ::
   ) =>
   ServerT APIScimToken (Sem r)
 apiScimToken =
-  Named @"auth-tokens-create@v6" createScimTokenV6
+  Named @"auth-tokens-create@v7" createScimTokenV7
     :<|> Named @"auth-tokens-create" createScimToken
     :<|> Named @"auth-tokens-put-name" updateScimTokenName
     :<|> Named @"auth-tokens-delete" deleteScimToken
-    :<|> Named @"auth-tokens-list@v6" listScimTokensV6
+    :<|> Named @"auth-tokens-list@v7" listScimTokensV7
     :<|> Named @"auth-tokens-list" listScimTokens
 
 updateScimTokenName ::
@@ -124,7 +124,7 @@ updateScimTokenName lusr tokenId name = do
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
 --
 -- Create a token for user's team.
-createScimTokenV6 ::
+createScimTokenV7 ::
   forall r.
   ( Member Random r,
     Member (Input Opts) r,
@@ -139,8 +139,8 @@ createScimTokenV6 ::
   Maybe UserId ->
   -- | Request body
   CreateScimToken ->
-  Sem r CreateScimTokenResponseV6
-createScimTokenV6 zusr createTok = do
+  Sem r CreateScimTokenResponseV7
+createScimTokenV7 zusr createTok = do
   teamid <- guardScimTokenCreation zusr createTok.password createTok.verificationCode
   idps <- IdPConfigStore.getConfigsByTeam teamid
   mIdpId <- case idps of
@@ -152,13 +152,13 @@ createScimTokenV6 zusr createTok = do
     -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
     (_ : _ : _) -> throwSparSem $ E.SparProvisioningMoreThanOneIdP E.TwoIdpsAndScimTokenForbidden
 
-  responseToV6 <$> createScimTokenUnchecked teamid Nothing createTok.description mIdpId
+  responseToV7 <$> createScimTokenUnchecked teamid Nothing createTok.description mIdpId
   where
-    responseToV6 :: CreateScimTokenResponse -> CreateScimTokenResponseV6
-    responseToV6 (CreateScimTokenResponse token info) = CreateScimTokenResponseV6 token (infoToV6 info)
+    responseToV7 :: CreateScimTokenResponse -> CreateScimTokenResponseV7
+    responseToV7 (CreateScimTokenResponse token info) = CreateScimTokenResponseV7 token (infoToV7 info)
 
-    infoToV6 :: ScimTokenInfo -> ScimTokenInfoV6
-    infoToV6 ScimTokenInfo {..} = ScimTokenInfoV6 {..}
+    infoToV7 :: ScimTokenInfo -> ScimTokenInfoV7
+    infoToV7 ScimTokenInfo {..} = ScimTokenInfoV7 {..}
 
 -- | Create a token for the user's team.
 --
@@ -255,7 +255,7 @@ deleteScimToken zusr tokenid = do
   ScimTokenStore.delete teamid tokenid
   pure NoContent
 
-listScimTokensV6 ::
+listScimTokensV7 ::
   ( Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
@@ -263,14 +263,14 @@ listScimTokensV6 ::
   ) =>
   -- | Who is trying to list tokens
   Maybe UserId ->
-  Sem r ScimTokenListV6
-listScimTokensV6 zusr = toV6 <$> listScimTokens zusr
+  Sem r ScimTokenListV7
+listScimTokensV7 zusr = toV7 <$> listScimTokens zusr
   where
-    toV6 :: ScimTokenList -> ScimTokenListV6
-    toV6 (ScimTokenList tokens) = ScimTokenListV6 $ map infoToV6 tokens
+    toV7 :: ScimTokenList -> ScimTokenListV7
+    toV7 (ScimTokenList tokens) = ScimTokenListV7 $ map infoToV7 tokens
 
-    infoToV6 :: ScimTokenInfo -> ScimTokenInfoV6
-    infoToV6 ScimTokenInfo {..} = ScimTokenInfoV6 {..}
+    infoToV7 :: ScimTokenInfo -> ScimTokenInfoV7
+    infoToV7 ScimTokenInfo {..} = ScimTokenInfoV7 {..}
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenList}
 --
