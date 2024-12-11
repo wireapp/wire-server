@@ -147,9 +147,8 @@ createScimTokenV7 zusr createTok = do
     [config] -> pure . Just $ config ^. SAML.idpId
     [] -> pure Nothing
     -- NB: if we ever were to allow several idps for one scim peer (which we won't),
-    -- 'validateScimUser' would need to be changed.  currently, it relies on the fact that
-    -- there is never more than one IdP.
-    -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
+    -- 'validateScimUser' would need to be changed.  currently, it relies on the association
+    -- map from scim to saml being n:1.
     (_ : _ : _) -> throwSparSem $ E.SparProvisioningMoreThanOneIdP E.TwoIdpsAndScimTokenForbidden
 
   responseToV7 <$> createScimTokenUnchecked teamid Nothing createTok.description mIdpId
