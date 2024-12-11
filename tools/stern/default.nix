@@ -32,6 +32,7 @@
 , retry
 , schema-profunctor
 , servant
+, servant-client
 , servant-openapi3
 , servant-server
 , servant-swagger-ui
@@ -78,6 +79,7 @@ mkDerivation {
     openapi3
     schema-profunctor
     servant
+    servant-client
     servant-openapi3
     servant-server
     servant-swagger-ui
