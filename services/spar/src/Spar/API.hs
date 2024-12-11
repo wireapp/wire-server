@@ -208,6 +208,7 @@ apiIDP =
   Named @"idp-get" idpGet -- get, json, captures idp id
     :<|> Named @"idp-get-raw" idpGetRaw -- get, raw xml, capture idp id
     :<|> Named @"idp-get-all" idpGetAll -- get, json
+    :<|> Named @"idp-create@v7" idpCreateV7
     :<|> Named @"idp-create" idpCreate -- post, created
     :<|> Named @"idp-update" idpUpdate -- put, okay
     :<|> Named @"idp-delete" idpDelete -- delete, no content
@@ -506,6 +507,44 @@ idpCreate zusr (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe de
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
+
+idpCreateV7 ::
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member (Error SparError) r
+  ) =>
+  Maybe UserId ->
+  IdPMetadataInfo ->
+  Maybe SAML.IdPId ->
+  Maybe WireIdPAPIVersion ->
+  Maybe (Range 1 32 Text) ->
+  Sem r IdP
+idpCreateV7 zusr idpmeta mReplaces mApiversion mHandle = do
+  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
+  assertNoScimOrNoIdP teamid
+  idpCreate zusr idpmeta mReplaces mApiversion mHandle
+  where
+    -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
+    -- data contains no information about the idp issuer, only the user name, so no valid saml
+    -- credentials can be created. Only relevant for api versions 0..6.
+    assertNoScimOrNoIdP ::
+      ( Member ScimTokenStore r,
+        Member (Error SparError) r,
+        Member IdPConfigStore r
+      ) =>
+      TeamId ->
+      Sem r ()
+    assertNoScimOrNoIdP teamid = do
+      numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
+      numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
+      when (numTokens > 0 && numIdps > 0) $
+        throwSparSem $
+          SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
