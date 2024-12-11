@@ -13,6 +13,7 @@ import Control.Retry
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.Text as Text
 import Data.Timeout
+import MLS.Util
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
 import qualified Network.WebSockets as WS
@@ -85,6 +86,45 @@ testConsumeTempEvents = do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
 
+      ackEvent ws e
+
+    assertNoEvent_ ws
+
+testMLSTempEvents :: (HasCallStack) => App ()
+testMLSTempEvents = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  clients@[alice1, _, _] <-
+    traverse
+      ( createMLSClient
+          def
+          def
+            { clientArgs =
+                def
+                  { acapabilities = Just ["consumable-notifications"]
+                  }
+            }
+      )
+      [alice, bob, bob]
+
+  traverse_ (uploadNewKeyPackage def) clients
+  convId <- createNewGroup def alice1
+
+  runCodensity (createEventsWebSocket bob Nothing) $ \ws -> do
+    commit <- createAddCommit alice1 convId [bob]
+    void $ postMLSCommitBundle commit.sender (mkBundle commit) >>= getJSON 201
+
+    -- FUTUREWORK: we should not rely on events arriving in this particular order
+
+    void $ assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.member-join"
+      user <- assertOne =<< (e %. "data.event.payload.0.data.users" & asList)
+      user %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+      ackEvent ws e
+
+    void $ assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.mls-welcome"
       ackEvent ws e
 
     assertNoEvent_ ws
