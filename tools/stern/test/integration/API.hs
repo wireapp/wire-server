@@ -46,6 +46,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Util
+import Wire.API.EnterpriseLogin (DomainRedirect (NoRegistration), DomainRegistrationUpdate (DomainRegistrationUpdate), TeamInvite (Allowed))
 import Wire.API.OAuth (OAuthApplicationName (OAuthApplicationName), OAuthClientConfig (..), OAuthClientCredentials (..))
 import Wire.API.Properties (PropertyKey)
 import Wire.API.Routes.Internal.Brig.Connection
@@ -780,6 +781,13 @@ testDomainRegistration :: TestM ()
 testDomainRegistration = do
   s <- view tsStern
   dom <- (<> ".example.com") . cs . show <$> liftIO nextRandom
-  void $ post (s . paths ["i", "domain-registration", dom, "lock"] . expect2xx)
-  res <- get (s . paths ["i", "domain-registration", dom] . expect2xx)
-  pure ()
+  void $ post (s . paths ["domain-registration", dom, "lock"] . expect2xx)
+  void $ get (s . paths ["domain-registration", dom] . expect2xx)
+  void $ post (s . paths ["domain-registration", dom, "unlock"] . expect2xx)
+  void $ post (s . paths ["domain-registration", dom, "preauthorize"] . expect2xx)
+  void $ post (s . paths ["domain-registration", dom, "unauthorize"] . expect2xx)
+  void $ delete (s . paths ["domain-registration", dom] . expect2xx)
+  void $ get (s . paths ["domain-registration", dom] . expect4xx)
+  let upd = DomainRegistrationUpdate NoRegistration Allowed
+  void $ put (s . paths ["domain-registration", dom] . json upd . expect2xx)
+  void $ get (s . paths ["domain-registration", dom] . expect2xx)

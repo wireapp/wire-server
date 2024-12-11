@@ -1064,7 +1064,9 @@ useClientAsServerHandler1 :: (Domain -> SC.ClientM a) -> (Domain -> Handler a)
 useClientAsServerHandler1 client dom = do
   manager <- lift $ asks (.httpManager)
   brig <- lift $ asks (.brig)
-  res <- liftIO $ SC.runClientM (client dom) (SC.mkClientEnv manager (SC.BaseUrl SC.Http (BS.unpack (HC.host brig)) (HC.port brig) ""))
+  let url = SC.BaseUrl SC.Http (BS.unpack (HC.host brig)) (HC.port brig) ""
+  let clientEnv = SC.mkClientEnv manager url
+  res <- liftIO $ SC.runClientM (client dom) clientEnv
   either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
 
 useClientAsServerHandler2 :: (Domain -> DomainRegistrationUpdate -> SC.ClientM a) -> (Domain -> DomainRegistrationUpdate -> Handler a)
@@ -1074,12 +1076,12 @@ useClientAsServerHandler2 client dom upd = do
   res <- liftIO $ SC.runClientM (client dom upd) (SC.mkClientEnv manager (SC.BaseUrl SC.Http (BS.unpack (HC.host brig)) (HC.port brig) ""))
   either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
 
-domRegLock :: Domain -> SC.ClientM ()
-domRegUnlock :: Domain -> SC.ClientM ()
-domRegPreAuthorize :: Domain -> SC.ClientM ()
-domRegUnauthorize :: Domain -> SC.ClientM ()
-domRegUpdate :: Domain -> DomainRegistrationUpdate -> SC.ClientM ()
-domRegDelete :: Domain -> SC.ClientM ()
+domRegLock :: Domain -> SC.ClientM NoContent
+domRegUnlock :: Domain -> SC.ClientM NoContent
+domRegPreAuthorize :: Domain -> SC.ClientM NoContent
+domRegUnauthorize :: Domain -> SC.ClientM NoContent
+domRegUpdate :: Domain -> DomainRegistrationUpdate -> SC.ClientM NoContent
+domRegDelete :: Domain -> SC.ClientM NoContent
 domRegGet :: Domain -> SC.ClientM DomainRegistration
 ( domRegLock
     :<|> domRegUnlock
@@ -1089,4 +1091,4 @@ domRegGet :: Domain -> SC.ClientM DomainRegistration
     :<|> domRegDelete
     :<|> domRegGet
   ) =
-    SC.client (Proxy @EnterpriseLoginApi)
+    SC.client (Proxy @("i" :> EnterpriseLoginApi))

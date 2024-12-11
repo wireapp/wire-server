@@ -91,9 +91,9 @@ library
     , openapi3
     , schema-profunctor
     , servant
+    , servant-client
     , servant-openapi3
     , servant-server
-    , servant-client
     , servant-swagger-ui
     , split                  >=0.2
     , text                   >=1.1
