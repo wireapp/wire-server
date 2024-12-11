@@ -15,6 +15,7 @@ import Data.Aeson hiding (Key)
 import Data.Id
 import Data.Text qualified as T
 import Imports hiding (min, threadDelay)
+import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
@@ -117,6 +118,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
       let createQueue chan = case mcid of
             Nothing -> Codensity $ \k ->
               ( do
+                  void $ Q.declareQueue chan newQueue {Q.queueName = queueName}
                   for_ [userRoutingKey uid, temporaryRoutingKey uid] $
                     Q.bindQueue chan queueName userNotificationExchangeName
                   k ()
