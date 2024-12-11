@@ -116,8 +116,16 @@ testGetClientCapabilitiesV7 = do
     resp.status `shouldMatchInt` 200
     resp.json %. "0.capabilities" `shouldMatchSet` allCapabilities
 
-  -- In API v7 and below, the "capabilities" field is an enum, so having a new
-  -- value for this enum is a breaking change.
+  -- The "capabilities" field is an enum, so having a new value for this enum is
+  -- a breaking change. So in API v7 and below, we should not see the
+  -- "consumable-notifications" value.
   withAPIVersion 7 $ getSelfClients alice `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "0.capabilities" `shouldMatchSet` ["legalhold-implicit-consent"]
+
+  -- In API v6 and below, the "capabilities" field is doubly nested. However,
+  -- the consumable-notifications value should not be considered part of the
+  -- enum.
+  withAPIVersion 6 $ getSelfClients alice `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "0.capabilities.capabilities" `shouldMatchSet` ["legalhold-implicit-consent"]
