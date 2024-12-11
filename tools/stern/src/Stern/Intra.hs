@@ -67,6 +67,7 @@ module Stern.Intra
     getOAuthClient,
     updateOAuthClient,
     deleteOAuthClient,
+    enterpriseLogin,
   )
 where
 
@@ -82,11 +83,13 @@ import Data.Aeson.Types (emptyArray)
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import Data.Map qualified as Map
+import Data.Proxy
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding
@@ -94,11 +97,14 @@ import Data.Text.Encoding.Error
 import Data.Text.Lazy as LT (pack)
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
+import Network.HTTP.Client qualified as HC
 import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode, statusMessage)
 import Network.Wai.Utilities (Error (..), mkError)
-import Servant.API (toUrlPiece)
+import Servant.API
+import Servant.Client qualified as SC
+import Servant.Server qualified as SS
 import Stern.App
 import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
@@ -107,13 +113,16 @@ import UnliftIO.Exception hiding (Handler)
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.CustomBackend
+import Wire.API.EnterpriseLogin
 import Wire.API.Internal.Notification
 import Wire.API.OAuth (OAuthClient, OAuthClientConfig, OAuthClientCredentials)
 import Wire.API.Properties
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
+import Wire.API.Routes.Named
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team
@@ -1038,3 +1047,46 @@ deleteOAuthClient cid = do
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
+
+----------------------------------------------------------------------
+
+enterpriseLogin :: SS.ServerT EnterpriseLoginApi Handler
+enterpriseLogin =
+  Named @"domain-registration-lock" (useClientAsServerHandler1 domRegLock)
+    :<|> Named @"domain-registration-unlock" (useClientAsServerHandler1 domRegUnlock)
+    :<|> Named @"domain-registration-pre-authorize" (useClientAsServerHandler1 domRegPreAuthorize)
+    :<|> Named @"domain-registration-unauthorize" (useClientAsServerHandler1 domRegUnauthorize)
+    :<|> Named @"domain-registration-update" (useClientAsServerHandler2 domRegUpdate)
+    :<|> Named @"domain-registration-delete" (useClientAsServerHandler1 domRegDelete)
+    :<|> Named @"domain-registration-get" (useClientAsServerHandler1 domRegGet)
+
+useClientAsServerHandler1 :: (Domain -> SC.ClientM a) -> (Domain -> Handler a)
+useClientAsServerHandler1 client dom = do
+  manager <- lift $ asks (.httpManager)
+  brig <- lift $ asks (.brig)
+  res <- liftIO $ SC.runClientM (client dom) (SC.mkClientEnv manager (SC.BaseUrl SC.Http (BS.unpack (HC.host brig)) (HC.port brig) ""))
+  either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
+
+useClientAsServerHandler2 :: (Domain -> DomainRegistrationUpdate -> SC.ClientM a) -> (Domain -> DomainRegistrationUpdate -> Handler a)
+useClientAsServerHandler2 client dom upd = do
+  manager <- lift $ asks (.httpManager)
+  brig <- lift $ asks (.brig)
+  res <- liftIO $ SC.runClientM (client dom upd) (SC.mkClientEnv manager (SC.BaseUrl SC.Http (BS.unpack (HC.host brig)) (HC.port brig) ""))
+  either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
+
+domRegLock :: Domain -> SC.ClientM ()
+domRegUnlock :: Domain -> SC.ClientM ()
+domRegPreAuthorize :: Domain -> SC.ClientM ()
+domRegUnauthorize :: Domain -> SC.ClientM ()
+domRegUpdate :: Domain -> DomainRegistrationUpdate -> SC.ClientM ()
+domRegDelete :: Domain -> SC.ClientM ()
+domRegGet :: Domain -> SC.ClientM DomainRegistration
+( domRegLock
+    :<|> domRegUnlock
+    :<|> domRegPreAuthorize
+    :<|> domRegUnauthorize
+    :<|> domRegUpdate
+    :<|> domRegDelete
+    :<|> domRegGet
+  ) =
+    SC.client (Proxy @EnterpriseLoginApi)
