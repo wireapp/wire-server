@@ -166,9 +166,6 @@ createConnection pool = mask_ $ do
     v <- race (takeMVar closedVar) (readMVar pool.deadVar)
     when (isRight v) $
       -- close connection and ignore exceptions
-      -- close connection and ignore exceptions
-
-      -- close connection and ignore exceptions
       catch @SomeException (Q.closeConnection conn) $
         \_ -> pure ()
     atomically $ do
