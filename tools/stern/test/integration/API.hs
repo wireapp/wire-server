@@ -37,6 +37,7 @@ import Data.Range (unsafeRange)
 import Data.Schema
 import Data.Set qualified as Set
 import Data.String.Conversions
+import Data.UUID.V4 (nextRandom)
 import GHC.TypeLits
 import Imports
 import Stern.API.Routes (UserConnectionGroups (..))
@@ -98,7 +99,8 @@ tests s =
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
       test s "/teams/:tid/search-visibility" testSearchVisibility,
       test s "/sso-domain-redirect" testRudSsoDomainRedirect,
-      test s "i/oauth/clients" testCrudOAuthClient
+      test s "i/oauth/clients" testCrudOAuthClient,
+      test s "i/domain-registration" testDomainRegistration
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`
@@ -773,3 +775,11 @@ deleteOAuthClient :: OAuthClientId -> TestM ()
 deleteOAuthClient cid = do
   s <- view tsStern
   void $ delete (s . paths ["i", "oauth", "clients", toByteString' cid] . expect2xx)
+
+testDomainRegistration :: TestM ()
+testDomainRegistration = do
+  s <- view tsStern
+  dom <- (<> ".example.com") . cs . show <$> liftIO nextRandom
+  void $ post (s . paths ["i", "domain-registration", dom, "lock"] . expect2xx)
+  res <- get (s . paths ["i", "domain-registration", dom] . expect2xx)
+  pure ()
