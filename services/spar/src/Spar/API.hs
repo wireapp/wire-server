@@ -469,26 +469,6 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
       mUserIssuer <- (>>= userIssuer) <$> getAccount NoPendingInvitations uid
       pure $ mUserIssuer == Just idpIssuer
 
--- | This handler only does the json parsing, and leaves all authorization checks and
--- application logic to 'idpCreateXML'.
-idpCreate ::
-  ( Member Random r,
-    Member (Logger String) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
-    Member ScimTokenStore r,
-    Member IdPRawMetadataStore r,
-    Member IdPConfigStore r,
-    Member (Error SparError) r
-  ) =>
-  Maybe UserId ->
-  IdPMetadataInfo ->
-  Maybe SAML.IdPId ->
-  Maybe WireIdPAPIVersion ->
-  Maybe (Range 1 32 Text) ->
-  Sem r IdP
-idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
-
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 --
 -- The human-readable name argument `mHandle` is guaranteed to be unique for historical
@@ -499,7 +479,7 @@ idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 -- Related docs:
 -- (on associating scim peers with idps) https://docs.wire.com/understand/single-sign-on/understand/main.html#associating-scim-tokens-with-saml-idps-for-authentication
 -- (internal) https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/1107001440/2024-03-27+scim+user+provisioning+and+saml2+sso+associating+scim+peers+and+saml2+idps
-idpCreateXML ::
+idpCreate ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
@@ -510,13 +490,12 @@ idpCreateXML ::
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
-  Text ->
-  SAML.IdPMetadata ->
+  IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreate zusr (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   idp <-
