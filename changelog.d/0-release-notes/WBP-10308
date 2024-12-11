@@ -1,5 +1,0 @@
-Notifications are now sent via RabbitMQ. Therefore RabbitMQ is now a required dependency for Cannon and Gundeck.
-Cassandra is now a required dependency for Cannon and Background-Worker.
-Both of them need access to the Gundeck keyspace.
-Brig also needs RabbitMQ configured, before this was contingent on Federation being enabled.
-These are breaking changes for Charts.

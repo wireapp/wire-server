@@ -1,3 +1,88 @@
+# [2024-12-11] (Chart Release 5.8.0)
+
+## Release notes
+
+
+* Notifications are now sent via RabbitMQ. Therefore RabbitMQ is now a required dependency for Cannon and Gundeck.
+  Cassandra is now a required dependency for Cannon and Background-Worker.
+  Both of them need access to the Gundeck keyspace.
+  Brig also needs RabbitMQ configured, before this was contingent on Federation being enabled.
+  These are breaking changes for Charts. (#4272)
+
+* If brig's server values config has the field `emailSMS.team`, the correct value for the personal user to team invitation URL must be set under `emailSMS.team.tExistingUserInvitationUrl`. Otherwise the URL will point to a path under the account pages and therefore a value for `externalUrls.accountPages` is required. (#4341)
+
+
+## API changes
+
+
+* New endpoint `GET /events` for consuming events is added.
+
+  When a client misses notifications because it was offline for too long, it needs to know this information so it can do a full synchronisation. This appears as the first notification in `GET /events` endpoint whenever the system detects this happening. The next acknowledgement of the message makes this notification not appear anymore until the next notification is missed. (#4272)
+
+* POST /scim/auth-token request body allows you to choose an IdP UUID to associate with.  If none is given, do not associate.
+
+  **WARNING:** the new behavior differs from the old one when first creating a unique SAML IdP and then the SCIM token: before this release, this request would associate the two, now it doesn't. (#4349)
+
+* The endpoint `POST /teams/:tid/invitations` gained a new optional field `allow_existing`, which controls whether an existing personal user should should be invited to the team (#4336)
+
+
+## Features
+
+
+* Welcome email for new team owner. (#4333)
+
+* Added inviter's email to `GET /teams/invitation/info` endpoint. (#4332)
+
+* You can now create both multiple SCIM peers and multiple SAML IdPs, and freely associate them with each other (team management app implementation pending). (#4349)
+
+* `charts/wire-server-enterprise` is a Helm chart to run the `wire-server-enterprise`
+  service. This service can only be deployed with an image pull secret (the
+  registry is not open to public.) (#4359)
+
+
+## Bug fixes and other updates
+
+
+* Updated `nginz` config for personal user to team flow (#4334)
+
+* Freeze API version 7, create new dev version 8.  Also update checklist. (#4356, #4356)
+
+* Fixed config for personal user to team invitation URL template. (#4341)
+
+* Fixed search index after personal user creates team (#4362)
+
+* brig now only requires rabbitmq if federation is enabled (#4340)
+
+* Cannon does not attempt to restore a rabbitmq channel after it disconnects. This fixes a potential issue where a client would be able to ack a message on the wrong channel. (#4358)
+
+
+## Documentation
+
+
+* Add a few more swagger descriptions and examples. (#4323)
+
+
+## Internal changes
+
+
+* - RabbitMQ queues have been introduced for client notifications
+  - New internal endpoint `POST /i/users/:uid/clients/:cid/consumable-notifications` is added (#4272)
+
+* Move email update and remove operations to effects (#4316, #4316)
+
+* Introduce RabbitMQ connection pool in cannon (#4348)
+
+* Log uncaught IO exceptions in cargohold (#4352)
+
+* Add rabbitmq consumers to the draining step on Cannon, in case of termination. (#4342)
+
+* List queues for backend notifications more efficiently. (#4351)
+
+* Updated email templates to v1.0.124 (#4328)
+
+* charts/galley: Make missing mls keys a templating error. Update MLS docs. (#4369)
+
+
 # [2024-11-04] (Chart Release 5.7.0)
 
 ## Bug fixes and other updates

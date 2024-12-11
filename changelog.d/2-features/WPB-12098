@@ -1,1 +1,0 @@
-Added inviter's email to `GET /teams/invitation/info` endpoint.

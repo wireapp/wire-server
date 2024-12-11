@@ -1,1 +1,0 @@
-The endpoint `POST /teams/:tid/invitations` gained a new optional field `allow_existing`, which controls whether an existing personal user should should be invited to the team
