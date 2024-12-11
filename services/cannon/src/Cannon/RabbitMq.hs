@@ -229,7 +229,6 @@ ackMessage chan deliveryTag multiple = do
 
 type QueueName = Text
 
--- TODO: can the action simply be run after creating the consumer?
 type CreateQueue = Q.Channel -> Codensity IO ()
 
 createChannel :: (Ord key) => RabbitMqPool key -> QueueName -> CreateQueue -> key -> Codensity IO RabbitMqChannel
