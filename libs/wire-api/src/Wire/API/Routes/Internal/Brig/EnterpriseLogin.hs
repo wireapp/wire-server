@@ -20,7 +20,6 @@ module Wire.API.Routes.Internal.Brig.EnterpriseLogin where
 import Data.Domain
 import Servant
 import Wire.API.EnterpriseLogin
-import Wire.API.Routes.MultiVerb (MultiVerb1, RespondEmpty)
 import Wire.API.Routes.Named
 
 --------------------------------------------------------------------------------

@@ -59,7 +59,7 @@ domainRedirectSchema =
     <$> (toTagged &&& id)
       .= bind
         (fst .= domainRedirectTagSchema)
-        (snd .= dispatch domainRedirectDataSchema)
+        (snd .= dispatch domainRedirectObjectSchema)
   where
     toTagged :: DomainRedirect -> DomainRedirectTag
     toTagged None = NoneTag
@@ -69,17 +69,17 @@ domainRedirectSchema =
     toTagged NoRegistration = NoRegistrationTag
     toTagged PreAuthorized = PreAuthorizedTag
 
-    domainRedirectDataSchema :: DomainRedirectTag -> ObjectSchema SwaggerDoc DomainRedirect
-    domainRedirectDataSchema = \case
+    domainRedirectObjectSchema :: DomainRedirectTag -> ObjectSchema SwaggerDoc DomainRedirect
+    domainRedirectObjectSchema = \case
       NoneTag -> tag _None (pure ())
       LockedTag -> tag _Locked (pure ())
-      SSOTag -> tag _SSO samlIdPIdSchema
+      SSOTag -> tag _SSO samlIdPIdObjectSchema
       BackendTag -> tag _Backend backendUrlSchema
       NoRegistrationTag -> tag _NoRegistration (pure ())
       PreAuthorizedTag -> tag _PreAuthorized (pure ())
 
-samlIdPIdSchema :: ObjectSchema SwaggerDoc SAML.IdPId
-samlIdPIdSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_idp_id" uuidSchema
+samlIdPIdObjectSchema :: ObjectSchema SwaggerDoc SAML.IdPId
+samlIdPIdObjectSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_idp_id" uuidSchema
 
 backendUrlSchema :: ObjectSchema SwaggerDoc HttpsUrl
 backendUrlSchema = field "backend_url" schema
