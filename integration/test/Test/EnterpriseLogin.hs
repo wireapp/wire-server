@@ -122,8 +122,8 @@ testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite = do
     resp.json %. "team" `shouldMatch` "3bc23f21-dc03-4922-9563-c3beedf895db"
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe Value)
 
-testDomainRegistrationDoesNotCreateEntry :: App ()
-testDomainRegistrationDoesNotCreateEntry = do
+testDomainRegistrationQueriesDoNotCreateEntry :: App ()
+testDomainRegistrationQueriesDoNotCreateEntry = do
   domain <- randomDomain
   assertStatus 404 =<< getDomainRegistration OwnDomain domain
   assertStatus 404 =<< domainRegistrationUnlock OwnDomain domain
@@ -212,12 +212,12 @@ testDomainRegistrationBackendToUnAuthorize = do
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
   assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
-  assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "none"
     resp.json %. "team_invite" `shouldMatch` "not-allowed"
+  assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
 
 testDomainRegistrationNoRegistrationToUnAuthorize :: App ()
 testDomainRegistrationNoRegistrationToUnAuthorize = do
