@@ -218,12 +218,11 @@ tryGetDomainRegistrationImpl ::
   Sem r (Maybe DomainRegistration)
 tryGetDomainRegistrationImpl domain = do
   mSdr <- lookup domain
-  maybe (pure Nothing) (fmap Just . deserialize) mSdr
+  maybe (pure Nothing) (fmap Just . fromStoredWithExcept) mSdr
   where
-    deserialize :: StoredDomainRegistration -> Sem r DomainRegistration
-    deserialize sdr = do
-      let mDomainRegistration = fromStored sdr
-      case mDomainRegistration of
+    fromStoredWithExcept :: StoredDomainRegistration -> Sem r DomainRegistration
+    fromStoredWithExcept sdr = do
+      case fromStored sdr of
         Nothing -> do
           Log.err $ Log.field "domain" (toByteString' domain) . Log.msg (Log.val "Invalid stored domain registration")
           throw EnterpriseLoginSubsystemInternalError
