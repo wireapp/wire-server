@@ -35,12 +35,14 @@ testDomainRegistrationLockPreviousValueOverwritten = do
   assertStatus 204 =<< domainRegistrationPreAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
   -- lock
   assertStatus 204 =<< domainRegistrationLock OwnDomain domain
   -- check that it got overwritten
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "locked"
 
 testDomainRegistrationUnlockErrorIfNotLocked :: App ()
@@ -50,6 +52,7 @@ testDomainRegistrationUnlockErrorIfNotLocked = do
   assertStatus 204 =<< domainRegistrationPreAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
   -- attempt to unlock should fail
   bindResponse (domainRegistrationUnlock OwnDomain domain) $ \resp -> do
@@ -84,6 +87,7 @@ testDomainRegistrationPreAuthorizeFailsIfLocked = do
   -- check that it was not set to pre-authorized
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "locked"
   -- remove from deny-list
   assertStatus 204 =<< domainRegistrationUnlock OwnDomain domain
@@ -162,18 +166,9 @@ testDomainRegistrationUpdate = do
         resp.json %. "domain" `shouldMatch` domain
         resp.json %. "domain_redirect" `shouldMatch` (update %. "domain_redirect")
         resp.json %. "team_invite" `shouldMatch` (update %. "team_invite")
-        mUrl <- lookupField update "backend_url"
-        case mUrl of
-          Just url -> resp.json %. "backend_url" `shouldMatch` url
-          Nothing -> lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe Value)
-        mSsoId <- lookupField update "sso_idp_id"
-        case mSsoId of
-          Just ssoId -> resp.json %. "sso_idp_id" `shouldMatch` ssoId
-          Nothing -> lookupField resp.json "sso_idp_id" `shouldMatch` (Nothing :: Maybe Value)
-        mTid <- lookupField update "team"
-        case mTid of
-          Just tid -> resp.json %. "team" `shouldMatch` tid
-          Nothing -> lookupField resp.json "team" `shouldMatch` (Nothing :: Maybe Value)
+        lookupField resp.json "backend_url" `shouldMatch` lookupField update "backend_url"
+        lookupField resp.json "sso_idp_id" `shouldMatch` lookupField update "sso_idp_id"
+        lookupField resp.json "team" `shouldMatch` lookupField update "team"
 
 testDomainRegistrationUpdateInvalidCases :: App ()
 testDomainRegistrationUpdateInvalidCases = do
