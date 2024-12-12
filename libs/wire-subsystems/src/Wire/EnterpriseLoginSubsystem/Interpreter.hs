@@ -94,8 +94,8 @@ unauthorizeImpl domain = do
     Backend _ -> audit old new *> upsert (toStored new)
     NoRegistration -> audit old new *> upsert (toStored new)
     None -> pure ()
-    Locked -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
-    SSO _ -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
+    Locked -> throw EnterpriseLoginSubsystemUnAuthorizeError
+    SSO _ -> throw EnterpriseLoginSubsystemUnAuthorizeError
   where
     audit :: DomainRegistration -> DomainRegistration -> Sem r ()
     audit old new = sendAuditMail url "Domain unauthorized" (Just old) (Just new)
@@ -206,7 +206,7 @@ preAuthorizeImpl domain = do
       let new = old {domainRedirect = PreAuthorized} :: DomainRegistration
       audit (Just old) new *> upsert (toStored new)
     Just old | old.domainRedirect == PreAuthorized -> pure ()
-    _ -> throw $ EnterpriseLoginSubsystemErrorUpdateFailure "Domain redirect must be 'none' to be pre-authorized"
+    _ -> throw $ EnterpriseLoginSubsystemPreAuthorizeError
   where
     url :: Builder
     url =
