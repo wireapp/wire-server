@@ -51,8 +51,7 @@ type CannonAPI =
                :> "events"
                :> ZUser
                :> QueryParam'
-                    [ -- Make this optional in https://wearezeta.atlassian.net/browse/WPB-11173
-                      Required,
+                    [ Optional,
                       Strict,
                       Description "Client ID"
                     ]

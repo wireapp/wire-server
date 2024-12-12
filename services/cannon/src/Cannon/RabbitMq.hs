@@ -227,8 +227,12 @@ ackMessage chan deliveryTag multiple = do
   inner <- readMVar chan.inner
   Q.ackMsg inner deliveryTag multiple
 
-createChannel :: (Ord key) => RabbitMqPool key -> Text -> key -> Codensity IO RabbitMqChannel
-createChannel pool queue key = do
+type QueueName = Text
+
+type CreateQueue = Q.Channel -> Codensity IO ()
+
+createChannel :: (Ord key) => RabbitMqPool key -> QueueName -> CreateQueue -> key -> Codensity IO RabbitMqChannel
+createChannel pool queueName createQueue key = do
   closedVar <- lift newEmptyMVar
   inner <- lift newEmptyMVar
   msgVar <- lift newEmptyMVar
@@ -263,9 +267,11 @@ createChannel pool queue key = do
           if connSize > pool.opts.maxChannels
             then pure True
             else do
+              createQueue chan
+
               liftIO $ Q.addChannelExceptionHandler chan handleException
               putMVar inner chan
-              void $ liftIO $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
+              void $ liftIO $ Q.consumeMsgs chan queueName Q.Ack $ \(message, envelope) -> do
                 putMVar msgVar (Just (message, envelope))
               retry <- takeMVar closedVar
               void $ takeMVar inner

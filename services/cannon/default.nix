@@ -31,6 +31,7 @@
 , lens-family-core
 , lib
 , metrics-wai
+, MonadRandom
 , mwc-random
 , prometheus-client
 , QuickCheck
@@ -91,6 +92,7 @@ mkDerivation {
     lens
     lens-family-core
     metrics-wai
+    MonadRandom
     mwc-random
     prometheus-client
     retry

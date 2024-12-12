@@ -50,7 +50,7 @@ setupConsumableNotifications ::
   ClientId ->
   IO Text
 setupConsumableNotifications chan uid cid = do
-  let qName = clientNotificationQueueName uid cid
+  let qName = clientNotificationQueueName uid (RabbitMqClientId cid)
   void $
     declareQueue
       chan

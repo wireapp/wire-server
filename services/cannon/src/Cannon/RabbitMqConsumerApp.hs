@@ -7,12 +7,15 @@ import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
-import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
+import Control.Exception (Handler (..), bracket, catch, catches, finally, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
+import Control.Monad.Random.Class
 import Data.Aeson hiding (Key)
 import Data.Id
+import Data.Text qualified as T
 import Imports hiding (min, threadDelay)
+import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
@@ -20,11 +23,11 @@ import System.Logger qualified as Log
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
 
-rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
-rabbitMQWebSocketApp uid cid e pendingConn = do
+rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Env -> ServerApp
+rabbitMQWebSocketApp uid mcid e pendingConn = do
   bracket openWebSocket closeWebSocket $ \wsConn ->
     ( do
-        sendFullSyncMessageIfNeeded wsConn uid cid e
+        traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
         sendNotifications wsConn
     )
       `catches` [ handleClientMisbehaving wsConn,
@@ -34,7 +37,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
   where
     logClient =
       Log.field "user" (idToText uid)
-        . Log.field "client" (clientToText cid)
+        . Log.field "client" (maybe "<temporary>" clientToText mcid)
 
     openWebSocket =
       acceptRequest pendingConn
@@ -108,8 +111,22 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
     sendNotifications :: WS.Connection -> IO ()
     sendNotifications wsConn = lowerCodensity $ do
+      cid <- lift $ mkRabbitMqClientId mcid
       let key = mkKeyRabbit uid cid
-      chan <- createChannel e.pool (clientNotificationQueueName uid cid) key
+      let queueName = clientNotificationQueueName uid cid
+
+      let createQueue chan = case mcid of
+            Nothing -> Codensity $ \k ->
+              ( do
+                  void $ Q.declareQueue chan newQueue {Q.queueName = queueName}
+                  for_ [userRoutingKey uid, temporaryRoutingKey uid] $
+                    Q.bindQueue chan queueName userNotificationExchangeName
+                  k ()
+              )
+                `finally` Q.deleteQueue chan queueName
+            Just _ -> pure ()
+
+      chan <- createChannel e.pool queueName createQueue key
 
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
@@ -171,10 +188,10 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 sendFullSyncMessageIfNeeded ::
   WS.Connection ->
   UserId ->
-  ClientId ->
   Env ->
+  ClientId ->
   IO ()
-sendFullSyncMessageIfNeeded wsConn uid cid env = do
+sendFullSyncMessageIfNeeded wsConn uid env cid = do
   row <- C.runClient env.cassandra do
     retry x5 $ query1 q (params LocalQuorum (uid, cid))
   for_ row $ \_ -> sendFullSyncMessage uid cid wsConn env
@@ -220,3 +237,8 @@ data WebSocketServerError
   deriving (Show)
 
 instance Exception WebSocketServerError
+
+mkRabbitMqClientId :: Maybe ClientId -> IO RabbitMqClientId
+mkRabbitMqClientId (Just cid) = pure (RabbitMqClientId cid)
+mkRabbitMqClientId Nothing =
+  RabbitMqTempId . T.pack <$> replicateM 8 (getRandomR ('a', 'z'))
