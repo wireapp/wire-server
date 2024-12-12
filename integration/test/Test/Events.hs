@@ -67,28 +67,41 @@ testConsumeTempEvents = do
   alice <- randomUser OwnDomain def
 
   client0 <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-  runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
-    clientId <- objId client0
+  clientId0 <- objId client0
 
-    void $ assertEvent ws $ \e -> do
-      e %. "type" `shouldMatch` "event"
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+  lowerCodensity $ do
+    ws0 <- createEventsWebSocket alice (Just clientId0)
 
-      ackEvent ws e
+    -- Ensure there is no race between event for this client being pushed and temp
+    -- consumer being created
+    lift $ do
+      expectAndAckNewClientEvent ws0 clientId0
+      assertNoEvent_ ws0
 
-  runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
-    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-    clientId <- objId client
+    wsTemp <- createEventsWebSocket alice Nothing
 
-    void $ assertEvent ws $ \e -> do
-      e %. "type" `shouldMatch` "event"
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+    lift $ do
+      client1 <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+      clientId1 <- objId client1
 
-      ackEvent ws e
+      -- Temp client gets this event as it happens after temp client has started
+      -- listening
+      void $ expectAndAckNewClientEvent wsTemp clientId1
 
-    assertNoEvent_ ws
+      -- Client0 should also be notified even if there is a temp client
+      void $ expectAndAckNewClientEvent ws0 clientId1
+
+      assertNoEvent_ wsTemp
+      assertNoEvent_ ws0
+  where
+    expectAndAckNewClientEvent :: EventWebSocket -> String -> App ()
+    expectAndAckNewClientEvent ws cid =
+      assertEvent ws $ \e -> do
+        e %. "type" `shouldMatch` "event"
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` cid
+
+        ackEvent ws e
 
 testMLSTempEvents :: (HasCallStack) => App ()
 testMLSTempEvents = do
