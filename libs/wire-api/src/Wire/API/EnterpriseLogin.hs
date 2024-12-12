@@ -120,8 +120,8 @@ instance ToSchema TeamInviteTag where
 teamInviteTagSchema :: ObjectSchema SwaggerDoc TeamInviteTag
 teamInviteTagSchema = field "team_invite" schema
 
-teamInviteSchema :: ObjectSchema SwaggerDoc TeamInvite
-teamInviteSchema =
+teamInviteObjectSchema :: ObjectSchema SwaggerDoc TeamInvite
+teamInviteObjectSchema =
   snd
     <$> (toTagged &&& id)
       .= bind
@@ -140,7 +140,7 @@ teamInviteSchema =
       TeamTag -> tag _Team (field "team" schema)
 
 instance ToSchema TeamInvite where
-  schema = object "TeamInvite" teamInviteSchema
+  schema = object "TeamInvite" teamInviteObjectSchema
 
 deriving via (Schema TeamInvite) instance FromJSON TeamInvite
 
@@ -167,7 +167,7 @@ instance ToSchema DomainRegistrationUpdate where
     object "DomainRegistrationUpdate" $
       DomainRegistrationUpdate
         <$> (.domainRedirect) .= domainRedirectSchema
-        <*> (.teamInvite) .= teamInviteSchema
+        <*> (.teamInvite) .= teamInviteObjectSchema
 
 data DomainRegistration = DomainRegistration
   { domain :: Domain,
@@ -184,7 +184,7 @@ instance ToSchema DomainRegistration where
       DomainRegistration
         <$> (.domain) .= field "domain" schema
         <*> (.domainRedirect) .= domainRedirectSchema
-        <*> (.teamInvite) .= teamInviteSchema
+        <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
 --------------------------------------------------------------------------------
