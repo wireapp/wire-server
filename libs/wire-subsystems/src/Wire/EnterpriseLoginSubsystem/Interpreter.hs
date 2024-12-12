@@ -68,13 +68,16 @@ deleteDomainImpl ::
   Sem r ()
 deleteDomainImpl domain = do
   mOld <- tryGetDomainRegistrationImpl domain
-  delete domain
-  let url =
-        "DELETE /i/domain-registration/"
-          <> fromText (domainText domain)
   sendAuditMail url "Domain deleted" mOld Nothing
+  delete domain
+  where
+    url :: Builder
+    url =
+      "DELETE /i/domain-registration/"
+        <> fromText (domainText domain)
 
 unauthorizeImpl ::
+  forall r.
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
@@ -87,20 +90,24 @@ unauthorizeImpl domain = do
   old <- getDomainRegistrationImpl domain
   let new = old {domainRedirect = None} :: DomainRegistration
   case old.domainRedirect of
-    PreAuthorized -> upsert $ toStored new
-    Backend _ -> upsert $ toStored new
-    NoRegistration -> upsert $ toStored new
+    PreAuthorized -> audit old new *> upsert (toStored new)
+    Backend _ -> audit old new *> upsert (toStored new)
+    NoRegistration -> audit old new *> upsert (toStored new)
     None -> pure ()
     Locked -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
     SSO _ -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
-  let url =
-        "POST /i/domain-registration/"
-          <> fromText (domainText domain)
-          <> "/unauthorized"
+  where
+    audit :: DomainRegistration -> DomainRegistration -> Sem r ()
+    audit old new = sendAuditMail url "Domain unauthorized" (Just old) (Just new)
 
-  sendAuditMail url "Domain unauthorized" (Just old) (Just new)
+    url :: Builder
+    url =
+      "POST /i/domain-registration/"
+        <> fromText (domainText domain)
+        <> "/unauthorized"
 
 updateDomainRegistrationImpl ::
+  forall r.
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
@@ -113,21 +120,24 @@ updateDomainRegistrationImpl ::
 updateDomainRegistrationImpl domain update = do
   validate update
   mOld <- tryGetDomainRegistrationImpl domain
-  let url =
-        "PUT /i/domain-registration/"
-          <> fromText (domainText domain)
-  new <- case mOld of
+  case mOld of
     Just dr -> do
       let new = dr {teamInvite = update.teamInvite, domainRedirect = update.domainRedirect} :: DomainRegistration
-      upsert $ toStored new
-      pure new
+      audit mOld new *> upsert (toStored new)
     Nothing -> do
-      let dr = DomainRegistration domain update.domainRedirect update.teamInvite Nothing
-      upsert $ toStored dr
-      pure dr
-  sendAuditMail url "Domain registration updated" mOld (Just new)
+      let new = DomainRegistration domain update.domainRedirect update.teamInvite Nothing
+      audit mOld new *> upsert (toStored new)
+  where
+    audit :: Maybe DomainRegistration -> DomainRegistration -> Sem r ()
+    audit old new = sendAuditMail url "Domain registration updated" old (Just new)
+
+    url :: Builder
+    url =
+      "PUT /i/domain-registration/"
+        <> fromText (domainText domain)
 
 lockDomainImpl ::
+  forall r.
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
@@ -139,14 +149,19 @@ lockDomainImpl ::
 lockDomainImpl domain = do
   mOld <- tryGetDomainRegistrationImpl domain
   let new = DomainRegistration domain Locked Allowed Nothing
-  upsert $ toStored new
-  let url =
-        "POST /i/domain-registration/"
-          <> fromText (domainText domain)
-          <> "/lock"
-  sendAuditMail url "Domain locked" mOld (Just new)
+  audit mOld new *> upsert (toStored new)
+  where
+    url :: Builder
+    url =
+      "POST /i/domain-registration/"
+        <> fromText (domainText domain)
+        <> "/lock"
+
+    audit :: Maybe DomainRegistration -> DomainRegistration -> Sem r ()
+    audit old new = sendAuditMail url "Domain locked" old (Just new)
 
 unlockDomainImpl ::
+  forall r.
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
@@ -159,15 +174,20 @@ unlockDomainImpl domain = do
   old <- getDomainRegistrationImpl domain
   let new = old {domainRedirect = None} :: DomainRegistration
   case old.domainRedirect of
-    Locked -> upsert $ toStored new
+    Locked -> audit old new *> upsert (toStored new)
     _ -> throw EnterpriseLoginSubsystemUnlockError
-  let url =
-        "POST /i/domain-registration/"
-          <> fromText (domainText domain)
-          <> "/unlock"
-  sendAuditMail url "Domain locked" (Just old) (Just new)
+  where
+    url :: Builder
+    url =
+      "POST /i/domain-registration/"
+        <> fromText (domainText domain)
+        <> "/unlock"
+
+    audit :: DomainRegistration -> DomainRegistration -> Sem r ()
+    audit old new = sendAuditMail url "Domain locked" (Just old) (Just new)
 
 preAuthorizeImpl ::
+  forall r.
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
@@ -178,22 +198,24 @@ preAuthorizeImpl ::
   Sem r ()
 preAuthorizeImpl domain = do
   mOld <- tryGetDomainRegistrationImpl domain
-  new <- case mOld of
+  case mOld of
     Nothing -> do
       let new = DomainRegistration domain PreAuthorized Allowed Nothing
-      upsert $ toStored new
-      pure new
+      audit mOld new *> upsert (toStored new)
     Just sdr | sdr.domainRedirect == None -> do
       let new = sdr {domainRedirect = PreAuthorized} :: DomainRegistration
-      upsert $ toStored new
-      pure new
-    Just sdr | sdr.domainRedirect == PreAuthorized -> pure sdr
+      audit mOld new *> upsert (toStored new)
+    Just sdr | sdr.domainRedirect == PreAuthorized -> pure ()
     _ -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
-  let url =
-        "POST /i/domain-registration/"
-          <> fromText (domainText domain)
-          <> "/preauthorize"
-  sendAuditMail url "Domain locked" mOld (Just new)
+  where
+    url :: Builder
+    url =
+      "POST /i/domain-registration/"
+        <> fromText (domainText domain)
+        <> "/preauthorize"
+
+    audit :: Maybe DomainRegistration -> DomainRegistration -> Sem r ()
+    audit old new = sendAuditMail url "Domain locked" old (Just new)
 
 getDomainRegistrationImpl ::
   ( Member DomainRegistrationStore r,
@@ -277,7 +299,7 @@ validate :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainRegistrati
 validate dr = do
   case dr.domainRedirect of
     Locked -> when (dr.teamInvite /= Allowed) $ throw (EnterpriseLoginSubsystemErrorUpdateFailure "Team invite must be allowed for a locked domain")
-    Backend _ -> when (dr.teamInvite /= NotAllowed) $ throw (EnterpriseLoginSubsystemErrorUpdateFailure "Team invite must be not-allowed for a backend domain")
+    Backend _ -> when (dr.teamInvite /= NotAllowed) $ throw (EnterpriseLoginSubsystemErrorUpdateFailure "Team invite must not be allowed for a backend domain")
     _ -> pure ()
 
 mkAuditMail :: EmailAddress -> EmailAddress -> Text -> LText -> Mail
