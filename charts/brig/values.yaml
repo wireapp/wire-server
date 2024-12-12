@@ -156,7 +156,7 @@ config:
       # iterations: <iterations>
       # parallelism: <paralellism>
       # memory: <memory used in KiB>
-    # setAuditRecipient: security@wire.com
+    # setAuditLogEmailRecipient: security@wire.com
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

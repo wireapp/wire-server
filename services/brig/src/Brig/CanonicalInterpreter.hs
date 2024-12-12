@@ -304,7 +304,7 @@ runBrigToIO e (AppT ma) = do
 
 mkEnterpriseLoginSubsystemConfig :: Env -> Maybe EnterpriseLoginSubsystemConfig
 mkEnterpriseLoginSubsystemConfig env = do
-  recipient <- env.settings.auditRecipient
+  recipient <- env.settings.auditLogEmailRecipient
   let sender = env.emailSender
   pure $ EnterpriseLoginSubsystemConfig {auditEmailSender = sender, auditEmailRecipient = recipient}
 

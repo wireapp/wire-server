@@ -588,7 +588,7 @@ data Settings = Settings
     -- | Options to override the default Argon2id settings for specific operators.
     passwordHashingOptions :: !(PasswordHashingOptions),
     -- | Optional recipient email address for email domain registration audit logs
-    auditRecipient :: !(Maybe EmailAddress)
+    auditLogEmailRecipient :: !(Maybe EmailAddress)
   }
   deriving (Show, Generic)
 

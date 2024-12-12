@@ -830,7 +830,7 @@ Audit logs for any update (POST, PUT, DELETE) of a domain registration via the i
 brig:
   config:
     optSettings:
-      setAuditRecipient: security@wire.com
+      setAuditLogEmailRecipient: security@wire.com
 ```
 
 ## Settings in cargohold
