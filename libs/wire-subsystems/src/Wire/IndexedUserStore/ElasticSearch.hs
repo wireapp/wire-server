@@ -1,8 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
+-- for ES.errorStatus
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Wire.IndexedUserStore.ElasticSearch where
 
-import Control.Error (lastMay)
+import Control.Error (ExceptT (..), lastMay, runExceptT)
 import Control.Exception (throwIO)
 import Data.Aeson
 import Data.Aeson.Key qualified as Key
@@ -13,7 +15,9 @@ import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
+import Database.Bloodhound (BHResponse (BHResponse))
 import Database.Bloodhound qualified as ES
+import Database.Bloodhound.Common.Requests qualified as ESR
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
@@ -65,7 +69,7 @@ getTeamSizeImpl ::
 getTeamSizeImpl cfg tid = do
   let indexName = cfg.conn.indexName
   countResEither <- embed $ ES.runBH cfg.conn.env $ ES.countByIndex indexName (ES.CountQuery query)
-  countRes <- either (liftIO . throwIO . IndexLookupError) pure countResEither
+  countRes <- either (liftIO . throwIO . IndexLookupError . Right) pure countResEither
   pure . TeamSize $ ES.crCount countRes
   where
     query =
@@ -90,32 +94,64 @@ upsertImpl cfg docId userDoc versioning = do
   void $ runInBothES cfg indexDoc
   where
     indexDoc :: ES.IndexName -> ES.BH (Sem r) ()
-    indexDoc idx = do
-      r <- ES.indexDocument idx mappingName settings userDoc docId
-      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        lift $ Metrics.incCounter indexUpdateErrorCounter
-        res <- liftIO $ ES.parseEsResponse r
-        liftIO . throwIO . IndexUpdateError . either id id $ res
-      lift $ Metrics.incCounter indexUpdateSuccessCounter
+    indexDoc idx =
+      runUpdateAction
+        (ESR.indexDocument idx settings userDoc docId)
+        (lift $ Metrics.incCounter indexUpdateSuccessCounter)
+        (lift $ Metrics.incCounter indexUpdateErrorCounter)
 
     settings = ES.defaultIndexDocumentSettings {ES.idsVersionControl = versioning}
+
+runUpdateAction ::
+  forall r a.
+  (Member (Embed IO) r) =>
+  ES.BHRequest ES.StatusDependant a ->
+  ES.BH (Sem r) () ->
+  ES.BH (Sem r) () ->
+  ES.BH (Sem r) ()
+runUpdateAction action onSuccess onError = do
+  r <-
+    hoistBH (embed @IO) $
+      ES.tryEsError . ES.performBHRequest . ES.keepBHResponse $
+        action
+  -- ElasticSearch and OpenSearch differ in their error regarding version
+  -- conflicts. This is why we use both the isVersionConflict predicate
+  -- (ElasticSearch) and a check on the errorStatus of EsError (OpenSearch).
+  case r of
+    Right (resp, _) -> unless (ES.isSuccess resp || ES.isVersionConflict resp) $ do
+      onError
+      liftIO . throwIO . IndexUpdateError $ parseESError resp
+    Left e -> unless (ES.errorStatus e == Just 409) $ do
+      onError
+      liftIO . throwIO . IndexUpdateError . Right $ e
+  onSuccess
+
+hoistBH :: (forall x. m x -> n x) -> ES.BH m a -> ES.BH n a
+hoistBH nat (ES.BH action) = ES.BH $ hoistReaderT (hoistExceptT nat) action
+
+hoistReaderT :: (forall x. m x -> n x) -> ReaderT r m a -> ReaderT r n a
+hoistReaderT nat (ReaderT f) = ReaderT $ \r -> nat (f r)
+
+-- Hoist a natural transformation from m to n through ExceptT
+hoistExceptT :: (forall x. m x -> n x) -> ExceptT e m a -> ExceptT e n a
+hoistExceptT nat (ExceptT ema) = ExceptT (nat ema)
 
 updateTeamSearchVisibilityInboundImpl :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> TeamId -> SearchVisibilityInbound -> Sem r ()
 updateTeamSearchVisibilityInboundImpl cfg tid vis =
   void $ runInBothES cfg updateAllDocs
   where
     updateAllDocs :: ES.IndexName -> ES.BH (Sem r) ()
-    updateAllDocs idx = do
-      r <- ES.updateByQuery idx query (Just script)
-      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        res <- liftIO $ ES.parseEsResponse r
-        liftIO . throwIO . IndexUpdateError . either id id $ res
+    updateAllDocs idx =
+      runUpdateAction
+        (fmap fst . ES.keepBHResponse $ ESR.updateByQuery @Value idx query (Just script))
+        (pure ())
+        (pure ())
 
     query :: ES.Query
     query = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing
 
     script :: ES.Script
-    script = ES.Script (Just (ES.ScriptLanguage "painless")) (Just (ES.ScriptInline scriptText)) Nothing Nothing
+    script = ES.Script (Just (ES.ScriptLanguage "painless")) (ES.ScriptInline scriptText) Nothing
 
     -- Unfortunately ES disallows updating ctx._version with a "Update By Query"
     scriptText =
@@ -128,10 +164,9 @@ updateTeamSearchVisibilityInboundImpl cfg tid vis =
 bulkUpsertImpl :: (Member (Embed IO) r) => IndexedUserStoreConfig -> [(ES.DocId, UserDoc, ES.VersionControl)] -> Sem r ()
 bulkUpsertImpl cfg docs = do
   let bhe = cfg.conn.env
-      ES.IndexName idx = cfg.conn.indexName
-      ES.MappingName mpp = mappingName
+      idx = ES.unIndexName cfg.conn.indexName
       (ES.Server base) = ES.bhServer bhe
-  baseReq <- embed $ parseRequest (Text.unpack $ base <> "/" <> idx <> "/" <> mpp <> "/_bulk")
+  baseReq <- embed $ parseRequest (Text.unpack $ base <> "/" <> idx <> "/_bulk")
   let reqWithoutCreds =
         baseReq
           { method = "POST",
@@ -139,10 +174,9 @@ bulkUpsertImpl cfg docs = do
             requestBody = RequestBodyLBS (toLazyByteString (foldMap encodeActionAndData docs))
           }
   req <- embed $ bhe.bhRequestHook reqWithoutCreds
-  res <- embed $ httpLbs req (ES.bhManager bhe)
+  res <- fmap (BHResponse @ES.StatusDependant @ES.BulkResponse) . embed $ httpLbs req (ES.bhManager bhe)
   unless (ES.isSuccess res) $ do
-    parsedRes <- liftIO $ ES.parseEsResponse res
-    liftIO . throwIO . IndexUpdateError . either id id $ parsedRes
+    liftIO . throwIO . IndexUpdateError $ parseESError res
   where
     encodeJSONToString :: (ToJSON a) => a -> Builder
     encodeJSONToString = fromEncoding . toEncoding
@@ -166,13 +200,20 @@ bulkUpsertImpl cfg docs = do
             [ "index"
                 .= object
                   [ "_id" .= docId,
-                    "_version_type" .= versionType,
-                    "_version" .= version
+                    "version_type" .= versionType,
+                    "version" .= version
                   ]
             ]
 
+-- | Parse `BHResponse` as `ES.EsError`
+parseESError :: BHResponse ES.StatusDependant any -> Either ES.EsProtocolException ES.EsError
+parseESError res = either id id <$> ES.parseEsResponse (castResponse res)
+  where
+    castResponse :: BHResponse ES.StatusDependant any -> BHResponse ES.StatusDependant ES.EsError
+    castResponse BHResponse {..} = BHResponse {..}
+
 doesIndexExistImpl :: (Member (Embed IO) r) => IndexedUserStoreConfig -> Sem r Bool
-doesIndexExistImpl cfg = do
+doesIndexExistImpl cfg = embed $ do
   (mainExists, fromMaybe True -> additionalExists) <- runInBothES cfg ES.indexExists
   pure $ mainExists && additionalExists
 
@@ -264,7 +305,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
           mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
           results = mapMaybe ES.hitSource hits
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = es.searchHits.hitsTotal.value,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -274,11 +315,9 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
             }
 
 searchInMainIndex :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> ES.Search -> Sem r (ES.SearchResult UserDoc)
-searchInMainIndex cfg search = do
-  r <- ES.runBH cfg.conn.env $ do
-    res <- ES.searchByType cfg.conn.indexName mappingName search
-    liftIO $ ES.parseEsResponse res
-  either (embed . throwIO . IndexLookupError) pure r
+searchInMainIndex cfg search = embed $ do
+  r <- ES.runBH cfg.conn.env $ ES.searchByIndex @UserDoc cfg.conn.indexName search
+  either (throwIO . IndexLookupError . Right) pure r
 
 queryIndex ::
   (Member (Embed IO) r) =>
@@ -293,7 +332,7 @@ queryIndex cfg s (IndexQuery q f _) = do
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = es.searchHits.hitsTotal.value,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -423,7 +462,7 @@ termQ :: Text -> Text -> ES.Query
 termQ f v =
   ES.TermQuery
     ES.Term
-      { ES.termField = f,
+      { ES.termField = Key.fromText f,
         ES.termValue = v
       }
     Nothing
@@ -487,7 +526,7 @@ matchTeamMembersSearchableByAllTeams =
     boolQuery
       { ES.boolQueryMustMatch =
           [ ES.QueryExistsQuery $ ES.FieldName "team",
-            ES.TermQuery (ES.Term (Key.toText searchVisibilityInboundFieldName) "searchable-by-all-teams") Nothing
+            ES.TermQuery (ES.Term searchVisibilityInboundFieldName "searchable-by-all-teams") Nothing
           ]
       }
 
@@ -508,15 +547,13 @@ matchUsersNotInTeam tid =
 --------------------------------------------
 -- Utils
 
-runInBothES :: (Monad m) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH m a) -> m (a, Maybe a)
-runInBothES cfg f = do
-  x <- ES.runBH cfg.conn.env $ f cfg.conn.indexName
-  y <- forM cfg.additionalConn $ \additional ->
-    ES.runBH additional.env $ f additional.indexName
-  pure (x, y)
-
-mappingName :: ES.MappingName
-mappingName = ES.MappingName "user"
+runInBothES :: forall m a. (MonadIO m) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH m a) -> m (a, Maybe a)
+runInBothES cfg f =
+  either (liftIO . throwIO) pure =<< runExceptT do
+    x <- ExceptT $ ES.runBH cfg.conn.env $ f cfg.conn.indexName
+    y <- forM @Maybe @(ExceptT ES.EsError m) cfg.additionalConn $ \additional ->
+      ExceptT $ ES.runBH additional.env $ f additional.indexName
+    pure (x, y)
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []
