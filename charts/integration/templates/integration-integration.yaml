@@ -261,6 +261,12 @@ spec:
     - name: rabbitmq-ca
       mountPath: /etc/wire/background-worker/rabbitmq-ca
 
+    - name: rabbitmq-ca
+      mountPath: /etc/wire/gundeck/rabbitmq-ca
+
+    - name: rabbitmq-ca
+      mountPath: /etc/wire/cannon/rabbitmq-ca
+
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "integration-cassandra"
       mountPath: "/certs"

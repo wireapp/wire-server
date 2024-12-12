@@ -265,6 +265,12 @@ searchTeam user q = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
   submit "GET" (req & addQueryParams [("q", q)])
 
+searchTeamAll :: (HasCallStack, MakesValue user) => user -> App Response
+searchTeamAll user = do
+  tid <- user %. "team" & asString
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
+  submit "GET" (req & addQueryParams [("q", ""), ("size", "100"), ("sortby", "created_at"), ("sortorder", "desc")])
+
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
   req <- baseRequest domain Brig Unversioned $ "/api-version"
@@ -817,6 +823,12 @@ listInvitations :: (HasCallStack, MakesValue user) => user -> String -> App Resp
 listInvitations user tid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "invitations"]
   submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/get-team-invitation-info
+getInvitationByCode :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getInvitationByCode user code = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "info"]
+  submit "GET" (req & addQueryParams [("code", code)])
 
 passwordReset :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 passwordReset domain email = do

@@ -11,7 +11,7 @@ where
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
-import Control.Monad.Catch (catch, throwM)
+import Control.Monad.Catch (catch, displayException, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
@@ -38,6 +38,7 @@ import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (keyboardSignal, killProcess, signalProcess)
 import System.Process
 import Testlib.App
+import Testlib.Assertions (prettierCallStack)
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
@@ -118,20 +119,19 @@ traverseConcurrentlyCodensity f args = do
     pure result
 
 startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
-startDynamicBackends beOverrides k =
-  runCodensity
-    do
-      when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
-      pool <- asks (.resourcePool)
-      resources <- acquireResources (Prelude.length beOverrides) pool
-      void $
-        traverseConcurrentlyCodensity
-          (void . uncurry startDynamicBackend)
-          (zip resources beOverrides)
-      pure $ map (.berDomain) resources
-    k
+startDynamicBackends beOverrides k = do
+  let startDynamicBackendsCodensity = do
+        when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
+        pool <- asks (.resourcePool)
+        resources <- acquireResources (Prelude.length beOverrides) pool
+        void $
+          traverseConcurrentlyCodensity
+            (void . uncurry startDynamicBackend)
+            (zip resources beOverrides)
+        pure $ map (.berDomain) resources
+  runCodensity startDynamicBackendsCodensity k
 
-startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App String
+startDynamicBackend :: (HasCallStack) => BackendResource -> ServiceOverrides -> Codensity App String
 startDynamicBackend resource beOverrides = do
   let overrides =
         mconcat
@@ -179,7 +179,9 @@ startDynamicBackend resource beOverrides = do
               >=> setField "federator.host" ("127.0.0.1" :: String)
               >=> setField "federator.port" resource.berFederatorInternal
               >=> setField "rabbitmq.vHost" resource.berVHost,
-          gundeckCfg = setField "settings.federationDomain" resource.berDomain,
+          gundeckCfg =
+            setField "settings.federationDomain" resource.berDomain
+              >=> setField "rabbitmq.vHost" resource.berVHost,
           backgroundWorkerCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
@@ -187,7 +189,9 @@ startDynamicBackend resource beOverrides = do
           federatorInternalCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorExternal.port" resource.berFederatorExternal
-              >=> setField "optSettings.setFederationDomain" resource.berDomain
+              >=> setField "optSettings.setFederationDomain" resource.berDomain,
+          cannonCfg =
+            setField "rabbitmq.vHost" resource.berVHost
         }
 
     setKeyspace :: ServiceOverrides
@@ -261,10 +265,11 @@ startBackend resource overrides = do
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
 
-ensureBackendReachable :: String -> App ()
+ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
   env <- ask
-  let checkServiceIsUpReq = do
+  let checkServiceIsUpReq :: (HasCallStack) => App Bool
+      checkServiceIsUpReq = do
         req <-
           rawBaseRequest
             env.domain1
@@ -314,9 +319,12 @@ data ServiceInstance = ServiceInstance
 timeout :: Int -> IO a -> IO (Maybe a)
 timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
 
-cleanupService :: ServiceInstance -> IO ()
+cleanupService :: (HasCallStack) => ServiceInstance -> IO ()
 cleanupService inst = do
-  let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
+  let ignoreExceptions :: (HasCallStack) => IO () -> IO ()
+      ignoreExceptions action = E.catch action $ \(e :: E.SomeException) -> do
+        callstackPretty <- prettierCallStack callStack
+        putStrLn $ colored red $ "Exception while cleaning up a service: " <> displayException e <> "\ncallstack: \n" <> callstackPretty
   ignoreExceptions $ do
     mPid <- getPid inst.handle
     for_ mPid (signalProcess keyboardSignal)
@@ -329,7 +337,7 @@ cleanupService inst = do
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
 -- | Wait for a service to come up.
-waitUntilServiceIsUp :: String -> Service -> App ()
+waitUntilServiceIsUp :: (HasCallStack) => String -> Service -> App ()
 waitUntilServiceIsUp domain srv =
   retryRequestUntil
     (checkServiceIsUp domain srv)
@@ -346,7 +354,7 @@ checkServiceIsUp domain srv = do
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
-withProcess :: BackendResource -> ServiceOverrides -> Service -> Codensity App ()
+withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service -> Codensity App ()
 withProcess resource overrides service = do
   let domain = berDomain resource
   sm <- lift $ getServiceMap domain
@@ -393,7 +401,7 @@ logToConsole colorize prefix hdl = do
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
-retryRequestUntil :: (HasCallStack) => App Bool -> String -> App ()
+retryRequestUntil :: (HasCallStack) => ((HasCallStack) => App Bool) -> String -> App ()
 retryRequestUntil reqAction err = do
   isUp <-
     retrying

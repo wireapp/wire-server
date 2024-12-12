@@ -29,7 +29,7 @@ import Control.Concurrent.Async
 import Control.Lens hiding (from, to, uncons, (#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Codensity (lowerCodensity)
-import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
+import Control.Retry (constantDelay, exponentialBackoff, limitRetries, recoverAll, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson qualified as A
 import Data.Aeson.Lens (key, _String)
@@ -426,10 +426,11 @@ addUserToTeamWithRole' :: (HasCallStack) => Maybe Role -> UserId -> TeamId -> Te
 addUserToTeamWithRole' role inviter tid = do
   brig <- viewBrig
   inviteeEmail <- randomEmail
-  let invite = InvitationRequest Nothing role Nothing inviteeEmail
+  let invite = InvitationRequest Nothing role Nothing inviteeEmail True
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
-  inviteeCode <- getInvitationCode tid inv.invitationId
+  inviteeCode <- recoverAll (exponentialBackoff 1000 <> limitRetries 11) $
+    \_ -> getInvitationCode tid inv.invitationId
   r <-
     post
       ( brig

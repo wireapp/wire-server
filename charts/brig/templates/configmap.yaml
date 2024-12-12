@@ -186,14 +186,13 @@ data:
       {{- else }}
       {{- if .externalUrls.teamSettings }}
         tInvitationUrl: {{ .externalUrls.teamSettings }}/join/?team-code=${code}
-        tExistingUserInvitationUrl: {{ .externalUrls.teamSettings }}/accept-invitation/?team-code=${code}
       {{- else }}
         tInvitationUrl: {{ .externalUrls.nginz }}/register?team=${team}&team_code=${code}
-        tExistingUserInvitationUrl: {{ .externalUrls.nginz }}/accept-invitation/?team-code=${code}
       {{- end }}
         tActivationUrl: {{ .externalUrls.nginz }}/register?team=${team}&team_code=${code}
         tCreatorWelcomeUrl: {{ .externalUrls.teamCreatorWelcome }}
         tMemberWelcomeUrl: {{ .externalUrls.teamMemberWelcome }}
+        tExistingUserInvitationUrl: {{ .externalUrls.accountPages }}/accept-invitation/?team-code=${code}
       {{- end }}
 
     zauth:

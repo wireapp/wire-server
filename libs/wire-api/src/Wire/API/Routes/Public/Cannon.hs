@@ -22,12 +22,14 @@ import Servant
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Version
 import Wire.API.Routes.WebSocket
 
 type CannonAPI =
   Named
     "await-notifications"
     ( Summary "Establish websocket connection"
+        -- Description "This is the legacy variant of \"consume-events\""
         :> "await"
         :> ZUser
         :> ZConn
@@ -41,6 +43,24 @@ type CannonAPI =
         -- FUTUREWORK: Consider higher-level web socket combinator
         :> WebSocketPending
     )
+    :<|> Named
+           "consume-events"
+           ( Summary "Consume events over a websocket connection"
+               :> Description "This is the rabbitMQ-based variant of \"await-notifications\""
+               :> From 'V8
+               :> "events"
+               :> ZUser
+               :> QueryParam'
+                    [ -- Make this optional in https://wearezeta.atlassian.net/browse/WPB-11173
+                      Required,
+                      Strict,
+                      Description "Client ID"
+                    ]
+                    "client"
+                    ClientId
+               -- FUTUREWORK: Consider higher-level web socket combinator
+               :> WebSocketPending
+           )
 
 data CannonAPITag
 

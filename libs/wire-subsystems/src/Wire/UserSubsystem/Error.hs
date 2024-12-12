@@ -14,7 +14,9 @@ data UserSubsystemError
     UserSubsystemDisplayNameManagedByScim
   | UserSubsystemHandleManagedByScim
   | UserSubsystemLocaleManagedByScim
+  | UserSubsystemEmailManagedByScim
   | UserSubsystemNoIdentity
+  | UserSubsystemLastIdentity
   | UserSubsystemHandleExists
   | UserSubsystemInvalidHandle
   | UserSubsystemProfileNotFound
@@ -28,6 +30,8 @@ data UserSubsystemError
   | UserSubsystemInvitationNotFound
   | UserSubsystemUserNotAllowedToJoinTeam Wai.Error
   | UserSubsystemMLSServicesNotAllowed
+  | UserSubsystemChangeBlocklistedEmail
+  | UserSubsystemEmailExists
   deriving (Eq, Show)
 
 userSubsystemErrorToHttpError :: UserSubsystemError -> HttpError
@@ -36,7 +40,9 @@ userSubsystemErrorToHttpError =
     UserSubsystemProfileNotFound -> errorToWai @E.UserNotFound
     UserSubsystemDisplayNameManagedByScim -> errorToWai @E.NameManagedByScim
     UserSubsystemLocaleManagedByScim -> errorToWai @E.LocaleManagedByScim
+    UserSubsystemEmailManagedByScim -> errorToWai @E.EmailManagedByScim
     UserSubsystemNoIdentity -> errorToWai @E.NoIdentity
+    UserSubsystemLastIdentity -> errorToWai @E.LastIdentity
     UserSubsystemHandleExists -> errorToWai @E.HandleExists
     UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
     UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim
@@ -50,5 +56,7 @@ userSubsystemErrorToHttpError =
     UserSubsystemInvitationNotFound -> Wai.mkError status404 "not-found" "Something went wrong, while looking up the invitation"
     UserSubsystemUserNotAllowedToJoinTeam e -> e
     UserSubsystemMLSServicesNotAllowed -> errorToWai @E.MLSServicesNotAllowed
+    UserSubsystemChangeBlocklistedEmail -> errorToWai @E.BlacklistedEmail
+    UserSubsystemEmailExists -> errorToWai @'E.UserKeyExists
 
 instance Exception UserSubsystemError

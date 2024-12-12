@@ -29,6 +29,18 @@ data:
       tlsCa: /etc/wire/gundeck/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    {{- with .rabbitmq }}
+    rabbitmq:
+      host: {{ .host }}
+      port: {{ .port }}
+      vHost: {{ .vHost }}
+      enableTls: {{ .enableTls }}
+      insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
+      {{- if .tlsCaSecretRef }}
+      caCert: /etc/wire/gundeck/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      {{- end }}
+    {{- end }}
+
     redis:
       host: {{ .redis.host }}
       port: {{ .redis.port }}

@@ -1,4 +1,5 @@
 {
+    "allow_existing": false,
     "email": "some@example",
     "locale": "af-GH",
     "name": null,

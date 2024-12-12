@@ -3,6 +3,7 @@
 module Wire.EmailSubsystem.Interpreter
   ( emailSubsystemInterpreter,
     mkMimeAddress,
+    renderInvitationUrl,
   )
 where
 

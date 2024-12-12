@@ -21,6 +21,7 @@ module Wire.MiniBackend
     NotPendingStoredUser (..),
     NotPendingEmptyIdentityStoredUser (..),
     PendingNotEmptyIdentityStoredUser (..),
+    NotPendingSSOIdWithEmailStoredUser (..),
     PendingStoredUser (..),
   )
 where
@@ -125,6 +126,23 @@ instance Arbitrary NotPendingStoredUser where
     user <- arbitrary `suchThat` \user -> isJust user.identity
     notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Ephemeral])
     pure $ NotPendingStoredUser (user {status = notPendingStatus})
+
+newtype NotPendingSSOIdWithEmailStoredUser = NotPendingSSOIdWithEmailStoredUser StoredUser
+  deriving (Show, Eq)
+
+instance Arbitrary NotPendingSSOIdWithEmailStoredUser where
+  arbitrary = do
+    user <- arbitrary `suchThat` \user -> fmap isUserSSOId user.ssoId == Just True
+    notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Ephemeral])
+    e <- arbitrary
+    pure $
+      NotPendingSSOIdWithEmailStoredUser
+        ( user
+            { activated = True,
+              status = notPendingStatus,
+              email = Just e
+            }
+        )
 
 type AllErrors =
   [ Error UserSubsystemError,

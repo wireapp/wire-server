@@ -131,10 +131,12 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
   mEmailOwner <- getLocalUserAccountByUserKey uke
   isPersonalUserMigration <- case mEmailOwner of
     Nothing -> pure False
-    Just user ->
-      if (user.userStatus == Active && isNothing user.userTeam)
-        then pure True
-        else throw TeamInvitationEmailTaken
+    Just user
+      | invRequest.allowExisting
+          && user.userStatus == Active
+          && isNothing user.userTeam ->
+          pure True
+      | otherwise -> throw TeamInvitationEmailTaken
 
   maxSize <- maxTeamSize <$> input
   pending <- Store.countInvitations tid
@@ -159,7 +161,6 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
                 inviteeEmail = email,
                 inviteeName = invRequest.inviteeName,
                 code = code
-                -- mUrl = mUrl
               }
        in Store.insertInvitation insertInv timeout
 

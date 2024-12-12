@@ -26,7 +26,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Version
 
 versionAPI :: ServerT VersionAPI (Handler r)
-versionAPI = Named $ do
+versionAPI = Named @"get-version" $ do
   fed <- asks (.federator)
   dom <- viewFederationDomain
   disabled <- asks (.disabledVersions)

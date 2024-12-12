@@ -441,6 +441,34 @@ curl -X DELETE --header "Authorization: Bearer $BEARER" \
 $WIRE_BACKEND/scim/auth-tokens?id=$SCIM_TOKEN_ID
 ```
 
+#### Associating SCIM tokens with SAML IdPs for authentication
+
+You can create both multiple SAML IdPs and multiple SCIM peers.  If
+both numbers are non-zero, there is the question of how the
+provisioned users should be authenticated: should they be invited via
+password, and other users authenticated *and* provisioned by SAML?  Or
+should they be provisioned so they can login with their SAML
+credentials?
+
+The request body in the [scim token creation
+request](https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-tokens-create)
+has an optional parameter `idp` that can contain an IdP's UUID.  This
+allows you to associate a SCIM token with a SAML IdP at creation of
+the scim token.
+
+If you already have a SCIM token and want to associate it with a SAML
+IdP, delete the SCIM token and create a new one.  The user accounts
+provisioned with that token will remain unaffected.
+
+If you do not provide a SAML IdP when creating it, the behavior
+differs based on the version you use:
+
+**V6 and below:** If there is a unique IdP registered with your team,
+associate implicitly.  Otherwise, do not associate.
+
+**V7 and above:** Never associate unless explicitly told to do so.
+
+
 #### Using a SCIM token to Create Read Update and Delete (CRUD) users
 
 Now that you have your SCIM token, you can use it to talk to the SCIM API to manipulate (create, read, update, delete) users, either individually or in bulk.

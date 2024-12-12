@@ -135,6 +135,7 @@ library
     Wire.UserSubsystem.Error
     Wire.UserSubsystem.HandleBlacklist
     Wire.UserSubsystem.Interpreter
+    Wire.UserSubsystem.UserSubsystemConfig
     Wire.VerificationCode
     Wire.VerificationCodeGen
     Wire.VerificationCodeStore
@@ -148,6 +149,7 @@ library
     , amazonka
     , amazonka-core
     , amazonka-ses
+    , amqp
     , async
     , attoparsec
     , base
@@ -231,6 +233,7 @@ test-suite wire-subsystems-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Spec
+    Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters

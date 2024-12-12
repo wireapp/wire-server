@@ -90,3 +90,8 @@ buildUploadAssetRequestBody isPublic retention body mimeType = do
             "retention" .= mbRetention
           ]
   HTTP.RequestBodyLBS <$> buildMultipartBody header' body mimeType
+
+upgradePersonalToTeam :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+upgradePersonalToTeam user token name = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["upgrade-personal-to-team"]
+  submit "POST" $ req & addJSONObject ["name" .= name, "icon" .= "default"] & addHeader "Authorization" ("Bearer " <> token)

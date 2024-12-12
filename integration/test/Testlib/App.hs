@@ -12,14 +12,14 @@ import qualified Data.Text as T
 import qualified Data.Yaml as Yaml
 import GHC.Exception
 import GHC.Generics (Generic)
-import GHC.Stack (HasCallStack)
+import GHC.Stack (HasCallStack, callStack)
 import System.FilePath
 import Testlib.JSON
 import Testlib.Types
 import Prelude
 
 failApp :: (HasCallStack) => String -> App a
-failApp msg = throw (AppFailure msg)
+failApp msg = throw (AppFailure msg callStack)
 
 getPrekey :: App Value
 getPrekey = App $ do

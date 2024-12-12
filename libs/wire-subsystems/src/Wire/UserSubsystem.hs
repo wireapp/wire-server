@@ -18,20 +18,28 @@ import Data.Range
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
+import Wire.API.User.Activation
 import Wire.API.User.Search
+import Wire.ActivationCodeStore
 import Wire.Arbitrary
+import Wire.BlockListStore
+import Wire.BlockListStore qualified as BlockListStore
+import Wire.EmailSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationStore
-import Wire.UserKeyStore (EmailKey, emailKeyOrig)
+import Wire.UserKeyStore
 import Wire.UserSearch.Types
+import Wire.UserStore
 import Wire.UserSubsystem.Error (UserSubsystemError (..))
+import Wire.UserSubsystem.UserSubsystemConfig
 
 -- | Who is performing this update operation / who is allowed to?  (Single source of truth:
 -- users managed by SCIM can't be updated by clients and vice versa.)
@@ -87,6 +95,14 @@ data GetBy = MkGetBy
 
 instance Default GetBy where
   def = MkGetBy NoPendingInvitations [] []
+
+-- | Outcome of email change invariant checks.
+data ChangeEmailResult
+  = -- | The request was successful, user needs to verify the new email address
+    ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
+  | -- | The user asked to change the email address to the one already owned
+    ChangeEmailIdempotent
+  deriving (Show)
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
@@ -145,6 +161,7 @@ data UserSubsystem m a where
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
   GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
+  RemoveEmailEither :: Local UserId -> UserSubsystem m (Either UserSubsystemError ())
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
@@ -177,9 +194,81 @@ getLocalAccountBy includePendingInvitations uid =
             }
       )
 
+getUserEmail :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe EmailAddress)
+getUserEmail lusr =
+  (>>= userEmail) <$> getLocalAccountBy WithPendingInvitations lusr
+
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe User)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
   listToMaybe <$> getAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])
+
+-- | Call 'createEmailChangeToken' and process result: if email changes to
+-- itself, succeed, if not, send validation email.
+requestEmailChange ::
+  ( Member BlockListStore r,
+    Member UserKeyStore r,
+    Member EmailSubsystem r,
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member (Error UserSubsystemError) r,
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local UserId ->
+  EmailAddress ->
+  UpdateOriginType ->
+  Sem r ChangeEmailResponse
+requestEmailChange lusr email allowScim = do
+  let u = tUnqualified lusr
+  createEmailChangeToken lusr email allowScim >>= \case
+    ChangeEmailIdempotent ->
+      pure ChangeEmailResponseIdempotent
+    ChangeEmailNeedsActivation (usr, adata, en) -> do
+      sendOutEmail usr adata en
+      updateEmailUnvalidated u email
+      internalUpdateSearchIndex u
+      pure ChangeEmailResponseNeedsActivation
+  where
+    sendOutEmail usr adata en = do
+      (maybe sendActivationMail (const sendEmailAddressUpdateMail) usr.userIdentity)
+        en
+        (userDisplayName usr)
+        (activationKey adata)
+        (activationCode adata)
+        (Just (userLocale usr))
+
+-- | Prepare changing the email (checking a number of invariants).
+createEmailChangeToken ::
+  ( Member BlockListStore r,
+    Member UserKeyStore r,
+    Member (Error UserSubsystemError) r,
+    Member UserSubsystem r,
+    Member ActivationCodeStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local UserId ->
+  EmailAddress ->
+  UpdateOriginType ->
+  Sem r ChangeEmailResult
+createEmailChangeToken lusr email updateOrigin = do
+  let ek = mkEmailKey email
+      u = tUnqualified lusr
+  blocklisted <- BlockListStore.exists ek
+  when blocklisted $ throw UserSubsystemChangeBlocklistedEmail
+  available <- keyAvailable ek (Just u)
+  unless available $ throw UserSubsystemEmailExists
+  usr <-
+    getLocalAccountBy WithPendingInvitations lusr
+      >>= note UserSubsystemProfileNotFound
+  case emailIdentity =<< userIdentity usr of
+    -- The user already has an email address and the new one is exactly the same
+    Just current | current == email -> pure ChangeEmailIdempotent
+    _ -> do
+      unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
+        throw UserSubsystemEmailManagedByScim
+      actTimeout <- inputs (.activationCodeTimeout)
+      act <- newActivationCode ek actTimeout (Just u)
+      pure $ ChangeEmailNeedsActivation (usr, act, email)
 
 ------------------------------------------
 -- FUTUREWORK: Pending functions for a team subsystem

@@ -97,8 +97,7 @@ obsNoWsCtl = do
           || (c == 127)
     )
 
-obsCtextParser, obsQtextParser :: Parser Char
-obsCtextParser = obsNoWsCtl
+obsQtextParser :: Parser Char
 obsQtextParser = obsNoWsCtl
 
 quotedPairParser :: Parser Char

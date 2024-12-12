@@ -1,0 +1,26 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+CONGRATULATIONS ${name}.
+We transferred your personal account ${email} into a team account, including all
+your conversations and history. You are now the owner of the team (${team_name}
+).
+
+Invite other people to join your team and adjust settings in your team
+management dashboard.
+
+OPEN TEAM MANAGEMENT [${url}]If you can’t select the button, copy and paste this
+link to your browser:
+
+${url}
+
+If you have any questions, please contact us [${support}].
+
+Team ID: ${team_id}
+
+
+--------------------------------------------------------------------------------
+
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

@@ -211,7 +211,7 @@ lookupFieldM = fmap MaybeT . lookupField
 -- If the field key has no dots then returns Nothing if the key is missing from the
 -- object.
 --
--- If the field key has dots (describes a nested lookuyp) then returns Nothing
+-- If the field key has dots (describes a nested lookup) then returns Nothing
 -- if the last component of the key field selector is missing from nested
 -- object. If any other component is missing this function raises an
 -- AssertionFailure.
@@ -436,16 +436,16 @@ objSubConv x = do
     lift $ asString sub'
   pure (obj, sub)
 
--- | Turn an object parseable by 'objSubConv' into a canonical flat representation.
-objSubConvObject :: (HasCallStack, MakesValue a) => a -> App Value
-objSubConvObject x = do
-  (convId, mSubConvId) <- objSubConv x
-  (domain, id_) <- objQid convId
-  pure . object $
-    [ "domain" .= domain,
-      "id" .= id_
-    ]
-      <> ["subconv_id" .= sub | sub <- toList mSubConvId]
+objConvId :: (HasCallStack, MakesValue conv) => conv -> App ConvId
+objConvId conv = do
+  v <- make conv
+  -- Domain and ConvId either come from parent_qualified_id or qualified_id
+  mParent <- lookupField v "parent_qualified_id"
+  (domain, id_) <- objQid $ fromMaybe v mParent
+
+  groupId <- traverse asString =<< asOptional (lookupField v "group_id")
+  subconvId <- traverse asString =<< asOptional (lookupField v "subconv_id")
+  pure ConvId {..}
 
 instance MakesValue ClientIdentity where
   make cid =

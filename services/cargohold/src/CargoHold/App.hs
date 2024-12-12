@@ -53,8 +53,8 @@ import Bilge.RPC (HasRequestId (..))
 import qualified CargoHold.AWS as AWS
 import CargoHold.Options (AWSOpts, Opts, S3Compatibility (..), brig)
 import qualified CargoHold.Options as Opt
-import Control.Error (ExceptT, exceptT)
-import Control.Exception (throw)
+import Control.Error (ExceptT, runExceptT)
+import Control.Exception (catch, throwIO)
 import Control.Lens (lensField, lensRules, makeLensesWith, non, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Data.Id
@@ -241,4 +241,12 @@ executeBrigInteral action = do
 type Handler = ExceptT Error App
 
 runHandler :: Env -> Handler a -> IO a
-runHandler e h = runAppT e (exceptT throw pure h)
+runHandler env h =
+  catch
+    (runAppT env (runExceptT h) >>= either throwIO pure)
+    $ \(e :: SomeException) -> do
+      Log.err env.appLogger $
+        Log.msg ("IO Exception occurred" :: ByteString)
+          . Log.field "message" (displayException e)
+          . Log.field "request" (unRequestId env.requestId)
+      throwIO e

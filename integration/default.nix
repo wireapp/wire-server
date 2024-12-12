@@ -22,6 +22,8 @@
 , cookie
 , cql
 , cql-io
+, criterion
+, cryptobox-haskell
 , crypton
 , crypton-x509
 , cryptostore
@@ -84,6 +86,7 @@
 , wire-message-proto-lens
 , wreq
 , xml
+, xml-conduit
 , yaml
 }:
 mkDerivation {
@@ -119,6 +122,8 @@ mkDerivation {
     cookie
     cql
     cql-io
+    criterion
+    cryptobox-haskell
     crypton
     crypton-x509
     cryptostore
@@ -178,6 +183,7 @@ mkDerivation {
     wire-message-proto-lens
     wreq
     xml
+    xml-conduit
     yaml
   ];
   license = lib.licenses.agpl3Only;

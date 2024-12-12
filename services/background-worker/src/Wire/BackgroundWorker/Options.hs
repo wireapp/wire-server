@@ -14,7 +14,8 @@ data Opts = Opts
     rabbitmq :: !RabbitMqOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
-    backendNotificationPusher :: BackendNotificationsConfig
+    backendNotificationPusher :: BackendNotificationsConfig,
+    cassandra :: CassandraOpts
   }
   deriving (Show, Generic)
 

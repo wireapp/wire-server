@@ -46,6 +46,7 @@ library
     Gundeck.Schema.V1
     Gundeck.Schema.V10
     Gundeck.Schema.V11
+    Gundeck.Schema.V12
     Gundeck.Schema.V2
     Gundeck.Schema.V3
     Gundeck.Schema.V4
@@ -116,6 +117,7 @@ library
     , amazonka-core                         >=2
     , amazonka-sns                          >=2
     , amazonka-sqs                          >=2
+    , amqp
     , async                                 >=2.0
     , attoparsec                            >=0.10
     , auto-update                           >=0.1
@@ -126,6 +128,7 @@ library
     , cassandra-util                        >=0.16.2
     , containers                            >=0.5
     , crypton-x509-store
+    , data-timeout
     , errors                                >=2.0
     , exceptions                            >=0.4
     , extended
@@ -153,6 +156,7 @@ library
     , servant
     , servant-server
     , text                                  >=1.1
+    , these
     , time                                  >=1.4
     , tinylog                               >=0.10
     , tls                                   >=1.7.0

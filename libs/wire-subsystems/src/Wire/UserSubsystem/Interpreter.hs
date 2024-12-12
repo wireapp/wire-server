@@ -48,7 +48,6 @@ import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
-import Wire.Arbitrary
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
@@ -75,16 +74,8 @@ import Wire.UserStore.IndexUser
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
+import Wire.UserSubsystem.UserSubsystemConfig
 import Witherable (wither)
-
-data UserSubsystemConfig = UserSubsystemConfig
-  { emailVisibilityConfig :: EmailVisibilityConfig,
-    defaultLocale :: Locale,
-    searchSameTeamOnly :: Bool,
-    maxTeamSize :: Word32
-  }
-  deriving (Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
 
 runUserSubsystem ::
   ( Member UserStore r,
@@ -157,6 +148,7 @@ runUserSubsystem authInterpreter = interpret $
     InternalFindTeamInvitation mEmailKey code ->
       internalFindTeamInvitationImpl mEmailKey code
     GetUserExportData uid -> getUserExportDataImpl uid
+    RemoveEmailEither luid -> removeEmailEitherImpl luid
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -974,3 +966,26 @@ getUserExportDataImpl uid = fmap hush . runError @() $ do
         tExportLastActive = lastActive,
         tExportStatus = su.status
       }
+
+removeEmailEitherImpl ::
+  ( Member UserKeyStore r,
+    Member UserStore r,
+    Member Events r,
+    Member IndexedUserStore r,
+    Member (Input UserSubsystemConfig) r,
+    Member GalleyAPIAccess r,
+    Member Metrics r
+  ) =>
+  Local UserId ->
+  Sem r (Either UserSubsystemError ())
+removeEmailEitherImpl lusr = runError $ do
+  let uid = tUnqualified lusr
+  ident <- getSelfProfileImpl lusr >>= note UserSubsystemProfileNotFound
+  case ident.selfUser.userIdentity of
+    Just (SSOIdentity (UserSSOId _) (Just e)) -> do
+      deleteKey $ mkEmailKey e
+      deleteEmail uid
+      generateUserEvent uid Nothing (emailRemoved uid e)
+      syncUserIndex uid
+    Just _ -> throw UserSubsystemLastIdentity
+    Nothing -> throw UserSubsystemNoIdentity

@@ -62,7 +62,7 @@ module Wire.API.Team
 where
 
 import Control.Lens (makeLenses, over, (?~))
-import Data.Aeson (FromJSON, ToJSON, Value (..))
+import Data.Aeson (FromJSON, ToJSON, Value (..), toJSON)
 import Data.Aeson.Types (Parser)
 import Data.Attoparsec.ByteString qualified as Atto (Parser, string)
 import Data.Attoparsec.Combinator (choice)
@@ -183,8 +183,8 @@ newTeamObjectSchema :: ObjectSchema SwaggerDoc NewTeam
 newTeamObjectSchema =
   NewTeam
     <$> newTeamName .= fieldWithDocModifier "name" (description ?~ "team name") schema
-    <*> newTeamIcon .= fieldWithDocModifier "icon" (description ?~ "team icon (asset ID)") schema
-    <*> newTeamIconKey .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "team icon asset key") schema)
+    <*> newTeamIcon .= field "icon" schema
+    <*> newTeamIconKey .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "The decryption key for the team icon S3 asset") schema)
 
 instance ToSchema NewTeam where
   schema = object "NewTeam" newTeamObjectSchema
@@ -214,7 +214,11 @@ instance ToByteString Icon where
 instance ToSchema Icon where
   schema =
     (T.decodeUtf8 . toByteString')
-      .= parsedText "Icon" (runParser parser . T.encodeUtf8)
+      .= parsedTextWithDoc desc "Icon" (runParser parser . T.encodeUtf8)
+      & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
+    where
+      desc =
+        "S3 asset key for an icon image with retention information. Allows special value 'default'."
 
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),

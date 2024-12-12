@@ -4,13 +4,17 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, amqp
 , api-field-json-th
 , async
 , base
 , bilge
+, binary
 , bytestring
 , bytestring-conversion
+, cassandra-util
 , conduit
+, containers
 , criterion
 , data-timeout
 , exceptions
@@ -22,6 +26,7 @@
 , hs-opentelemetry-sdk
 , http-types
 , imports
+, kan-extensions
 , lens
 , lens-family-core
 , lib
@@ -40,6 +45,7 @@
 , tasty-quickcheck
 , text
 , tinylog
+, transformers
 , types-common
 , unix
 , unliftio
@@ -61,13 +67,17 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
+    amqp
     api-field-json-th
     async
     base
     bilge
+    binary
     bytestring
     bytestring-conversion
+    cassandra-util
     conduit
+    containers
     data-timeout
     exceptions
     extended
@@ -77,6 +87,7 @@ mkDerivation {
     hs-opentelemetry-sdk
     http-types
     imports
+    kan-extensions
     lens
     lens-family-core
     metrics-wai
@@ -89,6 +100,7 @@ mkDerivation {
     strict
     text
     tinylog
+    transformers
     types-common
     unix
     unliftio

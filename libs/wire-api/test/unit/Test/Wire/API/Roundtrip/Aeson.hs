@@ -38,6 +38,7 @@ import Wire.API.Conversation.Typing qualified as Conversation.Typing
 import Wire.API.CustomBackend qualified as CustomBackend
 import Wire.API.Event.Conversation qualified as Event.Conversation
 import Wire.API.Event.Team qualified as Event.Team
+import Wire.API.Event.WebSocketProtocol qualified as EventWebSocketProtocol
 import Wire.API.FederationStatus qualified as FederationStatus
 import Wire.API.Locale qualified as Locale
 import Wire.API.Message qualified as Message
@@ -338,6 +339,8 @@ tests =
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.PagingState,
       testRoundTrip @User.Search.TeamContact,
+      testRoundTrip @EventWebSocketProtocol.MessageServerToClient,
+      testRoundTrip @EventWebSocketProtocol.MessageClientToServer,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
       testRoundTrip @Conversation.Action.SomeConversationAction,
       testRoundTrip @Routes.Version.Version,

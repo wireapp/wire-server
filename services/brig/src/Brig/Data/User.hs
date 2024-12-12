@@ -36,7 +36,6 @@ module Brig.Data.User
 
     -- * Updates
     updateEmail,
-    updateEmailUnvalidated,
     updateSSOId,
     updateManagedBy,
     activateUser,
@@ -46,7 +45,6 @@ module Brig.Data.User
     updateFeatureConferenceCalling,
 
     -- * Deletions
-    deleteEmail,
     deleteEmailUnvalidated,
     deleteServiceUser,
   )
@@ -209,9 +207,6 @@ insertAccount u mbConv password activated = retry x5 . batch $ do
 updateEmail :: (MonadClient m) => UserId -> EmailAddress -> m ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
 
-updateEmailUnvalidated :: (MonadClient m) => UserId -> EmailAddress -> m ()
-updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
-
 updateSSOId :: (MonadClient m) => UserId -> Maybe UserSSOId -> m Bool
 updateSSOId u ssoid = do
   mteamid <- lookupUserTeam u
@@ -233,9 +228,6 @@ updateFeatureConferenceCalling uid mStatus =
   where
     update :: PrepQuery W (Maybe FeatureStatus, UserId) ()
     update = fromString "update user set feature_conference_calling = ? where id = ?"
-
-deleteEmail :: (MonadClient m) => UserId -> m ()
-deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
 
 deleteEmailUnvalidated :: (MonadClient m) => UserId -> m ()
 deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
@@ -435,9 +427,6 @@ userInsert =
 userEmailUpdate :: PrepQuery W (EmailAddress, UserId) ()
 userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
 
-userEmailUnvalidatedUpdate :: PrepQuery W (EmailAddress, UserId) ()
-userEmailUnvalidatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = ? WHERE id = ?"
-
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
 userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = null WHERE id = ?"
 
@@ -455,9 +444,6 @@ userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDAT
 
 userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
 userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"
-
-userEmailDelete :: PrepQuery W (Identity UserId) ()
-userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null, write_time_bumper = 0 WHERE id = ?"
 
 userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
 userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE rich_info SET json = ? WHERE user = ?"

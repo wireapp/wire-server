@@ -121,6 +121,7 @@ library
     Test.Demo
     Test.EJPD
     Test.Errors
+    Test.Events
     Test.ExternalPartner
     Test.FeatureFlags
     Test.FeatureFlags.AppLock
@@ -169,6 +170,7 @@ library
     Test.Search
     Test.Services
     Test.Spar
+    Test.Spar.STM
     Test.Swagger
     Test.Teams
     Test.TeamSettings
@@ -217,6 +219,8 @@ library
     , cookie
     , cql
     , cql-io
+    , criterion
+    , cryptobox-haskell
     , crypton
     , crypton-x509
     , cryptostore
@@ -276,4 +280,5 @@ library
     , wire-message-proto-lens
     , wreq
     , xml
+    , xml-conduit
     , yaml

@@ -428,7 +428,7 @@ stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 
 stdInvitationRequest' :: Maybe Locale -> Maybe Role -> EmailAddress -> InvitationRequest
 stdInvitationRequest' loc role email =
-  InvitationRequest loc role Nothing email
+  InvitationRequest loc role Nothing email True
 
 setTeamTeamSearchVisibilityAvailable :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Galley -> TeamId -> FeatureStatus -> m ()
 setTeamTeamSearchVisibilityAvailable galley tid status =

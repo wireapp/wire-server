@@ -23,6 +23,7 @@ import Data.Metrics.Servant
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Singletons
+import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
 import Servant
@@ -116,4 +117,13 @@ deriving via Schema (Versioned v a) instance (ToSchema (Versioned v a)) => ToJSO
 instance (SingI v, ToSchema (Versioned v a), Typeable a, Typeable v) => S.ToSchema (Versioned v a) where
   declareNamedSchema _ = do
     S.NamedSchema n s <- schemaToSwagger (Proxy @(Versioned v a))
-    pure $ S.NamedSchema (fmap (<> toUrlPiece (demote @v)) n) s
+    pure $ S.NamedSchema (fmap withVersionSuffix n) s
+    where
+      versionSuffix :: Text
+      versionSuffix = Text.pack $ show (demote @v)
+
+      withVersionSuffix :: Text -> Text
+      withVersionSuffix origName =
+        if versionSuffix `Text.isSuffixOf` origName
+          then origName
+          else origName <> versionSuffix

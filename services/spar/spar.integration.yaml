@@ -1,11 +1,11 @@
 saml:
-  version:   SAML2.0
-  logLevel:  Warn
+  version: SAML2.0
+  logLevel: Warn
 
-  spHost:    0.0.0.0
-  spPort:    8088
-  spAppUri:  http://localhost:8088/
-  spSsoUri:  http://localhost:8088/sso
+  spHost: 0.0.0.0
+  spPort: 8088
+  spAppUri: http://localhost:8088/
+  spSsoUri: http://localhost:8088/sso
 
   contacts:
     - type: ContactBilling
@@ -36,10 +36,10 @@ cassandra:
 # brig, cannon, cargohold, galley, gundeck, proxy, spar.
 disabledAPIVersions: []
 
-maxttlAuthreq: 5  # seconds.  don't set this too large, it is also the run time of one TTL test.
-maxttlAuthresp: 7200  # seconds.  do not set this to 1h or less, as that is what the mock idp wants.
+maxttlAuthreq: 5 # seconds.  don't set this too large, it is also the run time of one TTL test.
+maxttlAuthresp: 7200 # seconds.  do not set this to 1h or less, as that is what the mock idp wants.
 
-maxScimTokens: 2     # Token limit {#RefScimToken}
-richInfoLimit: 5000  # should be in sync with Brig
+maxScimTokens: 8 # Token limit {#RefScimToken}
+richInfoLimit: 5000 # should be in sync with Brig
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

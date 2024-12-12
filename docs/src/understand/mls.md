@@ -9,7 +9,14 @@ enables the server to remove clients from MLS groups, e.g. when users leave
 conversations or delete their clients.
 
 The removal key is configured at path
-`galley.secrets.mlsPrivateKeys.removal.ed25519` in the wire-server helm chart.
+`galley.secrets.mlsPrivateKeys.removal` in the wire-server helm chart.
+You need to provide a variant for each supported ciphersuite:
+- `ed25519`
+- `ecdsa_secp256r1_sha256`
+- `ecdsa_secp384r1_sha384`
+- `ecdsa_secp521r1_sha512`
+
+
 For example:
 
 ```yaml
@@ -20,25 +27,32 @@ galley:
       removal:
         ed25519: |
           -----BEGIN PRIVATE KEY-----
-          MC4CAQA....Z709c
-          -----END PRIVATE KEY-----
+          ...
+        ecdsa_secp256r1_sha256: |
+          -----BEGIN PRIVATE KEY-----
+          ...
+        ecdsa_secp384r1_sha384: |
+          -----BEGIN PRIVATE KEY-----
+          ...
+        ecdsa_secp521r1_sha512: |
+          -----BEGIN PRIVATE KEY-----
+          ...
 ```
 
-The key is a private ED25519 key in PEM format. It can be created by openssl
-with this command:
+These private keys can be created with with these commands:
 
 ```sh
-openssl req -nodes -newkey ed25519 -keyout ed25519.pem -out /dev/null -subj /
+openssl genpkey -algorithm ed25519
+openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-256
+openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-384
+openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-521
 ```
-
-This will create a `ed25519.pem`. Use the contents of this file as the
-configuration value.
 
 This is a sensitive configuration value. Consider using Helm/Helmfile's support
 for managing secrets instead of putting this value in plaintext in a
 `values.yaml` file.
 
-Next, MLS needs to be explictly enabled in brig. This can be configured at
+In addition to removal keys, MLS needs to be explictly enabled in brig. This can be configured at
 `brig.config.optSettings.setEnableMLS`, for example:
 
 ```yaml

@@ -78,16 +78,17 @@ testAccessUpdateGuestRemoved proto = do
           >>= getJSON 201
       pure (conv, clients)
     ConversationProtocolMLS -> do
-      alice1 <- createMLSClient def alice
-      clients <- traverse (createMLSClient def) [bob, charlie, dee]
-      traverse_ uploadNewKeyPackage clients
+      alice1 <- createMLSClient def def alice
+      clients <- traverse (createMLSClient def def) [bob, charlie, dee]
+      traverse_ (uploadNewKeyPackage def) clients
 
       conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201
-      createGroup alice1 conv
+      convId <- objConvId conv
+      createGroup def alice1 convId
 
-      void $ createAddCommit alice1 [bob, charlie, dee] >>= sendAndConsumeCommitBundle
-      convId <- conv %. "qualified_id"
-      pure (convId, map (.client) (alice1 : clients))
+      void $ createAddCommit alice1 convId [bob, charlie, dee] >>= sendAndConsumeCommitBundle
+      convQid <- conv %. "qualified_id"
+      pure (convQid, map (.client) (alice1 : clients))
 
   let update = ["access" .= ([] :: [String]), "access_role" .= ["team_member"]]
   void $ updateAccess alice conv update >>= getJSON 200

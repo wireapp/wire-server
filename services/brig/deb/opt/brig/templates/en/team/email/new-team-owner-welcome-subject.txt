@@ -1,0 +1,1 @@
+You joined a team on ${brand}

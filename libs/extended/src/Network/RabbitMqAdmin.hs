@@ -1,7 +1,7 @@
 -- | Perhaps this module should be a separate package and published to hackage.
 module Network.RabbitMqAdmin where
 
-import Data.Aeson
+import Data.Aeson as Aeson
 import Imports
 import Servant
 import Servant.Client
@@ -24,6 +24,8 @@ data AdminAPI route = AdminAPI
         :- "api"
           :> "queues"
           :> Capture "vhost" VHost
+          :> QueryParam "name" Text
+          :> QueryParam "use_regex" Bool
           :> Get '[JSON] [Queue],
     deleteQueue ::
       route
@@ -31,6 +33,19 @@ data AdminAPI route = AdminAPI
           :> "queues"
           :> Capture "vhost" VHost
           :> Capture "queue" QueueName
+          :> DeleteNoContent,
+    listConnectionsByVHost ::
+      route
+        :- "api"
+          :> "vhosts"
+          :> Capture "vhost" Text
+          :> "connections"
+          :> Get '[JSON] [Connection],
+    deleteConnection ::
+      route
+        :- "api"
+          :> "connections"
+          :> Capture "name" Text
           :> DeleteNoContent
   }
   deriving (Generic)
@@ -43,12 +58,27 @@ data AuthenticatedAPI route = AuthenticatedAPI
   }
   deriving (Generic)
 
+jsonOptions :: Aeson.Options
+jsonOptions = defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
 data Queue = Queue {name :: Text, vhost :: Text}
   deriving (Show, Eq, Generic)
 
 instance FromJSON Queue
 
 instance ToJSON Queue
+
+data Connection = Connection
+  { userProvidedName :: Maybe Text,
+    name :: Text
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON Connection where
+  parseJSON = genericParseJSON jsonOptions
+
+instance ToJSON Connection where
+  toJSON = genericToJSON jsonOptions
 
 adminClient :: BasicAuthData -> AdminAPI (AsClientT ClientM)
 adminClient ba = fromServant $ clientWithAuth.api ba

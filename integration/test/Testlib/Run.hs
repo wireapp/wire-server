@@ -37,6 +37,8 @@ runTest ge action = lowerCodensity $ do
                       E.throw e,
                     E.Handler -- AssertionFailure
                       (fmap Left . printFailureDetails),
+                    E.Handler -- AppFailure
+                      (fmap Left . printAppFailureDetails),
                     E.Handler
                       (fmap Left . printExceptionDetails)
                   ]

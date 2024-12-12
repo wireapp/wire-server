@@ -468,6 +468,9 @@ nginx_conf:
     - path: /oauth/applications
       envs:
       - all
+    - path: /upgrade-personal-to-team$
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -557,6 +560,9 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /teams/invitations/accept$
+      envs:
+      - all
     - path: /custom-backend/by-domain/([^/]*)$
       disable_zauth: true
       envs:

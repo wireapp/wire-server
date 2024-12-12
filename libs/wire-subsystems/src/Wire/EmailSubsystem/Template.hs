@@ -219,13 +219,13 @@ data PersonalUserMemberWelcomeEmailTemplate = PersonalUserMemberWelcomeEmailTemp
     personalUserMemberWelcomeEmailSenderName :: !Text
   }
 
-data PersonalUserCreatorWelcomeEmailTemplate = PersonalUserCreatorWelcomeEmailTemplate
-  { personalUserCreatorWelcomeEmailUrl :: !Text,
-    personalUserCreatorWelcomeEmailSubject :: !Template,
-    personalUserCreatorWelcomeEmailBodyText :: !Template,
-    personalUserCreatorWelcomeEmailBodyHtml :: !Template,
-    personalUserCreatorWelcomeEmailSender :: !EmailAddress,
-    personalUserCreatorWelcomeEmailSenderName :: !Text
+data NewTeamOwnerWelcomeEmailTemplate = NewTeamOwnerWelcomeEmailTemplate
+  { newTeamOwnerWelcomeEmailUrl :: !Text,
+    newTeamOwnerWelcomeEmailSubject :: !Template,
+    newTeamOwnerWelcomeEmailBodyText :: !Template,
+    newTeamOwnerWelcomeEmailBodyHtml :: !Template,
+    newTeamOwnerWelcomeEmailSender :: !EmailAddress,
+    newTeamOwnerWelcomeEmailSenderName :: !Text
   }
 
 data TeamTemplates = TeamTemplates
@@ -234,5 +234,5 @@ data TeamTemplates = TeamTemplates
     creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
     memberWelcomeEmail :: !MemberWelcomeEmailTemplate,
     personalUserMemberWelcomeEmail :: !PersonalUserMemberWelcomeEmailTemplate,
-    personalUserCreatorWelcomeEmail :: !PersonalUserCreatorWelcomeEmailTemplate
+    newTeamOwnerWelcomeEmail :: !NewTeamOwnerWelcomeEmailTemplate
   }

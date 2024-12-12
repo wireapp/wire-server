@@ -36,6 +36,11 @@ spec:
         - name: "background-worker-secrets"
           secret:
             secretName: "background-worker"
+        {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+        - name: "background-worker-cassandra"
+          secret:
+            secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+        {{- end }}
         {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
         - name: "rabbitmq-ca"
           secret:
@@ -52,6 +57,10 @@ spec:
           volumeMounts:
           - name: "background-worker-config"
             mountPath: "/etc/wire/background-worker/conf"
+          {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+          - name: "background-worker-cassandra"
+            mountPath: "/etc/wire/background-worker/cassandra"
+          {{- end }}
           {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/background-worker/rabbitmq-ca/"

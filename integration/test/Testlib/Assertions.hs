@@ -202,6 +202,8 @@ shouldMatchRange a (lower, upper) = do
     pa <- prettyJSON xa
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\nin range (" <> show lower <> ", " <> show upper <> ") (including bounds)"
 
+-- | Match on sorted lists (sets where elements may occur more than once).  (Maybe this should
+-- be called `shouldMatchMultiSet`?)
 shouldMatchSet ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   a ->
@@ -260,6 +262,15 @@ printFailureDetails (AssertionFailure stack mbResponse ctx msg) = do
       : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
         <> toList (fmap prettyContext ctx)
+
+printAppFailureDetails :: AppFailure -> IO String
+printAppFailureDetails (AppFailure msg stack) = do
+  s <- prettierCallStack stack
+  pure . unlines $
+    colored yellow "app failure:"
+      : colored red msg
+      : "\n"
+      : [s]
 
 prettyContext :: String -> String
 prettyContext ctx = do

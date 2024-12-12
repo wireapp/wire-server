@@ -39,6 +39,16 @@ testObject_ClientCapabilityList_3 =
           ]
       )
 
+testObject_ClientCapabilityList_3_V7 :: Versioned V7 ClientCapabilityList
+testObject_ClientCapabilityList_3_V7 =
+  Versioned $
+    ClientCapabilityList
+      ( Set.fromList
+          [ ClientSupportsLegalholdImplicitConsent,
+            ClientSupportsConsumableNotifications
+          ]
+      )
+
 testObject_ClientCapabilityList_4 :: ClientCapabilityList
 testObject_ClientCapabilityList_4 =
   ClientCapabilityList mempty

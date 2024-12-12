@@ -172,6 +172,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Web.Scim.Client.patchUser",
          "^Web.Scim.Client.postGroup",
          "^Web.Scim.Client.postUser",
+         "^Web.Scim.Client.putUser",
          "^Web.Scim.Client.putGroup",
          "^Web.Scim.Client.resourceTypes",
          "^Web.Scim.Client.schema",

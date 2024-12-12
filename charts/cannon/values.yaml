@@ -11,6 +11,35 @@ config:
   logLevel: Info
   logFormat: StructuredJSON
   logNetStrings: false
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    vHost: /
+    enableTls: false
+    insecureSkipVerifyTls: false
+  cassandra:
+    host: aws-cassandra
+    # To enable TLS provide a CA:
+    # tlsCa: <CA in PEM format (can be self-signed)>
+    #
+    # Or refer to an existing secret (containing the CA):
+    # tlsCaSecretRef:
+    #   name: <secret-name>
+    #   key: <ca-attribute>
+
+  redis:
+    host: redis-ephemeral-master
+    port: 6379
+    connectionMode: "master" # master | cluster
+    enableTls: false
+    insecureSkipVerifyTls: false
+    # To configure custom TLS CA, please provide one of these:
+    # tlsCa: <CA in PEM format (can be self-signed)>
+    #
+    # Or refer to an existing secret (containing the CA):
+    # tlsCaSecretRef:
+    #   name: <secret-name>
+    #   key: <ca-attribute>
 
   # See also the section 'Controlling the speed of websocket draining during
   # cannon pod replacement' in docs/how-to/install/configuration-options.rst

@@ -363,7 +363,7 @@ type SelfAPI =
           :> Description
                "Your email address can only be removed if you also have a \
                \phone number."
-          :> ZUser
+          :> ZLocalUser
           :> "self"
           :> "email"
           :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
@@ -750,7 +750,7 @@ type UserClientAPI =
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
-    "add-client-v6"
+    "add-client@v6"
     ( Summary "Register a new client"
         :> Until 'V7
         :> CanThrow 'TooManyClients
@@ -761,7 +761,7 @@ type UserClientAPI =
         :> ZLocalUser
         :> ZConn
         :> "clients"
-        :> ReqBody '[JSON] NewClient
+        :> VersionedReqBody 'V6 '[JSON] NewClient
         :> MultiVerb1
              'POST
              '[JSON]
@@ -772,9 +772,32 @@ type UserClientAPI =
              )
     )
     :<|> Named
+           "add-client@v7"
+           ( Summary "Register a new client"
+               :> From 'V7
+               :> Until 'V8
+               :> CanThrow 'TooManyClients
+               :> CanThrow 'MissingAuth
+               :> CanThrow 'MalformedPrekeys
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
+               :> ZLocalUser
+               :> ZConn
+               :> "clients"
+               :> VersionedReqBody 'V7 '[JSON] NewClient
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( WithHeaders
+                        ClientHeaders
+                        Client
+                        (VersionedRespond 'V7 201 "Client registered" Client)
+                    )
+           )
+    :<|> Named
            "add-client"
            ( Summary "Register a new client"
-               :> From 'V6
+               :> From 'V8
                :> CanThrow 'TooManyClients
                :> CanThrow 'MissingAuth
                :> CanThrow 'MalformedPrekeys
@@ -794,14 +817,38 @@ type UserClientAPI =
                     )
            )
     :<|> Named
+           "update-client@v6"
+           ( Summary "Update a registered client"
+               :> Until 'V7
+               :> CanThrow 'MalformedPrekeys
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> VersionedReqBody 'V6 '[JSON] UpdateClient
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Client updated")
+           )
+    :<|> Named
+           "update-client@v7"
+           ( Summary "Update a registered client"
+               :> From 'V7
+               :> Until 'V8
+               :> CanThrow 'MalformedPrekeys
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> VersionedReqBody 'V7 '[JSON] UpdateClient
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Client updated")
+           )
+    :<|> Named
            "update-client"
            ( Summary "Update a registered client"
+               :> From 'V8
                :> CanThrow 'MalformedPrekeys
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
                :> ReqBody '[JSON] UpdateClient
-               :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Client updated"] ()
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Client updated")
            )
     :<|>
     -- This endpoint can lead to the following events being sent:
@@ -817,7 +864,7 @@ type UserClientAPI =
           :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
       )
     :<|> Named
-           "list-clients-v6"
+           "list-clients@v6"
            ( Summary "List the registered clients"
                :> Until 'V7
                :> ZUser
@@ -829,9 +876,22 @@ type UserClientAPI =
                     )
            )
     :<|> Named
-           "list-clients"
+           "list-clients@v7"
            ( Summary "List the registered clients"
                :> From 'V7
+               :> Until 'V8
+               :> ZUser
+               :> "clients"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( VersionedRespond 'V7 200 "List of clients" [Client]
+                    )
+           )
+    :<|> Named
+           "list-clients"
+           ( Summary "List the registered clients"
+               :> From 'V8
                :> ZUser
                :> "clients"
                :> MultiVerb1
@@ -841,7 +901,7 @@ type UserClientAPI =
                     )
            )
     :<|> Named
-           "get-client-v6"
+           "get-client@v6"
            ( Summary "Get a registered client by ID"
                :> Until 'V7
                :> ZUser
@@ -856,9 +916,25 @@ type UserClientAPI =
                     (Maybe Client)
            )
     :<|> Named
-           "get-client"
+           "get-client@v7"
            ( Summary "Get a registered client by ID"
                :> From 'V7
+               :> Until 'V8
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                       VersionedRespond 'V7 200 "Client found" Client
+                     ]
+                    (Maybe Client)
+           )
+    :<|> Named
+           "get-client"
+           ( Summary "Get a registered client by ID"
+               :> From 'V8
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -871,8 +947,36 @@ type UserClientAPI =
                     (Maybe Client)
            )
     :<|> Named
+           "get-client-capabilities@v6"
+           ( Summary "Read back what the client has been posting about itself"
+               :> Until 'V7
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> "capabilities"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V6 200 "capabilities" ClientCapabilityList)
+           )
+    :<|> Named
+           "get-client-capabilities@v7"
+           ( Summary "Read back what the client has been posting about itself"
+               :> From 'V7
+               :> Until 'V8
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> "capabilities"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V7 200 "capabilities" ClientCapabilityList)
+           )
+    :<|> Named
            "get-client-capabilities"
            ( Summary "Read back what the client has been posting about itself"
+               :> From 'V8
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -1546,8 +1650,9 @@ type CallingAPI =
 
 type TeamsAPI =
   Named
-    "send-team-invitation"
+    "send-team-invitation@v6"
     ( Summary "Create and send a new team invitation."
+        :> Until V7
         :> Description
              "Invitations are sent by email. The maximum allowed number of \
              \pending team invitations is equal to the team size."
@@ -1562,7 +1667,7 @@ type TeamsAPI =
         :> "teams"
         :> Capture "tid" TeamId
         :> "invitations"
-        :> ReqBody '[JSON] InvitationRequest
+        :> VersionedReqBody V6 '[JSON] InvitationRequest
         :> MultiVerb1
              'POST
              '[JSON]
@@ -1572,6 +1677,34 @@ type TeamsAPI =
                  (Respond 201 "Invitation was created and sent." Invitation)
              )
     )
+    :<|> Named
+           "send-team-invitation"
+           ( Summary "Create and send a new team invitation."
+               :> From V7
+               :> Description
+                    "Invitations are sent by email. The maximum allowed number of \
+                    \pending team invitations is equal to the team size."
+               :> CanThrow 'NoEmail
+               :> CanThrow 'NoIdentity
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'BlacklistedEmail
+               :> CanThrow 'TooManyTeamInvitations
+               :> CanThrow 'InsufficientTeamPermissions
+               :> CanThrow 'InvalidInvitationCode
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> ReqBody '[JSON] InvitationRequest
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( WithHeaders
+                        '[Header "Location" InvitationLocation]
+                        (Invitation, InvitationLocation)
+                        (Respond 201 "Invitation was created and sent." Invitation)
+                    )
+           )
     :<|> Named
            "get-team-invitations"
            ( Summary "List the sent team invitations"
@@ -1626,7 +1759,7 @@ type TeamsAPI =
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    (Respond 200 "Invitation info" Invitation)
+                    (Respond 200 "Invitation info" InvitationUserView)
            )
     -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
     :<|> Named

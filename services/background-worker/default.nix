@@ -5,8 +5,11 @@
 { mkDerivation
 , aeson
 , amqp
+, async
 , base
 , bytestring
+, bytestring-conversion
+, cassandra-util
 , containers
 , data-default
 , exceptions
@@ -20,6 +23,7 @@
 , http-types
 , http2-manager
 , imports
+, kan-extensions
 , lib
 , metrics-wai
 , monad-control
@@ -51,7 +55,11 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    async
     base
+    bytestring
+    bytestring-conversion
+    cassandra-util
     containers
     exceptions
     extended
@@ -59,6 +67,7 @@ mkDerivation {
     http-client
     http2-manager
     imports
+    kan-extensions
     metrics-wai
     monad-control
     prometheus-client
@@ -67,6 +76,7 @@ mkDerivation {
     servant-server
     text
     tinylog
+    transformers
     transformers-base
     types-common
     unliftio

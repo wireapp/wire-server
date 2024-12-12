@@ -32,6 +32,7 @@ module Wire.API.Routes.Version
     Version (..),
     versionInt,
     versionText,
+    versionedName,
     VersionNumber (..),
     VersionExp (..),
     supportedVersions,
@@ -80,7 +81,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- and 'developmentVersions' stay in sync; everything else here should keep working without
 -- change.  See also documentation in the *docs* directory.
 -- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
-data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7
+data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
@@ -100,12 +101,17 @@ versionInt V4 = 4
 versionInt V5 = 5
 versionInt V6 = 6
 versionInt V7 = 7
+versionInt V8 = 8
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
 
 maxAvailableVersion :: Set Version -> Maybe Version
 maxAvailableVersion disabled = Set.lookupMax $ Set.fromList supportedVersions \\ disabled
+
+versionedName :: Maybe Version -> Text -> Text
+versionedName Nothing unversionedName = unversionedName
+versionedName (Just v) unversionedName = unversionedName <> Text.pack (show v)
 
 ----------------------------------------------------------------------
 
@@ -210,7 +216,8 @@ isDevelopmentVersion V3 = False
 isDevelopmentVersion V4 = False
 isDevelopmentVersion V5 = False
 isDevelopmentVersion V6 = False
-isDevelopmentVersion _ = True
+isDevelopmentVersion V7 = False
+isDevelopmentVersion V8 = True
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions

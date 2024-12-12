@@ -101,6 +101,7 @@ library
     Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
     Wire.API.Event.Team
+    Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
     Wire.API.Internal.BulkPush
@@ -595,6 +596,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.FederationStatus
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId
+    Test.Wire.API.Golden.Manual.InvitationUserView
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.Login_user
@@ -633,6 +635,7 @@ test-suite wire-api-golden-tests
     , lens
     , pem
     , proto-lens
+    , saml2-web-sso
     , string-conversions
     , tasty
     , tasty-hunit

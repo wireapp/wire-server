@@ -8,6 +8,12 @@ federatorInternal:
   host: 127.0.0.1
   port: 8097
 
+cassandra:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: gundeck_test
+
 rabbitmq:
   host: 127.0.0.1
   port: 5671

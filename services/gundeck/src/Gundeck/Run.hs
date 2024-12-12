@@ -42,6 +42,7 @@ import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
 import Imports
+import Network.AMQP
 import Network.Wai as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
@@ -53,49 +54,73 @@ import OpenTelemetry.Trace qualified as Otel
 import Servant (Handler (Handler), (:<|>) (..))
 import Servant qualified
 import System.Logger qualified as Log
+import System.Logger.Class qualified as MonadLogger
 import UnliftIO.Async qualified as Async
 import Util.Options
+import Wire.API.Notification
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry
 
 run :: Opts -> IO ()
-run o = withTracer \tracer -> do
-  (rThreads, e) <- createEnv o
-  runClient (e ^. cstate) $
+run opts = withTracer \tracer -> do
+  (rThreads, env) <- createEnv opts
+  let logger = env ^. applog
+
+  runDirect env setUpRabbitMqExchangesAndQueues
+
+  runClient (env ^. cstate) $
     versionCheck lastSchemaVersion
-  let l = e ^. applog
-  s <- newSettings $ defaultServer (unpack . host $ o ^. gundeck) (port $ o ^. gundeck) l
-  let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)
+  s <- newSettings $ defaultServer (unpack . host $ opts ^. gundeck) (port $ opts ^. gundeck) logger
+  let throttleMillis = fromMaybe defSqsThrottleMillis $ opts ^. (settings . sqsThrottleMillis)
 
-  lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
-  wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState tbs 10
-  wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv e)))
+  lst <- Async.async $ Aws.execute (env ^. awsEnv) (Aws.listen throttleMillis (runDirect env . onEvent))
+  wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
+  wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
 
-  app <- middleware e <*> pure (mkApp e)
+  app <- middleware env <*> pure (mkApp env)
   inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
-    Log.info l $ Log.msg (Log.val "Shutting down ...")
-    shutdown (e ^. cstate)
+    Log.info logger $ Log.msg (Log.val "Shutting down ...")
+    shutdown (env ^. cstate)
     Async.cancel lst
     Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
     forM_ rThreads Async.cancel
-    Redis.disconnect =<< takeMVar (e ^. rstate)
-    whenJust (e ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
-    Log.close (e ^. applog)
+    Redis.disconnect =<< takeMVar (env ^. rstate)
+    whenJust (env ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
+    Log.close (env ^. applog)
   where
+    setUpRabbitMqExchangesAndQueues :: Gundeck ()
+    setUpRabbitMqExchangesAndQueues = do
+      chan <- getRabbitMqChan
+      MonadLogger.info $ Log.msg (Log.val "setting up RabbitMQ exchanges and queues")
+      liftIO $ createUserNotificationsExchange chan
+      liftIO $ createDeadUserNotificationsExchange chan
+
+    createUserNotificationsExchange :: Channel -> IO ()
+    createUserNotificationsExchange chan = do
+      declareExchange chan newExchange {exchangeName = userNotificationExchangeName, exchangeType = "direct"}
+
+    createDeadUserNotificationsExchange :: Channel -> IO ()
+    createDeadUserNotificationsExchange chan = do
+      declareExchange chan newExchange {exchangeName = userNotificationDlxName, exchangeType = "direct"}
+
+      let routingKey = userNotificationDlqName
+      void $ declareQueue chan newQueue {queueName = userNotificationDlqName}
+      bindQueue chan userNotificationDlqName userNotificationDlxName routingKey
+
     middleware :: Env -> IO Middleware
-    middleware e = do
+    middleware env = do
       otelMiddleWare <- newOpenTelemetryWaiMiddleware
       pure $
-        versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
+        versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
           . otelMiddleWare
-          . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
+          . requestIdMiddleware (env ^. applog) defaultRequestIdHeaderName
           . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> InternalAPI))
           . GZip.gunzip
           . GZip.gzip GZip.def
-          . catchErrors (e ^. applog) defaultRequestIdHeaderName
+          . catchErrors (env ^. applog) defaultRequestIdHeaderName
 
 mkApp :: Env -> Wai.Application
 mkApp env0 req cont = do

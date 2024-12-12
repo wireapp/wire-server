@@ -21,7 +21,9 @@ import Data.Code
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
+import Data.UUID qualified as UUID (fromString)
 import Imports
+import SAML2.WebSSO qualified as SAML
 import Wire.API.User.Scim (CreateScimToken (..))
 
 testObject_CreateScimToken_1 :: CreateScimToken
@@ -31,6 +33,7 @@ testObject_CreateScimToken_1 =
     (Just (plainTextPassword6Unsafe "very-geheim"))
     (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "123456"))}))
     Nothing
+    Nothing
 
 testObject_CreateScimToken_2 :: CreateScimToken
 testObject_CreateScimToken_2 =
@@ -39,6 +42,7 @@ testObject_CreateScimToken_2 =
     (Just (plainTextPassword6Unsafe "secret"))
     Nothing
     Nothing
+    (Just (SAML.IdPId (fromJust (UUID.fromString "c0d7af66-647d-41e6-8e7f-c1c387c91567"))))
 
 testObject_CreateScimToken_3 :: CreateScimToken
 testObject_CreateScimToken_3 =
@@ -46,6 +50,7 @@ testObject_CreateScimToken_3 =
     "description3"
     Nothing
     (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "654321"))}))
+    Nothing
     Nothing
 
 testObject_CreateScimToken_4 :: CreateScimToken
@@ -55,3 +60,4 @@ testObject_CreateScimToken_4 =
     Nothing
     Nothing
     (Just "scim connection name")
+    Nothing
