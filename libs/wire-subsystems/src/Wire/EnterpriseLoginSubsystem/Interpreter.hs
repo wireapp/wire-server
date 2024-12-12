@@ -119,7 +119,7 @@ updateDomainRegistrationImpl ::
   Sem r ()
 updateDomainRegistrationImpl domain update = do
   validate update
-  mOld <- tryGetDomainRegistrationImpl domain
+  mOld <- (>>= fromStored) <$> lookup domain
   case mOld of
     Just dr -> do
       let new = dr {teamInvite = update.teamInvite, domainRedirect = update.domainRedirect} :: DomainRegistration
@@ -247,7 +247,7 @@ tryGetDomainRegistrationImpl domain = do
       case fromStored sdr of
         Nothing -> do
           Log.err $ Log.field "domain" (toByteString' domain) . Log.msg (Log.val "Invalid stored domain registration")
-          throw EnterpriseLoginSubsystemInternalError
+          throw $ EnterpriseLoginSubsystemInternalError "The stored domain registration is invalid. Please update or delete and recreate it with a valid configuration."
         Just dr -> pure dr
 
 fromStored :: StoredDomainRegistration -> Maybe DomainRegistration
