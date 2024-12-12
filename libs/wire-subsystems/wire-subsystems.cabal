@@ -79,12 +79,17 @@ library
     Wire.BlockListStore.Cassandra
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
+    Wire.DomainRegistrationStore
+    Wire.DomainRegistrationStore.Cassandra
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
     Wire.EmailSubsystem
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
+    Wire.EnterpriseLoginSubsystem
+    Wire.EnterpriseLoginSubsystem.Error
+    Wire.EnterpriseLoginSubsystem.Interpreter
     Wire.Error
     Wire.Events
     Wire.FederationAPIAccess
@@ -146,6 +151,7 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson
+    , aeson-pretty
     , amazonka
     , amazonka-core
     , amazonka-ses

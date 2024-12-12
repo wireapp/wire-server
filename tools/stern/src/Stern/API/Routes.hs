@@ -40,6 +40,7 @@ import Servant.Swagger.UI
 import Stern.Types
 import Wire.API.CustomBackend
 import Wire.API.OAuth
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Named
@@ -438,6 +439,7 @@ type SternAPI =
                :> Capture "id" OAuthClientId
                :> Delete '[JSON] ()
            )
+    :<|> EnterpriseLoginApi
 
 -------------------------------------------------------------------------------
 -- Swagger

@@ -187,6 +187,7 @@ sitemap' =
     :<|> Named @"stern-get-oauth-client" Intra.getOAuthClient
     :<|> Named @"update-oauth-client" Intra.updateOAuthClient
     :<|> Named @"delete-oauth-client" Intra.deleteOAuthClient
+    :<|> Intra.enterpriseLogin
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =

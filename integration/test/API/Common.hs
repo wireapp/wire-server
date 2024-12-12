@@ -20,6 +20,11 @@ randomEmail = do
   u <- randomName
   pure $ u <> "@example.com"
 
+randomDomain :: App String
+randomDomain = do
+  u <- randomName
+  pure $ (fmap toLower u) <> ".com"
+
 randomExternalId :: App String
 randomExternalId = liftIO $ do
   -- external ID has no constraints, but we only generate human-readable samples

@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, aeson-pretty
 , amazonka
 , amazonka-core
 , amazonka-ses
@@ -94,6 +95,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    aeson-pretty
     amazonka
     amazonka-core
     amazonka-ses
