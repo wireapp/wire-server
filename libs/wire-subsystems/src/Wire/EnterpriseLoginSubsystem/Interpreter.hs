@@ -238,20 +238,20 @@ fromStored sdr =
     getTeamInvite :: StoredDomainRegistration -> Maybe TeamInvite
     getTeamInvite = \case
       StoredDomainRegistration _ _ ti _ _ tid _ -> case (ti, tid) of
-        (AllowedTag, _) -> Just Allowed
-        (NotAllowedTag, _) -> Just NotAllowed
+        (AllowedTag, Nothing) -> Just Allowed
+        (NotAllowedTag, Nothing) -> Just NotAllowed
         (TeamTag, Just teamId) -> Just $ Team teamId
         _ -> Nothing
 
     getDomainRedirect :: StoredDomainRegistration -> Maybe DomainRedirect
     getDomainRedirect = \case
       StoredDomainRegistration _ dr _ ssoId url _ _ -> case (dr, ssoId, url) of
-        (NoneTag, _, _) -> Just None
-        (LockedTag, _, _) -> Just Locked
-        (PreAuthorizedTag, _, _) -> Just PreAuthorized
-        (SSOTag, Just idpId, _) -> Just $ SSO idpId
-        (BackendTag, _, Just beUrl) -> Just $ Backend beUrl
-        (NoRegistrationTag, _, _) -> Just NoRegistration
+        (NoneTag, Nothing, Nothing) -> Just None
+        (LockedTag, Nothing, Nothing) -> Just Locked
+        (PreAuthorizedTag, Nothing, Nothing) -> Just PreAuthorized
+        (SSOTag, Just idpId, Nothing) -> Just $ SSO idpId
+        (BackendTag, Nothing, Just beUrl) -> Just $ Backend beUrl
+        (NoRegistrationTag, Nothing, Nothing) -> Just NoRegistration
         _ -> Nothing
 
 toStored :: DomainRegistration -> StoredDomainRegistration
