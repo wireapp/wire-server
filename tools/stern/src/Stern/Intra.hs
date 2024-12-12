@@ -1061,7 +1061,7 @@ enterpriseLogin =
 
 runClientToHandler :: SC.ClientM a -> Handler a
 runClientToHandler client = do
-  clientEnv <- asks (.servantClientEnv)
+  clientEnv <- asks (.brigServantClientEnv)
   res <- liftIO $ SC.runClientM client clientEnv
   either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
 

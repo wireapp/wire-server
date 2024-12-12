@@ -57,7 +57,7 @@ data Env = Env
     appLogger :: !Logger,
     requestId :: !Bilge.RequestId,
     httpManager :: !Bilge.Manager,
-    servantClientEnv :: !SC.ClientEnv
+    brigServantClientEnv :: !SC.ClientEnv
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
