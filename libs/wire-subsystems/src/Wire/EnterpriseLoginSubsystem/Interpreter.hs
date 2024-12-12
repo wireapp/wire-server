@@ -202,11 +202,11 @@ preAuthorizeImpl domain = do
     Nothing -> do
       let new = DomainRegistration domain PreAuthorized Allowed Nothing
       audit mOld new *> upsert (toStored new)
-    Just sdr | sdr.domainRedirect == None -> do
-      let new = sdr {domainRedirect = PreAuthorized} :: DomainRegistration
-      audit mOld new *> upsert (toStored new)
-    Just sdr | sdr.domainRedirect == PreAuthorized -> pure ()
-    _ -> throw EnterpriseLoginSubsystemErrorInvalidDomainRedirect
+    Just old | old.domainRedirect == None -> do
+      let new = old {domainRedirect = PreAuthorized} :: DomainRegistration
+      audit (Just old) new *> upsert (toStored new)
+    Just old | old.domainRedirect == PreAuthorized -> pure ()
+    _ -> throw $ EnterpriseLoginSubsystemErrorUpdateFailure "Domain redirect must be 'none' to be pre-authorized"
   where
     url :: Builder
     url =

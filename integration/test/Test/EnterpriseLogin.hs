@@ -83,7 +83,7 @@ testDomainRegistrationPreAuthorizeFailsIfLocked = do
   -- pre-authorize
   bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "invalid-domain-redirect"
+    resp.json %. "label" `shouldMatch` "update-failure"
   -- check that it was not set to pre-authorized
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
