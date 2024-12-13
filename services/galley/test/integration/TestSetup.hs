@@ -158,7 +158,7 @@ runFedClient (FedClient mgr ep) domain =
       let h = Text.unpack ep.host
           p = fromInteger $ toInteger ep.port
           baseUrl = Servant.BaseUrl Servant.Http h p "/federation"
-          clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain)
+          clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain) id
       eitherRes <- Servant.runClientM action clientEnv
       case eitherRes of
         Right res -> pure res

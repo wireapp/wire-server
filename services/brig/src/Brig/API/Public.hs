@@ -61,9 +61,8 @@ import Control.Lens ((.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
-import Data.ByteString (fromStrict, toStrict)
+import Data.ByteString (fromStrict)
 import Data.ByteString.Lazy.Char8 qualified as LBS
-import Data.ByteString.UTF8 qualified as UTF8
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Default
@@ -233,14 +232,16 @@ versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(preg
 versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
-versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
+versionedSwaggerDocsAPI Nothing = tocPage
   where
-    allroutes ::
-      (forall a. Servant.Handler a) ->
-      Servant.Server (SwaggerSchemaUI "swagger-ui" "swagger.json")
-    allroutes action =
-      -- why?  see 'SwaggerSchemaUI' type.
-      action :<|> action :<|> action :<|> error (UTF8.toString . toStrict $ listAllVersionsHTML)
+    -- Renders and returns a table-of-contents page
+    tocPage :: Servant.Server (SwaggerSchemaUI "swagger-ui" "swagger.json")
+    tocPage =
+      let throwingHandler :: forall a. Servant.Handler a
+          throwingHandler = (throwError listAllVersionsResp)
+          handler = Tagged @Servant.Handler (\_req k -> k (Utilities.html listAllVersionsHTML))
+       in -- why?  see 'SwaggerSchemaUI' type.
+          throwingHandler :<|> throwingHandler :<|> throwingHandler :<|> handler
 
     listAllVersionsResp :: ServerError
     listAllVersionsResp = ServerError 200 mempty listAllVersionsHTML [("Content-Type", "text/html;charset=utf-8")]

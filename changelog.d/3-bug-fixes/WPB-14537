@@ -1,0 +1,1 @@
+Fix `gzip filter failed to use preallocated memory` alerts in nginz by upgrading

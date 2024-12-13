@@ -42,6 +42,12 @@ json = responseLBS status200 [jsonContent] . encode
 jsonContent :: Header
 jsonContent = (hContentType, "application/json")
 
+html :: Lazy.ByteString -> Response
+html = responseLBS status200 [htmlContent]
+
+htmlContent :: Header
+htmlContent = (hContentType, "text/html; charset=UTF-8")
+
 errorRs :: Error -> Response
 errorRs e = setStatus (code e) (json e)
 
