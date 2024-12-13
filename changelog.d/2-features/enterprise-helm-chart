@@ -1,3 +1,0 @@
-`charts/wire-server-enterprise` is a Helm chart to run the `wire-server-enterprise`
-service. This service can only be deployed with an image pull secret (the
-registry is not open to public.)

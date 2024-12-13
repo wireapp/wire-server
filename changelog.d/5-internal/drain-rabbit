@@ -1,1 +1,0 @@
-Add rabbitmq consumers to the draining step on Cannon, in case of termination.
