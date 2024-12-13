@@ -390,7 +390,7 @@ testAddUserSimple suite ctype = do
     -- epoch and ciphersuite, regardless of the API version
     n <- awaitMatch isConvCreateNotif ws
     n %. "payload.0.data.epoch" `shouldMatchInt` 0
-    n %. "payload.0.data.cipher_suite" `shouldMatchInt` 1
+    n %. "payload.0.data.cipher_suite" `shouldMatchInt` 2
     pure qcnv
 
   resp <- createAddCommit alice1 qcnv [bob] >>= sendAndConsumeCommitBundle
@@ -516,7 +516,7 @@ testSelfConversation v = withVersion5 v $ do
   convId <- objConvId conv
   conv %. "epoch" `shouldMatchInt` 0
   case v of
-    Version5 -> conv %. "cipher_suite" `shouldMatchInt` 1
+    Version5 -> conv %. "cipher_suite" `shouldMatchInt` 2
     NoVersion5 -> assertFieldMissing conv "cipher_suite"
 
   void $ createAddCommit creator convId [alice] >>= sendAndConsumeCommitBundle

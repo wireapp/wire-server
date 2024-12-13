@@ -39,7 +39,7 @@ testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   let assertConvData conv = do
         conv %. "epoch" `shouldMatchInt` 0
-        conv %. "cipher_suite" `shouldMatchInt` 1
+        conv %. "cipher_suite" `shouldMatchInt` 2
 
   convId <-
     getMLSOne2OneConversationLegacy alice bob `bindResponse` \resp -> do
