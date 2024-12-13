@@ -303,13 +303,19 @@ spec:
           name: brig
           key: rabbitmqPassword
     - name: RABBITMQ_USERNAME_V0
-      value: "dummy-rabbit-mq-username-v0" # todo
+      value: "wire-server"
     - name: RABBITMQ_PASSWORD_V0
-      value: "dummy-rabbit-mq-password-v0" # todo
+      valueFrom:
+        secretKeyRef:
+          name: rabbitmq-v0
+          key: rabbitmq-password
     - name: RABBITMQ_USERNAME_V1
-      value: "dummy-rabbit-mq-username-v1" # todo
+      value: "wire-server"
     - name: RABBITMQ_PASSWORD_V1
-      value: "dummy-rabbit-mq-password-v1" # todo
+      valueFrom:
+        secretKeyRef:
+          name: rabbitmq-v1
+          key: rabbitmq-password
     {{- if hasKey .Values.secrets "redisUsername" }}
     - name: REDIS_USERNAME
       valueFrom:
@@ -346,5 +352,7 @@ spec:
       value: "1"
     - name: ENABLE_FEDERATION_V1
       value: "1"
+    - name: NAMESPACE
+      value: {{ .Release.Namespace }}
     - name: TEST_INCLUDE
       value: "testMLSFederation"
