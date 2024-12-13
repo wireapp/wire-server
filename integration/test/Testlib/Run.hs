@@ -135,8 +135,12 @@ runTests tests mXMLOutput cfg = do
       wait displayThread
       printReport report
       mapM_ (saveXMLReport report) mXMLOutput
+      deleteFederationQueues
       when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
         exitFailure
+
+deleteFederationQueues :: IO ()
+deleteFederationQueues = pure ()
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do
