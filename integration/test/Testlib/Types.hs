@@ -252,7 +252,7 @@ instance Default Ciphersuite where
   def = Ciphersuite "0x0001"
 
 data ClientGroupState = ClientGroupState
-  { group :: Maybe ByteString,
+  { groups :: Map ConvId ByteString,
     -- | mls-test-cli stores by signature scheme
     keystore :: Map String ByteString,
     credType :: CredentialType
@@ -262,7 +262,7 @@ data ClientGroupState = ClientGroupState
 instance Default ClientGroupState where
   def =
     ClientGroupState
-      { group = Nothing,
+      { groups = mempty,
         keystore = mempty,
         credType = BasicCredentialType
       }
@@ -277,17 +277,32 @@ csSignatureScheme (Ciphersuite code) = case code of
 data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
   deriving (Eq, Show)
 
+data ConvId = ConvId
+  { domain :: String,
+    id_ :: String,
+    groupId :: Maybe String,
+    subconvId :: Maybe String
+  }
+  deriving (Show, Eq, Ord)
+
+convIdToQidObject :: ConvId -> Value
+convIdToQidObject convId = object [fromString "id" .= convId.id_, fromString "domain" .= convId.domain]
+
 data MLSState = MLSState
   { baseDir :: FilePath,
-    members :: Set ClientIdentity,
+    convs :: Map ConvId MLSConv,
+    clientGroupState :: Map ClientIdentity ClientGroupState
+  }
+  deriving (Show)
+
+data MLSConv = MLSConv
+  { members :: Set ClientIdentity,
     -- | users expected to receive a welcome message after the next commit
     newMembers :: Set ClientIdentity,
-    groupId :: Maybe String,
-    convId :: Maybe Value,
-    clientGroupState :: Map ClientIdentity ClientGroupState,
+    groupId :: String,
+    convId :: ConvId,
     epoch :: Word64,
-    ciphersuite :: Ciphersuite,
-    protocol :: MLSProtocol
+    ciphersuite :: Ciphersuite
   }
   deriving (Show)
 
@@ -364,11 +379,6 @@ getMLSState = do
   ref <- asks (.mls)
   liftIO $ readIORef ref
 
-setMLSState :: MLSState -> App ()
-setMLSState s = do
-  ref <- asks (.mls)
-  liftIO $ writeIORef ref s
-
 modifyMLSState :: (MLSState -> MLSState) -> App ()
 modifyMLSState f = do
   ref <- asks (.mls)
@@ -377,13 +387,13 @@ modifyMLSState f = do
 getBaseDir :: App FilePath
 getBaseDir = fmap (.baseDir) getMLSState
 
-data AppFailure = AppFailure String
+data AppFailure = AppFailure String CallStack
 
 instance Show AppFailure where
-  show (AppFailure msg) = msg
+  show (AppFailure msg _) = msg
 
 instance Exception AppFailure where
-  displayException (AppFailure msg) = msg
+  displayException (AppFailure msg _) = msg
 
 instance MonadFail App where
   fail msg = assertFailure ("Pattern matching failure: " <> msg)

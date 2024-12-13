@@ -49,6 +49,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig WireIdP
 
+-- | Unique human-readable IdP name.
 newtype IdPHandle = IdPHandle {unIdPHandle :: Text}
   deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema, Arbitrary, Generic)
 

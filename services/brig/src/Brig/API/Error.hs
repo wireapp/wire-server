@@ -76,12 +76,6 @@ sendActCodeError (InvalidRecipient _) = StdError $ errorToWai @'E.InvalidEmail
 sendActCodeError (UserKeyInUse _) = StdError (errorToWai @'E.UserKeyExists)
 sendActCodeError (ActivationBlacklistedUserKey _) = StdError blacklistedEmail
 
-changeEmailError :: ChangeEmailError -> HttpError
-changeEmailError (InvalidNewEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
-changeEmailError (EmailExists _) = StdError (errorToWai @'E.UserKeyExists)
-changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
-changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
-
 legalHoldLoginError :: LegalHoldLoginError -> HttpError
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
 legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
@@ -308,9 +302,6 @@ insufficientTeamPermissions = errorToWai @'E.InsufficientTeamPermissions
 
 noBindingTeam :: Wai.Error
 noBindingTeam = Wai.mkError status403 "no-binding-team" "Operation allowed only on binding teams"
-
-propertyManagedByScim :: LText -> Wai.Error
-propertyManagedByScim prop = Wai.mkError status403 "managed-by-scim" $ "Updating \"" <> prop <> "\" is not allowed, because it is managed by SCIM"
 
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.mkError status403 "same-binding-team-users" "Operation not allowed to binding team users."

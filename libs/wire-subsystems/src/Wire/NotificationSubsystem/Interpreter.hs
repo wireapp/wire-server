@@ -46,6 +46,7 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
+  SetupConsumableNotifications uid cid -> GundeckAPIAccess.registerConsumableNotifcationsClient uid cid
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,

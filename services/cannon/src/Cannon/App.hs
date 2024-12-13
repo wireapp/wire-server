@@ -15,12 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Cannon.App
-  ( wsapp,
-    terminate,
-    maxPingInterval,
-  )
-where
+module Cannon.App where
 
 import Cannon.WS
 import Control.Concurrent.Async

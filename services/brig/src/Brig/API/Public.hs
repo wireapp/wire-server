@@ -173,9 +173,10 @@ import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
-import Wire.UserSubsystem hiding (checkHandle, checkHandles)
+import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -208,22 +209,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V7)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V8)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V7
-        <> serviceSwagger @BrigAPITag @'V7
-        <> serviceSwagger @GalleyAPITag @'V7
-        <> serviceSwagger @SparAPITag @'V7
-        <> serviceSwagger @CargoholdAPITag @'V7
-        <> serviceSwagger @CannonAPITag @'V7
-        <> serviceSwagger @GundeckAPITag @'V7
-        <> serviceSwagger @ProxyAPITag @'V7
-        <> serviceSwagger @OAuthAPITag @'V7
+    ( serviceSwagger @VersionAPITag @'V8
+        <> serviceSwagger @BrigAPITag @'V8
+        <> serviceSwagger @GalleyAPITag @'V8
+        <> serviceSwagger @SparAPITag @'V8
+        <> serviceSwagger @CargoholdAPITag @'V8
+        <> serviceSwagger @CannonAPITag @'V8
+        <> serviceSwagger @GundeckAPITag @'V8
+        <> serviceSwagger @ProxyAPITag @'V8
+        <> serviceSwagger @OAuthAPITag @'V8
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V7) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V8) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V7)) = swaggerPregenUIServer $(pregenSwagger V7)
 versionedSwaggerDocsAPI (Just (VersionNumber V6)) = swaggerPregenUIServer $(pregenSwagger V6)
 versionedSwaggerDocsAPI (Just (VersionNumber V5)) = swaggerPregenUIServer $(pregenSwagger V5)
 versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
@@ -361,9 +363,10 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
-    Member (ConnectionStore InternalPaging) r,
     Member IndexedUserStore r,
-    Member HashPassword r
+    Member (ConnectionStore InternalPaging) r,
+    Member HashPassword r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -450,14 +453,21 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client-v6" addClient
+      Named @"add-client@v6" addClient
+        :<|> Named @"add-client@v7" addClient
         :<|> Named @"add-client" addClient
-        :<|> Named @"update-client" updateClient
+        :<|> Named @"update-client@v6" API.updateClient
+        :<|> Named @"update-client@v7" API.updateClient
+        :<|> Named @"update-client" API.updateClient
         :<|> Named @"delete-client" deleteClient
-        :<|> Named @"list-clients-v6" listClients
+        :<|> Named @"list-clients@v6" listClients
+        :<|> Named @"list-clients@v7" listClients
         :<|> Named @"list-clients" listClients
-        :<|> Named @"get-client-v6" getClient
+        :<|> Named @"get-client@v6" getClient
+        :<|> Named @"get-client@v7" getClient
         :<|> Named @"get-client" getClient
+        :<|> Named @"get-client-capabilities@v6" getClientCapabilities
+        :<|> Named @"get-client-capabilities@v7" getClientCapabilities
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
@@ -511,7 +521,7 @@ servantSitemap =
         :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH
-        :<|> Named @"change-self-email" changeSelfEmailH
+        :<|> Named @"change-self-email" changeSelfEmail
         :<|> Named @"list-cookies" listCookies
         :<|> Named @"remove-cookies" removeCookies
 
@@ -678,9 +688,6 @@ deleteClient ::
 deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
-updateClient :: UserId -> ClientId -> Public.UpdateClient -> (Handler r) ()
-updateClient usr clt upd = wrapClientE (API.updateClient usr clt upd) !>> clientError
-
 listClients :: UserId -> (Handler r) [Public.Client]
 listClients zusr =
   lift $ API.lookupLocalClients zusr
@@ -788,7 +795,8 @@ upgradePersonalToTeam ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member EmailSending r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->
@@ -811,7 +819,8 @@ createUser ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member ActivationCodeStore r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -1024,13 +1033,18 @@ removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
 removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
-  ( Member UserKeyStore r,
-    Member UserSubsystem r,
-    Member Events r
+  ( Member UserSubsystem r,
+    Member (Error UserSubsystemError) r
   ) =>
-  UserId ->
+  Local UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
-removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
+removeEmail = lift . liftSem . User.removeEmailEither >=> reint
+  where
+    reint = \case
+      Left UserSubsystemNoIdentity -> pure . Just $ Public.NoIdentity
+      Left UserSubsystemLastIdentity -> pure . Just $ Public.LastIdentity
+      Left e -> lift . liftSem . throw $ e
+      Right () -> pure Nothing
 
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
@@ -1101,7 +1115,12 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
+changeHandle ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  ConnId ->
+  Public.HandleUpdate ->
+  Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
   User.updateHandle u (Just conn) UpdateOriginWireClient h
 
@@ -1336,7 +1355,11 @@ updateUserEmail ::
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member EmailSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r,
+    Member ActivationCodeStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   UserId ->
   UserId ->
@@ -1347,7 +1370,9 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  void $ API.changeSelfEmail emailOwnerId email UpdateOriginWireClient
+  lEmailOwnerId <- qualifyLocal emailOwnerId
+  void . lift . liftSem $
+    User.requestEmailChange lEmailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =

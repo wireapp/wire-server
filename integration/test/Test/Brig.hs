@@ -14,7 +14,6 @@ import Data.String.Conversions
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import GHC.Stack
-import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import System.IO.Extra
 import Testlib.Assertions
@@ -246,7 +245,7 @@ testDeleteEmail = do
       associateUsrWithSSO = do
         void $ setTeamFeatureStatus owner tid "sso" "enabled"
         registerTestIdPWithMeta owner >>= assertSuccess
-        tok <- createScimToken owner >>= getJSON 200 >>= (%. "token") >>= asString
+        tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
         void $ findUsersByExternalId owner tok email
 
       searchShouldBe :: (HasCallStack) => String -> App ()
@@ -264,8 +263,3 @@ testDeleteEmail = do
   associateUsrWithSSO
   deleteSelfEmail usr >>= assertSuccess
   searchShouldBe "empty"
-
-registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
-registerTestIdPWithMeta owner = do
-  SampleIdP idpmeta _ _ _ <- makeSampleIdPMetadata
-  createIdp owner idpmeta

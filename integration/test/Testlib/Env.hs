@@ -5,7 +5,6 @@ module Testlib.Env where
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Control.Monad.Reader
-import Data.Default
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
@@ -14,6 +13,7 @@ import Data.Maybe (fromMaybe)
 import Data.Traversable (for)
 import qualified Data.Yaml as Yaml
 import qualified Database.CQL.IO as Cassandra
+import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import qualified OpenSSL.Session as OpenSSL
 import System.Directory
@@ -103,7 +103,7 @@ mkGlobalEnv cfgFile = do
         gFederationV0Domain = intConfig.federationV0.originDomain,
         gFederationV1Domain = intConfig.federationV1.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
-        gDefaultAPIVersion = 7,
+        gDefaultAPIVersion = 8,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
@@ -171,15 +171,17 @@ mkMLSState = Codensity $ \k ->
     k
       MLSState
         { baseDir = tmp,
-          members = mempty,
-          newMembers = mempty,
-          groupId = Nothing,
-          convId = Nothing,
-          clientGroupState = mempty,
-          epoch = 0,
-          ciphersuite = def,
-          protocol = MLSProtocolMLS
+          convs = mempty,
+          clientGroupState = mempty
         }
+
+getMLSConv :: (HasCallStack) => ConvId -> App MLSConv
+getMLSConv convId = do
+  mConv <- Map.lookup convId . (.convs) <$> getMLSState
+  case mConv of
+    Just conv -> pure conv
+    Nothing -> do
+      assertFailure $ "MLSConv not found, convId=" <> show convId
 
 withAPIVersion :: Int -> App a -> App a
 withAPIVersion v = local $ \e -> e {defaultAPIVersion = v}

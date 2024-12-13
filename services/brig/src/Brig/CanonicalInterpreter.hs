@@ -114,6 +114,7 @@ type BrigLowerLevelEffects =
      PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
+     NotificationSubsystem,
      Error UserSubsystemError,
      Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
@@ -140,7 +141,6 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
-     NotificationSubsystem,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -176,7 +176,8 @@ runBrigToIO e (AppT ma) = do
           { emailVisibilityConfig = e.settings.emailVisibility,
             defaultLocale = Opt.defaultUserLocale e.settings,
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
-            maxTeamSize = e.settings.maxTeamSize
+            maxTeamSize = e.settings.maxTeamSize,
+            activationCodeTimeout = e.settings.activationTimeout
           }
       teamInvitationSubsystemConfig =
         TeamInvitationSubsystemConfig
@@ -213,6 +214,9 @@ runBrigToIO e (AppT ma) = do
           }
 
       -- These interpreters depend on each other, we use let recursion to solve that.
+      --
+      -- This terminates if and only if we do not create an action sequence at
+      -- runtime such that interpretation of actions results in a call cycle.
       userSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor UserSubsystem r
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
 
@@ -246,7 +250,6 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
@@ -273,6 +276,7 @@ runBrigToIO e (AppT ma) = do
               . mapError authenticationSubsystemErrorToHttpError
               . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
+              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig

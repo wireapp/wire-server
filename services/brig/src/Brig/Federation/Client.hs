@@ -141,6 +141,7 @@ notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
       remoteDomain = tDomain remotes
+
   asks (.rabbitmqChannel) >>= \case
     Just chanVar -> do
       enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $

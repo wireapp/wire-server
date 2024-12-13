@@ -17,11 +17,9 @@
 
 -- | Activation of 'Email' addresses and 'Phone' numbers.
 module Brig.Data.Activation
-  ( Activation (..),
-    ActivationEvent (..),
+  ( ActivationEvent (..),
     ActivationError (..),
     activationErrorToRegisterError,
-    newActivation,
     mkActivationKey,
     activateKey,
     verifyCode,
@@ -34,16 +32,12 @@ import Brig.Types.Intra
 import Cassandra
 import Control.Error
 import Data.Id
-import Data.Text (pack)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as LT
 import Imports
-import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Polysemy
-import Text.Printf (printf)
-import Util.Timeout
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Password
@@ -52,15 +46,6 @@ import Wire.PasswordResetCodeStore qualified as Password
 import Wire.UserKeyStore
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-
---  | The information associated with the pending activation of a 'UserKey'.
-data Activation = Activation
-  { -- | An opaque key for the original 'UserKey' pending activation.
-    activationKey :: !ActivationKey,
-    -- | The confidential activation code.
-    activationCode :: !ActivationCode
-  }
-  deriving (Eq, Show)
 
 data ActivationError
   = UserKeyExists !LT.Text
@@ -81,10 +66,6 @@ data ActivationEvent
   = AccountActivated !User
   | EmailActivated !UserId !EmailAddress
   deriving (Show)
-
--- | Max. number of activation attempts per 'ActivationKey'.
-maxAttempts :: Int32
-maxAttempts = 3
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
@@ -151,29 +132,6 @@ activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
         throwE . UserKeyExists . LT.fromStrict $
           fromEmail (emailKeyOrig key)
 
--- | Create a new pending activation for a given 'EmailKey'.
-newActivation ::
-  (MonadClient m) =>
-  EmailKey ->
-  -- | The timeout for the activation code.
-  Timeout ->
-  -- | The user with whom to associate the activation code.
-  Maybe UserId ->
-  m Activation
-newActivation uk timeout u = do
-  let typ = "email"
-      key = fromEmail (emailKeyOrig uk)
-  code <- liftIO $ genCode
-  insert typ key code
-  where
-    insert t k c = do
-      key <- liftIO $ mkActivationKey uk
-      retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, maxAttempts, round timeout)
-      pure $ Activation key c
-    genCode =
-      ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
-        <$> randIntegerZeroToNMinusOne 1000000
-
 -- | Verify an activation code.
 verifyCode ::
   (MonadClient m) =>
@@ -196,6 +154,11 @@ verifyCode key code = do
     mkScope _ _ _ = throwE invalidCode
     countdown = lift . retry x5 . write keyInsert . params LocalQuorum
     revoke = lift $ deleteActivationPair key
+    keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
+    keyInsert =
+      "INSERT INTO activation_keys \
+      \(key, key_type, key_text, code, user, retries) VALUES \
+      \(?  , ?       , ?       , ?   , ?   , ?      ) USING TTL ?"
 
 mkActivationKey :: EmailKey -> IO ActivationKey
 mkActivationKey k = do
@@ -212,12 +175,6 @@ invalidUser = InvalidActivationCodeWrongUser -- "User does not exist."
 
 invalidCode :: ActivationError
 invalidCode = InvalidActivationCodeWrongCode -- "Invalid activation code"
-
-keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
-keyInsert =
-  "INSERT INTO activation_keys \
-  \(key, key_type, key_text, code, user, retries) VALUES \
-  \(?  , ?       , ?       , ?   , ?   , ?      ) USING TTL ?"
 
 keySelect :: PrepQuery R (Identity ActivationKey) (Int32, Ascii, Text, ActivationCode, Maybe UserId, Int32)
 keySelect = "SELECT ttl(code) as ttl, key_type, key_text, code, user, retries FROM activation_keys WHERE key = ?"

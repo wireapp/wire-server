@@ -267,6 +267,7 @@ spec = do
           ]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
+      let cassandra = undefined
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -283,6 +284,7 @@ spec = do
     it "should retry fetching domains if a request fails" $ do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
+      let cassandra = undefined
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
@@ -346,11 +348,13 @@ mockApi :: MockRabbitMqAdmin -> AdminAPI (AsServerT Servant.Handler)
 mockApi mockAdmin =
   AdminAPI
     { listQueuesByVHost = mockListQueuesByVHost mockAdmin,
-      deleteQueue = mockListDeleteQueue mockAdmin
+      deleteQueue = mockListDeleteQueue mockAdmin,
+      listConnectionsByVHost = mockListConnectionsByVHost mockAdmin,
+      deleteConnection = mockDeleteConnection mockAdmin
     }
 
-mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Queue]
-mockListQueuesByVHost MockRabbitMqAdmin {..} vhost = do
+mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Maybe Text -> Maybe Bool -> Servant.Handler [Queue]
+mockListQueuesByVHost MockRabbitMqAdmin {..} vhost _ _ = do
   atomically $ modifyTVar listQueuesVHostCalls (<> [vhost])
   readTVarIO broken >>= \case
     True -> throwError $ Servant.err500
@@ -359,6 +363,12 @@ mockListQueuesByVHost MockRabbitMqAdmin {..} vhost = do
 mockListDeleteQueue :: MockRabbitMqAdmin -> Text -> Text -> Servant.Handler NoContent
 mockListDeleteQueue _ _ _ = do
   pure NoContent
+
+mockListConnectionsByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Connection]
+mockListConnectionsByVHost _ _ = pure []
+
+mockDeleteConnection :: MockRabbitMqAdmin -> Text -> Servant.Handler NoContent
+mockDeleteConnection _ _ = pure NoContent
 
 mockRabbitMqAdminApp :: MockRabbitMqAdmin -> Application
 mockRabbitMqAdminApp mockAdmin = genericServe (mockApi mockAdmin)

@@ -3,8 +3,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
--- Disabling to stop warnings on HasCallStack
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -204,7 +202,7 @@ genMockEnv :: (HasCallStack) => Gen MockEnv
 genMockEnv = do
   -- This function generates a 'ClientInfo' that corresponds to one of the
   -- four scenarios above
-  let genClientInfo :: (HasCallStack) => UserId -> ClientId -> Gen ClientInfo
+  let genClientInfo :: UserId -> ClientId -> Gen ClientInfo
       genClientInfo uid cid = do
         _ciNativeAddress <-
           QC.oneof
@@ -251,7 +249,7 @@ genMockEnv = do
   validateMockEnv env & either error (const $ pure env)
 
 -- Try to shrink a 'MockEnv' by removing some users from '_meClientInfos'.
-shrinkMockEnv :: (HasCallStack) => MockEnv -> [MockEnv]
+shrinkMockEnv :: MockEnv -> [MockEnv]
 shrinkMockEnv (MockEnv cis) =
   MockEnv . Map.fromList
     <$> filter (not . null) (shrinkList (const []) (Map.toList cis))
@@ -291,7 +289,7 @@ genRecipient' env uid = do
       ]
   pure $ Recipient uid route cids
 
-genRoute :: (HasCallStack) => Gen Route
+genRoute :: Gen Route
 genRoute = QC.elements [minBound ..]
 
 genId :: Gen (Id a)
@@ -302,7 +300,7 @@ genId = do
 genClientId :: Gen ClientId
 genClientId = ClientId <$> arbitrary
 
-genProtoAddress :: (HasCallStack) => UserId -> ClientId -> Gen Address
+genProtoAddress :: UserId -> ClientId -> Gen Address
 genProtoAddress _addrUser _addrClient = do
   _addrTransport :: Transport <- QC.elements [minBound ..]
   arnEpId :: Text <- arbitrary
@@ -374,14 +372,14 @@ dropSomeDevices =
       RecipientClientsSome . unsafeList1 . take numdevs
         <$> QC.shuffle (toList cids)
 
-shrinkPushes :: (HasCallStack) => [Push] -> [[Push]]
+shrinkPushes :: [Push] -> [[Push]]
 shrinkPushes = shrinkList shrinkPush
   where
-    shrinkPush :: (HasCallStack) => Push -> [Push]
+    shrinkPush :: Push -> [Push]
     shrinkPush psh = (\rcps -> psh & pushRecipients .~ rcps) <$> shrinkRecipients (psh ^. pushRecipients)
-    shrinkRecipients :: (HasCallStack) => Range 1 1024 (Set Recipient) -> [Range 1 1024 (Set Recipient)]
+    shrinkRecipients :: Range 1 1024 (Set Recipient) -> [Range 1 1024 (Set Recipient)]
     shrinkRecipients = fmap unsafeRange . map Set.fromList . filter (not . null) . shrinkList shrinkRecipient . Set.toList . fromRange
-    shrinkRecipient :: (HasCallStack) => Recipient -> [Recipient]
+    shrinkRecipient :: Recipient -> [Recipient]
     shrinkRecipient _ = []
 
 -- | See 'Payload'.
@@ -401,7 +399,7 @@ genNotifs env = fmap uniqNotifs . listOf $ do
   where
     uniqNotifs = nubBy ((==) `on` (ntfId . fst))
 
-shrinkNotifs :: (HasCallStack) => [(Notification, [Presence])] -> [[(Notification, [Presence])]]
+shrinkNotifs :: [(Notification, [Presence])] -> [[(Notification, [Presence])]]
 shrinkNotifs = shrinkList (\(notif, prcs) -> (notif,) <$> shrinkList (const []) prcs)
 
 ----------------------------------------------------------------------
@@ -430,6 +428,8 @@ instance MonadPushAll MockGundeck where
   -- doesn't, this is good enough for testing).
 
   mpaRunWithBudget _ _ = id -- no throttling needed as long as we don't overdo it in the tests...
+  mpaGetClients _ = pure mempty
+  mpaPublishToRabbitMq _ _ = pure ()
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
@@ -529,10 +529,7 @@ handlePushNative Push {..} = do
 
 -- | From a single 'Push', store only those notifications that real Gundeck would put into
 -- Cassandra.
-handlePushCass ::
-  (HasCallStack, m ~ MockGundeck) =>
-  Push ->
-  m ()
+handlePushCass :: Push -> MockGundeck ()
 handlePushCass Push {..}
   -- Condition 1: transient pushes are not put into Cassandra.
   | _pushTransient = pure ()
@@ -547,15 +544,10 @@ handlePushCass Push {..} = do
     forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
 
-mockMkNotificationId ::
-  (HasCallStack, m ~ MockGundeck) =>
-  m NotificationId
+mockMkNotificationId :: MockGundeck NotificationId
 mockMkNotificationId = Id <$> getRandom
 
-mockListAllPresences ::
-  (HasCallStack, m ~ MockGundeck) =>
-  [UserId] ->
-  m [[Presence]]
+mockListAllPresences :: [UserId] -> MockGundeck [[Presence]]
 mockListAllPresences uids =
   asks $ fmap fakePresences . filter ((`elem` uids) . fst) . allRecipients
 
@@ -584,12 +576,11 @@ mockBulkPush notifs = do
 
 -- | persisting notification is not needed for the tests at the moment, so we do nothing here.
 mockStreamAdd ::
-  (HasCallStack, m ~ MockGundeck) =>
   NotificationId ->
   List1 NotificationTarget ->
   Payload ->
   NotificationTTL ->
-  m ()
+  MockGundeck ()
 mockStreamAdd _ (toList -> targets) pay _ =
   forM_ targets $ \tgt -> case tgt ^. targetClients of
     clients@(_ : _) -> forM_ clients $ \cid ->
@@ -598,11 +589,10 @@ mockStreamAdd _ (toList -> targets) pay _ =
       msCassQueue %= deliver (tgt ^. targetUser, ClientId 0) pay
 
 mockPushNative ::
-  (HasCallStack, m ~ MockGundeck) =>
   Notification ->
   Priority ->
   [Address] ->
-  m ()
+  MockGundeck ()
 mockPushNative (ntfPayload -> payload) _ addrs = do
   env <- ask
   forM_ addrs $ \addr -> do
@@ -623,10 +613,9 @@ mockLookupAddresses uid = do
   pure . mapMaybe (^? ciNativeAddress . _Just . _1) $ cinfos
 
 mockBulkSend ::
-  (HasCallStack, m ~ MockGundeck) =>
   URI ->
   BulkPushRequest ->
-  m (URI, Either SomeException BulkPushResponse)
+  MockGundeck (URI, Either SomeException BulkPushResponse)
 mockBulkSend uri notifs = do
   getstatus <- mkWSStatus
   let flat :: [(Notification, PushTarget)]
@@ -652,7 +641,7 @@ newtype Pretty a = Pretty a
 instance (Aeson.ToJSON a) => Show (Pretty a) where
   show (Pretty a) = cs $ Aeson.encodePretty a
 
-shrinkPretty :: (HasCallStack) => (a -> [a]) -> Pretty a -> [Pretty a]
+shrinkPretty :: (a -> [a]) -> Pretty a -> [Pretty a]
 shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
 sublist1Of :: (HasCallStack) => [a] -> Gen (List1 a)

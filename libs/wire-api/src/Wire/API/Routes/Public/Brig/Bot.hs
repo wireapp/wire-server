@@ -146,7 +146,7 @@ type BotAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )
     :<|> Named
-           "bot-get-client-v6"
+           "bot-get-client@v6"
            ( Summary "Get client for bot"
                :> Until 'V7
                :> CanThrow 'AccessDenied
@@ -163,9 +163,27 @@ type BotAPI =
                     (Maybe Client)
            )
     :<|> Named
-           "bot-get-client"
+           "bot-get-client@v7"
            ( Summary "Get client for bot"
                :> From 'V7
+               :> Until 'V8
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'ClientNotFound
+               :> ZBot
+               :> "bot"
+               :> "client"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ ErrorResponse 'ClientNotFound,
+                       VersionedRespond 'V7 200 "Client found" Client
+                     ]
+                    (Maybe Client)
+           )
+    :<|> Named
+           "bot-get-client"
+           ( Summary "Get client for bot"
+               :> From 'V8
                :> CanThrow 'AccessDenied
                :> CanThrow 'ClientNotFound
                :> ZBot

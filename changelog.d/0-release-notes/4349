@@ -1,0 +1,3 @@
+* POST /scim/auth-token request body allows you to choose an IdP UUID to associate with.  If none is given, do not associate.
+
+  **WARNING:** the new behavior differs from the old one when first creating a unique SAML IdP and then the SCIM token: before this release, this request would associate the two, now it doesn't. (#4349)

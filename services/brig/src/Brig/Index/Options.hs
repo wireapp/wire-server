@@ -39,7 +39,7 @@ module Brig.Index.Options
     commandParser,
     mkCreateIndexSettings,
     toESServer,
-    ReindexFromAnotherIndexSettings,
+    ReindexFromAnotherIndexSettings (..),
     reindexDestIndex,
     reindexTimeoutSeconds,
     reindexEsConnection,

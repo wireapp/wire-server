@@ -24,6 +24,7 @@ import API.Common
 import API.Galley (getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Gundeck
+import qualified API.Nginz as Nginz
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
@@ -66,6 +67,10 @@ testInvitePersonalUserToTeam = do
         checkListInvitations owner tid email
         code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
         inv %. "url" & asString >>= assertUrlContainsCode code
+        bindResponse (getInvitationByCode user code) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          ownersEmail <- owner %. "email" & asString
+          resp.json %. "created_by_email" `shouldMatch` ownersEmail
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
 
@@ -122,7 +127,11 @@ testInvitePersonalUserToTeam = do
     checkListInvitations :: Value -> String -> String -> App ()
     checkListInvitations owner tid email = do
       newUserEmail <- randomEmail
-      void $ postInvitation owner (PostInvitation (Just newUserEmail) Nothing) >>= assertSuccess
+      inv <- postInvitation owner (PostInvitation (Just newUserEmail) Nothing) >>= getJSON 201
+      code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+      bindResponse (getInvitationByCode owner code) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        lookupField resp.json "created_by_email" `shouldMatch` (Nothing :: Maybe Value)
       bindResponse (listInvitations owner tid) $ \resp -> do
         resp.status `shouldMatchInt` 200
         invitations <- resp.json %. "invitations" >>= asList
@@ -156,8 +165,8 @@ testInvitePersonalUserToLargeTeam = do
   traverse_ (connectTwoUsers knut) [alice, dawn, eli]
 
   addFailureContext ("tid: " <> tid) $ do
-    uidContext <- mkContextUserIds [("owner", owner), ("alice", alice), ("knut", knut), ("dawn", dawn), ("eli", eli)]
-    addFailureContext uidContext $ do
+    let uids = [("owner", owner), ("alice", alice), ("knut", knut), ("dawn", dawn), ("eli", eli)]
+    addUsersToFailureContext uids $ do
       lastTeamNotif <-
         getTeamNotifications owner Nothing `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
@@ -196,16 +205,6 @@ testInvitePersonalUserToLargeTeam = do
         resp.json %. "notifications.1.payload.0.team" `shouldMatch` tid
         resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` objId knut
 
-mkContextUserIds :: (MakesValue user) => [(String, user)] -> App String
-mkContextUserIds =
-  fmap (intercalate "\n")
-    . traverse
-      ( \(name, user) -> do
-          uid <- objQidObject user %. "id" & asString
-          domain <- objDomain user
-          pure $ name <> ": " <> uid <> "@" <> domain
-      )
-
 testInvitePersonalUserToTeamMultipleInvitations :: (HasCallStack) => App ()
 testInvitePersonalUserToTeamMultipleInvitations = do
   (owner, tid, _) <- createTeam OwnDomain 0
@@ -227,6 +226,26 @@ testInvitePersonalUserToTeamMultipleInvitations = do
     resp.status `shouldMatchInt` 200
     resp.json %. "team" `shouldMatch` tid
   acceptTeamInvitation user code (Just defPassword) >>= assertStatus 400
+
+testInvitePersonalUserToTeamLegacy :: (HasCallStack) => App ()
+testInvitePersonalUserToTeamLegacy = withAPIVersion 6 $ do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  user <- I.createUser OwnDomain def >>= getJSON 201
+
+  -- inviting an existing user should fail
+  do
+    email <- user %. "email" >>= asString
+    bindResponse (postInvitation owner (PostInvitation (Just email) Nothing)) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "email-exists"
+
+  -- inviting a new user should succeed
+  do
+    email <- randomEmail
+    bindResponse (postInvitation owner (PostInvitation (Just email) Nothing)) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "email" `shouldMatch` email
+      resp.json %. "team" `shouldMatch` tid
 
 testInvitationTypesAreDistinct :: (HasCallStack) => App ()
 testInvitationTypesAreDistinct = do
@@ -256,8 +275,10 @@ testTeamUserCannotBeInvited = do
 testUpgradePersonalToTeam :: (HasCallStack) => App ()
 testUpgradePersonalToTeam = do
   alice <- randomUser OwnDomain def
+  email <- alice %. "email" >>= asString
   let teamName = "wonderland"
-  tid <- bindResponse (upgradePersonalToTeam alice teamName) $ \resp -> do
+  token <- Nginz.login OwnDomain email defPassword >>= getJSON 200 >>= (%. "access_token") & asString
+  tid <- bindResponse (Nginz.upgradePersonalToTeam alice token teamName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "team_name" `shouldMatch` teamName
     resp.json %. "team_id"
@@ -274,6 +295,16 @@ testUpgradePersonalToTeam = do
     owner %. "user" `shouldMatch` (alice %. "id")
     shouldBeNull $ owner %. "created_at"
     shouldBeNull $ owner %. "created_by"
+
+  mem <- createTeamMember alice' def
+  I.refreshIndex OwnDomain
+
+  bindResponse (searchTeamAll alice') $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    actualIds <- for docs ((%. "id") >=> asString)
+    expectedIds <- for [alice', mem] ((%. "id") >=> asString)
+    actualIds `shouldMatchSet` expectedIds
 
 testUpgradePersonalToTeamAlreadyInATeam :: (HasCallStack) => App ()
 testUpgradePersonalToTeamAlreadyInATeam = do

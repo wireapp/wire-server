@@ -18,12 +18,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Cannon.Types
-  ( Env,
-    opts,
-    applog,
-    dict,
-    env,
+  ( Env (..),
     Cannon,
+    numDictSlices,
     mapConcurrentlyCannon,
     mkEnv,
     runCannon,
@@ -37,19 +34,27 @@ import Bilge (Manager)
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
 import Cannon.Options
+import Cannon.RabbitMq
 import Cannon.WS (Clock, Key, Websocket)
 import Cannon.WS qualified as WS
+import Cassandra (ClientState)
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens ((^.))
 import Control.Monad.Catch
+import Control.Monad.Codensity
 import Data.Id
 import Data.Text.Encoding
 import Imports
+import Network.AMQP qualified as Q
+import Network.AMQP.Extended (AmqpEndpoint)
 import Prometheus
 import Servant qualified
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
+
+numDictSlices :: Int
+numDictSlices = 128
 
 -----------------------------------------------------------------------------
 -- Cannon monad
@@ -57,7 +62,8 @@ import System.Random.MWC (GenIO)
 data Env = Env
   { opts :: !Opts,
     applog :: !Logger,
-    dict :: !(Dict Key Websocket),
+    websockets :: !(Dict Key Websocket),
+    rabbitConnections :: (Dict Key Q.Connection),
     reqId :: !RequestId,
     env :: !WS.Env
   }
@@ -94,21 +100,46 @@ instance HasRequestId Cannon where
 mkEnv ::
   ByteString ->
   Opts ->
+  ClientState ->
   Logger ->
   Dict Key Websocket ->
+  Dict Key Q.Connection ->
   Manager ->
   GenIO ->
   Clock ->
-  Env
-mkEnv external o l d p g t =
-  Env o l d (RequestId defRequestId) $
-    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
+  AmqpEndpoint ->
+  Codensity IO Env
+mkEnv external o cs l d conns p g t endpoint = do
+  let poolOpts =
+        RabbitMqPoolOptions
+          { endpoint = endpoint,
+            maxConnections = o ^. rabbitMqMaxConnections,
+            maxChannels = o ^. rabbitMqMaxChannels,
+            retryEnabled = False
+          }
+  pool <- createRabbitMqPool poolOpts l
+  let wsEnv =
+        WS.env
+          external
+          (o ^. cannon . port)
+          (encodeUtf8 $ o ^. gundeck . host)
+          (o ^. gundeck . port)
+          l
+          p
+          d
+          conns
+          g
+          t
+          (o ^. drainOpts)
+          cs
+          pool
+  pure $ Env o l d conns (RequestId defRequestId) wsEnv
 
 runCannon :: Env -> Cannon a -> IO a
 runCannon e c = runReaderT (unCannon c) e
 
 clients :: Cannon (Dict Key Websocket)
-clients = Cannon $ asks dict
+clients = Cannon $ asks websockets
 
 wsenv :: Cannon WS.Env
 wsenv = Cannon $ do

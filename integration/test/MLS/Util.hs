@@ -3,6 +3,7 @@
 module MLS.Util where
 
 import API.Brig
+import API.BrigCommon
 import API.Galley
 import Control.Concurrent.Async hiding (link)
 import Control.Monad
@@ -11,7 +12,6 @@ import Control.Monad.Codensity
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
@@ -33,6 +33,7 @@ import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO hiding (print, putStrLn)
+import System.IO.Error (isAlreadyExistsError)
 import System.IO.Temp
 import System.Posix.Files
 import System.Process
@@ -40,6 +41,7 @@ import Testlib.Assertions
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Prelude
+import Testlib.Printing
 
 mkClientIdentity :: (MakesValue u, MakesValue c) => u -> c -> App ClientIdentity
 mkClientIdentity u c = do
@@ -52,17 +54,11 @@ cid2Str cid = cid.user <> ":" <> cid.client <> "@" <> cid.domain
 
 data MessagePackage = MessagePackage
   { sender :: ClientIdentity,
+    convId :: ConvId,
     message :: ByteString,
     welcome :: Maybe ByteString,
     groupInfo :: Maybe ByteString
   }
-
-getConv :: App Value
-getConv = do
-  mls <- getMLSState
-  case mls.convId of
-    Nothing -> assertFailure "Uninitialised test conversation"
-    Just convId -> pure convId
 
 toRandomFile :: ByteString -> App FilePath
 toRandomFile bs = do
@@ -75,16 +71,15 @@ randomFileName = do
   bd <- getBaseDir
   (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
 
-mlscli :: (HasCallStack) => ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
-mlscli cid args mbstdin = do
+mlscli :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
+mlscli mConvId cs cid args mbstdin = do
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
-  cs <- (.ciphersuite) <$> getMLSState
   let scheme = csSignatureScheme cs
 
   gs <- getClientGroupState cid
 
-  substIn <- case gs.group of
+  substIn <- case flip Map.lookup gs.groups =<< mConvId of
     Nothing -> pure id
     Just groupData -> do
       fn <- toRandomFile groupData
@@ -92,7 +87,11 @@ mlscli cid args mbstdin = do
   store <- case Map.lookup scheme gs.keystore of
     Nothing -> do
       bd <- getBaseDir
-      liftIO $ createDirectory (bd </> cid2Str cid)
+      liftIO (createDirectory (bd </> cid2Str cid))
+        `catch` \e ->
+          if (isAlreadyExistsError e)
+            then assertFailure "client directory for mls state already exists"
+            else throwM e
 
       -- initialise new keystore
       path <- randomFileName
@@ -109,11 +108,15 @@ mlscli cid args mbstdin = do
   out <- runCli store args' mbstdin
   setGroup <- do
     groupOutWritten <- liftIO $ doesFileExist groupOut
-    if groupOutWritten
-      then do
+    case (groupOutWritten, mConvId) of
+      (True, Just convId) -> do
         groupData <- liftIO (BS.readFile groupOut)
-        pure $ \x -> x {group = Just groupData}
-      else pure id
+        pure $ \x -> x {groups = Map.insert convId groupData x.groups}
+      (True, Nothing) -> do
+        print $ colored red "mls-test-cli: Group was written but no convId was provided, this probably indicates something is going to go wrong in this test."
+        print =<< liftIO (prettierCallStack callStack)
+        pure id
+      _ -> pure id
   setStore <- do
     storeData <- liftIO (BS.readFile store)
     pure $ \x -> x {keystore = Map.insert scheme storeData x.keystore}
@@ -137,27 +140,28 @@ argSubst :: String -> String -> String -> String
 argSubst from to_ s =
   if s == from then to_ else s
 
-createWireClient :: (MakesValue u, HasCallStack) => u -> App ClientIdentity
-createWireClient u = do
-  addClient u def
+createWireClient :: (MakesValue u, HasCallStack) => u -> AddClient -> App ClientIdentity
+createWireClient u clientArgs = do
+  addClient u clientArgs
     >>= getJSON 201
     >>= mkClientIdentity u
 
 data InitMLSClient = InitMLSClient
-  {credType :: CredentialType}
+  { credType :: CredentialType,
+    clientArgs :: AddClient
+  }
 
 instance Default InitMLSClient where
-  def = InitMLSClient {credType = BasicCredentialType}
+  def = InitMLSClient {credType = BasicCredentialType, clientArgs = def}
 
 -- | Create new mls client and register with backend.
-createMLSClient :: (MakesValue u, HasCallStack) => InitMLSClient -> u -> App ClientIdentity
-createMLSClient opts u = do
-  cid <- createWireClient u
+createMLSClient :: (MakesValue u, HasCallStack) => Ciphersuite -> InitMLSClient -> u -> App ClientIdentity
+createMLSClient ciphersuite opts u = do
+  cid <- createWireClient u opts.clientArgs
   setClientGroupState cid def {credType = opts.credType}
 
   -- set public key
-  pkey <- mlscli cid ["public-key"] Nothing
-  ciphersuite <- (.ciphersuite) <$> getMLSState
+  pkey <- mlscli Nothing ciphersuite cid ["public-key"] Nothing
   bindResponse
     ( updateClient
         cid
@@ -170,9 +174,9 @@ createMLSClient opts u = do
   pure cid
 
 -- | create and upload to backend
-uploadNewKeyPackage :: (HasCallStack) => ClientIdentity -> App String
-uploadNewKeyPackage cid = do
-  (kp, ref) <- generateKeyPackage cid
+uploadNewKeyPackage :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App String
+uploadNewKeyPackage suite cid = do
+  (kp, ref) <- generateKeyPackage cid suite
 
   -- upload key package
   bindResponse (uploadKeyPackages cid [kp]) $ \resp ->
@@ -180,94 +184,100 @@ uploadNewKeyPackage cid = do
 
   pure ref
 
-generateKeyPackage :: (HasCallStack) => ClientIdentity -> App (ByteString, String)
-generateKeyPackage cid = do
-  suite <- (.ciphersuite) <$> getMLSState
-  kp <- mlscli cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
-  ref <- B8.unpack . Base64.encode <$> mlscli cid ["key-package", "ref", "-"] (Just kp)
+generateKeyPackage :: (HasCallStack) => ClientIdentity -> Ciphersuite -> App (ByteString, String)
+generateKeyPackage cid suite = do
+  kp <- mlscli Nothing suite cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
+  ref <- B8.unpack . Base64.encode <$> mlscli Nothing suite cid ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile cid ref
   liftIO $ BS.writeFile fp kp
   pure (kp, ref)
 
 -- | Create conversation and corresponding group.
-createNewGroup :: (HasCallStack) => ClientIdentity -> App (String, Value)
-createNewGroup cid = do
+createNewGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App ConvId
+createNewGroup cs cid = do
   conv <- postConversation cid defMLS >>= getJSON 201
-  groupId <- conv %. "group_id" & asString
-  convId <- conv %. "qualified_id"
-  createGroup cid conv
-  pure (groupId, convId)
+  convId <- objConvId conv
+  createGroup cs cid convId
+  pure convId
 
 -- | Retrieve self conversation and create the corresponding group.
-createSelfGroup :: (HasCallStack) => ClientIdentity -> App (String, Value)
-createSelfGroup cid = do
+createSelfGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App (String, Value)
+createSelfGroup cs cid = do
   conv <- getSelfConversation cid >>= getJSON 200
+  convId <- objConvId conv
   groupId <- conv %. "group_id" & asString
-  createGroup cid conv
+  createGroup cs cid convId
   pure (groupId, conv)
 
-createGroup :: (MakesValue conv) => ClientIdentity -> conv -> App ()
-createGroup cid conv = do
-  mls <- getMLSState
-  case mls.groupId of
-    Just _ -> assertFailure "only one group can be created"
-    Nothing -> pure ()
-  resetGroup cid conv
-
-createSubConv :: (HasCallStack) => ClientIdentity -> String -> App ()
-createSubConv cid subId = do
-  mls <- getMLSState
-  sub <- getSubConversation cid mls.convId subId >>= getJSON 200
-  resetGroup cid sub
-  void $ createPendingProposalCommit cid >>= sendAndConsumeCommitBundle
-
-createOne2OneSubConv :: (HasCallStack, MakesValue keys) => ClientIdentity -> String -> keys -> App ()
-createOne2OneSubConv cid subId keys = do
-  mls <- getMLSState
-  sub <- getSubConversation cid mls.convId subId >>= getJSON 200
-  resetOne2OneGroupGeneric cid sub keys
-  void $ createPendingProposalCommit cid >>= sendAndConsumeCommitBundle
-
-resetGroup :: (HasCallStack, MakesValue conv) => ClientIdentity -> conv -> App ()
-resetGroup cid conv = do
-  convId <- objSubConvObject conv
-  groupId <- conv %. "group_id" & asString
+createGroup :: Ciphersuite -> ClientIdentity -> ConvId -> App ()
+createGroup cs cid convId = do
+  let Just groupId = convId.groupId
   modifyMLSState $ \s ->
-    s
-      { groupId = Just groupId,
-        convId = Just convId,
-        members = Set.singleton cid,
-        epoch = 0,
-        newMembers = mempty
-      }
+    let mlsConv =
+          MLSConv
+            { members = Set.singleton cid,
+              newMembers = mempty,
+              groupId,
+              convId = convId,
+              epoch = 0,
+              ciphersuite = cs
+            }
+     in s {convs = Map.insert convId mlsConv s.convs}
   keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
-  resetClientGroup cid groupId keys
+  resetClientGroup cs cid groupId convId keys
 
-resetOne2OneGroup :: (HasCallStack, MakesValue one2OneConv) => ClientIdentity -> one2OneConv -> App ()
-resetOne2OneGroup cid one2OneConv =
-  resetOne2OneGroupGeneric cid (one2OneConv %. "conversation") (one2OneConv %. "public_keys")
+createSubConv :: (HasCallStack) => Ciphersuite -> ConvId -> ClientIdentity -> String -> App ()
+createSubConv cs convId cid subId = do
+  sub <- getSubConversation cid convId subId >>= getJSON 200
+  subConvId <- objConvId sub
+  createGroup cs cid subConvId
+  void $ createPendingProposalCommit subConvId cid >>= sendAndConsumeCommitBundle
+
+createOne2OneSubConv :: (HasCallStack, MakesValue keys) => Ciphersuite -> ConvId -> ClientIdentity -> String -> keys -> App ()
+createOne2OneSubConv cs convId cid subId keys = do
+  sub <- getSubConversation cid convId subId >>= getJSON 200
+  subConvId <- objConvId sub
+  resetOne2OneGroupGeneric cs cid sub keys
+  void $ createPendingProposalCommit subConvId cid >>= sendAndConsumeCommitBundle
+
+resetOne2OneGroup :: (HasCallStack, MakesValue one2OneConv) => Ciphersuite -> ClientIdentity -> one2OneConv -> App ()
+resetOne2OneGroup cs cid one2OneConv =
+  resetOne2OneGroupGeneric cs cid (one2OneConv %. "conversation") (one2OneConv %. "public_keys")
 
 -- | Useful when keys are to be taken from main conv and the conv here is the subconv
-resetOne2OneGroupGeneric :: (HasCallStack, MakesValue conv, MakesValue keys) => ClientIdentity -> conv -> keys -> App ()
-resetOne2OneGroupGeneric cid conv keys = do
-  convId <- objSubConvObject conv
+resetOne2OneGroupGeneric :: (HasCallStack, MakesValue conv, MakesValue keys) => Ciphersuite -> ClientIdentity -> conv -> keys -> App ()
+resetOne2OneGroupGeneric cs cid conv keys = do
+  convId <- objConvId conv
   groupId <- conv %. "group_id" & asString
   modifyMLSState $ \s ->
-    s
-      { groupId = Just groupId,
-        convId = Just convId,
-        members = Set.singleton cid,
-        epoch = 0,
-        newMembers = mempty
-      }
-  resetClientGroup cid groupId keys
+    let newMLSConv =
+          MLSConv
+            { members = Set.singleton cid,
+              newMembers = mempty,
+              groupId = groupId,
+              convId = convId,
+              epoch = 0,
+              ciphersuite = cs
+            }
+        resetConv old new =
+          old
+            { groupId = new.groupId,
+              convId = new.convId,
+              members = new.members,
+              newMembers = new.newMembers,
+              epoch = new.epoch
+            }
+     in s {convs = Map.insertWith resetConv convId newMLSConv s.convs}
 
-resetClientGroup :: (HasCallStack, MakesValue keys) => ClientIdentity -> String -> keys -> App ()
-resetClientGroup cid gid keys = do
-  mls <- getMLSState
-  removalKey <- asByteString $ keys %. ("removal." <> csSignatureScheme mls.ciphersuite)
+  resetClientGroup cs cid groupId convId keys
+
+resetClientGroup :: (HasCallStack, MakesValue keys) => Ciphersuite -> ClientIdentity -> String -> ConvId -> keys -> App ()
+resetClientGroup cs cid gid convId keys = do
+  removalKey <- asByteString $ keys %. ("removal." <> csSignatureScheme cs)
   void $
     mlscli
+      (Just convId)
+      cs
       cid
       [ "group",
         "create",
@@ -276,7 +286,7 @@ resetClientGroup cid gid keys = do
         "--group-out",
         "<group-out>",
         "--ciphersuite",
-        mls.ciphersuite.code,
+        cs.code,
         gid
       ]
       (Just removalKey)
@@ -310,13 +320,13 @@ unbundleKeyPackages bundle = do
 -- Note that this alters the state of the group immediately. If we want to test
 -- a scenario where the commit is rejected by the backend, we can restore the
 -- group to the previous state by using an older version of the group file.
-createAddCommit :: (HasCallStack) => ClientIdentity -> [Value] -> App MessagePackage
-createAddCommit cid users = do
-  mls <- getMLSState
+createAddCommit :: (HasCallStack) => ClientIdentity -> ConvId -> [Value] -> App MessagePackage
+createAddCommit cid convId users = do
+  conv <- getMLSConv convId
   kps <- fmap concat . for users $ \user -> do
-    bundle <- claimKeyPackages mls.ciphersuite cid user >>= getJSON 200
+    bundle <- claimKeyPackages conv.ciphersuite cid user >>= getJSON 200
     unbundleKeyPackages bundle
-  createAddCommitWithKeyPackages cid kps
+  createAddCommitWithKeyPackages cid convId kps
 
 withTempKeyPackageFile :: ByteString -> ContT a App FilePath
 withTempKeyPackageFile bs = do
@@ -332,15 +342,19 @@ withTempKeyPackageFile bs = do
 createAddCommitWithKeyPackages ::
   (HasCallStack) =>
   ClientIdentity ->
+  ConvId ->
   [(ClientIdentity, ByteString)] ->
   App MessagePackage
-createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
+createAddCommitWithKeyPackages cid convId clientsAndKeyPackages = do
   bd <- getBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   giFile <- liftIO $ emptyTempFile bd "gi"
+  Just conv <- Map.lookup convId . (.convs) <$> getMLSState
 
   commit <- runContT (traverse (withTempKeyPackageFile . snd) clientsAndKeyPackages) $ \kpFiles ->
     mlscli
+      (Just convId)
+      conv.ciphersuite
       cid
       ( [ "member",
           "add",
@@ -359,7 +373,13 @@ createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
 
   modifyMLSState $ \mls ->
     mls
-      { newMembers = Set.fromList (map fst clientsAndKeyPackages)
+      { convs =
+          Map.adjust
+            ( \oldConvState ->
+                oldConvState {newMembers = Set.fromList (map fst clientsAndKeyPackages)}
+            )
+            convId
+            mls.convs
       }
 
   welcome <- liftIO $ BS.readFile welcomeFile
@@ -367,25 +387,30 @@ createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
   pure $
     MessagePackage
       { sender = cid,
+        convId = convId,
         message = commit,
         welcome = Just welcome,
         groupInfo = Just gi
       }
 
-createRemoveCommit :: (HasCallStack) => ClientIdentity -> [ClientIdentity] -> App MessagePackage
-createRemoveCommit cid targets = do
+createRemoveCommit :: (HasCallStack) => ClientIdentity -> ConvId -> [ClientIdentity] -> App MessagePackage
+createRemoveCommit cid convId targets = do
   bd <- getBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   giFile <- liftIO $ emptyTempFile bd "gi"
 
   groupStateMap <- do
     gs <- getClientGroupState cid
-    groupData <- assertJust "Group state not initialised" gs.group
+    groupData <- assertJust "Group state not initialised" (Map.lookup convId gs.groups)
     Map.fromList <$> readGroupState groupData
   let indices = map (fromMaybe (error "could not find target") . flip Map.lookup groupStateMap) targets
 
+  conv <- getMLSConv convId
+
   commit <-
     mlscli
+      (Just convId)
+      conv.ciphersuite
       cid
       ( [ "member",
           "remove",
@@ -408,58 +433,71 @@ createRemoveCommit cid targets = do
   pure
     MessagePackage
       { sender = cid,
+        convId = convId,
         message = commit,
         welcome = Just welcome,
         groupInfo = Just gi
       }
 
-createAddProposals :: (HasCallStack) => ClientIdentity -> [Value] -> App [MessagePackage]
-createAddProposals cid users = do
-  mls <- getMLSState
+createAddProposals :: (HasCallStack) => ConvId -> ClientIdentity -> [Value] -> App [MessagePackage]
+createAddProposals convId cid users = do
+  Just mls <- Map.lookup convId . (.convs) <$> getMLSState
   bundles <- for users $ (claimKeyPackages mls.ciphersuite cid >=> getJSON 200)
   kps <- concat <$> traverse unbundleKeyPackages bundles
-  traverse (createAddProposalWithKeyPackage cid) kps
+  traverse (createAddProposalWithKeyPackage convId cid) kps
 
-createReInitProposal :: (HasCallStack) => ClientIdentity -> App MessagePackage
-createReInitProposal cid = do
+createReInitProposal :: (HasCallStack) => ConvId -> ClientIdentity -> App MessagePackage
+createReInitProposal convId cid = do
+  conv <- getMLSConv convId
   prop <-
     mlscli
+      (Just convId)
+      conv.ciphersuite
       cid
       ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "re-init"]
       Nothing
   pure
     MessagePackage
       { sender = cid,
+        convId = convId,
         message = prop,
         welcome = Nothing,
         groupInfo = Nothing
       }
 
 createAddProposalWithKeyPackage ::
+  ConvId ->
   ClientIdentity ->
   (ClientIdentity, ByteString) ->
   App MessagePackage
-createAddProposalWithKeyPackage cid (_, kp) = do
+createAddProposalWithKeyPackage convId cid (_, kp) = do
+  conv <- getMLSConv convId
   prop <- runContT (withTempKeyPackageFile kp) $ \kpFile ->
     mlscli
+      (Just convId)
+      conv.ciphersuite
       cid
       ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "add", kpFile]
       Nothing
   pure
     MessagePackage
       { sender = cid,
+        convId = convId,
         message = prop,
         welcome = Nothing,
         groupInfo = Nothing
       }
 
-createPendingProposalCommit :: (HasCallStack) => ClientIdentity -> App MessagePackage
-createPendingProposalCommit cid = do
+createPendingProposalCommit :: (HasCallStack) => ConvId -> ClientIdentity -> App MessagePackage
+createPendingProposalCommit convId cid = do
   bd <- getBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
+  conv <- getMLSConv convId
   commit <-
     mlscli
+      (Just convId)
+      conv.ciphersuite
       cid
       [ "commit",
         "--group",
@@ -478,6 +516,7 @@ createPendingProposalCommit cid = do
   pure
     MessagePackage
       { sender = cid,
+        convId = convId,
         message = commit,
         welcome = welcome,
         groupInfo = Just pgs
@@ -485,18 +524,21 @@ createPendingProposalCommit cid = do
 
 createExternalCommit ::
   (HasCallStack) =>
+  ConvId ->
   ClientIdentity ->
   Maybe ByteString ->
   App MessagePackage
-createExternalCommit cid mgi = do
+createExternalCommit convId cid mgi = do
   bd <- getBaseDir
   giFile <- liftIO $ emptyTempFile bd "gi"
-  conv <- getConv
   gi <- case mgi of
-    Nothing -> getGroupInfo cid conv >>= getBody 200
+    Nothing -> getGroupInfo cid convId >>= getBody 200
     Just v -> pure v
+  conv <- getMLSConv convId
   commit <-
     mlscli
+      (Just convId)
+      conv.ciphersuite
       cid
       [ "external-commit",
         "--group-info-in",
@@ -510,7 +552,7 @@ createExternalCommit cid mgi = do
 
   modifyMLSState $ \mls ->
     mls
-      { newMembers = Set.singleton cid
+      { convs = Map.adjust (\oldConvState -> oldConvState {newMembers = Set.singleton cid}) convId mls.convs
       -- This might be a different client than those that have been in the
       -- group from before.
       }
@@ -519,6 +561,7 @@ createExternalCommit cid mgi = do
   pure $
     MessagePackage
       { sender = cid,
+        convId = convId,
         message = commit,
         welcome = Nothing,
         groupInfo = Just newPgs
@@ -527,25 +570,13 @@ createExternalCommit cid mgi = do
 data MLSNotificationTag = MLSNotificationMessageTag | MLSNotificationWelcomeTag
   deriving (Show, Eq, Ord)
 
--- | Extract a conversation ID (including an optional subconversation) from an
--- event object.
-eventSubConv :: (HasCallStack) => (MakesValue event) => event -> App Value
-eventSubConv event = do
-  sub <- lookupField event "subconv"
-  conv <- event %. "qualified_conversation"
-  objSubConvObject $
-    object
-      [ "parent_qualified_id" .= conv,
-        "subconv_id" .= sub
-      ]
-
-consumingMessages :: (HasCallStack) => MessagePackage -> Codensity App ()
-consumingMessages mp = Codensity $ \k -> do
-  mls <- getMLSState
+consumingMessages :: (HasCallStack) => MLSProtocol -> MessagePackage -> Codensity App ()
+consumingMessages mlsProtocol mp = Codensity $ \k -> do
+  conv <- getMLSConv mp.convId
   -- clients that should receive the message itself
-  let oldClients = Set.delete mp.sender mls.members
+  let oldClients = Set.delete mp.sender conv.members
   -- clients that should receive a welcome message
-  let newClients = Set.delete mp.sender mls.newMembers
+  let newClients = Set.delete mp.sender conv.newMembers
   -- all clients that should receive some MLS notification, together with the
   -- expected notification tag
   let clients =
@@ -561,10 +592,12 @@ consumingMessages mp = Codensity $ \k -> do
     r <- k ()
 
     -- if the conversation is actually MLS (and not mixed), pick one client for
-    -- each new user and wait for its join event
-    when (mls.protocol == MLSProtocolMLS) $
+    -- each new user and wait for its join event. In Mixed protocol, the user is
+    -- already in the conversation so they do not get a member-join
+    -- notification.
+    when (mlsProtocol == MLSProtocolMLS) $
       traverse_
-        (awaitMatch isMemberJoinNotif)
+        (awaitMatch (\n -> isMemberJoinNotif n))
         ( flip Map.restrictKeys newUsers
             . Map.mapKeys ((.user) . fst)
             . Map.fromList
@@ -575,50 +608,53 @@ consumingMessages mp = Codensity $ \k -> do
     -- at this point we know that every new user has been added to the
     -- conversation
     for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-      MLSNotificationMessageTag -> void $ consumeMessageNoExternal cid (Just mp) ws
+      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
       MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
     pure r
 
-consumeMessageWithPredicate :: (HasCallStack) => (Value -> App Bool) -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
-consumeMessageWithPredicate p cid mmp ws = do
-  mls <- getMLSState
+consumeMessageWithPredicate :: (HasCallStack) => (Value -> App Bool) -> ConvId -> Ciphersuite -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
+consumeMessageWithPredicate p convId cs cid mmp ws = do
   notif <- awaitMatch p ws
   event <- notif %. "payload.0"
 
+  event %. "qualified_conversation" `shouldMatch` convIdToQidObject convId
+  lookupField event "subconv" `shouldMatch` convId.subconvId
+
   for_ mmp $ \mp -> do
-    shouldMatch (eventSubConv event) (fromMaybe A.Null mls.convId)
-    shouldMatch (event %. "from") mp.sender.user
-    shouldMatch (event %. "data") (B8.unpack (Base64.encode mp.message))
+    event %. "from" `shouldMatch` mp.sender.user
+    event %. "data" `shouldMatch` (B8.unpack (Base64.encode mp.message))
 
   msgData <- event %. "data" & asByteString
-  _ <- mlsCliConsume cid msgData
-  showMessage cid msgData
+  _ <- mlsCliConsume convId cs cid msgData
+  showMessage cs cid msgData
 
 -- | Get a single MLS message from a websocket and consume it. Return a JSON
 -- representation of the message.
-consumeMessage :: (HasCallStack) => ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
+consumeMessage :: (HasCallStack) => ConvId -> Ciphersuite -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
 consumeMessage = consumeMessageWithPredicate isNewMLSMessageNotif
 
 -- | like 'consumeMessage' but will not consume a message where the sender is the backend
-consumeMessageNoExternal :: (HasCallStack) => ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
-consumeMessageNoExternal cid = consumeMessageWithPredicate isNewMLSMessageNotifButNoProposal cid
+consumeMessageNoExternal :: (HasCallStack) => Ciphersuite -> ClientIdentity -> MessagePackage -> WebSocket -> App Value
+consumeMessageNoExternal cs cid mp = consumeMessageWithPredicate isNewMLSMessageNotifButNoProposal mp.convId cs cid (Just mp)
   where
     -- the backend (correctly) reacts to a commit removing someone from a parent conversation with a
     -- remove proposal, however, we don't want to consume this here
     isNewMLSMessageNotifButNoProposal :: Value -> App Bool
     isNewMLSMessageNotifButNoProposal n = do
-      isNotif <- isNewMLSMessageNotif n
-      if isNotif
+      isRelevantNotif <- isNewMLSMessageNotif n &&~ isNotifConvId mp.convId n
+      if isRelevantNotif
         then do
-          msg <- n %. "payload.0.data" & asByteString >>= showMessage cid
+          msg <- n %. "payload.0.data" & asByteString >>= showMessage cs cid
           sender <- msg `lookupField` "message.content.sender" `catch` \(_ :: AssertionFailure) -> pure Nothing
           let backendSender = object ["External" .= Number 0]
           pure $ sender /= Just backendSender
         else pure False
 
-mlsCliConsume :: (HasCallStack) => ClientIdentity -> ByteString -> App ByteString
-mlsCliConsume cid msgData =
+mlsCliConsume :: (HasCallStack) => ConvId -> Ciphersuite -> ClientIdentity -> ByteString -> App ByteString
+mlsCliConsume convId cs cid msgData =
   mlscli
+    (Just convId)
+    cs
     cid
     [ "consume",
       "--group",
@@ -632,58 +668,74 @@ mlsCliConsume cid msgData =
 -- | Send an MLS message, wait for clients to receive it, then consume it on
 -- the client side. If the message is a commit, the
 -- 'sendAndConsumeCommitBundle' function should be used instead.
+--
+-- returns response body of 'postMLSMessage'
 sendAndConsumeMessage :: (HasCallStack) => MessagePackage -> App Value
 sendAndConsumeMessage mp = lowerCodensity $ do
-  consumingMessages mp
+  consumingMessages MLSProtocolMLS mp
   lift $ postMLSMessage mp.sender mp.message >>= getJSON 201
+
+sendAndConsumeCommitBundle :: (HasCallStack) => MessagePackage -> App Value
+sendAndConsumeCommitBundle = sendAndConsumeCommitBundleWithProtocol MLSProtocolMLS
 
 -- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
 -- update the test state accordingly.
-sendAndConsumeCommitBundle :: (HasCallStack) => MessagePackage -> App Value
-sendAndConsumeCommitBundle mp = do
+sendAndConsumeCommitBundleWithProtocol :: (HasCallStack) => MLSProtocol -> MessagePackage -> App Value
+sendAndConsumeCommitBundleWithProtocol protocol mp = do
   lowerCodensity $ do
-    consumingMessages mp
+    consumingMessages protocol mp
     lift $ do
       r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
       -- if the sender is a new member (i.e. it's an external commit), then
       -- process the welcome message directly
       do
-        mls <- getMLSState
-        when (Set.member mp.sender mls.newMembers) $
-          traverse_ (fromWelcome mp.sender) mp.welcome
+        conv <- getMLSConv mp.convId
+        when (Set.member mp.sender conv.newMembers) $
+          traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
 
       -- increment epoch and add new clients
       modifyMLSState $ \mls ->
         mls
-          { epoch = epoch mls + 1,
-            members = members mls <> newMembers mls,
-            newMembers = mempty
+          { convs =
+              Map.adjust
+                ( \conv ->
+                    conv
+                      { epoch = conv.epoch + 1,
+                        members = conv.members <> conv.newMembers,
+                        newMembers = mempty
+                      }
+                )
+                mp.convId
+                mls.convs
           }
 
       pure r
 
 consumeWelcome :: (HasCallStack) => ClientIdentity -> MessagePackage -> WebSocket -> App ()
 consumeWelcome cid mp ws = do
-  mls <- getMLSState
   notif <- awaitMatch isWelcomeNotif ws
   event <- notif %. "payload.0"
 
-  shouldMatch (eventSubConv event) (fromMaybe A.Null mls.convId)
-  shouldMatch (event %. "from") mp.sender.user
-  shouldMatch (event %. "data") (fmap (B8.unpack . Base64.encode) mp.welcome)
+  event %. "qualified_conversation" `shouldMatch` convIdToQidObject mp.convId
+  lookupField event "subconv" `shouldMatch` mp.convId.subconvId
+  event %. "from" `shouldMatch` mp.sender.user
+  event %. "data" `shouldMatch` (fmap (B8.unpack . Base64.encode) mp.welcome)
 
   welcome <- event %. "data" & asByteString
   gs <- getClientGroupState cid
   assertBool
     "Existing clients in a conversation should not consume welcomes"
-    (isNothing gs.group)
-  fromWelcome cid welcome
+    (not $ Map.member mp.convId gs.groups)
+  conv <- getMLSConv mp.convId
+  fromWelcome mp.convId conv.ciphersuite cid welcome
 
-fromWelcome :: ClientIdentity -> ByteString -> App ()
-fromWelcome cid welcome =
+fromWelcome :: ConvId -> Ciphersuite -> ClientIdentity -> ByteString -> App ()
+fromWelcome convId cs cid welcome =
   void $
     mlscli
+      (Just convId)
+      cs
       cid
       [ "group",
         "from-welcome",
@@ -733,9 +785,9 @@ setClientGroupState cid g =
   modifyMLSState $ \s ->
     s {clientGroupState = Map.insert cid g (clientGroupState s)}
 
-showMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Value
-showMessage cid msg = do
-  bs <- mlscli cid ["show", "message", "-"] (Just msg)
+showMessage :: (HasCallStack) => Ciphersuite -> ClientIdentity -> ByteString -> App Value
+showMessage cs cid msg = do
+  bs <- mlscli Nothing cs cid ["show", "message", "-"] (Just msg)
   assertOne (Aeson.decode (BS.fromStrict bs))
 
 readGroupState :: (HasCallStack) => ByteString -> App [(ClientIdentity, Word32)]
@@ -760,12 +812,16 @@ readGroupState gs = do
 
 createApplicationMessage ::
   (HasCallStack) =>
+  ConvId ->
   ClientIdentity ->
   String ->
   App MessagePackage
-createApplicationMessage cid messageContent = do
+createApplicationMessage convId cid messageContent = do
+  conv <- getMLSConv convId
   message <-
     mlscli
+      (Just convId)
+      conv.ciphersuite
       cid
       ["message", "--group-in", "<group-in>", messageContent, "--group-out", "<group-out>"]
       Nothing
@@ -773,36 +829,37 @@ createApplicationMessage cid messageContent = do
   pure
     MessagePackage
       { sender = cid,
+        convId = convId,
         message = message,
         welcome = Nothing,
         groupInfo = Nothing
       }
 
-setMLSCiphersuite :: Ciphersuite -> App ()
-setMLSCiphersuite suite = modifyMLSState $ \mls -> mls {ciphersuite = suite}
-
-leaveCurrentConv ::
+leaveConv ::
   (HasCallStack) =>
+  ConvId ->
   ClientIdentity ->
   App ()
-leaveCurrentConv cid = do
-  mls <- getMLSState
-  (_, mSubId) <- objSubConv mls.convId
-  case mSubId of
+leaveConv convId cid = do
+  case convId.subconvId of
     -- FUTUREWORK: implement leaving main conversation as well
     Nothing -> assertFailure "Leaving conversations is not supported"
     Just _ -> do
-      void $ leaveSubConversation cid mls.convId >>= getBody 200
+      void $ leaveSubConversation cid convId >>= getBody 200
       modifyMLSState $ \s ->
         s
-          { members = Set.difference mls.members (Set.singleton cid)
+          { convs = Map.adjust (\conv -> conv {members = Set.delete cid conv.members}) convId s.convs
           }
 
-getCurrentConv :: (HasCallStack) => ClientIdentity -> App Value
-getCurrentConv cid = do
-  mls <- getMLSState
-  (conv, mSubId) <- objSubConv mls.convId
-  resp <- case mSubId of
-    Nothing -> getConversation cid conv
-    Just sub -> getSubConversation cid conv sub
+getConv :: (HasCallStack) => ConvId -> ClientIdentity -> App Value
+getConv convId cid = do
+  resp <- case convId.subconvId of
+    Nothing -> getConversation cid (convIdToQidObject convId)
+    Just sub -> getSubConversation cid convId sub
   getJSON 200 resp
+
+getSubConvId :: (MakesValue user, HasCallStack) => user -> ConvId -> String -> App ConvId
+getSubConvId user convId subConvName =
+  getSubConversation user convId subConvName
+    >>= getJSON 200
+    >>= objConvId

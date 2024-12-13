@@ -30,18 +30,26 @@ module Cannon.Options
     logNetStrings,
     logFormat,
     drainOpts,
+    rabbitmq,
+    cassandraOpts,
+    rabbitMqMaxConnections,
+    rabbitMqMaxChannels,
     Opts,
     gracePeriodSeconds,
     millisecondsBetweenBatches,
     minBatchSize,
     disabledAPIVersions,
     DrainOpts,
+    validateOpts,
   )
 where
 
+import Cassandra.Options (CassandraOpts)
 import Control.Lens (makeFields)
+import Data.Aeson
 import Data.Aeson.APIFieldJsonTH
 import Imports
+import Network.AMQP.Extended (AmqpEndpoint)
 import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
 
@@ -74,7 +82,7 @@ data DrainOpts = DrainOpts
     -- there are not many users connected. Must not be set to 0.
     _drainOptsMillisecondsBetweenBatches :: Word64,
     -- | Batch size is calculated considering actual number of websockets and
-    -- gracePeriod. If this number is too little, '_drainOptsMinBatchSize' is
+    -- gracePeriod. If this number is too small, '_drainOptsMinBatchSize' is
     -- used.
     _drainOptsMinBatchSize :: Word64
   }
@@ -87,14 +95,40 @@ deriveApiFieldJSON ''DrainOpts
 data Opts = Opts
   { _optsCannon :: !Cannon,
     _optsGundeck :: !Gundeck,
+    _optsRabbitmq :: !AmqpEndpoint,
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
     _optsDrainOpts :: DrainOpts,
-    _optsDisabledAPIVersions :: !(Set VersionExp)
+    _optsDisabledAPIVersions :: !(Set VersionExp),
+    _optsCassandraOpts :: !CassandraOpts,
+    -- | Maximum number of rabbitmq connections. Must be strictly positive.
+    _optsRabbitMqMaxConnections :: Int,
+    -- | Maximum number of rabbitmq channels per connection. Must be strictly positive.
+    _optsRabbitMqMaxChannels :: Int
   }
-  deriving (Eq, Show, Generic)
+  deriving (Show, Generic)
 
 makeFields ''Opts
 
-deriveApiFieldJSON ''Opts
+validateOpts :: Opts -> IO ()
+validateOpts opts = do
+  when (opts._optsRabbitMqMaxConnections <= 0) $ do
+    fail "rabbitMqMaxConnections must be strictly positive"
+  when (opts._optsRabbitMqMaxChannels <= 0) $ do
+    fail "rabbitMqMaxChannels must be strictly positive"
+
+instance FromJSON Opts where
+  parseJSON = withObject "CannonOpts" $ \o ->
+    Opts
+      <$> o .: "cannon"
+      <*> o .: "gundeck"
+      <*> o .: "rabbitmq"
+      <*> o .: "logLevel"
+      <*> o .:? "logNetStrings"
+      <*> o .:? "logFormat"
+      <*> o .: "drainOpts"
+      <*> o .: "disabledAPIVersions"
+      <*> o .: "cassandra"
+      <*> o .:? "rabbitMqMaxConnections" .!= 1000
+      <*> o .:? "rabbitMqMaxChannels" .!= 300

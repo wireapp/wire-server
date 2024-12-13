@@ -182,7 +182,7 @@ instance ToSchema ScimTokenInfo where
         <*> (.stiName) .= field "name" schema
 
 -- | Metadata that we store about each token.
-data ScimTokenInfoV6 = ScimTokenInfoV6
+data ScimTokenInfoV7 = ScimTokenInfoV7
   { -- | Which team can be managed with the token
     stiTeam :: !TeamId,
     -- | Token ID, can be used to eg. delete the token
@@ -196,13 +196,13 @@ data ScimTokenInfoV6 = ScimTokenInfoV6
     stiDescr :: !Text
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ScimTokenInfoV6)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenInfoV6)
+  deriving (Arbitrary) via (GenericUniform ScimTokenInfoV7)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenInfoV7)
 
-instance ToSchema ScimTokenInfoV6 where
+instance ToSchema ScimTokenInfoV7 where
   schema =
-    object "ScimTokenInfoV6" $
-      ScimTokenInfoV6
+    object "ScimTokenInfoV7" $
+      ScimTokenInfoV7
         <$> (.stiTeam) .= field "team" schema
         <*> (.stiId) .= field "id" schema
         <*> (.stiCreatedAt) .= field "created_at" utcTimeSchema
@@ -424,26 +424,38 @@ data CreateScimToken = CreateScimToken
     -- | User code (sent by email), for 2nd factor to 'password'
     verificationCode :: !(Maybe Code.Value),
     -- | Optional name for the token
-    name :: Maybe Text
+    name :: Maybe Text,
+    -- | Optional IdP that created users will "belong" to
+    idp :: Maybe SAML.IdPId
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateScimToken)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema CreateScimToken)
 
 createScimTokenSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateScimToken
-createScimTokenSchema v =
-  object ("CreateScimToken" <> foldMap (Text.toUpper . versionText) v) $
+createScimTokenSchema mVersion =
+  object ("CreateScimToken" <> foldMap (Text.toUpper . versionText) mVersion) $
     CreateScimToken
       <$> (.description) .= field "description" schema
       <*> password .= optField "password" (maybeWithDefault A.Null schema)
       <*> verificationCode .= optField "verification_code" (maybeWithDefault A.Null schema)
-      <*> (if isJust v then const Nothing else (.name)) .= maybe_ (optField "name" schema)
+      <*> nameSchema
+      <*> idpSchema
+  where
+    nameSchema =
+      case mVersion of
+        Just v | v <= V7 -> const Nothing .= pure Nothing
+        _ -> (.name) .= maybe_ (optField "name" schema)
+    idpSchema =
+      case mVersion of
+        Just v | v <= V7 -> const Nothing .= pure Nothing
+        _ -> (fmap SAML.fromIdPId . idp) .= maybe_ (optField "idp" (SAML.IdPId <$> uuidSchema))
 
 instance ToSchema CreateScimToken where
   schema = createScimTokenSchema Nothing
 
-instance ToSchema (Versioned 'V6 CreateScimToken) where
-  schema = Versioned <$> unVersioned .= createScimTokenSchema (Just V6)
+instance ToSchema (Versioned 'V7 CreateScimToken) where
+  schema = Versioned <$> unVersioned .= createScimTokenSchema (Just V7)
 
 -- | Type used for the response of 'APIScimTokenCreate'.
 data CreateScimTokenResponse = CreateScimTokenResponse
@@ -461,18 +473,18 @@ instance ToSchema CreateScimTokenResponse where
         <$> (.token) .= field "token" schema
         <*> (.info) .= field "info" schema
 
-data CreateScimTokenResponseV6 = CreateScimTokenResponseV6
+data CreateScimTokenResponseV7 = CreateScimTokenResponseV7
   { token :: ScimToken,
-    info :: ScimTokenInfoV6
+    info :: ScimTokenInfoV7
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform CreateScimTokenResponseV6)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema CreateScimTokenResponseV6)
+  deriving (Arbitrary) via (GenericUniform CreateScimTokenResponseV7)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema CreateScimTokenResponseV7)
 
-instance ToSchema CreateScimTokenResponseV6 where
+instance ToSchema CreateScimTokenResponseV7 where
   schema =
-    object "CreateScimTokenResponseV6" $
-      CreateScimTokenResponseV6
+    object "CreateScimTokenResponseV7" $
+      CreateScimTokenResponseV7
         <$> (.token) .= field "token" schema
         <*> (.info) .= field "info" schema
 
@@ -489,14 +501,14 @@ data ScimTokenList = ScimTokenList
 instance ToSchema ScimTokenList where
   schema = object "ScimTokenList" $ ScimTokenList <$> (.scimTokenListTokens) .= field "tokens" (array schema)
 
-data ScimTokenListV6 = ScimTokenListV6
-  { scimTokenListTokens :: [ScimTokenInfoV6]
+data ScimTokenListV7 = ScimTokenListV7
+  { scimTokenListTokens :: [ScimTokenInfoV7]
   }
   deriving (Eq, Show)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenListV6)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenListV7)
 
-instance ToSchema ScimTokenListV6 where
-  schema = object "ScimTokenListV6" $ ScimTokenListV6 <$> (.scimTokenListTokens) .= field "tokens" (array schema)
+instance ToSchema ScimTokenListV7 where
+  schema = object "ScimTokenListV7" $ ScimTokenListV7 <$> (.scimTokenListTokens) .= field "tokens" (array schema)
 
 newtype ScimTokenName = ScimTokenName {fromScimTokenName :: Text}
   deriving (Eq, Show)

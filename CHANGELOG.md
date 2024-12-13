@@ -1,3 +1,69 @@
+# [2024-12-11] (Chart Release 5.8.0)
+
+## Release notes
+
+
+* [RabbitMQ events] Notifications are now also sent via RabbitMQ. Therefore RabbitMQ is now a required dependency for Cannon and Gundeck.  Cassandra is now a required dependency for Cannon and Background-Worker.  Both of them need access to the Gundeck keyspace.  These are breaking changes for Charts. (#4272, #4358, #4340)
+
+* If brig's server values config has the field `emailSMS.team`, the correct value for the personal user to team invitation URL must be set under `emailSMS.team.tExistingUserInvitationUrl`. Otherwise the URL will point to a path under the account pages and therefore a value for `externalUrls.accountPages` is required. (#4341)
+
+
+## API changes
+
+
+* The endpoint `POST /teams/:tid/invitations` gained a new optional field `allow_existing`, which controls whether an existing personal user should be invited to the team (#4336)
+
+
+## Features
+
+
+* Welcome email for new team owner. (#4333)
+
+* Added inviter's email to `GET /teams/invitation/info` endpoint. (#4332)
+
+
+## Bug fixes and other updates
+
+
+* Updated `nginz` config for personal user to team flow (#4334)
+
+* Freeze API version 7, create new dev version 8.  Also update checklist. (#4356, #4356)
+
+* Fixed config for personal user to team invitation URL template. (#4341)
+
+* Fixed search index after personal user creates team (#4362)
+
+
+## Documentation
+
+
+* Add a few more swagger descriptions and examples. (#4323)
+
+
+## Internal changes
+
+
+* `charts/wire-server-enterprise` is a Helm chart to run the `wire-server-enterprise`
+  service. This service can only be deployed with an image pull secret (the
+  registry is not open to public.) (#4359)
+
+* [Polysemy] Move email update and remove operations to effects (#4316, #4316)
+
+* Log uncaught IO exceptions in cargohold (#4352)
+
+* Updated email templates to v1.0.124 (#4328)
+
+* charts/galley: Make missing mls keys a templating error. Update MLS docs. (#4369)
+
+* [RabbitMQ events] New endpoint `GET /events` for consuming events is added (in API V8).
+
+  - When a client misses notifications because it was offline for too long, it needs to know this information so it can do a full synchronisation. This appears as the first notification in `GET /events` endpoint whenever the system detects this happening. The next acknowledgement of the message makes this notification not appear anymore until the next notification is missed. (#4272)
+  - New internal endpoint `POST /i/users/:uid/clients/:cid/consumable-notifications` is added (#4272)
+  - Connection pooling in cannon (#4348)
+  - Add consumers to the draining step on Cannon, in case of termination. (#4342)
+  - List queues more efficiently. (#4351)
+
+
 # [2024-11-04] (Chart Release 5.7.0)
 
 ## Bug fixes and other updates

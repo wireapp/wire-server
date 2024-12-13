@@ -307,37 +307,40 @@ runMiniStackWithControlledDelay mockConfig delayControl actualPushesRef = do
     . runControlledDelay delayControl
     . runInputConst mockConfig
 
-runGundeckAPIAccessFailure :: (Member (Embed IO) r) => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
+runGundeckAPIAccessFailure :: forall r a. (Member (Embed IO) r) => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
 runGundeckAPIAccessFailure pushesRef =
   interpret $ \action -> do
+    let unexpectedCall :: forall x. Sem r x
+        unexpectedCall = do
+          liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: " <> show action
+          error "impossible"
     case action of
       PushV2 pushes -> liftIO $ do
         modifyIORef pushesRef (<> [pushes])
         throwIO TestException
-      GundeckAPIAccess.UserDeleted uid ->
-        liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: UserDeleted " <> show uid
-      GundeckAPIAccess.UnregisterPushClient uid cid ->
-        liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: UnregisterPushClient " <> show uid <> " " <> show cid
-      GundeckAPIAccess.GetPushTokens uid -> do
-        liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: GetPushTokens " <> show uid
-        error "impossible"
+      GundeckAPIAccess.UserDeleted {} -> unexpectedCall
+      GundeckAPIAccess.UnregisterPushClient {} -> unexpectedCall
+      GundeckAPIAccess.GetPushTokens {} -> unexpectedCall
+      GundeckAPIAccess.RegisterConsumableNotifcationsClient {} -> unexpectedCall
 
 data TestException = TestException
   deriving (Show)
 
 instance Exception TestException
 
-runGundeckAPIAccessIORef :: (Member (Embed IO) r) => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
+runGundeckAPIAccessIORef :: forall r a. (Member (Embed IO) r) => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
 runGundeckAPIAccessIORef pushesRef =
-  interpret \case
-    PushV2 pushes -> modifyIORef pushesRef (<> [pushes])
-    GundeckAPIAccess.UserDeleted uid ->
-      liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: UserDeleted " <> show uid
-    GundeckAPIAccess.UnregisterPushClient uid cid ->
-      liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: UnregisterPushClient " <> show uid <> " " <> show cid
-    GundeckAPIAccess.GetPushTokens uid -> do
-      liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: GetPushTokens " <> show uid
-      error "impossible"
+  interpret \action -> do
+    let unexpectedCall :: forall x. Sem r x
+        unexpectedCall = do
+          liftIO $ expectationFailure $ "Unexpected call to GundeckAPI " <> show action
+          error "impossible"
+    case action of
+      PushV2 pushes -> modifyIORef pushesRef (<> [pushes])
+      GundeckAPIAccess.UserDeleted {} -> unexpectedCall
+      GundeckAPIAccess.UnregisterPushClient {} -> unexpectedCall
+      GundeckAPIAccess.GetPushTokens {} -> unexpectedCall
+      GundeckAPIAccess.RegisterConsumableNotifcationsClient {} -> unexpectedCall
 
 waitUntilPushes :: IORef [a] -> Int -> IO [a]
 waitUntilPushes pushesRef n = do

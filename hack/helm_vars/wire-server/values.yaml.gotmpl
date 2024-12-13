@@ -57,6 +57,7 @@ brig:
       nginz: https://kube-staging-nginz-https.zinfra.io
       teamCreatorWelcome: https://teams.wire.com/login
       teamMemberWelcome: https://wire.com/download
+      accountPages: https://account.wire.com
     cassandra:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
@@ -80,7 +81,7 @@ brig:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
     authSettings:
       userTokenTimeout: 120
@@ -134,7 +135,7 @@ brig:
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
-      # These values are insecure, against anyone getting hold of the hash, 
+      # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
       setPasswordHashingOptions:
         algorithm: argon2id
@@ -205,7 +206,23 @@ cannon:
       memory: 512Mi
   drainTimeout: 0
   config:
+    cassandra:
+      host: {{ .Values.cassandraHost }}
+      replicaCount: 1
     disabledAPIVersions: []
+    rabbitmq:
+      port: 5671
+      adminPort: 15671
+      enableTls: true
+      insecureSkipVerifyTls: false
+      tlsCaSecretRef:
+        name: "rabbitmq-certificate"
+        key: "ca.crt"
+  secrets:
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
+
 cargohold:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -252,7 +269,7 @@ galley:
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
     enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     settings:
@@ -265,7 +282,7 @@ galley:
       federationDomain: integration.example.com
       disabledAPIVersions: []
 
-      # These values are insecure, against anyone getting hold of the hash, 
+      # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
       passwordHashingOptions:
         algorithm: argon2id
@@ -373,6 +390,14 @@ gundeck:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
     {{- end }}
+    rabbitmq:
+      port: 5671
+      adminPort: 15671
+      enableTls: true
+      insecureSkipVerifyTls: false
+      tlsCaSecretRef:
+        name: "rabbitmq-certificate"
+        key: "ca.crt"
     redis:
       host: redis-ephemeral-master
       connectionMode: master
@@ -395,6 +420,9 @@ gundeck:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
     redisPassword: very-secure-redis-master-password
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
   tests:
     {{- if .Values.uploadXml }}
     config:
@@ -467,7 +495,7 @@ spar:
     ssoUri: http://spar:8080/sso
     maxttlAuthreq: 5
     maxttlAuthresp: 7200
-    maxScimTokens: 2
+    maxScimTokens: 8
     contacts:
     - type: ContactSupport
       company: Example Company
@@ -518,13 +546,21 @@ background-worker:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
       remotesRefreshInterval: 1000000 # 1s
+    cassandra:
+      host: {{ .Values.cassandraHost }}
+      replicaCount: 1
+      {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+      {{- end }}
     rabbitmq:
       port: 5671
       adminPort: 15671
       enableTls: true
       insecureSkipVerifyTls: false
       tlsCaSecretRef:
-        name: rabbitmq-certificate
+        name: "rabbitmq-certificate"
         key: "ca.crt"
   secrets:
     rabbitmq:

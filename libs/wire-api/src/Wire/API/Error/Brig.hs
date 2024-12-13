@@ -67,6 +67,7 @@ data BrigError
   | NameManagedByScim
   | HandleManagedByScim
   | LocaleManagedByScim
+  | EmailManagedByScim
   | LastIdentity
   | NoPassword
   | ChangePasswordMustDiffer
@@ -101,6 +102,7 @@ data BrigError
   | PropertyValueTooLarge
   | UserAlreadyInATeam
   | MLSServicesNotAllowed
+  | NotificationQueueConnectionError
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -247,6 +249,8 @@ type instance MapError 'HandleManagedByScim = 'StaticError 403 "managed-by-scim"
 
 type instance MapError 'LocaleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating locale is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
+type instance MapError 'EmailManagedByScim = 'StaticError 403 "managed-by-scim" "Updating email is not allowed, because it is managed by SCIM, or E2EId is enabled"
+
 type instance MapError 'LastIdentity = 'StaticError 403 "last-identity" "The last user identity cannot be removed."
 
 type instance MapError 'NoPassword = 'StaticError 403 "no-password" "The user has no password."
@@ -301,3 +305,5 @@ type instance MapError 'PropertyValueTooLarge = 'StaticError 403 "property-value
 type instance MapError 'UserAlreadyInATeam = 'StaticError 403 "user-already-in-a-team" "Switching teams is not allowed"
 
 type instance MapError 'MLSServicesNotAllowed = 'StaticError 409 "mls-services-not-allowed" "Services not allowed in MLS"
+
+type instance MapError 'NotificationQueueConnectionError = 'StaticError 500 "internal-server-error" "Internal server error"

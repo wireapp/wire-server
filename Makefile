@@ -7,7 +7,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana restund k8ssandra-test-cluster
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana restund k8ssandra-test-cluster wire-server-enterprise
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -18,7 +18,7 @@ fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
 nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper restund \
-k8ssandra-test-cluster ldap-scim-bridge
+k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 
@@ -51,7 +51,12 @@ install: init
 
 .PHONY: rabbit-clean
 rabbit-clean:
-	rabbitmqadmin -f pretty_json list queues vhost name messages | jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' | bash
+	rabbitmqadmin -f pretty_json list queues vhost name \
+		| jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' \
+		| bash
+	rabbitmqadmin -f pretty_json list exchanges name vhost \
+		| jq -r '.[] |select(.name | startswith("amq") | not) | select (.name != "") | "rabbitmqadmin delete exchange name=\(.name) --vhost=\(.vhost)"' \
+		| bash
 
 # Clean
 .PHONY: full-clean
@@ -134,7 +139,7 @@ crm: c db-migrate
 # Usage: TEST_INCLUDE=test1,test2 make devtest
 .PHONY: devtest
 devtest:
-	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
+	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
 sanitize-pr:
@@ -369,15 +374,6 @@ db-migrate: c
 
 libzauth:
 	$(MAKE) -C libs/libzauth install
-
-#################################
-# Useful when using Haskell IDE Engine
-# https://github.com/haskell/haskell-ide-engine
-#
-# Run this again after changes to libraries or dependencies.
-.PHONY: hie.yaml
-hie.yaml:
-	echo -e 'cradle:\n  cabal: {}' > hie.yaml
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes

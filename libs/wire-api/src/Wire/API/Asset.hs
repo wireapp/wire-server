@@ -177,8 +177,11 @@ assetKeyToText = T.decodeUtf8 . toByteString'
 instance ToSchema AssetKey where
   schema =
     assetKeyToText
-      .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
+      .= parsedTextWithDoc desc "AssetKey" (runParser parser . T.encodeUtf8)
       & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
+    where
+      desc =
+        "S3 asset key for an icon image with retention information."
 
 instance S.ToParamSchema AssetKey where
   toParamSchema _ = S.toParamSchema (Proxy @Text)
