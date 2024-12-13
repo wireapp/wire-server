@@ -302,6 +302,14 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    - name: RABBITMQ_USERNAME_V0
+      value: "dummy-rabbit-mq-username-v0" # todo
+    - name: RABBITMQ_PASSWORD_V0
+      value: "dummy-rabbit-mq-password-v0" # todo
+    - name: RABBITMQ_USERNAME_V1
+      value: "dummy-rabbit-mq-username-v1" # todo
+    - name: RABBITMQ_PASSWORD_V1
+      value: "dummy-rabbit-mq-password-v1" # todo
     {{- if hasKey .Values.secrets "redisUsername" }}
     - name: REDIS_USERNAME
       valueFrom:

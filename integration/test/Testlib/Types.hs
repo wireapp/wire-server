@@ -115,6 +115,8 @@ data GlobalEnv = GlobalEnv
     gServicesCwdBase :: Maybe FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
+    gRabbitMQConfigV0 :: Maybe RabbitMQConfig,
+    gRabbitMQConfigV1 :: Maybe RabbitMQConfig,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int
   }
@@ -127,6 +129,8 @@ data IntegrationConfig = IntegrationConfig
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
+    rabbitmqV0 :: Maybe RabbitMQConfig,
+    rabbitmqV1 :: Maybe RabbitMQConfig,
     cassandra :: CassandraConfig
   }
   deriving (Show, Generic)
@@ -142,6 +146,8 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
+        <*> o .:? fromString "rabbitmq-v0"
+        <*> o .:? fromString "rabbitmq-v1"
         <*> o .: fromString "cassandra"
 
 data ServiceMap = ServiceMap
