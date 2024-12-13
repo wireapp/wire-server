@@ -219,7 +219,7 @@ We support two different ways of managing the docker-compose instance of rabbitm
 ## Avoid Github HTTPS authentication for wire-server-enterprise
 
 Having to provide HTTPS authentication credentials is annoying. Unfortunately,
-we have to use HTTPS Git repository URLs in for submodules, because some
+we have to use HTTPS Git repository URLs for submodules, because some
 Concourse tasks require them (cannot clone with SSH.)
 
 A hacky workaround is to rewrite the URLs in the `~/.gitconfig`:
