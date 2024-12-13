@@ -90,7 +90,7 @@ mlscli mConvId cs cid args mbstdin = do
       liftIO (createDirectory (bd </> cid2Str cid))
         `catch` \e ->
           if (isAlreadyExistsError e)
-            then assertFailure "client directory for mls state already exists"
+            then pure () -- creates a file per signature scheme
             else throwM e
 
       -- initialise new keystore
