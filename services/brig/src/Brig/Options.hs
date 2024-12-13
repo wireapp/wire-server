@@ -586,7 +586,9 @@ data Settings = Settings
     -- use `oAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
     oAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
     -- | Options to override the default Argon2id settings for specific operators.
-    passwordHashingOptions :: !(PasswordHashingOptions)
+    passwordHashingOptions :: !(PasswordHashingOptions),
+    -- | Optional recipient email address for email domain registration audit logs
+    auditLogEmailRecipient :: !(Maybe EmailAddress)
   }
   deriving (Show, Generic)
 

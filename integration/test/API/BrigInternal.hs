@@ -329,3 +329,38 @@ putSSOId user args = do
           "subject" .= args.subject,
           "tenant" .= args.tenant
         ]
+
+domainRegistrationLock :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+domainRegistrationLock domain registrationDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain, "lock"]
+  submit "POST" req
+
+domainRegistrationUnlock :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+domainRegistrationUnlock domain registrationDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain, "unlock"]
+  submit "POST" req
+
+domainRegistrationPreAuthorize :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+domainRegistrationPreAuthorize domain registrationDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain, "preauthorize"]
+  submit "POST" req
+
+domainRegistrationUnAuthorize :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+domainRegistrationUnAuthorize domain registrationDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain, "unauthorize"]
+  submit "POST" req
+
+updateDomainRegistration :: (HasCallStack, MakesValue domain) => domain -> String -> Value -> App Response
+updateDomainRegistration domain registrationDomain payload = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain]
+  submit "PUT" $ req & addJSON payload
+
+deleteDomainRegistration :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+deleteDomainRegistration domain registrationDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain]
+  submit "DELETE" req
+
+getDomainRegistration :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getDomainRegistration domain registrationDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain]
+  submit "GET" req

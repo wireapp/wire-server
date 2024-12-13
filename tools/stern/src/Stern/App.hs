@@ -33,11 +33,13 @@ import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
+import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.Wai (Response, ResponseReceived)
 import Network.Wai.Utilities (Error (..))
+import Servant.Client qualified as SC
 import Stern.Options as Opts
 import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, info)
@@ -54,7 +56,8 @@ data Env = Env
     galeb :: !Bilge.Request,
     appLogger :: !Logger,
     requestId :: !Bilge.RequestId,
-    httpManager :: !Bilge.Manager
+    httpManager :: !Bilge.Manager,
+    brigServantClientEnv :: !SC.ClientEnv
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
@@ -62,18 +65,29 @@ makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 newEnv :: Opts -> IO Env
 newEnv opts = do
   l <- Log.mkLogger opts.logLevel opts.logNetStrings opts.logFormat
-  Env
-    (mkRequest opts.brig)
-    (mkRequest opts.galley)
-    (mkRequest opts.gundeck)
-    (mkRequest opts.ibis)
-    (mkRequest opts.galeb)
-    l
-    (RequestId defRequestId)
-    <$> newManager
+  manager <- newManager
+  pure $
+    Env
+      (mkRequest opts.brig)
+      (mkRequest opts.galley)
+      (mkRequest opts.gundeck)
+      (mkRequest opts.ibis)
+      (mkRequest opts.galeb)
+      l
+      (RequestId defRequestId)
+      manager
+      (mkClientEnv manager)
   where
+    mkRequest :: Endpoint -> Bilge.Request
     mkRequest s = Bilge.host (encodeUtf8 s.host) . Bilge.port s.port $ Bilge.empty
+
+    newManager :: IO Bilge.Manager
     newManager = Bilge.newManager (Bilge.defaultManagerSettings {Bilge.managerResponseTimeout = responseTimeoutMicro 10000000})
+
+    mkClientEnv :: Bilge.Manager -> SC.ClientEnv
+    mkClientEnv manager =
+      let url = SC.BaseUrl SC.Http (Text.unpack opts.brig.host) (fromIntegral opts.brig.port) ""
+       in SC.mkClientEnv manager url
 
 -- Monads
 newtype AppT m a = AppT (ReaderT Env m a)

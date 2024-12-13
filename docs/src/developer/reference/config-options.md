@@ -822,6 +822,17 @@ brig:
       accountPages: https://account.wire.com
 ```
 
+### Enterprise Login Audit Log
+
+Audit logs for any update (POST, PUT, DELETE) of a domain registration via the internal API are sent via email to the specified email address. If not specified no audit logs will be sent.
+
+```yaml
+brig:
+  config:
+    optSettings:
+      setAuditLogEmailRecipient: security@wire.com
+```
+
 ## Settings in cargohold
 
 AWS S3 (or an alternative provider / service) is used to upload and download
