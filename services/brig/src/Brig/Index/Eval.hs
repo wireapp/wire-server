@@ -36,8 +36,9 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
 import Data.Id
+import Database.Bloodhound (tryPerformBHRequest)
 import Database.Bloodhound qualified as ES
-import Database.Bloodhound.Internal.Client (BHEnv (..))
+import Database.Bloodhound.Common.Requests qualified as ESR
 import Imports
 import Polysemy
 import Polysemy.Embed (runEmbedded)
@@ -106,7 +107,7 @@ runSem esConn cas galleyEndpoint logger action = do
   mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
   casClient <- defInitCassandra (toCassandraOpts cas) logger
   let bhEnv =
-        BHEnv
+        ES.BHEnv
           { bhServer = toESServer esConn.esServer,
             bhManager = mgr,
             bhRequestHook = maybe pure (\creds -> ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)) mEsCreds
@@ -178,7 +179,7 @@ runCommand l = \case
         (reindexSettings ^. reindexEsConnection . to esCaCert)
     mCreds <- for (reindexSettings ^. reindexEsConnection . to esCredentials) initCredentials
     let bhEnv = initES (reindexSettings ^. reindexEsConnection . to esServer) mgr mCreds
-    ES.runBH bhEnv $ do
+    esRes <- (ES.runBH bhEnv) $ do
       let src = reindexSettings ^. reindexEsConnection . to esIndex
           dest = view reindexDestIndex reindexSettings
           timeoutSeconds = view reindexTimeoutSeconds reindexSettings
@@ -192,13 +193,14 @@ runCommand l = \case
         throwM $ ReindexFromAnotherIndexError $ "Destination index " <> show dest <> " doesn't exist"
 
       Log.info l $ Log.msg ("Reindexing" :: ByteString) . Log.field "from" (show src) . Log.field "to" (show dest)
-      eitherTaskNodeId <- ES.reindexAsync $ ES.mkReindexRequest src dest
+      eitherTaskNodeId <- tryPerformBHRequest $ ESR.reindexAsync $ ES.mkReindexRequest src dest
       case eitherTaskNodeId of
         Left e -> throwM $ ReindexFromAnotherIndexError $ "Error occurred while running reindex: " <> show e
         Right taskNodeId -> do
           Log.info l $ Log.field "taskNodeId" (show taskNodeId)
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
+    either throwM pure esRes
   where
     initIndex :: ESConnectionSettings -> Endpoint -> IO IndexEnv
     initIndex esConn gly = do
@@ -223,12 +225,12 @@ runCommand l = \case
       let env = ES.mkBHEnv (toESServer esURI) mgr
        in maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
 
-waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
+waitForTaskToComplete :: forall a m. (ES.MonadBH m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do
   -- Delay is 0.1 seconds, so retries are limited to timeoutSeconds * 10
   let policy = constantDelay 100000 <> limitRetries (timeoutSeconds * 10)
   let retryCondition _ = fmap not . isTaskComplete
-  taskEither <- retrying policy retryCondition (const $ ES.getTask @m @a taskNodeId)
+  taskEither <- retrying policy retryCondition (const . ES.tryPerformBHRequest $ ESR.getTask @a taskNodeId)
   task <- either errTaskGet pure taskEither
   unless (ES.taskResponseCompleted task) $ do
     throwM $ ReindexFromAnotherIndexError $ "Timed out waiting for task: " <> show taskNodeId
