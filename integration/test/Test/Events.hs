@@ -570,7 +570,10 @@ killConnection backend = do
             port = 0,
             adminPort = fromIntegral rc.adminPort,
             vHost = Text.pack backend.berVHost,
-            tls = Just $ RabbitMqTlsOpts Nothing True
+            tls =
+              if rc.tls
+                then Just $ RabbitMqTlsOpts Nothing True
+                else Nothing
           }
   servantClient <- liftIO $ mkRabbitMqAdminClientEnv opts
   name <- do

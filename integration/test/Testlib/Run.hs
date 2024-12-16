@@ -139,9 +139,9 @@ runTests tests mXMLOutput cfg = do
             pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
       writeChan output Nothing
       wait displayThread
+      deleteFederationV0AndV1Queues genv
       printReport report
       mapM_ (saveXMLReport report) mXMLOutput
-      deleteFederationV0AndV1Queues genv
       when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
         exitFailure
 
@@ -162,7 +162,7 @@ deleteFederationV0AndV1Queues env = do
     readCredsFromEnvWithSuffix suffix =
       (,)
         <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
-        <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_"<> suffix))
+        <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_" <> suffix))
 
 deleteFederationQueues :: [String] -> RabbitMQConfig -> Text -> Text -> IO ()
 deleteFederationQueues testDomains rc username password = do
