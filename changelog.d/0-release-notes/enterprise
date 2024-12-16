@@ -1,0 +1,8 @@
+This release contains a new Git submodule: `wire-server-enterprise`. This module
+represents a service which contains all non-open-source features. Wire can still
+be deployed and run without this service. Building it without
+`wire-server-enterprise` is currently not documented, but Wire will keep providing the artefacts.
+
+The service can be deployed with a dedicated Helm chart
+(`charts/wire-server-enterprise`.) The required service image is not freely
+available (the registry is password protected.)

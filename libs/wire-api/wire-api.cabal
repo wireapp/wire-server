@@ -167,6 +167,7 @@ library
     Wire.API.Routes.Internal.Brig.SearchIndex
     Wire.API.Routes.Internal.Cannon
     Wire.API.Routes.Internal.Cargohold
+    Wire.API.Routes.Internal.Enterprise
     Wire.API.Routes.Internal.Galley
     Wire.API.Routes.Internal.Galley.ConversationsIntra
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti

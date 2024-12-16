@@ -87,6 +87,7 @@ let
     rabbitmq-consumer = [ "rabbitmq-consumer" ];
     test-stats = [ "test-stats" ];
     team-info = [ "team-info" ];
+    wire-server-enterprise = [ "wire-server-enterprise" ];
   };
 
   inherit (lib) attrsets;
@@ -290,6 +291,7 @@ let
       stern
       brig-templates
       background-worker
+      wire-server-enterprise
       pkgs.nginz
       pkgs.mls-test-cli
       pkgs.awscli2

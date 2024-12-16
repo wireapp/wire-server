@@ -61,6 +61,10 @@ data:
       host: stern.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
+    wireServerEnterprise:
+      host: wireServerEnterprise.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
     originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
 
     rabbitmq:
@@ -115,6 +119,10 @@ data:
 
       stern:
         host: stern.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      wireServerEnterprise:
+        host: wireServerEnterprise.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
       originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
@@ -176,6 +184,9 @@ data:
       stern:
         host: stern.wire-federation-v0.svc.cluster.local
         port: 8080
+      wireServerEnterprise:
+        host: wireServerEnterprise.wire-federation-v0.svc.cluster.local
+        port: 8080
 
     federation-v1:
       originDomain: federation-test-helper.wire-federation-v1.svc.cluster.local
@@ -214,6 +225,9 @@ data:
         port: 8080
       stern:
         host: stern.wire-federation-v1.svc.cluster.local
+        port: 8080
+      wireServerEnterprise:
+        host: wireServerEnterprise.wire-federation-v1.svc.cluster.local
         port: 8080
 
     integrationTestHostName: integration-headless.{{ .Release.Namespace }}.svc.cluster.local

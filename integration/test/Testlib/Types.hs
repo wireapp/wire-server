@@ -156,7 +156,8 @@ data ServiceMap = ServiceMap
     nginz :: HostPort,
     spar :: HostPort,
     proxy :: HostPort,
-    stern :: HostPort
+    stern :: HostPort,
+    wireServerEnterprise :: HostPort
   }
   deriving (Show, Generic)
 
@@ -443,7 +444,8 @@ data ServiceOverrides = ServiceOverrides
     sparCfg :: Value -> App Value,
     backgroundWorkerCfg :: Value -> App Value,
     sternCfg :: Value -> App Value,
-    federatorInternalCfg :: Value -> App Value
+    federatorInternalCfg :: Value -> App Value,
+    wireServerEnterpriseCfg :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -461,7 +463,8 @@ instance Semigroup ServiceOverrides where
         sparCfg = sparCfg a >=> sparCfg b,
         backgroundWorkerCfg = backgroundWorkerCfg a >=> backgroundWorkerCfg b,
         sternCfg = sternCfg a >=> sternCfg b,
-        federatorInternalCfg = federatorInternalCfg a >=> federatorInternalCfg b
+        federatorInternalCfg = federatorInternalCfg a >=> federatorInternalCfg b,
+        wireServerEnterpriseCfg = wireServerEnterpriseCfg a >=> wireServerEnterpriseCfg b
       }
 
 instance Monoid ServiceOverrides where
@@ -479,7 +482,8 @@ defaultServiceOverrides =
       sparCfg = pure,
       backgroundWorkerCfg = pure,
       sternCfg = pure,
-      federatorInternalCfg = pure
+      federatorInternalCfg = pure,
+      wireServerEnterpriseCfg = pure
     }
 
 lookupConfigOverride :: ServiceOverrides -> Service -> (Value -> App Value)
@@ -494,6 +498,7 @@ lookupConfigOverride overrides = \case
   BackgroundWorker -> overrides.backgroundWorkerCfg
   Stern -> overrides.sternCfg
   FederatorInternal -> overrides.federatorInternalCfg
+  WireServerEnterprise -> overrides.wireServerEnterpriseCfg
 
 data Service
   = Brig
@@ -506,6 +511,7 @@ data Service
   | BackgroundWorker
   | Stern
   | FederatorInternal
+  | WireServerEnterprise
   deriving
     ( Show,
       Eq,
@@ -526,6 +532,7 @@ serviceName = \case
   BackgroundWorker -> "backgroundWorker"
   Stern -> "stern"
   FederatorInternal -> "federator"
+  WireServerEnterprise -> "wireServerEnterprise"
 
 -- | Converts the service name to kebab-case.
 configName :: Service -> String
@@ -540,6 +547,7 @@ configName = \case
   BackgroundWorker -> "background-worker"
   Stern -> "stern"
   FederatorInternal -> "federator"
+  WireServerEnterprise -> "wire-server-enterprise"
 
 data BackendName
   = BackendA

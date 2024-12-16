@@ -135,8 +135,12 @@ Start by deploying a published release (see 2.1 or 2.2).
 ```
 export NAMESPACE=$USER
 export DOCKER_TAG=2.116.32
+export ENTERPRISE_IMAGE_PULL_SECRET=... # .dockerconfigjson of wire+wire_server_enterprise quay.io robot
 make kube-integration-setup
 ```
+
+(You may consider to export `ENTERPRISE_IMAGE_PULL_SECRET` in `.envrc.local` as
+well.)
 
 Then build and push the `brig` image by running
 
@@ -211,3 +215,22 @@ Note: Simply deleting the namespaces is insufficient, because it leaves some res
 We support two different ways of managing the docker-compose instance of rabbitmq:
 * A web console interface is available [here](http://localhost:15672)
 * `rabbitmqadmin` CLI is made available in the dev environment
+
+## Avoid Github HTTPS authentication for wire-server-enterprise
+
+Having to provide HTTPS authentication credentials is annoying. Unfortunately,
+we have to use HTTPS Git repository URLs for submodules, because some
+Concourse tasks require them (cannot clone with SSH.)
+
+A hacky workaround is to rewrite the URLs in the `~/.gitconfig`:
+
+```
+git config --global url."git@github.com:".insteadOf "https://github.com/"
+```
+
+This leads to such entry:
+
+```
+[url "git@github.com:"]
+        insteadOf = https://github.com/
+```
