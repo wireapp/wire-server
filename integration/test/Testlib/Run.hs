@@ -10,6 +10,7 @@ import Data.Function
 import Data.Functor
 import Data.List
 import Data.Maybe (fromMaybe)
+import Data.String (IsString (fromString))
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Clock
@@ -157,14 +158,14 @@ deleteFederationV0AndV1Queues env = do
     readV0CredsFromEnv :: IO (Maybe Text, Maybe Text)
     readV0CredsFromEnv =
       (,)
-        <$> (fmap T.pack <$> lookupEnv "RABBITMQ_USERNAME_V0")
-        <*> (fmap T.pack <$> lookupEnv "RABBITMQ_PASSWORD_V0")
+        <$> (fmap fromString <$> lookupEnv "RABBITMQ_USERNAME_V0")
+        <*> (fmap fromString <$> lookupEnv "RABBITMQ_PASSWORD_V0")
 
     readV1CredsFromEnv :: IO (Maybe Text, Maybe Text)
     readV1CredsFromEnv =
       (,)
-        <$> (fmap T.pack <$> lookupEnv "RABBITMQ_USERNAME_V1")
-        <*> (fmap T.pack <$> lookupEnv "RABBITMQ_PASSWORD_V1")
+        <$> (fmap fromString <$> lookupEnv "RABBITMQ_USERNAME_V1")
+        <*> (fmap fromString <$> lookupEnv "RABBITMQ_PASSWORD_V1")
 
 deleteFederationQueues :: GlobalEnv -> RabbitMQConfig -> Text -> Text -> IO ()
 deleteFederationQueues genv rc username password = do
@@ -173,7 +174,7 @@ deleteFederationQueues genv rc username password = do
           { host = rc.host,
             port = 0,
             adminPort = fromIntegral rc.adminPort,
-            vHost = T.pack rc.vHost,
+            vHost = fromString rc.vHost,
             tls =
               if rc.tls
                 then Just (RabbitMqTlsOpts Nothing True)
@@ -181,10 +182,10 @@ deleteFederationQueues genv rc username password = do
           }
   client <- mkRabbitMqAdminClientEnvWithCreds opts username password
   for_ (genv.gDomain1 : genv.gDomain2 : genv.gDynamicDomains) $ \domain -> do
-    queues <- listQueuesByVHost client (T.pack rc.vHost) (Just (T.pack domain)) Nothing
-    for_ queues $ \queue -> do
+    page <- client.listQueuesByVHost (fromString rc.vHost) (fromString $ "^backend-notifications\\." <> domain <> "$") True 100 1
+    for_ page.items $ \queue -> do
       putStrLn $ "Deleting queue " <> T.unpack queue.name
-      void $ deleteQueue client (T.pack rc.vHost) queue.name
+      void $ deleteQueue client (fromString rc.vHost) queue.name
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do

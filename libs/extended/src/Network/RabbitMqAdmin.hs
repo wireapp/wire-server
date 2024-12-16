@@ -13,20 +13,35 @@ type VHost = Text
 
 type QueueName = Text
 
+data Page a = Page {items :: [a], page :: Int, pageCount :: Int}
+  deriving (Show, Eq, Generic)
+
+instance (FromJSON a) => FromJSON (Page a) where
+  parseJSON =
+    genericParseJSON $
+      defaultOptions
+        { fieldLabelModifier = camelTo2 '_'
+        }
+
+instance (ToJSON a) => ToJSON (Page a) where
+  toJSON = genericToJSON $
+    defaultOptions
+      { fieldLabelModifier = camelTo2 '_'
+      }
+
 -- | Upstream Docs:
 -- https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v3.12.0/deps/rabbitmq_management/priv/www/api/index.html
 data AdminAPI route = AdminAPI
-  { -- | NOTE: This endpoint can be made paginated, but that complicates
-    -- consumer code a little. This might be needed for performance tuning
-    -- later, but perhaps not.
-    listQueuesByVHost ::
+  { listQueuesByVHost ::
       route
         :- "api"
           :> "queues"
           :> Capture "vhost" VHost
-          :> QueryParam "name" Text
-          :> QueryParam "use_regex" Bool
-          :> Get '[JSON] [Queue],
+          :> QueryParam' '[Required, Strict] "name" Text
+          :> QueryParam' '[Required, Strict] "use_regex" Bool
+          :> QueryParam' '[Required, Strict] "page_size" Int
+          :> QueryParam' '[Required, Strict] "page" Int
+          :> Get '[JSON] (Page Queue),
     deleteQueue ::
       route
         :- "api"

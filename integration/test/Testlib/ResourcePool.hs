@@ -21,7 +21,6 @@ import Data.Functor
 import Data.IORef
 import qualified Data.Set as Set
 import Data.String
-import qualified Data.Text as T
 import Data.Tuple
 import Database.CQL.IO
 import GHC.Stack (HasCallStack)
@@ -85,13 +84,13 @@ deleteAllRabbitMQQueues rc resource = do
           { host = rc.host,
             port = 0,
             adminPort = fromIntegral rc.adminPort,
-            vHost = T.pack resource.berVHost,
+            vHost = fromString resource.berVHost,
             tls = Just $ RabbitMqTlsOpts Nothing True
           }
   client <- mkRabbitMqAdminClientEnv opts
-  queues <- listQueuesByVHost client (T.pack resource.berVHost) Nothing Nothing
-  for_ queues $ \queue ->
-    deleteQueue client (T.pack resource.berVHost) queue.name
+  queuesPage <- listQueuesByVHost client (fromString resource.berVHost) (fromString "") False 1000 1
+  for_ queuesPage.items $ \queue ->
+    deleteQueue client (fromString resource.berVHost) queue.name
 
 deleteAllDynamicBackendConfigs :: BackendResource -> Client ()
 deleteAllDynamicBackendConfigs resource = write cql (defQueryParams LocalQuorum ())
