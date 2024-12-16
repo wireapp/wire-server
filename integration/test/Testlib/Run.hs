@@ -147,28 +147,25 @@ runTests tests mXMLOutput cfg = do
 
 deleteFederationV0AndV1Queues :: GlobalEnv -> IO ()
 deleteFederationV0AndV1Queues env = do
-  putStrLn "Attempting to delete federation V0 and V1 queues..."
-  do
-    (mV0User, mV0Pass) <- readV0CredsFromEnv
-    fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $ deleteFederationQueues env <$> env.gRabbitMQConfigV0 <*> mV0User <*> mV0Pass
-  do
-    (mV1User, mV1Pass) <- readV1CredsFromEnv
-    fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $ deleteFederationQueues env <$> env.gRabbitMQConfigV1 <*> mV1User <*> mV1Pass
+  let testDomains = env.gDomain1 : env.gDomain2 : env.gDynamicDomains
+  putStrLn "Attempting to delete federation V0 queues..."
+  (mV0User, mV0Pass) <- readCredsFromEnvWithSuffix "V0"
+  fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $
+    deleteFederationQueues testDomains env.gRabbitMQConfigV0 <$> mV0User <*> mV0Pass
+
+  putStrLn "Attempting to delete federation V1 queues..."
+  (mV1User, mV1Pass) <- readCredsFromEnvWithSuffix "V1"
+  fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $
+    deleteFederationQueues testDomains env.gRabbitMQConfigV1 <$> mV1User <*> mV1Pass
   where
-    readV0CredsFromEnv :: IO (Maybe Text, Maybe Text)
-    readV0CredsFromEnv =
+    readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
+    readCredsFromEnvWithSuffix suffix =
       (,)
-        <$> (fmap fromString <$> lookupEnv "RABBITMQ_USERNAME_V0")
-        <*> (fmap fromString <$> lookupEnv "RABBITMQ_PASSWORD_V0")
+        <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
+        <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_"<> suffix))
 
-    readV1CredsFromEnv :: IO (Maybe Text, Maybe Text)
-    readV1CredsFromEnv =
-      (,)
-        <$> (fmap fromString <$> lookupEnv "RABBITMQ_USERNAME_V1")
-        <*> (fmap fromString <$> lookupEnv "RABBITMQ_PASSWORD_V1")
-
-deleteFederationQueues :: GlobalEnv -> RabbitMQConfig -> Text -> Text -> IO ()
-deleteFederationQueues genv rc username password = do
+deleteFederationQueues :: [String] -> RabbitMQConfig -> Text -> Text -> IO ()
+deleteFederationQueues testDomains rc username password = do
   let opts =
         RabbitMqAdminOpts
           { host = rc.host,
@@ -181,7 +178,7 @@ deleteFederationQueues genv rc username password = do
                 else Nothing
           }
   client <- mkRabbitMqAdminClientEnvWithCreds opts username password
-  for_ (genv.gDomain1 : genv.gDomain2 : genv.gDynamicDomains) $ \domain -> do
+  for_ testDomains $ \domain -> do
     page <- client.listQueuesByVHost (fromString rc.vHost) (fromString $ "^backend-notifications\\." <> domain <> "$") True 100 1
     for_ page.items $ \queue -> do
       putStrLn $ "Deleting queue " <> T.unpack queue.name
