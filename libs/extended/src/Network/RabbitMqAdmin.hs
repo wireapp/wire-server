@@ -24,10 +24,11 @@ instance (FromJSON a) => FromJSON (Page a) where
         }
 
 instance (ToJSON a) => ToJSON (Page a) where
-  toJSON = genericToJSON $
-    defaultOptions
-      { fieldLabelModifier = camelTo2 '_'
-      }
+  toJSON =
+    genericToJSON $
+      defaultOptions
+        { fieldLabelModifier = camelTo2 '_'
+        }
 
 -- | Upstream Docs:
 -- https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v3.12.0/deps/rabbitmq_management/priv/www/api/index.html
