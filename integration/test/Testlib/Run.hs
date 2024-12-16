@@ -147,14 +147,12 @@ runTests tests mXMLOutput cfg = do
 deleteFederationV0AndV1Queues :: GlobalEnv -> IO ()
 deleteFederationV0AndV1Queues env = do
   putStrLn "Attempting to delete federation V0 and V1 queues..."
-  mNs <- fmap T.pack <$> lookupEnv "NAMESPACE"
-  case mNs of
-    Nothing -> putStrLn "No NAMESPACE env var set, skipping deletion of federation V0,V1 queues"
-    Just ns -> do
-      (mV0User, mV0Pass) <- readV0CredsFromEnv
-      fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $ deleteFederationQueues ns <$> env.gRabbitMQConfigV0 <*> mV0User <*> mV0Pass
-      (mV1User, mV1Pass) <- readV1CredsFromEnv
-      fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $ deleteFederationQueues ns <$> env.gRabbitMQConfigV1 <*> mV1User <*> mV1Pass
+  do
+    (mV0User, mV0Pass) <- readV0CredsFromEnv
+    fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $ deleteFederationQueues env <$> env.gRabbitMQConfigV0 <*> mV0User <*> mV0Pass
+  do
+    (mV1User, mV1Pass) <- readV1CredsFromEnv
+    fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $ deleteFederationQueues env <$> env.gRabbitMQConfigV1 <*> mV1User <*> mV1Pass
   where
     readV0CredsFromEnv :: IO (Maybe Text, Maybe Text)
     readV0CredsFromEnv =
@@ -168,23 +166,25 @@ deleteFederationV0AndV1Queues env = do
         <$> (fmap T.pack <$> lookupEnv "RABBITMQ_USERNAME_V1")
         <*> (fmap T.pack <$> lookupEnv "RABBITMQ_PASSWORD_V1")
 
-deleteFederationQueues :: Text -> RabbitMQConfig -> Text -> Text -> IO ()
-deleteFederationQueues ns rc username password = do
-  let vHost = T.pack "\\"
+deleteFederationQueues :: GlobalEnv -> RabbitMQConfig -> Text -> Text -> IO ()
+deleteFederationQueues genv rc username password = do
   let opts =
         RabbitMqAdminOpts
           { host = rc.host,
             port = 0,
             adminPort = fromIntegral rc.adminPort,
-            vHost = vHost,
-            tls = Just $ RabbitMqTlsOpts Nothing True
+            vHost = T.pack rc.vHost,
+            tls =
+              if rc.tls
+                then Just (RabbitMqTlsOpts Nothing True)
+                else Nothing
           }
   client <- mkRabbitMqAdminClientEnvWithCreds opts username password
-  queues <- listQueuesByVHost client vHost Nothing Nothing
-  for_ queues $ \queue -> do
-    when (ns `T.isInfixOf` queue.name) $ do
+  for_ (genv.gDomain1 : genv.gDomain2 : genv.gDynamicDomains) $ \domain -> do
+    queues <- listQueuesByVHost client (T.pack rc.vHost) (Just (T.pack domain)) Nothing
+    for_ queues $ \queue -> do
       putStrLn $ "Deleting queue " <> T.unpack queue.name
-      void $ deleteQueue client vHost queue.name
+      void $ deleteQueue client (T.pack rc.vHost) queue.name
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do

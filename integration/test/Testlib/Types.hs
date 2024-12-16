@@ -90,7 +90,9 @@ instance FromJSON DynamicBackendConfig
 
 data RabbitMQConfig = RabbitMQConfig
   { host :: String,
-    adminPort :: Word16
+    adminPort :: Word16,
+    tls :: Bool,
+    vHost :: String
   }
   deriving (Show)
 
@@ -100,6 +102,8 @@ instance FromJSON RabbitMQConfig where
       RabbitMQConfig
         <$> ob .: fromString "host"
         <*> ob .: fromString "adminPort"
+        <*> ob .: fromString "tls"
+        <*> ob .: fromString "vHost"
 
 -- | Initialised once per testsuite.
 data GlobalEnv = GlobalEnv

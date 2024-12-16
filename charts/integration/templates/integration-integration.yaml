@@ -352,7 +352,5 @@ spec:
       value: "1"
     - name: ENABLE_FEDERATION_V1
       value: "1"
-    - name: NAMESPACE
-      value: {{ .Release.Namespace }}
     - name: TEST_INCLUDE
       value: "testMLSFederation"
