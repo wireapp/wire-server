@@ -157,7 +157,7 @@ testSendMailTimeoutOnStartup lg = do
           everDelayingTCPServer sock $
             handle @ErrorCall
               (\e -> pure (Just e))
-              (initSMTP' (500 :: Millisecond) lg "localhost" (Just port) Nothing Plain >> pure Nothing)
+              (initSMTPWithTimeout (500 :: Millisecond) lg "localhost" (Just port) Nothing Plain >> pure Nothing)
   liftIO $ isJust mbException @? "Expected exception (SMTP server action timed out.)"
 
 someTestReceiver :: Address
