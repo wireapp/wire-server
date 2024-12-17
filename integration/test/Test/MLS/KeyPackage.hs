@@ -27,16 +27,13 @@ testDeleteKeyPackages = do
 
 testKeyPackageMultipleCiphersuites :: App ()
 testKeyPackageMultipleCiphersuites = do
-  let suite = Ciphersuite "0x0001"
+  let suite = def
+      altSuite = Ciphersuite "0x0005"
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- replicateM 2 (createMLSClient suite def alice)
+  [alice1, alice2] <- replicateM 2 (createMLSClientWithCiphersuites [suite, altSuite] def alice)
 
   kp <- uploadNewKeyPackage suite alice2
 
-  -- Using 0xf031 as the alternative for 0x0001 is possible without creating a
-  -- new signature key for this client, since both cipher suites share the same
-  -- signature scheme.
-  let altSuite = Ciphersuite "0xf031"
   void $ uploadNewKeyPackage altSuite alice2
 
   -- count key packages with the client's default ciphersuite
@@ -211,12 +208,14 @@ testUnsupportedCiphersuite = do
 
 testReplaceKeyPackages :: (HasCallStack) => App ()
 testReplaceKeyPackages = do
-  let suite = Ciphersuite "0x0001"
-      altSuite = Ciphersuite "0xf031"
+  let suite = def
+      altSuite = Ciphersuite "0x0005"
+      oldSuite = Ciphersuite "0x0001"
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- replicateM 2 $ createMLSClient suite def alice
+  [alice1, alice2] <- replicateM 2 $ createMLSClientWithCiphersuites [suite, altSuite, oldSuite] def alice
 
-  let checkCount cs n =
+  let checkCount :: (HasCallStack) => Ciphersuite -> Int -> App ()
+      checkCount cs n =
         bindResponse (countKeyPackages cs alice1) $ \resp -> do
           resp.status `shouldMatchInt` 200
           resp.json %. "count" `shouldMatchInt` n
@@ -230,9 +229,14 @@ testReplaceKeyPackages = do
     $ replicateM 5 (fmap fst (generateKeyPackage alice1 altSuite))
     >>= uploadKeyPackages alice1
     >>= getBody 201
+  void
+    $ replicateM 6 (fmap fst (generateKeyPackage alice1 oldSuite))
+    >>= uploadKeyPackages alice1
+    >>= getBody 201
 
   checkCount suite 4
   checkCount altSuite 5
+  checkCount oldSuite 6
 
   do
     -- generate a new batch of key packages
@@ -270,17 +274,18 @@ testReplaceKeyPackages = do
     checkCount altSuite 5
 
     -- replace all key packages with fresh ones
-    kps1 <- replicateM 2 (fmap fst (generateKeyPackage alice1 suite))
+    kps1 <- replicateM 3 (fmap fst (generateKeyPackage alice1 suite))
     kps2 <- replicateM 2 (fmap fst (generateKeyPackage alice1 altSuite))
 
     void $ replaceKeyPackages alice1 (Just [suite, altSuite]) (kps1 <> kps2) >>= getBody 201
 
-    checkCount suite 2
+    checkCount suite 3
     checkCount altSuite 2
 
   do
     suiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1 suite))
     altSuiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1 altSuite))
+    oldSuiteKeyPackages <- replicateM 4 (fmap fst (generateKeyPackage alice1 oldSuite))
 
     void
       $ replaceKeyPackages alice1 (Just []) []
@@ -288,12 +293,13 @@ testReplaceKeyPackages = do
         resp.status `shouldMatchInt` 201
 
     void
-      $ replaceKeyPackages alice1 Nothing suiteKeyPackages
+      $ replaceKeyPackages alice1 Nothing oldSuiteKeyPackages
       `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 201
 
     checkCount suite 3
     checkCount altSuite 2
+    checkCount oldSuite 4
 
     let testErrorCases :: (HasCallStack) => Maybe [Ciphersuite] -> [ByteString] -> App ()
         testErrorCases ciphersuites keyPackages = do
@@ -304,17 +310,18 @@ testReplaceKeyPackages = do
               resp.json %. "label" `shouldMatch` "mls-protocol-error"
           checkCount suite 3
           checkCount altSuite 2
+          checkCount oldSuite 4
 
     testErrorCases (Just []) suiteKeyPackages
     testErrorCases (Just []) altSuiteKeyPackages
     testErrorCases Nothing []
     testErrorCases Nothing altSuiteKeyPackages
-    testErrorCases Nothing (altSuiteKeyPackages <> suiteKeyPackages)
+    testErrorCases Nothing (oldSuiteKeyPackages <> altSuiteKeyPackages <> suiteKeyPackages)
 
     testErrorCases (Just [altSuite]) suiteKeyPackages
-    testErrorCases (Just [altSuite]) (altSuiteKeyPackages <> suiteKeyPackages)
+    testErrorCases (Just [altSuite]) (oldSuiteKeyPackages <> altSuiteKeyPackages <> suiteKeyPackages)
     testErrorCases (Just [altSuite]) []
 
     testErrorCases (Just [suite]) altSuiteKeyPackages
-    testErrorCases (Just [suite]) (altSuiteKeyPackages <> suiteKeyPackages)
+    testErrorCases (Just [suite]) (oldSuiteKeyPackages <> altSuiteKeyPackages <> suiteKeyPackages)
     testErrorCases (Just [suite]) []
