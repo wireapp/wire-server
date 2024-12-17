@@ -36,6 +36,7 @@ import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Testlib.JSON
 import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
+import Testlib.Printing (indent)
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
@@ -425,6 +426,12 @@ addUsersToFailureContext namesAndUsers action = do
         pure $ name <> ": " <> id_ <> "@" <> domain
   allLines <- unlines <$> (mapM mkLine namesAndUsers)
   addFailureContext allLines action
+
+addJSONToFailureContext :: (MakesValue a) => String -> a -> App b -> App b
+addJSONToFailureContext name ctx action = do
+  jsonStr <- prettyJSON ctx
+  let ctxStr = unlines [name <> ":", indent 2 jsonStr]
+  addFailureContext ctxStr action
 
 registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
 registerTestIdPWithMeta owner = fst <$> registerTestIdPWithMetaWithPrivateCreds owner
