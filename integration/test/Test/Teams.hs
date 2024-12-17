@@ -22,7 +22,7 @@ import API.Brig
 import qualified API.BrigInternal as I
 import API.Common
 import API.Galley (getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
-import API.GalleyInternal (setTeamFeatureStatus)
+import qualified API.GalleyInternal as I
 import API.Gundeck
 import qualified API.Nginz as Nginz
 import Control.Monad.Codensity (Codensity (runCodensity))
@@ -58,7 +58,7 @@ testInvitePersonalUserToTeam = do
           resp.json %. "invitations" `shouldMatch` ([] :: [()])
 
         ownerId <- owner %. "id" & asString
-        setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" >>= assertSuccess
+        I.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" >>= assertSuccess
         user <- I.createUser domain def >>= getJSON 201
         uid <- user %. "id" >>= asString
         email <- user %. "email" >>= asString
@@ -288,6 +288,10 @@ testUpgradePersonalToTeam = do
 
   team <- getTeam alice tid >>= getJSON 200
   team %. "name" `shouldMatch` teamName
+
+  iTeam <- asString tid >>= I.getTeam alice >>= getJSON 200
+  iTeam %. "team.name" `shouldMatch` teamName
+  iTeam %. "status" `shouldMatch` "active"
 
   bindResponse (getTeamMembers alice tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
