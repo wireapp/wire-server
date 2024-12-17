@@ -119,3 +119,8 @@ patchTeamFeature domain team featureName payload = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "PATCH" $ req & addJSON payload
+
+getTeam :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getTeam domain tid = do
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid]
+  submit "GET" $ req

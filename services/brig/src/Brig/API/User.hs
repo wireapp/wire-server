@@ -289,6 +289,7 @@ upgradePersonalToTeam luid bNewTeam = do
       liftSem $ GalleyAPIAccess.createTeam uid (bnuTeam bNewTeam) tid
       let newTeam = bNewTeam.bnuTeam
       pure $ CreateUserTeam tid (fromRange newTeam.newTeamName)
+    liftSem $ GalleyAPIAccess.changeTeamStatus tid Team.Active bNewTeam.bnuCurrency
 
     liftSem $ updateUserTeam uid tid
     liftSem $ User.internalUpdateSearchIndex uid
