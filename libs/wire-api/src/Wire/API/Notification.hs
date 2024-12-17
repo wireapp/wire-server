@@ -38,7 +38,6 @@ module Wire.API.Notification
     userNotificationExchangeName,
     userNotificationDlxName,
     userNotificationDlqName,
-    RabbitMqClientId (..),
     clientNotificationQueueName,
     userRoutingKey,
     temporaryRoutingKey,
@@ -51,7 +50,6 @@ import Control.Lens.Operators ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson.Types qualified as Aeson
 import Data.Bits
-import Data.ByteString.Conversion
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
 import Data.Json.Util
@@ -191,17 +189,9 @@ userNotificationDlxName = "dead-user-notifications"
 userNotificationDlqName :: Text
 userNotificationDlqName = "dead-user-notifications"
 
-data RabbitMqClientId
-  = RabbitMqClientId ClientId
-  | RabbitMqTempId Text
-
-instance ToByteString RabbitMqClientId where
-  builder (RabbitMqClientId cid) = builder cid
-  builder (RabbitMqTempId temp) = builder temp
-
-clientNotificationQueueName :: UserId -> RabbitMqClientId -> Text
+clientNotificationQueueName :: UserId -> ClientId -> Text
 clientNotificationQueueName uid cid =
-  "user-notifications." <> userRoutingKey uid <> "." <> rabbitMqClientToText cid
+  "user-notifications." <> userRoutingKey uid <> "." <> clientToText cid
 
 userRoutingKey :: UserId -> Text
 userRoutingKey = idToText
@@ -211,7 +201,3 @@ clientRoutingKey uid cid = userRoutingKey uid <> "." <> clientToText cid
 
 temporaryRoutingKey :: UserId -> Text
 temporaryRoutingKey uid = userRoutingKey uid <> ".temporary"
-
-rabbitMqClientToText :: RabbitMqClientId -> Text
-rabbitMqClientToText (RabbitMqClientId cid) = clientToText cid
-rabbitMqClientToText (RabbitMqTempId temp) = "temp-" <> temp

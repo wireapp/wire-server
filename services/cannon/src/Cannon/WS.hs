@@ -40,7 +40,6 @@ module Cannon.WS
     connIdent,
     Key,
     mkKey,
-    mkKeyRabbit,
     key2bytes,
     client,
     sendMsg,
@@ -70,6 +69,7 @@ import Data.Id (ClientId, ConnId (..), UserId, defRequestId)
 import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
+import Data.Unique
 import Imports hiding (threadDelay)
 import Network.AMQP qualified as Q
 import Network.HTTP.Types.Method
@@ -80,7 +80,6 @@ import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
 import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)
-import Wire.API.Notification
 import Wire.API.Presence
 
 -----------------------------------------------------------------------------
@@ -93,9 +92,6 @@ newtype Key = Key
 
 mkKey :: UserId -> ConnId -> Key
 mkKey u c = Key (toByteString' u, fromConnId c)
-
-mkKeyRabbit :: UserId -> RabbitMqClientId -> Key
-mkKeyRabbit u c = Key (toByteString' u, toByteString' c)
 
 instance ToByteString Key where
   builder = B.fromByteString . key2bytes
@@ -155,12 +151,12 @@ data Env = Env
     logg :: !Logger,
     manager :: !Manager,
     websockets :: !(Dict Key Websocket),
-    rabbitConnections :: !(Dict Key Q.Connection),
+    rabbitConnections :: !(Dict Unique Q.Connection),
     rand :: !GenIO,
     clock :: !Clock,
     drainOpts :: DrainOpts,
     cassandra :: ClientState,
-    pool :: RabbitMqPool Key
+    pool :: RabbitMqPool
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -203,12 +199,12 @@ env ::
   Logger ->
   Manager ->
   Dict Key Websocket ->
-  Dict Key Q.Connection ->
+  Dict Unique Q.Connection ->
   GenIO ->
   Clock ->
   DrainOpts ->
   ClientState ->
-  RabbitMqPool Key ->
+  RabbitMqPool ->
   Env
 env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
 

@@ -44,6 +44,7 @@ import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.Id
 import Data.Text.Encoding
+import Data.Unique
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended (AmqpEndpoint)
@@ -63,7 +64,7 @@ data Env = Env
   { opts :: !Opts,
     applog :: !Logger,
     websockets :: !(Dict Key Websocket),
-    rabbitConnections :: (Dict Key Q.Connection),
+    rabbitConnections :: (Dict Unique Q.Connection),
     reqId :: !RequestId,
     env :: !WS.Env
   }
@@ -103,7 +104,7 @@ mkEnv ::
   ClientState ->
   Logger ->
   Dict Key Websocket ->
-  Dict Key Q.Connection ->
+  Dict Unique Q.Connection ->
   Manager ->
   GenIO ->
   Clock ->

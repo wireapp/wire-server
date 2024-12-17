@@ -105,7 +105,6 @@ library
     , lens                                  >=4.4
     , lens-family-core                      >=1.1
     , metrics-wai                           >=0.4
-    , MonadRandom
     , mwc-random                            >=0.13
     , prometheus-client
     , retry                                 >=0.7
