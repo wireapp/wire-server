@@ -40,11 +40,11 @@ sendMemberWelcomeMail to tid teamName loc = do
   branding <- asks (.templateBranding)
   liftSem $ sendMail $ renderMemberWelcomeMail to tid teamName tpl branding
 
-sendNewTeamOwnerWelcomeEmail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
-sendNewTeamOwnerWelcomeEmail to tid teamName loc = do
+sendNewTeamOwnerWelcomeEmail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> (AppT r) ()
+sendNewTeamOwnerWelcomeEmail to tid teamName loc profileName = do
   tpl <- newTeamOwnerWelcomeEmail . snd <$> teamTemplatesWithLocale loc
   branding <- asks (.templateBranding)
-  liftSem $ sendMail $ renderNewTeamOwnerWelcomeEmail to tid teamName tpl branding
+  liftSem $ sendMail $ renderNewTeamOwnerWelcomeEmail to tid teamName profileName tpl branding
 
 -------------------------------------------------------------------------------
 -- Member Welcome Email
@@ -74,8 +74,8 @@ renderMemberWelcomeMail emailTo tid teamName MemberWelcomeEmailTemplate {..} bra
 -------------------------------------------------------------------------------
 -- New Team Owner Welcome Email
 
-renderNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> NewTeamOwnerWelcomeEmailTemplate -> TemplateBranding -> Mail
-renderNewTeamOwnerWelcomeEmail emailTo tid teamName NewTeamOwnerWelcomeEmailTemplate {..} branding =
+renderNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> Name -> NewTeamOwnerWelcomeEmailTemplate -> TemplateBranding -> Mail
+renderNewTeamOwnerWelcomeEmail emailTo tid teamName profileName NewTeamOwnerWelcomeEmailTemplate {..} branding =
   (emptyMail from)
     { mailTo = [to],
       mailHeaders =
@@ -94,4 +94,5 @@ renderNewTeamOwnerWelcomeEmail emailTo tid teamName NewTeamOwnerWelcomeEmailTemp
     replace "email" = fromEmail emailTo
     replace "team_id" = idToText tid
     replace "team_name" = teamName
+    replace "name" = profileName.fromName
     replace x = x
