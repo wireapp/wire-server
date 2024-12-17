@@ -405,6 +405,7 @@ testMLSGhostOne2OneConv = do
 -- See `deploy/dockerephemeral/run.sh` and comment on `StaticFedDomain` in `Testlib/VersionedFed.hs` for more details.
 testMLSFederationV1ConvOnOldBackend :: App ()
 testMLSFederationV1ConvOnOldBackend = do
+  let cs = Ciphersuite "0x0001"
   alice <- randomUser OwnDomain def
   let createBob = do
         bobCandidate <- randomUser (StaticFedDomain 1) def
@@ -415,8 +416,8 @@ testMLSFederationV1ConvOnOldBackend = do
             else createBob
 
   bob <- createBob
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
-  void $ uploadNewKeyPackage def alice1
+  [alice1, bob1] <- traverse (createMLSClient cs def) [alice, bob]
+  void $ uploadNewKeyPackage cs alice1
 
   -- Alice cannot start this conversation because it would exist on Bob's
   -- backend and Alice cannot get the MLS public keys of that backend.
@@ -427,7 +428,7 @@ testMLSFederationV1ConvOnOldBackend = do
   conv <- getMLSOne2OneConversationLegacy bob alice >>= getJSON 200
   convId <- objConvId conv
   keys <- getMLSPublicKeys bob >>= getJSON 200
-  resetOne2OneGroupGeneric def bob1 conv keys
+  resetOne2OneGroupGeneric cs bob1 conv keys
 
   withWebSocket alice1 $ \wsAlice -> do
     commit <- createAddCommit bob1 convId [alice]
@@ -448,9 +449,9 @@ testMLSFederationV1ConvOnOldBackend = do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by bob
-    void $ mlsCliConsume convId def bob1 mlsMsg
+    void $ mlsCliConsume convId cs bob1 mlsMsg
 
-    parsedMsg <- showMessage def bob1 mlsMsg
+    parsedMsg <- showMessage cs bob1 mlsMsg
     let leafIndexAlice = 1
     parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexAlice
     parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
@@ -460,6 +461,7 @@ testMLSFederationV1ConvOnOldBackend = do
 -- See `deploy/dockerephemeral/run.sh` and comment on `StaticFedDomain` in `Testlib/VersionedFed.hs` for more details.
 testMLSFederationV1ConvOnNewBackend :: App ()
 testMLSFederationV1ConvOnNewBackend = do
+  let cs = Ciphersuite "0x0001"
   alice <- randomUser OwnDomain def
   let createBob = do
         bobCandidate <- randomUser (StaticFedDomain 1) def
@@ -470,8 +472,8 @@ testMLSFederationV1ConvOnNewBackend = do
             else createBob
 
   bob <- createBob
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
-  void $ uploadNewKeyPackage def bob1
+  [alice1, bob1] <- traverse (createMLSClient cs def) [alice, bob]
+  void $ uploadNewKeyPackage cs bob1
 
   -- Bob cannot start this conversation because it would exist on Alice's
   -- backend and Bob cannot get the MLS public keys of that backend.
@@ -482,7 +484,7 @@ testMLSFederationV1ConvOnNewBackend = do
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   one2OneConvId <- objConvId $ one2OneConv %. "conversation"
   conv <- one2OneConv %. "conversation"
-  resetOne2OneGroup def alice1 one2OneConv
+  resetOne2OneGroup cs alice1 one2OneConv
 
   withWebSocket bob1 $ \wsBob -> do
     commit <- createAddCommit alice1 one2OneConvId [bob]
@@ -503,9 +505,9 @@ testMLSFederationV1ConvOnNewBackend = do
     mlsMsg <- asByteString (nPayload n %. "data")
 
     -- Checks that the remove proposal is consumable by bob
-    void $ mlsCliConsume one2OneConvId def alice1 mlsMsg
+    void $ mlsCliConsume one2OneConvId cs alice1 mlsMsg
 
-    parsedMsg <- showMessage def alice1 mlsMsg
+    parsedMsg <- showMessage cs alice1 mlsMsg
     let leafIndexBob = 1
     parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
     parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
