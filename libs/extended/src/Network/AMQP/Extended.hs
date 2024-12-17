@@ -7,6 +7,7 @@ module Network.AMQP.Extended
     withConnection,
     openConnectionWithRetries,
     mkRabbitMqAdminClientEnv,
+    mkRabbitMqAdminClientEnvWithCreds,
     mkRabbitMqChannelMVar,
     demoteOpts,
     RabbitMqTlsOpts (..),
@@ -91,9 +92,8 @@ instance FromJSON RabbitMqAdminOpts where
       <*> parseTlsJson v
       <*> v .: "adminPort"
 
-mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
-mkRabbitMqAdminClientEnv opts = do
-  (username, password) <- readCredsFromEnv
+mkRabbitMqAdminClientEnvWithCreds :: RabbitMqAdminOpts -> Text -> Text -> IO (AdminAPI (AsClientT IO))
+mkRabbitMqAdminClientEnvWithCreds opts username password = do
   mTlsSettings <- traverse (mkTLSSettings opts.host) opts.tls
   let (protocol, managerSettings) = case mTlsSettings of
         Nothing -> (Servant.Http, HTTP.defaultManagerSettings)
@@ -106,6 +106,9 @@ mkRabbitMqAdminClientEnv opts = do
       (Proxy @(ToServant AdminAPI AsApi))
       (either throwM pure <=< flip runClientM clientEnv)
       (toServant $ adminClient basicAuthData)
+
+mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
+mkRabbitMqAdminClientEnv opts = readCredsFromEnv >>= uncurry (mkRabbitMqAdminClientEnvWithCreds opts)
 
 -- | When admin opts are needed use `AmqpEndpoint Identity`, otherwise use
 -- `AmqpEndpoint NoAdmin`.

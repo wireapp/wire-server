@@ -353,12 +353,18 @@ mockApi mockAdmin =
       deleteConnection = mockDeleteConnection mockAdmin
     }
 
-mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Maybe Text -> Maybe Bool -> Servant.Handler [Queue]
-mockListQueuesByVHost MockRabbitMqAdmin {..} vhost _ _ = do
+mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Text -> Bool -> Int -> Int -> Servant.Handler (Page Queue)
+mockListQueuesByVHost MockRabbitMqAdmin {..} vhost _ _ _ _ = do
   atomically $ modifyTVar listQueuesVHostCalls (<> [vhost])
   readTVarIO broken >>= \case
     True -> throwError $ Servant.err500
-    False -> pure $ map (\n -> Queue n vhost) queues
+    False ->
+      pure
+        Page
+          { items = map (\n -> Queue n vhost) queues,
+            pageCount = 1,
+            page = 1
+          }
 
 mockListDeleteQueue :: MockRabbitMqAdmin -> Text -> Text -> Servant.Handler NoContent
 mockListDeleteQueue _ _ _ = do

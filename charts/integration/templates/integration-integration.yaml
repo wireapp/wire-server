@@ -310,6 +310,20 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    - name: RABBITMQ_USERNAME_V0
+      value: "wire-server"
+    - name: RABBITMQ_PASSWORD_V0
+      valueFrom:
+        secretKeyRef:
+          name: rabbitmq-v0
+          key: rabbitmq-password
+    - name: RABBITMQ_USERNAME_V1
+      value: "wire-server"
+    - name: RABBITMQ_PASSWORD_V1
+      valueFrom:
+        secretKeyRef:
+          name: rabbitmq-v1
+          key: rabbitmq-password
     {{- if hasKey .Values.secrets "redisUsername" }}
     - name: REDIS_USERNAME
       valueFrom:

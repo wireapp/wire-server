@@ -70,6 +70,20 @@ data:
     rabbitmq:
       host: rabbitmq
       adminPort: 15671
+      tls: true
+      vHost: /
+
+    rabbitmq-v0:
+      host: rabbitmq.wire-federation-v0.svc.cluster.local
+      adminPort: 15672
+      tls: false
+      vHost: /
+
+    rabbitmq-v1:
+      host: rabbitmq.wire-federation-v1.svc.cluster.local
+      adminPort: 15672
+      tls: false
+      vHost: /
 
     backendTwo:
 

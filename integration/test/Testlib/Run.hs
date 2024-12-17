@@ -9,7 +9,13 @@ import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List
+import Data.Maybe (fromMaybe)
+import Data.String (IsString (fromString))
+import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time.Clock
+import Network.AMQP.Extended
+import Network.RabbitMqAdmin
 import RunAllTests
 import System.Directory
 import System.Environment
@@ -133,10 +139,50 @@ runTests tests mXMLOutput cfg = do
             pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
       writeChan output Nothing
       wait displayThread
+      deleteFederationV0AndV1Queues genv
       printReport report
       mapM_ (saveXMLReport report) mXMLOutput
       when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
         exitFailure
+
+deleteFederationV0AndV1Queues :: GlobalEnv -> IO ()
+deleteFederationV0AndV1Queues env = do
+  let testDomains = env.gDomain1 : env.gDomain2 : env.gDynamicDomains
+  putStrLn "Attempting to delete federation V0 queues..."
+  (mV0User, mV0Pass) <- readCredsFromEnvWithSuffix "V0"
+  fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $
+    deleteFederationQueues testDomains env.gRabbitMQConfigV0 <$> mV0User <*> mV0Pass
+
+  putStrLn "Attempting to delete federation V1 queues..."
+  (mV1User, mV1Pass) <- readCredsFromEnvWithSuffix "V1"
+  fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $
+    deleteFederationQueues testDomains env.gRabbitMQConfigV1 <$> mV1User <*> mV1Pass
+  where
+    readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
+    readCredsFromEnvWithSuffix suffix =
+      (,)
+        <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
+        <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_" <> suffix))
+
+deleteFederationQueues :: [String] -> RabbitMQConfig -> Text -> Text -> IO ()
+deleteFederationQueues testDomains rc username password = do
+  let opts =
+        RabbitMqAdminOpts
+          { host = rc.host,
+            port = 0,
+            adminPort = fromIntegral rc.adminPort,
+            vHost = fromString rc.vHost,
+            tls =
+              if rc.tls
+                then Just (RabbitMqTlsOpts Nothing True)
+                else Nothing
+          }
+  client <- mkRabbitMqAdminClientEnvWithCreds opts username password
+  for_ testDomains $ \domain -> do
+    page <- client.listQueuesByVHost (fromString rc.vHost) (fromString $ "^backend-notifications\\." <> domain <> "$") True 100 1
+    for_ page.items $ \queue -> do
+      putStrLn $ "Deleting queue " <> T.unpack queue.name
+      void $ deleteQueue client (fromString rc.vHost) queue.name
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do

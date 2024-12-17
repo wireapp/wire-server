@@ -90,7 +90,9 @@ instance FromJSON DynamicBackendConfig
 
 data RabbitMQConfig = RabbitMQConfig
   { host :: String,
-    adminPort :: Word16
+    adminPort :: Word16,
+    tls :: Bool,
+    vHost :: String
   }
   deriving (Show)
 
@@ -100,6 +102,8 @@ instance FromJSON RabbitMQConfig where
       RabbitMQConfig
         <$> ob .: fromString "host"
         <*> ob .: fromString "adminPort"
+        <*> ob .: fromString "tls"
+        <*> ob .: fromString "vHost"
 
 -- | Initialised once per testsuite.
 data GlobalEnv = GlobalEnv
@@ -115,6 +119,8 @@ data GlobalEnv = GlobalEnv
     gServicesCwdBase :: Maybe FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
+    gRabbitMQConfigV0 :: RabbitMQConfig,
+    gRabbitMQConfigV1 :: RabbitMQConfig,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int
   }
@@ -127,6 +133,8 @@ data IntegrationConfig = IntegrationConfig
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
+    rabbitmqV0 :: RabbitMQConfig,
+    rabbitmqV1 :: RabbitMQConfig,
     cassandra :: CassandraConfig
   }
   deriving (Show, Generic)
@@ -142,6 +150,8 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
+        <*> o .: fromString "rabbitmq-v0"
+        <*> o .: fromString "rabbitmq-v1"
         <*> o .: fromString "cassandra"
 
 data ServiceMap = ServiceMap

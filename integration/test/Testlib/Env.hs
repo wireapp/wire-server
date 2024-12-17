@@ -109,6 +109,8 @@ mkGlobalEnv cfgFile = do
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
+        gRabbitMQConfigV0 = intConfig.rabbitmqV0,
+        gRabbitMQConfigV1 = intConfig.rabbitmqV1,
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds
       }

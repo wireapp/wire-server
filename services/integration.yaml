@@ -164,6 +164,20 @@ dynamicBackends:
 rabbitmq:
   host: localhost
   adminPort: 15671
+  tls: true
+  vHost: /
+
+rabbitmq-v0:
+  host: localhost
+  adminPort: 15672
+  tls: false
+  vHost: federation-v0
+
+rabbitmq-v1:
+  host: localhost
+  adminPort: 15672
+  tls: false
+  vHost: federation-v1
 
 cassandra:
   host: 127.0.0.1
