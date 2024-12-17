@@ -302,6 +302,7 @@ upgradePersonalToTeam luid bNewTeam = do
         tid
         bNewTeam.bnuTeam.newTeamName.fromRange
         (Just user.userLocale)
+        user.userDisplayName
 
     pure $! createUserTeam
 
