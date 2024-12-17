@@ -103,6 +103,22 @@ testConsumeTempEvents = do
 
         ackEvent ws e
 
+testConsumeTempEventsWithoutOwnClient :: (HasCallStack) => App ()
+testConsumeTempEventsWithoutOwnClient = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+
+  runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
+    handle <- randomHandle
+    putHandle bob handle >>= assertSuccess
+
+    void $ assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+      e %. "data.event.payload.0.user.id" `shouldMatch` objId bob
+      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+
+      ackEvent ws e
+
 testMLSTempEvents :: (HasCallStack) => App ()
 testMLSTempEvents = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
