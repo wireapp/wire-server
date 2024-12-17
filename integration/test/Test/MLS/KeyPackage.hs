@@ -11,15 +11,14 @@ import Testlib.Prelude
 
 testDeleteKeyPackages :: App ()
 testDeleteKeyPackages = do
-  let suite = Ciphersuite "0x0001"
   alice <- randomUser OwnDomain def
-  alice1 <- createMLSClient suite def alice
-  kps <- replicateM 3 (uploadNewKeyPackage suite alice1)
+  alice1 <- createMLSClient def def alice
+  kps <- replicateM 3 (uploadNewKeyPackage def alice1)
 
   -- add an extra non-existing key package to the delete request
   let kps' = "4B701F521EBE82CEC4AD5CB67FDD8E1C43FC4868DE32D03933CE4993160B75E8" : kps
 
-  bindResponse (deleteKeyPackages alice1 kps') $ \resp -> do
+  bindResponse (deleteKeyPackages def alice1 kps') $ \resp -> do
     resp.status `shouldMatchInt` 201
 
   bindResponse (countKeyPackages def alice1) $ \resp -> do
