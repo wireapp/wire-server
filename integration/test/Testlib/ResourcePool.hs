@@ -88,7 +88,7 @@ deleteAllRabbitMQQueues rc resource = do
             tls = Just $ RabbitMqTlsOpts Nothing True
           }
   client <- mkRabbitMqAdminClientEnv opts
-  queuesPage <- listQueuesByVHost client (fromString resource.berVHost) (fromString "") False 1000 1
+  queuesPage <- listQueuesByVHost client (fromString resource.berVHost) (fromString "") False 100 1
   for_ queuesPage.items $ \queue ->
     deleteQueue client (fromString resource.berVHost) queue.name
 
