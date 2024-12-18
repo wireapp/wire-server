@@ -613,7 +613,7 @@ testSearchOtherDomain opts brig = do
 -- So, we have four time frames ("phases") in which a user could be created/updated:
 -- 1. Before migration is even planned
 -- 2. When brig is writing to both indices
--- 3. While/After reindexing is done form old index to new index
+-- 3. While/After reindexing is done from old index to new index
 -- 4. After brig is writing to only the new index
 --
 -- Note: The new index can be on another cluster of ES, but we have only one ES
