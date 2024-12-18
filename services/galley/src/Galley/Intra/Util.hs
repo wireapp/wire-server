@@ -38,13 +38,12 @@ import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
 
-data IntraComponent = Brig | Spar | Gundeck
+data IntraComponent = Brig | Spar
   deriving (Show)
 
 componentName :: IntraComponent -> String
 componentName Brig = "brig"
 componentName Spar = "spar"
-componentName Gundeck = "gundeck"
 
 componentRequest :: IntraComponent -> Opts -> Request -> Request
 componentRequest Brig o =
@@ -53,17 +52,10 @@ componentRequest Brig o =
 componentRequest Spar o =
   B.host (encodeUtf8 o._spar.host)
     . B.port (portNumber $ fromIntegral . port $ o._spar)
-componentRequest Gundeck o =
-  B.host (encodeUtf8 o._gundeck.host)
-    . B.port (portNumber $ fromIntegral . port $ o._gundeck)
-    . method POST
-    . path "/i/push/v2"
-    . expect2xx
 
 componentRetryPolicy :: IntraComponent -> RetryPolicy
 componentRetryPolicy Brig = x1
 componentRetryPolicy Spar = x1
-componentRetryPolicy Gundeck = limitRetries 0
 
 call ::
   IntraComponent ->
