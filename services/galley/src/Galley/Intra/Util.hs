@@ -36,7 +36,6 @@ import Galley.Env hiding (brig)
 import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
-import Network.HTTP.Types
 
 data IntraComponent = Brig | Spar
   deriving (Show)
