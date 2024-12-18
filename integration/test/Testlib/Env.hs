@@ -130,8 +130,8 @@ mkGlobalEnv cfgFile = do
       pure $ Just sslContext
     createSSLContext Nothing = pure Nothing
 
-mkEnv :: GlobalEnv -> Codensity IO Env
-mkEnv ge = do
+mkEnv :: Maybe String -> GlobalEnv -> Codensity IO Env
+mkEnv currentTestName ge = do
   mls <- liftIO . newIORef =<< mkMLSState
   liftIO $ do
     pks <- newIORef (zip [1 ..] somePrekeys)
@@ -161,7 +161,8 @@ mkEnv ge = do
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
           rabbitMQConfig = ge.gRabbitMQConfig,
-          timeOutSeconds = ge.gTimeOutSeconds
+          timeOutSeconds = ge.gTimeOutSeconds,
+          currentTestName
         }
 
 allCiphersuites :: [Ciphersuite]

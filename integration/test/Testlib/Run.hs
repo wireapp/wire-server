@@ -31,9 +31,9 @@ import Text.Printf
 import UnliftIO.Async
 import Prelude
 
-runTest :: GlobalEnv -> App a -> IO (Either String a)
-runTest ge action = lowerCodensity $ do
-  env <- mkEnv ge
+runTest :: String -> GlobalEnv -> App a -> IO (Either String a)
+runTest testName ge action = lowerCodensity $ do
+  env <- mkEnv (Just testName) ge
   liftIO $
     (Right <$> runAppWithEnv env action)
       `E.catches` [ E.Handler $ \(e :: SomeAsyncException) -> do
@@ -121,7 +121,7 @@ runTests tests mXMLOutput cfg = do
     withAsync displayOutput $ \displayThread -> do
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
-        (mErr, tm) <- withTime (runTest genv action)
+        (mErr, tm) <- withTime (runTest qname genv action)
         case mErr of
           Left err -> do
             writeOutput $
