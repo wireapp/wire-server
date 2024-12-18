@@ -626,7 +626,7 @@ testMigrationToNewIndex ::
   Brig ->
   (Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()) ->
   m ()
-testMigrationToNewIndex opts brig reindexCommand = do
+testMigrationToNewIndex opts brig migrateIndexCommand = do
   withOldESProxy opts $ \oldESUrl oldESIndex -> do
     let optsOldIndex =
           opts
@@ -673,7 +673,7 @@ testMigrationToNewIndex opts brig reindexCommand = do
     logger <- Log.create Log.StdOut
     liftIO $ do
       createCommand logger opts oldIndexName
-      reindexCommand logger opts oldIndexName
+      migrateIndexCommand logger opts oldIndexName
 
     -- Phase 3: Using old index for search, writing to both indices, migrations have run
     refreshIndex brig
