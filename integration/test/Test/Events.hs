@@ -114,7 +114,9 @@ testConsumeTempEventsWithoutOwnClient = do
     handle <- randomHandle
     putHandle bob handle >>= assertSuccess
 
-    void $ assertEvent ws $ \e -> do
+    -- We cannot use 'assertEvent' here because there is a race between the temp
+    -- queue being created and rabbitmq fanning out the previous events.
+    void $ assertFindsEvent ws $ \e -> do
       e %. "type" `shouldMatch` "event"
       e %. "data.event.payload.0.type" `shouldMatch` "user.update"
       e %. "data.event.payload.0.user.id" `shouldMatch` objId bob
@@ -141,7 +143,9 @@ testTemporaryQueuesAreDeletedAfterUse = do
       addJSONToFailureContext "queuesDuringWS" queuesDuringWS $ do
         length queuesDuringWS.items `shouldMatchInt` 2
 
-      void $ assertEvent ws $ \e -> do
+      -- We cannot use 'assertEvent' here because there is a race between the temp
+      -- queue being created and rabbitmq fanning out the previous events.
+      void $ assertFindsEvent ws $ \e -> do
         e %. "type" `shouldMatch` "event"
         e %. "data.event.payload.0.type" `shouldMatch` "user.update"
         e %. "data.event.payload.0.user.id" `shouldMatch` objId bob
@@ -178,7 +182,9 @@ testMLSTempEvents = do
 
     -- FUTUREWORK: we should not rely on events arriving in this particular order
 
-    void $ assertEvent ws $ \e -> do
+    -- We cannot use 'assertEvent' here because there is a race between the temp
+    -- queue being created and rabbitmq fanning out the previous events.
+    void $ assertFindsEvent ws $ \e -> do
       e %. "type" `shouldMatch` "event"
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.member-join"
       user <- assertOne =<< (e %. "data.event.payload.0.data.users" & asList)
@@ -581,13 +587,34 @@ sendAck ws deliveryTag multiple =
 
 assertEvent :: (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
 assertEvent ws expectations = do
-  timeout 10_000_000 (readChan ws.events) >>= \case
-    Nothing -> assertFailure "No event received for 1s"
+  timeOutSeconds <- asks (.timeOutSeconds)
+  timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
+    Nothing -> assertFailure $ "No event received for " <> show timeOutSeconds <> "s"
     Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
     Just (Right e) -> do
       pretty <- prettyJSON e
       addFailureContext ("event:\n" <> pretty)
         $ expectations e
+
+-- | Tolerates and consumes other events before expected event
+assertFindsEvent :: forall a. (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
+assertFindsEvent ws expectations = go 0
+  where
+    go :: Int -> App a
+    go ignoredEventCount = do
+      timeOutSeconds <- asks (.timeOutSeconds)
+      timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
+        Nothing -> assertFailure $ show ignoredEventCount <> " event(s) received, no matching event received for " <> show timeOutSeconds <> "s"
+        Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+        Just (Right ev) -> do
+          (expectations ev)
+            `catch` \(_ :: AssertionFailure) -> do
+              ignoredEventType <-
+                maybe (pure "No Type") asString
+                  =<< lookupField ev "data.event.payload.0.type"
+              ackEvent ws ev
+              addJSONToFailureContext ("Ignored Event (" <> ignoredEventType <> ")") ev
+                $ go (ignoredEventCount + 1)
 
 data NoEvent = NoEvent | WebSocketDied
 
