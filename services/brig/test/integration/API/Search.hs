@@ -2,6 +2,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -627,25 +628,35 @@ testMigrationToNewIndex ::
   (Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()) ->
   m ()
 testMigrationToNewIndex opts brig migrateIndexCommand = do
-  withOldESProxy opts $ \oldESUrl oldESIndex -> do
-    let optsOldIndex =
+  -- running brig with `withSettingsOverride` to direct it to the expected index(es).  it's
+  -- important to make both old and new index name/url explicit via `withOldESProxy`, or the
+  -- calls to `refreshIndex` in this test will interfere with parallel test runs of this test.
+  withOldESProxy opts $ \oldESUrl oldESIndex -> withOldESProxy opts $ \newESUrl newESIndex -> do
+    let optsWithIndex :: Text -> Opt.Opts
+        optsWithIndex "old" =
           opts
             & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName oldESIndex)
             & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server oldESUrl)
+        optsWithIndex "new" =
+          opts
+            & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName newESIndex)
+            & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server newESUrl)
+        optsWithIndex "both" =
+          optsWithIndex "old"
+            & Opt.elasticsearchLens . Opt.additionalWriteIndexLens ?~ (ES.IndexName newESIndex)
+            & Opt.elasticsearchLens . Opt.additionalWriteIndexUrlLens ?~ (ES.Server newESUrl)
+            -- 'additionalCaCertLens' needs to be added in order for brig to be able to reach both indices.
+            & Opt.elasticsearchLens . Opt.additionalCaCertLens .~ (opts ^. Opt.elasticsearchLens . Opt.caCertLens)
+            & Opt.elasticsearchLens . Opt.additionalInsecureSkipVerifyTlsLens .~ (opts ^. Opt.elasticsearchLens . Opt.insecureSkipVerifyTlsLens)
+
     -- Phase 1: Using old index only
-    (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides optsOldIndex $ do
+    (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides (optsWithIndex "old") $ do
       nonTeamUser <- randomUser brig
       (tid, teamOwner, [teamUser1, teamUser2]) <- createPopulatedBindingTeam brig 2
       pure (nonTeamUser, teamOwner, teamUser1, teamUser2, tid)
 
     -- Phase 2: Using old index for search, writing to both indices, migrations have not run
-    let phase2OptsWhile =
-          optsOldIndex
-            & Opt.elasticsearchLens . Opt.additionalWriteIndexLens ?~ (opts ^. Opt.elasticsearchLens . Opt.indexLens)
-            & Opt.elasticsearchLens . Opt.additionalWriteIndexUrlLens ?~ (opts ^. Opt.elasticsearchLens . Opt.urlLens)
-            & Opt.elasticsearchLens . Opt.additionalCaCertLens .~ (opts ^. Opt.elasticsearchLens . Opt.caCertLens)
-            & Opt.elasticsearchLens . Opt.additionalInsecureSkipVerifyTlsLens .~ (opts ^. Opt.elasticsearchLens . Opt.insecureSkipVerifyTlsLens)
-    (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
+    (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
       phase2NonTeamUser <- randomUser brig
       phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
       refreshIndex brig
@@ -657,27 +668,27 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
       -- searching phase2 users should work
       assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
       assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+
       pure (phase2NonTeamUser, phase2TeamUser)
 
-    refreshIndex brig
-    -- Before migration the phase1 users shouldn't be found in the new index
-    assertCan'tFindByName brig phase1TeamUser1 phase1TeamUser2
-    assertCan'tFindByName brig phase1TeamUser1 phase1NonTeamUser
+    withSettingsOverrides (optsWithIndex "new") $ do
+      -- Before migration the phase1 users shouldn't be found in the new index
+      assertCan'tFindByName brig phase1TeamUser1 phase1TeamUser2
+      assertCan'tFindByName brig phase1TeamUser1 phase1NonTeamUser
 
-    -- Before migration the phase2 users should be found in the new index
-    assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
-    assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+      -- Before migration the phase2 users should be found in the new index
+      assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+      assertCanFindByName brig phase1TeamUser1 phase2TeamUser
 
     -- Run Migrations
-    let oldIndexName = ES.IndexName oldESIndex
     logger <- Log.create Log.StdOut
     liftIO $ do
-      createCommand logger opts oldIndexName
-      migrateIndexCommand logger opts oldIndexName
+      createCommand logger opts (ES.IndexName oldESIndex)
+      migrateIndexCommand logger opts (ES.IndexName oldESIndex)
 
     -- Phase 3: Using old index for search, writing to both indices, migrations have run
-    refreshIndex brig
-    (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
+    (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
+      refreshIndex brig
       phase3NonTeamUser <- randomUser brig
       phase3TeamUser <- inviteAndRegisterUser teamOwner tid brig
       refreshIndex brig
@@ -694,18 +705,18 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
       pure (phase3NonTeamUser, phase3TeamUser)
 
     -- Phase 4: Using only new index
-    refreshIndex brig
-    -- Searching should work for phase1 users
-    assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
-    assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+    withSettingsOverrides (optsWithIndex "new") $ do
+      -- Searching should work for phase1 users
+      assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
+      assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
 
-    -- Searching should work for phase2 users
-    assertCanFindByName brig phase1TeamUser1 phase2TeamUser
-    assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+      -- Searching should work for phase2 users
+      assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+      assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
 
-    -- Searching should work for phase3 users
-    assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
-    assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+      -- Searching should work for phase3 users
+      assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
+      assertCanFindByName brig phase1TeamUser1 phase3TeamUser
 
 createCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
 createCommand logger opts oldIndexName =
