@@ -358,17 +358,17 @@ withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service 
 withProcess resource overrides service = do
   let domain = berDomain resource
   sm <- lift $ getServiceMap domain
+  env <- lift ask
   getConfig <-
     lift . appToIO $
       readServiceConfig service
         >>= updateServiceMapInConfig resource service
         >>= lookupConfigOverride overrides service
   let execName = configName service
-  (cwd, exe) <-
-    lift $ asks \env -> case env.servicesCwdBase of
-      Nothing -> (Nothing, execName)
-      Just dir ->
-        (Just (dir </> execName), "../../dist" </> execName)
+  let (cwd, exe) = case env.servicesCwdBase of
+        Nothing -> (Nothing, execName)
+        Just dir ->
+          (Just (dir </> execName), "../../dist" </> execName)
 
   startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
@@ -379,7 +379,7 @@ withProcess resource overrides service = do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          let prefix = "[" <> execName <> "@" <> domain <> "] "
+          let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
           let colorize = fromMaybe id (lookup execName processColors)
           void $ forkIO $ logToConsole colorize prefix stdoutHdl
           void $ forkIO $ logToConsole colorize prefix stderrHdl

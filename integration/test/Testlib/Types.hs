@@ -228,7 +228,8 @@ data Env = Env
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
     rabbitMQConfig :: RabbitMQConfig,
-    timeOutSeconds :: Int
+    timeOutSeconds :: Int,
+    currentTestName :: Maybe String
   }
 
 data Response = Response
