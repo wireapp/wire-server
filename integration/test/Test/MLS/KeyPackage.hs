@@ -28,7 +28,7 @@ testDeleteKeyPackages = do
 testKeyPackageMultipleCiphersuites :: App ()
 testKeyPackageMultipleCiphersuites = do
   let suite = def
-      altSuite = Ciphersuite "0x0005"
+      altSuite = Ciphersuite "0x0007"
   alice <- randomUser OwnDomain def
   [alice1, alice2] <- replicateM 2 (createMLSClientWithCiphersuites [suite, altSuite] def alice)
 
@@ -209,7 +209,7 @@ testUnsupportedCiphersuite = do
 testReplaceKeyPackages :: (HasCallStack) => App ()
 testReplaceKeyPackages = do
   let suite = def
-      altSuite = Ciphersuite "0x0005"
+      altSuite = Ciphersuite "0x0007"
       oldSuite = Ciphersuite "0x0001"
   alice <- randomUser OwnDomain def
   [alice1, alice2] <- replicateM 2 $ createMLSClientWithCiphersuites [suite, altSuite, oldSuite] def alice
