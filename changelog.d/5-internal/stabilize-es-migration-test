@@ -1,0 +1,1 @@
+Stabilize `index migration` tests by fixing a race on index names.
