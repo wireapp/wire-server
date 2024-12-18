@@ -629,9 +629,9 @@ testMigrationToNewIndex ::
   m ()
 testMigrationToNewIndex opts brig migrateIndexCommand = do
   -- running brig with `withSettingsOverride` to direct it to the expected index(es).  it's
-  -- important to make both old and new index name/url explicit via `withOldESProxy`, or the
+  -- important to make both old and new index name/url explicit via `withESProxy`, or the
   -- calls to `refreshIndex` in this test will interfere with parallel test runs of this test.
-  withOldESProxy opts $ \oldESUrl oldESIndex -> withOldESProxy opts $ \newESUrl newESIndex -> do
+  withESProxy opts $ \oldESUrl oldESIndex -> withESProxy opts $ \newESUrl newESIndex -> do
     let optsWithIndex :: Text -> Opt.Opts
         optsWithIndex "old" =
           opts
@@ -783,8 +783,8 @@ toESConnectionSettings opts = ESConnectionSettings {..}
     esInsecureSkipVerifyTls = opts.insecureSkipVerifyTls
     esCredentials = opts.credentials
 
-withOldESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> (Text -> Text -> m a) -> m a
-withOldESProxy opts f = do
+withESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> (Text -> Text -> m a) -> m a
+withESProxy opts f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
