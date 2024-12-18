@@ -682,9 +682,9 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
 
     -- Run Migrations
     logger <- Log.create Log.StdOut
-    liftIO $ do
-      createCommand logger opts (ES.IndexName oldESIndex)
-      migrateIndexCommand logger opts (ES.IndexName oldESIndex)
+    withESProxyOnly [oldESIndex, newESIndex] opts $ \bothIndexUrl -> do
+      let opts' = (optsWithIndex "old") & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server bothIndexUrl)
+      liftIO $ migrateIndexCommand logger opts' (ES.IndexName newESIndex)
 
     -- Phase 3: Using old index for search, writing to both indices, migrations have run
     (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
@@ -718,30 +718,13 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
       assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
       assertCanFindByName brig phase1TeamUser1 phase3TeamUser
 
-createCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
-createCommand logger opts oldIndexName =
-  let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
-      esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
-      esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
-      esNewConnectionSettings = esOldConnectionSettings {esIndex = newIndexName}
-      replicas = 2
-      shards = 2
-      refreshInterval = 5
-      esSettings =
-        IndexOpts.localElasticSettings
-          & IndexOpts.esConnection .~ esNewConnectionSettings
-          & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
-          & IndexOpts.esIndexShardCount .~ shards
-          & IndexOpts.esIndexRefreshInterval .~ refreshInterval
-   in runCommand logger $ Create esSettings opts.galley
-
 runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
-runReindexFromAnotherIndex logger opts oldIndexName =
-  let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
-      esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
+runReindexFromAnotherIndex logger opts newIndexName =
+  let esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens)
       esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
       reindexSettings = ReindexFromAnotherIndexSettings esOldConnectionSettings newIndexName 5
-   in runCommand logger $ ReindexFromAnotherIndex reindexSettings
+   in do
+        runCommand logger $ ReindexFromAnotherIndex reindexSettings
 
 runReindexFromDatabase ::
   (ElasticSettings -> CassandraSettings -> Endpoint -> Command) ->
@@ -749,11 +732,9 @@ runReindexFromDatabase ::
   Opt.Opts ->
   ES.IndexName ->
   IO ()
-runReindexFromDatabase syncCommand logger opts oldIndexName =
-  let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
-      esOldOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ oldIndexName)
-      esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
-      esNewConnectionSettings = esOldConnectionSettings {esIndex = newIndexName}
+runReindexFromDatabase syncCommand logger opts newIndexName =
+  let esNewOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ newIndexName)
+      esNewConnectionSettings :: ESConnectionSettings = toESConnectionSettings esNewOpts
       replicas = 2
       shards = 2
       refreshInterval = 5
@@ -783,6 +764,7 @@ toESConnectionSettings opts = ESConnectionSettings {..}
     esInsecureSkipVerifyTls = opts.insecureSkipVerifyTls
     esCredentials = opts.credentials
 
+-- TODO: Separate the index creation from proxying to reduce duplication withESProxyOnly
 withESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> (Text -> Text -> m a) -> m a
 withESProxy opts f = do
   indexName <- randomHandle
@@ -790,21 +772,28 @@ withESProxy opts f = do
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   (proxyPort, sock) <- liftIO Warp.openFreePort
   bracket
-    (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer indexName opts mgr)
+    (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer [indexName] opts mgr)
     cancel
     (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)) indexName)
 
-indexProxyServer :: Text -> Opt.Opts -> Manager -> Wai.Application
-indexProxyServer idx opts mgr =
+withESProxyOnly :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => [Text] -> Opt.Opts -> (Text -> m a) -> m a
+withESProxyOnly indexNames opts f = do
+  mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
+  (proxyPort, sock) <- liftIO Warp.openFreePort
+  bracket
+    (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer indexNames opts mgr)
+    cancel
+    (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)))
+
+indexProxyServer :: [Text] -> Opt.Opts -> Manager -> Wai.Application
+indexProxyServer idxs opts mgr =
   let toUri (ES.Server url) = either (error . show) id $ URI.parseURI URI.strictURIParserOptions (Text.encodeUtf8 url)
       proxyURI = toUri (Opts.url (Opts.elasticsearch opts))
       proxyToHost = URI.hostBS . URI.authorityHost . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
       proxyToPort = URI.portNumber . fromMaybe (URI.Port 9200) . URI.authorityPort . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
-      proxyApp req =
-        pure $
-          if headMay (Wai.pathInfo req) == Just idx
-            then Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
-            else Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
+      proxyApp req | (headMay (Wai.pathInfo req)) `elem` [Just "_reindex", Just "_tasks"] = pure $ Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
+      proxyApp req | (any (\idx -> (headMay (Wai.pathInfo req) == Just idx)) idxs) = pure $ Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
+      proxyApp req = pure $ Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
    in waiProxyTo proxyApp Wai.defaultOnExc mgr
 
 testWithBothIndices :: Opt.Opts -> Manager -> TestName -> WaiTest.Session a -> TestTree
