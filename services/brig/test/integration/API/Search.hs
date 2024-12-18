@@ -781,7 +781,7 @@ withOldESProxy opts f = do
   bracket
     (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer indexName opts mgr)
     cancel
-    (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)) indexName) -- f undefined indexName
+    (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)) indexName)
 
 indexProxyServer :: Text -> Opt.Opts -> Manager -> Wai.Application
 indexProxyServer idx opts mgr =
