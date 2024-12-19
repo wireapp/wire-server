@@ -50,7 +50,6 @@ import Data.Aeson qualified as Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
-import Data.Map.Strict qualified as Map
 import Data.Qualified (Qualified (qDomain, qUnqualified))
 import Data.String.Conversions
 import Data.Text qualified as Text
@@ -842,26 +841,25 @@ testWithBothIndicesAndOpts opts mgr name f =
 
 withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
 withOldIndex opts f = do
+  lg <- Log.create Log.StdOut
   indexName <- randomHandle
-  createIndexWithMapping opts indexName oldMapping
+  createIndexWithMapping lg opts indexName oldMapping
   let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName)
   withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
 optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
+  lg <- Log.create Log.StdOut
   indexName <- randomHandle
-  createIndexWithMapping opts indexName oldMapping
+  createIndexWithMapping lg opts indexName oldMapping
   pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName), indexName)
 
--- TODO: Replace in other tests. Or, write a comment and mention 'runCommand Create'
-createIndexWithMapping :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> Value -> m ()
-createIndexWithMapping opts name val = do
+createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts -> Text -> Value -> m ()
+createIndexWithMapping lg opts name val = do
   let indexName = ES.IndexName name
-  createReply <- runBH opts $ ES.createIndexWith [ES.AnalysisSetting analysisSettings] 1 indexName
-  unless (ES.isCreated createReply || ES.isSuccess createReply) $ do
-    liftIO $ assertFailure $ "failed to create index: " <> show name <> " with error: " <> show createReply
+  liftIO $ createCommand lg opts indexName
   mappingReply <- runBH opts $ ES.putMapping indexName (ES.MappingName "user") val
-  unless (ES.isCreated mappingReply || ES.isSuccess createReply) $ do
+  unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
     liftIO $ assertFailure $ "failed to create mapping: " <> show name
 
 -- | This doesn't fail if ES returns error because we don't really want to fail the tests for this
@@ -876,21 +874,6 @@ runBH opts action = do
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
-
--- | This was copied from at Brig.User.Search.Index at commit 3242aa26
-analysisSettings :: ES.Analysis
-analysisSettings =
-  let analyzerDef =
-        Map.fromList
-          [ ("prefix_index", ES.AnalyzerDefinition (Just $ ES.Tokenizer "whitespace") [ES.TokenFilter "edge_ngram_1_30"] []),
-            ("prefix_search", ES.AnalyzerDefinition (Just $ ES.Tokenizer "whitespace") [ES.TokenFilter "truncate_30"] [])
-          ]
-      filterDef =
-        Map.fromList
-          [ ("edge_ngram_1_30", ES.TokenFilterDefinitionEdgeNgram (ES.NgramFilter 1 30) Nothing),
-            ("truncate_30", ES.TokenFilterTruncate 30)
-          ]
-   in ES.Analysis analyzerDef mempty filterDef mempty
 
 --- | This was copied from at Brig.User.Search.Index.indexMapping at commit 75e6f6e
 oldMapping :: Value
