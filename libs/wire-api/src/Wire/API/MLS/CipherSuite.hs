@@ -20,8 +20,7 @@
 module Wire.API.MLS.CipherSuite
   ( -- * MLS ciphersuites
     CipherSuite (..),
-    defCipherSuite,
-    defCipherSuiteV7,
+    legacyCipherSuite,
     CipherSuiteTag (..),
     cipherSuiteTag,
     tagCipherSuite,
@@ -122,14 +121,11 @@ data CipherSuiteTag
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
 
-defCipherSuite :: CipherSuiteTag
-defCipherSuite = MLS_128_DHKEMP256_AES128GCM_SHA256_P256
-
 -- | default cipher suite as of wire-server 5.8
 -- This cipher suite is used for backward-compatibility in endpoints which did
 -- not support choosing the cipher suite in a query parameter from the start.
-defCipherSuiteV7 :: CipherSuiteTag
-defCipherSuiteV7 = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+legacyCipherSuite :: CipherSuiteTag
+legacyCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
 
 instance S.ToSchema CipherSuiteTag where
   declareNamedSchema _ =
