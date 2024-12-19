@@ -7,13 +7,11 @@ import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
-import Control.Exception (Handler (..), bracket, catch, catches, finally, throwIO, try)
+import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
-import Control.Monad.Random.Class
 import Data.Aeson hiding (Key)
 import Data.Id
-import Data.Text qualified as T
 import Imports hiding (min, threadDelay)
 import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
@@ -111,22 +109,20 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
 
     sendNotifications :: WS.Connection -> IO ()
     sendNotifications wsConn = lowerCodensity $ do
-      cid <- lift $ mkRabbitMqClientId mcid
-      let key = mkKeyRabbit uid cid
-      let queueName = clientNotificationQueueName uid cid
-
       let createQueue chan = case mcid of
-            Nothing -> Codensity $ \k ->
-              ( do
-                  void $ Q.declareQueue chan newQueue {Q.queueName = queueName}
-                  for_ [userRoutingKey uid, temporaryRoutingKey uid] $
-                    Q.bindQueue chan queueName userNotificationExchangeName
-                  k ()
-              )
-                `finally` Q.deleteQueue chan queueName
-            Just _ -> pure ()
+            Nothing -> Codensity $ \k -> do
+              (queueName, _, _) <-
+                Q.declareQueue chan $
+                  newQueue
+                    { Q.queueExclusive = True,
+                      Q.queueAutoDelete = True
+                    }
+              for_ [userRoutingKey uid, temporaryRoutingKey uid] $
+                Q.bindQueue chan queueName userNotificationExchangeName
+              k queueName
+            Just cid -> Codensity $ \k -> k $ clientNotificationQueueName uid cid
 
-      chan <- createChannel e.pool queueName createQueue key
+      chan <- createChannel e.pool createQueue
 
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
@@ -237,8 +233,3 @@ data WebSocketServerError
   deriving (Show)
 
 instance Exception WebSocketServerError
-
-mkRabbitMqClientId :: Maybe ClientId -> IO RabbitMqClientId
-mkRabbitMqClientId (Just cid) = pure (RabbitMqClientId cid)
-mkRabbitMqClientId Nothing =
-  RabbitMqTempId . T.pack <$> replicateM 8 (getRandomR ('a', 'z'))

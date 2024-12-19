@@ -64,6 +64,8 @@
 , retry
 , saml2-web-sso
 , scientific
+, servant
+, servant-client
 , split
 , stm
 , streaming-commons
@@ -161,6 +163,8 @@ mkDerivation {
     retry
     saml2-web-sso
     scientific
+    servant
+    servant-client
     split
     stm
     streaming-commons

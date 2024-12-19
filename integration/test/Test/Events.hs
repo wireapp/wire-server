@@ -11,6 +11,7 @@ import Control.Monad.RWS (asks)
 import Control.Monad.Trans.Class
 import Control.Retry
 import Data.ByteString.Conversion (toByteString')
+import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import Data.Timeout
 import MLS.Util
@@ -18,9 +19,11 @@ import Network.AMQP.Extended
 import Network.RabbitMqAdmin
 import qualified Network.WebSockets as WS
 import Notifications
+import Servant.API (AsApi, ToServant, toServant)
+import Servant.API.Generic (fromServant)
+import qualified Servant.Client as Servant
 import SetupHelpers
 import Testlib.Prelude hiding (assertNoEvent)
-import Testlib.ResourcePool (acquireResources)
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -103,6 +106,57 @@ testConsumeTempEvents = do
 
         ackEvent ws e
 
+testConsumeTempEventsWithoutOwnClient :: (HasCallStack) => App ()
+testConsumeTempEventsWithoutOwnClient = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+
+  runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
+    handle <- randomHandle
+    putHandle bob handle >>= assertSuccess
+
+    -- We cannot use 'assertEvent' here because there is a race between the temp
+    -- queue being created and rabbitmq fanning out the previous events.
+    void $ assertFindsEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+      e %. "data.event.payload.0.user.id" `shouldMatch` objId bob
+      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+
+      ackEvent ws e
+
+testTemporaryQueuesAreDeletedAfterUse :: (HasCallStack) => App ()
+testTemporaryQueuesAreDeletedAfterUse = do
+  startDynamicBackendsReturnResources [def] $ \[beResource] -> do
+    let domain = beResource.berDomain
+    rabbitmqAdmin <- mkRabbitMqAdminClientForResource beResource
+    queuesBeforeWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
+    let deadNotifsQueue = Queue {name = fromString "dead-user-notifications", vhost = fromString beResource.berVHost}
+    queuesBeforeWS.items `shouldMatch` [deadNotifsQueue]
+
+    [alice, bob] <- createAndConnectUsers [domain, domain]
+
+    runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
+      handle <- randomHandle
+      putHandle bob handle >>= assertSuccess
+
+      queuesDuringWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
+      addJSONToFailureContext "queuesDuringWS" queuesDuringWS $ do
+        length queuesDuringWS.items `shouldMatchInt` 2
+
+      -- We cannot use 'assertEvent' here because there is a race between the temp
+      -- queue being created and rabbitmq fanning out the previous events.
+      void $ assertFindsEvent ws $ \e -> do
+        e %. "type" `shouldMatch` "event"
+        e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+        e %. "data.event.payload.0.user.id" `shouldMatch` objId bob
+        e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+
+        ackEvent ws e
+
+    -- Use let binding here so 'shouldMatchEventually' retries the whole request
+    let queuesAfterWSM = rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
+    fmap (.items) queuesAfterWSM `shouldEventuallyMatch` ([deadNotifsQueue])
+
 testMLSTempEvents :: (HasCallStack) => App ()
 testMLSTempEvents = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
@@ -128,7 +182,9 @@ testMLSTempEvents = do
 
     -- FUTUREWORK: we should not rely on events arriving in this particular order
 
-    void $ assertEvent ws $ \e -> do
+    -- We cannot use 'assertEvent' here because there is a race between the temp
+    -- queue being created and rabbitmq fanning out the previous events.
+    void $ assertFindsEvent ws $ \e -> do
       e %. "type" `shouldMatch` "event"
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.member-join"
       user <- assertOne =<< (e %. "data.event.payload.0.data.users" & asList)
@@ -413,22 +469,17 @@ testChannelLimit = withModifiedBackend
         lift $ assertNoEvent_ ws
 
 testChannelKilled :: (HasCallStack) => App ()
-testChannelKilled = lowerCodensity $ do
-  pool <- lift $ asks (.resourcePool)
-  [backend] <- acquireResources 1 pool
-
-  domain <- startDynamicBackend backend mempty
-  alice <- lift $ randomUser domain def
+testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
+  let domain = backend.berDomain
+  alice <- randomUser domain def
   [c1, c2] <-
-    lift
-      $ replicateM 2
+    replicateM 2
       $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
       >>= getJSON 201
       >>= (%. "id")
       >>= asString
 
-  ws <- createEventsWebSocket alice (Just c1)
-  lift $ do
+  runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` c1
@@ -536,13 +587,34 @@ sendAck ws deliveryTag multiple =
 
 assertEvent :: (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
 assertEvent ws expectations = do
-  timeout 10_000_000 (readChan ws.events) >>= \case
-    Nothing -> assertFailure "No event received for 1s"
+  timeOutSeconds <- asks (.timeOutSeconds)
+  timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
+    Nothing -> assertFailure $ "No event received for " <> show timeOutSeconds <> "s"
     Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
     Just (Right e) -> do
       pretty <- prettyJSON e
       addFailureContext ("event:\n" <> pretty)
         $ expectations e
+
+-- | Tolerates and consumes other events before expected event
+assertFindsEvent :: forall a. (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
+assertFindsEvent ws expectations = go 0
+  where
+    go :: Int -> App a
+    go ignoredEventCount = do
+      timeOutSeconds <- asks (.timeOutSeconds)
+      timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
+        Nothing -> assertFailure $ show ignoredEventCount <> " event(s) received, no matching event received for " <> show timeOutSeconds <> "s"
+        Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+        Just (Right ev) -> do
+          (expectations ev)
+            `catch` \(_ :: AssertionFailure) -> do
+              ignoredEventType <-
+                maybe (pure "No Type") asString
+                  =<< lookupField ev "data.event.payload.0.type"
+              ackEvent ws ev
+              addJSONToFailureContext ("Ignored Event (" <> ignoredEventType <> ")") ev
+                $ go (ignoredEventCount + 1)
 
 data NoEvent = NoEvent | WebSocketDied
 
@@ -576,6 +648,16 @@ consumeAllEvents ws = do
 
 killConnection :: (HasCallStack) => BackendResource -> App ()
 killConnection backend = do
+  rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
+  connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack backend.berVHost)
+  connection <-
+    assertOne
+      [ c | c <- connections, c.userProvidedName == Just (Text.pack "pool 0")
+      ]
+  void $ rabbitmqAdminClient.deleteConnection connection.name
+
+mkRabbitMqAdminClientForResource :: BackendResource -> App (AdminAPI (Servant.AsClientT App))
+mkRabbitMqAdminClientForResource backend = do
   rc <- asks (.rabbitMQConfig)
   let opts =
         RabbitMqAdminOpts
@@ -589,12 +671,4 @@ killConnection backend = do
                 else Nothing
           }
   servantClient <- liftIO $ mkRabbitMqAdminClientEnv opts
-  name <- do
-    connections <- liftIO $ listConnectionsByVHost servantClient opts.vHost
-    connection <-
-      assertOne
-        [ c | c <- connections, c.userProvidedName == Just (Text.pack "pool 0")
-        ]
-    pure connection.name
-
-  void $ liftIO $ deleteConnection servantClient name
+  pure . fromServant $ Servant.hoistClient (Proxy @(ToServant AdminAPI AsApi)) (liftIO @App) (toServant servantClient)

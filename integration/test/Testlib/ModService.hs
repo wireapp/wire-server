@@ -4,6 +4,7 @@ module Testlib.ModService
   ( withModifiedBackend,
     startDynamicBackend,
     startDynamicBackends,
+    startDynamicBackendsReturnResources,
     traverseConcurrentlyCodensity,
   )
 where
@@ -120,6 +121,10 @@ traverseConcurrentlyCodensity f args = do
 
 startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
 startDynamicBackends beOverrides k = do
+  startDynamicBackendsReturnResources beOverrides (\resources -> k $ map (.berDomain) resources)
+
+startDynamicBackendsReturnResources :: [ServiceOverrides] -> ([BackendResource] -> App a) -> App a
+startDynamicBackendsReturnResources beOverrides k = do
   let startDynamicBackendsCodensity = do
         when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
         pool <- asks (.resourcePool)
@@ -128,7 +133,7 @@ startDynamicBackends beOverrides k = do
           traverseConcurrentlyCodensity
             (void . uncurry startDynamicBackend)
             (zip resources beOverrides)
-        pure $ map (.berDomain) resources
+        pure resources
   runCodensity startDynamicBackendsCodensity k
 
 startDynamicBackend :: (HasCallStack) => BackendResource -> ServiceOverrides -> Codensity App String

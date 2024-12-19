@@ -7,7 +7,9 @@ import Control.Exception as E
 import Control.Lens ((^?))
 import qualified Control.Lens.Plated as LP
 import Control.Monad
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.Reader
+import Control.Retry
 import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Diff as AD
@@ -61,6 +63,15 @@ shouldMatch ::
   b ->
   App ()
 shouldMatch = shouldMatchWithMsg Nothing
+
+-- | Retries every 100ms until timeOutSeconds from Env is reached
+shouldEventuallyMatch :: (MakesValue a, MakesValue b, HasCallStack) => a -> b -> App ()
+shouldEventuallyMatch a b = do
+  timeout <- asks (.timeOutSeconds)
+  recovering
+    (limitRetriesByCumulativeDelay (timeout * 1_000_000) $ constantDelay 100_000)
+    ((\_ -> Catch.Handler $ \(_ :: AssertionFailure) -> pure True) : skipAsyncExceptions)
+    (const $ a `shouldMatch` b)
 
 shouldMatchWithMsg ::
   (MakesValue a, MakesValue b, HasCallStack) =>
