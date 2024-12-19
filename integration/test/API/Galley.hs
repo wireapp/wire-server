@@ -638,6 +638,12 @@ getLegalHoldStatus tid zusr = do
   req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
   submit "GET" req
 
+getLegalHoldSettings :: (HasCallStack, MakesValue tid, MakesValue zusr) => tid -> zusr -> App Response
+getLegalHoldSettings tid zusr = do
+  tidStr <- asString tid
+  req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 postLegalHoldSettings :: (HasCallStack, MakesValue ownerid, MakesValue tid, MakesValue newService) => tid -> ownerid -> newService -> App Response
 postLegalHoldSettings tid owner newSettings =

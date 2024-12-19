@@ -47,35 +47,37 @@ import Testlib.Prekeys
 import Testlib.Prelude
 import UnliftIO (Chan, readChan, timeout)
 
-testLHPreventAddingNonConsentingUsers :: LhApiVersion -> App ()
+-- TODO: XXX adjust
+testLHPreventAddingNonConsentingUsers :: (HasCallStack) => LhApiVersion -> App ()
 testLHPreventAddingNonConsentingUsers v = do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
     (owner, tid, [alice, alex]) <- createTeam OwnDomain 3
     stranger <- randomUser OwnDomain def
 
-    let getSettingsWorks target = bindResponse (getLegalHoldStatus tid target) $ \resp -> do
+    let getSettingsWorks :: (HasCallStack) => Value -> String -> App ()
+        getSettingsWorks target status = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
           resp.status `shouldMatchInt` 200
-          resp.json %. "label" `shouldMatch` object []
+          resp.json %. "status" `shouldMatch` status
 
-        getSettingsFails target = bindResponse (getLegalHoldStatus tid target) $ \resp -> do
+        getSettingsFails :: (HasCallStack) => Value -> App ()
+        getSettingsFails target = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
           resp.status `shouldMatchInt` 403
           resp.json %. "label" `shouldMatch` "no-team-member"
 
     getSettingsFails stranger
-    getSettingsWorks owner
-    getSettingsWorks alice
+    getSettingsWorks owner "disabled"
+    getSettingsWorks alice "disabled"
 
     legalholdWhitelistTeam tid owner >>= assertSuccess
     legalholdIsTeamInWhitelist tid owner >>= assertSuccess
 
     getSettingsFails stranger
-    getSettingsWorks owner
-    getSettingsWorks alice
+    getSettingsWorks owner "not_configured"
+    getSettingsWorks alice "not_configured"
 
     bindResponse (postLegalHoldSettings tid owner (mkLegalHoldSettings lhDomAndPort)) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp2 <- getLegalHoldStatus tid owner
-      () <- error $ show resp2
+      resp.status `shouldMatchInt` 201
+      assertFieldMissing resp.json "label"
       pure ()
     {-
     ViewLegalHoldService service <- getSettingsTyped member tid
