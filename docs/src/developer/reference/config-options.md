@@ -300,8 +300,8 @@ mls:
       protocolToggleUsers: []
       defaultProtocol: mls
       supportedProtocols: [proteus, mls] # must contain defaultProtocol
-      allowedCipherSuites: [1]
-      defaultCipherSuite: 1
+      allowedCipherSuites: [2]
+      defaultCipherSuite: 2
     lockStatus: locked
 ```
 
@@ -316,8 +316,8 @@ mls:
     protocolToggleUsers: []
     defaultProtocol: mls
     supportedProtocols: [proteus, mls] # must contain defaultProtocol
-    allowedCipherSuites: [1]
-    defaultCipherSuite: 1
+    allowedCipherSuites: [2]
+    defaultCipherSuite: 2
 ```
 
 ### MLS End-to-End Identity

@@ -1,0 +1,27 @@
+We changed the default MLS cipher suite from
+
+- MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+
+to
+
+- MLS_128_DHKEMP256_AES128GCM_SHA256_P256
+
+and the allowed MLS cipher suites from only
+
+- MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+
+to _only_
+
+- MLS_128_DHKEMP256_AES128GCM_SHA256_P256.
+
+ATTENTION: This breaks your MLS clients if they used the previous defaults
+before. This is even true if you allow several cipher suites, since current MLS
+clients only support _one_ cipher suite at a time.
+
+[Adjust the defaults in the server
+configuration](https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/config-options.md#mls)
+to switch the values of `defaultCipherSuite` and `allowedCipherSuites` back to
+the previous defaults, `1` and `[1]`, respectively. Once MLS clients support
+several cipher suites, you could even use `[1,2]` or a list of other cipher
+suites in `allowedCipherSuites`. Make sure that this list contains the currently
+used cipher suite!

@@ -584,6 +584,7 @@ claimRemoteKeyPackages brig1 brig2 = do
       =<< post
         ( brig1
             . paths ["mls", "key-packages", "claim", toByteString' (qDomain bob), toByteString' (qUnqualified bob)]
+            . queryItem "ciphersuite" "0x0001"
             . zUser (qUnqualified alice)
         )
         <!! const 200 === statusCode

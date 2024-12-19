@@ -57,6 +57,7 @@ import Galley.Keys
 import Galley.Options
 import Galley.Options qualified as Opts
 import Imports hiding (getFirst, getSymbolicLinkTarget)
+import Network.HTTP.Client (setQueryString)
 import System.FilePath
 import System.IO.Temp
 import System.Posix hiding (createDirectory)
@@ -534,6 +535,7 @@ claimLocalKeyPackages qcid lusr = do
     =<< post
       ( brigCall
           . paths ["mls", "key-packages", "claim", toByteString' (tDomain lusr), toByteString' (tUnqualified lusr)]
+          . setQueryString [("ciphersuite", Just "0x0001")]
           . zUser (ciUser qcid)
       )
       <!! const 200 === statusCode

@@ -261,7 +261,7 @@ newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show, Generic)
 
 instance Default Ciphersuite where
-  def = Ciphersuite "0x0001"
+  def = Ciphersuite "0x0002"
 
 data ClientGroupState = ClientGroupState
   { groups :: Map ConvId ByteString,

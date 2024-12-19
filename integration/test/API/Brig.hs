@@ -358,15 +358,28 @@ countKeyPackages suite cid = do
     req
       & addQueryParams [("ciphersuite", suite.code)]
 
-deleteKeyPackages :: ClientIdentity -> [String] -> App Response
-deleteKeyPackages cid kps = do
+deleteKeyPackages :: Ciphersuite -> ClientIdentity -> [String] -> App Response
+deleteKeyPackages suite cid kps = do
   req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client)
-  submit "DELETE" $ req & addJSONObject ["key_packages" .= kps]
+  submit "DELETE" $
+    req
+      & addQueryParams [("ciphersuite", suite.code)]
+      & addJSONObject ["key_packages" .= kps]
 
-replaceKeyPackages :: ClientIdentity -> Maybe [Ciphersuite] -> [ByteString] -> App Response
-replaceKeyPackages cid mSuites kps = do
+replaceKeyPackages :: ClientIdentity -> [Ciphersuite] -> [ByteString] -> App Response
+replaceKeyPackages cid suites kps = do
   req <-
     baseRequest cid Brig Versioned $
+      "/mls/key-packages/self/" <> cid.client
+  submit "PUT" $
+    req
+      & addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]
+      & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
+
+replaceKeyPackagesV7 :: ClientIdentity -> Maybe [Ciphersuite] -> [ByteString] -> App Response
+replaceKeyPackagesV7 cid mSuites kps = do
+  req <-
+    baseRequest cid Brig (ExplicitVersion 7) $
       "/mls/key-packages/self/" <> cid.client
   submit "PUT" $
     req

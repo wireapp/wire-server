@@ -115,8 +115,8 @@ config:
           config:
             protocolToggleUsers: []
             defaultProtocol: proteus
-            allowedCipherSuites: [1]
-            defaultCipherSuite: 1
+            allowedCipherSuites: [2]
+            defaultCipherSuite: 2
             supportedProtocols: [proteus, mls] # must contain defaultProtocol
           lockStatus: unlocked
       searchVisibilityInbound:
