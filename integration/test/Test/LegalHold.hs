@@ -51,10 +51,44 @@ testLHPreventAddingNonConsentingUsers :: LhApiVersion -> App ()
 testLHPreventAddingNonConsentingUsers v = do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
     (owner, tid, [alice, alex]) <- createTeam OwnDomain 3
+    stranger <- randomUser OwnDomain def
+
+    let getSettingsWorks target = bindResponse (getLegalHoldStatus tid target) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "label" `shouldMatch` object []
+
+        getSettingsFails target = bindResponse (getLegalHoldStatus tid target) $ \resp -> do
+          resp.status `shouldMatchInt` 403
+          resp.json %. "label" `shouldMatch` "no-team-member"
+
+    getSettingsFails stranger
+    getSettingsWorks owner
+    getSettingsWorks alice
 
     legalholdWhitelistTeam tid owner >>= assertSuccess
     legalholdIsTeamInWhitelist tid owner >>= assertSuccess
-    postLegalHoldSettings tid owner (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+
+    getSettingsFails stranger
+    getSettingsWorks owner
+    getSettingsWorks alice
+
+    bindResponse (postLegalHoldSettings tid owner (mkLegalHoldSettings lhDomAndPort)) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp2 <- getLegalHoldStatus tid owner
+      () <- error $ show resp2
+      pure ()
+    {-
+    ViewLegalHoldService service <- getSettingsTyped member tid
+    liftIO $ do
+      let sKey = newLegalHoldServiceKey newService
+      Just (_, fpr) <- validateServiceKey sKey
+      assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam service)
+      assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
+      assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
+      assertEqual "viewLegalHoldServiceKey" sKey (viewLegalHoldServiceKey service)
+      assertEqual "viewLegalHoldServiceAuthToken" (newLegalHoldServiceToken newService) (viewLegalHoldServiceAuthToken service)
+      assertStatus 201
+    -}
 
     george <- randomUser OwnDomain def
     georgeQId <- objQidObject george
