@@ -631,92 +631,93 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
   -- running brig with `withSettingsOverride` to direct it to the expected index(es).  it's
   -- important to make both old and new index name/url explicit via `withESProxy`, or the
   -- calls to `refreshIndex` in this test will interfere with parallel test runs of this test.
-  withESProxy opts $ \oldESUrl oldESIndex -> withESProxy opts $ \newESUrl newESIndex -> do
-    let optsWithIndex :: Text -> Opt.Opts
-        optsWithIndex "old" =
-          opts
-            & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName oldESIndex)
-            & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server oldESUrl)
-        optsWithIndex "new" =
-          opts
-            & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName newESIndex)
-            & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server newESUrl)
-        optsWithIndex "both" =
-          optsWithIndex "old"
-            & Opt.elasticsearchLens . Opt.additionalWriteIndexLens ?~ (ES.IndexName newESIndex)
-            & Opt.elasticsearchLens . Opt.additionalWriteIndexUrlLens ?~ (ES.Server newESUrl)
-            -- 'additionalCaCertLens' needs to be added in order for brig to be able to reach both indices.
-            & Opt.elasticsearchLens . Opt.additionalCaCertLens .~ (opts ^. Opt.elasticsearchLens . Opt.caCertLens)
-            & Opt.elasticsearchLens . Opt.additionalInsecureSkipVerifyTlsLens .~ (opts ^. Opt.elasticsearchLens . Opt.insecureSkipVerifyTlsLens)
-
-    -- Phase 1: Using old index only
-    (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides (optsWithIndex "old") $ do
-      nonTeamUser <- randomUser brig
-      (tid, teamOwner, [teamUser1, teamUser2]) <- createPopulatedBindingTeam brig 2
-      pure (nonTeamUser, teamOwner, teamUser1, teamUser2, tid)
-
-    -- Phase 2: Using old index for search, writing to both indices, migrations have not run
-    (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
-      phase2NonTeamUser <- randomUser brig
-      phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
-      refreshIndex brig
-
-      -- searching phase1 users should work
-      assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
-      assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
-
-      -- searching phase2 users should work
-      assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
-      assertCanFindByName brig phase1TeamUser1 phase2TeamUser
-
-      pure (phase2NonTeamUser, phase2TeamUser)
-
-    withSettingsOverrides (optsWithIndex "new") $ do
-      -- Before migration the phase1 users shouldn't be found in the new index
-      assertCan'tFindByName brig phase1TeamUser1 phase1TeamUser2
-      assertCan'tFindByName brig phase1TeamUser1 phase1NonTeamUser
-
-      -- Before migration the phase2 users should be found in the new index
-      assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
-      assertCanFindByName brig phase1TeamUser1 phase2TeamUser
-
-    -- Run Migrations
-    logger <- Log.create Log.StdOut
+  withESProxy opts $ \oldESUrl oldESIndex -> withESProxy opts $ \newESUrl newESIndex ->
     withESProxyOnly [oldESIndex, newESIndex] opts $ \bothIndexUrl -> do
-      let opts' = (optsWithIndex "old") & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server bothIndexUrl)
-      liftIO $ migrateIndexCommand logger opts' (ES.IndexName newESIndex)
+      let optsWithIndex :: Text -> Opt.Opts
+          optsWithIndex "old" =
+            opts
+              & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName oldESIndex)
+              & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server oldESUrl)
+          optsWithIndex "new" =
+            opts
+              & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName newESIndex)
+              & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server newESUrl)
+          optsWithIndex "both" =
+            optsWithIndex "old"
+              & Opt.elasticsearchLens . Opt.additionalWriteIndexLens ?~ (ES.IndexName newESIndex)
+              & Opt.elasticsearchLens . Opt.additionalWriteIndexUrlLens ?~ (ES.Server newESUrl)
+              -- 'additionalCaCertLens' needs to be added in order for brig to be able to reach both indices.
+              & Opt.elasticsearchLens . Opt.additionalCaCertLens .~ (opts ^. Opt.elasticsearchLens . Opt.caCertLens)
+              & Opt.elasticsearchLens . Opt.additionalInsecureSkipVerifyTlsLens .~ (opts ^. Opt.elasticsearchLens . Opt.insecureSkipVerifyTlsLens)
+          optsWithIndex "oldAccessToBoth" =
+            optsWithIndex "old" & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server bothIndexUrl)
 
-    -- Phase 3: Using old index for search, writing to both indices, migrations have run
-    (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
-      refreshIndex brig
-      phase3NonTeamUser <- randomUser brig
-      phase3TeamUser <- inviteAndRegisterUser teamOwner tid brig
-      refreshIndex brig
+      -- Phase 1: Using old index only
+      (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides (optsWithIndex "old") $ do
+        nonTeamUser <- randomUser brig
+        (tid, teamOwner, [teamUser1, teamUser2]) <- createPopulatedBindingTeam brig 2
+        pure (nonTeamUser, teamOwner, teamUser1, teamUser2, tid)
 
-      -- searching phase1/2 users should work
-      assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
-      assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
-      assertCanFindByName brig phase1TeamUser1 phase2TeamUser
-      assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+      -- Phase 2: Using old index for search, writing to both indices, migrations have not run
+      (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
+        phase2NonTeamUser <- randomUser brig
+        phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
+        refreshIndex brig
 
-      -- searching new phase3 should also work
-      assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
-      assertCanFindByName brig phase1TeamUser1 phase3TeamUser
-      pure (phase3NonTeamUser, phase3TeamUser)
+        -- searching phase1 users should work
+        assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
+        assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
 
-    -- Phase 4: Using only new index
-    withSettingsOverrides (optsWithIndex "new") $ do
-      -- Searching should work for phase1 users
-      assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
-      assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+        -- searching phase2 users should work
+        assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+        assertCanFindByName brig phase1TeamUser1 phase2TeamUser
 
-      -- Searching should work for phase2 users
-      assertCanFindByName brig phase1TeamUser1 phase2TeamUser
-      assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+        pure (phase2NonTeamUser, phase2TeamUser)
 
-      -- Searching should work for phase3 users
-      assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
-      assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+      withSettingsOverrides (optsWithIndex "new") $ do
+        -- Before migration the phase1 users shouldn't be found in the new index
+        assertCan'tFindByName brig phase1TeamUser1 phase1TeamUser2
+        assertCan'tFindByName brig phase1TeamUser1 phase1NonTeamUser
+
+        -- Before migration the phase2 users should be found in the new index
+        assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+        assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+
+      -- Run Migrations
+      logger <- Log.create Log.StdOut
+      liftIO $ migrateIndexCommand logger (optsWithIndex "oldAccessToBoth") (ES.IndexName newESIndex)
+
+      -- Phase 3: Using old index for search, writing to both indices, migrations have run
+      (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
+        refreshIndex brig
+        phase3NonTeamUser <- randomUser brig
+        phase3TeamUser <- inviteAndRegisterUser teamOwner tid brig
+        refreshIndex brig
+
+        -- searching phase1/2 users should work
+        assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
+        assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+        assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+        assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+
+        -- searching new phase3 should also work
+        assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
+        assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+        pure (phase3NonTeamUser, phase3TeamUser)
+
+      -- Phase 4: Using only new index
+      withSettingsOverrides (optsWithIndex "new") $ do
+        -- Searching should work for phase1 users
+        assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
+        assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+
+        -- Searching should work for phase2 users
+        assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+        assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+
+        -- Searching should work for phase3 users
+        assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
+        assertCanFindByName brig phase1TeamUser1 phase3TeamUser
 
 runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
 runReindexFromAnotherIndex logger opts newIndexName =
@@ -764,18 +765,16 @@ toESConnectionSettings opts = ESConnectionSettings {..}
     esInsecureSkipVerifyTls = opts.insecureSkipVerifyTls
     esCredentials = opts.credentials
 
--- TODO: Separate the index creation from proxying to reduce duplication withESProxyOnly
 withESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> (Text -> Text -> m a) -> m a
 withESProxy opts f = do
   indexName <- randomHandle
+  -- TODO: Run create index command?
   createIndexWithMapping opts indexName oldMapping
-  mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
-  (proxyPort, sock) <- liftIO Warp.openFreePort
-  bracket
-    (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer [indexName] opts mgr)
-    cancel
-    (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)) indexName)
+  withESProxyOnly [indexName] opts $ flip f indexName
 
+-- | Gives a URL to a HTTP proxy server to the continuation. The proxy is only
+-- configured for ES calls for the given @indexNames@ (and some other ES
+-- specific endpoints.)
 withESProxyOnly :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => [Text] -> Opt.Opts -> (Text -> m a) -> m a
 withESProxyOnly indexNames opts f = do
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
@@ -785,16 +784,24 @@ withESProxyOnly indexNames opts f = do
     cancel
     (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)))
 
+-- | Create a `Wai.Application` that acts as a proxy to ElasticSearch. Requests
+-- are only forwarded for specified index names (and some technical endpoints.)
 indexProxyServer :: [Text] -> Opt.Opts -> Manager -> Wai.Application
 indexProxyServer idxs opts mgr =
   let toUri (ES.Server url) = either (error . show) id $ URI.parseURI URI.strictURIParserOptions (Text.encodeUtf8 url)
       proxyURI = toUri (Opts.url (Opts.elasticsearch opts))
       proxyToHost = URI.hostBS . URI.authorityHost . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
       proxyToPort = URI.portNumber . fromMaybe (URI.Port 9200) . URI.authorityPort . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
-      proxyApp req | (headMay (Wai.pathInfo req)) `elem` [Just "_reindex", Just "_tasks"] = pure $ Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
-      proxyApp req | (any (\idx -> (headMay (Wai.pathInfo req) == Just idx)) idxs) = pure $ Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
-      proxyApp req = pure $ Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
-   in waiProxyTo proxyApp Wai.defaultOnExc mgr
+      forwardRequest = Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
+      denyRequest req = Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
+      proxyApp req
+        | (headMay (Wai.pathInfo req)) `elem` [Just "_reindex", Just "_tasks"] =
+            forwardRequest
+        | (any (\idx -> (headMay (Wai.pathInfo req) == Just idx)) idxs) =
+            forwardRequest
+        | otherwise =
+            denyRequest req
+   in waiProxyTo (pure . proxyApp) Wai.defaultOnExc mgr
 
 testWithBothIndices :: Opt.Opts -> Manager -> TestName -> WaiTest.Session a -> TestTree
 testWithBothIndices opts mgr name f = do
