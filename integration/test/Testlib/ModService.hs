@@ -18,6 +18,7 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import qualified Data.Attoparsec.Text as Parser
 import Data.Default
 import Data.Foldable
 import Data.Function
@@ -26,17 +27,21 @@ import Data.Maybe
 import Data.Monoid
 import Data.String
 import Data.String.Conversions (cs)
+import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
+import Data.Word
 import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (keyboardSignal, killProcess, signalProcess)
+import System.Posix.Types
 import System.Process
 import Testlib.App
 import Testlib.Assertions (prettierCallStack)
@@ -46,6 +51,7 @@ import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
+import qualified UnliftIO
 import Prelude
 
 withModifiedBackend :: (HasCallStack) => ServiceOverrides -> ((HasCallStack) => String -> App a) -> App a
@@ -267,8 +273,71 @@ startBackend ::
   ServiceOverrides ->
   Codensity App ()
 startBackend resource overrides = do
+  lift $ ensureFedertorPortIsFree resource
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
+
+ensureFedertorPortIsFree :: BackendResource -> App ()
+ensureFedertorPortIsFree resource = do
+  serviceMap <- getServiceMap resource.berDomain
+  let federatorExternalPort :: Word16 = serviceMap.federatorExternal.port
+  env <- ask
+  UnliftIO.timeout (env.timeOutSeconds * 1_000_000) (check federatorExternalPort) >>= \case
+    Nothing -> assertFailure $ "timedout waiting for federator port to be free: " <> show federatorExternalPort
+    Just _ -> pure ()
+  where
+    check :: Word16 -> App ()
+    check federatorExternalPort = do
+      env <- ask
+      let process = (proc "ss" ["-HOntpl", "sport", "=", show federatorExternalPort]) {std_out = CreatePipe, std_err = CreatePipe}
+      (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess process
+      let prefix = "[" <> "ss" <> "@" <> resource.berDomain <> maybe "" (":" <>) env.currentTestName <> "] "
+      liftIO $ void $ forkIO $ logToConsole id prefix stderrHdl
+      exitCode <- liftIO $ waitForProcess ph
+      case exitCode of
+        ExitFailure _ -> assertFailure $ "ss failed to figure out if federator port is free"
+        ExitSuccess -> do
+          ssOutput <- liftIO $ hGetContents stdoutHdl
+          case parseSS (fromString ssOutput) of
+            Right Nothing -> pure ()
+            Left e -> assertFailure $ "Failed while parsing ss output with error: " <> e
+            Right (Just (processName, processId)) -> do
+              liftIO $ putStrLn $ "Found a process listening on port: " <> show federatorExternalPort <> ", killing the process: " <> show processName <> ", pid: " <> show processId
+              liftIO $ signalProcess killProcess processId
+              liftIO $ threadDelay 100_000
+              check federatorExternalPort
+
+parseSS :: Text -> Either String (Maybe (String, ProcessID))
+parseSS input =
+  if input == ""
+    then pure Nothing
+    else Just <$> Parser.parseOnly (ssParser <* Parser.endOfInput) input
+
+-- Example input:
+-- LISTEN                   0                        4096                                       127.0.0.1:8082                                      0.0.0.0:*                    users:(("brig",pid=51468,fd=79))
+ssParser :: Parser.Parser (String, ProcessID)
+ssParser = do
+  let spacesParser = void $ Parser.many1 Parser.space
+      notSpacesParser = void $ Parser.many1 (Parser.satisfy (/= ' '))
+
+  _ <- Parser.string "LISTEN"
+  spacesParser
+  notSpacesParser -- 0
+  spacesParser
+  notSpacesParser -- 4096
+  spacesParser
+  notSpacesParser -- 127...
+  spacesParser
+  notSpacesParser -- 0.0....
+
+  -- Done with uninteresting things
+  _ <- spacesParser
+  _ <- Parser.string "users:((\""
+  processName <- Parser.many1 $ Parser.satisfy (/= '"')
+  _ <- Parser.string ",pid="
+  processId <- Parser.decimal
+  _ <- Parser.many1 (Parser.satisfy (/= '\n'))
+  pure (processName, processId)
 
 ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
