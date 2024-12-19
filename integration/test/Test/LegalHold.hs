@@ -29,6 +29,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Aeson.Lens
 import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString.Lazy (LazyByteString)
+import Data.List.Extra (trim)
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
@@ -75,23 +76,23 @@ testLHPreventAddingNonConsentingUsers v = do
     getSettingsWorks owner "not_configured"
     getSettingsWorks alice "not_configured"
 
-    bindResponse (postLegalHoldSettings tid owner (mkLegalHoldSettings lhDomAndPort)) $ \resp -> do
+    let lhSettings = mkLegalHoldSettings lhDomAndPort
+    bindResponse (postLegalHoldSettings tid owner lhSettings) $ \resp -> do
       resp.status `shouldMatchInt` 201
-      assertFieldMissing resp.json "label"
-      pure ()
-    {-
-    ViewLegalHoldService service <- getSettingsTyped member tid
-    liftIO $ do
-      let sKey = newLegalHoldServiceKey newService
-      Just (_, fpr) <- validateServiceKey sKey
-      assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam service)
-      assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
-      assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
-      assertEqual "viewLegalHoldServiceKey" sKey (viewLegalHoldServiceKey service)
-      assertEqual "viewLegalHoldServiceAuthToken" (newLegalHoldServiceToken newService) (viewLegalHoldServiceAuthToken service)
-      assertStatus 201
-    -}
 
+    bindResponse (getLegalHoldSettings tid alice) $ \resp ->
+      do
+        resp.status `shouldMatchInt` 200
+        assertFieldMissing resp.json "label"
+        (resp.json %. "settings" %. "auth_token") `shouldMatch` (lhSettings %. "auth_token")
+        (resp.json %. "settings" %. "base_url") `shouldMatch` (lhSettings %. "base_url")
+        actualPublicKey <- asString (resp.json %. "settings" %. "public_key")
+        trim actualPublicKey `shouldMatch` (lhSettings %. "public_key")
+        (resp.json %. "settings" %. "team_id") `shouldMatch` tid
+        -- TODO: How to assert the `fingerprint`?
+        pure ()
+
+    -- TODO: Old test code starts below --- split the test?
     george <- randomUser OwnDomain def
     georgeQId <- objQidObject george
     hannes <- randomUser OwnDomain def
