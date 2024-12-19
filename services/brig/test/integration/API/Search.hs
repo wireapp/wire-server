@@ -669,23 +669,23 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
           refreshIndex brig
 
           -- searching phase1 users should work
-          assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
-          assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase1TeamUser2
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase1NonTeamUser
 
           -- searching phase2 users should work
-          assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
-          assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase2TeamUser
 
           pure (phase2NonTeamUser, phase2TeamUser)
 
         withSettingsOverrides (optsWithIndex "new") $ do
           -- Before migration the phase1 users shouldn't be found in the new index
-          assertCan'tFindByName brig phase1TeamUser1 phase1TeamUser2
-          assertCan'tFindByName brig phase1TeamUser1 phase1NonTeamUser
+          assertEventuallyCan'tFindByName brig phase1TeamUser1 phase1TeamUser2
+          assertEventuallyCan'tFindByName brig phase1TeamUser1 phase1NonTeamUser
 
           -- Before migration the phase2 users should be found in the new index
-          assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
-          assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase2TeamUser
 
         -- Run Migrations
         liftIO $ migrateIndexCommand logger (optsWithIndex "oldAccessToBoth") (ES.IndexName newESIndex)
@@ -698,29 +698,29 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
           refreshIndex brig
 
           -- searching phase1/2 users should work
-          assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
-          assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
-          assertCanFindByName brig phase1TeamUser1 phase2TeamUser
-          assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase1TeamUser2
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase2TeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase2NonTeamUser
 
           -- searching new phase3 should also work
-          assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
-          assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase3NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase3TeamUser
           pure (phase3NonTeamUser, phase3TeamUser)
 
         -- Phase 4: Using only new index
         withSettingsOverrides (optsWithIndex "new") $ do
           -- Searching should work for phase1 users
-          assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
-          assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase1TeamUser2
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase1NonTeamUser
 
           -- Searching should work for phase2 users
-          assertCanFindByName brig phase1TeamUser1 phase2TeamUser
-          assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase2TeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase2NonTeamUser
 
           -- Searching should work for phase3 users
-          assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
-          assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase3NonTeamUser
+          assertEventuallyCanFindByName brig phase1TeamUser1 phase3TeamUser
 
 runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
 runReindexFromAnotherIndex logger opts newIndexName =

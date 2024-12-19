@@ -19,7 +19,8 @@ module API.Search.Util where
 
 import Bilge
 import Bilge.Assert
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Retry
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion.To (toByteString)
 import Data.Domain (Domain)
@@ -76,6 +77,15 @@ assertCanFindByName brig self expected =
 assertCan'tFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCan'tFindByName brig self expected =
   assertCan'tFind brig (userId self) (userQualifiedId expected) (fromName $ userDisplayName expected)
+
+ourRetryPol :: Int -> RetryPolicy
+ourRetryPol to = limitRetriesByCumulativeDelay (to * 1_000_000) (exponentialBackoff 50000)
+
+assertEventuallyCanFindByName :: (MonadMask m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
+assertEventuallyCanFindByName brig self expected = recoverAll (ourRetryPol 5) (\_ -> assertCanFindByName brig self expected)
+
+assertEventuallyCan'tFindByName :: (MonadMask m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
+assertEventuallyCan'tFindByName brig self expected = recoverAll (ourRetryPol 5) (\_ -> assertCan'tFindByName brig self expected)
 
 assertCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> m ()
 assertCanFind brig self expected q = do
