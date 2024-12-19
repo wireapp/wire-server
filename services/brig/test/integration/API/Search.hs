@@ -726,8 +726,7 @@ runReindexFromAnotherIndex logger opts newIndexName =
   let esOldOpts :: Opt.ElasticSearchOpts = opts ^. Opt.elasticsearchLens
       esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
       reindexSettings = ReindexFromAnotherIndexSettings esOldConnectionSettings newIndexName 5
-   in do
-        runCommand logger $ ReindexFromAnotherIndex reindexSettings
+   in runCommand logger $ ReindexFromAnotherIndex reindexSettings
 
 runReindexFromDatabase ::
   (ElasticSettings -> CassandraSettings -> Endpoint -> Command) ->
