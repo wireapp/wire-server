@@ -33,14 +33,14 @@ getOneCipherSuite s =
     (cipherSuiteTag s)
 
 getCipherSuite :: Maybe CipherSuite -> Handler r CipherSuiteTag
-getCipherSuite = maybe (pure defCipherSuiteV7) getOneCipherSuite
+getCipherSuite = maybe (pure legacyCipherSuite) getOneCipherSuite
 
 validateCipherSuites ::
   Maybe [CipherSuite] ->
   KeyPackageUpload ->
   Handler r (Set CipherSuiteTag)
 validateCipherSuites suites upload = do
-  suitesQuery <- Set.fromList <$> maybe (pure [defCipherSuiteV7]) (traverse getOneCipherSuite) suites
+  suitesQuery <- Set.fromList <$> maybe (pure [legacyCipherSuite]) (traverse getOneCipherSuite) suites
   when (any isNothing suitesKPM) . void $ mlsProtocolError "uploaded key packages contains unsupported cipher suite"
   unless (suitesQuery == suitesKP) . void $ mlsProtocolError "uploaded key packages for unannounced cipher suites"
   pure suitesQuery
