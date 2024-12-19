@@ -18,10 +18,14 @@
 module Brig.API.MLS.KeyPackages
   ( uploadKeyPackages,
     claimKeyPackages,
+    claimKeyPackagesV7,
     claimLocalKeyPackages,
     countKeyPackages,
+    countKeyPackagesV7,
     deleteKeyPackages,
+    deleteKeyPackagesV7,
     replaceKeyPackages,
+    replaceKeyPackagesV7,
   )
 where
 
@@ -71,9 +75,20 @@ claimKeyPackages ::
   Local UserId ->
   Maybe ClientId ->
   Qualified UserId ->
+  CipherSuite ->
+  Handler r KeyPackageBundle
+claimKeyPackages lusr mClient target = claimKeyPackagesV7 lusr mClient target . Just
+
+claimKeyPackagesV7 ::
+  ( Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  Maybe ClientId ->
+  Qualified UserId ->
   Maybe CipherSuite ->
   Handler r KeyPackageBundle
-claimKeyPackages lusr mClient target mSuite = do
+claimKeyPackagesV7 lusr mClient target mSuite = do
   assertMLSEnabled
 
   suite <- getCipherSuite mSuite
@@ -180,8 +195,11 @@ claimRemoteKeyPackages lusr suite target = do
     handleFailure :: (Monad m) => Maybe x -> ExceptT ClientError m x
     handleFailure = maybe (throwE (ClientUserNotFound (tUnqualified target))) pure
 
-countKeyPackages :: Local UserId -> ClientId -> Maybe CipherSuite -> Handler r KeyPackageCount
-countKeyPackages lusr c mSuite = do
+countKeyPackages :: Local UserId -> ClientId -> CipherSuite -> Handler r KeyPackageCount
+countKeyPackages lusr c = countKeyPackagesV7 lusr c . Just
+
+countKeyPackagesV7 :: Local UserId -> ClientId -> Maybe CipherSuite -> Handler r KeyPackageCount
+countKeyPackagesV7 lusr c mSuite = do
   assertMLSEnabled
   suite <- getCipherSuite mSuite
   lift $
@@ -191,10 +209,18 @@ countKeyPackages lusr c mSuite = do
 deleteKeyPackages ::
   Local UserId ->
   ClientId ->
+  CipherSuite ->
+  DeleteKeyPackages ->
+  Handler r ()
+deleteKeyPackages lusr c = deleteKeyPackagesV7 lusr c . Just
+
+deleteKeyPackagesV7 ::
+  Local UserId ->
+  ClientId ->
   Maybe CipherSuite ->
   DeleteKeyPackages ->
   Handler r ()
-deleteKeyPackages lusr c mSuite (unDeleteKeyPackages -> refs) = do
+deleteKeyPackagesV7 lusr c mSuite (unDeleteKeyPackages -> refs) = do
   assertMLSEnabled
   suite <- getCipherSuite mSuite
   lift $ wrapClient (Data.deleteKeyPackages (tUnqualified lusr) c suite refs)
@@ -202,10 +228,18 @@ deleteKeyPackages lusr c mSuite (unDeleteKeyPackages -> refs) = do
 replaceKeyPackages ::
   Local UserId ->
   ClientId ->
+  CommaSeparatedList CipherSuite ->
+  KeyPackageUpload ->
+  Handler r ()
+replaceKeyPackages lusr c = replaceKeyPackagesV7 lusr c . Just
+
+replaceKeyPackagesV7 ::
+  Local UserId ->
+  ClientId ->
   Maybe (CommaSeparatedList CipherSuite) ->
   KeyPackageUpload ->
   Handler r ()
-replaceKeyPackages lusr c (fmap toList -> mSuites) upload = do
+replaceKeyPackagesV7 lusr c (fmap toList -> mSuites) upload = do
   assertMLSEnabled
   suites <- validateCipherSuites mSuites upload
   lift $ wrapClient (Data.deleteAllKeyPackages (tUnqualified lusr) c suites)
