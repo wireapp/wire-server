@@ -125,6 +125,7 @@ getKeyPackageCount brig u c =
     =<< get
       ( brig
           . paths ["mls", "key-packages", "self", toByteString' c, "count"]
+          . queryItem "ciphersuite" "0x0001"
           . zUser (qUnqualified u)
       )
       <!! const 200
