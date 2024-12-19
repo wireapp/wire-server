@@ -637,23 +637,23 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
         let optsWithIndex :: Text -> Opt.Opts
             optsWithIndex "old" =
               opts
-                & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName oldESIndex)
-                & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server oldESUrl)
+                & Opt.elasticsearchLens . Opt.indexLens .~ oldESIndex
+                & Opt.elasticsearchLens . Opt.urlLens .~ oldESUrl
             optsWithIndex "new" =
               opts
-                & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName newESIndex)
-                & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server newESUrl)
+                & Opt.elasticsearchLens . Opt.indexLens .~ newESIndex
+                & Opt.elasticsearchLens . Opt.urlLens .~ newESUrl
             optsWithIndex "both" =
               optsWithIndex "old"
-                & Opt.elasticsearchLens . Opt.additionalWriteIndexLens ?~ (ES.IndexName newESIndex)
-                & Opt.elasticsearchLens . Opt.additionalWriteIndexUrlLens ?~ (ES.Server newESUrl)
+                & Opt.elasticsearchLens . Opt.additionalWriteIndexLens ?~ newESIndex
+                & Opt.elasticsearchLens . Opt.additionalWriteIndexUrlLens ?~ newESUrl
                 -- 'additionalCaCertLens' needs to be added in order for brig to be able to reach both indices.
                 & Opt.elasticsearchLens . Opt.additionalCaCertLens .~ (opts ^. Opt.elasticsearchLens . Opt.caCertLens)
                 & Opt.elasticsearchLens . Opt.additionalInsecureSkipVerifyTlsLens .~ (opts ^. Opt.elasticsearchLens . Opt.insecureSkipVerifyTlsLens)
             optsWithIndex "oldAccessToBoth" =
               -- Configure only the old index. However, allow HTTP access to both
               -- (such that jobs can create and fill the new one).
-              optsWithIndex "old" & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server bothIndexUrl)
+              optsWithIndex "old" & Opt.elasticsearchLens . Opt.urlLens .~ bothIndexUrl
 
         -- Phase 1: Using old index only
         (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides (optsWithIndex "old") $ do
@@ -687,7 +687,7 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
           assertEventuallyCanFindByName brig phase1TeamUser1 phase2TeamUser
 
         -- Run Migrations
-        liftIO $ migrateIndexCommand logger (optsWithIndex "oldAccessToBoth") (ES.IndexName newESIndex)
+        liftIO $ migrateIndexCommand logger (optsWithIndex "oldAccessToBoth") newESIndex
 
         -- Phase 3: Using old index for search, writing to both indices, migrations have run
         (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
@@ -767,13 +767,15 @@ toESConnectionSettings opts = ESConnectionSettings {..}
     esInsecureSkipVerifyTls = opts.insecureSkipVerifyTls
     esCredentials = opts.credentials
 
-withESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Log.Logger -> Opt.Opts -> (Text -> Text -> m a) -> m a
+withESProxy ::
+  (TestConstraints m, MonadUnliftIO m, HasCallStack) =>
+  Log.Logger ->
+  Opt.Opts ->
+  (ES.Server -> ES.IndexName -> m a) ->
+  m a
 withESProxy lg opts f = do
-  indexName <- randomHandle
-  -- TODO: Run create index command?
-  -- createIndexWithMapping opts indexName oldMapping
-  liftIO $ createCommand lg opts (ES.IndexName indexName)
-  -- TODO: Hand ES.IndexName around
+  indexName <- ES.IndexName <$> randomHandle
+  liftIO $ createCommand lg opts indexName
   withESProxyOnly [indexName] opts $ flip f indexName
 
 createCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
@@ -793,18 +795,18 @@ createCommand logger opts newIndexName =
 -- | Gives a URL to a HTTP proxy server to the continuation. The proxy is only
 -- configured for ES calls for the given @indexNames@ (and some other ES
 -- specific endpoints.)
-withESProxyOnly :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => [Text] -> Opt.Opts -> (Text -> m a) -> m a
+withESProxyOnly :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => [ES.IndexName] -> Opt.Opts -> (ES.Server -> m a) -> m a
 withESProxyOnly indexNames opts f = do
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   (proxyPort, sock) <- liftIO Warp.openFreePort
   bracket
     (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer indexNames opts mgr)
     cancel
-    (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)))
+    (\_ -> f (ES.Server ("http://localhost:" <> Text.pack (show proxyPort))))
 
 -- | Create a `Wai.Application` that acts as a proxy to ElasticSearch. Requests
 -- are only forwarded for specified index names (and some technical endpoints.)
-indexProxyServer :: [Text] -> Opt.Opts -> Manager -> Wai.Application
+indexProxyServer :: [ES.IndexName] -> Opt.Opts -> Manager -> Wai.Application
 indexProxyServer idxs opts mgr =
   let toUri (ES.Server url) = either (error . show) id $ URI.parseURI URI.strictURIParserOptions (Text.encodeUtf8 url)
       proxyURI = toUri (Opts.url (Opts.elasticsearch opts))
@@ -815,7 +817,7 @@ indexProxyServer idxs opts mgr =
       proxyApp req
         | (headMay (Wai.pathInfo req)) `elem` [Just "_reindex", Just "_tasks"] =
             forwardRequest
-        | (any (\idx -> (headMay (Wai.pathInfo req) == Just idx)) idxs) =
+        | (any (\(ES.IndexName idx) -> (headMay (Wai.pathInfo req) == Just idx)) idxs) =
             forwardRequest
         | otherwise =
             denyRequest req
