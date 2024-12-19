@@ -296,6 +296,7 @@ let
       pkgs.mls-test-cli
       pkgs.awscli2
       pkgs.vacuum-go
+      pkgs.iproute2
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-ses
