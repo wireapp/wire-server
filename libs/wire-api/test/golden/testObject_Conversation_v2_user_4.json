@@ -19,7 +19,7 @@
         "guest",
         "service"
     ],
-    "cipher_suite": 2,
+    "cipher_suite": 1,
     "creator": "00000000-0000-0000-0000-000200000001",
     "epoch": 0,
     "epoch_timestamp": null,
