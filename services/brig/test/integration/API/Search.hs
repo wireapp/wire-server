@@ -650,6 +650,8 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
               & Opt.elasticsearchLens . Opt.additionalCaCertLens .~ (opts ^. Opt.elasticsearchLens . Opt.caCertLens)
               & Opt.elasticsearchLens . Opt.additionalInsecureSkipVerifyTlsLens .~ (opts ^. Opt.elasticsearchLens . Opt.insecureSkipVerifyTlsLens)
           optsWithIndex "oldAccessToBoth" =
+            -- Configure only the old index. However, allow HTTP access to both
+            -- (such that jobs can create and fill the new one).
             optsWithIndex "old" & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server bothIndexUrl)
 
       -- Phase 1: Using old index only
