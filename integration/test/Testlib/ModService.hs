@@ -273,17 +273,18 @@ startBackend ::
   ServiceOverrides ->
   Codensity App ()
 startBackend resource overrides = do
-  lift $ ensureFedertorPortIsFree resource
+  lift $ ensureFederatorPortIsFree resource
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
 
-ensureFedertorPortIsFree :: BackendResource -> App ()
-ensureFedertorPortIsFree resource = do
+-- | Using ss because it is most convenient. Checking if a port is free in Haskell involves binding to it which is not what we want.
+ensureFederatorPortIsFree :: BackendResource -> App ()
+ensureFederatorPortIsFree resource = do
   serviceMap <- getServiceMap resource.berDomain
   let federatorExternalPort :: Word16 = serviceMap.federatorExternal.port
   env <- ask
   UnliftIO.timeout (env.timeOutSeconds * 1_000_000) (check federatorExternalPort) >>= \case
-    Nothing -> assertFailure $ "timedout waiting for federator port to be free: " <> show federatorExternalPort
+    Nothing -> assertFailure $ "timeout waiting for federator port to be free: " <> show federatorExternalPort
     Just _ -> pure ()
   where
     check :: Word16 -> App ()
@@ -299,17 +300,17 @@ ensureFedertorPortIsFree resource = do
         ExitSuccess -> do
           ssOutput <- liftIO $ hGetContents stdoutHdl
           case parseSS (fromString ssOutput) of
-            Right Nothing -> pure ()
-            Left e -> assertFailure $ "Failed while parsing ss output with error: " <> e
             Right (Just (processName, processId)) -> do
               liftIO $ putStrLn $ "Found a process listening on port: " <> show federatorExternalPort <> ", killing the process: " <> show processName <> ", pid: " <> show processId
               liftIO $ signalProcess killProcess processId
               liftIO $ threadDelay 100_000
               check federatorExternalPort
+            Right Nothing -> pure ()
+            Left e -> assertFailure $ "Failed while parsing ss output with error: " <> e
 
 parseSS :: Text -> Either String (Maybe (String, ProcessID))
 parseSS input =
-  if input == ""
+  if Text.null input
     then pure Nothing
     else Just <$> Parser.parseOnly (ssParser <* Parser.endOfInput) input
 
