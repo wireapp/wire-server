@@ -29,6 +29,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Aeson.Lens
 import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString.Lazy (LazyByteString)
+import Data.List.Extra (trim)
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
@@ -47,7 +48,7 @@ import Testlib.Prekeys
 import Testlib.Prelude
 import UnliftIO (Chan, readChan, timeout)
 
-testLHPreventAddingNonConsentingUsers :: LhApiVersion -> App ()
+testLHPreventAddingNonConsentingUsers :: (HasCallStack) => LhApiVersion -> App ()
 testLHPreventAddingNonConsentingUsers v = do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
     (owner, tid, [alice, alex]) <- createTeam OwnDomain 3
@@ -105,6 +106,49 @@ testLHPreventAddingNonConsentingUsers v = do
             & asList >>= traverse \m -> do
               m %. "qualified_id"
         mems `shouldMatchSet` forM us (\m -> m %. "qualified_id")
+
+testLHGetAndUpdateSettings :: (HasCallStack) => LhApiVersion -> App ()
+testLHGetAndUpdateSettings v = do
+  withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
+    (owner, tid, [alice]) <- createTeam OwnDomain 2
+    stranger <- randomUser OwnDomain def
+
+    let getSettingsWorks :: (HasCallStack) => Value -> String -> App ()
+        getSettingsWorks target status = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` status
+
+        getSettingsFails :: (HasCallStack) => Value -> App ()
+        getSettingsFails target = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
+          resp.status `shouldMatchInt` 403
+          resp.json %. "label" `shouldMatch` "no-team-member"
+
+    getSettingsFails stranger
+    getSettingsWorks owner "disabled"
+    getSettingsWorks alice "disabled"
+
+    legalholdWhitelistTeam tid owner >>= assertSuccess
+    legalholdIsTeamInWhitelist tid owner >>= assertSuccess
+
+    getSettingsFails stranger
+    getSettingsWorks owner "not_configured"
+    getSettingsWorks alice "not_configured"
+
+    let lhSettings = mkLegalHoldSettings lhDomAndPort
+    bindResponse (postLegalHoldSettings tid owner lhSettings) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+
+    bindResponse (getLegalHoldSettings tid alice) $ \resp ->
+      do
+        resp.status `shouldMatchInt` 200
+        assertFieldMissing resp.json "label"
+        (resp.json %. "settings" %. "auth_token") `shouldMatch` (lhSettings %. "auth_token")
+        (resp.json %. "settings" %. "base_url") `shouldMatch` (lhSettings %. "base_url")
+        (resp.json %. "settings" %. "public_key" >>= asString <&> trim)
+          `shouldMatch` (lhSettings %. "public_key")
+        (resp.json %. "settings" %. "team_id") `shouldMatch` tid
+        (resp.json %. "settings" %. "fingerprint" >>= asString <&> length)
+          `shouldNotMatch` (0 :: Int)
 
 testLHMessageExchange ::
   (HasCallStack) =>
