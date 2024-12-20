@@ -314,30 +314,42 @@ parseSS input =
     else Just <$> Parser.parseOnly (ssParser <* Parser.endOfInput) input
 
 -- Example input:
--- LISTEN                   0                        4096                                       127.0.0.1:8082                                      0.0.0.0:*                    users:(("brig",pid=51468,fd=79))
+-- LISTEN   0  4096  127.0.0.1:8082  0.0.0.0:*  users:(("brig",pid=51468,fd=79))
 ssParser :: Parser.Parser (String, ProcessID)
 ssParser = do
-  let spacesParser = void $ Parser.many1 Parser.space
-      notSpacesParser = void $ Parser.many1 (Parser.satisfy (/= ' '))
-
-  _ <- Parser.string "LISTEN"
-  spacesParser
-  notSpacesParser -- 0
-  spacesParser
-  notSpacesParser -- 4096
-  spacesParser
-  notSpacesParser -- 127...
-  spacesParser
-  notSpacesParser -- 0.0....
-
-  -- Done with uninteresting things
-  _ <- spacesParser
-  _ <- Parser.string "users:((\""
-  processName <- Parser.many1 $ Parser.satisfy (/= '"')
-  _ <- Parser.string ",pid="
-  processId <- Parser.decimal
-  _ <- Parser.many1 (Parser.satisfy (/= '\n'))
-  pure (processName, processId)
+  ignoreStrToken "LISTEN"
+  ignoreToken -- 0
+  ignoreToken -- 4096
+  ignoreToken -- 127...
+  ignoreToken -- 0.0....
+  ignoreStrToken "users:(("
+  name <- quoted
+  _ <- Parser.char ','
+  p <- pid
+  _ <- Parser.many1 noNewLine
+  pure (name, p)
+  where
+    spaces = void $ Parser.many' Parser.space
+    noSpace = Parser.satisfy (/= ' ')
+    noSpaces = Parser.many1 noSpace
+    token p = do
+      spaces
+      res <- p
+      spaces
+      pure res
+    ignoreToken = void $ token noSpaces
+    stringToken str = token (Parser.string $ fromString str)
+    ignoreStrToken = void . stringToken
+    quoted = do
+      token $ do
+        _ <- Parser.char '"'
+        tok <- noSpaces
+        _ <- Parser.char '"'
+        pure tok
+    pid = do
+      ignoreStrToken "pid="
+      Parser.decimal
+    noNewLine = Parser.satisfy (/= '\n')
 
 ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
