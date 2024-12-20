@@ -48,51 +48,15 @@ import Testlib.Prekeys
 import Testlib.Prelude
 import UnliftIO (Chan, readChan, timeout)
 
--- TODO: XXX adjust
 testLHPreventAddingNonConsentingUsers :: (HasCallStack) => LhApiVersion -> App ()
 testLHPreventAddingNonConsentingUsers v = do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
     (owner, tid, [alice, alex]) <- createTeam OwnDomain 3
-    stranger <- randomUser OwnDomain def
-
-    let getSettingsWorks :: (HasCallStack) => Value -> String -> App ()
-        getSettingsWorks target status = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
-          resp.status `shouldMatchInt` 200
-          resp.json %. "status" `shouldMatch` status
-
-        getSettingsFails :: (HasCallStack) => Value -> App ()
-        getSettingsFails target = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
-          resp.status `shouldMatchInt` 403
-          resp.json %. "label" `shouldMatch` "no-team-member"
-
-    getSettingsFails stranger
-    getSettingsWorks owner "disabled"
-    getSettingsWorks alice "disabled"
 
     legalholdWhitelistTeam tid owner >>= assertSuccess
     legalholdIsTeamInWhitelist tid owner >>= assertSuccess
+    postLegalHoldSettings tid owner (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
 
-    getSettingsFails stranger
-    getSettingsWorks owner "not_configured"
-    getSettingsWorks alice "not_configured"
-
-    let lhSettings = mkLegalHoldSettings lhDomAndPort
-    bindResponse (postLegalHoldSettings tid owner lhSettings) $ \resp -> do
-      resp.status `shouldMatchInt` 201
-
-    bindResponse (getLegalHoldSettings tid alice) $ \resp ->
-      do
-        resp.status `shouldMatchInt` 200
-        assertFieldMissing resp.json "label"
-        (resp.json %. "settings" %. "auth_token") `shouldMatch` (lhSettings %. "auth_token")
-        (resp.json %. "settings" %. "base_url") `shouldMatch` (lhSettings %. "base_url")
-        actualPublicKey <- asString (resp.json %. "settings" %. "public_key")
-        trim actualPublicKey `shouldMatch` (lhSettings %. "public_key")
-        (resp.json %. "settings" %. "team_id") `shouldMatch` tid
-        -- TODO: How to assert the `fingerprint`?
-        pure ()
-
-    -- TODO: Old test code starts below --- split the test?
     george <- randomUser OwnDomain def
     georgeQId <- objQidObject george
     hannes <- randomUser OwnDomain def
@@ -142,6 +106,49 @@ testLHPreventAddingNonConsentingUsers v = do
             & asList >>= traverse \m -> do
               m %. "qualified_id"
         mems `shouldMatchSet` forM us (\m -> m %. "qualified_id")
+
+testLHGetAndUpdateSettings :: (HasCallStack) => LhApiVersion -> App ()
+testLHGetAndUpdateSettings v = do
+  withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
+    (owner, tid, [alice, alex]) <- createTeam OwnDomain 3
+    stranger <- randomUser OwnDomain def
+
+    let getSettingsWorks :: (HasCallStack) => Value -> String -> App ()
+        getSettingsWorks target status = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` status
+
+        getSettingsFails :: (HasCallStack) => Value -> App ()
+        getSettingsFails target = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
+          resp.status `shouldMatchInt` 403
+          resp.json %. "label" `shouldMatch` "no-team-member"
+
+    getSettingsFails stranger
+    getSettingsWorks owner "disabled"
+    getSettingsWorks alice "disabled"
+
+    legalholdWhitelistTeam tid owner >>= assertSuccess
+    legalholdIsTeamInWhitelist tid owner >>= assertSuccess
+
+    getSettingsFails stranger
+    getSettingsWorks owner "not_configured"
+    getSettingsWorks alice "not_configured"
+
+    let lhSettings = mkLegalHoldSettings lhDomAndPort
+    bindResponse (postLegalHoldSettings tid owner lhSettings) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+
+    bindResponse (getLegalHoldSettings tid alice) $ \resp ->
+      do
+        resp.status `shouldMatchInt` 200
+        assertFieldMissing resp.json "label"
+        (resp.json %. "settings" %. "auth_token") `shouldMatch` (lhSettings %. "auth_token")
+        (resp.json %. "settings" %. "base_url") `shouldMatch` (lhSettings %. "base_url")
+        (resp.json %. "settings" %. "public_key" >>= asString <&> trim)
+          `shouldMatch` (lhSettings %. "public_key")
+        (resp.json %. "settings" %. "team_id") `shouldMatch` tid
+        (resp.json %. "settings" %. "fingerprint" >>= asString <&> length)
+          `shouldNotMatch` (0 :: Int)
 
 testLHMessageExchange ::
   (HasCallStack) =>
