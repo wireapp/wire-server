@@ -56,7 +56,7 @@ import Prelude
 
 withModifiedBackend :: (HasCallStack) => ServiceOverrides -> ((HasCallStack) => String -> App a) -> App a
 withModifiedBackend overrides k =
-  startDynamicBackends [overrides] (\domains -> k (head domains))
+  startDynamicBackends [overrides] (\[domains] -> k domains)
 
 copyDirectoryRecursively :: FilePath -> FilePath -> IO ()
 copyDirectoryRecursively from to = do
