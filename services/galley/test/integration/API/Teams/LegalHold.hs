@@ -64,7 +64,6 @@ testsPublic s =
     "Teams LegalHold API (with flag whitelist-teams-and-implicit-consent)"
     [ -- legal hold settings
       testOnlyIfLhWhitelisted s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings,
-      testOnlyIfLhWhitelisted s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings,
       testOnlyIfLhWhitelisted s "Not implemented: DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam,
       -- behavior of existing end-points
       testOnlyIfLhWhitelisted s "POST /clients" testCannotCreateLegalHoldDeviceOldAPI,
@@ -147,6 +146,7 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
         postSettings owner tid newService !!! testResponse 201 Nothing -- it's idempotent
         ViewLegalHoldService service <- getSettingsTyped owner tid
         liftIO $ do
+          Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
           assertEqual "viewLegalHoldTeam" tid (viewLegalHoldServiceTeam service)
           assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
           assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)

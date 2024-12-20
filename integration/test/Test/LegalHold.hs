@@ -110,7 +110,7 @@ testLHPreventAddingNonConsentingUsers v = do
 testLHGetAndUpdateSettings :: (HasCallStack) => LhApiVersion -> App ()
 testLHGetAndUpdateSettings v = do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
-    (owner, tid, [alice, alex]) <- createTeam OwnDomain 3
+    (owner, tid, [alice]) <- createTeam OwnDomain 3
     stranger <- randomUser OwnDomain def
 
     let getSettingsWorks :: (HasCallStack) => Value -> String -> App ()
