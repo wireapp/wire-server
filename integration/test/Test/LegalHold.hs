@@ -107,11 +107,11 @@ testLHPreventAddingNonConsentingUsers v = do
               m %. "qualified_id"
         mems `shouldMatchSet` forM us (\m -> m %. "qualified_id")
 
-testLHGetAndUpdateSettings :: (HasCallStack) => LhApiVersion -> App ()
-testLHGetAndUpdateSettings v = do
+testLHGetAndUpdateSettings :: (HasCallStack) => ImplicitConsent -> LhApiVersion -> App ()
+testLHGetAndUpdateSettings implicitConsent v = setLHFeatureConfigForServer implicitConsent $ \dom -> do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
-    (owner, tid, [alice]) <- createTeam OwnDomain 2
-    stranger <- randomUser OwnDomain def
+    (owner, tid, [alice]) <- createTeam dom 2
+    stranger <- randomUser dom def
 
     let getSettingsWorks :: (HasCallStack) => Value -> String -> App ()
         getSettingsWorks target status = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
@@ -127,8 +127,13 @@ testLHGetAndUpdateSettings v = do
     getSettingsWorks owner "disabled"
     getSettingsWorks alice "disabled"
 
-    legalholdWhitelistTeam tid owner >>= assertSuccess
-    legalholdIsTeamInWhitelist tid owner >>= assertSuccess
+    case implicitConsent of
+      ImplicitConsent -> do
+        legalholdWhitelistTeam tid owner >>= assertSuccess
+        legalholdIsTeamInWhitelist tid owner >>= assertSuccess
+      ExplicitConsent -> do
+        let payload = object ["status" .= "enabled"] -- legalhold has implicit lock status "unlocked"
+        API.GalleyInternal.setTeamFeatureConfig dom tid "legalhold" payload >>= assertSuccess
 
     getSettingsFails stranger
     getSettingsWorks owner "not_configured"
@@ -1102,3 +1107,26 @@ testNoCommonVersion = do
     bindResponse (requestLegalHoldDevice tid alice bob) $ \resp -> do
       resp.status `shouldMatchInt` 500
       resp.json %. "label" `shouldMatch` "server-error"
+
+-- | LH can be configured i a way that does not require users to give preliminary consent to
+-- LH when being added to a team.  The user still has to approve the LH device before the
+-- recording starts.  This is called "implicit consent", was introduced to accomodate specific
+-- work flows, and there is some hope that it'll be removed in the future.
+--
+-- Explicit consent requires users to consent on entering the team, and then approve the
+-- actual being put under recording again if it happens.
+--
+-- This flag allows to make tests run through both configurations with minimal adjustment.
+data ImplicitConsent = ImplicitConsent | ExplicitConsent
+  deriving (Eq, Show, Generic)
+
+setLHFeatureConfigForServer :: ImplicitConsent -> (String {- domain -} -> App ()) -> App ()
+setLHFeatureConfigForServer ImplicitConsent app =
+  -- we could do `setField "settings.featureFlags.legalhold"
+  -- "whitelist-teams-and-implicit-consent"`, but this is already the default.
+  -- TODO: make this an assertion, not a comment!
+  app =<< asString OwnDomain
+setLHFeatureConfigForServer ExplicitConsent app =
+  withModifiedBackend (def {galleyCfg = upd}) app
+  where
+    upd = setField "settings.featureFlags.legalhold" "disabled-by-default"
