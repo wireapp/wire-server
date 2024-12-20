@@ -162,8 +162,6 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
   -- synchronously and respond with 201
   withTestService (lhapp Working) (lhtest Working)
 
--- NOTE: we do not expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
-
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
   (owner, tid) <- createBindingTeam
