@@ -297,6 +297,7 @@ let
       pkgs.awscli2
       pkgs.vacuum-go
       pkgs.iproute2
+      pkgs.lsof
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-ses
@@ -547,6 +548,7 @@ in
       pkgs.cabal-install
       pkgs.nix-prefetch-git
       pkgs.haskellPackages.cabal-plan
+      pkgs.lsof
       profileEnv
     ]
     ++ ghcWithPackages
