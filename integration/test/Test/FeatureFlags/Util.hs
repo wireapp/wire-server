@@ -95,8 +95,8 @@ defAllFeatures =
                 [ "protocolToggleUsers" .= ([] :: [String]),
                   "defaultProtocol" .= "proteus",
                   "supportedProtocols" .= ["proteus", "mls"],
-                  "allowedCipherSuites" .= ([1] :: [Int]),
-                  "defaultCipherSuite" .= A.Number 1
+                  "allowedCipherSuites" .= ([2] :: [Int]),
+                  "defaultCipherSuite" .= A.Number 2
                 ]
           ],
       "searchVisibilityInbound" .= disabled,

@@ -500,9 +500,13 @@ servantSitemap =
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
       Named @"mls-key-packages-upload" uploadKeyPackages
+        :<|> Named @"mls-key-packages-replace@v7" replaceKeyPackagesV7
         :<|> Named @"mls-key-packages-replace" replaceKeyPackages
+        :<|> Named @"mls-key-packages-claim@v7" claimKeyPackagesV7
         :<|> Named @"mls-key-packages-claim" claimKeyPackages
+        :<|> Named @"mls-key-packages-count@v7" countKeyPackagesV7
         :<|> Named @"mls-key-packages-count" countKeyPackages
+        :<|> Named @"mls-key-packages-delete@v7" deleteKeyPackagesV7
         :<|> Named @"mls-key-packages-delete" deleteKeyPackages
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)

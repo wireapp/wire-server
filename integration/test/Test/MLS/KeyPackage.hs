@@ -18,7 +18,7 @@ testDeleteKeyPackages = do
   -- add an extra non-existing key package to the delete request
   let kps' = "4B701F521EBE82CEC4AD5CB67FDD8E1C43FC4868DE32D03933CE4993160B75E8" : kps
 
-  bindResponse (deleteKeyPackages alice1 kps') $ \resp -> do
+  bindResponse (deleteKeyPackages def alice1 kps') $ \resp -> do
     resp.status `shouldMatchInt` 201
 
   bindResponse (countKeyPackages def alice1) $ \resp -> do
@@ -27,26 +27,27 @@ testDeleteKeyPackages = do
 
 testKeyPackageMultipleCiphersuites :: App ()
 testKeyPackageMultipleCiphersuites = do
+  let suite = def
+      altSuite = Ciphersuite "0x0007"
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- replicateM 2 (createMLSClient def def alice)
+  [alice1, alice2] <- replicateM 2 (createMLSClientWithCiphersuites [suite, altSuite] def alice)
 
-  kp <- uploadNewKeyPackage def alice2
+  kp <- uploadNewKeyPackage suite alice2
 
-  let suite = Ciphersuite "0xf031"
-  void $ uploadNewKeyPackage suite alice2
+  void $ uploadNewKeyPackage altSuite alice2
 
-  -- count key packages with default ciphersuite
-  bindResponse (countKeyPackages def alice2) $ \resp -> do
+  -- count key packages with the client's default ciphersuite
+  bindResponse (countKeyPackages suite alice2) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "count" `shouldMatchInt` 1
 
-  -- claim key packages with default ciphersuite
-  bindResponse (claimKeyPackages def alice1 alice) $ \resp -> do
+  -- claim key packages with the client's default ciphersuite
+  bindResponse (claimKeyPackages suite alice1 alice) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "key_packages.0.key_package_ref" `shouldMatch` kp
 
   -- count key package with the other ciphersuite
-  bindResponse (countKeyPackages suite alice2) $ \resp -> do
+  bindResponse (countKeyPackages altSuite alice2) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "count" `shouldMatchInt` 1
 
@@ -207,42 +208,44 @@ testUnsupportedCiphersuite = do
 
 testReplaceKeyPackages :: (HasCallStack) => App ()
 testReplaceKeyPackages = do
+  let suite = def
+      altSuite = Ciphersuite "0x0007"
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- replicateM 2 $ createMLSClient def def alice
-  let suite = Ciphersuite "0xf031"
+  [alice1, alice2] <- replicateM 2 $ createMLSClientWithCiphersuites [suite, altSuite] def alice
 
-  let checkCount cs n =
+  let checkCount :: (HasCallStack) => Ciphersuite -> Int -> App ()
+      checkCount cs n =
         bindResponse (countKeyPackages cs alice1) $ \resp -> do
           resp.status `shouldMatchInt` 200
           resp.json %. "count" `shouldMatchInt` n
 
   -- setup: upload a batch of key packages for each ciphersuite
   void
-    $ replicateM 4 (fmap fst (generateKeyPackage alice1 def))
+    $ replicateM 4 (fmap fst (generateKeyPackage alice1 suite))
     >>= uploadKeyPackages alice1
     >>= getBody 201
   void
-    $ replicateM 5 (fmap fst (generateKeyPackage alice1 suite))
+    $ replicateM 5 (fmap fst (generateKeyPackage alice1 altSuite))
     >>= uploadKeyPackages alice1
     >>= getBody 201
 
-  checkCount def 4
-  checkCount suite 5
+  checkCount suite 4
+  checkCount altSuite 5
 
   do
     -- generate a new batch of key packages
-    (kps, refs) <- unzip <$> replicateM 3 (generateKeyPackage alice1 suite)
+    (kps, refs) <- unzip <$> replicateM 3 (generateKeyPackage alice1 altSuite)
 
     -- replace old key packages with new
-    void $ replaceKeyPackages alice1 (Just [suite]) kps >>= getBody 201
+    void $ replaceKeyPackages alice1 [altSuite] kps >>= getBody 201
 
-    checkCount def 4
-    checkCount suite 3
+    checkCount suite 4
+    checkCount altSuite 3
 
     -- claim all key packages one by one
     claimed <-
       replicateM 3
-        $ bindResponse (claimKeyPackages suite alice2 alice)
+        $ bindResponse (claimKeyPackages altSuite alice2 alice)
         $ \resp -> do
           resp.status `shouldMatchInt` 200
           ks <- resp.json %. "key_packages" & asList
@@ -251,65 +254,177 @@ testReplaceKeyPackages = do
 
     refs `shouldMatchSet` claimed
 
-    checkCount def 4
-    checkCount suite 0
+    checkCount suite 4
+    checkCount altSuite 0
 
   do
     -- replenish key packages for the second ciphersuite
     void
-      $ replicateM 5 (fmap fst (generateKeyPackage alice1 suite))
+      $ replicateM 5 (fmap fst (generateKeyPackage alice1 altSuite))
       >>= uploadKeyPackages alice1
       >>= getBody 201
 
-    checkCount def 4
-    checkCount suite 5
+    checkCount suite 4
+    checkCount altSuite 5
 
     -- replace all key packages with fresh ones
-    kps1 <- replicateM 2 (fmap fst (generateKeyPackage alice1 def))
-    kps2 <- replicateM 2 (fmap fst (generateKeyPackage alice1 suite))
+    kps1 <- replicateM 3 (fmap fst (generateKeyPackage alice1 suite))
+    kps2 <- replicateM 2 (fmap fst (generateKeyPackage alice1 altSuite))
 
-    void $ replaceKeyPackages alice1 (Just [def, suite]) (kps1 <> kps2) >>= getBody 201
+    void $ replaceKeyPackages alice1 [suite, altSuite] (kps1 <> kps2) >>= getBody 201
 
-    checkCount def 2
-    checkCount suite 2
+    checkCount suite 3
+    checkCount altSuite 2
 
   do
-    defKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1 def))
     suiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1 suite))
+    altSuiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1 altSuite))
 
     void
-      $ replaceKeyPackages alice1 (Just []) []
+      $ replaceKeyPackages alice1 [] []
       `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 201
 
-    void
-      $ replaceKeyPackages alice1 Nothing defKeyPackages
-      `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 201
+    checkCount suite 3
+    checkCount altSuite 2
 
-    checkCount def 3
-    checkCount suite 2
-
-    let testErrorCases :: (HasCallStack) => Maybe [Ciphersuite] -> [ByteString] -> App ()
+    let testErrorCases :: (HasCallStack) => [Ciphersuite] -> [ByteString] -> App ()
         testErrorCases ciphersuites keyPackages = do
           void
             $ replaceKeyPackages alice1 ciphersuites keyPackages
             `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 400
               resp.json %. "label" `shouldMatch` "mls-protocol-error"
-          checkCount def 3
-          checkCount suite 2
+          checkCount suite 3
+          checkCount altSuite 2
 
-    testErrorCases (Just []) defKeyPackages
+    testErrorCases [] suiteKeyPackages
+    testErrorCases [] altSuiteKeyPackages
+
+    testErrorCases [altSuite] suiteKeyPackages
+    testErrorCases [altSuite] (altSuiteKeyPackages <> suiteKeyPackages)
+    testErrorCases [altSuite] []
+
+    testErrorCases [suite] altSuiteKeyPackages
+    testErrorCases [suite] (altSuiteKeyPackages <> suiteKeyPackages)
+    testErrorCases [suite] []
+
+testReplaceKeyPackagesV7 :: (HasCallStack) => App ()
+testReplaceKeyPackagesV7 = do
+  let suite = def
+      altSuite = Ciphersuite "0x0007"
+      oldSuite = Ciphersuite "0x0001"
+  alice <- randomUser OwnDomain def
+  [alice1, alice2] <- replicateM 2 $ createMLSClientWithCiphersuites [suite, altSuite, oldSuite] def alice
+
+  let checkCount :: (HasCallStack) => Ciphersuite -> Int -> App ()
+      checkCount cs n =
+        bindResponse (countKeyPackages cs alice1) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "count" `shouldMatchInt` n
+
+  -- setup: upload a batch of key packages for each ciphersuite
+  void
+    $ replicateM 4 (fmap fst (generateKeyPackage alice1 suite))
+    >>= uploadKeyPackages alice1
+    >>= getBody 201
+  void
+    $ replicateM 5 (fmap fst (generateKeyPackage alice1 altSuite))
+    >>= uploadKeyPackages alice1
+    >>= getBody 201
+  void
+    $ replicateM 6 (fmap fst (generateKeyPackage alice1 oldSuite))
+    >>= uploadKeyPackages alice1
+    >>= getBody 201
+
+  checkCount suite 4
+  checkCount altSuite 5
+  checkCount oldSuite 6
+
+  do
+    -- generate a new batch of key packages
+    (kps, refs) <- unzip <$> replicateM 3 (generateKeyPackage alice1 altSuite)
+
+    -- replace old key packages with new
+    void $ replaceKeyPackagesV7 alice1 (Just [altSuite]) kps >>= getBody 201
+
+    checkCount suite 4
+    checkCount altSuite 3
+
+    -- claim all key packages one by one
+    claimed <-
+      replicateM 3
+        $ bindResponse (claimKeyPackages altSuite alice2 alice)
+        $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          ks <- resp.json %. "key_packages" & asList
+          k <- assertOne ks
+          k %. "key_package_ref"
+
+    refs `shouldMatchSet` claimed
+
+    checkCount suite 4
+    checkCount altSuite 0
+
+  do
+    -- replenish key packages for the second ciphersuite
+    void
+      $ replicateM 5 (fmap fst (generateKeyPackage alice1 altSuite))
+      >>= uploadKeyPackages alice1
+      >>= getBody 201
+
+    checkCount suite 4
+    checkCount altSuite 5
+
+    -- replace all key packages with fresh ones
+    kps1 <- replicateM 3 (fmap fst (generateKeyPackage alice1 suite))
+    kps2 <- replicateM 2 (fmap fst (generateKeyPackage alice1 altSuite))
+
+    void $ replaceKeyPackagesV7 alice1 (Just [suite, altSuite]) (kps1 <> kps2) >>= getBody 201
+
+    checkCount suite 3
+    checkCount altSuite 2
+
+  do
+    suiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1 suite))
+    altSuiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1 altSuite))
+    oldSuiteKeyPackages <- replicateM 4 (fmap fst (generateKeyPackage alice1 oldSuite))
+
+    void
+      $ replaceKeyPackagesV7 alice1 (Just []) []
+      `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 201
+
+    void
+      $ replaceKeyPackagesV7 alice1 Nothing oldSuiteKeyPackages
+      `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 201
+
+    checkCount suite 3
+    checkCount altSuite 2
+    checkCount oldSuite 4
+
+    let testErrorCases :: (HasCallStack) => Maybe [Ciphersuite] -> [ByteString] -> App ()
+        testErrorCases ciphersuites keyPackages = do
+          void
+            $ replaceKeyPackagesV7 alice1 ciphersuites keyPackages
+            `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 400
+              resp.json %. "label" `shouldMatch` "mls-protocol-error"
+          checkCount suite 3
+          checkCount altSuite 2
+          checkCount oldSuite 4
+
     testErrorCases (Just []) suiteKeyPackages
+    testErrorCases (Just []) altSuiteKeyPackages
     testErrorCases Nothing []
-    testErrorCases Nothing suiteKeyPackages
-    testErrorCases Nothing (suiteKeyPackages <> defKeyPackages)
+    testErrorCases Nothing altSuiteKeyPackages
+    testErrorCases Nothing (oldSuiteKeyPackages <> altSuiteKeyPackages <> suiteKeyPackages)
 
-    testErrorCases (Just [suite]) defKeyPackages
-    testErrorCases (Just [suite]) (suiteKeyPackages <> defKeyPackages)
+    testErrorCases (Just [altSuite]) suiteKeyPackages
+    testErrorCases (Just [altSuite]) (oldSuiteKeyPackages <> altSuiteKeyPackages <> suiteKeyPackages)
+    testErrorCases (Just [altSuite]) []
+
+    testErrorCases (Just [suite]) altSuiteKeyPackages
+    testErrorCases (Just [suite]) (oldSuiteKeyPackages <> altSuiteKeyPackages <> suiteKeyPackages)
     testErrorCases (Just [suite]) []
-
-    testErrorCases (Just [def]) suiteKeyPackages
-    testErrorCases (Just [def]) (suiteKeyPackages <> defKeyPackages)
-    testErrorCases (Just [def]) []
