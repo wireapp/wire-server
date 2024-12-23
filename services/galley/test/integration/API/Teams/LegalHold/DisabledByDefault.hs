@@ -84,7 +84,6 @@ tests s =
       testOnlyIfLhEnabled s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser,
       -- legal hold settings
       testOnlyIfLhEnabled s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings,
-      testOnlyIfLhEnabled s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings,
       testOnlyIfLhEnabled s "DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam,
       testOnlyIfLhEnabled s "GET, PUT [/i]?/teams/{tid}/legalhold" testEnablePerTeam,
       testOnlyIfLhEnabled s "GET, PUT [/i]?/teams/{tid}/legalhold - too large" testEnablePerTeamTooLarge,
@@ -399,49 +398,6 @@ testCreateLegalHoldTeamSettings = do
   -- if valid service response can be obtained, writes a pending entry to cassandra
   -- synchronously and respond with 201
   withTestService (lhapp Working) (lhtest Working)
-
-testGetLegalHoldTeamSettings :: TestM ()
-testGetLegalHoldTeamSettings = do
-  (owner, tid) <- createBindingTeam
-  stranger <- randomUser
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  let lhapp :: Chan () -> Application
-      lhapp _ch _req res = res $ responseLBS status200 mempty mempty
-  withTestService lhapp $ \lhPort _ -> do
-    -- returns 403 if user is not in team.
-    newService <- newLegalHoldService lhPort
-    getSettings stranger tid !!! testResponse 403 (Just "no-team-member")
-    -- returns 200 with corresp. status if legalhold for team is disabled
-    do
-      let respOk :: ResponseLBS -> TestM ()
-          respOk resp = liftIO $ do
-            assertEqual "bad status code" 200 (statusCode resp)
-            assertEqual "bad body" ViewLegalHoldServiceDisabled (responseJsonUnsafe resp)
-      getSettings owner tid >>= respOk
-      getSettings member tid >>= respOk
-    putEnabled tid Public.FeatureStatusEnabled -- enable it for this team
-
-    -- returns 200 with corresp. status if legalhold for team is enabled, but not configured
-    do
-      let respOk :: ResponseLBS -> TestM ()
-          respOk resp = liftIO $ do
-            assertEqual "bad status code" 200 (statusCode resp)
-            assertEqual "bad body" ViewLegalHoldServiceNotConfigured (responseJsonUnsafe resp)
-      getSettings owner tid >>= respOk
-      getSettings member tid >>= respOk
-    postSettings owner tid newService !!! testResponse 201 Nothing
-    -- returns legal hold service info if team is under legal hold and user is in team (even
-    -- no permissions).
-    ViewLegalHoldService service <- getSettingsTyped member tid
-    liftIO $ do
-      let sKey = newLegalHoldServiceKey newService
-      Just (_, fpr) <- validateServiceKey sKey
-      assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam service)
-      assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
-      assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
-      assertEqual "viewLegalHoldServiceKey" sKey (viewLegalHoldServiceKey service)
-      assertEqual "viewLegalHoldServiceAuthToken" (newLegalHoldServiceToken newService) (viewLegalHoldServiceAuthToken service)
 
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
