@@ -108,7 +108,7 @@ testLHPreventAddingNonConsentingUsers v = do
         mems `shouldMatchSet` forM us (\m -> m %. "qualified_id")
 
 testLHGetAndUpdateSettings :: (HasCallStack) => ImplicitConsent -> LhApiVersion -> App ()
-testLHGetAndUpdateSettings implicitConsent v = setLHFeatureConfigForServer implicitConsent $ \dom -> do
+testLHGetAndUpdateSettings implicitConsent v = ensureLHFeatureConfigForServer implicitConsent $ \dom -> do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
     (owner, tid, [alice]) <- createTeam dom 2
     stranger <- randomUser dom def
@@ -1120,13 +1120,16 @@ testNoCommonVersion = do
 data ImplicitConsent = ImplicitConsent | ExplicitConsent
   deriving (Eq, Show, Generic)
 
-setLHFeatureConfigForServer :: ImplicitConsent -> (String {- domain -} -> App ()) -> App ()
-setLHFeatureConfigForServer ImplicitConsent app =
-  -- we could do `setField "settings.featureFlags.legalhold"
-  -- "whitelist-teams-and-implicit-consent"`, but this is already the default.
-  -- TODO: make this an assertion, not a comment!
+-- | Ensure that the LH config is as expected: Either by expecting it from the
+-- current server's config. Or, by creating a new one.
+ensureLHFeatureConfigForServer :: ImplicitConsent -> (String {- domain -} -> App ()) -> App ()
+ensureLHFeatureConfigForServer ImplicitConsent app = do
+  -- This should be set in the server's config file. Thus, we only assert here
+  -- (to guard against accidential change.)
+  cfg <- readServiceConfig Galley
+  (cfg %. "settings.featureFlags.legalhold") `shouldMatch` "whitelist-teams-and-implicit-consent"
   app =<< asString OwnDomain
-setLHFeatureConfigForServer ExplicitConsent app =
+ensureLHFeatureConfigForServer ExplicitConsent app =
   withModifiedBackend (def {galleyCfg = upd}) app
   where
     upd = setField "settings.featureFlags.legalhold" "disabled-by-default"
