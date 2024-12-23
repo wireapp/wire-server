@@ -821,30 +821,37 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
             LHApproved -> assertLabel 403 "access-denied"
             LHPending -> assertStatus 200
 
-testLHHappyFlow :: LhApiVersion -> App ()
-testLHHappyFlow v = do
-  (alice, tid, [bob]) <- createTeam OwnDomain 2
-  let statusShouldBe :: String -> App ()
+testLHHappyFlow :: (HasCallStack) => Consent -> LhApiVersion -> App ()
+testLHHappyFlow consent v = ensureLHFeatureConfigForServer consent $ \dom -> do
+  (alice, tid, [bob]) <- createTeam dom 2
+
+  let statusShouldBe :: (HasCallStack) => String -> App ()
       statusShouldBe status =
         legalholdUserStatus tid alice bob `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
           resp.json %. "status" `shouldMatch` status
 
-  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  whitelistOrEnableLHForTeam consent dom tid alice
   lpk <- getLastPrekey
   pks <- replicateM 3 getPrekey
 
-  withMockServer def (lhMockAppWithPrekeys v MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
-    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+  let ourLHMockApp = lhMockAppWithPrekeys v MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}
+  withMockServer def ourLHMockApp \lhDomAndPort _chan -> do
+    statusShouldBe $ case consent of
+      Implicit -> "disabled"
+      Explicit -> "no_consent"
 
-    -- implicit consent
+    consentToLegalHold tid bob defPassword >>= assertStatus case consent of
+      Implicit -> 204
+      Explicit -> 201
     statusShouldBe "disabled"
-    -- whitelisting is idempotent
-    legalholdWhitelistTeam tid alice >>= assertStatus 200
+
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     statusShouldBe "disabled"
 
     -- memmbers cannot request LH devices
     requestLegalHoldDevice tid bob alice >>= assertLabel 403 "operation-denied"
+    requestLegalHoldDevice tid bob bob >>= assertLabel 403 "operation-denied"
 
     -- owners can; bob should now have a pending request
     requestLegalHoldDevice tid alice bob >>= assertStatus 201
@@ -865,6 +872,18 @@ testLHHappyFlow v = do
           `lookupField` "client.id"
           >>= assertJust "client id is present"
       resp.json %. "last_prekey" `shouldMatch` lpk
+
+    -- user cannot delete their own LH device
+    disableLegalHold tid bob bob defPassword >>= assertLabel 403 "operation-denied"
+    legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "enabled"
+
+    -- admin can delete LH device
+    disableLegalHold tid alice bob defPassword >>= assertSuccess
+    legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "disabled"
 
 testLHGetStatus :: LhApiVersion -> App ()
 testLHGetStatus v = do
