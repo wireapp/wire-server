@@ -1108,7 +1108,7 @@ testNoCommonVersion = do
       resp.status `shouldMatchInt` 500
       resp.json %. "label" `shouldMatch` "server-error"
 
--- | LH can be configured i a way that does not require users to give preliminary consent to
+-- | LH can be configured in a way that does not require users to give preliminary consent to
 -- LH when being added to a team.  The user still has to approve the LH device before the
 -- recording starts.  This is called "implicit consent", was introduced to accomodate specific
 -- work flows, and there is some hope that it'll be removed in the future.
