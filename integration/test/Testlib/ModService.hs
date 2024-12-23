@@ -12,7 +12,7 @@ where
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
-import Control.Monad.Catch (catch, displayException, throwM)
+import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
@@ -27,7 +27,6 @@ import Data.Maybe
 import Data.Monoid
 import Data.String
 import Data.String.Conversions (cs)
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
@@ -44,7 +43,6 @@ import System.Posix (keyboardSignal, killProcess, signalProcess)
 import System.Posix.Types
 import System.Process
 import Testlib.App
-import Testlib.Assertions (prettierCallStack)
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
@@ -290,67 +288,40 @@ ensureFederatorPortIsFree resource = do
     check :: Word16 -> App ()
     check federatorExternalPort = do
       env <- ask
-      let process = (proc "ss" ["-HOntpl", "sport", "=", show federatorExternalPort]) {std_out = CreatePipe, std_err = CreatePipe}
+      let process = (proc "lsof" ["-Q", "-Fpc", "-i", ":" <> show federatorExternalPort, "-s", "TCP:LISTEN"]) {std_out = CreatePipe, std_err = CreatePipe}
       (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess process
-      let prefix = "[" <> "ss" <> "@" <> resource.berDomain <> maybe "" (":" <>) env.currentTestName <> "] "
+      let prefix = "[" <> "lsof" <> "@" <> resource.berDomain <> maybe "" (":" <>) env.currentTestName <> "] "
       liftIO $ void $ forkIO $ logToConsole id prefix stderrHdl
       exitCode <- liftIO $ waitForProcess ph
       case exitCode of
-        ExitFailure _ -> assertFailure $ "ss failed to figure out if federator port is free"
+        ExitFailure _ -> assertFailure $ prefix <> "lsof failed to figure out if federator port is free"
         ExitSuccess -> do
-          ssOutput <- liftIO $ hGetContents stdoutHdl
-          case parseSS (fromString ssOutput) of
-            Right (Just (processName, processId)) -> do
-              liftIO $ putStrLn $ "Found a process listening on port: " <> show federatorExternalPort <> ", killing the process: " <> show processName <> ", pid: " <> show processId
+          lsofOutput <- liftIO $ hGetContents stdoutHdl
+          case parseLsof (fromString lsofOutput) of
+            Right ((processId, processName) : _) -> do
+              liftIO $ putStrLn $ prefix <> "Found a process listening on port: " <> show federatorExternalPort <> ", killing the process: " <> show processName <> ", pid: " <> show processId
               liftIO $ signalProcess killProcess processId
               liftIO $ threadDelay 100_000
               check federatorExternalPort
-            Right Nothing -> pure ()
-            Left e -> assertFailure $ "Failed while parsing ss output with error: " <> e
+            Right [] -> pure ()
+            Left e -> assertFailure $ prefix <> "Failed while parsing lsof output with error: " <> e <> "\n" <> "lsof output:\n" <> lsofOutput
 
-parseSS :: Text -> Either String (Maybe (String, ProcessID))
-parseSS input =
-  if Text.null input
-    then pure Nothing
-    else Just <$> Parser.parseOnly (ssParser <* Parser.endOfInput) input
-
--- Example input:
--- LISTEN   0  4096  127.0.0.1:8082  0.0.0.0:*  users:(("brig",pid=51468,fd=79))
-ssParser :: Parser.Parser (String, ProcessID)
-ssParser = do
-  ignoreStrToken "LISTEN"
-  ignoreToken -- 0
-  ignoreToken -- 4096
-  ignoreToken -- 127...
-  ignoreToken -- 0.0....
-  ignoreStrToken "users:(("
-  name <- quoted
-  _ <- Parser.char ','
-  p <- pid
-  _ <- Parser.many1 noNewLine
-  pure (name, p)
+-- | Example lsof output:
+--
+-- @
+-- p61317
+-- cfederator
+-- @
+parseLsof :: String -> Either String [(ProcessID, String)]
+parseLsof output =
+  Parser.parseOnly ((Parser.sepBy lsofParser (Parser.char '\n')) <* Parser.endOfInput) (fromString output)
   where
-    spaces = void $ Parser.many' Parser.space
-    noSpace = Parser.satisfy (/= ' ')
-    noSpaces = Parser.many1 noSpace
-    token p = do
-      spaces
-      res <- p
-      spaces
-      pure res
-    ignoreToken = void $ token noSpaces
-    stringToken str = token (Parser.string $ fromString str)
-    ignoreStrToken = void . stringToken
-    quoted = do
-      token $ do
-        _ <- Parser.char '"'
-        tok <- noSpaces
-        _ <- Parser.char '"'
-        pure tok
-    pid = do
-      ignoreStrToken "pid="
-      Parser.decimal
-    noNewLine = Parser.satisfy (/= '\n')
+    lsofParser :: Parser.Parser (ProcessID, String)
+    lsofParser =
+      (,) <$> processIdParser <* Parser.char '\n' <*> processNameParser
+
+    processIdParser = Parser.char 'p' *> Parser.decimal
+    processNameParser = Parser.char 'c' *> Parser.many1 (Parser.satisfy (/= '\n'))
 
 ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
@@ -408,18 +379,13 @@ timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) 
 
 cleanupService :: (HasCallStack) => ServiceInstance -> IO ()
 cleanupService inst = do
-  let ignoreExceptions :: (HasCallStack) => IO () -> IO ()
-      ignoreExceptions action = E.catch action $ \(e :: E.SomeException) -> do
-        callstackPretty <- prettierCallStack callStack
-        putStrLn $ colored red $ "Exception while cleaning up a service: " <> displayException e <> "\ncallstack: \n" <> callstackPretty
-  ignoreExceptions $ do
-    mPid <- getPid inst.handle
-    for_ mPid (signalProcess keyboardSignal)
-    timeout 50000 (waitForProcess inst.handle) >>= \case
-      Just _ -> pure ()
-      Nothing -> do
-        for_ mPid (signalProcess killProcess)
-        void $ waitForProcess inst.handle
+  mPid <- getPid inst.handle
+  for_ mPid (signalProcess keyboardSignal)
+  timeout 50000 (waitForProcess inst.handle) >>= \case
+    Just _ -> pure ()
+    Nothing -> do
+      for_ mPid (signalProcess killProcess)
+      void $ waitForProcess inst.handle
   whenM (doesFileExist inst.config) $ removeFile inst.config
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
