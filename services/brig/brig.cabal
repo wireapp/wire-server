@@ -507,11 +507,14 @@ test-suite brig-tests
     Test.Brig.Effects.Delay
     Test.Brig.InternalNotification
     Test.Brig.MLS
+    Test.Brig.OpenAPI
 
   hs-source-dirs: test/unit
   ghc-options:    -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
     , aeson
+    , aeson-diff
+    , aeson-pretty
     , base
     , binary
     , brig
@@ -522,11 +525,15 @@ test-suite brig-tests
     , dns
     , dns-util
     , exceptions
-    , HsOpenSSL          >=0.10
+    , file-embed
+    , HsOpenSSL           >=0.10
+    , http-api-data
     , imports
     , lens
+    , lens-aeson
     , polysemy
     , polysemy-wire-zoo
+    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck
