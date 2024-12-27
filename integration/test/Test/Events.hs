@@ -23,7 +23,7 @@ import Servant.API (AsApi, ToServant, toServant)
 import Servant.API.Generic (fromServant)
 import qualified Servant.Client as Servant
 import SetupHelpers
-import Testlib.Prelude hiding (assertNoEvent)
+import Testlib.Prelude
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -480,21 +480,23 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
       >>= asString
 
   runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
-    assertEvent ws $ \e -> do
+    -- If creating the user takes longer (async) than adding the clients, we get a
+    -- `"user.activate"` here, so we use `assertFindsEvent`.
+
+    assertFindsEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` c1
       ackEvent ws e
 
-    assertEvent ws $ \e -> do
+    assertFindsEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` c2
 
-      recoverAll
-        (constantDelay 500_000 <> limitRetries 10)
-        (const (killConnection backend))
+    recoverAll
+      (constantDelay 500_000 <> limitRetries 10)
+      (const (killConnection backend))
 
-    noEvent <- assertNoEvent ws
-    noEvent `shouldMatch` WebSocketDied
+    assertWebSocketDied ws
 
 ----------------------------------------------------------------------
 -- helpers
@@ -622,17 +624,30 @@ instance ToJSON NoEvent where
   toJSON NoEvent = toJSON "no-event"
   toJSON WebSocketDied = toJSON "web-socket-died"
 
-assertNoEvent :: (HasCallStack) => EventWebSocket -> App NoEvent
-assertNoEvent ws = do
-  timeout 1_000_000 (readChan ws.events) >>= \case
+assertNoEventHelper :: (HasCallStack) => EventWebSocket -> App NoEvent
+assertNoEventHelper ws = do
+  timeOutSeconds <- asks (.timeOutSeconds)
+  timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
     Nothing -> pure NoEvent
     Just (Left _) -> pure WebSocketDied
     Just (Right e) -> do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
 
+-- | Similar to `assertNoEvent` from Testlib, but with rabbitMQ typing (`/event` end-point, not
+-- `/await`).
 assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
-assertNoEvent_ = void . assertNoEvent
+assertNoEvent_ = void . assertNoEventHelper
+
+assertWebSocketDied :: (HasCallStack) => EventWebSocket -> App ()
+assertWebSocketDied ws = do
+  recpol <- do
+    timeOutSeconds <- asks (.timeOutSeconds)
+    pure $ limitRetriesByCumulativeDelay (timeOutSeconds * 1_000_000) (constantDelay 800_000)
+  recoverAll recpol $ \_ ->
+    assertNoEventHelper ws >>= \case
+      NoEvent -> assertFailure $ "WebSocket is still open"
+      WebSocketDied -> pure ()
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
