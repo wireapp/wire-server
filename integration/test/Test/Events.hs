@@ -623,7 +623,8 @@ instance ToJSON NoEvent where
 
 assertNoEventHelper :: (HasCallStack) => EventWebSocket -> App NoEvent
 assertNoEventHelper ws = do
-  timeout 1_000_000 (readChan ws.events) >>= \case
+  timeOutSeconds <- asks (.timeOutSeconds)
+  timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
     Nothing -> pure NoEvent
     Just (Left _) -> pure WebSocketDied
     Just (Right e) -> do
@@ -636,14 +637,14 @@ assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
 assertNoEvent_ = void . assertNoEventHelper
 
 assertWebSocketDied :: (HasCallStack) => EventWebSocket -> App ()
-assertWebSocketDied ws =
+assertWebSocketDied ws = do
+  recpol <- do
+    timeOutSeconds <- asks (.timeOutSeconds)
+    pure $ limitRetriesByCumulativeDelay (timeOutSeconds * 1_000_000) (constantDelay 800_000)
   recoverAll recpol $ \_ ->
     assertNoEventHelper ws >>= \case
       NoEvent -> assertFailure $ "WebSocket is still open"
       WebSocketDied -> pure ()
-  where
-    recpol :: RetryPolicyM App
-    recpol = limitRetriesByCumulativeDelay 5_000_000 (constantDelay 800_000)
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
