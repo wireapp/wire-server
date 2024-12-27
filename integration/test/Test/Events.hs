@@ -23,7 +23,7 @@ import Servant.API (AsApi, ToServant, toServant)
 import Servant.API.Generic (fromServant)
 import qualified Servant.Client as Servant
 import SetupHelpers
-import Testlib.Prelude hiding (assertNoEvent)
+import Testlib.Prelude
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -493,8 +493,7 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
         (constantDelay 500_000 <> limitRetries 10)
         (const (killConnection backend))
 
-    noEvent <- assertNoEvent ws
-    noEvent `shouldMatch` WebSocketDied
+    assertWebSocketDied ws
 
 ----------------------------------------------------------------------
 -- helpers
@@ -622,8 +621,8 @@ instance ToJSON NoEvent where
   toJSON NoEvent = toJSON "no-event"
   toJSON WebSocketDied = toJSON "web-socket-died"
 
-assertNoEvent :: (HasCallStack) => EventWebSocket -> App NoEvent
-assertNoEvent ws = do
+assertNoEventHelper :: (HasCallStack) => EventWebSocket -> App NoEvent
+assertNoEventHelper ws = do
   timeout 1_000_000 (readChan ws.events) >>= \case
     Nothing -> pure NoEvent
     Just (Left _) -> pure WebSocketDied
@@ -632,7 +631,13 @@ assertNoEvent ws = do
       assertFailure $ "Did not expect event: \n" <> eventJSON
 
 assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
-assertNoEvent_ = void . assertNoEvent
+assertNoEvent_ = void . assertNoEventHelper
+
+assertWebSocketDied :: (HasCallStack) => EventWebSocket -> App ()
+assertWebSocketDied ws =
+  assertNoEventHelper ws >>= \case
+    NoEvent -> assertFailure $ "WebSocket is still open"
+    WebSocketDied -> pure ()
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
