@@ -60,6 +60,7 @@ tests s = testGroup "Legalhold" [testsPublic s, testsInternal s]
 testsPublic :: IO TestSetup -> TestTree
 testsPublic s =
   -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
+  -- These tests should all go to /integration/test/Test/LegalHold.hs (which should be cleaned up to tell a coherent story).
   testGroup
     "Teams LegalHold API (with flag whitelist-teams-and-implicit-consent)"
     [ -- legal hold settings

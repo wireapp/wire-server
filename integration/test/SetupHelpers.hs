@@ -8,7 +8,6 @@ import API.BrigInternal
 import API.Cargohold
 import API.Common
 import API.Galley
-import API.GalleyInternal (legalholdWhitelistTeam)
 import API.Spar
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
@@ -34,7 +33,6 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Testlib.JSON
-import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
 import Testlib.Printing (indent)
 import qualified Text.XML as XML
@@ -323,30 +321,6 @@ setupProvider u np@(NewProvider {..}) = do
     pure (k, c)
   activateProvider dom key code
   loginProvider dom newProviderEmail pass $> provider
-
--- | setup a legalhold device for @uid@, authorised by @owner@
---   at the specified port
-setUpLHDevice ::
-  (HasCallStack, MakesValue tid, MakesValue owner, MakesValue uid) =>
-  tid ->
-  owner ->
-  uid ->
-  -- | the host and port the LH service is running on
-  (String, Int) ->
-  App ()
-setUpLHDevice tid alice bob lhPort = do
-  legalholdWhitelistTeam tid alice
-    >>= assertStatus 200
-
-  -- the status messages for these have already been tested
-  postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
-    >>= assertStatus 201
-
-  requestLegalHoldDevice tid alice bob
-    >>= assertStatus 201
-
-  approveLegalHoldDevice tid bob defPassword
-    >>= assertStatus 200
 
 lhDeviceIdOf :: (MakesValue user) => user -> App String
 lhDeviceIdOf bob = do
