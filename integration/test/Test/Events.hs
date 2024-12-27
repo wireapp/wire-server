@@ -489,9 +489,9 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` c2
 
-      recoverAll
-        (constantDelay 500_000 <> limitRetries 10)
-        (const (killConnection backend))
+    recoverAll
+      (constantDelay 500_000 <> limitRetries 10)
+      (const (killConnection backend))
 
     assertWebSocketDied ws
 
