@@ -23,7 +23,7 @@ import Servant.API (AsApi, ToServant, toServant)
 import Servant.API.Generic (fromServant)
 import qualified Servant.Client as Servant
 import SetupHelpers
-import Testlib.Prelude
+import Testlib.Prelude hiding (assertNoEvent)
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -46,10 +46,10 @@ testConsumeEventsOneWebSocket = do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
       e %. "data.delivery_tag"
-    assertNoEvent 1 ws
+    assertNoEvent_ ws
 
     sendAck ws deliveryTag False
-    assertNoEvent 1 ws
+    assertNoEvent_ ws
 
     handle <- randomHandle
     putHandle alice handle >>= assertSuccess
@@ -79,7 +79,7 @@ testConsumeTempEvents = do
     -- consumer being created
     lift $ do
       expectAndAckNewClientEvent ws0 clientId0
-      assertNoEvent 1 ws0
+      assertNoEvent_ ws0
 
     wsTemp <- createEventsWebSocket alice Nothing
 
@@ -94,8 +94,8 @@ testConsumeTempEvents = do
       -- Client0 should also be notified even if there is a temp client
       void $ expectAndAckNewClientEvent ws0 clientId1
 
-      assertNoEvent 1 wsTemp
-      assertNoEvent 1 ws0
+      assertNoEvent_ wsTemp
+      assertNoEvent_ ws0
   where
     expectAndAckNewClientEvent :: EventWebSocket -> String -> App ()
     expectAndAckNewClientEvent ws cid =
@@ -196,7 +196,7 @@ testMLSTempEvents = do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.mls-welcome"
       ackEvent ws e
 
-    assertNoEvent 1 ws
+    assertNoEvent_ ws
 
 testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
 testConsumeEventsForDifferentUsers = do
@@ -221,7 +221,7 @@ testConsumeEventsForDifferentUsers = do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "data.event.payload.0.client.id" `shouldMatch` clientId
         e %. "data.delivery_tag"
-      assertNoEvent 1 ws
+      assertNoEvent_ ws
       sendAck ws deliveryTag False
 
 testConsumeEventsWhileHavingLegacyClients :: (HasCallStack) => App ()
@@ -278,7 +278,7 @@ testConsumeEventsAcks = do
     sendAck ws deliveryTag False
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-    assertNoEvent 1 ws
+    assertNoEvent_ ws
 
 testConsumeEventsMultipleAcks :: (HasCallStack) => App ()
 testConsumeEventsMultipleAcks = do
@@ -302,7 +302,7 @@ testConsumeEventsMultipleAcks = do
     sendAck ws deliveryTag True
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-    assertNoEvent 1 ws
+    assertNoEvent_ ws
 
 testConsumeEventsAckNewEventWithoutAckingOldOne :: (HasCallStack) => App ()
 testConsumeEventsAckNewEventWithoutAckingOldOne = do
@@ -336,7 +336,7 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
     sendAck ws deliveryTagClientAdd False
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-    assertNoEvent 1 ws
+    assertNoEvent_ ws
 
 testEventsDeadLettered :: (HasCallStack) => App ()
 testEventsDeadLettered = do
@@ -370,7 +370,7 @@ testEventsDeadLettered = do
         ackEvent ws e
 
       -- We've consumed the whole queue.
-      assertNoEvent 1 ws
+      assertNoEvent_ ws
 
 testTransientEventsDoNotTriggerDeadLetters :: (HasCallStack) => App ()
 testTransientEventsDoNotTriggerDeadLetters = do
@@ -398,7 +398,7 @@ testTransientEventsDoNotTriggerDeadLetters = do
     sendTypingStatus alice selfConvId "started" >>= assertSuccess
 
     runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-      assertNoEvent 1 ws
+      assertNoEvent_ ws
 
 testTransientEvents :: (HasCallStack) => App ()
 testTransientEvents = do
@@ -437,7 +437,7 @@ testTransientEvents = do
         e %. "data.event.payload.0.user.handle" `shouldMatch` handle
         ackEvent ws e
 
-    assertNoEvent 1 ws
+    assertNoEvent_ ws
 
 testChannelLimit :: (HasCallStack) => App ()
 testChannelLimit = withModifiedBackend
@@ -466,7 +466,7 @@ testChannelLimit = withModifiedBackend
       -- the first client fails to connect because the server runs out of channels
       do
         ws <- createEventsWebSocket alice (Just client0)
-        lift $ assertNoEvent 1 ws
+        lift $ assertNoEvent_ ws
 
 testChannelKilled :: (HasCallStack) => App ()
 testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
@@ -630,6 +630,9 @@ assertNoEvent ws = do
     Just (Right e) -> do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
+
+assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
+assertNoEvent_ = void . assertNoEvent
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
