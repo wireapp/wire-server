@@ -630,6 +630,8 @@ assertNoEventHelper ws = do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
 
+-- | Similar to `assertNoEvent` from Testlib, but with rabbitMQ typing (`/event` end-point, not
+-- `/await`).
 assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
 assertNoEvent_ = void . assertNoEventHelper
 
