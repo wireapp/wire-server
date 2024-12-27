@@ -849,7 +849,7 @@ testLHHappyFlow consent v = ensureLHFeatureConfigForServer consent $ \dom -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     statusShouldBe "disabled"
 
-    -- memmbers cannot request LH devices
+    -- members cannot request LH devices
     requestLegalHoldDevice tid bob alice >>= assertLabel 403 "operation-denied"
     requestLegalHoldDevice tid bob bob >>= assertLabel 403 "operation-denied"
 
