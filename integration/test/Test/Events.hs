@@ -480,12 +480,15 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
       >>= asString
 
   runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
-    assertEvent ws $ \e -> do
+    -- If creating the user takes longer (async) than adding the clients, we get a
+    -- `"user.activate"` here, so we use `assertFindsEvent`.
+
+    assertFindsEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` c1
       ackEvent ws e
 
-    assertEvent ws $ \e -> do
+    assertFindsEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` c2
 
