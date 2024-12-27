@@ -708,7 +708,7 @@ nginx_conf:
       versioned: false
       strip_version: true
     galeb:
-    - path: /consent
+    - path: /consent(.*)
       envs:
       - all
       disable_zauth: true
