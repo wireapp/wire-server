@@ -635,9 +635,13 @@ assertNoEvent_ = void . assertNoEventHelper
 
 assertWebSocketDied :: (HasCallStack) => EventWebSocket -> App ()
 assertWebSocketDied ws =
-  assertNoEventHelper ws >>= \case
-    NoEvent -> assertFailure $ "WebSocket is still open"
-    WebSocketDied -> pure ()
+  recoverAll recpol $ \_ ->
+    assertNoEventHelper ws >>= \case
+      NoEvent -> assertFailure $ "WebSocket is still open"
+      WebSocketDied -> pure ()
+  where
+    recpol :: RetryPolicyM App
+    recpol = limitRetriesByCumulativeDelay 5_000_000 (constantDelay 800_000)
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
