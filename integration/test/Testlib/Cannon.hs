@@ -492,8 +492,8 @@ assertNoEvent ::
   Int ->
   WebSocket ->
   App ()
-assertNoEvent to ws = withWebSocketFailureContext ws $ do
-  mEvent <- awaitAnyEvent to ws
+assertNoEvent tSecs ws = withWebSocketFailureContext ws $ do
+  mEvent <- awaitAnyEvent tSecs ws
   case mEvent of
     Just event -> assertFailure $ "Expected no event, but got: " <> show event
     Nothing -> pure ()
