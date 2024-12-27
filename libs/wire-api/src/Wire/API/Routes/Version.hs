@@ -30,6 +30,7 @@ module Wire.API.Routes.Version
 
     -- * Version
     Version (..),
+    KnownVersion (versionVal),
     versionInt,
     versionText,
     versionedName,
@@ -85,6 +86,27 @@ data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
+
+class KnownVersion (v :: Version) where
+  versionVal :: Version
+
+instance KnownVersion V0 where versionVal = V0
+
+instance KnownVersion V1 where versionVal = V1
+
+instance KnownVersion V2 where versionVal = V2
+
+instance KnownVersion V3 where versionVal = V3
+
+instance KnownVersion V4 where versionVal = V4
+
+instance KnownVersion V5 where versionVal = V5
+
+instance KnownVersion V6 where versionVal = V6
+
+instance KnownVersion V7 where versionVal = V7
+
+instance KnownVersion V8 where versionVal = V8
 
 -- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
 --

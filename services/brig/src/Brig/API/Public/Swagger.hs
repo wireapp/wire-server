@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Brig.API.Public.Swagger
   ( VersionedSwaggerDocsAPI,
     InternalEndpointsSwaggerDocsAPI,
@@ -6,6 +8,8 @@ module Brig.API.Public.Swagger
     ServiceSwaggerDocsAPIBase,
     DocsAPI,
     FederationSwaggerDocsAPI,
+    genSwagger,
+    HasAllOpenAPIs,
     pregenSwagger,
     swaggerPregenUIServer,
     eventNotificationSchemas,
@@ -30,12 +34,23 @@ import Imports hiding (head)
 import Language.Haskell.TH
 import Network.Socket
 import Servant
+import Servant.OpenApi
 import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Event.Conversation qualified
 import Wire.API.Event.FeatureConfig qualified
 import Wire.API.Event.Team qualified
+import Wire.API.Routes.API
+import Wire.API.Routes.Public.Brig (BrigAPITag)
+import Wire.API.Routes.Public.Brig.OAuth (OAuthAPITag)
+import Wire.API.Routes.Public.Cannon (CannonAPITag)
+import Wire.API.Routes.Public.Cargohold (CargoholdAPITag)
+import Wire.API.Routes.Public.Galley (GalleyAPITag)
+import Wire.API.Routes.Public.Gundeck (GundeckAPITag)
+import Wire.API.Routes.Public.Proxy (ProxyAPITag)
+import Wire.API.Routes.Public.Spar (SparAPITag)
 import Wire.API.Routes.Version
+import Wire.API.SwaggerHelper
 
 type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -72,6 +87,35 @@ type DocsAPI =
     :<|> NotificationSchemasAPI
     :<|> InternalEndpointsSwaggerDocsAPI
     :<|> FederationSwaggerDocsAPI
+
+type HasAllOpenAPIs (v :: Version) =
+  ( HasOpenApi (SpecialisedAPIRoutes v VersionAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v BrigAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GalleyAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v SparAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CargoholdAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v CannonAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v GundeckAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v ProxyAPITag),
+    HasOpenApi (SpecialisedAPIRoutes v OAuthAPITag)
+  )
+
+genSwagger :: forall (v :: Version). (KnownVersion v, HasAllOpenAPIs v) => S.OpenApi
+genSwagger =
+  ( serviceSwagger @VersionAPITag @v
+      <> serviceSwagger @BrigAPITag @v
+      <> serviceSwagger @GalleyAPITag @v
+      <> serviceSwagger @SparAPITag @v
+      <> serviceSwagger @CargoholdAPITag @v
+      <> serviceSwagger @CannonAPITag @v
+      <> serviceSwagger @GundeckAPITag @v
+      <> serviceSwagger @ProxyAPITag @v
+      <> serviceSwagger @OAuthAPITag @v
+  )
+    & S.info . S.title .~ "Wire-Server API"
+    & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
+    & S.servers .~ [S.Server ("/" <> toUrlPiece (versionVal @v)) Nothing mempty]
+    & cleanupSwagger
 
 pregenSwagger :: Version -> Q Exp
 pregenSwagger v =
