@@ -71,7 +71,7 @@ main = do
           (_, _, _, ph) <- createProcess cp
           exitWith =<< waitForProcess ph
 
-  runCodensity (mkGlobalEnv cfg >>= mkEnv) $ \env ->
+  runCodensity (mkGlobalEnv cfg >>= mkEnv Nothing) $ \env ->
     runAppWithEnv env
       $ lowerCodensity
       $ do

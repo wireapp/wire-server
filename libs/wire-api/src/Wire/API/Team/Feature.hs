@@ -113,7 +113,7 @@ import Test.QuickCheck (getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol
-import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
+import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Named
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -925,8 +925,8 @@ instance Default MLSConfig where
     MLSConfig
       []
       ProtocolProteusTag
-      [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
-      MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+      [MLS_128_DHKEMP256_AES128GCM_SHA256_P256]
+      MLS_128_DHKEMP256_AES128GCM_SHA256_P256
       [ProtocolProteusTag, ProtocolMLSTag]
 
 instance ToSchema MLSConfig where

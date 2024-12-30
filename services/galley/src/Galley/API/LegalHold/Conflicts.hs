@@ -96,8 +96,9 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
   case view (settings . featureFlags . to npProject) opts of
     FeatureLegalHoldDisabledPermanently -> case FutureWork @'LegalholdPlusFederationNotImplemented () of
       FutureWork () ->
-        -- FUTUREWORK: if federation is enabled, we still need to run the guard!
-        -- see also: LegalholdPlusFederationNotImplemented
+        -- FUTUREWORK: once we support federation and LH in combination, we still need to run
+        -- the guard to protect against other federating instances running LH!  see also:
+        -- LegalholdPlusFederationNotImplemented
         pure ()
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients

@@ -39,6 +39,7 @@ serviceHostPort m Spar = m.spar
 serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
+serviceHostPort m WireServerEnterprise = m.wireServerEnterprise
 
 mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 mkGlobalEnv cfgFile = do
@@ -108,6 +109,8 @@ mkGlobalEnv cfgFile = do
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
+        gRabbitMQConfigV0 = intConfig.rabbitmqV0,
+        gRabbitMQConfigV1 = intConfig.rabbitmqV1,
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds
       }
@@ -127,8 +130,8 @@ mkGlobalEnv cfgFile = do
       pure $ Just sslContext
     createSSLContext Nothing = pure Nothing
 
-mkEnv :: GlobalEnv -> Codensity IO Env
-mkEnv ge = do
+mkEnv :: Maybe String -> GlobalEnv -> Codensity IO Env
+mkEnv currentTestName ge = do
   mls <- liftIO . newIORef =<< mkMLSState
   liftIO $ do
     pks <- newIORef (zip [1 ..] somePrekeys)
@@ -158,7 +161,8 @@ mkEnv ge = do
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
           rabbitMQConfig = ge.gRabbitMQConfig,
-          timeOutSeconds = ge.gTimeOutSeconds
+          timeOutSeconds = ge.gTimeOutSeconds,
+          currentTestName
         }
 
 allCiphersuites :: [Ciphersuite]

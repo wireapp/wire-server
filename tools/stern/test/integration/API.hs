@@ -37,6 +37,7 @@ import Data.Range (unsafeRange)
 import Data.Schema
 import Data.Set qualified as Set
 import Data.String.Conversions
+import Data.UUID.V4 (nextRandom)
 import GHC.TypeLits
 import Imports
 import Stern.API.Routes (UserConnectionGroups (..))
@@ -45,6 +46,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Util
+import Wire.API.EnterpriseLogin (DomainRedirect (NoRegistration), DomainRegistrationUpdate (DomainRegistrationUpdate), TeamInvite (Allowed))
 import Wire.API.OAuth (OAuthApplicationName (OAuthApplicationName), OAuthClientConfig (..), OAuthClientCredentials (..))
 import Wire.API.Properties (PropertyKey)
 import Wire.API.Routes.Internal.Brig.Connection
@@ -98,7 +100,8 @@ tests s =
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
       test s "/teams/:tid/search-visibility" testSearchVisibility,
       test s "/sso-domain-redirect" testRudSsoDomainRedirect,
-      test s "i/oauth/clients" testCrudOAuthClient
+      test s "i/oauth/clients" testCrudOAuthClient,
+      test s "i/domain-registration" testDomainRegistration
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`
@@ -773,3 +776,18 @@ deleteOAuthClient :: OAuthClientId -> TestM ()
 deleteOAuthClient cid = do
   s <- view tsStern
   void $ delete (s . paths ["i", "oauth", "clients", toByteString' cid] . expect2xx)
+
+testDomainRegistration :: TestM ()
+testDomainRegistration = do
+  s <- view tsStern
+  dom <- (<> ".example.com") . cs . show <$> liftIO nextRandom
+  void $ post (s . paths ["domain-registration", dom, "lock"] . expect2xx)
+  void $ get (s . paths ["domain-registration", dom] . expect2xx)
+  void $ post (s . paths ["domain-registration", dom, "unlock"] . expect2xx)
+  void $ post (s . paths ["domain-registration", dom, "preauthorize"] . expect2xx)
+  void $ post (s . paths ["domain-registration", dom, "unauthorize"] . expect2xx)
+  void $ delete (s . paths ["domain-registration", dom] . expect2xx)
+  void $ get (s . paths ["domain-registration", dom] . expect4xx)
+  let upd = DomainRegistrationUpdate NoRegistration Allowed
+  void $ put (s . paths ["domain-registration", dom] . json upd . expect2xx)
+  void $ get (s . paths ["domain-registration", dom] . expect2xx)

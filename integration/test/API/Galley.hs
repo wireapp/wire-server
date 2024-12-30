@@ -638,6 +638,12 @@ getLegalHoldStatus tid zusr = do
   req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
   submit "GET" req
 
+getLegalHoldSettings :: (HasCallStack, MakesValue tid, MakesValue zusr) => tid -> zusr -> App Response
+getLegalHoldSettings tid zusr = do
+  tidStr <- asString tid
+  req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 postLegalHoldSettings :: (HasCallStack, MakesValue ownerid, MakesValue tid, MakesValue newService) => tid -> ownerid -> newService -> App Response
 postLegalHoldSettings tid owner newSettings =
@@ -711,10 +717,23 @@ getTeamFeature user tid featureName = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "features", featureName])
   submit "GET" req
 
-setTeamFeatureConfig :: (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) => user -> team -> featureName -> payload -> App Response
+setTeamFeatureConfig ::
+  (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) =>
+  user ->
+  team ->
+  featureName ->
+  payload ->
+  App Response
 setTeamFeatureConfig = setTeamFeatureConfigVersioned Versioned
 
-setTeamFeatureConfigVersioned :: (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) => Versioned -> user -> team -> featureName -> payload -> App Response
+setTeamFeatureConfigVersioned ::
+  (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) =>
+  Versioned ->
+  user ->
+  team ->
+  featureName ->
+  payload ->
+  App Response
 setTeamFeatureConfigVersioned versioned user team featureName payload = do
   tid <- asString team
   fn <- asString featureName

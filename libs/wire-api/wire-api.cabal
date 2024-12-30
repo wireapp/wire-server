@@ -88,6 +88,7 @@ library
     Wire.API.Conversation.Typing
     Wire.API.CustomBackend
     Wire.API.Deprecated
+    Wire.API.EnterpriseLogin
     Wire.API.Error
     Wire.API.Error.Brig
     Wire.API.Error.Cannon
@@ -161,10 +162,12 @@ library
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
+    Wire.API.Routes.Internal.Brig.EnterpriseLogin
     Wire.API.Routes.Internal.Brig.OAuth
     Wire.API.Routes.Internal.Brig.SearchIndex
     Wire.API.Routes.Internal.Cannon
     Wire.API.Routes.Internal.Cargohold
+    Wire.API.Routes.Internal.Enterprise
     Wire.API.Routes.Internal.Galley
     Wire.API.Routes.Internal.Galley.ConversationsIntra
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
@@ -590,6 +593,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
     Test.Wire.API.Golden.Manual.CreateScimTokenResponse
+    Test.Wire.API.Golden.Manual.EnterpriseLogin
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
     Test.Wire.API.Golden.Manual.FederationDomainConfig
     Test.Wire.API.Golden.Manual.FederationRestriction

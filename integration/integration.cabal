@@ -120,6 +120,7 @@ library
     Test.Conversation
     Test.Demo
     Test.EJPD
+    Test.EnterpriseLogin
     Test.Errors
     Test.Events
     Test.ExternalPartner
@@ -258,6 +259,8 @@ library
     , retry
     , saml2-web-sso
     , scientific
+    , servant
+    , servant-client
     , split
     , stm
     , streaming-commons

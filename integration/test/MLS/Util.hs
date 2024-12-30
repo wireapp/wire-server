@@ -90,7 +90,7 @@ mlscli mConvId cs cid args mbstdin = do
       liftIO (createDirectory (bd </> cid2Str cid))
         `catch` \e ->
           if (isAlreadyExistsError e)
-            then assertFailure "client directory for mls state already exists"
+            then pure () -- creates a file per signature scheme
             else throwM e
 
       -- initialise new keystore
@@ -156,18 +156,27 @@ instance Default InitMLSClient where
 
 -- | Create new mls client and register with backend.
 createMLSClient :: (MakesValue u, HasCallStack) => Ciphersuite -> InitMLSClient -> u -> App ClientIdentity
-createMLSClient ciphersuite opts u = do
+createMLSClient ciphersuite = createMLSClientWithCiphersuites [ciphersuite]
+
+-- | Create new mls client and register with backend.
+createMLSClientWithCiphersuites :: (MakesValue u, HasCallStack) => [Ciphersuite] -> InitMLSClient -> u -> App ClientIdentity
+createMLSClientWithCiphersuites ciphersuites opts u = do
   cid <- createWireClient u opts.clientArgs
   setClientGroupState cid def {credType = opts.credType}
 
   -- set public key
-  pkey <- mlscli Nothing ciphersuite cid ["public-key"] Nothing
+  suitePKeys <- for ciphersuites $ \ciphersuite -> (ciphersuite,) <$> mlscli Nothing ciphersuite cid ["public-key"] Nothing
   bindResponse
     ( updateClient
         cid
         def
           { mlsPublicKeys =
-              Just (object [csSignatureScheme ciphersuite .= T.decodeUtf8 (Base64.encode pkey)])
+              Just
+                ( object
+                    [ csSignatureScheme ciphersuite .= T.decodeUtf8 (Base64.encode pkey)
+                      | (ciphersuite, pkey) <- suitePKeys
+                    ]
+                )
           }
     )
     $ \resp -> resp.status `shouldMatchInt` 200

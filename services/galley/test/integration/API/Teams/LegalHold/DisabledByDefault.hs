@@ -31,7 +31,6 @@ import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
-import Cassandra.Exec qualified as Cql
 import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens
@@ -42,11 +41,8 @@ import Data.Map.Strict qualified as Map
 import Data.PEM
 import Data.Range
 import Data.Set qualified as Set
-import Galley.Cassandra.Client
 import Galley.Cassandra.LegalHold
-import Galley.Cassandra.LegalHold qualified as LegalHoldData
 import Galley.Env qualified as Galley
-import Galley.Types.Clients qualified as Clients
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai
@@ -54,39 +50,28 @@ import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities.Error qualified as Error
 import Test.QuickCheck.Instances ()
 import Test.Tasty
-import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
-import TestHelpers
 import TestSetup
 import Wire.API.Message qualified as Msg
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
-import Wire.API.Team.LegalHold.External
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
-import Wire.API.UserEvent qualified as Ev
 
 tests :: IO TestSetup -> TestTree
 tests s =
   -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
+  -- These tests should all go to /integration/test/Test/LegalHold.hs (which should be cleaned up to tell a coherent story).
   testGroup
     "Teams LegalHold API (with flag disabled-by-default)"
-    [ -- device handling (CRUD)
-      testOnlyIfLhEnabled s "POST /teams/{tid}/legalhold/{uid}" testRequestLegalHoldDevice,
-      testOnlyIfLhEnabled s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice,
-      test s "(user denies approval: nothing needs to be done in backend)" (pure ()),
-      testOnlyIfLhEnabled s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus,
-      testOnlyIfLhEnabled s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser,
-      -- legal hold settings
+    [ -- legal hold settings
       testOnlyIfLhEnabled s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings,
-      testOnlyIfLhEnabled s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings,
       testOnlyIfLhEnabled s "DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam,
-      testOnlyIfLhEnabled s "GET, PUT [/i]?/teams/{tid}/legalhold" testEnablePerTeam,
       testOnlyIfLhEnabled s "GET, PUT [/i]?/teams/{tid}/legalhold - too large" testEnablePerTeamTooLarge,
       -- behavior of existing end-points
       testOnlyIfLhEnabled s "POST /clients" testCannotCreateLegalHoldDeviceOldAPI,
@@ -102,244 +87,6 @@ tests s =
       testOnlyIfLhEnabled s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
       testOnlyIfLhEnabled s "User can fetch prekeys of LH users if consent is given and user has only new clients" (testClaimKeys TCKConsentAndNewClients)
     ]
-
-testRequestLegalHoldDevice :: TestM ()
-testRequestLegalHoldDevice = do
-  (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  -- Can't request a device if team feature flag is disabled
-  requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
-  cannon <- view tsCannon
-  -- Assert that the appropriate LegalHold Request notification is sent to the user's
-  -- clients
-  WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeam' owner tid $ \_ _chan -> do
-    do
-      -- test device creation without consent
-      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldNoConsent
-          userStatus
-
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-no-consent")
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldNoConsent
-          userStatus
-
-    do
-      -- test granting consent
-      lhs <- view legalHoldStatus <$> getTeamMember member tid member
-      liftIO $ assertEqual "" lhs UserLegalHoldNoConsent
-
-      grantConsent tid member
-      lhs' <- view legalHoldStatus <$> getTeamMember member tid member
-      liftIO $ assertEqual "" lhs' UserLegalHoldDisabled
-
-      grantConsent tid member
-      lhs'' <- view legalHoldStatus <$> getTeamMember member tid member
-      liftIO $ assertEqual "" lhs'' UserLegalHoldDisabled
-
-    do
-      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldDisabled
-          userStatus
-
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice should set user status to Pending"
-          UserLegalHoldPending
-          userStatus
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice when already pending should leave status as Pending"
-          UserLegalHoldPending
-          userStatus
-
-    cassState <- view tsCass
-    liftIO $ do
-      storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
-      assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
-    let pluck = \case
-          (Ev.LegalHoldClientRequested rdata) -> do
-            Ev.lhcTargetUser rdata @?= member
-            Ev.lhcLastPrekey rdata @?= head someLastPrekeys
-            Ev.lhcClientId rdata @?= someClientId
-          _ -> assertBool "Unexpected event" False
-    assertNotification ws pluck
-    -- all devices get notified.
-    assertNotification ws' pluck
-
-testApproveLegalHoldDevice :: TestM ()
-testApproveLegalHoldDevice = do
-  (owner, tid) <- createBindingTeam
-  member <- do
-    usr <- randomUser
-    addTeamMemberInternal tid usr (rolePermissions RoleMember) Nothing
-    pure usr
-  member2 <- do
-    usr <- randomUser
-    addTeamMemberInternal tid usr (rolePermissions RoleMember) Nothing
-    pure usr
-  outsideContact <- do
-    usr <- randomUser
-    connectUsers member (List1.singleton usr)
-    pure usr
-  stranger <- randomUser
-  grantConsent tid owner
-  grantConsent tid member
-  grantConsent tid member2
-  -- not allowed to approve if team setting is disabled
-  approveLegalHoldDevice (Just defPassword) owner member tid
-    !!! testResponse 403 (Just "legalhold-not-enabled")
-  cannon <- view tsCannon
-  WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
-    \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam' owner tid $ \_ chan -> do
-      requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClientV0 userId' teamId') -> do
-        assertEqual "userId == member" userId' member
-        assertEqual "teamId == tid" teamId' tid
-      -- Only the user themself can approve adding a LH device
-      approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "access-denied")
-      -- Requires password
-      approveLegalHoldDevice Nothing member member tid !!! const 403 === statusCode
-      approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-      -- checks if the cookie we give to the legalhold service is actually valid
-      assertMatchJSON chan $ \(LegalHoldServiceConfirm _clientId _uid _tid authToken) ->
-        renewToken authToken
-      cassState <- view tsCass
-      liftIO $ do
-        clients' <- Cql.runClient cassState $ lookupClients [member]
-        assertBool "Expect clientId to be saved on the user" $
-          Clients.contains member someClientId clients'
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "After approval user legalhold status should be Enabled"
-          UserLegalHoldEnabled
-          userStatus
-      let pluck = \case
-            Ev.ClientAdded eClient -> do
-              eClient.clientId @?= someClientId
-              clientType eClient @?= LegalHoldClientType
-              clientClass eClient @?= Just LegalHoldClient
-            _ -> assertBool "Unexpected event" False
-      assertNotification mws pluck
-      assertNotification mws' pluck
-      -- Other team users should get a user.legalhold-enable event
-      let pluck' = \case
-            Ev.UserLegalHoldEnabled eUser -> eUser @?= member
-            _ -> assertBool "Unexpected event" False
-      assertNotification ows pluck'
-      -- We send to all members of a team. which includes the team-settings
-      assertNotification member2Ws pluck'
-      when False $ do
-        -- this doesn't work any more since consent (personal users cannot grant consent).
-        assertNotification outsideContactWs pluck'
-      assertNoNotification strangerWs
-
-testGetLegalHoldDeviceStatus :: TestM ()
-testGetLegalHoldDeviceStatus = do
-  (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  forM_ [owner, member] $ \uid -> do
-    status <- getUserStatusTyped uid tid
-    liftIO $
-      assertEqual
-        "unexpected status"
-        (UserLegalHoldStatusResponse UserLegalHoldNoConsent Nothing Nothing)
-        status
-  withDummyTestServiceForTeam' owner tid $ \_ _chan -> do
-    grantConsent tid member
-    do
-      UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
-      liftIO $
-        do
-          assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
-          assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
-          assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      assertZeroLegalHoldDevices member
-      UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
-      liftIO $
-        do
-          assertEqual "requestLegalHoldDevice should set user status to Pending" UserLegalHoldPending userStatus
-          assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
-          assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice when already pending should leave status as Pending"
-          UserLegalHoldPending
-          userStatus
-    do
-      approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-      UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
-      liftIO $
-        do
-          assertEqual "approving should change status to Enabled" UserLegalHoldEnabled userStatus
-          assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
-          assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
-    assertExactlyOneLegalHoldDevice member
-    requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-already-enabled")
-
-testDisableLegalHoldForUser :: TestM ()
-testDisableLegalHoldForUser = do
-  (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  cannon <- view tsCannon
-  WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam' owner tid $ \_ chan -> do
-    grantConsent tid member
-    requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-    approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-    assertNotification mws $ \case
-      Ev.ClientAdded client -> do
-        client.clientId @?= someClientId
-        clientType client @?= LegalHoldClientType
-        clientClass client @?= Just LegalHoldClient
-      _ -> assertBool "Unexpected event" False
-    -- Only the admin can disable legal hold
-    disableLegalHoldForUser (Just defPassword) tid member member !!! testResponse 403 (Just "operation-denied")
-    assertExactlyOneLegalHoldDevice member
-    -- Require password to disable for usern
-    disableLegalHoldForUser Nothing tid owner member !!! const 403 === statusCode
-    assertExactlyOneLegalHoldDevice member
-    disableLegalHoldForUser (Just defPassword) tid owner member !!! testResponse 200 Nothing
-    liftIO . assertMatchChan chan $ \(req, _) -> do
-      assertEqual "method" "POST" (requestMethod req)
-      assertEqual "path" (pathInfo req) ["legalhold", "remove"]
-    assertNotification mws $ \case
-      Ev.ClientEvent (Ev.ClientRemoved clientId') -> clientId' @?= someClientId
-      _ -> assertBool "Unexpected event" False
-    assertNotification mws $ \case
-      Ev.UserEvent (Ev.UserLegalHoldDisabled uid) -> uid @?= member
-      _ -> assertBool "Unexpected event" False
-    -- Other users should also get the event
-    assertNotification ows $ \case
-      Ev.UserLegalHoldDisabled uid -> uid @?= member
-      _ -> assertBool "Unexpected event" False
-    assertZeroLegalHoldDevices member
 
 data IsWorking = Working | NotWorking
   deriving (Eq, Show)
@@ -400,51 +147,6 @@ testCreateLegalHoldTeamSettings = do
   -- synchronously and respond with 201
   withTestService (lhapp Working) (lhtest Working)
 
--- NOTE: we do not expect event TeamEvent'TEAM_UPDATE as a reaction to this POST.
-
-testGetLegalHoldTeamSettings :: TestM ()
-testGetLegalHoldTeamSettings = do
-  (owner, tid) <- createBindingTeam
-  stranger <- randomUser
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  let lhapp :: Chan () -> Application
-      lhapp _ch _req res = res $ responseLBS status200 mempty mempty
-  withTestService lhapp $ \lhPort _ -> do
-    -- returns 403 if user is not in team.
-    newService <- newLegalHoldService lhPort
-    getSettings stranger tid !!! testResponse 403 (Just "no-team-member")
-    -- returns 200 with corresp. status if legalhold for team is disabled
-    do
-      let respOk :: ResponseLBS -> TestM ()
-          respOk resp = liftIO $ do
-            assertEqual "bad status code" 200 (statusCode resp)
-            assertEqual "bad body" ViewLegalHoldServiceDisabled (responseJsonUnsafe resp)
-      getSettings owner tid >>= respOk
-      getSettings member tid >>= respOk
-    putEnabled tid Public.FeatureStatusEnabled -- enable it for this team
-
-    -- returns 200 with corresp. status if legalhold for team is enabled, but not configured
-    do
-      let respOk :: ResponseLBS -> TestM ()
-          respOk resp = liftIO $ do
-            assertEqual "bad status code" 200 (statusCode resp)
-            assertEqual "bad body" ViewLegalHoldServiceNotConfigured (responseJsonUnsafe resp)
-      getSettings owner tid >>= respOk
-      getSettings member tid >>= respOk
-    postSettings owner tid newService !!! testResponse 201 Nothing
-    -- returns legal hold service info if team is under legal hold and user is in team (even
-    -- no permissions).
-    ViewLegalHoldService service <- getSettingsTyped member tid
-    liftIO $ do
-      let sKey = newLegalHoldServiceKey newService
-      Just (_, fpr) <- validateServiceKey sKey
-      assertEqual "viewLegalHoldServiceTeam" tid (viewLegalHoldServiceTeam service)
-      assertEqual "viewLegalHoldServiceUrl" (newLegalHoldServiceUrl newService) (viewLegalHoldServiceUrl service)
-      assertEqual "viewLegalHoldServiceFingerprint" fpr (viewLegalHoldServiceFingerprint service)
-      assertEqual "viewLegalHoldServiceKey" sKey (viewLegalHoldServiceKey service)
-      assertEqual "viewLegalHoldServiceAuthToken" (newLegalHoldServiceToken newService) (viewLegalHoldServiceAuthToken service)
-
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
   (owner, tid) <- createBindingTeam
@@ -495,39 +197,6 @@ testRemoveLegalHoldFromTeam = do
           UserLegalHoldDisabled
           userStatus
       assertZeroLegalHoldDevices member
-
-testEnablePerTeam :: TestM ()
-testEnablePerTeam = do
-  (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  do
-    feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    liftIO $ assertEqual "Teams should start with LegalHold disabled" feat.status Public.FeatureStatusDisabled
-  putEnabled tid Public.FeatureStatusEnabled -- enable it for this team
-  do
-    feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" feat.status Public.FeatureStatusEnabled
-  withDummyTestServiceForTeam' owner tid $ \_ _chan -> do
-    grantConsent tid member
-    requestLegalHoldDevice owner member tid !!! const 201 === statusCode
-    approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-    do
-      UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-      liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
-    do
-      putEnabled tid Public.FeatureStatusDisabled -- disable again
-      feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-      liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" feat.status Public.FeatureStatusDisabled
-    do
-      UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-      liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
-    viewLHS <- getSettingsTyped owner tid
-    liftIO $
-      assertEqual
-        "LH Service settings should be disabled"
-        ViewLegalHoldServiceDisabled
-        viewLHS
 
 testEnablePerTeamTooLarge :: TestM ()
 testEnablePerTeamTooLarge = do

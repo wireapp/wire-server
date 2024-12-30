@@ -27,6 +27,7 @@ import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Timeout
+import Data.Unique
 import Imports hiding (threadDelay)
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
@@ -41,16 +42,16 @@ data RabbitMqPoolException
 
 instance Exception RabbitMqPoolException
 
-data PooledConnection key = PooledConnection
+data PooledConnection = PooledConnection
   { connId :: Word64,
     inner :: Q.Connection,
-    channels :: !(Map key Q.Channel)
+    channels :: !(Map Unique Q.Channel)
   }
 
-data RabbitMqPool key = RabbitMqPool
+data RabbitMqPool = RabbitMqPool
   { opts :: RabbitMqPoolOptions,
     nextId :: TVar Word64,
-    connections :: TVar [PooledConnection key],
+    connections :: TVar [PooledConnection],
     -- | draining mode
     draining :: TVar Bool,
     logger :: Logger,
@@ -64,7 +65,7 @@ data RabbitMqPoolOptions = RabbitMqPoolOptions
     retryEnabled :: Bool
   }
 
-createRabbitMqPool :: (Ord key) => RabbitMqPoolOptions -> Logger -> Codensity IO (RabbitMqPool key)
+createRabbitMqPool :: RabbitMqPoolOptions -> Logger -> Codensity IO RabbitMqPool
 createRabbitMqPool opts logger = Codensity $ bracket create destroy
   where
     create = do
@@ -78,7 +79,7 @@ createRabbitMqPool opts logger = Codensity $ bracket create destroy
       pure pool
     destroy pool = putMVar pool.deadVar ()
 
-drainRabbitMqPool :: (ToByteString key) => RabbitMqPool key -> DrainOpts -> IO ()
+drainRabbitMqPool :: RabbitMqPool -> DrainOpts -> IO ()
 drainRabbitMqPool pool opts = do
   atomically $ writeTVar pool.draining True
 
@@ -118,11 +119,11 @@ drainRabbitMqPool pool opts = do
           (liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond))
   Log.info pool.logger $ Log.msg (Log.val "Draining complete")
   where
-    closeChannel :: (ToByteString key) => Log.Logger -> (key, Q.Channel) -> IO ()
+    closeChannel :: Log.Logger -> (Unique, Q.Channel) -> IO ()
     closeChannel l (key, chan) = do
-      Log.info l $
+      Log.debug l $
         Log.msg (Log.val "closing rabbitmq channel")
-          . Log.field "key" (toByteString' key)
+          . Log.field "key_hash" (toByteString' $ hashUnique key)
       Q.closeChannel chan
 
     logExpired :: Log.Logger -> Word64 -> IO ()
@@ -139,7 +140,7 @@ drainRabbitMqPool pool opts = do
           . Log.field "batchSize" batchSize
           . Log.field "maxNumberOfBatches" m
 
-createConnection :: (Ord key) => RabbitMqPool key -> IO (PooledConnection key)
+createConnection :: RabbitMqPool -> IO PooledConnection
 createConnection pool = mask_ $ do
   conn <- openConnection pool
   mpconn <- runMaybeT . atomically $ do
@@ -176,7 +177,7 @@ createConnection pool = mask_ $ do
     putMVar closedVar ()
   pure pconn
 
-openConnection :: RabbitMqPool key -> IO Q.Connection
+openConnection :: RabbitMqPool -> IO Q.Connection
 openConnection pool = do
   -- This might not be the correct connection ID that will eventually be
   -- assigned to this connection, since there are potential races with other
@@ -227,11 +228,16 @@ ackMessage chan deliveryTag multiple = do
   inner <- readMVar chan.inner
   Q.ackMsg inner deliveryTag multiple
 
-createChannel :: (Ord key) => RabbitMqPool key -> Text -> key -> Codensity IO RabbitMqChannel
-createChannel pool queue key = do
+type QueueName = Text
+
+type CreateQueue = Q.Channel -> Codensity IO QueueName
+
+createChannel :: RabbitMqPool -> CreateQueue -> Codensity IO RabbitMqChannel
+createChannel pool createQueue = do
   closedVar <- lift newEmptyMVar
   inner <- lift newEmptyMVar
   msgVar <- lift newEmptyMVar
+  key <- lift newUnique
 
   let handleException e = do
         retry <- case (Q.isNormalChannelClose e, fromException e) of
@@ -263,9 +269,11 @@ createChannel pool queue key = do
           if connSize > pool.opts.maxChannels
             then pure True
             else do
+              queueName <- createQueue chan
+
               liftIO $ Q.addChannelExceptionHandler chan handleException
               putMVar inner chan
-              void $ liftIO $ Q.consumeMsgs chan queue Q.Ack $ \(message, envelope) -> do
+              void $ liftIO $ Q.consumeMsgs chan queueName Q.Ack $ \(message, envelope) -> do
                 putMVar msgVar (Just (message, envelope))
               retry <- takeMVar closedVar
               void $ takeMVar inner
@@ -280,7 +288,7 @@ createChannel pool queue key = do
           `finally` putMVar msgVar Nothing
   pure RabbitMqChannel {inner = inner, msgVar = msgVar}
 
-acquireConnection :: (Ord key) => RabbitMqPool key -> IO (PooledConnection key)
+acquireConnection :: RabbitMqPool -> IO PooledConnection
 acquireConnection pool = do
   findConnection pool >>= \case
     Nothing -> do
@@ -295,7 +303,7 @@ acquireConnection pool = do
           pure conn
     Just conn -> pure conn
 
-findConnection :: RabbitMqPool key -> IO (Maybe (PooledConnection key))
+findConnection :: RabbitMqPool -> IO (Maybe PooledConnection)
 findConnection pool = (either throwIO pure <=< (atomically . runExceptT . runMaybeT)) $ do
   conns <- lift . lift $ readTVar pool.connections
   guard (notNull conns)
@@ -307,7 +315,7 @@ findConnection pool = (either throwIO pure <=< (atomically . runExceptT . runMay
       else mzero
   pure pconn
 
-releaseConnection :: (Ord key) => RabbitMqPool key -> key -> PooledConnection key -> IO ()
+releaseConnection :: RabbitMqPool -> Unique -> PooledConnection -> IO ()
 releaseConnection pool key conn = atomically $ do
   modifyTVar pool.connections $ map $ \c ->
     if c.connId == conn.connId

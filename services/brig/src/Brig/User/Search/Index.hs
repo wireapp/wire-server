@@ -31,7 +31,7 @@ module Brig.User.Search.Index
     createIndex,
     createIndexIfNotPresent,
     resetIndex,
-    refreshIndex,
+    refreshIndexes,
     updateMapping,
 
     -- * Re-exports
@@ -122,10 +122,14 @@ instance MonadHttp IndexIO where
 --------------------------------------------------------------------------------
 -- Administrative
 
-refreshIndex :: (MonadIndexIO m) => m ()
-refreshIndex = liftIndexIO $ do
+-- | Refresh ElasticSearch index and the additional one if it's configured
+-- Only used in tests. In production, the addtional index is used write-only.
+refreshIndexes :: (MonadIndexIO m) => m ()
+refreshIndexes = liftIndexIO $ do
   idx <- asks idxName
   void $ ES.refreshIndex idx
+  mbAddIdx <- asks idxAdditionalName
+  mapM_ ES.refreshIndex mbAddIdx
 
 createIndexIfNotPresent ::
   (MonadIndexIO m) =>

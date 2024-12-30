@@ -4,6 +4,7 @@ module Testlib.ModService
   ( withModifiedBackend,
     startDynamicBackend,
     startDynamicBackends,
+    startDynamicBackendsReturnResources,
     traverseConcurrentlyCodensity,
   )
 where
@@ -11,12 +12,13 @@ where
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
-import Control.Monad.Catch (catch, displayException, throwM)
+import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import qualified Data.Attoparsec.Text as Parser
 import Data.Default
 import Data.Foldable
 import Data.Function
@@ -28,28 +30,31 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
+import Data.Word
 import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (keyboardSignal, killProcess, signalProcess)
+import System.Posix.Types
 import System.Process
 import Testlib.App
-import Testlib.Assertions (prettierCallStack)
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
+import qualified UnliftIO
 import Prelude
 
 withModifiedBackend :: (HasCallStack) => ServiceOverrides -> ((HasCallStack) => String -> App a) -> App a
 withModifiedBackend overrides k =
-  startDynamicBackends [overrides] (\domains -> k (head domains))
+  startDynamicBackends [overrides] (\[domains] -> k domains)
 
 copyDirectoryRecursively :: FilePath -> FilePath -> IO ()
 copyDirectoryRecursively from to = do
@@ -120,6 +125,10 @@ traverseConcurrentlyCodensity f args = do
 
 startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
 startDynamicBackends beOverrides k = do
+  startDynamicBackendsReturnResources beOverrides (\resources -> k $ map (.berDomain) resources)
+
+startDynamicBackendsReturnResources :: [ServiceOverrides] -> ([BackendResource] -> App a) -> App a
+startDynamicBackendsReturnResources beOverrides k = do
   let startDynamicBackendsCodensity = do
         when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
         pool <- asks (.resourcePool)
@@ -128,7 +137,7 @@ startDynamicBackends beOverrides k = do
           traverseConcurrentlyCodensity
             (void . uncurry startDynamicBackend)
             (zip resources beOverrides)
-        pure $ map (.berDomain) resources
+        pure resources
   runCodensity startDynamicBackendsCodensity k
 
 startDynamicBackend :: (HasCallStack) => BackendResource -> ServiceOverrides -> Codensity App String
@@ -262,8 +271,57 @@ startBackend ::
   ServiceOverrides ->
   Codensity App ()
 startBackend resource overrides = do
+  lift $ ensureFederatorPortIsFree resource
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
+
+-- | Using ss because it is most convenient. Checking if a port is free in Haskell involves binding to it which is not what we want.
+ensureFederatorPortIsFree :: BackendResource -> App ()
+ensureFederatorPortIsFree resource = do
+  serviceMap <- getServiceMap resource.berDomain
+  let federatorExternalPort :: Word16 = serviceMap.federatorExternal.port
+  env <- ask
+  UnliftIO.timeout (env.timeOutSeconds * 1_000_000) (check federatorExternalPort) >>= \case
+    Nothing -> assertFailure $ "timeout waiting for federator port to be free: " <> show federatorExternalPort
+    Just _ -> pure ()
+  where
+    check :: Word16 -> App ()
+    check federatorExternalPort = do
+      env <- ask
+      let process = (proc "lsof" ["-Q", "-Fpc", "-i", ":" <> show federatorExternalPort, "-s", "TCP:LISTEN"]) {std_out = CreatePipe, std_err = CreatePipe}
+      (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess process
+      let prefix = "[" <> "lsof" <> "@" <> resource.berDomain <> maybe "" (":" <>) env.currentTestName <> "] "
+      liftIO $ void $ forkIO $ logToConsole id prefix stderrHdl
+      exitCode <- liftIO $ waitForProcess ph
+      case exitCode of
+        ExitFailure _ -> assertFailure $ prefix <> "lsof failed to figure out if federator port is free"
+        ExitSuccess -> do
+          lsofOutput <- liftIO $ hGetContents stdoutHdl
+          case parseLsof (fromString lsofOutput) of
+            Right ((processId, processName) : _) -> do
+              liftIO $ putStrLn $ prefix <> "Found a process listening on port: " <> show federatorExternalPort <> ", killing the process: " <> show processName <> ", pid: " <> show processId
+              liftIO $ signalProcess killProcess processId
+              liftIO $ threadDelay 100_000
+              check federatorExternalPort
+            Right [] -> pure ()
+            Left e -> assertFailure $ prefix <> "Failed while parsing lsof output with error: " <> e <> "\n" <> "lsof output:\n" <> lsofOutput
+
+-- | Example lsof output:
+--
+-- @
+-- p61317
+-- cfederator
+-- @
+parseLsof :: String -> Either String [(ProcessID, String)]
+parseLsof output =
+  Parser.parseOnly ((Parser.sepBy lsofParser (Parser.char '\n')) <* Parser.endOfInput) (fromString output)
+  where
+    lsofParser :: Parser.Parser (ProcessID, String)
+    lsofParser =
+      (,) <$> processIdParser <* Parser.char '\n' <*> processNameParser
+
+    processIdParser = Parser.char 'p' *> Parser.decimal
+    processNameParser = Parser.char 'c' *> Parser.many1 (Parser.satisfy (/= '\n'))
 
 ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
@@ -321,18 +379,13 @@ timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) 
 
 cleanupService :: (HasCallStack) => ServiceInstance -> IO ()
 cleanupService inst = do
-  let ignoreExceptions :: (HasCallStack) => IO () -> IO ()
-      ignoreExceptions action = E.catch action $ \(e :: E.SomeException) -> do
-        callstackPretty <- prettierCallStack callStack
-        putStrLn $ colored red $ "Exception while cleaning up a service: " <> displayException e <> "\ncallstack: \n" <> callstackPretty
-  ignoreExceptions $ do
-    mPid <- getPid inst.handle
-    for_ mPid (signalProcess keyboardSignal)
-    timeout 50000 (waitForProcess inst.handle) >>= \case
-      Just _ -> pure ()
-      Nothing -> do
-        for_ mPid (signalProcess killProcess)
-        void $ waitForProcess inst.handle
+  mPid <- getPid inst.handle
+  for_ mPid (signalProcess keyboardSignal)
+  timeout 50000 (waitForProcess inst.handle) >>= \case
+    Just _ -> pure ()
+    Nothing -> do
+      for_ mPid (signalProcess killProcess)
+      void $ waitForProcess inst.handle
   whenM (doesFileExist inst.config) $ removeFile inst.config
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
@@ -358,17 +411,17 @@ withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service 
 withProcess resource overrides service = do
   let domain = berDomain resource
   sm <- lift $ getServiceMap domain
+  env <- lift ask
   getConfig <-
     lift . appToIO $
       readServiceConfig service
         >>= updateServiceMapInConfig resource service
         >>= lookupConfigOverride overrides service
   let execName = configName service
-  (cwd, exe) <-
-    lift $ asks \env -> case env.servicesCwdBase of
-      Nothing -> (Nothing, execName)
-      Just dir ->
-        (Just (dir </> execName), "../../dist" </> execName)
+  let (cwd, exe) = case env.servicesCwdBase of
+        Nothing -> (Nothing, execName)
+        Just dir ->
+          (Just (dir </> execName), "../../dist" </> execName)
 
   startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
@@ -379,7 +432,7 @@ withProcess resource overrides service = do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          let prefix = "[" <> execName <> "@" <> domain <> "] "
+          let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
           let colorize = fromMaybe id (lookup execName processColors)
           void $ forkIO $ logToConsole colorize prefix stdoutHdl
           void $ forkIO $ logToConsole colorize prefix stderrHdl

@@ -185,6 +185,7 @@ library
     Brig.Schema.V85_DropUserKeysHashed
     Brig.Schema.V86_WriteTimeBumper
     Brig.Schema.V87_DropInvitationTables
+    Brig.Schema.V88_DomainRegistrationTable
     Brig.Team.API
     Brig.Team.Email
     Brig.Team.Template

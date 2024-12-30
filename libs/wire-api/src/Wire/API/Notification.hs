@@ -40,6 +40,7 @@ module Wire.API.Notification
     userNotificationDlqName,
     clientNotificationQueueName,
     userRoutingKey,
+    temporaryRoutingKey,
     clientRoutingKey,
   )
 where
@@ -190,10 +191,13 @@ userNotificationDlqName = "dead-user-notifications"
 
 clientNotificationQueueName :: UserId -> ClientId -> Text
 clientNotificationQueueName uid cid =
-  "user-notifications." <> clientRoutingKey uid cid
+  "user-notifications." <> userRoutingKey uid <> "." <> clientToText cid
 
 userRoutingKey :: UserId -> Text
 userRoutingKey = idToText
 
 clientRoutingKey :: UserId -> ClientId -> Text
 clientRoutingKey uid cid = userRoutingKey uid <> "." <> clientToText cid
+
+temporaryRoutingKey :: UserId -> Text
+temporaryRoutingKey uid = userRoutingKey uid <> ".temporary"

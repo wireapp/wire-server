@@ -275,7 +275,7 @@ postSettings uid tid new =
         . json new
   where
     policy :: RetryPolicy
-    policy = limitRetriesByCumulativeDelay 5_000_000 $ exponentialBackoff 50
+    policy = limitRetriesByCumulativeDelay 10_000_000 $ exponentialBackoff 50
     only412 :: RetryStatus -> ResponseLBS -> TestM Bool
     only412 _ resp = pure $ statusCode resp == 412
 

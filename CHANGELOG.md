@@ -1,3 +1,76 @@
+# [2024-12-30] (Chart Release 5.9.0)
+
+## Release notes
+
+
+* POST /scim/auth-token request body allows you to choose an IdP UUID to associate with.  If none is given, do not associate.
+
+  **WARNING:** the new behavior differs from the old one when first creating a unique SAML IdP and then the SCIM token: before this release, this request would associate the two, now it doesn't. (#4349)
+
+* We changed the default MLS cipher suite from
+
+  - MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+
+  to
+
+  - MLS_128_DHKEMP256_AES128GCM_SHA256_P256
+
+  and the allowed MLS cipher suites from only
+
+  - MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+
+  to _only_
+
+  - MLS_128_DHKEMP256_AES128GCM_SHA256_P256.
+
+  ATTENTION: This breaks your MLS clients if they used the previous defaults before. This is even true if you allow several cipher suites, since current MLS clients only support _one_ cipher suite at a time.
+
+  [Adjust the defaults in the server configuration](https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/config-options.md#mls) to switch the values of `defaultCipherSuite` and `allowedCipherSuites` back to the previous defaults, `1` and `[1]`, respectively. Once MLS clients support several cipher suites, you could even use `[1,2]` or a list of other cipher suites in `allowedCipherSuites`. Make sure that this list contains the currently used cipher suite! (#4373)
+
+* This release contains a new Git submodule: `wire-server-enterprise`. This module represents a service which contains all non-open-source features. Wire can still be deployed and run without this service. Building it without `wire-server-enterprise` is currently not documented, but Wire will keep providing the artefacts.
+
+  The service can be deployed with a dedicated Helm chart (`charts/wire-server-enterprise`.) The required service image is not freely available (the registry is password protected.) (#4357)
+
+
+## API changes
+
+
+* The `client_id` query parameter of the `GET /events` endpoint is now optional. When not provided, events are returned from a temporary queue that's not bound to any specific client. The queue is deleted when the websocket disconnects. (#4360)
+
+
+## Features
+
+
+* You can now create both multiple SCIM peers and multiple SAML IdPs, and freely associate them with each other (team management app implementation pending). (#4349)
+
+* Internal API and backoffice support for managing email domains for enterprise login (#4364)
+
+
+## Bug fixes and other updates
+
+
+* Fix `gzip filter failed to use preallocated memory` alerts in nginz by upgrading (#4365)
+
+* Send team active event in personal user to team flow (#4380)
+
+* Add profile name to new team owner welcome mail (#4378)
+
+
+## Internal changes
+
+
+* Delete federation V0 and V1 queues after integration tests (#4374)
+
+* Stabilize `index migration` tests by fixing a race on index names. (#4382)
+
+* Adjust the existing Ormolu script to format the wire-server-enterprise submodule
+  as well. (#4377)
+
+* Revive and translate old integration test (#4387, #4386)
+
+* Translate integration test to new suite. (#4384)
+
+
 # [2024-12-11] (Chart Release 5.8.0)
 
 ## Release notes

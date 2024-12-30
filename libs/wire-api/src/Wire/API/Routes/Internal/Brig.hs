@@ -38,6 +38,7 @@ module Wire.API.Routes.Internal.Brig
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
+    EnterpriseLoginApi,
   )
 where
 
@@ -69,6 +70,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
+import Wire.API.Routes.Internal.Brig.EnterpriseLogin (EnterpriseLoginApi)
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
@@ -507,6 +509,7 @@ type API =
            :<|> ISearchIndexAPI
            :<|> FederationRemotesAPI
            :<|> ProviderAPI
+           :<|> EnterpriseLoginApi
        )
 
 type IStatusAPI =
@@ -782,5 +785,5 @@ brigInternalClient = namedClient @API @name @BrigInternalClient
 runBrigInternalClient :: HTTP.Manager -> Endpoint -> BrigInternalClient a -> IO (Either Servant.ClientError a)
 runBrigInternalClient httpMgr (Endpoint brigHost brigPort) (BrigInternalClient action) = do
   let baseUrl = Servant.BaseUrl Servant.Http (Text.unpack brigHost) (fromIntegral brigPort) ""
-      clientEnv = Servant.ClientEnv httpMgr baseUrl Nothing Servant.defaultMakeClientRequest
+      clientEnv = Servant.mkClientEnv httpMgr baseUrl
   Servant.runClientM action clientEnv

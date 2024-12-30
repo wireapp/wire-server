@@ -90,7 +90,9 @@ instance FromJSON DynamicBackendConfig
 
 data RabbitMQConfig = RabbitMQConfig
   { host :: String,
-    adminPort :: Word16
+    adminPort :: Word16,
+    tls :: Bool,
+    vHost :: String
   }
   deriving (Show)
 
@@ -100,6 +102,8 @@ instance FromJSON RabbitMQConfig where
       RabbitMQConfig
         <$> ob .: fromString "host"
         <*> ob .: fromString "adminPort"
+        <*> ob .: fromString "tls"
+        <*> ob .: fromString "vHost"
 
 -- | Initialised once per testsuite.
 data GlobalEnv = GlobalEnv
@@ -115,6 +119,8 @@ data GlobalEnv = GlobalEnv
     gServicesCwdBase :: Maybe FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
+    gRabbitMQConfigV0 :: RabbitMQConfig,
+    gRabbitMQConfigV1 :: RabbitMQConfig,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int
   }
@@ -127,6 +133,8 @@ data IntegrationConfig = IntegrationConfig
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
+    rabbitmqV0 :: RabbitMQConfig,
+    rabbitmqV1 :: RabbitMQConfig,
     cassandra :: CassandraConfig
   }
   deriving (Show, Generic)
@@ -142,6 +150,8 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
+        <*> o .: fromString "rabbitmq-v0"
+        <*> o .: fromString "rabbitmq-v1"
         <*> o .: fromString "cassandra"
 
 data ServiceMap = ServiceMap
@@ -156,7 +166,8 @@ data ServiceMap = ServiceMap
     nginz :: HostPort,
     spar :: HostPort,
     proxy :: HostPort,
-    stern :: HostPort
+    stern :: HostPort,
+    wireServerEnterprise :: HostPort
   }
   deriving (Show, Generic)
 
@@ -217,7 +228,8 @@ data Env = Env
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
     rabbitMQConfig :: RabbitMQConfig,
-    timeOutSeconds :: Int
+    timeOutSeconds :: Int,
+    currentTestName :: Maybe String
   }
 
 data Response = Response
@@ -249,7 +261,7 @@ newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show, Generic)
 
 instance Default Ciphersuite where
-  def = Ciphersuite "0x0001"
+  def = Ciphersuite "0x0002"
 
 data ClientGroupState = ClientGroupState
   { groups :: Map ConvId ByteString,
@@ -443,7 +455,8 @@ data ServiceOverrides = ServiceOverrides
     sparCfg :: Value -> App Value,
     backgroundWorkerCfg :: Value -> App Value,
     sternCfg :: Value -> App Value,
-    federatorInternalCfg :: Value -> App Value
+    federatorInternalCfg :: Value -> App Value,
+    wireServerEnterpriseCfg :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -461,7 +474,8 @@ instance Semigroup ServiceOverrides where
         sparCfg = sparCfg a >=> sparCfg b,
         backgroundWorkerCfg = backgroundWorkerCfg a >=> backgroundWorkerCfg b,
         sternCfg = sternCfg a >=> sternCfg b,
-        federatorInternalCfg = federatorInternalCfg a >=> federatorInternalCfg b
+        federatorInternalCfg = federatorInternalCfg a >=> federatorInternalCfg b,
+        wireServerEnterpriseCfg = wireServerEnterpriseCfg a >=> wireServerEnterpriseCfg b
       }
 
 instance Monoid ServiceOverrides where
@@ -479,7 +493,8 @@ defaultServiceOverrides =
       sparCfg = pure,
       backgroundWorkerCfg = pure,
       sternCfg = pure,
-      federatorInternalCfg = pure
+      federatorInternalCfg = pure,
+      wireServerEnterpriseCfg = pure
     }
 
 lookupConfigOverride :: ServiceOverrides -> Service -> (Value -> App Value)
@@ -494,6 +509,7 @@ lookupConfigOverride overrides = \case
   BackgroundWorker -> overrides.backgroundWorkerCfg
   Stern -> overrides.sternCfg
   FederatorInternal -> overrides.federatorInternalCfg
+  WireServerEnterprise -> overrides.wireServerEnterpriseCfg
 
 data Service
   = Brig
@@ -506,6 +522,7 @@ data Service
   | BackgroundWorker
   | Stern
   | FederatorInternal
+  | WireServerEnterprise
   deriving
     ( Show,
       Eq,
@@ -526,6 +543,7 @@ serviceName = \case
   BackgroundWorker -> "backgroundWorker"
   Stern -> "stern"
   FederatorInternal -> "federator"
+  WireServerEnterprise -> "wireServerEnterprise"
 
 -- | Converts the service name to kebab-case.
 configName :: Service -> String
@@ -540,6 +558,7 @@ configName = \case
   BackgroundWorker -> "background-worker"
   Stern -> "stern"
   FederatorInternal -> "federator"
+  WireServerEnterprise -> "wire-server-enterprise"
 
 data BackendName
   = BackendA

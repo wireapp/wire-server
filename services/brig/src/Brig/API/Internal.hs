@@ -93,6 +93,7 @@ import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.EnterpriseLoginSubsystem
 import Wire.Events (Events)
 import Wire.Events qualified as Events
 import Wire.FederationConfigStore
@@ -151,7 +152,8 @@ servantSitemap ::
     Member HashPassword r,
     Member (Embed IO) r,
     Member ActivationCodeStore r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -168,6 +170,7 @@ servantSitemap =
     :<|> internalSearchIndexAPI
     :<|> federationRemotesAPI
     :<|> Provider.internalProviderAPI
+    :<|> enterpriseLoginApi
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -425,7 +428,17 @@ getVerificationCode uid action = runMaybeT do
 
 internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
-  Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
+  Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
+
+enterpriseLoginApi :: (Member EnterpriseLoginSubsystem r) => ServerT BrigIRoutes.EnterpriseLoginApi (Handler r)
+enterpriseLoginApi =
+  Named @"domain-registration-lock" (fmap (const NoContent) . lift . liftSem . lockDomain)
+    :<|> Named @"domain-registration-unlock" (fmap (const NoContent) . lift . liftSem . unlockDomain)
+    :<|> Named @"domain-registration-pre-authorize" (fmap (const NoContent) . lift . liftSem . preAuthorizeDomain)
+    :<|> Named @"domain-registration-unauthorize" (fmap (const NoContent) . lift . liftSem . unAuthorizeDomain)
+    :<|> Named @"domain-registration-update" (\d p -> fmap (const NoContent) . lift . liftSem $ updateDomainRegistration d p)
+    :<|> Named @"domain-registration-delete" (fmap (const NoContent) . lift . liftSem . deleteDomain)
+    :<|> Named @"domain-registration-get" (lift . liftSem . getDomainRegistration)
 
 ---------------------------------------------------------------------------
 -- Handlers

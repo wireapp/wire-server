@@ -93,6 +93,11 @@ spec:
       secret:
         secretName: {{ include "cassandraTlsSecretName" .Values.config }}
     {{- end }}
+
+    - name: wire-server-enterprise-config
+      configMap:
+        name: wire-server-enterprise
+
   restartPolicy: Never
 
   initContainers:
@@ -284,6 +289,9 @@ spec:
       mountPath: "/etc/wire/spar/cassandra"
     {{- end }}
 
+    - name: wire-server-enterprise-config
+      mountPath: /etc/wire/wire-server-enterprise/conf
+
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
@@ -302,6 +310,20 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    - name: RABBITMQ_USERNAME_V0
+      value: "wire-server"
+    - name: RABBITMQ_PASSWORD_V0
+      valueFrom:
+        secretKeyRef:
+          name: rabbitmq-v0
+          key: rabbitmq-password
+    - name: RABBITMQ_USERNAME_V1
+      value: "wire-server"
+    - name: RABBITMQ_PASSWORD_V1
+      valueFrom:
+        secretKeyRef:
+          name: rabbitmq-v1
+          key: rabbitmq-password
     {{- if hasKey .Values.secrets "redisUsername" }}
     - name: REDIS_USERNAME
       valueFrom:

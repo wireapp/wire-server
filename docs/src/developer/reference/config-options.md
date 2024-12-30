@@ -300,8 +300,8 @@ mls:
       protocolToggleUsers: []
       defaultProtocol: mls
       supportedProtocols: [proteus, mls] # must contain defaultProtocol
-      allowedCipherSuites: [1]
-      defaultCipherSuite: 1
+      allowedCipherSuites: [2]
+      defaultCipherSuite: 2
     lockStatus: locked
 ```
 
@@ -316,8 +316,8 @@ mls:
     protocolToggleUsers: []
     defaultProtocol: mls
     supportedProtocols: [proteus, mls] # must contain defaultProtocol
-    allowedCipherSuites: [1]
-    defaultCipherSuite: 1
+    allowedCipherSuites: [2]
+    defaultCipherSuite: 2
 ```
 
 ### MLS End-to-End Identity
@@ -820,6 +820,17 @@ brig:
   config:
     externalUrls:
       accountPages: https://account.wire.com
+```
+
+### Enterprise Login Audit Log
+
+Audit logs for any update (POST, PUT, DELETE) of a domain registration via the internal API are sent via email to the specified email address. If not specified no audit logs will be sent.
+
+```yaml
+brig:
+  config:
+    optSettings:
+      setAuditLogEmailRecipient: security@wire.com
 ```
 
 ## Settings in cargohold

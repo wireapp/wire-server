@@ -98,7 +98,13 @@ generateVerificationCode' domain email = do
   emailStr <- asString email
   submit "POST" $ req & addJSONObject ["email" .= emailStr, "action" .= "login"]
 
-setTeamFeatureConfig :: (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) => domain -> team -> featureName -> payload -> App Response
+setTeamFeatureConfig ::
+  (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) =>
+  domain ->
+  team ->
+  featureName ->
+  payload ->
+  App Response
 setTeamFeatureConfig domain team featureName payload = do
   tid <- asString team
   fn <- asString featureName
@@ -106,7 +112,13 @@ setTeamFeatureConfig domain team featureName payload = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", fn]
   submit "PUT" $ req & addJSON p
 
-patchTeamFeatureConfig :: (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) => domain -> team -> featureName -> payload -> App Response
+patchTeamFeatureConfig ::
+  (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) =>
+  domain ->
+  team ->
+  featureName ->
+  payload ->
+  App Response
 patchTeamFeatureConfig domain team featureName payload = do
   tid <- asString team
   fn <- asString featureName
@@ -119,3 +131,8 @@ patchTeamFeature domain team featureName payload = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "PATCH" $ req & addJSON payload
+
+getTeam :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getTeam domain tid = do
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid]
+  submit "GET" $ req

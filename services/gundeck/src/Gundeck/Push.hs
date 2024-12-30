@@ -185,7 +185,11 @@ splitPush clientsFull p = do
           -- Checking for rabbitmqClientIds first ensures that we fall back to
           -- old behaviour even if legacyClientIds is empty too. This way we
           -- won't break things before clients are ready for it.
-          (That rcpt)
+          --
+          -- We return all clients for RabbitMQ even if there are no real
+          -- clients so a temporary client can still read the notifications on
+          -- RabbitMQ.
+          (These rcpt {_recipientClients = RecipientClientsAll} rcpt)
         (_, []) ->
           (This rcpt)
         (r : rs, l : ls) ->
@@ -313,7 +317,9 @@ pushViaRabbitMq p = do
               RecipientClientsAll ->
                 Set.singleton $ userRoutingKey r._recipientId
               RecipientClientsSome (toList -> cs) ->
-                Set.fromList $ map (clientRoutingKey r._recipientId) cs
+                Set.fromList $
+                  temporaryRoutingKey r._recipientId
+                    : map (clientRoutingKey r._recipientId) cs
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq routingKey qMsg
 
