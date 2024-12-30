@@ -530,6 +530,7 @@ createEventsWebSocket user cid = do
           (wsRead conn `catch` (writeChan eventsChan . Left))
           (wsWrite conn)
 
+      wsRead :: WS.Connection -> IO ()
       wsRead conn = forever $ do
         bs <- WS.receiveData conn
         case decodeStrict' bs of
@@ -537,6 +538,7 @@ createEventsWebSocket user cid = do
           Nothing ->
             error $ "Failed to decode events: " ++ show bs
 
+      wsWrite :: WS.Connection -> IO ()
       wsWrite conn = do
         mAck <- takeMVar ackChan
         case mAck of
