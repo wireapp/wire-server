@@ -496,6 +496,8 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
       (constantDelay 500_000 <> limitRetries 10)
       (const (killConnection backend))
 
+    -- TODO: sometimes, the WS doesn't die.  do we need to flush the rabbitmq-queue via the
+    -- websocket before it can find peace?
     liftIO ws.ping
     assertWebSocketDied ws
 
@@ -664,6 +666,12 @@ assertNoEvent_ ws =
 
 assertWebSocketDied :: (HasCallStack) => EventWebSocket -> App ()
 assertWebSocketDied ws = do
+  -- TODO: recoverAll doesn't appear to do anything; if for `limitRetriesByCumulativeDelay 0
+  -- (constantDelay 800_000)`, `testChannelKilled` passes reliably on my machine.
+
+  -- TODO: if this happens right after closeGracefully (see above) and there are left-over
+  -- data messages, those will make `assertNoEventHelper` fail even though we want to succeed.
+  -- so, somehow flush the channel, but how?
   recpol <- do
     timeOutSeconds <- asks (.timeOutSeconds)
     pure $ limitRetriesByCumulativeDelay (timeOutSeconds * 1_000_000) (constantDelay 800_000)
@@ -693,6 +701,8 @@ killConnection backend = do
   connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack backend.berVHost)
   connection <-
     assertOne
+      -- TODO: these keeps failing for 5 seconds in `testChannelKilled`.  are tests running in
+      -- parallel interfering?  if so, how can i identify the one that i want to kill?
       [ c | c <- connections, c.userProvidedName == Just (Text.pack "pool 0")
       ]
   void $ rabbitmqAdminClient.deleteConnection connection.name

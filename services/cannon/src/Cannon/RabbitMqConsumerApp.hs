@@ -129,6 +129,9 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
             catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
               \(err :: SomeException) -> do
                 logSendFailure err
+                -- TODO: anything in the logs about throwIO?  but if so, could this be the
+                -- cause of not closing the WS?  maybe this is the place where we need to
+                -- close WS explicitly?
                 throwIO err
 
       -- get ack from websocket and forward to rabbitmq
