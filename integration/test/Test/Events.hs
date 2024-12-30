@@ -496,6 +496,9 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
       (constantDelay 500_000 <> limitRetries 10)
       (const (killConnection backend))
 
+    -- TODO: sometimes, the WS doesn't die.  do we need to flush the rabbitmq-queue via the
+    -- websocket before it can find peace?
+    liftIO ws.ping
     assertWebSocketDied ws
 
 ----------------------------------------------------------------------
@@ -503,7 +506,8 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
 
 data EventWebSocket = EventWebSocket
   { events :: Chan (Either WS.ConnectionException Value),
-    ack :: MVar (Maybe Value)
+    ack :: MVar (Maybe Value),
+    ping :: IO () -- closes the connection if no pong is coming back.
   }
 
 createEventsWebSocket ::
@@ -513,6 +517,8 @@ createEventsWebSocket ::
   Codensity App EventWebSocket
 createEventsWebSocket user cid = do
   eventsChan <- liftIO newChan
+  pongChan <- liftIO newEmptyMVar
+  connStash <- liftIO newEmptyMVar
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
   apiVersion <- lift $ getAPIVersionFor $ objDomain user
@@ -525,25 +531,39 @@ createEventsWebSocket user cid = do
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
       path = "/v" <> show apiVersion <> "/events" <> maybe "" ("?client=" <>) cid
       caHdrs = [(fromString "Z-User", toByteString' uid)]
-      app conn =
+      app conn = do
+        putMVar connStash conn
         race_
-          (wsRead conn `catch` (writeChan eventsChan . Left))
-          (wsWrite conn)
+          (wsRead `catch` (writeChan eventsChan . Left))
+          wsWrite
 
-      wsRead conn = forever $ do
+      wsRead :: IO ()
+      wsRead = forever $ do
+        conn <- takeMVar connStash
         bs <- WS.receiveData conn
         case decodeStrict' bs of
           Just n -> writeChan eventsChan (Right n)
           Nothing ->
             error $ "Failed to decode events: " ++ show bs
 
-      wsWrite conn = do
+      wsWrite :: IO ()
+      wsWrite = do
+        conn <- takeMVar connStash
         mAck <- takeMVar ackChan
         case mAck of
           Nothing -> WS.sendClose conn (Text.pack "")
           Just ack ->
             WS.sendBinaryData conn (encode ack)
-              >> wsWrite conn
+              >> wsWrite
+
+      -- if a ping (control-)message is not answered within 3 seconds, close the websocket.
+      wsPing :: IO ()
+      wsPing = do
+        conn <- takeMVar connStash
+        WS.sendPing conn (Text.pack "")
+        timeout 3_000_000 (takeMVar pongChan) >>= \case
+          Nothing -> WS.sendClose conn (Text.pack "")
+          Just () -> pure ()
 
   wsThread <- Codensity $ \k -> do
     withAsync
@@ -552,14 +572,14 @@ createEventsWebSocket user cid = do
             caHost
             (fromIntegral caPort)
             path
-            WS.defaultConnectionOptions
+            WS.defaultConnectionOptions {WS.connectionOnPong = putMVar pongChan ()}
             caHdrs
             app
       )
       k
 
-  Codensity $ \k ->
-    k (EventWebSocket eventsChan ackChan) `finally` do
+  Codensity $ \k -> do
+    k (EventWebSocket eventsChan ackChan wsPing) `finally` do
       putMVar ackChan Nothing
       liftIO $ wait wsThread
 
@@ -618,36 +638,50 @@ assertFindsEvent ws expectations = go 0
               addJSONToFailureContext ("Ignored Event (" <> ignoredEventType <> ")") ev
                 $ go (ignoredEventCount + 1)
 
-data NoEvent = NoEvent | WebSocketDied
+data NoEvent = NoEvent | YesEvent Value | WebSocketDied
 
 instance ToJSON NoEvent where
   toJSON NoEvent = toJSON "no-event"
+  toJSON (YesEvent _) = toJSON "yes-event"
   toJSON WebSocketDied = toJSON "web-socket-died"
 
 assertNoEventHelper :: (HasCallStack) => EventWebSocket -> App NoEvent
 assertNoEventHelper ws = do
   timeOutSeconds <- asks (.timeOutSeconds)
-  timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
-    Nothing -> pure NoEvent
-    Just (Left _) -> pure WebSocketDied
-    Just (Right e) -> do
-      eventJSON <- prettyJSON e
-      assertFailure $ "Did not expect event: \n" <> eventJSON
+  timeout (timeOutSeconds * 1_000_000) (readChan ws.events) <&> \case
+    Nothing -> NoEvent
+    Just (Right e) -> YesEvent e
+    Just (Left _) -> WebSocketDied
 
 -- | Similar to `assertNoEvent` from Testlib, but with rabbitMQ typing (`/event` end-point, not
 -- `/await`).
 assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
-assertNoEvent_ = void . assertNoEventHelper
+assertNoEvent_ ws =
+  assertNoEventHelper ws >>= \case
+    NoEvent -> pure ()
+    YesEvent e -> do
+      eventJSON <- prettyJSON e
+      assertFailure $ "Did not expect event: \n" <> eventJSON
+    WebSocketDied -> pure ()
 
 assertWebSocketDied :: (HasCallStack) => EventWebSocket -> App ()
 assertWebSocketDied ws = do
+  -- TODO: recoverAll doesn't appear to do anything; if for `limitRetriesByCumulativeDelay 0
+  -- (constantDelay 800_000)`, `testChannelKilled` passes reliably on my machine.
+
+  -- TODO: if this happens right after closeGracefully (see above) and there are left-over
+  -- data messages, those will make `assertNoEventHelper` fail even though we want to succeed.
+  -- so, somehow flush the channel, but how?
   recpol <- do
     timeOutSeconds <- asks (.timeOutSeconds)
     pure $ limitRetriesByCumulativeDelay (timeOutSeconds * 1_000_000) (constantDelay 800_000)
   recoverAll recpol $ \_ ->
-    assertNoEventHelper ws >>= \case
-      NoEvent -> assertFailure $ "WebSocket is still open"
-      WebSocketDied -> pure ()
+    let go =
+          assertNoEventHelper ws >>= \case
+            NoEvent -> assertFailure $ "WebSocket is still open"
+            YesEvent _ -> go
+            WebSocketDied -> pure ()
+     in go
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
@@ -667,6 +701,8 @@ killConnection backend = do
   connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack backend.berVHost)
   connection <-
     assertOne
+      -- TODO: these keeps failing for 5 seconds in `testChannelKilled`.  are tests running in
+      -- parallel interfering?  if so, how can i identify the one that i want to kill?
       [ c | c <- connections, c.userProvidedName == Just (Text.pack "pool 0")
       ]
   void $ rabbitmqAdminClient.deleteConnection connection.name
