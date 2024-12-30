@@ -496,6 +496,7 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
       (constantDelay 500_000 <> limitRetries 10)
       (const (killConnection backend))
 
+    liftIO ws.ping
     assertWebSocketDied ws
 
 ----------------------------------------------------------------------
@@ -503,7 +504,8 @@ testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
 
 data EventWebSocket = EventWebSocket
   { events :: Chan (Either WS.ConnectionException Value),
-    ack :: MVar (Maybe Value)
+    ack :: MVar (Maybe Value),
+    ping :: IO () -- closes the connection if no pong is coming back.
   }
 
 createEventsWebSocket ::
@@ -513,6 +515,8 @@ createEventsWebSocket ::
   Codensity App EventWebSocket
 createEventsWebSocket user cid = do
   eventsChan <- liftIO newChan
+  pongChan <- liftIO newEmptyMVar
+  connStash <- liftIO newEmptyMVar
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
   apiVersion <- lift $ getAPIVersionFor $ objDomain user
@@ -525,27 +529,39 @@ createEventsWebSocket user cid = do
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
       path = "/v" <> show apiVersion <> "/events" <> maybe "" ("?client=" <>) cid
       caHdrs = [(fromString "Z-User", toByteString' uid)]
-      app conn =
+      app conn = do
+        putMVar connStash conn
         race_
-          (wsRead conn `catch` (writeChan eventsChan . Left))
-          (wsWrite conn)
+          (wsRead `catch` (writeChan eventsChan . Left))
+          wsWrite
 
-      wsRead :: WS.Connection -> IO ()
-      wsRead conn = forever $ do
+      wsRead :: IO ()
+      wsRead = forever $ do
+        conn <- takeMVar connStash
         bs <- WS.receiveData conn
         case decodeStrict' bs of
           Just n -> writeChan eventsChan (Right n)
           Nothing ->
             error $ "Failed to decode events: " ++ show bs
 
-      wsWrite :: WS.Connection -> IO ()
-      wsWrite conn = do
+      wsWrite :: IO ()
+      wsWrite = do
+        conn <- takeMVar connStash
         mAck <- takeMVar ackChan
         case mAck of
           Nothing -> WS.sendClose conn (Text.pack "")
           Just ack ->
             WS.sendBinaryData conn (encode ack)
-              >> wsWrite conn
+              >> wsWrite
+
+      -- if a ping (control-)message is not answered within 3 seconds, close the websocket.
+      wsPing :: IO ()
+      wsPing = do
+        conn <- takeMVar connStash
+        WS.sendPing conn (Text.pack "")
+        timeout 3_000_000 (takeMVar pongChan) >>= \case
+          Nothing -> WS.sendClose conn (Text.pack "")
+          Just () -> pure ()
 
   wsThread <- Codensity $ \k -> do
     withAsync
@@ -554,14 +570,14 @@ createEventsWebSocket user cid = do
             caHost
             (fromIntegral caPort)
             path
-            WS.defaultConnectionOptions
+            WS.defaultConnectionOptions {WS.connectionOnPong = putMVar pongChan ()}
             caHdrs
             app
       )
       k
 
-  Codensity $ \k ->
-    k (EventWebSocket eventsChan ackChan) `finally` do
+  Codensity $ \k -> do
+    k (EventWebSocket eventsChan ackChan wsPing) `finally` do
       putMVar ackChan Nothing
       liftIO $ wait wsThread
 
