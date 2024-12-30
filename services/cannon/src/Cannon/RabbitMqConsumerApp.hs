@@ -194,7 +194,7 @@ sendFullSyncMessageIfNeeded wsConn uid env cid = do
   where
     q :: PrepQuery R (UserId, ClientId) (Identity (Maybe UserId))
     q =
-      [sql| SELECT user_id FROM missed_notifications 
+      [sql| SELECT user_id FROM missed_notifications
             WHERE user_id = ? and client_id = ?
         |]
 
