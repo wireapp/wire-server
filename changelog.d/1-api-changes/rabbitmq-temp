@@ -1,1 +1,0 @@
-The `client_id` query parameter of the `GET /events` endpoint is now optional. When not provided, events are returned from a temporary queue that's not bound to any specific client. The queue is deleted when the websocket disconnects.
