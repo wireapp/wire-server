@@ -636,26 +636,31 @@ assertFindsEvent ws expectations = go 0
               addJSONToFailureContext ("Ignored Event (" <> ignoredEventType <> ")") ev
                 $ go (ignoredEventCount + 1)
 
-data NoEvent = NoEvent | WebSocketDied
+data NoEvent = NoEvent | YesEvent Value | WebSocketDied
 
 instance ToJSON NoEvent where
   toJSON NoEvent = toJSON "no-event"
+  toJSON (YesEvent _) = toJSON "yes-event"
   toJSON WebSocketDied = toJSON "web-socket-died"
 
 assertNoEventHelper :: (HasCallStack) => EventWebSocket -> App NoEvent
 assertNoEventHelper ws = do
   timeOutSeconds <- asks (.timeOutSeconds)
-  timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
-    Nothing -> pure NoEvent
-    Just (Left _) -> pure WebSocketDied
-    Just (Right e) -> do
-      eventJSON <- prettyJSON e
-      assertFailure $ "Did not expect event: \n" <> eventJSON
+  timeout (timeOutSeconds * 1_000_000) (readChan ws.events) <&> \case
+    Nothing -> NoEvent
+    Just (Right e) -> YesEvent e
+    Just (Left _) -> WebSocketDied
 
 -- | Similar to `assertNoEvent` from Testlib, but with rabbitMQ typing (`/event` end-point, not
 -- `/await`).
 assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
-assertNoEvent_ = void . assertNoEventHelper
+assertNoEvent_ ws =
+  assertNoEventHelper ws >>= \case
+    NoEvent -> pure ()
+    YesEvent e -> do
+      eventJSON <- prettyJSON e
+      assertFailure $ "Did not expect event: \n" <> eventJSON
+    WebSocketDied -> pure ()
 
 assertWebSocketDied :: (HasCallStack) => EventWebSocket -> App ()
 assertWebSocketDied ws = do
@@ -663,9 +668,12 @@ assertWebSocketDied ws = do
     timeOutSeconds <- asks (.timeOutSeconds)
     pure $ limitRetriesByCumulativeDelay (timeOutSeconds * 1_000_000) (constantDelay 800_000)
   recoverAll recpol $ \_ ->
-    assertNoEventHelper ws >>= \case
-      NoEvent -> assertFailure $ "WebSocket is still open"
-      WebSocketDied -> pure ()
+    let go =
+          assertNoEventHelper ws >>= \case
+            NoEvent -> assertFailure $ "WebSocket is still open"
+            YesEvent _ -> go
+            WebSocketDied -> pure ()
+     in go
 
 consumeAllEvents :: EventWebSocket -> App ()
 consumeAllEvents ws = do
