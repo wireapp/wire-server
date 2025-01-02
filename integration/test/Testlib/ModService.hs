@@ -24,6 +24,7 @@ import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
+import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -40,6 +41,7 @@ import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
+import qualified System.Linux.Proc as LinuxProc
 import System.Posix (keyboardSignal, killProcess, signalProcess)
 import System.Posix.Types
 import System.Process
@@ -272,14 +274,14 @@ startBackend ::
   ServiceOverrides ->
   Codensity App ()
 startBackend resource overrides = do
-  lift $ ensureFederatorPortIsFree resource
+  lift $ ensureFederatorPortIsFree resource.berDomain
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
 
 -- | Using ss because it is most convenient. Checking if a port is free in Haskell involves binding to it which is not what we want.
-ensureFederatorPortIsFree :: BackendResource -> App ()
-ensureFederatorPortIsFree resource = do
-  serviceMap <- getServiceMap resource.berDomain
+ensureFederatorPortIsFree :: String -> App ()
+ensureFederatorPortIsFree domain = do
+  serviceMap <- getServiceMap domain
   let federatorExternalPort :: Word16 = serviceMap.federatorExternal.port
   env <- ask
   UnliftIO.timeout (env.timeOutSeconds * 1_000_000) (check federatorExternalPort) >>= \case
@@ -291,7 +293,7 @@ ensureFederatorPortIsFree resource = do
       env <- ask
       let process = (proc "lsof" ["-Q", "-Fpc", "-i", ":" <> show federatorExternalPort, "-s", "TCP:LISTEN"]) {std_out = CreatePipe, std_err = CreatePipe}
       (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess process
-      let prefix = "[" <> "lsof" <> "@" <> resource.berDomain <> maybe "" (":" <>) env.currentTestName <> "] "
+      let prefix = "[" <> "lsof" <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
       liftIO $ void $ forkIO $ logToConsole id prefix stderrHdl
       exitCode <- liftIO $ waitForProcess ph
       case exitCode of
@@ -299,13 +301,30 @@ ensureFederatorPortIsFree resource = do
         ExitSuccess -> do
           lsofOutput <- liftIO $ hGetContents stdoutHdl
           case parseLsof (fromString lsofOutput) of
-            Right ((processId, processName) : _) -> do
+            Right [(processId, processName)] -> do
               liftIO $ putStrLn $ prefix <> "Found a process listening on port: " <> show federatorExternalPort <> ", killing the process: " <> show processName <> ", pid: " <> show processId
               liftIO $ signalProcess killProcess processId
               liftIO $ threadDelay 100_000
               check federatorExternalPort
+            Right procs@(_ : _) -> do
+              liftIO $ putStrLn $ colored red $ prefix <> "Found many processes listening on port: " <> show federatorExternalPort
+              analysis <- List.intercalate "\n" <$> mapM (liftIO . uncurry analyzeRunningProcess) procs
+              liftIO $ putStrLn $ indent 2 analysis
+              liftIO $ threadDelay 100_000
+              check federatorExternalPort
             Right [] -> pure ()
             Left e -> assertFailure $ prefix <> "Failed while parsing lsof output with error: " <> e <> "\n" <> "lsof output:\n" <> lsofOutput
+
+analyzeRunningProcess :: ProcessID -> String -> IO String
+analyzeRunningProcess pid pname = do
+  eithSocket <- LinuxProc.readProcTcpSockets (LinuxProc.ProcessId $ fromIntegral pid)
+  let sockInfo = case eithSocket of
+        Left e -> "Failed to read TCP sockets for process: error: " <> Text.unpack (LinuxProc.renderProcError e)
+        Right socks -> List.intercalate "\n" $ map displaySocket socks
+  pure $ "Process: pid=" <> show pid <> ", name=" <> pname <> "\n" <> indent 2 sockInfo
+  where
+    displaySocket :: LinuxProc.TcpSocket -> String
+    displaySocket sock = "local address = " <> show sock.tcpLocalAddr <> ", remote address = " <> show sock.tcpRemoteAddr <> ", tcp state = " <> show sock.tcpTcpState
 
 -- | Example lsof output:
 --

@@ -265,6 +265,7 @@ library
     , stm
     , streaming-commons
     , string-conversions
+    , system-linux-proc
     , tagged
     , temporary
     , text
