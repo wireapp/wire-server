@@ -97,8 +97,10 @@ import Servant qualified
 import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
+import Text.Email.Parser
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.Connection qualified as Public
+import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
@@ -117,6 +119,7 @@ import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Public.Cargohold
@@ -151,6 +154,7 @@ import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
+import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -367,7 +371,8 @@ servantSitemap ::
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member EnterpriseLogin.EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -390,6 +395,7 @@ servantSitemap =
     :<|> botAPI
     :<|> servicesAPI
     :<|> providerAPI
+    :<|> domainVerificationAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -539,6 +545,11 @@ servantSitemap =
     systemSettingsAPI =
       Named @"get-system-settings-unauthorized" getSystemSettings
         :<|> Named @"get-system-settings" getSystemSettingsInternal
+
+    domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
+    domainVerificationAPI =
+      Named @"verify-dns-record" verifyDNSRecord
+        :<|> Named @"get-domain-registration" getDomainRegistration
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1493,6 +1504,23 @@ getSystemSettingsInternal _ = do
   let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
   let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
+
+verifyDNSRecord :: Domain -> DomainRegistrationConfig -> Handler r ()
+verifyDNSRecord _ _ = do
+  pure ()
+
+getDomainRegistration ::
+  (Member EnterpriseLogin.EnterpriseLoginSubsystem r) =>
+  GetDomainRegistrationRequest ->
+  Handler r GetDomainRegistrationResponse
+getDomainRegistration (GetDomainRegistrationRequest email) = do
+  domain <-
+    either
+      (const (throwStd (errorToWai @E.InvalidDomain)))
+      pure
+      $ mkDomain (Text.decodeUtf8 (domainPart email))
+  reg <- lift . liftSem $ EnterpriseLogin.getDomainRegistration domain
+  pure $ GetDomainRegistrationResponse reg.domainRedirect
 
 -- Deprecated
 

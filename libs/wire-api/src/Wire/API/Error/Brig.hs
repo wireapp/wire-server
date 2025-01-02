@@ -103,6 +103,7 @@ data BrigError
   | UserAlreadyInATeam
   | MLSServicesNotAllowed
   | NotificationQueueConnectionError
+  | InvalidDomain
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -307,3 +308,5 @@ type instance MapError 'UserAlreadyInATeam = 'StaticError 403 "user-already-in-a
 type instance MapError 'MLSServicesNotAllowed = 'StaticError 409 "mls-services-not-allowed" "Services not allowed in MLS"
 
 type instance MapError 'NotificationQueueConnectionError = 'StaticError 500 "internal-server-error" "Internal server error"
+
+type instance MapError 'InvalidDomain = 'StaticError 400 "invalid-domain" "Invalid domain"

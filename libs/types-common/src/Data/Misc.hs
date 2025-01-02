@@ -39,6 +39,8 @@ module Data.Misc
     HttpsUrl (..),
     mkHttpsUrl,
     ensureHttpsUrl,
+    httpsUrlToText,
+    httpsUrlFromText,
 
     -- * Fingerprint
     Fingerprint (..),
@@ -224,6 +226,12 @@ mkHttpsUrl uri =
 ensureHttpsUrl :: URIRef Absolute -> HttpsUrl
 ensureHttpsUrl = HttpsUrl . (uriSchemeL . schemeBSL .~ "https")
 
+httpsUrlToText :: HttpsUrl -> Text
+httpsUrlToText = decodeUtf8 . toByteString'
+
+httpsUrlFromText :: Text -> Either String HttpsUrl
+httpsUrlFromText = runParser parser . encodeUtf8
+
 instance Show HttpsUrl where
   showsPrec i = showsPrec i . httpsUrl
 
@@ -235,8 +243,8 @@ instance FromByteString HttpsUrl where
 
 instance ToSchema HttpsUrl where
   schema =
-    (decodeUtf8 . toByteString')
-      .= parsedText "HttpsUrl" (runParser parser . encodeUtf8)
+    httpsUrlToText
+      .= parsedText "HttpsUrl" httpsUrlFromText
       & doc'
         . S.schema
         . S.example

@@ -7,13 +7,16 @@ import Control.Arrow
 import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.OpenApi qualified as OpenApi
 import Data.Schema
+import Data.Text qualified as Text
 import Data.Text.Ascii (Ascii, AsciiText (toText))
 import Data.Text.Ascii qualified as Ascii
+import Data.UUID qualified as UUID
 import Imports
 import SAML2.WebSSO qualified as SAML
 
@@ -38,6 +41,14 @@ data DomainRedirectTag
   deriving (Show, Ord, Eq, Enum, Bounded)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRedirectTag
 
+domainRedirectTag :: DomainRedirect -> DomainRedirectTag
+domainRedirectTag None = NoneTag
+domainRedirectTag Locked = LockedTag
+domainRedirectTag (SSO _) = SSOTag
+domainRedirectTag (Backend _) = BackendTag
+domainRedirectTag NoRegistration = NoRegistrationTag
+domainRedirectTag PreAuthorized = PreAuthorizedTag
+
 instance ToSchema DomainRedirectTag where
   schema =
     enum @Text "DomainRedirect Tag" $
@@ -53,22 +64,42 @@ instance ToSchema DomainRedirectTag where
 domainRedirectTagSchema :: ObjectSchema SwaggerDoc DomainRedirectTag
 domainRedirectTagSchema = field "domain_redirect" schema
 
+domainRedirectTextSchema :: ValueSchema NamedSwaggerDoc DomainRedirect
+domainRedirectTextSchema =
+  named "DomainRedirect" $
+    domainRedirectToText .= withParser (unnamed schema) domainRedirectFromString
+
+domainRedirectFromString :: Text -> Aeson.Parser DomainRedirect
+domainRedirectFromString "none" = pure None
+domainRedirectFromString "locked" = pure Locked
+domainRedirectFromString "no-registration" = pure NoRegistration
+domainRedirectFromString s = case Text.breakOn ":" s of
+  ("sso", Text.tail -> sso) -> do
+    uuid <-
+      maybe
+        (fail "Invalid SSO IPD ID")
+        pure
+        (UUID.fromText sso)
+    pure $ SSO (SAML.IdPId uuid)
+  ("backend", Text.tail -> backend) -> Backend <$> either fail pure (httpsUrlFromText backend)
+  _ -> fail $ "Invalid domain redirect: " <> Text.unpack s
+
+domainRedirectToText :: DomainRedirect -> Text
+domainRedirectToText None = "none"
+domainRedirectToText Locked = "locked"
+domainRedirectToText NoRegistration = "no-registration"
+domainRedirectToText PreAuthorized = "preauthorized"
+domainRedirectToText (SSO idp) = "sso:" <> UUID.toText (SAML.fromIdPId idp)
+domainRedirectToText (Backend url) = "backend:" <> httpsUrlToText url
+
 domainRedirectSchema :: ObjectSchema SwaggerDoc DomainRedirect
 domainRedirectSchema =
   snd
-    <$> (toTagged &&& id)
+    <$> (domainRedirectTag &&& id)
       .= bind
         (fst .= domainRedirectTagSchema)
         (snd .= dispatch domainRedirectObjectSchema)
   where
-    toTagged :: DomainRedirect -> DomainRedirectTag
-    toTagged None = NoneTag
-    toTagged Locked = LockedTag
-    toTagged (SSO _) = SSOTag
-    toTagged (Backend _) = BackendTag
-    toTagged NoRegistration = NoRegistrationTag
-    toTagged PreAuthorized = PreAuthorizedTag
-
     domainRedirectObjectSchema :: DomainRedirectTag -> ObjectSchema SwaggerDoc DomainRedirect
     domainRedirectObjectSchema = \case
       NoneTag -> tag _None (pure ())
