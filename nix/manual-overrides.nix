@@ -59,6 +59,7 @@ hself: hsuper: {
   # (we can unfortunately not do anything here but update nixpkgs)
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
+  system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
 
   # -----------------
   # version overrides
