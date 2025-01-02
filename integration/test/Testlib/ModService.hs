@@ -19,6 +19,7 @@ import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
 import qualified Data.Attoparsec.Text as Parser
+import qualified Data.Char as Char
 import Data.Default
 import Data.Foldable
 import Data.Function
@@ -311,10 +312,11 @@ ensureFederatorPortIsFree resource = do
 -- @
 -- p61317
 -- cfederator
+--
 -- @
 parseLsof :: String -> Either String [(ProcessID, String)]
 parseLsof output =
-  Parser.parseOnly ((Parser.sepBy lsofParser (Parser.char '\n')) <* Parser.endOfInput) (fromString output)
+  Parser.parseOnly (listParser <* trailingSpace <* Parser.endOfInput) (fromString output)
   where
     lsofParser :: Parser.Parser (ProcessID, String)
     lsofParser =
@@ -322,6 +324,9 @@ parseLsof output =
 
     processIdParser = Parser.char 'p' *> Parser.decimal
     processNameParser = Parser.char 'c' *> Parser.many1 (Parser.satisfy (/= '\n'))
+
+    listParser = (Parser.sepBy lsofParser (Parser.char '\n'))
+    trailingSpace = Parser.many' (Parser.satisfy Char.isSpace)
 
 ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
