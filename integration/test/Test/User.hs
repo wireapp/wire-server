@@ -210,7 +210,6 @@ testMigratingPasswordHashingAlgorithm = do
     runCodensity (startDynamicBackend testBackend cfgScrypt) $ \_ -> do
       void $ randomUser domain (def {email = Just email1, password = Just password1})
       login domain email1 password1 >>= assertSuccess
-      login domain email1 password1 >>= assertSuccess
 
     runCodensity (startDynamicBackend testBackend cfgArgon2id) $ \_ -> do
       login domain email1 password1 >>= assertSuccess
