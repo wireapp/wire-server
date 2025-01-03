@@ -150,6 +150,7 @@ startDynamicBackend resource beOverrides = do
             setAwsConfigs,
             setMlsPrivateKeyPaths,
             setLogLevel,
+            setUserSettings,
             beOverrides
           ]
   startBackend resource overrides
@@ -237,6 +238,12 @@ startDynamicBackend resource beOverrides = do
           backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
           sternCfg = setField "logLevel" ("Warn" :: String),
           federatorInternalCfg = setField "logLevel" ("Warn" :: String)
+        }
+
+    setUserSettings :: ServiceOverrides
+    setUserSettings =
+      def
+        { brigCfg = removeField "optSettings.setSuspendInactiveUsers"
         }
 
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
@@ -431,7 +438,7 @@ withProcess resource overrides service = do
         _ -> do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
-          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
+          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe, close_fds = True}
           let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
           let colorize = fromMaybe id (lookup execName processColors)
           void $ forkIO $ logToConsole colorize prefix stdoutHdl
