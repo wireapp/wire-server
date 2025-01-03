@@ -62,6 +62,7 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.ByteString (fromStrict)
+import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -172,6 +173,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
@@ -358,6 +360,7 @@ servantSitemap ::
     Member PasswordStore r,
     Member PropertySubsystem r,
     Member PublicKeyBundle r,
+    Member Random r,
     Member SFT r,
     Member TinyLog r,
     Member UserKeyStore r,
@@ -1508,10 +1511,20 @@ getSystemSettingsInternal _ = do
   pure $ SystemSettings pSettings iSettings
 
 domainVerificationToken ::
+  (Member EnterpriseLogin.EnterpriseLoginSubsystem r, Member Random r) =>
   Maybe (Bearer DomainVerificationAuthToken) ->
   Domain ->
   Handler r DomainVerificationTokenResponse
-domainVerificationToken _ _ = todo
+domainVerificationToken mAuthToken domain = lift . liftSem $ do
+  authToken <- case mAuthToken of
+    Nothing -> randomDomainVerificationAuthCode
+    Just (Bearer t) -> pure t
+  dnsToken <- EnterpriseLogin.getDomainVerificationToken domain authToken
+  pure DomainVerificationTokenResponse {..}
+
+randomDomainVerificationAuthCode :: (Member Random r) => Sem r DomainVerificationAuthToken
+randomDomainVerificationAuthCode =
+  DomainVerificationAuthToken . Text.decodeUtf8 . B64U.encode <$> bytes 32
 
 verifyDNSRecord ::
   Maybe (Bearer DomainVerificationAuthToken) ->

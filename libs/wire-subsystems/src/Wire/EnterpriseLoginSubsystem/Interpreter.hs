@@ -5,12 +5,15 @@
 module Wire.EnterpriseLoginSubsystem.Interpreter
   ( runEnterpriseLoginSubsystem,
     EnterpriseLoginSubsystemConfig (..),
+    EnterpriseLoginSubsystemEmailConfig (..),
   )
 where
 
+import Bilge hiding (delete)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Lazy qualified as BL
 import Data.Domain (Domain, domainText)
 import Data.Id
 import Data.Misc (HttpsUrl (..))
@@ -18,32 +21,43 @@ import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
 import Data.Text.Lazy.Builder (Builder)
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Imports hiding (lookup)
+import Network.HTTP.Types.Method
 import Network.Mail.Mime (Address (Address), Mail (mailHeaders, mailParts, mailTo), emptyMail, plainPart)
 import Polysemy
 import Polysemy.Error (Error, throw)
-import Polysemy.Input (Input, input)
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
+import Util.Options
 import Wire.API.EnterpriseLogin
 import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.DomainRegistrationStore
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error
+import Wire.ParseException
+import Wire.Rpc
 
-data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
+data EnterpriseLoginSubsystemEmailConfig = EnterpriseLoginSubsystemEmailConfig
   { auditEmailSender :: EmailAddress,
     auditEmailRecipient :: EmailAddress
+  }
+
+data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
+  { emailConfig :: Maybe EnterpriseLoginSubsystemEmailConfig,
+    wireServerEnterpriseEndpoint :: Endpoint
   }
 
 runEnterpriseLoginSubsystem ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
+    Member (Error ParseException) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
-    Member EmailSending r
+    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member EmailSending r,
+    Member Rpc r
   ) =>
   Sem (EnterpriseLoginSubsystem ': r) a ->
   Sem r a
@@ -56,12 +70,15 @@ runEnterpriseLoginSubsystem = interpret $
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
+    GetDomainVerificationToken domain authToken ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        getDomainVerificationTokenImpl domain authToken
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -81,7 +98,7 @@ unauthorizeImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -111,7 +128,7 @@ updateDomainRegistrationImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -141,7 +158,7 @@ lockDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -165,7 +182,7 @@ unlockDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -191,7 +208,7 @@ preAuthorizeImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -250,6 +267,35 @@ tryGetDomainRegistrationImpl domain = do
           throw $ EnterpriseLoginSubsystemInternalError "The stored domain registration is invalid. Please update or delete and recreate it with a valid configuration."
         Just dr -> pure dr
 
+getDomainVerificationTokenImpl ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r
+  ) =>
+  Domain ->
+  DomainVerificationAuthToken ->
+  Sem r DomainVerificationToken
+getDomainVerificationTokenImpl domain authToken =
+  decodeBodyOrThrow
+    =<< enterpriseRequest
+      ( method POST
+          . paths
+            [ "i",
+              "create-verification-token",
+              toByteString' domain,
+              toByteString' authToken
+            ]
+          . expect2xx
+      )
+
+enterpriseRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
+enterpriseRequest req = do
+  ep <- input
+  rpcWithRetries "wireServerEnterprise" ep req
+
+decodeBodyOrThrow :: forall a r. (Typeable a, Aeson.FromJSON a, Member (Error ParseException) r) => Response (Maybe BL.ByteString) -> Sem r a
+decodeBodyOrThrow r = either (throw . ParseException "wireServerEnterprise") pure (responseJsonEither r)
+
 fromStored :: StoredDomainRegistration -> Maybe DomainRegistration
 fromStored sdr =
   DomainRegistration sdr.domain
@@ -303,18 +349,18 @@ validate dr = do
     _ -> pure ()
 
 mkAuditMail :: EmailAddress -> EmailAddress -> Text -> LText -> Mail
-mkAuditMail from to subject body =
+mkAuditMail from to subject bdy =
   (emptyMail (Address Nothing (fromEmail from)))
     { mailTo = [Address Nothing (fromEmail to)],
       mailHeaders =
         [ ("Subject", subject),
           ("X-Zeta-Purpose", "audit")
         ],
-      mailParts = [[plainPart body]]
+      mailParts = [[plainPart bdy]]
     }
 
 sendAuditMail ::
-  ( Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+  ( Member (Input EnterpriseLoginSubsystemConfig) r,
     Member TinyLog r,
     Member EmailSending r
   ) =>
@@ -336,7 +382,7 @@ sendAuditMail url subject mBefore mAfter = do
       . Log.field "url" (encodeUtf8 $ toLazyText url)
       . Log.field "old_value" (maybe "null" Aeson.encode mBefore)
       . Log.field "new_value" (maybe "null" Aeson.encode mAfter)
-  mConfig <- input
+  mConfig <- inputs emailConfig
   for_ mConfig $ \config -> do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
     sendMail mail

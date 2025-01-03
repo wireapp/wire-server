@@ -14,5 +14,9 @@ data EnterpriseLoginSubsystem m a where
   UpdateDomainRegistration :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
+  GetDomainVerificationToken ::
+    Domain ->
+    DomainVerificationAuthToken ->
+    EnterpriseLoginSubsystem m DomainVerificationToken
 
 makeSem ''EnterpriseLoginSubsystem

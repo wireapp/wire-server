@@ -4,7 +4,7 @@ module Wire.API.EnterpriseLogin where
 
 import Cassandra qualified as C
 import Control.Arrow
-import Control.Lens (makePrisms)
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
@@ -14,6 +14,7 @@ import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.OpenApi qualified as OpenApi
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Ascii (Ascii, AsciiText (toText))
@@ -22,6 +23,8 @@ import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as UUID
 import Imports
 import SAML2.WebSSO qualified as SAML
+import Web.HttpApiData
+import Wire.API.Routes.Bearer
 
 data DomainRedirect
   = None
@@ -230,9 +233,19 @@ newtype DomainVerificationAuthToken = DomainVerificationAuthToken
 instance ToSchema DomainVerificationAuthToken where
   schema = DomainVerificationAuthToken <$> unDomainVerificationAuthToken .= schema
 
+instance S.ToParamSchema (Bearer DomainVerificationAuthToken) where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
+
+instance FromHttpApiData DomainVerificationAuthToken where
+  parseUrlPiece = pure . DomainVerificationAuthToken
+
+instance ToByteString DomainVerificationAuthToken where
+  builder = byteString . Text.encodeUtf8 . unDomainVerificationAuthToken
+
 -- | The challenge to be presented in a TXT DNS record by the owner of the domain.
 newtype DomainVerificationToken = DomainVerificationToken {unDomainVerificationToken :: Text}
   deriving newtype (Eq, Ord, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON, S.ToSchema) via (Schema DomainVerificationToken)
 
 instance ToSchema DomainVerificationToken where
   schema = DomainVerificationToken <$> unDomainVerificationToken .= schema
