@@ -380,6 +380,8 @@ data Opts = Opts
     gundeck :: !Endpoint,
     -- | Federator address
     federatorInternal :: !(Maybe Endpoint),
+    -- | Wire Server Enterprise address
+    wireServerEnterprise :: !Endpoint,
     -- external
 
     -- | Cassandra settings

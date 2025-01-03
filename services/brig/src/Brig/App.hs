@@ -39,6 +39,7 @@ module Brig.App
     gundeckEndpointLens,
     cargoholdEndpointLens,
     federatorLens,
+    wireServerEnterpriseEndpointLens,
     casClientLens,
     smtpEnvLens,
     emailSenderLens,
@@ -177,6 +178,7 @@ data Env = Env
     gundeckEndpoint :: Endpoint,
     cargoholdEndpoint :: Endpoint,
     federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
+    wireServerEnterpriseEndpoint :: Endpoint, -- TODO: make this optional
     casClient :: Cas.ClientState,
     smtpEnv :: Maybe SMTP.SMTP,
     emailSender :: EmailAddress,
@@ -272,6 +274,7 @@ newEnv opts = do
         gundeckEndpoint = opts.gundeck,
         cargoholdEndpoint = opts.cargohold,
         federator = opts.federatorInternal,
+        wireServerEnterpriseEndpoint = opts.wireServerEnterprise,
         casClient = cas,
         smtpEnv = emailSMTP,
         emailSender = opts.emailSMS.general.emailSender,

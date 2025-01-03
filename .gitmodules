@@ -4,4 +4,5 @@
 [submodule "services/wire-server-enterprise"]
 	path = services/wire-server-enterprise
 	url = https://github.com/wireapp/wire-server-enterprise
-	branch = main
+  # TODO: Change the `branch` back to `main`
+	branch = WPB-14307-domain-registration-endpoints

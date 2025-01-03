@@ -890,3 +890,32 @@ postServiceWhitelist user tid update = do
           "whitelist"
         ]
   submit "POST" (addJSON updateJson req)
+
+data DomainRegistrationConfig
+  = DomainRegistrationConfigRemove
+  | DomainRegistrationConfigBackend String
+  | DomainRegistrationConfigNoRegistration
+
+instance ToJSON DomainRegistrationConfig where
+  toJSON v = toJSON $ case v of
+    DomainRegistrationConfigRemove -> "remove"
+    (DomainRegistrationConfigBackend backendUrl) -> "backend:" ++ backendUrl
+    DomainRegistrationConfigNoRegistration -> "no-registration"
+
+domainVerificationToken :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> App Response
+domainVerificationToken domain registrationDomain mAuthToken = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "token"]
+  let req' = case mAuthToken of
+        Just authToken -> addHeader "Authorization" ("Bearer " <> authToken) req
+        Nothing -> req
+  submit "POST" req'
+
+domainVerificationBackend :: (HasCallStack, MakesValue domain) => domain -> String -> DomainRegistrationConfig -> App Response
+domainVerificationBackend domain registrationDomain config = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "backend"]
+  submit "POST" $ req & addJSONObject ["configuration" .= config]
+
+getDomainRegistrationFromEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getDomainRegistrationFromEmail domain email = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["get-domain-registration"]
+  submit "POST" $ req & addJSONObject ["email" .= email]

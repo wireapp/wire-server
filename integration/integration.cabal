@@ -119,6 +119,7 @@ library
     Test.Connection
     Test.Conversation
     Test.Demo
+    Test.DomainVerification
     Test.EJPD
     Test.EnterpriseLogin
     Test.Errors

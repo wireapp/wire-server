@@ -62,6 +62,7 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.ByteString (fromStrict)
+import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -97,8 +98,10 @@ import Servant qualified
 import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
+import Text.Email.Parser
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.Connection qualified as Public
+import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
@@ -108,6 +111,7 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
+import Wire.API.Routes.Bearer
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
@@ -117,6 +121,7 @@ import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Public.Cargohold
@@ -151,6 +156,7 @@ import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
+import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -167,6 +173,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
@@ -353,6 +360,7 @@ servantSitemap ::
     Member PasswordStore r,
     Member PropertySubsystem r,
     Member PublicKeyBundle r,
+    Member Random r,
     Member SFT r,
     Member TinyLog r,
     Member UserKeyStore r,
@@ -367,7 +375,8 @@ servantSitemap ::
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member EnterpriseLogin.EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -390,6 +399,7 @@ servantSitemap =
     :<|> botAPI
     :<|> servicesAPI
     :<|> providerAPI
+    :<|> domainVerificationAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -539,6 +549,12 @@ servantSitemap =
     systemSettingsAPI =
       Named @"get-system-settings-unauthorized" getSystemSettings
         :<|> Named @"get-system-settings" getSystemSettingsInternal
+
+    domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
+    domainVerificationAPI =
+      Named @"domain-verification-token" domainVerificationToken
+        :<|> Named @"verify-dns-record" verifyDNSRecord
+        :<|> Named @"get-domain-registration" getDomainRegistration
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1493,6 +1509,45 @@ getSystemSettingsInternal _ = do
   let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
   let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
+
+domainVerificationToken ::
+  (Member EnterpriseLogin.EnterpriseLoginSubsystem r, Member Random r) =>
+  Maybe (Bearer DomainVerificationAuthToken) ->
+  Domain ->
+  Handler r DomainVerificationTokenResponse
+domainVerificationToken mAuthToken domain = lift . liftSem $ do
+  authToken <- case mAuthToken of
+    Nothing -> randomDomainVerificationAuthCode
+    Just (Bearer t) -> pure t
+  dnsToken <- EnterpriseLogin.getDomainVerificationToken domain authToken
+  pure DomainVerificationTokenResponse {..}
+
+randomDomainVerificationAuthCode :: (Member Random r) => Sem r DomainVerificationAuthToken
+randomDomainVerificationAuthCode =
+  DomainVerificationAuthToken . Text.decodeUtf8 . B64U.encode <$> bytes 32
+
+verifyDNSRecord ::
+  (Member EnterpriseLogin.EnterpriseLoginSubsystem r) =>
+  Bearer DomainVerificationAuthToken ->
+  Domain ->
+  DomainRegistrationConfig ->
+  Handler r ()
+verifyDNSRecord (Bearer authToken) domain _ = do
+  success <- lift . liftSem $ EnterpriseLogin.verifyDNSRecord domain authToken
+  if success then pure () else throwStd (errorToWai @E.DomainVerificationFailed)
+
+getDomainRegistration ::
+  (Member EnterpriseLogin.EnterpriseLoginSubsystem r) =>
+  GetDomainRegistrationRequest ->
+  Handler r GetDomainRegistrationResponse
+getDomainRegistration (GetDomainRegistrationRequest email) = do
+  domain <-
+    either
+      (const (throwStd (errorToWai @E.InvalidDomain)))
+      pure
+      $ mkDomain (Text.decodeUtf8 (domainPart email))
+  reg <- lift . liftSem $ EnterpriseLogin.getDomainRegistration domain
+  pure $ GetDomainRegistrationResponse reg.domainRedirect
 
 -- Deprecated
 

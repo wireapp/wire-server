@@ -149,7 +149,7 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
-     Input (Maybe EnterpriseLoginSubsystemConfig),
+     Input EnterpriseLoginSubsystemConfig,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -302,11 +302,22 @@ runBrigToIO e (AppT ma) = do
     )
     $ runReaderT ma e
 
-mkEnterpriseLoginSubsystemConfig :: Env -> Maybe EnterpriseLoginSubsystemConfig
-mkEnterpriseLoginSubsystemConfig env = do
+mkEnterpriseLoginSubsystemEmailConfig :: Env -> Maybe EnterpriseLoginSubsystemEmailConfig
+mkEnterpriseLoginSubsystemEmailConfig env = do
   recipient <- env.settings.auditLogEmailRecipient
   let sender = env.emailSender
-  pure $ EnterpriseLoginSubsystemConfig {auditEmailSender = sender, auditEmailRecipient = recipient}
+  pure
+    EnterpriseLoginSubsystemEmailConfig
+      { auditEmailSender = sender,
+        auditEmailRecipient = recipient
+      }
+
+mkEnterpriseLoginSubsystemConfig :: Env -> EnterpriseLoginSubsystemConfig
+mkEnterpriseLoginSubsystemConfig env =
+  EnterpriseLoginSubsystemConfig
+    { emailConfig = mkEnterpriseLoginSubsystemEmailConfig env,
+      wireServerEnterpriseEndpoint = env.wireServerEnterpriseEndpoint
+    }
 
 rethrowHttpErrorIO :: (Member (Final IO) r) => InterpreterFor (Error HttpError) r
 rethrowHttpErrorIO act = do

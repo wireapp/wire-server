@@ -236,6 +236,7 @@ library
     , data-default
     , dns
     , dns-util
+    , email-validate
     , enclosed-exceptions                   >=1.0
     , errors                                >=1.4
     , exceptions                            >=0.5
