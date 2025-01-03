@@ -8,6 +8,8 @@ import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
+import Data.ByteString.Builder
+import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
 import Data.Misc
@@ -16,6 +18,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Ascii (Ascii, AsciiText (toText))
 import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as UUID
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -217,6 +220,25 @@ instance ToSchema DomainRegistration where
         <*> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
+
+-- | Bearer authentication token for domain verification requests.
+newtype DomainVerificationAuthToken = DomainVerificationAuthToken
+  { unDomainVerificationAuthToken :: Text
+  }
+  deriving newtype (Eq, Ord, Show)
+
+instance ToSchema DomainVerificationAuthToken where
+  schema = DomainVerificationAuthToken <$> unDomainVerificationAuthToken .= schema
+
+-- | The challenge to be presented in a TXT DNS record by the owner of the domain.
+newtype DomainVerificationToken = DomainVerificationToken {unDomainVerificationToken :: Text}
+  deriving newtype (Eq, Ord, Show)
+
+instance ToSchema DomainVerificationToken where
+  schema = DomainVerificationToken <$> unDomainVerificationToken .= schema
+
+instance ToByteString DomainVerificationToken where
+  builder = byteString . Text.encodeUtf8 . unDomainVerificationToken
 
 --------------------------------------------------------------------------------
 -- CQL instances

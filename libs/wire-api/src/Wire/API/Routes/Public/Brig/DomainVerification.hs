@@ -9,20 +9,31 @@ import Data.Text qualified as Text
 import Imports
 import Servant
 import Wire.API.EnterpriseLogin
+import Wire.API.Routes.Bearer
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.User
 
 type DomainVerificationAPI =
   Named
-    "verify-dns-record"
-    ( Summary "Verify DNS record and save configuration"
+    "domain-verification-token"
+    ( Summary "Get a DNS verification token"
+        :> Header "Authorization" (Bearer DomainVerificationAuthToken)
         :> "domain-verification"
         :> Capture "domain" Domain
-        :> "backend"
-        :> ReqBody '[JSON] DomainRegistrationConfig
-        :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Domain verified")
+        :> "token"
+        :> Post '[JSON] DomainVerificationTokenResponse
     )
+    :<|> Named
+           "verify-dns-record"
+           ( Summary "Verify DNS record and save configuration"
+               :> Header "Authorization" (Bearer DomainVerificationAuthToken)
+               :> "domain-verification"
+               :> Capture "domain" Domain
+               :> "backend"
+               :> ReqBody '[JSON] DomainRegistrationConfig
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Domain verified")
+           )
     :<|> Named
            "get-domain-registration"
            ( Summary "Get domain registration configuration by email"
@@ -30,6 +41,19 @@ type DomainVerificationAPI =
                :> ReqBody '[JSON] GetDomainRegistrationRequest
                :> Post '[JSON] GetDomainRegistrationResponse
            )
+
+data DomainVerificationTokenResponse = DomainVerificationTokenResponse
+  { authToken :: DomainVerificationAuthToken,
+    dnsToken :: DomainVerificationToken
+  }
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainVerificationTokenResponse)
+
+instance ToSchema DomainVerificationTokenResponse where
+  schema =
+    object "DomainVerificationTokenResponse" $
+      DomainVerificationTokenResponse
+        <$> (.authToken) .= field "auth_token" schema
+        <*> (.dnsToken) .= field "dns_verification_token" schema
 
 data DomainRegistrationConfig
   = DomainRegistrationConfigRemove

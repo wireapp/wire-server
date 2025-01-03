@@ -902,6 +902,14 @@ instance ToJSON DomainRegistrationConfig where
     (DomainRegistrationConfigBackend backendUrl) -> "backend:" ++ backendUrl
     DomainRegistrationConfigNoRegistration -> "no-registration"
 
+domainVerificationToken :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> App Response
+domainVerificationToken domain registrationDomain mAuthToken = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "token"]
+  let req' = case mAuthToken of
+        Just authToken -> addHeader "Authorization" ("Bearer " <> authToken) req
+        Nothing -> req
+  submit "POST" req'
+
 domainVerificationBackend :: (HasCallStack, MakesValue domain) => domain -> String -> DomainRegistrationConfig -> App Response
 domainVerificationBackend domain registrationDomain config = do
   req <- baseRequest domain Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "backend"]

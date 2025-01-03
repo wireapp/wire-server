@@ -110,6 +110,7 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
+import Wire.API.Routes.Bearer
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
@@ -548,7 +549,8 @@ servantSitemap =
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
-      Named @"verify-dns-record" verifyDNSRecord
+      Named @"domain-verification-token" domainVerificationToken
+        :<|> Named @"verify-dns-record" verifyDNSRecord
         :<|> Named @"get-domain-registration" getDomainRegistration
 
 -- Note [ephemeral user sideeffect]
@@ -1505,8 +1507,18 @@ getSystemSettingsInternal _ = do
   let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
 
-verifyDNSRecord :: Domain -> DomainRegistrationConfig -> Handler r ()
-verifyDNSRecord _ _ = do
+domainVerificationToken ::
+  Maybe (Bearer DomainVerificationAuthToken) ->
+  Domain ->
+  Handler r DomainVerificationTokenResponse
+domainVerificationToken _ _ = todo
+
+verifyDNSRecord ::
+  Maybe (Bearer DomainVerificationAuthToken) ->
+  Domain ->
+  DomainRegistrationConfig ->
+  Handler r ()
+verifyDNSRecord _ _ _ = do
   pure ()
 
 getDomainRegistration ::
