@@ -150,6 +150,7 @@ startDynamicBackend resource beOverrides = do
             setAwsConfigs,
             setMlsPrivateKeyPaths,
             setLogLevel,
+            setUserSettings,
             beOverrides
           ]
   startBackend resource overrides
@@ -237,6 +238,12 @@ startDynamicBackend resource beOverrides = do
           backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
           sternCfg = setField "logLevel" ("Warn" :: String),
           federatorInternalCfg = setField "logLevel" ("Warn" :: String)
+        }
+
+    setUserSettings :: ServiceOverrides
+    setUserSettings =
+      def
+        { brigCfg = removeField "optSettings.setSuspendInactiveUsers"
         }
 
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
