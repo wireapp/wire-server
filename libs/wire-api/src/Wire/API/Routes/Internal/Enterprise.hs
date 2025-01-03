@@ -1,6 +1,7 @@
 module Wire.API.Routes.Internal.Enterprise where
 
 import Data.Domain
+import Imports
 import Servant
 import Wire.API.EnterpriseLogin
 import Wire.API.Routes.MultiVerb
@@ -19,4 +20,11 @@ type InternalAPIBase =
                :> Capture "domain" Domain
                :> Capture "auth-token" DomainVerificationAuthToken
                :> Post '[JSON] DomainVerificationToken
+           )
+    :<|> Named
+           "verify-domain-token"
+           ( "verify-domain-token"
+               :> Capture "domain" Domain
+               :> Capture "auth-token" DomainVerificationAuthToken
+               :> Post '[JSON] Bool
            )

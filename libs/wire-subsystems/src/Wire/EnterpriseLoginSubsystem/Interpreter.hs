@@ -73,6 +73,9 @@ runEnterpriseLoginSubsystem = interpret $
     GetDomainVerificationToken domain authToken ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         getDomainVerificationTokenImpl domain authToken
+    VerifyDNSRecord domain authToken ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        verifyDNSRecordImpl domain authToken
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -282,6 +285,27 @@ getDomainVerificationTokenImpl domain authToken =
           . paths
             [ "i",
               "create-verification-token",
+              toByteString' domain,
+              toByteString' authToken
+            ]
+          . expect2xx
+      )
+
+verifyDNSRecordImpl ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r
+  ) =>
+  Domain ->
+  DomainVerificationAuthToken ->
+  Sem r Bool
+verifyDNSRecordImpl domain authToken =
+  decodeBodyOrThrow
+    =<< enterpriseRequest
+      ( method POST
+          . paths
+            [ "i",
+              "verify-domain-token",
               toByteString' domain,
               toByteString' authToken
             ]

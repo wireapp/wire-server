@@ -3,6 +3,7 @@
 module Wire.EnterpriseLoginSubsystem where
 
 import Data.Domain
+import Imports
 import Polysemy
 import Wire.API.EnterpriseLogin
 
@@ -18,5 +19,9 @@ data EnterpriseLoginSubsystem m a where
     Domain ->
     DomainVerificationAuthToken ->
     EnterpriseLoginSubsystem m DomainVerificationToken
+  VerifyDNSRecord ::
+    Domain ->
+    DomainVerificationAuthToken ->
+    EnterpriseLoginSubsystem m Bool
 
 makeSem ''EnterpriseLoginSubsystem

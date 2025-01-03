@@ -11,7 +11,7 @@ testDomainVerification = do
 
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
-  (authToken, dnsToken) <-
+  (_authToken, _dnsToken) <-
     bindResponse (domainVerificationToken OwnDomain domain Nothing) $ \resp -> do
       resp.status `shouldMatchInt` 200
       authToken <- resp.json %. "auth_token"

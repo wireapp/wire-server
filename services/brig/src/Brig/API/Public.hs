@@ -1527,12 +1527,14 @@ randomDomainVerificationAuthCode =
   DomainVerificationAuthToken . Text.decodeUtf8 . B64U.encode <$> bytes 32
 
 verifyDNSRecord ::
-  Maybe (Bearer DomainVerificationAuthToken) ->
+  (Member EnterpriseLogin.EnterpriseLoginSubsystem r) =>
+  Bearer DomainVerificationAuthToken ->
   Domain ->
   DomainRegistrationConfig ->
   Handler r ()
-verifyDNSRecord _ _ _ = do
-  pure ()
+verifyDNSRecord (Bearer authToken) domain _ = do
+  success <- lift . liftSem $ EnterpriseLogin.verifyDNSRecord domain authToken
+  if success then pure () else throwStd (errorToWai @E.DomainVerificationFailed)
 
 getDomainRegistration ::
   (Member EnterpriseLogin.EnterpriseLoginSubsystem r) =>

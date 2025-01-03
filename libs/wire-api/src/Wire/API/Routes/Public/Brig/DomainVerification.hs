@@ -27,7 +27,7 @@ type DomainVerificationAPI =
     :<|> Named
            "verify-dns-record"
            ( Summary "Verify DNS record and save configuration"
-               :> Header "Authorization" (Bearer DomainVerificationAuthToken)
+               :> Header' '[Required, Strict] "Authorization" (Bearer DomainVerificationAuthToken)
                :> "domain-verification"
                :> Capture "domain" Domain
                :> "backend"
