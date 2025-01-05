@@ -4,6 +4,8 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, aeson-diff
+, aeson-pretty
 , amazonka
 , amazonka-core
 , amazonka-dynamodb
@@ -376,6 +378,8 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    aeson-diff
+    aeson-pretty
     base
     binary
     brig-types
@@ -385,11 +389,15 @@ mkDerivation {
     dns
     dns-util
     exceptions
+    file-embed
     HsOpenSSL
+    http-api-data
     imports
     lens
+    lens-aeson
     polysemy
     polysemy-wire-zoo
+    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck
