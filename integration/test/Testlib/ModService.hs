@@ -276,7 +276,7 @@ startBackend resource overrides = do
   lift $ ensureBackendReachable resource.berDomain
 
 -- | Using ss because it is most convenient. Checking if a port is free in Haskell involves binding to it which is not what we want.
-ensureFederatorPortIsFree :: BackendResource -> App ()
+ensureFederatorPortIsFree :: (HasCallStack) => BackendResource -> App ()
 ensureFederatorPortIsFree resource = do
   serviceMap <- getServiceMap resource.berDomain
   let federatorExternalPort :: Word16 = serviceMap.federatorExternal.port
