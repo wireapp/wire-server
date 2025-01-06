@@ -123,11 +123,11 @@ traverseConcurrentlyCodensity f args = do
 
     pure result
 
-startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
+startDynamicBackends :: (HasCallStack) => [ServiceOverrides] -> ([String] -> App a) -> App a
 startDynamicBackends beOverrides k = do
   startDynamicBackendsReturnResources beOverrides (\resources -> k $ map (.berDomain) resources)
 
-startDynamicBackendsReturnResources :: [ServiceOverrides] -> ([BackendResource] -> App a) -> App a
+startDynamicBackendsReturnResources :: (HasCallStack) => [ServiceOverrides] -> ([BackendResource] -> App a) -> App a
 startDynamicBackendsReturnResources beOverrides k = do
   let startDynamicBackendsCodensity = do
         when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
