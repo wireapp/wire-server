@@ -360,5 +360,3 @@ spec:
       value: "1"
     - name: ENABLE_FEDERATION_V1
       value: "1"
-    - name: TEST_INCLUDE
-      value: "testMigratingPasswordHashingAlgorithm"

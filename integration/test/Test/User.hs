@@ -179,15 +179,8 @@ testActivateAccountWithPhoneV5 = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "bad-request"
 
-data Deflake = Deflake
-
-instance TestCases Deflake where
-  mkTestCases =
-    pure . flip map [(0 :: Int) .. 20] $ \n ->
-      MkTestCase {testCaseName = "Deflake" <> show n, testCase = Deflake}
-
-testMigratingPasswordHashingAlgorithm :: (HasCallStack) => Deflake -> App ()
-testMigratingPasswordHashingAlgorithm _ = do
+testMigratingPasswordHashingAlgorithm :: (HasCallStack) => App ()
+testMigratingPasswordHashingAlgorithm = do
   let argon2idOpts =
         object
           [ "algorithm" .= "argon2id",
