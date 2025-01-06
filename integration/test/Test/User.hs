@@ -190,12 +190,16 @@ testMigratingPasswordHashingAlgorithm = do
           ]
       cfgArgon2id =
         def
-          { brigCfg = setField "settings.setPasswordHashingOptions" argon2idOpts,
+          { brigCfg =
+              setField "settings.setPasswordHashingOptions" argon2idOpts
+                >=> removeField "optSettings.setSuspendInactiveUsers",
             galleyCfg = setField "settings.passwordHashingOptions" argon2idOpts
           }
       cfgScrypt =
         def
-          { brigCfg = setField "settings.setPasswordHashingOptions.algorithm" "scrypt",
+          { brigCfg =
+              setField "settings.setPasswordHashingOptions.algorithm" "scrypt"
+                >=> removeField "optSettings.setSuspendInactiveUsers",
             galleyCfg = setField "settings.passwordHashingOptions.algorithm" "scrypt"
           }
   resourcePool <- asks (.resourcePool)
