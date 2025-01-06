@@ -282,7 +282,7 @@ ensureFederatorPortIsFree resource = do
   let federatorExternalPort :: Word16 = serviceMap.federatorExternal.port
   env <- ask
   UnliftIO.timeout (env.timeOutSeconds * 1_000_000) (check federatorExternalPort) >>= \case
-    Nothing -> assertFailure $ "timeout waiting for federator port to be free: " <> show federatorExternalPort
+    Nothing -> assertFailure $ "timeout waiting for federator port to be free, domain=" <> resource.berDomain <> ", port=" <> show federatorExternalPort
     Just _ -> pure ()
   where
     check :: Word16 -> App ()
