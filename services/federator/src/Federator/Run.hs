@@ -35,7 +35,7 @@ module Federator.Run
 where
 
 import Control.Concurrent.Async
-import Control.Exception (bracket)
+import Control.Exception (bracket, catch)
 import Control.Lens ((^.))
 import Data.Id
 import Data.Metrics.GC
@@ -50,6 +50,8 @@ import Network.HTTP.Client qualified as HTTP
 import Prometheus
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as LogExt
+import System.Posix (installHandler)
+import System.Posix.Signals qualified as Sig
 import Util.Options
 import Wire.API.Federation.Component
 import Wire.Network.DNS.Helper qualified as DNS
@@ -64,16 +66,25 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
     logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
+    cleanupActionsRef <- newIORef []
     bracket (newEnv opts res logger) closeEnv $ \env -> do
-      let externalServer = serveInward env portExternal
-          internalServer = serveOutward env portInternal
+      let externalServer = serveInward env portExternal cleanupActionsRef
+          internalServer = serveOutward env portInternal cleanupActionsRef
       withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
+        _ <- installHandler Sig.sigINT (Sig.CatchOnce $ cleanup cleanupActionsRef) Nothing
+        _ <- installHandler Sig.sigTERM (Sig.CatchOnce $ cleanup cleanupActionsRef) Nothing
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
         void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal.port
+
+    cleanup :: IORef [IO ()] -> IO ()
+    cleanup cleanupsRef = do
+      cleanupActions <- readIORef cleanupsRef
+      for_ cleanupActions $ \action ->
+        action `catch` (\(_ :: SomeException) -> pure ())
 
     endpointExternal = federatorExternal opts
     portExternal = fromIntegral $ endpointExternal.port

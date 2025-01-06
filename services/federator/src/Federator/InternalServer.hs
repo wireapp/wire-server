@@ -130,6 +130,6 @@ callOutward targetDomain component (RPC path) req cont = do
       (fromLazyByteString body)
   embed . cont $ streamingResponseToWai resp
 
-serveOutward :: Env -> Int -> IO ()
-serveOutward env port = do
-  serveServant @(ToServantApi API) env port (toServant $ server env._httpManager env._internalPort)
+serveOutward :: Env -> Int -> IORef [IO ()] -> IO ()
+serveOutward env port cleanupsRef = do
+  serveServant @(ToServantApi API) env port cleanupsRef (toServant $ server env._httpManager env._internalPort)
