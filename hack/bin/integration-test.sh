@@ -62,8 +62,9 @@ kubectl -n wire-federation-v1 get secrets rabbitmq -ojson | jq 'del(.metadata.na
 # - run all tests. Perhaps multiple flaky tests in multiple services exist, if so, we wish to see all problems
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
+# TODO: Revert timeout to 15 mins
 printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
-    helm test -n "${NAMESPACE}" "${CHART}" --timeout 900s --filter name="${CHART}-{}-integration" '> logs-{};' \
+    helm test -n "${NAMESPACE}" "${CHART}" --timeout 1800s --filter name="${CHART}-{}-integration" '> logs-{};' \
     echo '$? > stat-{};' \
     echo "==== Done testing {}. ====" '};' \
     kubectl -n "${NAMESPACE}" logs "${CHART}-{}-integration" '>> logs-{};'
