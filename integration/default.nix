@@ -70,6 +70,7 @@
 , stm
 , streaming-commons
 , string-conversions
+, system-linux-proc
 , tagged
 , temporary
 , text
@@ -169,6 +170,7 @@ mkDerivation {
     stm
     streaming-commons
     string-conversions
+    system-linux-proc
     tagged
     temporary
     text

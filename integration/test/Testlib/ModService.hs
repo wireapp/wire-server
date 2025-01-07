@@ -18,10 +18,13 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import qualified Data.Attoparsec.Text as Parser
+import qualified Data.Char as Char
 import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
+import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -29,22 +32,28 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
+import Data.Word
 import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
+import qualified System.Linux.Proc as LinuxProc
 import System.Posix (keyboardSignal, killProcess, signalProcess)
+import System.Posix.Types
 import System.Process
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
+import Testlib.Ports (PortNamespace (..))
 import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
+import qualified UnliftIO
 import Prelude
 
 withModifiedBackend :: (HasCallStack) => ServiceOverrides -> ((HasCallStack) => String -> App a) -> App a
@@ -266,8 +275,80 @@ startBackend ::
   ServiceOverrides ->
   Codensity App ()
 startBackend resource overrides = do
+  lift $ waitForPortsToBeFree resource
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
+
+waitForPortsToBeFree :: (HasCallStack) => BackendResource -> App ()
+waitForPortsToBeFree backend = do
+  let namedPorts =
+        (FederatorExternal, backend.berFederatorExternal)
+          : (NginzHttp2, backend.berNginzHttp2Port)
+          : (NginzSSL, backend.berNginzSslPort)
+          : map (\s -> (ServiceInternal s, berInternalServicePorts backend s)) [minBound .. maxBound]
+  void $ UnliftIO.pooledMapConcurrentlyN 8 (uncurry $ waitForPortToBeFree backend.berDomain) namedPorts
+
+-- | Using lsof because it is most convenient. Checking if a port is free in Haskell involves binding to it which is not what we want.
+waitForPortToBeFree :: String -> PortNamespace -> Word16 -> App ()
+waitForPortToBeFree domain portName portNumber = do
+  env <- ask
+  addFailureContext ("domain=" <> domain <> "\nportName=" <> show portName <> "\nportNumber=" <> show portNumber) $
+    UnliftIO.timeout (env.timeOutSeconds * 1_000_000) check >>= \case
+      Nothing -> assertFailure $ "timeout waiting for federator port to be free: name=" <> show portName <> ", number=" <> show portNumber
+      Just _ -> pure ()
+  where
+    check :: App ()
+    check = do
+      env <- ask
+      let process = (proc "lsof" ["-Q", "-Fpc", "-i", ":" <> show portNumber, "-s", "TCP:LISTEN"]) {std_out = CreatePipe, std_err = CreatePipe}
+      (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess process
+      let prefix = "[" <> "lsof(" <> show portName <> ")@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
+      liftIO $ void $ forkIO $ logToConsole id prefix stderrHdl
+      exitCode <- liftIO $ waitForProcess ph
+      case exitCode of
+        ExitFailure _ -> assertFailure $ prefix <> "lsof failed to figure out if port is free"
+        ExitSuccess -> do
+          lsofOutput <- liftIO $ hGetContents stdoutHdl
+          case parseLsof (fromString lsofOutput) of
+            Right procs@(_ : _) -> do
+              liftIO $ putStrLn $ colored red $ prefix <> "Found one or more processes listening on port: " <> show portNumber
+              analysis <- List.intercalate "\n" <$> mapM (liftIO . uncurry analyzeRunningProcess) procs
+              liftIO $ putStrLn $ indent 2 analysis
+              liftIO $ threadDelay 100_000
+              check
+            Right [] -> pure ()
+            Left e -> assertFailure $ "Failed while parsing lsof output with error: " <> e <> "\n" <> "lsof output:\n" <> lsofOutput
+
+analyzeRunningProcess :: ProcessID -> String -> IO String
+analyzeRunningProcess pid pname = do
+  eithSocket <- LinuxProc.readProcTcpSockets (LinuxProc.ProcessId $ fromIntegral pid)
+  let sockInfo = case eithSocket of
+        Left e -> "Failed to read TCP sockets for process: error: " <> Text.unpack (LinuxProc.renderProcError e)
+        Right socks -> List.intercalate "\n" $ map displaySocket socks
+  pure $ "Process: pid=" <> show pid <> ", name=" <> pname <> "\n" <> indent 2 sockInfo
+  where
+    displaySocket :: LinuxProc.TcpSocket -> String
+    displaySocket sock = "local address = " <> show sock.tcpLocalAddr <> ", remote address = " <> show sock.tcpRemoteAddr <> ", tcp state = " <> show sock.tcpTcpState
+
+-- | Example lsof output:
+--
+-- @
+-- p61317
+-- cfederator
+--
+-- @
+parseLsof :: String -> Either String [(ProcessID, String)]
+parseLsof output =
+  Parser.parseOnly (listParser <* trailingSpace <* Parser.endOfInput) (fromString output)
+  where
+    lsofParser :: Parser.Parser (ProcessID, String)
+    lsofParser =
+      (,) <$> processIdParser <* Parser.char '\n' <*> processNameParser
+    processIdParser = Parser.char 'p' *> Parser.decimal
+    processNameParser = Parser.char 'c' *> Parser.many1 (Parser.satisfy (/= '\n'))
+
+    listParser = (Parser.sepBy lsofParser (Parser.char '\n'))
+    trailingSpace = Parser.many' (Parser.satisfy Char.isSpace)
 
 ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
