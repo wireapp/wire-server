@@ -106,13 +106,20 @@ serveServant ::
   (HasServer api '[], Metrics.RoutesToPaths api) =>
   Env ->
   Int ->
+  IORef [IO ()] ->
   ServerT api (Sem AllEffects) ->
   IO ()
-serveServant env port server = do
+serveServant env port cleanupsRef server = do
   let hoistApp :: RequestId -> Server api
       hoistApp rid =
         hoistServerWithContext (Proxy @api) (Proxy @'[]) (runFederator env rid) server
-  Warp.run port
+      registerCleanupAction cleanupAction =
+        atomicModifyIORef' cleanupsRef $ \xs -> (cleanupAction : xs, ())
+  let settings =
+        Warp.setPort port
+          . Warp.setInstallShutdownHandler registerCleanupAction
+          $ Warp.defaultSettings
+  Warp.runSettings settings
     . requestIdMiddleware env._applog federationRequestIdHeaderName
     . Wai.catchErrors (view applog env) federationRequestIdHeaderName
     . Metrics.servantPrometheusMiddleware (Proxy @api)

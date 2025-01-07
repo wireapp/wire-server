@@ -170,6 +170,6 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
               (responseHeaders resp)
         }
 
-serveInward :: Env -> Int -> IO ()
-serveInward env port =
-  serveServant @(ToServantApi API) env port $ toServant $ server env._httpManager env._internalPort
+serveInward :: Env -> Int -> IORef [IO ()] -> IO ()
+serveInward env port cleanupsRef =
+  serveServant @(ToServantApi API) env port cleanupsRef $ toServant $ server env._httpManager env._internalPort
