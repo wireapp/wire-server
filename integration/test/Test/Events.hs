@@ -21,9 +21,11 @@ import qualified Network.WebSockets as WS
 import Notifications
 import Servant.API (AsApi, ToServant, toServant)
 import Servant.API.Generic (fromServant)
+import Servant.Client (AsClientT)
 import qualified Servant.Client as Servant
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.ResourcePool
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -469,34 +471,45 @@ testChannelLimit = withModifiedBackend
         lift $ assertNoEvent_ ws
 
 testChannelKilled :: (HasCallStack) => App ()
-testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
-  let domain = backend.berDomain
-  alice <- randomUser domain def
-  [c1, c2] <-
-    replicateM 2
-      $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
-      >>= getJSON 201
-      >>= (%. "id")
-      >>= asString
+testChannelKilled = do
+  pool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 pool) $ \[backend] -> do
+    -- Some times RabbitMQ still remembers connections from previous uses of the
+    -- dynamic backend. So we wait to ensure that we kill connection only for our
+    -- current.
+    waitUntilNoRabbitMqConns backend
 
-  runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
-    -- If creating the user takes longer (async) than adding the clients, we get a
-    -- `"user.activate"` here, so we use `assertFindsEvent`.
+    runCodensity (startDynamicBackend backend def) $ \_ -> do
+      let domain = backend.berDomain
+      alice <- randomUser domain def
+      [c1, c2] <-
+        replicateM 2
+          $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
+          >>= getJSON 201
+          >>= (%. "id")
+          >>= asString
 
-    assertFindsEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` c1
-      ackEvent ws e
+      runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
+        -- If creating the user takes longer (async) than adding the clients, we get a
+        -- `"user.activate"` here, so we use `assertFindsEvent`.
+        assertFindsEvent ws $ \e -> do
+          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+          e %. "data.event.payload.0.client.id" `shouldMatch` c1
+          ackEvent ws e
 
-    assertFindsEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` c2
+        assertEvent ws $ \e -> do
+          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+          e %. "data.event.payload.0.client.id" `shouldMatch` c2
+          ackEvent ws e
 
-    recoverAll
-      (constantDelay 500_000 <> limitRetries 10)
-      (const (killConnection backend))
+        -- The RabbitMQ admin API takes some time to see new connections, so we need
+        -- to try a few times.
+        recoverAll
+          (constantDelay 500_000 <> limitRetries 10)
+          (const (killAllRabbitMqConns backend))
+        waitUntilNoRabbitMqConns backend
 
-    assertWebSocketDied ws
+        assertNoEventHelper ws `shouldMatch` WebSocketDied
 
 ----------------------------------------------------------------------
 -- helpers
@@ -661,15 +674,31 @@ consumeAllEvents ws = do
       ackEvent ws e
       consumeAllEvents ws
 
-killConnection :: (HasCallStack) => BackendResource -> App ()
-killConnection backend = do
+-- | Only considers connections from cannon
+waitUntilNoRabbitMqConns :: (HasCallStack) => BackendResource -> App ()
+waitUntilNoRabbitMqConns backend = do
   rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
-  connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack backend.berVHost)
-  connection <-
-    assertOne
-      [ c | c <- connections, c.userProvidedName == Just (Text.pack "pool 0")
-      ]
-  void $ rabbitmqAdminClient.deleteConnection connection.name
+  recoverAll
+    (constantDelay 500_000 <> limitRetries 10)
+    (const (go rabbitmqAdminClient))
+  where
+    go rabbitmqAdminClient = do
+      cannonConnections <- getCannonConnections rabbitmqAdminClient backend.berVHost
+      cannonConnections `shouldMatch` ([] :: [Connection])
+
+-- | Only kills connections from cannon
+killAllRabbitMqConns :: (HasCallStack) => BackendResource -> App ()
+killAllRabbitMqConns backend = do
+  rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
+  cannonConnections <- getCannonConnections rabbitmqAdminClient backend.berVHost
+  assertAtLeastOne cannonConnections
+  for_ cannonConnections $ \connection ->
+    rabbitmqAdminClient.deleteConnection connection.name
+
+getCannonConnections :: AdminAPI (AsClientT App) -> String -> App [Connection]
+getCannonConnections rabbitmqAdminClient vhost = do
+  connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack vhost)
+  pure $ filter (\c -> maybe False (fromString "pool " `Text.isPrefixOf`) c.userProvidedName) connections
 
 mkRabbitMqAdminClientForResource :: BackendResource -> App (AdminAPI (Servant.AsClientT App))
 mkRabbitMqAdminClientForResource backend = do
