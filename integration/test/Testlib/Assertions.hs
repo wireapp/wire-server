@@ -45,6 +45,11 @@ assertOne xs = case toList xs of
   [x] -> pure x
   other -> assertFailure ("Expected one, but got " <> show (length other))
 
+assertAtLeastOne :: (HasCallStack, Foldable t) => t a -> App ()
+assertAtLeastOne xs = case toList xs of
+  [] -> assertFailure ("Expected at least one, but got nothing")
+  _ -> pure ()
+
 expectFailure :: (HasCallStack) => (AssertionFailure -> App ()) -> App a -> App ()
 expectFailure checkFailure action = do
   env <- ask
