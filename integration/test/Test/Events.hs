@@ -385,7 +385,7 @@ testTransientEventsDoNotTriggerDeadLetters = do
 
     -- consume it
     runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-      assertEvent ws $ \e -> do
+      assertFindsEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "type" `shouldMatch` "event"
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
