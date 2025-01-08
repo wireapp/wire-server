@@ -452,6 +452,7 @@ withProcess resource overrides service = do
 
   startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
+  let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
   let initProcess = case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain sm
         (Nginz, Just _) -> startNginzLocalIO
@@ -459,7 +460,6 @@ withProcess resource overrides service = do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
           let colorize = fromMaybe id (lookup execName processColors)
           void $ forkIO $ logToConsole colorize prefix stdoutHdl
           void $ forkIO $ logToConsole colorize prefix stderrHdl
@@ -469,7 +469,9 @@ withProcess resource overrides service = do
     iok <- appToIOKleisli k
     liftIO $ E.bracket initProcess cleanupService iok
 
-  lift $ waitUntilServiceIsUp domain service
+  lift $
+    addFailureContext ("Waiting for service: " <> prefix) $
+      waitUntilServiceIsUp domain service
 
 logToConsole :: (String -> String) -> String -> Handle -> IO ()
 logToConsole colorize prefix hdl = do
@@ -489,7 +491,7 @@ retryRequestUntil reqAction err = do
       (\_ isUp -> pure (not isUp))
       (const reqAction)
   unless isUp $
-    failApp ("Timed out waiting for service " <> err <> " to come up")
+    assertFailure ("Timed out waiting for service " <> err <> " to come up")
 
 startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
 startNginzK8s domain sm = do
