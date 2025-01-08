@@ -477,6 +477,7 @@ testChannelKilled = do
     -- Some times RabbitMQ still remembers connections from previous uses of the
     -- dynamic backend. So we wait to ensure that we kill connection only for our
     -- current.
+    void $ killAllRabbitMqConns backend
     waitUntilNoRabbitMqConns backend
 
     runCodensity (startDynamicBackend backend def) $ \_ -> do
@@ -504,9 +505,10 @@ testChannelKilled = do
 
         -- The RabbitMQ admin API takes some time to see new connections, so we need
         -- to try a few times.
-        recoverAll
-          (constantDelay 500_000 <> limitRetries 10)
-          (const (killAllRabbitMqConns backend))
+        recoverAll (constantDelay 500_000 <> limitRetries 10) $ \_ -> do
+          conns <- killAllRabbitMqConns backend
+          assertAtLeastOne conns
+
         waitUntilNoRabbitMqConns backend
 
         assertNoEventHelper ws `shouldMatch` WebSocketDied
@@ -686,14 +688,14 @@ waitUntilNoRabbitMqConns backend = do
       cannonConnections <- getCannonConnections rabbitmqAdminClient backend.berVHost
       cannonConnections `shouldMatch` ([] :: [Connection])
 
--- | Only kills connections from cannon
-killAllRabbitMqConns :: (HasCallStack) => BackendResource -> App ()
+-- | Only kills connections from cannon and returns them
+killAllRabbitMqConns :: (HasCallStack) => BackendResource -> App [Connection]
 killAllRabbitMqConns backend = do
   rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
   cannonConnections <- getCannonConnections rabbitmqAdminClient backend.berVHost
-  assertAtLeastOne cannonConnections
   for_ cannonConnections $ \connection ->
     rabbitmqAdminClient.deleteConnection connection.name
+  pure cannonConnections
 
 getCannonConnections :: AdminAPI (AsClientT App) -> String -> App [Connection]
 getCannonConnections rabbitmqAdminClient vhost = do
