@@ -49,9 +49,6 @@ repositories:
   - name: stable
     url: 'https://charts.helm.sh/stable'
 
-  - name: bitnami
-    url: 'https://charts.bitnami.com/bitnami'
-
   - name: ingress
     url: 'https://kubernetes.github.io/ingress-nginx'
 
