@@ -529,6 +529,7 @@ createEventsWebSocket user cid = do
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
   apiVersion <- lift $ getAPIVersionFor $ objDomain user
+  wsStarted <- newEmptyMVar
   let minAPIVersion = 8
   lift
     . when (apiVersion < minAPIVersion)
@@ -538,7 +539,8 @@ createEventsWebSocket user cid = do
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
       path = "/v" <> show apiVersion <> "/events" <> maybe "" ("?client=" <>) cid
       caHdrs = [(fromString "Z-User", toByteString' uid)]
-      app conn =
+      app conn = do
+        putMVar wsStarted ()
         race_
           (wsRead conn `catch` (writeChan eventsChan . Left))
           (wsWrite conn)
@@ -571,7 +573,8 @@ createEventsWebSocket user cid = do
       )
       k
 
-  Codensity $ \k ->
+  Codensity $ \k -> do
+    takeMVar wsStarted
     k (EventWebSocket eventsChan ackChan) `finally` do
       putMVar ackChan Nothing
       liftIO $ wait wsThread
