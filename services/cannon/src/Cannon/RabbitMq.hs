@@ -23,6 +23,7 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry
 import Data.ByteString.Conversion
+import Data.Id
 import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Text qualified as T
@@ -214,9 +215,7 @@ openConnection pool = do
     )
 
 data RabbitMqChannel = RabbitMqChannel
-  { -- | The current channel. The var is empty while the channel is being
-    -- re-established.
-    inner :: MVar Q.Channel,
+  { inner :: Q.Channel,
     msgVar :: MVar (Maybe (Q.Message, Q.Envelope))
   }
 
@@ -225,68 +224,67 @@ getMessage chan = takeMVar chan.msgVar >>= maybe (throwIO ChannelClosed) pure
 
 ackMessage :: RabbitMqChannel -> Word64 -> Bool -> IO ()
 ackMessage chan deliveryTag multiple = do
-  inner <- readMVar chan.inner
-  Q.ackMsg inner deliveryTag multiple
+  Q.ackMsg chan.inner deliveryTag multiple
 
 type QueueName = Text
 
 type CreateQueue = Q.Channel -> Codensity IO QueueName
 
-createChannel :: RabbitMqPool -> CreateQueue -> Codensity IO RabbitMqChannel
-createChannel pool createQueue = do
-  closedVar <- lift newEmptyMVar
-  inner <- lift newEmptyMVar
+createChannel :: UserId -> Maybe ClientId -> RabbitMqPool -> CreateQueue -> Codensity IO RabbitMqChannel
+createChannel uid mcid pool createQueue = do
   msgVar <- lift newEmptyMVar
   key <- lift newUnique
 
-  let handleException e = do
-        retry <- case (Q.isNormalChannelClose e, fromException e) of
+  let logContext =
+        Log.field "user" (idToText uid)
+          . Log.field "client" (maybe "<temporary>" clientToText mcid)
+      handleException e = do
+        case (Q.isNormalChannelClose e, fromException e) of
           (True, _) -> do
             Log.info pool.logger $
               Log.msg (Log.val "RabbitMQ channel is closed normally, not attempting to reopen channel")
-            pure False
+                . logContext
           (_, Just (Q.ConnectionClosedException {})) -> do
             Log.info pool.logger $
               Log.msg (Log.val "RabbitMQ connection was closed unexpectedly")
-            pure pool.opts.retryEnabled
+                . logContext
           _ -> do
             unless (fromException e == Just AsyncCancelled) $
-              logException pool.logger "RabbitMQ channel closed" e
-            pure pool.opts.retryEnabled
-        putMVar closedVar retry
+              Log.err pool.logger $
+                Log.msg (Log.val "RabbitMQ channel closed")
+                  . (Log.field "error" (displayException e))
+                  . logContext
+        putMVar msgVar Nothing
 
-  let manageChannel = do
-        retry <- lowerCodensity $ do
-          conn <- Codensity $ bracket (acquireConnection pool) (releaseConnection pool key)
-          chan <- Codensity $ bracket (Q.openChannel conn.inner) $ \c ->
-            catch (Q.closeChannel c) $ \(_ :: SomeException) -> pure ()
-          connSize <- atomically $ do
-            let conn' = conn {channels = Map.insert key chan conn.channels}
-            conns <- readTVar pool.connections
-            writeTVar pool.connections $!
-              map (\c -> if c.connId == conn'.connId then conn' else c) conns
-            pure $ Map.size conn'.channels
-          if connSize > pool.opts.maxChannels
-            then pure True
-            else do
-              queueName <- createQueue chan
+  let tryCreateChannel = do
+        conn <- Codensity $ bracket (acquireConnection pool) (releaseConnection pool key)
+        chan <- Codensity $ bracket (Q.openChannel conn.inner) $ \c ->
+          catch (Q.closeChannel c) $ \(_ :: SomeException) -> pure ()
+        connSize <- atomically $ do
+          let conn' = conn {channels = Map.insert key chan conn.channels}
+          conns <- readTVar pool.connections
+          writeTVar pool.connections $!
+            map (\c -> if c.connId == conn'.connId then conn' else c) conns
+          pure $ Map.size conn'.channels
+        if connSize > pool.opts.maxChannels
+          then pure Nothing
+          else do
+            liftIO $ Q.addChannelExceptionHandler chan handleException
+            pure . Just $ RabbitMqChannel {inner = chan, msgVar = msgVar}
 
-              liftIO $ Q.addChannelExceptionHandler chan handleException
-              putMVar inner chan
-              void $ liftIO $ Q.consumeMsgs chan queueName Q.Ack $ \(message, envelope) -> do
-                putMVar msgVar (Just (message, envelope))
-              retry <- takeMVar closedVar
-              void $ takeMVar inner
-              pure retry
-
-        when retry manageChannel
-
-  void $
-    Codensity $
-      withAsync $
-        catch manageChannel handleException
-          `finally` putMVar msgVar Nothing
-  pure RabbitMqChannel {inner = inner, msgVar = msgVar}
+  mChan <-
+    retrying
+      -- For this to reach 10 times, we'd have to create a _lot_ of channels
+      -- concurrently and have this thread loose all races for creating a
+      -- connection
+      (constantDelay 10000 <> limitRetries 10)
+      (const $ pure . isJust)
+      (const $ tryCreateChannel)
+  chan <- maybe (throw TooManyChannels) pure mChan
+  queueName <- createQueue chan.inner
+  void $ liftIO $ Q.consumeMsgs (chan.inner) queueName Q.Ack $ \(message, envelope) -> do
+    putMVar msgVar (Just (message, envelope))
+  pure chan
 
 acquireConnection :: RabbitMqPool -> IO PooledConnection
 acquireConnection pool = do
@@ -329,12 +327,6 @@ logConnectionError l willRetry e retryStatus = do
       . Log.field "error" (displayException @SomeException e)
       . Log.field "willRetry" willRetry
       . Log.field "retryCount" retryStatus.rsIterNumber
-
-logException :: (MonadIO m) => Logger -> String -> SomeException -> m ()
-logException l m (SomeException e) = do
-  Log.err l $
-    Log.msg m
-      . Log.field "error" (displayException e)
 
 rabbitMqRetryPolicy :: RetryPolicyM IO
 rabbitMqRetryPolicy = limitRetriesByCumulativeDelay 1_000_000 $ fullJitterBackoff 1000
