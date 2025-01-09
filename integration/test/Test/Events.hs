@@ -108,8 +108,8 @@ testConsumeTempEvents = do
 
         ackEvent ws e
 
-testConsumeTempEventsWithoutOwnClient :: (HasCallStack) => Deflake 100 -> App ()
-testConsumeTempEventsWithoutOwnClient _ = do
+testConsumeTempEventsWithoutOwnClient :: (HasCallStack) => App ()
+testConsumeTempEventsWithoutOwnClient = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
 
   runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
