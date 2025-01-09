@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -60,7 +62,7 @@ type DeprecateSSOAPIV1 =
     \Details: https://docs.wire.com/understand/single-sign-on/trouble-shooting.html#can-i-use-the-same-sso-login-code-for-multiple-teams"
 
 type APISSO =
-  Named "sso-metadata" (DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta)
+  Named "sso-metadata" (DeprecateSSOAPIV1 :> Deprecated :> Until 'V8 :> "metadata" :> SAML.APIMeta)
     :<|> Named "sso-team-metadata" ("metadata" :> Capture "team" TeamId :> SAML.APIMeta)
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
@@ -94,6 +96,7 @@ type APIAuthRespLegacy =
     "auth-resp-legacy"
     ( DeprecateSSOAPIV1
         :> Deprecated
+        :> Until 'V8
         :> "finalize-login"
         -- (SAML.APIAuthResp from here on, except for response)
         :> MultipartForm Mem SAML.AuthnResponseBody
@@ -163,6 +166,10 @@ sparResponseURI Nothing =
   SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
 sparResponseURI (Just tid) =
   SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid
+
+instance HasLink (Until 'V8 :> api) where
+  type MkLink (Until 'V8 :> api) a = a
+  toLink x _ = x
 
 -- SCIM
 

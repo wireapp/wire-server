@@ -1033,6 +1033,7 @@ type ConversationAPI =
            "update-conversation-name-deprecated"
            ( Summary "Update conversation name (deprecated)"
                :> Deprecated
+               :> Until 'V8
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
@@ -1052,6 +1053,7 @@ type ConversationAPI =
            "update-conversation-name-unqualified"
            ( Summary "Update conversation name (deprecated)"
                :> Deprecated
+               :> Until 'V8
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
@@ -1092,6 +1094,7 @@ type ConversationAPI =
            "update-conversation-message-timer-unqualified"
            ( Summary "Update the message timer for a conversation (deprecated)"
                :> Deprecated
+               :> Until 'V8
                :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
                :> ZLocalUser
                :> ZConn
@@ -1134,6 +1137,7 @@ type ConversationAPI =
            "update-conversation-receipt-mode-unqualified"
            ( Summary "Update receipt mode for a conversation (deprecated)"
                :> Deprecated
+               :> Until 'V8
                :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
                :> ZLocalUser
                :> ZConn
@@ -1244,6 +1248,7 @@ type ConversationAPI =
            "get-conversation-self-unqualified"
            ( Summary "Get self membership properties (deprecated)"
                :> Deprecated
+               :> Until 'V8
                :> ZLocalUser
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -1254,6 +1259,7 @@ type ConversationAPI =
            "update-conversation-self-unqualified"
            ( Summary "Update self membership properties (deprecated)"
                :> Deprecated
+               :> Until 'V8
                :> Description "Use `/conversations/:domain/:conv/self` instead."
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
