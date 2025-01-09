@@ -608,7 +608,9 @@ assertEvent ws expectations = do
   timeOutSeconds <- asks (.timeOutSeconds)
   timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
     Nothing -> assertFailure $ "No event received for " <> show timeOutSeconds <> "s"
-    Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+    Just (Left ex) ->
+      addFailureContext ("WSException: " <> displayException ex)
+        $ assertFailure "Websocket closed when waiting for more events"
     Just (Right e) -> do
       pretty <- prettyJSON e
       addFailureContext ("event:\n" <> pretty)
@@ -623,7 +625,9 @@ assertFindsEvent ws expectations = go 0
       timeOutSeconds <- asks (.timeOutSeconds)
       timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
         Nothing -> assertFailure $ show ignoredEventCount <> " event(s) received, no matching event received for " <> show timeOutSeconds <> "s"
-        Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+        Just (Left ex) ->
+          addFailureContext ("WSException: " <> displayException ex)
+            $ assertFailure "Websocket closed when waiting for more events"
         Just (Right ev) -> do
           (expectations ev)
             `catch` \(_ :: AssertionFailure) -> do
