@@ -637,10 +637,10 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
 
 updateTeamConv :: UserId -> ConvId -> ConversationRename -> TestM ResponseLBS
 updateTeamConv zusr convid upd = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   put
     ( g
-        . paths ["/conversations", toByteString' convid]
+        . paths ["v7", "conversations", toByteString' convid]
         . zUser zusr
         . zConn "conn"
         . zType "access"
@@ -1181,10 +1181,10 @@ deleteMemberQualified u1 (Qualified u2 u2Domain) (Qualified conv convDomain) = d
 
 getSelfMember :: UserId -> ConvId -> TestM ResponseLBS
 getSelfMember u c = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   get $
     g
-      . paths ["conversations", toByteString' c, "self"]
+      . paths ["v7", "conversations", toByteString' c, "self"]
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -1261,11 +1261,11 @@ putQualifiedConversationName u c n = do
 
 putConversationName :: UserId -> ConvId -> Text -> TestM ResponseLBS
 putConversationName u c n = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   let update = ConversationRename n
   put
     ( g
-        . paths ["conversations", toByteString' c, "name"]
+        . paths ["v7", "conversations", toByteString' c, "name"]
         . zUser u
         . zConn "conn"
         . zType "access"
@@ -1292,11 +1292,11 @@ putQualifiedReceiptMode u (Qualified c dom) r = do
 
 putReceiptMode :: UserId -> ConvId -> ReceiptMode -> TestM ResponseLBS
 putReceiptMode u c r = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   let update = ConversationReceiptModeUpdate r
   put
     ( g
-        . paths ["conversations", toByteString' c, "receipt-mode"]
+        . paths ["v7", "conversations", toByteString' c, "receipt-mode"]
         . zUser u
         . zConn "conn"
         . zType "access"
@@ -1379,10 +1379,10 @@ putMessageTimerUpdateQualified u c acc = do
 putMessageTimerUpdate ::
   UserId -> ConvId -> ConversationMessageTimerUpdate -> TestM ResponseLBS
 putMessageTimerUpdate u c acc = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   put $
     g
-      . paths ["/conversations", toByteString' c, "message-timer"]
+      . paths ["v7", "conversations", toByteString' c, "message-timer"]
       . zUser u
       . zConn "conn"
       . zType "access"
