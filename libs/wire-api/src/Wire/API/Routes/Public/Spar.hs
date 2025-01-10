@@ -64,8 +64,9 @@ type DeprecateSSOAPIV1 =
 type APISSO =
   Named
     "sso-metadata"
-    ( -- This deprecated endpoint should be removed at some point. However it does not make a lot of sense to apply our versioning mechanism to it,
-      -- as this is not a classic client API endpoint. It is used in the SAML IDP flow and should exist independently of the API version.
+    ( --  This deprecated endpoint should be removed at some point. However it does not make a lot of sense to apply our versioning mechanism to it,
+      -- as this is not a classic client API endpoint. It is used in the SAML IDP flow and should exist independently of the API version,
+      -- and requires a different process for decommissioning. See https://wearezeta.atlassian.net/browse/WPB-15319
       DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta
     )
     :<|> Named "sso-team-metadata" ("metadata" :> Capture "team" TeamId :> SAML.APIMeta)
@@ -97,7 +98,8 @@ type APIAuthReq =
     )
 
 -- | This deprecated endpoint should be removed at some point. However it does not make a lot of sense to apply our versioning mechanism to it,
--- as this is not a classic client API endpoint. It is used in the SAML IDP flow and should exist independently of the API version.
+-- as this is not a classic client API endpoint. It is used in the SAML IDP flow and should exist independently of the API version,
+-- and requires a different process for decommissioning. See https://wearezeta.atlassian.net/browse/WPB-15319
 type APIAuthRespLegacy =
   Named
     "auth-resp-legacy"
