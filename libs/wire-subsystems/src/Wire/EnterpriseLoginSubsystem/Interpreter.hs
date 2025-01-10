@@ -56,6 +56,7 @@ runEnterpriseLoginSubsystem = interpret $
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
+    GuardEmailDomainRegistrationState domain -> guardEmailDomainRegistrationStateImpl domain
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -340,3 +341,47 @@ sendAuditMail url subject mBefore mAfter = do
   for_ mConfig $ \config -> do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
     sendMail mail
+
+guardEmailDomainRegistrationState ::
+  forall r.
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r
+  ) =>
+  TeamId ->
+  EmailAddress ->
+  Sem r ()
+guardEmailDomainRegistrationState tid email = do
+  dom <- do
+    txt <- case encodeUtf8' $ Email.domainPart email of
+      Right t -> pure t
+      Left msg -> EnterpriseLoginSubsystemGuardInvalidDomain msg
+
+    case mkDomain txt of
+      Right d -> pure d
+      Left msg -> EnterpriseLoginSubsystemGuardInvalidDomain msg
+
+  let ok = pure ()
+      nope = throw . EnterpriseLoginSubsystemGuardFailed
+
+      go :: StoredDomainRegistration -> Sem r ()
+      go reg = do
+        -- fail if domain-redirect is set to no-registration, or
+        case reg.domainRedirect of
+          None -> ok
+          Locked -> ok
+          SSO SAML.IdPId -> ok
+          Backend HttpsUrl -> ok
+          NoRegistration -> nope "`domain_redirect` is set to `no-registration`"
+          PreAuthorized -> ok
+
+        -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
+        -- the team of the inviter
+        case reg.teamInvite of
+          Allowed -> ok
+          NotAllowed -> nope "`teamInvite` is set to `not-allowed`"
+          Team allowedTid ->
+            if allowedTid == tid
+              then ok
+              else nope $ "`teamInvite` is restricted to another team."
+
+  mapM_ go (Store.lookup dom)
