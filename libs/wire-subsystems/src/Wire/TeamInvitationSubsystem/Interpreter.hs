@@ -70,6 +70,7 @@ inviteUserImpl ::
     Member TinyLog r,
     Member Random r,
     Member InvitationStore r,
+    -- Member EnterpriseLoginSubsystem r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
     Member EmailSubsystem r
@@ -80,9 +81,10 @@ inviteUserImpl ::
   Sem r (Invitation, InvitationLocation)
 inviteUserImpl luid tid request = do
   let inviteeRole = fromMaybe defaultRole request.role
-
   let inviteePerms = Teams.rolePermissions inviteeRole
+
   ensurePermissionToAddUser (tUnqualified luid) tid inviteePerms
+  -- guardEmailDomainRegistrationState request.inviteeEmail
 
   inviterEmail <-
     note TeamInvitationNoEmail =<< runMaybeT do
