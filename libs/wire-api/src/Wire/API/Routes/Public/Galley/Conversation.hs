@@ -1247,6 +1247,7 @@ type ConversationAPI =
     :<|> Named
            "get-conversation-self-unqualified"
            ( Summary "Get self membership properties (deprecated)"
+               :> Description "Use `/conversations/:domain/:conv` instead and get the self member from `response.members.self`."
                :> Deprecated
                :> Until 'V8
                :> ZLocalUser
