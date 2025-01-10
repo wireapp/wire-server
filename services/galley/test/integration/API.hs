@@ -2729,7 +2729,6 @@ putQualifiedConvRenameOk = do
 putConvDeprecatedRenameOk :: TestM ()
 putConvDeprecatedRenameOk = do
   c <- view tsCannon
-  g <- viewGalley
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -2737,10 +2736,11 @@ putConvDeprecatedRenameOk = do
   conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    unversionedGalley <- view tsUnversionedGalley
     -- This endpoint is deprecated but clients still use it
     put
-      ( g
-          . paths ["conversations", toByteString' conv]
+      ( unversionedGalley
+          . paths ["v7", "conversations", toByteString' conv]
           . zUser bob
           . zConn "conn"
           . zType "access"
