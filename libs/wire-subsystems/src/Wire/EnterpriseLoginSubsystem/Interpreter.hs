@@ -11,12 +11,14 @@ where
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain, domainText, mkDomain)
 import Data.Id
 import Data.Misc (HttpsUrl (..))
+import Data.Text.Encoding as T
 import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
+import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder (Builder)
-import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Lazy.Encoding as LT
 import Imports hiding (lookup)
 import Network.Mail.Mime (Address (Address), Mail (mailHeaders, mailParts, mailTo), emptyMail, plainPart)
 import Polysemy
@@ -26,6 +28,7 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
+import Text.Email.Parser qualified as Email
 import Wire.API.EnterpriseLogin
 import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.DomainRegistrationStore
@@ -56,7 +59,7 @@ runEnterpriseLoginSubsystem = interpret $
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
-    GuardEmailDomainRegistrationState domain -> guardEmailDomainRegistrationStateImpl domain
+    GuardEmailDomainRegistrationState tid email -> guardEmailDomainRegistrationStateImpl tid email
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -329,12 +332,12 @@ sendAuditMail url subject mBefore mAfter = do
         toLazyText $
           url
             <> " called;\nOld value:\n"
-            <> fromLazyText (decodeUtf8 (maybe "null" Aeson.encodePretty mBefore))
+            <> fromLazyText (LT.decodeUtf8 (maybe "null" Aeson.encodePretty mBefore))
             <> "\nNew value:\n"
-            <> fromLazyText (decodeUtf8 (maybe "null" Aeson.encodePretty mAfter))
+            <> fromLazyText (LT.decodeUtf8 (maybe "null" Aeson.encodePretty mAfter))
   Log.info $
     Log.msg (Log.val "Domain registration audit log")
-      . Log.field "url" (encodeUtf8 $ toLazyText url)
+      . Log.field "url" (LT.encodeUtf8 $ toLazyText url)
       . Log.field "old_value" (maybe "null" Aeson.encode mBefore)
       . Log.field "new_value" (maybe "null" Aeson.encode mAfter)
   mConfig <- input
@@ -342,46 +345,42 @@ sendAuditMail url subject mBefore mAfter = do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
     sendMail mail
 
-guardEmailDomainRegistrationState ::
+guardEmailDomainRegistrationStateImpl ::
   forall r.
   ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   EmailAddress ->
   Sem r ()
-guardEmailDomainRegistrationState tid email = do
+guardEmailDomainRegistrationStateImpl tid email = do
   dom <- do
-    txt <- case encodeUtf8' $ Email.domainPart email of
-      Right t -> pure t
-      Left msg -> EnterpriseLoginSubsystemGuardInvalidDomain msg
-
-    case mkDomain txt of
+    case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
       Right d -> pure d
-      Left msg -> EnterpriseLoginSubsystemGuardInvalidDomain msg
+      Left msg -> throw $ EnterpriseLoginSubsystemGuardInvalidDomain (LT.pack msg)
 
-  let ok = pure ()
-      nope = throw . EnterpriseLoginSubsystemGuardFailed
-
-      go :: StoredDomainRegistration -> Sem r ()
-      go reg = do
-        -- fail if domain-redirect is set to no-registration, or
-        case reg.domainRedirect of
-          None -> ok
-          Locked -> ok
-          SSO SAML.IdPId -> ok
-          Backend HttpsUrl -> ok
-          NoRegistration -> nope "`domain_redirect` is set to `no-registration`"
-          PreAuthorized -> ok
-
-        -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
-        -- the team of the inviter
-        case reg.teamInvite of
-          Allowed -> ok
-          NotAllowed -> nope "`teamInvite` is set to `not-allowed`"
-          Team allowedTid ->
-            if allowedTid == tid
-              then ok
-              else nope $ "`teamInvite` is restricted to another team."
-
-  mapM_ go (Store.lookup dom)
+  mReg <- tryGetDomainRegistrationImpl dom
+  case mReg of
+    Nothing -> error "todo(leif): what should happen here?"
+    Just reg -> do
+      -- fail if domain-redirect is set to no-registration, or
+      case reg.domainRedirect of
+        None -> ok
+        Locked -> ok
+        SSO _ -> ok
+        Backend _ -> ok
+        NoRegistration -> nope "`domain_redirect` is set to `no-registration`"
+        PreAuthorized -> ok
+      -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
+      -- the team of the inviter
+      case reg.teamInvite of
+        Allowed -> ok
+        NotAllowed -> nope "`teamInvite` is set to `not-allowed`"
+        Team allowedTid ->
+          if allowedTid == tid
+            then ok
+            else nope $ "`teamInvite` is restricted to another team."
+  where
+    ok = pure ()
+    nope = throw . EnterpriseLoginSubsystemGuardFailed

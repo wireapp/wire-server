@@ -3,7 +3,9 @@
 module Wire.EnterpriseLoginSubsystem where
 
 import Data.Domain
+import Data.Id
 import Polysemy
+import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 
 data EnterpriseLoginSubsystem m a where
@@ -14,6 +16,6 @@ data EnterpriseLoginSubsystem m a where
   UpdateDomainRegistration :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-  GuardEmailDomainRegistrationState :: Domain -> EnterpriseLoginSubsystem m ()
+  GuardEmailDomainRegistrationState :: TeamId -> EmailAddress -> EnterpriseLoginSubsystem m ()
 
 makeSem ''EnterpriseLoginSubsystem
