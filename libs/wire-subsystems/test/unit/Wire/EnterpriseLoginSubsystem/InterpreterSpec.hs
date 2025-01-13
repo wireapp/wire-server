@@ -56,7 +56,7 @@ spec = describe "EnterpriseLoginSubsystem" $ do
   it "UpdateDomainRegistration" pending
   it "DeleteDomain" pending
 
-  focus . prop "GuardEmailDomainRegistrationState" $
+  prop "GuardEmailDomainRegistrationState" $
     \flow sameTeam teamId email preDomRegEntry ->
       let setTeamId :: DomainRegistrationUpdate -> TeamId -> DomainRegistrationUpdate
           setTeamId update tid = case update.teamInvite of
@@ -69,21 +69,21 @@ spec = describe "EnterpriseLoginSubsystem" $ do
             updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
             guardEmailDomainRegistrationState flow teamId email
 
-          a = case domRegEntry.teamInvite of
-            Allowed -> b
+          teamNotAllowedOrWrongTeamIdFails = case domRegEntry.teamInvite of
+            Allowed -> outcome === Right ()
             NotAllowed -> outcome === Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is set to `not-allowed`")
             Team allowedTid ->
               if allowedTid == teamId
-                then b
+                then outcome === Right ()
                 else outcome === Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is restricted to another team.")
 
-          b = case domRegEntry.domainRedirect of
+          backendRedirectOrNoRegistrationFails = case domRegEntry.domainRedirect of
             Backend _ ->
               -- if domain-redirect is set to `backend`, then team-invite must be set to `not-allowed`
-              outcome === Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is set to `not-allowed`")
+              teamNotAllowedOrWrongTeamIdFails
             NoRegistration ->
               case flow of
                 ExistingUser -> outcome === Left (EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `no-registration`")
-                NewUser -> outcome === Right ()
-            _ -> outcome === Right ()
-       in a
+                NewUser -> teamNotAllowedOrWrongTeamIdFails
+            _ -> teamNotAllowedOrWrongTeamIdFails
+       in backendRedirectOrNoRegistrationFails
