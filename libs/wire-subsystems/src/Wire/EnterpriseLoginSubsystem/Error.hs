@@ -28,4 +28,7 @@ enterpriseLoginSubsystemErrorToHttpError =
     EnterpriseLoginSubsystemUnAuthorizeError -> Wai.mkError status409 "unauthorize-error" "Domain redirect can not bet set to unauthorized when locked or SSO"
     EnterpriseLoginSubsystemPreAuthorizeError -> Wai.mkError status409 "preauthorize-error" "Domain redirect must be 'none' to be pre-authorized"
     EnterpriseLoginSubsystemGuardFailed msg -> Wai.mkError status409 "enterprise-login-guard-failed" ("condition failed: " <> msg)
-    EnterpriseLoginSubsystemGuardInvalidDomain msg -> Wai.mkError status409 "enterprise-login-guard-failed" ("could not parse domain: " <> msg)
+    EnterpriseLoginSubsystemGuardInvalidDomain msg -> Wai.mkError status423 "enterprise-login-guard-failed" ("could not parse domain: " <> msg)
+  where
+    status423 :: Status
+    status423 = mkStatus 423 "Locked"

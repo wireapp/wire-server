@@ -8,6 +8,8 @@ import Polysemy
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 
+data InvitationFlow = ExistingUser | NewUser
+
 data EnterpriseLoginSubsystem m a where
   LockDomain :: Domain -> EnterpriseLoginSubsystem m ()
   UnlockDomain :: Domain -> EnterpriseLoginSubsystem m ()
@@ -16,6 +18,6 @@ data EnterpriseLoginSubsystem m a where
   UpdateDomainRegistration :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-  GuardEmailDomainRegistrationState :: TeamId -> EmailAddress -> EnterpriseLoginSubsystem m ()
+  GuardEmailDomainRegistrationState :: InvitationFlow -> TeamId -> EmailAddress -> EnterpriseLoginSubsystem m ()
 
 makeSem ''EnterpriseLoginSubsystem

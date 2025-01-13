@@ -59,7 +59,7 @@ runEnterpriseLoginSubsystem = interpret $
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
-    GuardEmailDomainRegistrationState tid email -> guardEmailDomainRegistrationStateImpl tid email
+    GuardEmailDomainRegistrationState flow tid email -> guardEmailDomainRegistrationStateImpl flow tid email
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -351,36 +351,37 @@ guardEmailDomainRegistrationStateImpl ::
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r
   ) =>
+  InvitationFlow ->
   TeamId ->
   EmailAddress ->
   Sem r ()
-guardEmailDomainRegistrationStateImpl tid email = do
+guardEmailDomainRegistrationStateImpl invitationFlow tid email = do
   dom <- do
     case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
       Right d -> pure d
       Left msg -> throw $ EnterpriseLoginSubsystemGuardInvalidDomain (LT.pack msg)
 
   mReg <- tryGetDomainRegistrationImpl dom
-  case mReg of
-    Nothing -> error "todo(leif): what should happen here?"
-    Just reg -> do
-      -- fail if domain-redirect is set to no-registration, or
-      case reg.domainRedirect of
-        None -> ok
-        Locked -> ok
-        SSO _ -> ok
-        Backend _ -> ok
-        NoRegistration -> nope "`domain_redirect` is set to `no-registration`"
-        PreAuthorized -> ok
-      -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
-      -- the team of the inviter
-      case reg.teamInvite of
-        Allowed -> ok
-        NotAllowed -> nope "`teamInvite` is set to `not-allowed`"
-        Team allowedTid ->
-          if allowedTid == tid
-            then ok
-            else nope $ "`teamInvite` is restricted to another team."
+  for_ mReg $ \reg -> do
+    -- fail if domain-redirect is set to no-registration, or
+    case reg.domainRedirect of
+      None -> ok
+      Locked -> ok
+      SSO _ -> ok
+      Backend _ -> ok
+      NoRegistration -> case invitationFlow of
+        ExistingUser -> nope "`domain_redirect` is set to `no-registration`"
+        NewUser -> ok
+      PreAuthorized -> ok
+    -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
+    -- the team of the inviter
+    case reg.teamInvite of
+      Allowed -> ok
+      NotAllowed -> nope "`teamInvite` is set to `not-allowed`"
+      Team allowedTid ->
+        if allowedTid == tid
+          then ok
+          else nope $ "`teamInvite` is restricted to another team."
   where
     ok = pure ()
     nope = throw . EnterpriseLoginSubsystemGuardFailed
