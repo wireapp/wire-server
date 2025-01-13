@@ -242,6 +242,7 @@ test-suite wire-subsystems-tests
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
@@ -309,6 +310,7 @@ test-suite wire-subsystems-tests
     , tinylog
     , transformers
     , types-common
+    , uuid
     , wire-api
     , wire-api-federation
     , wire-subsystems
