@@ -540,7 +540,7 @@ createEventsWebSocket user cid = do
       path = "/v" <> show apiVersion <> "/events" <> maybe "" ("?client=" <>) cid
       caHdrs = [(fromString "Z-User", toByteString' uid)]
       app conn = do
-        putMVar wsStarted ()
+        putMVar wsStarted (Right ())
         race_
           (wsRead conn `catch` (writeChan eventsChan . Left))
           (wsWrite conn)
@@ -560,25 +560,22 @@ createEventsWebSocket user cid = do
             WS.sendBinaryData conn (encode ack)
               >> wsWrite conn
 
-  wsThread <- Codensity $ \k -> do
-    withAsync
-      ( liftIO
-          $ WS.runClientWith
-            caHost
-            (fromIntegral caPort)
-            path
-            WS.defaultConnectionOptions
-            caHdrs
-            app
-      )
-      k
+  wsThread <-
+    Codensity
+      $ withAsync
+      $ liftIO
+      $ WS.runClientWith caHost (fromIntegral caPort) path WS.defaultConnectionOptions caHdrs app
+      `catch` \(e :: WS.HandshakeException) -> putMVar wsStarted (Left e)
 
   Codensity $ \k -> do
     timeOutSeconds <- asks (.timeOutSeconds)
     mStarted <- timeout (timeOutSeconds * 1_000_000) (takeMVar wsStarted)
     case mStarted of
-      Nothing -> assertFailure $ "Websocket failed to connect within " <> show timeOutSeconds <> "s"
-      Just () ->
+      Nothing -> do
+        cancel wsThread
+        assertFailure $ "Websocket failed to connect within " <> show timeOutSeconds <> "s"
+      Just (Left e) -> assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
+      Just (Right ()) ->
         k (EventWebSocket eventsChan ackChan) `finally` do
           putMVar ackChan Nothing
           liftIO $ wait wsThread
