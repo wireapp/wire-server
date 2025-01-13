@@ -25,6 +25,8 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.EmailSubsystem
+import Wire.EnterpriseLoginSubsystem
+import Wire.EnterpriseLoginSubsystem qualified as ELS
 import Wire.GalleyAPIAccess hiding (AddTeamMember)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationStore (InvitationStore, StoredInvitation)
@@ -54,7 +56,8 @@ runTeamInvitationSubsystem ::
     Member Random r,
     Member InvitationStore r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   TeamInvitationSubsystemConfig ->
   InterpreterFor TeamInvitationSubsystem r
@@ -70,10 +73,10 @@ inviteUserImpl ::
     Member TinyLog r,
     Member Random r,
     Member InvitationStore r,
-    -- Member EnterpriseLoginSubsystem r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -84,7 +87,6 @@ inviteUserImpl luid tid request = do
   let inviteePerms = Teams.rolePermissions inviteeRole
 
   ensurePermissionToAddUser (tUnqualified luid) tid inviteePerms
-  -- guardEmailDomainRegistrationState request.inviteeEmail
 
   inviterEmail <-
     note TeamInvitationNoEmail =<< runMaybeT do
@@ -114,7 +116,8 @@ createInvitation' ::
     Member Random r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   TeamId ->
   Maybe InvitationId ->
@@ -139,6 +142,9 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
           && isNothing user.userTeam ->
           pure True
       | otherwise -> throw TeamInvitationEmailTaken
+  let flow = if isPersonalUserMigration then ExistingUser else ELS.NewUser
+  -- todo(leif): remove after writing the test for it
+  when False $ guardEmailDomainRegistrationState flow tid email
 
   maxSize <- maxTeamSize <$> input
   pending <- Store.countInvitations tid
