@@ -2,7 +2,7 @@ module Wire.EnterpriseLoginSubsystem.InterpreterSpec where
 
 import Data.Domain
 import Data.Id
-import Data.UUID qualified as UUID
+import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -10,8 +10,10 @@ import Polysemy.Input
 import Polysemy.State
 import Polysemy.TinyLog
 import Test.Hspec
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck
 import Wire.API.EnterpriseLogin
-import Wire.API.User.EmailAddress
+import Wire.API.User.EmailAddress (domainPart)
 import Wire.DomainRegistrationStore
 import Wire.EmailSending
 import Wire.EnterpriseLoginSubsystem
@@ -54,81 +56,34 @@ spec = describe "EnterpriseLoginSubsystem" $ do
   it "UpdateDomainRegistration" pending
   it "DeleteDomain" pending
 
-  describe "GuardEmailDomainRegistrationState" $ do
-    let testTeamInvitation sut = it "team-invitation" $ do
-          let teamInvites = [Allowed, NotAllowed, Team anyTeam, Team otherTeam]
-          for_ teamInvites \teamInvite -> do
-            let update = DomainRegistrationUpdate {teamInvite = teamInvite, domainRedirect = None}
-                outcome = runDependencies . runEnterpriseLoginSubsystem $ do
-                  updateDomainRegistration (Domain "example.com") update
-                  sut
-            case teamInvite of
-              Allowed -> outcome `shouldBe` Right ()
-              NotAllowed -> outcome `shouldBe` Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is set to `not-allowed`")
-              Team allowedTid ->
-                if allowedTid == anyTeam
-                  then outcome `shouldBe` Right ()
-                  else outcome `shouldBe` Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is restricted to another team.")
+  focus . prop "GuardEmailDomainRegistrationState" $
+    \flow sameTeam teamId email preDomRegEntry ->
+      let setTeamId :: DomainRegistrationUpdate -> TeamId -> DomainRegistrationUpdate
+          setTeamId update tid = case update.teamInvite of
+            Team _ -> DomainRegistrationUpdate update.domainRedirect (Team tid)
+            _ -> update
 
-        anyTeam = Id (fromMaybe (error "invalid uuid") $ UUID.fromString "74d17a68-d196-11ef-934c-2b0e41bf5418")
-        otherTeam = Id (fromMaybe (error "invalid uuid") $ UUID.fromString "74d17a68-d196-11ef-934c-2b0e41bf5419")
-        anyEmailAddress = unsafeEmailAddress "me" "example.com"
-        domainRedirects =
-          [ None,
-            Locked,
-            SSO undefined,
-            Backend undefined,
-            NoRegistration,
-            PreAuthorized
-          ]
-    context "invite new user" $ do
-      let sut = guardEmailDomainRegistrationState NewUser anyTeam anyEmailAddress
+          domRegEntry = if sameTeam then setTeamId preDomRegEntry teamId else preDomRegEntry
 
-      it "no entry in enterprise login table -> ok" $ do
-        (runDependencies . runEnterpriseLoginSubsystem) sut `shouldBe` Right ()
+          outcome = runDependencies . runEnterpriseLoginSubsystem $ do
+            updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
+            guardEmailDomainRegistrationState flow teamId email
 
-      it "domain-redirect" $ do
-        for_ domainRedirects \domReg -> do
-          let teamInvite = case domReg of
-                -- if domain-redirect is set to `backend`, then team-invite must be set to `not-allowed`
-                Backend _ -> NotAllowed
-                _ -> Allowed
-              update = DomainRegistrationUpdate {teamInvite = teamInvite, domainRedirect = domReg}
-          let outcome = runDependencies . runEnterpriseLoginSubsystem $ do
-                updateDomainRegistration (Domain "example.com") update
-                sut
-          case domReg of
-            None -> outcome `shouldBe` Right ()
-            Locked -> outcome `shouldBe` Right ()
-            SSO _ -> outcome `shouldBe` Right ()
-            Backend _ -> outcome `shouldBe` Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is set to `not-allowed`")
-            NoRegistration -> outcome `shouldBe` Right ()
-            PreAuthorized -> outcome `shouldBe` Right ()
+          a = case domRegEntry.teamInvite of
+            Allowed -> b
+            NotAllowed -> outcome === Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is set to `not-allowed`")
+            Team allowedTid ->
+              if allowedTid == teamId
+                then b
+                else outcome === Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is restricted to another team.")
 
-      testTeamInvitation sut
-
-    context "invite existing user" $ do
-      let sut = guardEmailDomainRegistrationState ExistingUser anyTeam anyEmailAddress
-
-      it "no entry in enterprise login table -> ok" $ do
-        (runDependencies . runEnterpriseLoginSubsystem) sut `shouldBe` Right ()
-
-      it "domain-redirect" $ do
-        for_ domainRedirects \domReg -> do
-          let teamInvite = case domReg of
-                -- if domain-redirect is set to `backend`, then team-invite must be set to `not-allowed`
-                Backend _ -> NotAllowed
-                _ -> Allowed
-              update = DomainRegistrationUpdate {teamInvite = teamInvite, domainRedirect = domReg}
-          let outcome = runDependencies . runEnterpriseLoginSubsystem $ do
-                updateDomainRegistration (Domain "example.com") update
-                sut
-          case domReg of
-            None -> outcome `shouldBe` Right ()
-            Locked -> outcome `shouldBe` Right ()
-            SSO _ -> outcome `shouldBe` Right ()
-            Backend _ -> outcome `shouldBe` Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is set to `not-allowed`")
-            NoRegistration -> outcome `shouldBe` Left (EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `no-registration`")
-            PreAuthorized -> outcome `shouldBe` Right ()
-
-      testTeamInvitation $ sut
+          b = case domRegEntry.domainRedirect of
+            Backend _ ->
+              -- if domain-redirect is set to `backend`, then team-invite must be set to `not-allowed`
+              outcome === Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is set to `not-allowed`")
+            NoRegistration ->
+              case flow of
+                ExistingUser -> outcome === Left (EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `no-registration`")
+                NewUser -> outcome === Right ()
+            _ -> outcome === Right ()
+       in a

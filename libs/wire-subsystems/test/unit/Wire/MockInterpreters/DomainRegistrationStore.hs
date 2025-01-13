@@ -7,6 +7,6 @@ import Wire.DomainRegistrationStore
 
 inMemoryDomainRegistrationStoreInterpreter :: (Member (State [StoredDomainRegistration]) r) => InterpreterFor DomainRegistrationStore r
 inMemoryDomainRegistrationStoreInterpreter = interpret $ \case
-  Upsert dr -> modify ((dr :) . filter ((/= domain dr) . domain))
-  Lookup d -> gets (find ((== d) . domain))
-  Delete d -> modify (filter ((/= d) . domain))
+  UpsertInternal dr -> modify ((dr :) . filter ((/= domain dr) . domain))
+  LookupInternal d -> gets (find ((== d) . domain))
+  DeleteInternal d -> modify (filter ((/= d) . domain))

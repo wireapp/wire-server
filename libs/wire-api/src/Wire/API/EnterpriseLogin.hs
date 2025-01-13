@@ -16,6 +16,9 @@ import Data.Text.Ascii (Ascii, AsciiText (toText))
 import Data.Text.Ascii qualified as Ascii
 import Imports
 import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Test.Arbitrary ()
+import Test.QuickCheck (suchThat)
+import Wire.Arbitrary
 
 data DomainRedirect
   = None
@@ -24,7 +27,8 @@ data DomainRedirect
   | Backend HttpsUrl
   | NoRegistration
   | PreAuthorized
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform DomainRedirect
 
 makePrisms ''DomainRedirect
 
@@ -97,7 +101,8 @@ data TeamInvite
   = Allowed
   | NotAllowed
   | Team TeamId
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamInvite
 
 makePrisms ''TeamInvite
 
@@ -161,6 +166,21 @@ data DomainRegistrationUpdate = DomainRegistrationUpdate
   }
   deriving stock (Eq, Show)
   deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRegistrationUpdate
+
+instance Arbitrary DomainRegistrationUpdate where
+  arbitrary = do
+    ( DomainRegistrationUpdate
+        <$> arbitrary
+        <*> arbitrary
+      )
+      `suchThat` validate
+    where
+      validate :: DomainRegistrationUpdate -> Bool
+      validate dr =
+        case dr.domainRedirect of
+          Locked -> dr.teamInvite == Allowed
+          Backend _ -> dr.teamInvite == NotAllowed
+          _ -> True
 
 instance ToSchema DomainRegistrationUpdate where
   schema =

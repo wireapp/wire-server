@@ -23,9 +23,9 @@ interpretDomainRegistrationStoreToCassandra ::
 interpretDomainRegistrationStoreToCassandra casClient =
   interpret $
     embed @IO . runClient casClient . \case
-      Upsert dr -> upsert dr
-      Lookup domain -> lookup domain
-      Delete domain -> delete domain
+      UpsertInternal dr -> upsert dr
+      LookupInternal domain -> lookup domain
+      DeleteInternal domain -> delete domain
 
 upsert :: (MonadClient m) => StoredDomainRegistration -> m ()
 upsert dr = retry x5 $ write cqlUpsert (params LocalQuorum (asTuple dr))
