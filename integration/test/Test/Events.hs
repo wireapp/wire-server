@@ -574,10 +574,14 @@ createEventsWebSocket user cid = do
       k
 
   Codensity $ \k -> do
-    takeMVar wsStarted
-    k (EventWebSocket eventsChan ackChan) `finally` do
-      putMVar ackChan Nothing
-      liftIO $ wait wsThread
+    timeOutSeconds <- asks (.timeOutSeconds)
+    mStarted <- timeout (timeOutSeconds * 1_000_000) (takeMVar wsStarted)
+    case mStarted of
+      Nothing -> assertFailure $ "Websocket failed to connect within " <> show timeOutSeconds <> "s"
+      Just () ->
+        k (EventWebSocket eventsChan ackChan) `finally` do
+          putMVar ackChan Nothing
+          liftIO $ wait wsThread
 
 ackFullSync :: (HasCallStack) => EventWebSocket -> App ()
 ackFullSync ws =
