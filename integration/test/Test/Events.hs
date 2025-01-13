@@ -467,8 +467,13 @@ testChannelLimit = withModifiedBackend
 
       -- the first client fails to connect because the server runs out of channels
       do
-        ws <- createEventsWebSocket alice (Just client0)
-        lift $ assertNoEvent_ ws
+        eithWS <- createEventsWebSocketEither alice (Just client0)
+        case eithWS of
+          Left (WS.MalformedResponse respHead _) ->
+            lift $ respHead.responseCode `shouldMatchInt` 503
+          Left e ->
+            lift $ assertFailure $ "Expected websocket to fail with response code 503, got some other handshake exception: " <> displayException e
+          Right _ -> lift $ assertFailure "Expected websocket hanshake to fail, but it didn't"
 
 testChannelKilled :: (HasCallStack) => App ()
 testChannelKilled = do
@@ -525,6 +530,17 @@ createEventsWebSocket ::
   Maybe String ->
   Codensity App EventWebSocket
 createEventsWebSocket user cid = do
+  eithWS <- createEventsWebSocketEither user cid
+  case eithWS of
+    Left e -> lift $ assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
+    Right ws -> pure ws
+
+createEventsWebSocketEither ::
+  (HasCallStack, MakesValue uid) =>
+  uid ->
+  Maybe String ->
+  Codensity App (Either WS.HandshakeException EventWebSocket)
+createEventsWebSocketEither user cid = do
   eventsChan <- liftIO newChan
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
@@ -574,9 +590,10 @@ createEventsWebSocket user cid = do
       Nothing -> do
         cancel wsThread
         assertFailure $ "Websocket failed to connect within " <> show timeOutSeconds <> "s"
-      Just (Left e) -> assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
+      Just (Left e) ->
+        k $ Left e
       Just (Right ()) ->
-        k (EventWebSocket eventsChan ackChan) `finally` do
+        k (Right $ EventWebSocket eventsChan ackChan) `finally` do
           putMVar ackChan Nothing
           liftIO $ wait wsThread
 
