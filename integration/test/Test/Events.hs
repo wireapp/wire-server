@@ -583,16 +583,16 @@ createEventsWebSocketEither user cid = do
       $ WS.runClientWith caHost (fromIntegral caPort) path WS.defaultConnectionOptions caHdrs app
       `catch` \(e :: WS.HandshakeException) -> putMVar wsStarted (Left e)
 
-  Codensity $ \k -> do
-    timeOutSeconds <- asks (.timeOutSeconds)
-    mStarted <- timeout (timeOutSeconds * 1_000_000) (takeMVar wsStarted)
-    case mStarted of
-      Nothing -> do
-        cancel wsThread
-        assertFailure $ "Websocket failed to connect within " <> show timeOutSeconds <> "s"
-      Just (Left e) ->
-        k $ Left e
-      Just (Right ()) ->
+  timeOutSeconds <- asks (.timeOutSeconds)
+  mStarted <- lift $ timeout (timeOutSeconds * 1_000_000) (takeMVar wsStarted)
+  case mStarted of
+    Nothing -> do
+      cancel wsThread
+      lift $ assertFailure $ "Websocket failed to connect within " <> show timeOutSeconds <> "s"
+    Just (Left e) ->
+      pure (Left e)
+    Just (Right ()) ->
+      Codensity $ \k ->
         k (Right $ EventWebSocket eventsChan ackChan) `finally` do
           putMVar ackChan Nothing
           liftIO $ wait wsThread
