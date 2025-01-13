@@ -280,7 +280,7 @@ createChannel uid mcid pool createQueue = do
   mChan <-
     retrying
       -- For this to reach 10 times, we'd have to create a _lot_ of channels
-      -- concurrently and have this thread loose all races for creating a
+      -- concurrently and have this thread lose all races for creating a
       -- connection
       (constantDelay 10000 <> limitRetries 10)
       (const $ pure . isNothing)
