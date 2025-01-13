@@ -23,20 +23,23 @@ import Wire.API.Notification
 
 rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid mcid e pendingConn = do
-  runCodensity (createChannel uid mcid e.pool createQueue) $ \chan ->
-    bracket openWebSocket closeWebSocket $ \wsConn ->
+  runCodensity (createChannel uid mcid e.pool createQueue) runWithChannel
+    `catches` [handleTooManyChannels]
+  where
+    logClient =
+      Log.field "user" (idToText uid)
+        . Log.field "client" (maybe "<temporary>" clientToText mcid)
+
+    runWithChannel chan = bracket openWebSocket closeWebSocket $ \wsConn ->
       ( do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
           sendNotifications chan wsConn
       )
         `catches` [ handleClientMisbehaving wsConn,
                     handleWebSocketExceptions wsConn,
+                    handleRabbitMqChannelException wsConn,
                     handleOtherExceptions wsConn
                   ]
-  where
-    logClient =
-      Log.field "user" (idToText uid)
-        . Log.field "client" (maybe "<temporary>" clientToText mcid)
 
     openWebSocket =
       acceptRequest pendingConn
@@ -103,10 +106,25 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
                 . logClient
             WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString)
 
+    handleRabbitMqChannelException wsConn = do
+      Handler $ \ChannelClosed -> do
+        Log.debug e.logg $ Log.msg (Log.val "RabbitMQ channel closed") . logClient
+        WS.sendCloseCode wsConn 1001 ("" :: ByteString)
+
     handleOtherExceptions wsConn = Handler $
       \(err :: SomeException) -> do
         WS.sendCloseCode wsConn 1003 ("internal-error" :: ByteString)
         throwIO err
+
+    handleTooManyChannels = Handler $
+      \TooManyChannels ->
+        rejectRequestWith pendingConn $
+          RejectRequest
+            { rejectCode = 503,
+              rejectMessage = "Service Unavailable",
+              rejectHeaders = [],
+              rejectBody = ""
+            }
 
     createQueue chan = case mcid of
       Nothing -> Codensity $ \k -> do

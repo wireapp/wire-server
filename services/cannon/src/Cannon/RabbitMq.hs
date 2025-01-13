@@ -1,7 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Cannon.RabbitMq
-  ( RabbitMqPoolException,
+  ( RabbitMqPoolException (..),
+    RabbitMqChannelException (..),
     RabbitMqPoolOptions (..),
     RabbitMqPool,
     createRabbitMqPool,
@@ -38,10 +39,14 @@ import UnliftIO (pooledMapConcurrentlyN_)
 
 data RabbitMqPoolException
   = TooManyChannels
-  | ChannelClosed
   deriving (Eq, Show)
 
 instance Exception RabbitMqPoolException
+
+data RabbitMqChannelException = ChannelClosed
+  deriving (Eq, Show)
+
+instance Exception RabbitMqChannelException
 
 data PooledConnection = PooledConnection
   { connId :: Word64,
