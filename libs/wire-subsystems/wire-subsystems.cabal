@@ -246,6 +246,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.BlockListStore
+    Wire.MockInterpreters.DomainRegistrationStore
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.Events
