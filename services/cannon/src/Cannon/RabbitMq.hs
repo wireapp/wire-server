@@ -283,7 +283,7 @@ createChannel uid mcid pool createQueue = do
       -- concurrently and have this thread loose all races for creating a
       -- connection
       (constantDelay 10000 <> limitRetries 10)
-      (const $ pure . isJust)
+      (const $ pure . isNothing)
       (const $ tryCreateChannel)
   chan <- maybe (throw TooManyChannels) pure mChan
   queueName <- createQueue chan.inner
