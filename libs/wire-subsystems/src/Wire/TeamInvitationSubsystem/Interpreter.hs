@@ -143,8 +143,7 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
           pure True
       | otherwise -> throw TeamInvitationEmailTaken
   let flow = if isPersonalUserMigration then ExistingUser else ELS.NewUser
-  -- todo(leif): remove after writing the test for it
-  when False $ guardEmailDomainRegistrationState flow tid email
+  guardEmailDomainRegistrationState flow tid email
 
   maxSize <- maxTeamSize <$> input
   pending <- Store.countInvitations tid

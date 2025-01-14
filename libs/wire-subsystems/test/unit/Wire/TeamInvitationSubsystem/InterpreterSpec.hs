@@ -51,7 +51,8 @@ type AllEffects =
   ]
 
 data RunAllEffectsArgs = RunAllEffectsArgs
-  { teamOwner :: TeamMember
+  { teamOwner :: TeamMember,
+    initialUsers :: [User]
   }
   deriving (Eq, Show)
 
@@ -59,7 +60,7 @@ runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either TeamInvitationS
 runAllEffects args =
   run
     . enterpriseLoginSubsystemTestInterpreter
-    . userSubsystemTestInterpreter []
+    . userSubsystemTestInterpreter args.initialUsers
     . evalState mempty
     . emailSubsystemInterpreter
     . evalState defaultTime
@@ -76,23 +77,27 @@ runAllEffects args =
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
-    prop "calls guardEmailDomainRegistrationState if appropriate" $
-      \uid tid email ->
+    focus . prop "calls guardEmailDomainRegistrationState if appropriate" $
+      \preInviter tid inviterEmail inviteeEmail ->
         let cfg =
               TeamInvitationSubsystemConfig
                 { maxTeamSize = 50,
                   teamInvitationTimeout = 3_000_000
                 }
-            invreq =
+            invReq =
               InvitationRequest
                 { locale = Nothing,
                   role = Nothing,
                   inviteeName = Nothing,
-                  inviteeEmail = email,
+                  inviteeEmail = inviteeEmail,
                   allowExisting = False
                 }
-            teamMember = mkTeamMember (tUnqualified uid) fullPermissions Nothing UserLegalHoldDisabled
-            args = RunAllEffectsArgs teamMember
+            inviter = preInviter {userIdentity = Just $ EmailIdentity inviterEmail}
+            uid = qUnqualified inviter.userQualifiedId
+            domain = qDomain inviter.userQualifiedId
+            luid = toLocalUnsafe domain uid
+            teamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
+            args = RunAllEffectsArgs teamMember [inviter]
             outcome = runAllEffects args . runTeamInvitationSubsystem cfg $ do
-              void $ inviteUser uid tid invreq
+              void $ inviteUser luid tid invReq
          in outcome === Right () -- TODO: should be some Left.
