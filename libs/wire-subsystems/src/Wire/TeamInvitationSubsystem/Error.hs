@@ -11,7 +11,7 @@ data TeamInvitationSubsystemError
   | TooManyTeamInvitations
   | TeamInvitationBlacklistedEmail
   | TeamInvitationEmailTaken
-  deriving (Show)
+  deriving (Eq, Show)
 
 teamInvitationErrorToHttpError :: TeamInvitationSubsystemError -> HttpError
 teamInvitationErrorToHttpError =
