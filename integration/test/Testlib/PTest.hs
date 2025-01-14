@@ -132,3 +132,11 @@ instance (TestCases a, TestCases b) => TestCases (OneOf a b) where
     as <- fmap (map (fmap OneOfA)) mkTestCases
     bs <- fmap (map (fmap OneOfB)) mkTestCases
     pure $ as <> bs
+
+data Deflake (n :: Nat) = Deflake
+
+instance (KnownNat times) => TestCases (Deflake times) where
+  mkTestCases = do
+    let timesVal = natVal (Proxy @times)
+    pure . flip map [1 .. timesVal] $ \n ->
+      MkTestCase {testCaseName = "[deflake" <> show n <> "]", testCase = Deflake}
