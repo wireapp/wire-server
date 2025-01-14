@@ -32,6 +32,7 @@ spec:
         {{- if .Values.service.nginz.enabled }}
         checksum/nginz-configmap: {{ include (print .Template.BasePath "/nginz-configmap.yaml") . | sha256sum }}
         {{- end }}
+        checksum/cassandra-secret: {{ include (print .Template.BasePath "/cassandra-secret.yaml") . | sha256sum }}
     spec:
       terminationGracePeriodSeconds: {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}
       topologySpreadConstraints:
@@ -117,6 +118,10 @@ spec:
         - name: rabbitmq-ca
           mountPath: "/etc/wire/cannon/rabbitmq-ca/"
         {{- end }}
+        {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+        - name: "cannon-cassandra"
+          mountPath: "/etc/wire/cannon/cassandra"
+        {{- end }}
         ports:
         - name: http
           containerPort: {{ .Values.service.internalPort }}
@@ -174,4 +179,9 @@ spec:
       - name: rabbitmq-ca
         secret:
           secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+      {{- end }}
+      {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+      - name: "cannon-cassandra"
+        secret:
+          secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
       {{- end }}

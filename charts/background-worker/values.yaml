@@ -37,14 +37,6 @@ config:
     pushBackoffMaxWait: 300000000 # microseconds, so 300s
     remotesRefreshInterval: 300000000 # microseconds, so 300s
 
-serviceAccount:
-  # When setting this to 'false', either make sure that a service account named
-  # 'background-worker' exists or change the 'name' field to 'default'
-  create: true
-  name: background-worker
-  annotations: {}
-  automountServiceAccountToken: true
-
 secrets: {}
 
 podSecurityContext:
