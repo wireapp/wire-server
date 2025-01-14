@@ -510,6 +510,7 @@ login b l t =
         unversioned
           . b
           . path "/login"
+          . header "X-Forwarded-For" "127.0.0.42"
           . contentJson
           . (if t == PersistentCookie then queryItem "persist" "true" else id)
           . body js
