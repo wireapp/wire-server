@@ -29,7 +29,7 @@ spec:
         checksum/cassandra-secret: {{ include (print .Template.BasePath "/cassandra-secret.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
       volumes:
         - name: "background-worker-config"
           configMap:
