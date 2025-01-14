@@ -26,6 +26,7 @@ spec:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/cassandra-secret: {{ include (print .Template.BasePath "/cassandra-secret.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
