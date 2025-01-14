@@ -93,11 +93,14 @@ emailAddressText = emailAddress . encodeUtf8
 arbitraryValidMail :: Gen EmailAddress
 arbitraryValidMail = do
   loc <- arbitrary `suchThat` isValidLoc
-  dom <- (addTld <$> arbitrary) `suchThat` isValidDom
+  dom <- (addTld . trimDots <$> arbitrary) `suchThat` isValidDom
   pure . fromJust $ emailAddress (fromString $ loc <> "@" <> dom)
   where
     notAt :: String -> Bool
     notAt = notElem '@'
+
+    trimDots :: String -> String
+    trimDots = Imports.dropWhile (== '.') . Imports.dropWhileEnd (== '.')
 
     -- at some places dotless domains do not work, so we add a tld
     addTld :: String -> String
