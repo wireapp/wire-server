@@ -2,7 +2,10 @@
 
 module Wire.TeamInvitationSubsystem.InterpreterSpec (spec) where
 
+import Data.Default
 import Data.Id
+import Data.LegalHold
+import Data.Qualified
 import Data.Time
 import Imports
 import Polysemy
@@ -15,6 +18,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
+import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.EmailSubsystem
 import Wire.EnterpriseLoginSubsystem
@@ -46,8 +50,13 @@ type AllEffects =
     EnterpriseLoginSubsystem
   ]
 
-runAllEffects :: Sem AllEffects a -> Either TeamInvitationSubsystemError a
-runAllEffects =
+data RunAllEffectsArgs = RunAllEffectsArgs
+  { teamOwner :: TeamMember
+  }
+  deriving (Eq, Show)
+
+runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either TeamInvitationSubsystemError a
+runAllEffects args =
   run
     . enterpriseLoginSubsystemTestInterpreter
     . userSubsystemTestInterpreter []
@@ -60,20 +69,30 @@ runAllEffects =
     . inMemoryInvitationStoreInterpreter
     . evalState (mkStdGen 3) -- deterministic randomness, good for tests. :)
     . randomToStatefulStdGen
-    . miniGalleyAPIAccess Nothing undefined
+    . miniGalleyAPIAccess (Just args.teamOwner) def
     . discardTinyLogs
     . runError
 
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
-    focus . prop "works (TODO: better description pls)" $
-      \() ->
+    prop "calls guardEmailDomainRegistrationState if appropriate" $
+      \uid tid email ->
         let cfg =
               TeamInvitationSubsystemConfig
                 { maxTeamSize = 50,
                   teamInvitationTimeout = 3_000_000
                 }
-            outcome = runAllEffects . runTeamInvitationSubsystem cfg $ do
-              pure ()
-         in outcome === Right ()
+            invreq =
+              InvitationRequest
+                { locale = Nothing,
+                  role = Nothing,
+                  inviteeName = Nothing,
+                  inviteeEmail = email,
+                  allowExisting = False
+                }
+            teamMember = mkTeamMember (tUnqualified uid) fullPermissions Nothing UserLegalHoldDisabled
+            args = RunAllEffectsArgs teamMember
+            outcome = runAllEffects args . runTeamInvitationSubsystem cfg $ do
+              void $ inviteUser uid tid invreq
+         in outcome === Right () -- TODO: should be some Left.
