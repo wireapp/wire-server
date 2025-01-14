@@ -22,6 +22,7 @@ import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.EmailSubsystem
 import Wire.EnterpriseLoginSubsystem
+import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemGuardFailed))
 import Wire.GalleyAPIAccess
 import Wire.InvitationStore
 import Wire.MockInterpreters
@@ -35,6 +36,8 @@ import Wire.UserSubsystem
 
 type AllEffects =
   [ Error TeamInvitationSubsystemError,
+    EnterpriseLoginSubsystem,
+    Error EnterpriseLoginSubsystemError,
     TinyLog,
     GalleyAPIAccess,
     Random,
@@ -46,8 +49,7 @@ type AllEffects =
     State UTCTime,
     EmailSubsystem,
     State (Map EmailAddress [SentMail]),
-    UserSubsystem,
-    EnterpriseLoginSubsystem
+    UserSubsystem
   ]
 
 data RunAllEffectsArgs = RunAllEffectsArgs
@@ -56,10 +58,9 @@ data RunAllEffectsArgs = RunAllEffectsArgs
   }
   deriving (Eq, Show)
 
-runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either TeamInvitationSubsystemError a
+runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either EnterpriseLoginSubsystemError a
 runAllEffects args =
   run
-    . enterpriseLoginSubsystemTestInterpreter
     . userSubsystemTestInterpreter args.initialUsers
     . evalState mempty
     . emailSubsystemInterpreter
@@ -73,11 +74,13 @@ runAllEffects args =
     . miniGalleyAPIAccess (Just args.teamOwner) def
     . discardTinyLogs
     . runError
+    . enterpriseLoginSubsystemTestInterpreter
+    . runErrorUnsafe @TeamInvitationSubsystemError
 
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
-    focus . prop "calls guardEmailDomainRegistrationState if appropriate" $
+    prop "calls guardEmailDomainRegistrationState if appropriate" $
       \preInviter tid inviterEmail inviteeEmail ->
         let cfg =
               TeamInvitationSubsystemConfig
@@ -100,4 +103,4 @@ spec = do
             args = RunAllEffectsArgs teamMember [inviter]
             outcome = runAllEffects args . runTeamInvitationSubsystem cfg $ do
               void $ inviteUser luid tid invReq
-         in outcome === Right () -- TODO: should be some Left.
+         in outcome === Left (EnterpriseLoginSubsystemGuardFailed "error")

@@ -2,10 +2,14 @@ module Wire.MockInterpreters.EnterpriseLoginSubsystem where
 
 import Imports
 import Polysemy
+import Polysemy.Error (Error, throw)
 import Wire.EnterpriseLoginSubsystem
+import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemGuardFailed))
 
 -- HINT: This is used to test AuthenticationSubsystem, ...; not to test itself!
-enterpriseLoginSubsystemTestInterpreter :: InterpreterFor EnterpriseLoginSubsystem r
+enterpriseLoginSubsystemTestInterpreter ::
+  (Member (Error EnterpriseLoginSubsystemError) r) =>
+  InterpreterFor EnterpriseLoginSubsystem r
 enterpriseLoginSubsystemTestInterpreter =
   interpret \case
     LockDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
@@ -15,4 +19,4 @@ enterpriseLoginSubsystemTestInterpreter =
     UpdateDomainRegistration _ _ -> undefined -- :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
     DeleteDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
     GetDomainRegistration _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-    GuardEmailDomainRegistrationState _ _ _ -> undefined -- :: InvitationFlow -> TeamId -> EmailAddress -> EnterpriseLoginSubsystem m ()
+    GuardEmailDomainRegistrationState {} -> throw $ EnterpriseLoginSubsystemGuardFailed "error"

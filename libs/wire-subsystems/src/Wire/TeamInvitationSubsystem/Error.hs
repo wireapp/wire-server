@@ -13,6 +13,8 @@ data TeamInvitationSubsystemError
   | TeamInvitationEmailTaken
   deriving (Eq, Show)
 
+instance Exception TeamInvitationSubsystemError
+
 teamInvitationErrorToHttpError :: TeamInvitationSubsystemError -> HttpError
 teamInvitationErrorToHttpError =
   StdError . \case
