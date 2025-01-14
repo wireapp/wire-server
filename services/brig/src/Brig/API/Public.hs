@@ -833,6 +833,8 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
+  -- TODO: remove the conditional once we have a failing test that is fixed by this.
+  when False $ guardEmailDomainRegistrationRegisterImpl email
 
   result <- API.createUser new
   let acc = createdAccount result

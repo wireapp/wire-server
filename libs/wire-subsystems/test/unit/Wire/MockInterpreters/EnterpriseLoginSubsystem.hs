@@ -19,4 +19,5 @@ enterpriseLoginSubsystemTestInterpreter =
     UpdateDomainRegistration _ _ -> undefined -- :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
     DeleteDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
     GetDomainRegistration _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-    GuardEmailDomainRegistrationState {} -> throw $ EnterpriseLoginSubsystemGuardFailed "error"
+    GuardEmailDomainRegistrationTeamInvitation {} -> throw $ EnterpriseLoginSubsystemGuardFailed "error"
+    GuardEmailDomainRegistrationRegister {} -> throw $ EnterpriseLoginSubsystemGuardFailed "error"

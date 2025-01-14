@@ -59,7 +59,8 @@ runEnterpriseLoginSubsystem = interpret $
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
-    GuardEmailDomainRegistrationState flow tid email -> guardEmailDomainRegistrationStateImpl flow tid email
+    GuardEmailDomainRegistrationTeamInvitation flow tid email -> guardEmailDomainRegistrationTeamInvitationImpl flow tid email
+    GuardEmailDomainRegistrationRegister email -> guardEmailDomainRegistrationRegisterImpl email
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -345,7 +346,21 @@ sendAuditMail url subject mBefore mAfter = do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
     sendMail mail
 
-guardEmailDomainRegistrationStateImpl ::
+-- More info on the behavioral implications of domain registration records:
+-- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1570832467/Email+domain+registration+and+configuration#Configuration-values
+emailToDomainRegistration ::
+  forall r.
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r (Maybe DomainRegistration)
+emailToDomainRegistration email = case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
+  Right dom -> tryGetDomainRegistrationImpl dom
+  Left msg -> throw $ EnterpriseLoginSubsystemGuardInvalidDomain (LT.pack msg)
+
+guardEmailDomainRegistrationTeamInvitationImpl ::
   forall r.
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
@@ -355,13 +370,8 @@ guardEmailDomainRegistrationStateImpl ::
   TeamId ->
   EmailAddress ->
   Sem r ()
-guardEmailDomainRegistrationStateImpl invitationFlow tid email = do
-  dom <- do
-    case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
-      Right d -> pure d
-      Left msg -> throw $ EnterpriseLoginSubsystemGuardInvalidDomain (LT.pack msg)
-
-  mReg <- tryGetDomainRegistrationImpl dom
+guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
+  mReg <- emailToDomainRegistration email
   for_ mReg $ \reg -> do
     -- fail if domain-redirect is set to no-registration, or
     case reg.domainRedirect of
@@ -382,6 +392,30 @@ guardEmailDomainRegistrationStateImpl invitationFlow tid email = do
         if allowedTid == tid
           then ok
           else nope $ "`teamInvite` is restricted to another team."
+  where
+    ok = pure ()
+    nope = throw . EnterpriseLoginSubsystemGuardFailed
+
+guardEmailDomainRegistrationRegisterImpl ::
+  forall r.
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r ()
+guardEmailDomainRegistrationRegisterImpl email = do
+  mReg <- emailToDomainRegistration email
+  for_ mReg $ \reg -> do
+    case reg.domainRedirect of
+      None -> ok
+      Locked -> ok
+      SSO _ -> nope "`domain_redirect` is set to `sso:{code}`"
+      Backend url ->
+        -- TODO: this should make /register respond with 302 found or something similar.
+        undefined url
+      NoRegistration -> nope "`domain_redirect` is set to `no_registration`"
+      PreAuthorized -> ok
   where
     ok = pure ()
     nope = throw . EnterpriseLoginSubsystemGuardFailed

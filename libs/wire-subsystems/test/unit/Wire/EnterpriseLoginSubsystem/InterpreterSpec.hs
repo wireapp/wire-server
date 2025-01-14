@@ -67,7 +67,7 @@ spec = describe "EnterpriseLoginSubsystem" $ do
 
           outcome = runDependencies . runEnterpriseLoginSubsystem $ do
             updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
-            guardEmailDomainRegistrationState flow teamId email
+            guardEmailDomainRegistrationTeamInvitation flow teamId email
 
           teamNotAllowedOrWrongTeamIdFails = case domRegEntry.teamInvite of
             Allowed -> outcome === Right ()
