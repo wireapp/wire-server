@@ -369,7 +369,7 @@ guardEmailDomainRegistrationTeamInvitationImpl ::
   InvitationFlow ->
   TeamId ->
   EmailAddress ->
-  Sem r ()
+  Sem r GuardResult
 guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
   mReg <- emailToDomainRegistration email
   for_ mReg $ \reg -> do
@@ -393,7 +393,7 @@ guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
           then ok
           else nope $ "`teamInvite` is restricted to another team."
   where
-    ok = pure ()
+    ok = pure GuardResultSuccess
     nope = throw . EnterpriseLoginSubsystemGuardFailed
 
 guardEmailDomainRegistrationRegisterImpl ::
