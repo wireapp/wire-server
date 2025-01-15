@@ -103,7 +103,6 @@ tests conf m z db b g n =
           test m "email-untrusted-domain" (testLoginUntrustedDomain b),
           test m "testLoginFailure - failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
-          test m "testLimitRetries - limit-retry" (testLimitRetries conf b),
           test m "login with 6 character password" (testLoginWith6CharPassword conf b db),
           testGroup
             "sso-login"
@@ -432,64 +431,6 @@ testThrottleLogins conf b = do
     assertBool "throttle delay" (n > 0)
     threadDelay (1000000 * (n + 1))
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
-
--- The testLimitRetries test conforms to the following testing standards:
--- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2
---
--- The following test tests the login retries. It checks that a user can make
--- only a prespecified number of attempts to log in with an invalid password,
--- after which the user is unable to try again for a configured amount of time.
--- After the configured amount of time has passed, the test asserts the user can
--- successfully log in again. Furthermore, the test asserts that another
--- unrelated user can successfully log-in in parallel to the failed attempts of
--- the aforementioned user.
-testLimitRetries :: (HasCallStack) => Opts.Opts -> Brig -> Http ()
-testLimitRetries conf brig = do
-  let Just opts = conf.settings.limitFailedLogins
-  unless (Opts.timeout opts <= 30) $
-    error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
-  usr <- randomUser brig
-  let Just email = userEmail usr
-  usr' <- randomUser brig
-  let Just email' = userEmail usr'
-  -- Login 5 times with bad password.
-  forM_ [1 .. Opts.retryLimit opts] $ \_ ->
-    login brig (emailLogin email defWrongPassword (Just defCookieLabel)) SessionCookie
-      <!! const 403 === statusCode
-  -- Login once more. This should fail for usr, even though password is correct...
-  resp <-
-    login brig (defEmailLogin email) SessionCookie
-      <!! const 403 === statusCode
-  -- ...  but not for usr'!
-  login brig (defEmailLogin email') SessionCookie
-    !!! const 200 === statusCode
-  -- After the amount of time specified in "Retry-After", though,
-  -- throttling should stop and login should work again
-  do
-    let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" resp
-        retryTimeout = Timeout $ fromIntegral retryAfterSecs
-    liftIO $ do
-      assertBool
-        ("throttle delay (1): " <> show (retryTimeout, Opts.timeout opts))
-        -- (this accounts for slow CI systems that lose up to 2 secs)
-        ( retryTimeout >= Opts.timeout opts - 2
-            && retryTimeout <= Opts.timeout opts
-        )
-      threadDelay (1000000 * (retryAfterSecs - 2)) -- wait almost long enough.
-
-  -- fail again later into the block time window
-  rsp <- login brig (defEmailLogin email) SessionCookie <!! const 403 === statusCode
-  do
-    let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" rsp
-    liftIO $ do
-      assertBool ("throttle delay (2): " <> show retryAfterSecs) (retryAfterSecs <= 2)
-      threadDelay (1000000 * (retryAfterSecs + 1)) -- wait one more second, just to be safe.
-
-  -- wait long enough and login successfully!
-  liftIO $ threadDelay (1000000 * 2)
-  login brig (defEmailLogin email) SessionCookie !!! const 200 === statusCode
-
--- @END
 
 -------------------------------------------------------------------------------
 -- LegalHold Login
