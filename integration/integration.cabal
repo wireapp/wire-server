@@ -108,6 +108,7 @@ library
     Test.AccessUpdate
     Test.AssetDownload
     Test.AssetUpload
+    Test.Auth
     Test.B2B
     Test.Bot
     Test.Brig
