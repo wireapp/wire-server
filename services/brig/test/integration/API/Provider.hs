@@ -1180,7 +1180,6 @@ completePasswordResetProvider brig e =
   post $
     brig
       . path "/provider/password-reset/complete"
-      . header "X-Forwarded-For" "127.0.0.42"
       . contentJson
       . body (RequestBodyLBS (encode e))
 
@@ -1306,7 +1305,6 @@ updateServiceConn brig pid sid upd =
       . paths ["provider", "services", toByteString' sid, "connection"]
       . header "Z-Type" "provider"
       . header "Z-Provider" (toByteString' pid)
-      . header "X-Forwarded-For" "127.0.0.42"
       . contentJson
       . body (RequestBodyLBS (encode upd))
 
