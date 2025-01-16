@@ -18,16 +18,14 @@
 module Test.Services where
 
 import API.Brig
-import API.Common
 import SetupHelpers
 import Testlib.Prelude
 
 testUpdateServiceUpdateAcceptHeader :: (HasCallStack) => App ()
 testUpdateServiceUpdateAcceptHeader = do
   let dom = OwnDomain
-  email <- randomEmail
   alice <- randomUser dom def
-  provider <- setupProvider alice def {newProviderEmail = email}
+  provider <- setupProvider alice def
   pId <- provider %. "id" & asString
   service <- newService dom pId def
   sId <- service %. "id"

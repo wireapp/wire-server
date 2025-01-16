@@ -27,7 +27,6 @@ instance Default AddUser where
 data NewProvider = NewProvider
   { newProviderName :: String,
     newProviderDesc :: String,
-    newProviderEmail :: String,
     newProviderPassword :: Maybe String,
     newProviderUrl :: String
   }
@@ -37,19 +36,8 @@ instance Default NewProvider where
     NewProvider
       "New Provider"
       "Just a provider"
-      "provider@example.com"
       Nothing
       "https://example.com"
-
-instance ToJSON NewProvider where
-  toJSON NewProvider {..} =
-    Aeson.object
-      [ "name" .= newProviderName,
-        "description" .= newProviderDesc,
-        "email" .= newProviderEmail,
-        "password" .= newProviderPassword,
-        "url" .= newProviderUrl
-      ]
 
 data NewService = NewService
   { newServiceName :: String,

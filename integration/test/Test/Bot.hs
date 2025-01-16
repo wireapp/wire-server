@@ -1,7 +1,6 @@
 module Test.Bot where
 
 import API.Brig
-import API.Common
 import API.Galley
 import Control.Lens hiding ((.=))
 import qualified Data.Aeson as Aeson
@@ -99,8 +98,8 @@ withBotWithSettings settings k = do
   alice <- randomUser OwnDomain def
 
   withMockServer settings mkBotService \(host, port) _chan -> do
-    email <- randomEmail
-    provider <- setupProvider alice def {newProviderEmail = email, newProviderPassword = Just defPassword}
+    provider <- setupProvider alice def
+    password <- provider %. "password" & asString
     providerId <- provider %. "id" & asString
     service <-
       newService OwnDomain providerId
@@ -109,7 +108,7 @@ withBotWithSettings settings k = do
     conv <- getJSON 201 =<< postConversation alice defProteus
     convId <- conv %. "id" & asString
     assertStatus 200 =<< updateServiceConn providerId serviceId do
-      object ["enabled" .= True, "password" .= defPassword]
+      object ["enabled" .= True, "password" .= password]
     addBot alice providerId serviceId convId >>= k
 
 data BotEvent
