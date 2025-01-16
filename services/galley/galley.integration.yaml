@@ -63,6 +63,21 @@ settings:
     iterations: 1
     memory: 128
     parallelism: 1
+  passwordHashingRateLimit:
+    ipAddrLimit:
+      burst: 5
+      inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+    userLimit:
+      burst: 5
+      inverseRate: 60000000 # 1 min, makes it 60 req/hour
+    internalLimit:
+      burst: 10
+      inverseRate: 0 # No rate limiting for internal use
+    ipv4CidrBlock: 32 # Only block individual IP addresses
+    ipv6CidrBlock: 64 # Block /64 range at a time.
+    ipAddressExceptions:
+      - 127.0.0.1/8
+    maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
 
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.

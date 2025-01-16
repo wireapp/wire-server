@@ -70,7 +70,8 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import Wire.HashPassword
+import Wire.HashPassword.Interpreter
+import Wire.Sem.Random.IO
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -102,7 +103,6 @@ tests conf m z db b g n =
           test m "email-untrusted-domain" (testLoginUntrustedDomain b),
           test m "testLoginFailure - failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
-          test m "testLimitRetries - limit-retry" (testLimitRetries conf b),
           test m "login with 6 character password" (testLoginWith6CharPassword conf b db),
           testGroup
             "sso-login"
@@ -162,7 +162,6 @@ tests conf m z db b g n =
         [ test m "list" (testListCookies b),
           test m "remove-by-label" (testRemoveCookiesByLabel b),
           test m "remove-by-label-id" (testRemoveCookiesByLabelAndId b),
-          test m "testTooManyCookies - limit" (testTooManyCookies conf b),
           test m "logout" (testLogout b)
         ],
       testGroup
@@ -196,7 +195,7 @@ testLoginWith6CharPassword opts brig db = do
 
     updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
-      p <- liftIO $ runM . runHashPassword opts.settings.passwordHashingOptions $ hashPassword6 t
+      p <- liftIO $ runM . randomToIO $ hashPasswordImpl opts.settings.passwordHashingOptions t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
@@ -431,64 +430,6 @@ testThrottleLogins conf b = do
     assertBool "throttle delay" (n > 0)
     threadDelay (1000000 * (n + 1))
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
-
--- The testLimitRetries test conforms to the following testing standards:
--- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2
---
--- The following test tests the login retries. It checks that a user can make
--- only a prespecified number of attempts to log in with an invalid password,
--- after which the user is unable to try again for a configured amount of time.
--- After the configured amount of time has passed, the test asserts the user can
--- successfully log in again. Furthermore, the test asserts that another
--- unrelated user can successfully log-in in parallel to the failed attempts of
--- the aforementioned user.
-testLimitRetries :: (HasCallStack) => Opts.Opts -> Brig -> Http ()
-testLimitRetries conf brig = do
-  let Just opts = conf.settings.limitFailedLogins
-  unless (Opts.timeout opts <= 30) $
-    error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
-  usr <- randomUser brig
-  let Just email = userEmail usr
-  usr' <- randomUser brig
-  let Just email' = userEmail usr'
-  -- Login 5 times with bad password.
-  forM_ [1 .. Opts.retryLimit opts] $ \_ ->
-    login brig (emailLogin email defWrongPassword (Just defCookieLabel)) SessionCookie
-      <!! const 403 === statusCode
-  -- Login once more. This should fail for usr, even though password is correct...
-  resp <-
-    login brig (defEmailLogin email) SessionCookie
-      <!! const 403 === statusCode
-  -- ...  but not for usr'!
-  login brig (defEmailLogin email') SessionCookie
-    !!! const 200 === statusCode
-  -- After the amount of time specified in "Retry-After", though,
-  -- throttling should stop and login should work again
-  do
-    let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" resp
-        retryTimeout = Timeout $ fromIntegral retryAfterSecs
-    liftIO $ do
-      assertBool
-        ("throttle delay (1): " <> show (retryTimeout, Opts.timeout opts))
-        -- (this accounts for slow CI systems that lose up to 2 secs)
-        ( retryTimeout >= Opts.timeout opts - 2
-            && retryTimeout <= Opts.timeout opts
-        )
-      threadDelay (1000000 * (retryAfterSecs - 2)) -- wait almost long enough.
-
-  -- fail again later into the block time window
-  rsp <- login brig (defEmailLogin email) SessionCookie <!! const 403 === statusCode
-  do
-    let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" rsp
-    liftIO $ do
-      assertBool ("throttle delay (2): " <> show retryAfterSecs) (retryAfterSecs <= 2)
-      threadDelay (1000000 * (retryAfterSecs + 1)) -- wait one more second, just to be safe.
-
-  -- wait long enough and login successfully!
-  liftIO $ threadDelay (1000000 * 2)
-  login brig (defEmailLogin email) SessionCookie !!! const 200 === statusCode
-
--- @END
 
 -------------------------------------------------------------------------------
 -- LegalHold Login
@@ -1166,59 +1107,6 @@ testRemoveCookiesByLabelAndId b = do
   let lbl = cookieLabel c4
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
 
--- The testTooManyCookies test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
---
--- The test asserts that there is an upper limit for the number of user cookies
--- per cookie type. It does that by concurrently attempting to create more
--- persistent and session cookies than the configured maximum.
--- Creation of new cookies beyond the limit causes deletion of the
--- oldest cookies.
-testTooManyCookies :: Opts.Opts -> Brig -> Http ()
-testTooManyCookies config b = do
-  u <- randomUser b
-  let l = config.settings.userCookieLimit
-  let Just e = userEmail u
-      carry = 2
-      pwlP = emailLogin e defPassword (Just "persistent")
-      pwlS = emailLogin e defPassword (Just "session")
-  void $
-    concurrently
-      -- Persistent logins
-      ( do
-          tcs <- replicateM (l + carry) $ loginWhenAllowed pwlP PersistentCookie
-          cs <- listCookiesWithLabel b (userId u) ["persistent"]
-          liftIO $ map cookieId cs @=? map (getCookieId @ZAuth.User) (drop carry tcs)
-      )
-      -- Session logins
-      ( do
-          tcs' <- replicateM (l + carry) $ loginWhenAllowed pwlS SessionCookie
-          cs' <- listCookiesWithLabel b (userId u) ["session"]
-          liftIO $ map cookieId cs' @=? map (getCookieId @ZAuth.User) (drop carry tcs')
-      )
-  where
-    -- We expect that after `setUserCookieLimit` login attempts, we get rate
-    -- limited; in those cases, we need to wait `Retry-After` seconds.
-    loginWhenAllowed pwl t = do
-      x <- login b pwl t <* wait
-      case statusCode x of
-        200 -> pure $ decodeCookie x
-        429 -> do
-          -- After the amount of time specified in "Retry-After", though,
-          -- throttling should stop and login should work again
-          let Just n = fromByteString =<< getHeader "Retry-After" x
-          liftIO $ threadDelay (1000000 * (n + 1))
-          loginWhenAllowed pwl t
-        403 ->
-          error
-            ( "forbidden; "
-                <> "perhaps setSuspendInactiveUsers.suspendTimeout is too small? "
-                <> "(try 29 seconds)."
-            )
-        xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
-
--- @END
-
 testLogout :: Brig -> Http ()
 testLogout b = do
   Just email <- userEmail <$> randomUser b
@@ -1261,13 +1149,6 @@ prepareLegalHoldUser brig galley = do
   -- enable it for this team - without that, legalhold login will fail.
   putLHWhitelistTeam galley tid !!! const 200 === statusCode
   pure uid
-
-getCookieId :: forall u. (HasCallStack, ZAuth.UserTokenLike u) => Http.Cookie -> CookieId
-getCookieId c =
-  maybe
-    (error "no cookie value")
-    (CookieId . ZAuth.userTokenRand @u)
-    (fromByteString (cookie_value c))
 
 listCookies :: (HasCallStack) => Brig -> UserId -> Http [Auth.Cookie ()]
 listCookies b u = listCookiesWithLabel b u []
@@ -1324,6 +1205,3 @@ remJson p l ids =
       "labels" .= l,
       "ids" .= ids
     ]
-
-wait :: (MonadIO m) => m ()
-wait = liftIO $ threadDelay 1000000

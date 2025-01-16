@@ -399,6 +399,7 @@ prettyResponse r =
                 Nothing -> hex b
             ],
         pure $ colored blue "response status: " <> show r.status,
+        pure $ colored blue "response headers:\n" <> showHeaders r.headers,
         pure $ colored blue "response body:",
         pure $
           ( TL.unpack . TL.decodeUtf8 $

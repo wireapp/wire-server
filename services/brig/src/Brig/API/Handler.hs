@@ -83,12 +83,12 @@ toServantHandler env action = do
         StdError werr -> do
           Server.logError' logger (Just reqId) werr
           liftIO $ throwIO werr
-        RichError werr body headers -> do
+        richErr@(RichError werr _ headers) -> do
           when (statusCode (WaiError.code werr) < 500) $
             -- 5xx are logged by the middleware, so we only log errors < 500 to avoid duplicated entries
             Server.logError' logger (Just reqId) werr
           Servant.throwError $
-            Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode body) headers
+            Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode richErr) headers
 
 newtype UserNotAllowedToJoinTeam = UserNotAllowedToJoinTeam WaiError.Error
   deriving (Show)

@@ -75,6 +75,7 @@ import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
+import Data.Misc
 import Data.Nonce (Nonce, randomNonce)
 import Data.OpenApi qualified as S
 import Data.Qualified
@@ -163,6 +164,7 @@ import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
+import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
@@ -367,7 +369,9 @@ servantSitemap ::
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -825,16 +829,19 @@ createUser ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member EmailSending r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
+  IpAddr ->
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
-createUser (Public.NewUserPublic new) = lift . runExceptT $ do
+createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
 
-  result <- API.createUser new
+  result <- API.createUser (RateLimitIp ip) new
   let acc = createdAccount result
 
   let eac = createdEmailActivation result
@@ -1057,7 +1064,9 @@ checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
 changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   UserId ->
   Public.PasswordChange ->
@@ -1331,7 +1340,10 @@ deleteSelfUser ::
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
-    Member Events r
+    Member Events r,
+    Member HashPassword r,
+    Member (Error RateLimitExceeded) r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
