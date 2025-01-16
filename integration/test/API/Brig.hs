@@ -885,3 +885,16 @@ postServiceWhitelist user tid update = do
           "whitelist"
         ]
   submit "POST" (addJSON updateJson req)
+
+listTeamServiceProfilesByPrefix :: (MakesValue user) => user -> String -> Maybe String -> Bool -> Int -> App Response
+listTeamServiceProfilesByPrefix user tid mPrefix filterDisabled size = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "services", "whitelisted"]
+  submit "GET" $
+    req
+      & addQueryParams
+        ( catMaybes
+            [ ("prefix",) <$> mPrefix,
+              if filterDisabled then Nothing else Just ("filterDisabled", "false"),
+              Just ("size", show size)
+            ]
+        )
