@@ -32,6 +32,7 @@ module Galley.API.MLS.SubConversation
 where
 
 import Control.Arrow
+import Control.Monad.Codensity
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
@@ -265,27 +266,27 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
       lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
   cnv <- getConversationAndCheckMembership qusr lcnvId
 
-  withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc) $ do
-    sconv <-
-      Eff.getSubConversation cnvId scnvId
-        >>= noteS @'ConvNotFound
-    let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
-    unless (dscGroupId dsc == gid) $ throwS @'ConvNotFound
-    unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
-    Eff.removeAllMLSClients gid
+  lowerCodensity $ do
+    withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc)
+    lift $ do
+      sconv <- Eff.getSubConversation cnvId scnvId >>= noteS @'ConvNotFound
+      let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
+      unless (dscGroupId dsc == gid) $ throwS @'ConvNotFound
+      unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
+      Eff.removeAllMLSClients gid
 
-    -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId
-    let newGid =
-          fromRight
-            ( convToGroupId $
-                groupIdParts
-                  (Data.convType cnv)
-                  (flip SubConv scnvId <$> tUntagged lcnvId)
-            )
-            $ nextGenGroupId gid
+      -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId
+      let newGid =
+            fromRight
+              ( convToGroupId $
+                  groupIdParts
+                    (Data.convType cnv)
+                    (flip SubConv scnvId <$> tUntagged lcnvId)
+              )
+              $ nextGenGroupId gid
 
-    -- the following overwrites any prior information about the subconversation
-    void $ Eff.createSubConversation cnvId scnvId newGid
+      -- the following overwrites any prior information about the subconversation
+      void $ Eff.createSubConversation cnvId scnvId newGid
 
 deleteRemoteSubConversation ::
   ( Members
@@ -406,11 +407,12 @@ leaveLocalSubConversation cid lcnv sub = do
         sub
         $ DeleteSubConversationRequest gid epoch
     else
-      createAndSendRemoveProposals
-        (qualifyAs lcnv (SubConv mlsConv subConv))
-        (Identity idx)
-        (cidQualifiedUser cid)
-        cm
+      lowerCodensity $
+        createAndSendRemoveProposals
+          (qualifyAs lcnv (SubConv mlsConv subConv))
+          (Identity idx)
+          (cidQualifiedUser cid)
+          cm
 
 leaveRemoteSubConversation ::
   ( Members
