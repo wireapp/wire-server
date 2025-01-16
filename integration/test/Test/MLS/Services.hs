@@ -2,7 +2,6 @@
 module Test.MLS.Services where
 
 import API.Brig
-import API.Common
 import API.GalleyInternal (patchTeamFeatureConfig)
 import SetupHelpers
 import Testlib.JSON
@@ -17,8 +16,7 @@ testWhitelistUpdatePermissions = do
   admin <- createTeamMember owner def {role = "admin"}
 
   -- Create a service
-  email <- randomEmail
-  provider <- make <$> setupProvider owner def {newProviderEmail = email}
+  provider <- make <$> setupProvider owner def
   providerId <- provider %. "id" & asString
   service <- make <$> newService OwnDomain providerId def
 
