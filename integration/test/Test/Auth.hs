@@ -6,6 +6,7 @@ import qualified Data.ByteString.Char8 as BSChar8
 import SetupHelpers
 import Testlib.Prelude
 import Text.Read
+import UnliftIO.Async
 import UnliftIO.Concurrent
 
 -- The testLimitRetries test conforms to the following testing standards:
@@ -72,5 +73,49 @@ testLimitRetries = do
       threadDelay 2_000_000
       login domain aliceEmail defPassword `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
+
+-- @END
+
+-- The testTooManyCookies test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- The test asserts that there is an upper limit for the number of user cookies
+-- per cookie type. It does that by concurrently attempting to create more
+-- persistent and session cookies than the configured maximum.
+-- Creation of new cookies beyond the limit causes deletion of the
+-- oldest cookies.
+testTooManyCookies :: App ()
+testTooManyCookies = do
+  let cookieLimit = 5
+  withModifiedBackend
+    def
+      { brigCfg =
+          -- Disable password hashing rate limiting, so we can login many times without making this test slow
+          setField @_ @Int "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" 0
+            -- Disable cookie throttling so this test is not slow
+            >=> setField @_ @Int "optSettings.setUserCookieThrottle.retryAfter" 0
+            >=> setField @_ @Int "optSettings.setUserCookieLimit" cookieLimit
+      }
+    $ \domain -> do
+      alice <- randomUser domain def
+      aliceEmail <- asString $ alice %. "email"
+
+      let testCookieLimit label = do
+            let loginFn = if label == "persistent" then login else loginWithSessionCookie
+            (deletedCookie1 : deletedCookie2 : validCookies) <-
+              replicateM (cookieLimit + 2)
+                $ do
+                  loginFn domain aliceEmail defPassword
+                    `bindResponse` \resp -> do
+                      resp.status `shouldMatchInt` 200
+                      pure . fromJust $ getCookie "zuid" resp
+            addFailureContext ("deletedCookie1: " <> deletedCookie1 <> "\ndeletedCookie2: " <> deletedCookie2) $ do
+              forM_ [deletedCookie1, deletedCookie2] $ \deletedCookie -> do
+                renewToken alice deletedCookie `bindResponse` \resp ->
+                  resp.status `shouldMatchInt` 403
+              forM_ validCookies $ \validCookie ->
+                renewToken alice validCookie `bindResponse` \resp ->
+                  resp.status `shouldMatchInt` 200
+      concurrently_ (testCookieLimit "persistent") (testCookieLimit "session")
 
 -- @END

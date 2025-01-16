@@ -162,7 +162,6 @@ tests conf m z db b g n =
         [ test m "list" (testListCookies b),
           test m "remove-by-label" (testRemoveCookiesByLabel b),
           test m "remove-by-label-id" (testRemoveCookiesByLabelAndId b),
-          test m "testTooManyCookies - limit" (testTooManyCookies conf b),
           test m "logout" (testLogout b)
         ],
       testGroup
@@ -1108,59 +1107,6 @@ testRemoveCookiesByLabelAndId b = do
   let lbl = cookieLabel c4
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
 
--- The testTooManyCookies test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
---
--- The test asserts that there is an upper limit for the number of user cookies
--- per cookie type. It does that by concurrently attempting to create more
--- persistent and session cookies than the configured maximum.
--- Creation of new cookies beyond the limit causes deletion of the
--- oldest cookies.
-testTooManyCookies :: Opts.Opts -> Brig -> Http ()
-testTooManyCookies config b = do
-  u <- randomUser b
-  let l = config.settings.userCookieLimit
-  let Just e = userEmail u
-      carry = 2
-      pwlP = emailLogin e defPassword (Just "persistent")
-      pwlS = emailLogin e defPassword (Just "session")
-  void $
-    concurrently
-      -- Persistent logins
-      ( do
-          tcs <- replicateM (l + carry) $ loginWhenAllowed pwlP PersistentCookie
-          cs <- listCookiesWithLabel b (userId u) ["persistent"]
-          liftIO $ map cookieId cs @=? map (getCookieId @ZAuth.User) (drop carry tcs)
-      )
-      -- Session logins
-      ( do
-          tcs' <- replicateM (l + carry) $ loginWhenAllowed pwlS SessionCookie
-          cs' <- listCookiesWithLabel b (userId u) ["session"]
-          liftIO $ map cookieId cs' @=? map (getCookieId @ZAuth.User) (drop carry tcs')
-      )
-  where
-    -- We expect that after `setUserCookieLimit` login attempts, we get rate
-    -- limited; in those cases, we need to wait `Retry-After` seconds.
-    loginWhenAllowed pwl t = do
-      x <- login b pwl t <* wait
-      case statusCode x of
-        200 -> pure $ decodeCookie x
-        429 -> do
-          -- After the amount of time specified in "Retry-After", though,
-          -- throttling should stop and login should work again
-          let Just n = fromByteString =<< getHeader "Retry-After" x
-          liftIO $ threadDelay (1000000 * (n + 1))
-          loginWhenAllowed pwl t
-        403 ->
-          error
-            ( "forbidden; "
-                <> "perhaps setSuspendInactiveUsers.suspendTimeout is too small? "
-                <> "(try 29 seconds)."
-            )
-        xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
-
--- @END
-
 testLogout :: Brig -> Http ()
 testLogout b = do
   Just email <- userEmail <$> randomUser b
@@ -1203,13 +1149,6 @@ prepareLegalHoldUser brig galley = do
   -- enable it for this team - without that, legalhold login will fail.
   putLHWhitelistTeam galley tid !!! const 200 === statusCode
   pure uid
-
-getCookieId :: forall u. (HasCallStack, ZAuth.UserTokenLike u) => Http.Cookie -> CookieId
-getCookieId c =
-  maybe
-    (error "no cookie value")
-    (CookieId . ZAuth.userTokenRand @u)
-    (fromByteString (cookie_value c))
 
 listCookies :: (HasCallStack) => Brig -> UserId -> Http [Auth.Cookie ()]
 listCookies b u = listCookiesWithLabel b u []
@@ -1266,6 +1205,3 @@ remJson p l ids =
       "labels" .= l,
       "ids" .= ids
     ]
-
-wait :: (MonadIO m) => m ()
-wait = liftIO $ threadDelay 1000000
