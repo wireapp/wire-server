@@ -4,7 +4,7 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error, throw)
 import Wire.EnterpriseLoginSubsystem
-import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemGuardFailed))
+import Wire.EnterpriseLoginSubsystem.Error
 
 -- HINT: This is used to test AuthenticationSubsystem, ...; not to test itself!
 enterpriseLoginSubsystemTestInterpreter ::
@@ -19,5 +19,5 @@ enterpriseLoginSubsystemTestInterpreter =
     UpdateDomainRegistration _ _ -> undefined -- :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
     DeleteDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
     GetDomainRegistration _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-    GuardEmailDomainRegistrationTeamInvitation {} -> throw $ EnterpriseLoginSubsystemGuardFailed "error"
-    GuardEmailDomainRegistrationRegister {} -> throw $ EnterpriseLoginSubsystemGuardFailed "error"
+    GuardEmailDomainRegistrationTeamInvitation {} -> throw $ EnterpriseLoginSubsystemGuardFailed (InvalidDomain "mock interpreter: don't know which error, i'm not very smart")
+    GuardEmailDomainRegistrationRegister {} -> throw $ EnterpriseLoginSubsystemGuardFailed (InvalidDomain "mock interpreter: don't know which error, i'm not very smart")

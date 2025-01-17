@@ -10,14 +10,12 @@ where
 
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
-import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Id
 import Data.Misc (HttpsUrl (..))
 import Data.Text.Encoding as T
 import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
-import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder (Builder)
 import Data.Text.Lazy.Encoding as LT
 import Imports hiding (lookup)
@@ -30,13 +28,12 @@ import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
 import Text.Email.Parser qualified as Email
-import URI.ByteString (serializeURIRef)
 import Wire.API.EnterpriseLogin
 import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.DomainRegistrationStore
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EnterpriseLoginSubsystem
-import Wire.EnterpriseLoginSubsystem.Error
+import Wire.EnterpriseLoginSubsystem.Error as Error
 
 data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
   { auditEmailSender :: EmailAddress,
@@ -360,7 +357,10 @@ emailToDomainRegistration ::
   Sem r (Maybe DomainRegistration)
 emailToDomainRegistration email = case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
   Right dom -> tryGetDomainRegistrationImpl dom
-  Left msg -> throw $ EnterpriseLoginSubsystemGuardInvalidDomain (LT.pack msg)
+  Left msg ->
+    -- The EmailAddress parser and servant *should* make this impossible, but they use
+    -- different parsers, one of us is ours and may change any time, so who knows?
+    throw . EnterpriseLoginSubsystemGuardFailed $ InvalidDomain msg
 
 guardEmailDomainRegistrationTeamInvitationImpl ::
   forall r.
@@ -382,18 +382,18 @@ guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
       SSO _ -> ok
       Backend _ -> ok
       NoRegistration -> case invitationFlow of
-        ExistingUser -> nope "`domain_redirect` is set to `no-registration`"
+        ExistingUser -> nope DomRedirSetToNoRegistration
         NewUser -> ok
       PreAuthorized -> ok
     -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
     -- the team of the inviter
     case reg.teamInvite of
       Allowed -> ok
-      NotAllowed -> nope "`teamInvite` is set to `not-allowed`"
+      NotAllowed -> nope TeamInviteSetToNotAllowed
       Team allowedTid ->
         if allowedTid == tid
           then ok
-          else nope $ "`teamInvite` is restricted to another team."
+          else nope TeamInviteRestrictedToOtherTeam
   where
     ok = pure ()
     nope = throw . EnterpriseLoginSubsystemGuardFailed
@@ -412,10 +412,9 @@ guardEmailDomainRegistrationRegisterImpl email = do
     case reg.domainRedirect of
       None -> ok
       Locked -> ok
-      SSO _ -> nope "`domain_redirect` is set to `sso:{code}`"
-      Backend url ->
-        nope $ "TODO: dummy text: url=" <> (LT.decodeUtf8 . toLazyByteString . serializeURIRef . httpsUrl) url
-      NoRegistration -> nope "`domain_redirect` is set to `no_registration`"
+      SSO _ -> nope DomRedirSetToSSO
+      Backend _ -> nope DomRedirSetToBackend
+      NoRegistration -> nope DomRedirSetToNoRegistration
       PreAuthorized -> ok
   where
     ok = pure ()

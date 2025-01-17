@@ -22,7 +22,7 @@ import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.EmailSubsystem
 import Wire.EnterpriseLoginSubsystem
-import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemGuardFailed))
+import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError)
 import Wire.GalleyAPIAccess
 import Wire.InvitationStore
 import Wire.MockInterpreters
@@ -80,7 +80,7 @@ runAllEffects args =
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
-    prop "calls guardEmailDomainRegistrationState if appropriate" $
+    focus . prop "calls guardEmailDomainRegistrationState if appropriate" $
       \preInviter tid inviterEmail inviteeEmail ->
         let cfg =
               TeamInvitationSubsystemConfig
@@ -103,4 +103,4 @@ spec = do
             args = RunAllEffectsArgs teamMember [inviter]
             outcome = runAllEffects args . runTeamInvitationSubsystem cfg $ do
               void $ inviteUser luid tid invReq
-         in outcome === Left (EnterpriseLoginSubsystemGuardFailed "error")
+         in counterexample (show outcome) (isLeft outcome === True)

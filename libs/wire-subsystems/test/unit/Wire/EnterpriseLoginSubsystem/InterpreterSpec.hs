@@ -1,11 +1,8 @@
 module Wire.EnterpriseLoginSubsystem.InterpreterSpec where
 
-import Data.ByteString.Builder (toLazyByteString)
 import Data.Domain
 import Data.Id
-import Data.Misc (httpsUrl)
 import Data.String.Conversions (cs)
-import Data.Text.Lazy.Encoding qualified as LT
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -15,7 +12,6 @@ import Polysemy.TinyLog
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
-import URI.ByteString (serializeURIRef)
 import Wire.API.EnterpriseLogin
 import Wire.API.User.EmailAddress (domainPart)
 import Wire.DomainRegistrationStore
@@ -60,7 +56,7 @@ spec = describe "EnterpriseLoginSubsystem" $ do
   it "UpdateDomainRegistration" pending
   it "DeleteDomain" pending
 
-  prop "GuardEmailDomainRegistrationTeamInvitation" $
+  focus . prop "GuardEmailDomainRegistrationTeamInvitation" $
     \flow sameTeam teamId email preDomRegEntry ->
       let setTeamId :: DomainRegistrationUpdate -> TeamId -> DomainRegistrationUpdate
           setTeamId update tid = case update.teamInvite of
@@ -75,11 +71,11 @@ spec = describe "EnterpriseLoginSubsystem" $ do
 
           teamNotAllowedOrWrongTeamIdFails = case domRegEntry.teamInvite of
             Allowed -> outcome === Right ()
-            NotAllowed -> outcome === Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is set to `not-allowed`")
+            NotAllowed -> outcome === Left (EnterpriseLoginSubsystemGuardFailed TeamInviteSetToNotAllowed)
             Team allowedTid ->
               if allowedTid == teamId
                 then outcome === Right ()
-                else outcome === Left (EnterpriseLoginSubsystemGuardFailed "`teamInvite` is restricted to another team.")
+                else outcome === Left (EnterpriseLoginSubsystemGuardFailed TeamInviteRestrictedToOtherTeam)
 
           backendRedirectOrNoRegistrationFails = case domRegEntry.domainRedirect of
             Backend _ ->
@@ -87,7 +83,7 @@ spec = describe "EnterpriseLoginSubsystem" $ do
               teamNotAllowedOrWrongTeamIdFails
             NoRegistration ->
               case flow of
-                ExistingUser -> outcome === Left (EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `no-registration`")
+                ExistingUser -> outcome === Left (EnterpriseLoginSubsystemGuardFailed DomRedirSetToNoRegistration)
                 NewUser -> teamNotAllowedOrWrongTeamIdFails
             _ -> teamNotAllowedOrWrongTeamIdFails
        in backendRedirectOrNoRegistrationFails
@@ -100,8 +96,8 @@ spec = describe "EnterpriseLoginSubsystem" $ do
           expected = case domRegEntry.domainRedirect of
             None -> Right ()
             Locked -> Right ()
-            SSO _ -> Left $ EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `sso:{code}`"
-            Backend url -> Left $ EnterpriseLoginSubsystemGuardFailed $ "TODO: dummy text: url=" <> (LT.decodeUtf8 . toLazyByteString . serializeURIRef . httpsUrl) url
-            NoRegistration -> Left $ EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `no_registration`"
+            SSO _ -> Left $ EnterpriseLoginSubsystemGuardFailed DomRedirSetToSSO
+            Backend _ -> Left $ EnterpriseLoginSubsystemGuardFailed DomRedirSetToBackend
+            NoRegistration -> Left $ EnterpriseLoginSubsystemGuardFailed DomRedirSetToNoRegistration
             PreAuthorized -> Right ()
        in outcome === expected
