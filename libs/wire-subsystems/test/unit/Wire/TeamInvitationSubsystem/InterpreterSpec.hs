@@ -80,7 +80,7 @@ runAllEffects args =
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
-    focus . prop "calls guardEmailDomainRegistrationState if appropriate" $
+    prop "calls guardEmailDomainRegistrationState if appropriate" $
       \preInviter tid inviterEmail inviteeEmail ->
         let cfg =
               TeamInvitationSubsystemConfig

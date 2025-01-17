@@ -56,7 +56,7 @@ spec = describe "EnterpriseLoginSubsystem" $ do
   it "UpdateDomainRegistration" pending
   it "DeleteDomain" pending
 
-  focus . prop "GuardEmailDomainRegistrationTeamInvitation" $
+  prop "GuardEmailDomainRegistrationTeamInvitation" $
     \flow sameTeam teamId email preDomRegEntry ->
       let setTeamId :: DomainRegistrationUpdate -> TeamId -> DomainRegistrationUpdate
           setTeamId update tid = case update.teamInvite of
@@ -88,7 +88,7 @@ spec = describe "EnterpriseLoginSubsystem" $ do
             _ -> teamNotAllowedOrWrongTeamIdFails
        in backendRedirectOrNoRegistrationFails
 
-  focus . prop "GuardEmailDomainRegistrationRegister" $
+  prop "GuardEmailDomainRegistrationRegister" $
     \email domRegEntry ->
       let outcome = runDependencies . runEnterpriseLoginSubsystem $ do
             updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
