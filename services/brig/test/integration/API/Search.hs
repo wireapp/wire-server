@@ -812,7 +812,11 @@ indexProxyServer idxs opts mgr =
       proxyToHost = URI.hostBS . URI.authorityHost . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
       proxyToPort = URI.portNumber . fromMaybe (URI.Port 9200) . URI.authorityPort . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
       forwardRequest = Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
-      denyRequest req = Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
+      denyRequest req =
+        Wai.WPRResponse
+          ( Wai.responseLBS HTTP.status400 [] $
+              "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req) <> ". Proxy configured for indices: " <> cs (show idxs)
+          )
       proxyApp req
         | (headMay (Wai.pathInfo req)) `elem` [Just "_reindex", Just "_tasks"] =
             forwardRequest

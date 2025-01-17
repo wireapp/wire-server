@@ -129,7 +129,11 @@ refreshIndexes = liftIndexIO $ do
   idx <- asks idxName
   void $ ES.refreshIndex idx
   mbAddIdx <- asks idxAdditionalName
-  mapM_ ES.refreshIndex mbAddIdx
+  mbAddElasticEnv <- asks idxAdditionalElastic
+  case (mbAddIdx, mbAddElasticEnv) of
+    (Just addIdx, Just addElasticEnv) ->
+      ES.runBH addElasticEnv ((void . ES.refreshIndex) addIdx)
+    (_, _) -> pure ()
 
 createIndexIfNotPresent ::
   (MonadIndexIO m) =>
