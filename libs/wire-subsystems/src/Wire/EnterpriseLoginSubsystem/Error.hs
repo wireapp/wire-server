@@ -1,10 +1,8 @@
 module Wire.EnterpriseLoginSubsystem.Error where
 
-import Data.Misc (HttpsUrl)
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities qualified as Wai
-import SAML2.WebSSO.Types (IdPId)
 import Wire.Error
 
 data EnterpriseLoginSubsystemError
@@ -14,25 +12,12 @@ data EnterpriseLoginSubsystemError
   | EnterpriseLoginSubsystemUnlockError
   | EnterpriseLoginSubsystemUnAuthorizeError
   | EnterpriseLoginSubsystemPreAuthorizeError
-  | EnterpriseLoginSubsystemGuardFailed GuardFailure
+  | -- TODO: Better structured errors: data GuardFailure = InvalidDomain LText | DomRedirSetToSSO | ...
+    EnterpriseLoginSubsystemGuardFailed LText
   | EnterpriseLoginSubsystemGuardInvalidDomain LText
   deriving (Show, Eq)
 
 instance Exception EnterpriseLoginSubsystemError
-
-data GuardFailure
-  = BackendRedirect HttpsUrl
-  | DomRedirSetToSSO IdPId
-  | NoRegistration
-  | -- TODO: Will this ever be reached?
-    InvalidDomain String
-  deriving (Show, Eq)
-
--- \| EnterpriseLoginSubsystemGuardFailed GuardFailure
--- \| EnterpriseLoginSubsystemGuardInvalidDomain LText
--- EnterpriseLoginSubsystemGuardFailed (BackendRedirect url) -> Wai.mkError status302 "enterprise-login-guard-failed" ("condition failed: " <> msg)
--- EnterpriseLoginSubsystemGuardFailed msg -> Wai.mkError status409 "enterprise-login-guard-failed" ("condition failed: " <> msg)
--- EnterpriseLoginSubsystemGuardInvalidDomain msg -> Wai.mkError status423 "enterprise-login-guard-failed" ("could not parse domain: " <> msg)
 
 enterpriseLoginSubsystemErrorToHttpError :: EnterpriseLoginSubsystemError -> HttpError
 enterpriseLoginSubsystemErrorToHttpError =
