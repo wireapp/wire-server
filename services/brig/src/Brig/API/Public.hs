@@ -139,6 +139,7 @@ import Wire.API.User.Client qualified as Public
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
+import Wire.API.User.Identity
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
@@ -836,8 +837,9 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
-  -- TODO: remove the conditional once we have a failing test that is fixed by this.
-  when False $ lift . liftSem $ guardEmailDomainRegistrationRegister undefined
+  -- TODO: we need an integration test for this, but it'd be easier to write that in a
+  -- different PR where we have https://github.com/wireapp/wire-server/pull/4389.
+  (lift . liftSem . guardEmailDomainRegistrationRegister) `mapM_` (emailIdentity =<< new.newUserIdentity)
 
   result <- API.createUser new
   let acc = createdAccount result
