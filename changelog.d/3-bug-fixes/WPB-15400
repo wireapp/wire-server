@@ -1,0 +1,3 @@
+MLS: when recreating external (backend) proposals, these are now propagated to
+the clients only after the corresponding external commit has been forwarded to
+the clients.

@@ -362,16 +362,8 @@ testResendingProposals = do
         }
 
     -- consume proposals after backend resends them
-    void $ do
-      let ws = wsAlice1
-      commitMsg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws -- commit
-      commitMsg %. "message.content.sender" `shouldMatch` "NewMemberCommit"
-      replicateM 3 do
-        msg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
-        msg %. "message.content.sender.External" `shouldMatchInt` 0
-    void $ do
-      let ws = wsAlice2
-      commitMsg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws -- commit
+    for_ [wsAlice1, wsAlice2] $ \ws -> do
+      commitMsg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
       commitMsg %. "message.content.sender" `shouldMatch` "NewMemberCommit"
       replicateM 3 do
         msg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
