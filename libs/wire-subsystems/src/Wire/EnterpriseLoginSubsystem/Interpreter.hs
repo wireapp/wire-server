@@ -10,6 +10,7 @@ where
 
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Id
@@ -29,6 +30,7 @@ import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
 import Text.Email.Parser qualified as Email
+import URI.ByteString (serializeURIRef)
 import Wire.API.EnterpriseLogin
 import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.DomainRegistrationStore
@@ -412,8 +414,7 @@ guardEmailDomainRegistrationRegisterImpl email = do
       Locked -> ok
       SSO _ -> nope "`domain_redirect` is set to `sso:{code}`"
       Backend url ->
-        -- TODO: this should make /register respond with 302 found or something similar.
-        undefined url
+        nope $ "TODO: dummy text: url=" <> (LT.decodeUtf8 . toLazyByteString . serializeURIRef . httpsUrl) url
       NoRegistration -> nope "`domain_redirect` is set to `no_registration`"
       PreAuthorized -> ok
   where

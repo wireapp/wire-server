@@ -12,7 +12,8 @@ data EnterpriseLoginSubsystemError
   | EnterpriseLoginSubsystemUnlockError
   | EnterpriseLoginSubsystemUnAuthorizeError
   | EnterpriseLoginSubsystemPreAuthorizeError
-  | EnterpriseLoginSubsystemGuardFailed LText
+  | -- TODO: Better structured errors: data GuardFailure = InvalidDomain LText | DomRedirSetToSSO | ...
+    EnterpriseLoginSubsystemGuardFailed LText
   | EnterpriseLoginSubsystemGuardInvalidDomain LText
   deriving (Show, Eq)
 

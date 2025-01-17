@@ -151,6 +151,7 @@ import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
+import Wire.EnterpriseLoginSubsystem
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -367,7 +368,8 @@ servantSitemap ::
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -825,7 +827,8 @@ createUser ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member EmailSending r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -834,7 +837,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
   -- TODO: remove the conditional once we have a failing test that is fixed by this.
-  when False $ guardEmailDomainRegistrationRegisterImpl email
+  when False $ lift . liftSem $ guardEmailDomainRegistrationRegister undefined
 
   result <- API.createUser new
   let acc = createdAccount result

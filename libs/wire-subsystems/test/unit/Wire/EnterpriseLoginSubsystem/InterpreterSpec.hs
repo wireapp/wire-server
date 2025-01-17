@@ -56,7 +56,7 @@ spec = describe "EnterpriseLoginSubsystem" $ do
   it "UpdateDomainRegistration" pending
   it "DeleteDomain" pending
 
-  prop "GuardEmailDomainRegistrationState" $
+  prop "GuardEmailDomainRegistrationTeamInvitation" $
     \flow sameTeam teamId email preDomRegEntry ->
       let setTeamId :: DomainRegistrationUpdate -> TeamId -> DomainRegistrationUpdate
           setTeamId update tid = case update.teamInvite of
@@ -87,3 +87,17 @@ spec = describe "EnterpriseLoginSubsystem" $ do
                 NewUser -> teamNotAllowedOrWrongTeamIdFails
             _ -> teamNotAllowedOrWrongTeamIdFails
        in backendRedirectOrNoRegistrationFails
+
+  focus . prop "GuardEmailDomainRegistrationRegister" $
+    \email domRegEntry ->
+      let outcome = runDependencies . runEnterpriseLoginSubsystem $ do
+            updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
+            guardEmailDomainRegistrationRegister email
+          expected = case domRegEntry.domainRedirect of
+            None -> Right ()
+            Locked -> Right ()
+            SSO _ -> Left $ EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `sso:{code}`"
+            Backend url -> Left $ EnterpriseLoginSubsystemGuardFailed "TODO: dummy text: url=" <> (LT.decodeUtf8 . toLazyByteString . serializeURIRef . httpsUrl) url
+            NoRegistration -> Left $ EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `no_registration`"
+            PreAuthorized -> Right ()
+       in outcome === expected
