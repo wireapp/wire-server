@@ -36,7 +36,7 @@ import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.DomainRegistrationStore
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EnterpriseLoginSubsystem
-import Wire.EnterpriseLoginSubsystem.Error
+import Wire.EnterpriseLoginSubsystem.Error as Error
 
 data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
   { auditEmailSender :: EmailAddress,
@@ -381,7 +381,7 @@ guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
       Locked -> ok
       SSO _ -> ok
       Backend _ -> ok
-      NoRegistration -> case invitationFlow of
+      Wire.API.EnterpriseLogin.NoRegistration -> case invitationFlow of
         ExistingUser -> nope "`domain_redirect` is set to `no-registration`"
         NewUser -> ok
       PreAuthorized -> ok
@@ -412,10 +412,10 @@ guardEmailDomainRegistrationRegisterImpl email = do
     case reg.domainRedirect of
       None -> ok
       Locked -> ok
-      SSO _ -> nope "`domain_redirect` is set to `sso:{code}`"
+      SSO idpId -> nope $ DomRedirSetToSSO idpId
       Backend url ->
-        nope $ "TODO: dummy text: url=" <> (LT.decodeUtf8 . toLazyByteString . serializeURIRef . httpsUrl) url
-      NoRegistration -> nope "`domain_redirect` is set to `no_registration`"
+        nope $ BackendRedirect url
+      Wire.API.EnterpriseLogin.NoRegistration -> nope .Error.NoRegistration
       PreAuthorized -> ok
   where
     ok = pure ()
