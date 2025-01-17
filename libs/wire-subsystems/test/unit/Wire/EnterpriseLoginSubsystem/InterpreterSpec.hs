@@ -1,8 +1,11 @@
 module Wire.EnterpriseLoginSubsystem.InterpreterSpec where
 
+import Data.ByteString.Builder (toLazyByteString)
 import Data.Domain
 import Data.Id
+import Data.Misc (httpsUrl)
 import Data.String.Conversions (cs)
+import Data.Text.Lazy.Encoding qualified as LT
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -12,6 +15,7 @@ import Polysemy.TinyLog
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
+import URI.ByteString (serializeURIRef)
 import Wire.API.EnterpriseLogin
 import Wire.API.User.EmailAddress (domainPart)
 import Wire.DomainRegistrationStore
@@ -97,7 +101,7 @@ spec = describe "EnterpriseLoginSubsystem" $ do
             None -> Right ()
             Locked -> Right ()
             SSO _ -> Left $ EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `sso:{code}`"
-            Backend url -> Left $ EnterpriseLoginSubsystemGuardFailed "TODO: dummy text: url=" <> (LT.decodeUtf8 . toLazyByteString . serializeURIRef . httpsUrl) url
+            Backend url -> Left $ EnterpriseLoginSubsystemGuardFailed $ "TODO: dummy text: url=" <> (LT.decodeUtf8 . toLazyByteString . serializeURIRef . httpsUrl) url
             NoRegistration -> Left $ EnterpriseLoginSubsystemGuardFailed "`domain_redirect` is set to `no_registration`"
             PreAuthorized -> Right ()
        in outcome === expected
