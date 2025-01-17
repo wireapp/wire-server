@@ -208,6 +208,7 @@ mkDerivation {
     tinylog
     transformers
     types-common
+    uri-bytestring
     uuid
     wire-api
     wire-api-federation
