@@ -17,9 +17,11 @@ where
 import Cassandra.CQL qualified as C
 import Data.ByteString.Conversion hiding (toByteString)
 import Data.Data (Proxy (..))
+import Data.Domain
 import Data.OpenApi hiding (Schema, ToSchema)
 import Data.Schema
 import Data.Text hiding (null)
+import Data.Text qualified as T
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Deriving.Aeson
@@ -93,18 +95,11 @@ emailAddressText = emailAddress . encodeUtf8
 arbitraryValidMail :: Gen EmailAddress
 arbitraryValidMail = do
   loc <- arbitrary `suchThat` isValidLoc
-  dom <- (addTld . trimDots <$> arbitrary) `suchThat` isValidDom
-  pure . fromJust $ emailAddress (fromString $ loc <> "@" <> dom)
+  Domain dom <- arbitrary
+  pure . fromJust $ emailAddress (fromString $ loc <> "@" <> T.unpack dom)
   where
     notAt :: String -> Bool
     notAt = notElem '@'
-
-    trimDots :: String -> String
-    trimDots = Imports.dropWhile (== '.') . Imports.dropWhileEnd (== '.')
-
-    -- at some places dotless domains do not work, so we add a tld
-    addTld :: String -> String
-    addTld str = if '.' `notElem` str then str <> ".tld" else str
 
     notNull = not . null
 
@@ -113,12 +108,6 @@ arbitraryValidMail = do
       notNull x
         && notAt x
         && isValid (fromString (x <> "@mail.com"))
-
-    isValidDom :: String -> Bool
-    isValidDom x =
-      notNull x
-        && notAt x
-        && isValid (fromString ("me@" <> x))
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.
