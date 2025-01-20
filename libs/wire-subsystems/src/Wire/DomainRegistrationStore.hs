@@ -2,7 +2,6 @@
 
 module Wire.DomainRegistrationStore where
 
-import Amazonka.Request (delete)
 import Data.Domain as Domain
 import Data.Id
 import Data.Misc
