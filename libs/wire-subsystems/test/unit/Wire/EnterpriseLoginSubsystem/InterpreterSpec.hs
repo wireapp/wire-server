@@ -90,10 +90,19 @@ spec = describe "EnterpriseLoginSubsystem" $ do
             updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
             guardEmailDomainRegistrationRegister email
           expected = case domRegEntry.domainRedirect of
-            None -> Right ()
-            Locked -> Right ()
             SSO _ -> Left $ EnterpriseLoginSubsystemGuardFailed DomRedirSetToSSO
             Backend _ -> Left $ EnterpriseLoginSubsystemGuardFailed DomRedirSetToBackend
             NoRegistration -> Left $ EnterpriseLoginSubsystemGuardFailed DomRedirSetToNoRegistration
-            PreAuthorized -> Right ()
+            _ -> Right ()
+       in outcome === expected
+
+  prop "GuardEmailDomainRegistrationActivateSend" $
+    \email domRegEntry ->
+      let outcome = runDependencies . runEnterpriseLoginSubsystem $ do
+            updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
+            guardEmailDomainRegistrationActivateSend email
+          expected = case domRegEntry.domainRedirect of
+            Backend _ -> Left $ EnterpriseLoginSubsystemGuardFailed DomRedirSetToBackend
+            NoRegistration -> Left $ EnterpriseLoginSubsystemGuardFailed DomRedirSetToNoRegistration
+            _ -> Right ()
        in outcome === expected

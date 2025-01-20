@@ -21,3 +21,4 @@ enterpriseLoginSubsystemTestInterpreter err =
     GetDomainRegistration _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
     GuardEmailDomainRegistrationTeamInvitation {} -> throw err
     GuardEmailDomainRegistrationRegister _ -> throw err
+    GuardEmailDomainRegistrationActivateSend _ -> throw err

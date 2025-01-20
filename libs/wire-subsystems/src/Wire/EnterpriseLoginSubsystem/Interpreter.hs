@@ -60,6 +60,7 @@ runEnterpriseLoginSubsystem = interpret $
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
     GuardEmailDomainRegistrationTeamInvitation flow tid email -> guardEmailDomainRegistrationTeamInvitationImpl flow tid email
     GuardEmailDomainRegistrationRegister email -> guardEmailDomainRegistrationRegisterImpl email
+    GuardEmailDomainRegistrationActivateSend email -> guardEmailDomainRegistrationActivateSendImpl email
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -375,7 +376,7 @@ guardEmailDomainRegistrationTeamInvitationImpl ::
 guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
   mReg <- emailToDomainRegistration email
   for_ mReg $ \reg -> do
-    -- fail if domain-redirect is set to no-registration, or
+    -- fail if domain-redirect is set to no-registration, or...
     case reg.domainRedirect of
       None -> ok
       Locked -> ok
@@ -385,7 +386,7 @@ guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
         ExistingUser -> nope DomRedirSetToNoRegistration
         NewUser -> ok -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1587118249/Use+case+initiate+invitation+flow?focusedCommentId=1672839248
       PreAuthorized -> ok
-    -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
+    -- ...  if team-invitation is set to not-allowed or team:{team id} for any team ID that is not
     -- the team of the inviter
     case reg.teamInvite of
       Allowed -> ok
@@ -413,6 +414,28 @@ guardEmailDomainRegistrationRegisterImpl email = do
       None -> ok
       Locked -> ok
       SSO _ -> nope DomRedirSetToSSO
+      Backend _ -> nope DomRedirSetToBackend
+      NoRegistration -> nope DomRedirSetToNoRegistration
+      PreAuthorized -> ok
+  where
+    ok = pure ()
+    nope = throw . EnterpriseLoginSubsystemGuardFailed
+
+guardEmailDomainRegistrationActivateSendImpl ::
+  forall r.
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r ()
+guardEmailDomainRegistrationActivateSendImpl email = do
+  mReg <- emailToDomainRegistration email
+  for_ mReg $ \reg -> do
+    case reg.domainRedirect of
+      None -> ok
+      Locked -> ok
+      SSO _ -> ok
       Backend _ -> nope DomRedirSetToBackend
       NoRegistration -> nope DomRedirSetToNoRegistration
       PreAuthorized -> ok

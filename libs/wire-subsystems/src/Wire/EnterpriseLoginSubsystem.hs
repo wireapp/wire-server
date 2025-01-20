@@ -24,5 +24,6 @@ data EnterpriseLoginSubsystem m a where
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
   GuardEmailDomainRegistrationTeamInvitation :: InvitationFlow -> TeamId -> EmailAddress -> EnterpriseLoginSubsystem m ()
   GuardEmailDomainRegistrationRegister :: EmailAddress -> EnterpriseLoginSubsystem m ()
+  GuardEmailDomainRegistrationActivateSend :: EmailAddress -> EnterpriseLoginSubsystem m ()
 
 makeSem ''EnterpriseLoginSubsystem

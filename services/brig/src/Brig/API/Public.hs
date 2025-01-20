@@ -810,7 +810,8 @@ upgradePersonalToTeam ::
   Public.BindingNewTeamUser ->
   Handler r (Either Public.UpgradePersonalToTeamError Public.CreateUserTeam)
 upgradePersonalToTeam luid bNewTeam =
-  lift . runExceptT $
+  lift . runExceptT $ do
+    -- guardUpgradePersonalToTeam bNewTeam
     API.upgradePersonalToTeam luid bNewTeam
 
 -- | docs/reference/user/registration.md {#RefRegistration}
@@ -1164,12 +1165,14 @@ sendActivationCode ::
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   Public.SendActivationCode ->
   Handler r ()
 sendActivationCode ac = do
   let email = ac.emailKey
+  lift . liftSem $ guardEmailDomainRegistrationActivateSend email
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
   API.sendActivationCode email (ac.locale) !>> sendActCodeError
