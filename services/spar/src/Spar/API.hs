@@ -219,7 +219,11 @@ apiINTERNAL ::
     Member IdPConfigStore r,
     Member (Error SparError) r,
     Member SAMLUserStore r,
-    Member ScimUserTimesStore r
+    Member ScimUserTimesStore r,
+    Member (Logger String) r,
+    Member Random r,
+    Member GalleyAccess r,
+    Member BrigAccess r
   ) =>
   ServerT InternalAPI (Sem r)
 apiINTERNAL =
@@ -227,6 +231,7 @@ apiINTERNAL =
     :<|> Named @"i_delete_team" internalDeleteTeam
     :<|> Named @"i_put_sso_settings" internalPutSsoSettings
     :<|> Named @"i_post_scim_user_info" internalGetScimUserInfo
+    :<|> Named @"i_get_identity_providers" idpGetAllByTeamId
 
 appName :: Text
 appName = "spar"
@@ -384,7 +389,20 @@ idpGetAll ::
   Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
-  providers <- IdPConfigStore.getConfigsByTeam teamid
+  idpGetAllByTeamId teamid
+
+idpGetAllByTeamId ::
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r
+  ) =>
+  TeamId ->
+  Sem r IdPList
+idpGetAllByTeamId tid = do
+  providers <- IdPConfigStore.getConfigsByTeam tid
   pure IdPList {..}
 
 -- | Delete empty IdPs, or if @"purge=true"@ in the HTTP query, delete all users
