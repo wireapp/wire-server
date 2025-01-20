@@ -63,7 +63,7 @@ runAllEffects args =
   run
     . userSubsystemTestInterpreter args.initialUsers
     . evalState mempty
-    . emailSubsystemInterpreter
+    . inMemoryEmailSubsystemInterpreter
     . evalState defaultTime
     . interpretNowAsState
     . evalState mempty

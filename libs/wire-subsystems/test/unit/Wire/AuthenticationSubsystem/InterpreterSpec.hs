@@ -63,7 +63,7 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
     . evalState mempty
     . evalState mempty
     . inMemoryUserStoreInterpreter
-    . emailSubsystemInterpreter
+    . inMemoryEmailSubsystemInterpreter
     . discardTinyLogs
     . evalState mempty
     . inMemoryPasswordResetCodeStore
