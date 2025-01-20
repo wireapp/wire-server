@@ -84,8 +84,8 @@ inviteUserImpl ::
   Sem r (Invitation, InvitationLocation)
 inviteUserImpl luid tid request = do
   let inviteeRole = fromMaybe defaultRole request.role
-  let inviteePerms = Teams.rolePermissions inviteeRole
 
+  let inviteePerms = Teams.rolePermissions inviteeRole
   ensurePermissionToAddUser (tUnqualified luid) tid inviteePerms
 
   inviterEmail <-
