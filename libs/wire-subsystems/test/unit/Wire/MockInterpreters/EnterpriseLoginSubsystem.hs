@@ -19,5 +19,5 @@ enterpriseLoginSubsystemTestInterpreter err =
     UpdateDomainRegistration _ _ -> undefined -- :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
     DeleteDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
     GetDomainRegistration _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-    GuardEmailDomainRegistrationTeamInvitation flow tid email -> throw err
-    GuardEmailDomainRegistrationRegister email -> throw err
+    GuardEmailDomainRegistrationTeamInvitation {} -> throw err
+    GuardEmailDomainRegistrationRegister _ -> throw err
