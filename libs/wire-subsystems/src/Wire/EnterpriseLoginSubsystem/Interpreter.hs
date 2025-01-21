@@ -383,7 +383,7 @@ guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
       Backend _ -> ok
       NoRegistration -> case invitationFlow of
         ExistingUser -> nope DomRedirSetToNoRegistration
-        NewUser -> ok -- https://wearezeta.atlassian.net/wiki/people/5b238b2002cfea1ba6411236?ref=confluence
+        NewUser -> ok -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1587118249/Use+case+initiate+invitation+flow?focusedCommentId=1672839248
       PreAuthorized -> ok
     -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
     -- the team of the inviter
