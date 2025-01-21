@@ -1,7 +1,7 @@
 module Wire.MockInterpreters (module MockInterpreters) where
 
 -- Run this from project root to generate the imports:
--- ls ./MockInterpreters | grep '\.hs' | sed 's|\(.*\)\.hs|import Wire.MockInterpreters.\1 as MockInterpreters|'
+-- ls libs/wire-subsystems/test/unit/Wire/MockInterpreters | sed 's|\(.*\)\.hs|import Wire.MockInterpreters.\1 as MockInterpreters|'
 
 import Wire.MockInterpreters.ActivationCodeStore as MockInterpreters
 import Wire.MockInterpreters.BlockListStore as MockInterpreters
