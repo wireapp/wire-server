@@ -6,7 +6,6 @@ import Polysemy.Error (Error, throw)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error
 
--- HINT: This is used to test AuthenticationSubsystem, ...; not to test itself!
 enterpriseLoginSubsystemTestInterpreter ::
   (Member (Error EnterpriseLoginSubsystemError) r) =>
   InterpreterFor EnterpriseLoginSubsystem r

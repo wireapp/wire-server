@@ -6,7 +6,6 @@ import Polysemy
 import Wire.API.User
 import Wire.UserSubsystem
 
--- HINT: This is used to test AuthenticationSubsystem, ...; not to test itself!
 userSubsystemTestInterpreter :: [User] -> InterpreterFor UserSubsystem r
 userSubsystemTestInterpreter initialUsers =
   interpret \case
