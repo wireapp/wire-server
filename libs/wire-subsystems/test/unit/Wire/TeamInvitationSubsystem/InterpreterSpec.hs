@@ -75,7 +75,7 @@ runAllEffects args =
     . miniGalleyAPIAccess (Just args.teamOwner) def
     . discardTinyLogs
     . runError
-    . enterpriseLoginSubsystemTestInterpreter args.guardError
+    . enterpriseLoginSubsystemTestInterpreter args.enterpriseLoginError
     . runErrorUnsafe @TeamInvitationSubsystemError
 
 spec :: Spec
