@@ -7,6 +7,7 @@ import API.BrigInternal as BrigInternal
 import API.Common (randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
+import API.SparInternal
 import Control.Concurrent (threadDelay)
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
@@ -336,8 +337,13 @@ testSparCreateScimTokenAssocImplicitly = do
   samlIdpId <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "id"
-  resp2 <- createScimTokenV6 owner def >>= getJSON 200
-  resp2 %. "info.idp" `shouldMatch` samlIdpId
+  bindResponse (createScimTokenV6 owner def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "info.idp" `shouldMatch` samlIdpId
+  bindResponse (getAllIdPs owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    idp <- resp.json %. "providers" >>= asList >>= assertOne
+    idp %. "id" `shouldMatch` samlIdpId
 
 -- | in V6, name should be ignored
 testSparCreateScimTokenWithName :: (HasCallStack) => App ()
