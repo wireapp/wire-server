@@ -385,7 +385,7 @@ testTransientEventsDoNotTriggerDeadLetters = do
 
     -- consume it
     runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-      assertEvent ws $ \e -> do
+      assertFindsEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "type" `shouldMatch` "event"
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
@@ -467,8 +467,13 @@ testChannelLimit = withModifiedBackend
 
       -- the first client fails to connect because the server runs out of channels
       do
-        ws <- createEventsWebSocket alice (Just client0)
-        lift $ assertNoEvent_ ws
+        eithWS <- createEventsWebSocketEither alice (Just client0)
+        case eithWS of
+          Left (WS.MalformedResponse respHead _) ->
+            lift $ respHead.responseCode `shouldMatchInt` 503
+          Left e ->
+            lift $ assertFailure $ "Expected websocket to fail with response code 503, got some other handshake exception: " <> displayException e
+          Right _ -> lift $ assertFailure "Expected websocket hanshake to fail, but it didn't"
 
 testChannelKilled :: (HasCallStack) => App ()
 testChannelKilled = do
@@ -527,10 +532,22 @@ createEventsWebSocket ::
   Maybe String ->
   Codensity App EventWebSocket
 createEventsWebSocket user cid = do
+  eithWS <- createEventsWebSocketEither user cid
+  case eithWS of
+    Left e -> lift $ assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
+    Right ws -> pure ws
+
+createEventsWebSocketEither ::
+  (HasCallStack, MakesValue uid) =>
+  uid ->
+  Maybe String ->
+  Codensity App (Either WS.HandshakeException EventWebSocket)
+createEventsWebSocketEither user cid = do
   eventsChan <- liftIO newChan
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
   apiVersion <- lift $ getAPIVersionFor $ objDomain user
+  wsStarted <- newEmptyMVar
   let minAPIVersion = 8
   lift
     . when (apiVersion < minAPIVersion)
@@ -540,7 +557,8 @@ createEventsWebSocket user cid = do
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
       path = "/v" <> show apiVersion <> "/events" <> maybe "" ("?client=" <>) cid
       caHdrs = [(fromString "Z-User", toByteString' uid)]
-      app conn =
+      app conn = do
+        putMVar wsStarted (Right ())
         race_
           (wsRead conn `catch` (writeChan eventsChan . Left))
           (wsWrite conn)
@@ -560,23 +578,26 @@ createEventsWebSocket user cid = do
             WS.sendBinaryData conn (encode ack)
               >> wsWrite conn
 
-  wsThread <- Codensity $ \k -> do
-    withAsync
-      ( liftIO
-          $ WS.runClientWith
-            caHost
-            (fromIntegral caPort)
-            path
-            WS.defaultConnectionOptions
-            caHdrs
-            app
-      )
-      k
+  wsThread <-
+    Codensity
+      $ withAsync
+      $ liftIO
+      $ WS.runClientWith caHost (fromIntegral caPort) path WS.defaultConnectionOptions caHdrs app
+      `catch` \(e :: WS.HandshakeException) -> putMVar wsStarted (Left e)
 
-  Codensity $ \k ->
-    k (EventWebSocket eventsChan ackChan) `finally` do
-      putMVar ackChan Nothing
-      liftIO $ wait wsThread
+  timeOutSeconds <- asks (.timeOutSeconds)
+  mStarted <- lift $ timeout (timeOutSeconds * 1_000_000) (takeMVar wsStarted)
+  case mStarted of
+    Nothing -> do
+      cancel wsThread
+      lift $ assertFailure $ "Websocket failed to connect within " <> show timeOutSeconds <> "s"
+    Just (Left e) ->
+      pure (Left e)
+    Just (Right ()) ->
+      Codensity $ \k ->
+        k (Right $ EventWebSocket eventsChan ackChan) `finally` do
+          putMVar ackChan Nothing
+          liftIO $ wait wsThread
 
 ackFullSync :: (HasCallStack) => EventWebSocket -> App ()
 ackFullSync ws =
@@ -607,7 +628,9 @@ assertEvent ws expectations = do
   timeOutSeconds <- asks (.timeOutSeconds)
   timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
     Nothing -> assertFailure $ "No event received for " <> show timeOutSeconds <> "s"
-    Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+    Just (Left ex) ->
+      addFailureContext ("WSException: " <> displayException ex)
+        $ assertFailure "Websocket closed when waiting for more events"
     Just (Right e) -> do
       pretty <- prettyJSON e
       addFailureContext ("event:\n" <> pretty)
@@ -622,7 +645,9 @@ assertFindsEvent ws expectations = go 0
       timeOutSeconds <- asks (.timeOutSeconds)
       timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
         Nothing -> assertFailure $ show ignoredEventCount <> " event(s) received, no matching event received for " <> show timeOutSeconds <> "s"
-        Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+        Just (Left ex) ->
+          addFailureContext ("WSException: " <> displayException ex)
+            $ assertFailure "Websocket closed when waiting for more events"
         Just (Right ev) -> do
           (expectations ev)
             `catch` \(_ :: AssertionFailure) -> do

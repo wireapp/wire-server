@@ -23,19 +23,23 @@ import Wire.API.Notification
 
 rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid mcid e pendingConn = do
-  bracket openWebSocket closeWebSocket $ \wsConn ->
-    ( do
-        traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-        sendNotifications wsConn
-    )
-      `catches` [ handleClientMisbehaving wsConn,
-                  handleWebSocketExceptions wsConn,
-                  handleOtherExceptions wsConn
-                ]
+  runCodensity (createChannel uid mcid e.pool createQueue) runWithChannel
+    `catches` [handleTooManyChannels]
   where
     logClient =
       Log.field "user" (idToText uid)
         . Log.field "client" (maybe "<temporary>" clientToText mcid)
+
+    runWithChannel chan = bracket openWebSocket closeWebSocket $ \wsConn ->
+      ( do
+          traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
+          sendNotifications chan wsConn
+      )
+        `catches` [ handleClientMisbehaving wsConn,
+                    handleWebSocketExceptions wsConn,
+                    handleRabbitMqChannelException wsConn,
+                    handleOtherExceptions wsConn
+                  ]
 
     openWebSocket =
       acceptRequest pendingConn
@@ -102,28 +106,41 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
                 . logClient
             WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString)
 
+    handleRabbitMqChannelException wsConn = do
+      Handler $ \ChannelClosed -> do
+        Log.debug e.logg $ Log.msg (Log.val "RabbitMQ channel closed") . logClient
+        WS.sendCloseCode wsConn 1001 ("" :: ByteString)
+
     handleOtherExceptions wsConn = Handler $
       \(err :: SomeException) -> do
         WS.sendCloseCode wsConn 1003 ("internal-error" :: ByteString)
         throwIO err
 
-    sendNotifications :: WS.Connection -> IO ()
-    sendNotifications wsConn = lowerCodensity $ do
-      let createQueue chan = case mcid of
-            Nothing -> Codensity $ \k -> do
-              (queueName, _, _) <-
-                Q.declareQueue chan $
-                  newQueue
-                    { Q.queueExclusive = True,
-                      Q.queueAutoDelete = True
-                    }
-              for_ [userRoutingKey uid, temporaryRoutingKey uid] $
-                Q.bindQueue chan queueName userNotificationExchangeName
-              k queueName
-            Just cid -> Codensity $ \k -> k $ clientNotificationQueueName uid cid
+    handleTooManyChannels = Handler $
+      \TooManyChannels ->
+        rejectRequestWith pendingConn $
+          RejectRequest
+            { rejectCode = 503,
+              rejectMessage = "Service Unavailable",
+              rejectHeaders = [],
+              rejectBody = ""
+            }
 
-      chan <- createChannel e.pool createQueue
+    createQueue chan = case mcid of
+      Nothing -> Codensity $ \k -> do
+        (queueName, _, _) <-
+          Q.declareQueue chan $
+            newQueue
+              { Q.queueExclusive = True,
+                Q.queueAutoDelete = True
+              }
+        for_ [userRoutingKey uid, temporaryRoutingKey uid] $
+          Q.bindQueue chan queueName userNotificationExchangeName
+        k queueName
+      Just cid -> Codensity $ \k -> k $ clientNotificationQueueName uid cid
 
+    sendNotifications :: RabbitMqChannel -> WS.Connection -> IO ()
+    sendNotifications chan wsConn = do
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
             catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
@@ -142,7 +159,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
       -- run both loops concurrently, so that
       --  - notifications are delivered without having to wait for acks
       --  - exceptions on either side do not cause a deadlock
-      lift $ concurrently_ consumeRabbitMq consumeWebsocket
+      concurrently_ consumeRabbitMq consumeWebsocket
 
     logParseError :: String -> IO ()
     logParseError err =

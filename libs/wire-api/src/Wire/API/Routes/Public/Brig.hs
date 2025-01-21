@@ -602,6 +602,7 @@ type AccountAPI =
            "post-password-reset-key-deprecated"
            ( Summary "Complete a password reset."
                :> Deprecated
+               :> Until 'V8
                :> CanThrow 'PasswordResetInProgress
                :> CanThrow 'InvalidPasswordResetKey
                :> CanThrow 'InvalidPasswordResetCode
@@ -616,6 +617,7 @@ type AccountAPI =
            "onboarding"
            ( Summary "Upload contacts and invoke matching."
                :> Deprecated
+               :> Until 'V8
                :> Description
                     "DEPRECATED: the feature has been turned off, the end-point does \
                     \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
@@ -1695,6 +1697,7 @@ type CallingAPI =
         "Retrieve TURN server addresses and credentials for \
         \ IP addresses, scheme `turn` and transport `udp` only (deprecated)"
         :> Deprecated
+        :> Until 'V8
         :> ZUser
         :> ZConn
         :> "calls"

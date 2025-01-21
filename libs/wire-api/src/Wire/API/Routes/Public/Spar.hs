@@ -60,7 +60,13 @@ type DeprecateSSOAPIV1 =
     \Details: https://docs.wire.com/understand/single-sign-on/trouble-shooting.html#can-i-use-the-same-sso-login-code-for-multiple-teams"
 
 type APISSO =
-  Named "sso-metadata" (DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta)
+  Named
+    "sso-metadata"
+    ( --  This deprecated endpoint should be removed at some point. However it does not make a lot of sense to apply our versioning mechanism to it,
+      -- as this is not a classic client API endpoint. It is used in the SAML IDP flow and should exist independently of the API version,
+      -- and requires a different process for decommissioning. See https://wearezeta.atlassian.net/browse/WPB-15319
+      DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta
+    )
     :<|> Named "sso-team-metadata" ("metadata" :> Capture "team" TeamId :> SAML.APIMeta)
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
@@ -89,6 +95,9 @@ type APIAuthReq =
         :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
     )
 
+-- | This deprecated endpoint should be removed at some point. However it does not make a lot of sense to apply our versioning mechanism to it,
+-- as this is not a classic client API endpoint. It is used in the SAML IDP flow and should exist independently of the API version,
+-- and requires a different process for decommissioning. See https://wearezeta.atlassian.net/browse/WPB-15319
 type APIAuthRespLegacy =
   Named
     "auth-resp-legacy"

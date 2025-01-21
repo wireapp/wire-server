@@ -25,6 +25,7 @@ import Servant
 import Servant.OpenApi
 import Wire.API.Routes.Named
 import Wire.API.User
+import Wire.API.User.IdentityProvider (IdPList)
 import Wire.API.User.Saml
 
 type InternalAPI =
@@ -33,6 +34,7 @@ type InternalAPI =
            :<|> Named "i_delete_team" ("teams" :> Capture "team" TeamId :> DeleteNoContent)
            :<|> Named "i_put_sso_settings" ("sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent)
            :<|> Named "i_post_scim_user_info" ("scim" :> "userinfo" :> Capture "user" UserId :> Post '[JSON] ScimUserInfo)
+           :<|> Named "i_get_identity_providers" ("identity-providers" :> Capture "team" TeamId :> Get '[JSON] IdPList)
        )
 
 swaggerDoc :: OpenApi

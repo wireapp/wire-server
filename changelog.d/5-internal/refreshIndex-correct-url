@@ -1,0 +1,3 @@
+/i/index/refresh now uses the correct URL for additional indices. Thus, the
+refreshed indices can reside on different ElasticSearch instances. This
+endpoint is exclusively called from tests.
