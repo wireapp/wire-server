@@ -19,5 +19,7 @@ enterpriseLoginSubsystemTestInterpreter =
     UpdateDomainRegistration _ _ -> undefined -- :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
     DeleteDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
     GetDomainRegistration _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-    GuardEmailDomainRegistrationTeamInvitation {} -> throw $ EnterpriseLoginSubsystemGuardFailed (InvalidDomain "mock interpreter: don't know which error, i'm not very smart")
-    GuardEmailDomainRegistrationRegister {} -> throw $ EnterpriseLoginSubsystemGuardFailed (InvalidDomain "mock interpreter: don't know which error, i'm not very smart")
+    GuardEmailDomainRegistrationTeamInvitation flow tid email ->
+      throw $ EnterpriseLoginSubsystemGuardFailed (InvalidDomain ("mock interpreter: GuardEmailDomainRegistrationTeamInvitation " <> show (flow, tid, email)))
+    GuardEmailDomainRegistrationRegister email ->
+      throw $ EnterpriseLoginSubsystemGuardFailed (InvalidDomain ("mock interpreter: GuardEmailDomainRegistrationRegister " <> show email))
