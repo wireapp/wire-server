@@ -20,6 +20,7 @@ import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error
 import Wire.EnterpriseLoginSubsystem.Interpreter
 import Wire.MockInterpreters.DomainRegistrationStore
+import Wire.MockInterpreters.EmailSending
 import Wire.Sem.Logger.TinyLog
 
 runDependencies ::
@@ -34,18 +35,13 @@ runDependencies ::
   Either EnterpriseLoginSubsystemError a
 runDependencies =
   run
-    . emailSendingInterpreter
+    . noopEmailSendingInterpreter
     . runInputConst Nothing
     . discardTinyLogs
     . runError
     . evalState mempty
     . inMemoryDomainRegistrationStoreInterpreter
     . raiseUnder
-
-emailSendingInterpreter :: InterpreterFor EmailSending r
-emailSendingInterpreter =
-  interpret \case
-    SendMail _ -> pure ()
 
 spec :: Spec
 spec = describe "EnterpriseLoginSubsystem" $ do

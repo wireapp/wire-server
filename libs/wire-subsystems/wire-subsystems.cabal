@@ -248,6 +248,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.DomainRegistrationStore
+    Wire.MockInterpreters.EmailSending
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.EnterpriseLoginSubsystem
     Wire.MockInterpreters.Error
