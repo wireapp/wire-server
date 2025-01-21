@@ -4,6 +4,7 @@ import Data.Text.Lazy qualified as LT
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities qualified as Wai
+import Wire.Arbitrary
 import Wire.Error
 
 data EnterpriseLoginSubsystemError
@@ -14,7 +15,8 @@ data EnterpriseLoginSubsystemError
   | EnterpriseLoginSubsystemUnAuthorizeError
   | EnterpriseLoginSubsystemPreAuthorizeError
   | EnterpriseLoginSubsystemGuardFailed GuardFailure
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform EnterpriseLoginSubsystemError)
 
 instance Exception EnterpriseLoginSubsystemError
 
@@ -25,7 +27,8 @@ data GuardFailure
   | TeamInviteSetToNotAllowed
   | TeamInviteRestrictedToOtherTeam
   | InvalidDomain String
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform GuardFailure)
 
 enterpriseLoginSubsystemErrorToHttpError :: EnterpriseLoginSubsystemError -> HttpError
 enterpriseLoginSubsystemErrorToHttpError =

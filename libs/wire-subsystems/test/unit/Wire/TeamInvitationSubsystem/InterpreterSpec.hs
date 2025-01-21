@@ -54,7 +54,8 @@ type AllEffects =
 
 data RunAllEffectsArgs = RunAllEffectsArgs
   { teamOwner :: TeamMember,
-    initialUsers :: [User]
+    initialUsers :: [User],
+    enterpriseLoginError :: EnterpriseLoginSubsystemError
   }
   deriving (Eq, Show)
 
@@ -74,14 +75,14 @@ runAllEffects args =
     . miniGalleyAPIAccess (Just args.teamOwner) def
     . discardTinyLogs
     . runError
-    . enterpriseLoginSubsystemTestInterpreter
+    . enterpriseLoginSubsystemTestInterpreter args.guardError
     . runErrorUnsafe @TeamInvitationSubsystemError
 
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
     prop "calls guardEmailDomainRegistrationState if appropriate" $
-      \preInviter tid inviterEmail inviteeEmail ->
+      \preInviter tid inviterEmail inviteeEmail enterpriseLoginError ->
         let cfg =
               TeamInvitationSubsystemConfig
                 { maxTeamSize = 50,
@@ -100,7 +101,7 @@ spec = do
             domain = qDomain inviter.userQualifiedId
             luid = toLocalUnsafe domain uid
             teamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
-            args = RunAllEffectsArgs teamMember [inviter]
+            args = RunAllEffectsArgs teamMember [inviter] enterpriseLoginError
             outcome = runAllEffects args . runTeamInvitationSubsystem cfg $ do
               void $ inviteUser luid tid invReq
          in counterexample (show outcome) (isLeft outcome === True)

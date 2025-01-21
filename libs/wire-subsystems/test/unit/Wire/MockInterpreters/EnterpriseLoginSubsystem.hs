@@ -8,8 +8,9 @@ import Wire.EnterpriseLoginSubsystem.Error
 
 enterpriseLoginSubsystemTestInterpreter ::
   (Member (Error EnterpriseLoginSubsystemError) r) =>
+  EnterpriseLoginSubsystemError ->
   InterpreterFor EnterpriseLoginSubsystem r
-enterpriseLoginSubsystemTestInterpreter =
+enterpriseLoginSubsystemTestInterpreter err =
   interpret \case
     LockDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
     UnlockDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
@@ -18,7 +19,5 @@ enterpriseLoginSubsystemTestInterpreter =
     UpdateDomainRegistration _ _ -> undefined -- :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
     DeleteDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
     GetDomainRegistration _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-    GuardEmailDomainRegistrationTeamInvitation flow tid email ->
-      throw $ EnterpriseLoginSubsystemGuardFailed (InvalidDomain ("mock interpreter: GuardEmailDomainRegistrationTeamInvitation " <> show (flow, tid, email)))
-    GuardEmailDomainRegistrationRegister email ->
-      throw $ EnterpriseLoginSubsystemGuardFailed (InvalidDomain ("mock interpreter: GuardEmailDomainRegistrationRegister " <> show email))
+    GuardEmailDomainRegistrationTeamInvitation flow tid email -> throw err
+    GuardEmailDomainRegistrationRegister email -> throw err
