@@ -17,4 +17,6 @@ data:
     wireServerEnterprise:
       host: 0.0.0.0
       port: 8080
+
+    dnsOverHttpsUrl: {{ required "config.dnsOverHttpsUrl: required to use DNS-over-HTTP(S)" .dnsOverHttpsUrl | }}
   {{- end }}

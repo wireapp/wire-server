@@ -229,6 +229,8 @@ releases:
         value: {{ .Values.federationDomain1 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
+      - name: brig.config.wireServerEnterprise.enabled
+        value: true
     needs:
       - 'databases-ephemeral'
 
@@ -245,6 +247,9 @@ releases:
         value: {{ .Values.federationDomain2 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
+      # TODO: This should be disabled later (fixes a deployment issue now)
+      - name: brig.config.wireServerEnterprise.enabled
+        value: true
     needs:
       - 'databases-ephemeral'
 
