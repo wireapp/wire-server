@@ -160,6 +160,7 @@ library
     Wire.API.Routes.Features
     Wire.API.Routes.FederationDomainConfig
     Wire.API.Routes.Internal.Brig
+    Wire.API.Routes.Internal.Enterprise
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
     Wire.API.Routes.Internal.Brig.EnterpriseLogin
