@@ -21,7 +21,7 @@
 module Wire.InvitationStore where
 
 import Data.Id (InvitationId, TeamId, UserId)
-import Data.Json.Util (UTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range (Range)
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports
@@ -50,6 +50,8 @@ data StoredInvitation = MkStoredInvitation
 
 recordInstance ''StoredInvitation
 
+-- | The difference between this and `StoredInvitation` is the type of `createdAt` (plus
+-- reordering and renaming of fields for some reason).  See 'insertInvToStoredInv' below.
 data InsertInvitation = MkInsertInvitation
   { invitationId :: InvitationId,
     teamId :: TeamId,
@@ -97,4 +99,17 @@ invitationFromStored maybeUrl MkStoredInvitation {..} =
       inviteeEmail = email,
       inviteeName = name,
       inviteeUrl = maybeUrl
+    }
+
+insertInvToStoredInv :: InsertInvitation -> StoredInvitation
+insertInvToStoredInv (MkInsertInvitation invId teamId role (toUTCTimeMillis -> now) uid email name code) =
+  MkStoredInvitation
+    { teamId = teamId,
+      role = Just role,
+      invitationId = invId,
+      createdAt = now,
+      createdBy = uid,
+      email = email,
+      name = name,
+      code = code
     }

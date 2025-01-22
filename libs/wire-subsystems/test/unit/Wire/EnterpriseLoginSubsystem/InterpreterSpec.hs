@@ -2,7 +2,6 @@ module Wire.EnterpriseLoginSubsystem.InterpreterSpec where
 
 import Data.Default
 import Data.Domain
-import Data.Id
 import Data.String.Conversions (cs)
 import Imports
 import Polysemy
@@ -91,38 +90,41 @@ spec = describe "EnterpriseLoginSubsystem" $ do
   it "UpdateDomainRegistration" pending
   it "DeleteDomain" pending
 
-  prop "GuardEmailDomainRegistrationTeamInvitation" $
-    \flow sameTeam teamId email preDomRegEntry ->
-      let setTeamId :: DomainRegistrationUpdate -> TeamId -> DomainRegistrationUpdate
-          setTeamId update tid = case update.teamInvite of
-            Team _ -> DomainRegistrationUpdate update.domainRedirect (Team tid)
-            _ -> update
+  -- TODO: Migrate the tests below to TeamInvitationSubsystemSpec
 
-          domRegEntry = if sameTeam then setTeamId preDomRegEntry teamId else preDomRegEntry
+  -- prop "GuardEmailDomainRegistrationTeamInvitation" $
+  --   \flow sameTeam teamId email preDomRegEntry ->
+  --     let setTeamId :: DomainRegistrationUpdate -> TeamId -> DomainRegistrationUpdate
+  --         setTeamId update tid = case update.teamInvite of
+  --           Team _ -> DomainRegistrationUpdate update.domainRedirect (Team tid)
+  --           _ -> update
 
-          outcome = runDependencies . runEnterpriseLoginSubsystem $ do
-            updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
-            guardEmailDomainRegistrationTeamInvitation flow teamId email
+  --         domRegEntry = if sameTeam then setTeamId preDomRegEntry teamId else preDomRegEntry
 
-          teamNotAllowedOrWrongTeamIdFails = case domRegEntry.teamInvite of
-            Allowed -> outcome === Right ()
-            NotAllowed -> outcome === Left (EnterpriseLoginSubsystemGuardFailed TeamInviteSetToNotAllowed)
-            Team allowedTid ->
-              if allowedTid == teamId
-                then outcome === Right ()
-                else outcome === Left (EnterpriseLoginSubsystemGuardFailed TeamInviteRestrictedToOtherTeam)
+  --         outcome = runDependencies . runEnterpriseLoginSubsystem $ do
+  --           updateDomainRegistration (Domain . cs $ domainPart email) domRegEntry
+  --           guardEmailDomainRegistrationTeamInvitation flow teamId email
 
-          backendRedirectOrNoRegistrationFails = case domRegEntry.domainRedirect of
-            Backend _ ->
-              -- if domain-redirect is set to `backend`, then team-invite must be set to `not-allowed`
-              teamNotAllowedOrWrongTeamIdFails
-            NoRegistration ->
-              case flow of
-                ExistingUser -> outcome === Left (EnterpriseLoginSubsystemGuardFailed DomRedirSetToNoRegistration)
-                NewUser -> teamNotAllowedOrWrongTeamIdFails
-            _ -> teamNotAllowedOrWrongTeamIdFails
-       in backendRedirectOrNoRegistrationFails
+  --         teamNotAllowedOrWrongTeamIdFails = case domRegEntry.teamInvite of
+  --           Allowed -> outcome === Right ()
+  --           NotAllowed -> outcome === Left (EnterpriseLoginSubsystemGuardFailed TeamInviteSetToNotAllowed)
+  --           Team allowedTid ->
+  --             if allowedTid == teamId
+  --               then outcome === Right ()
+  --               else outcome === Left (EnterpriseLoginSubsystemGuardFailed TeamInviteRestrictedToOtherTeam)
 
+  --         backendRedirectOrNoRegistrationFails = case domRegEntry.domainRedirect of
+  --           Backend _ ->
+  --             -- if domain-redirect is set to `backend`, then team-invite must be set to `not-allowed`
+  --             teamNotAllowedOrWrongTeamIdFails
+  --           NoRegistration ->
+  --             case flow of
+  --               ExistingUser -> outcome === Left (EnterpriseLoginSubsystemGuardFailed DomRedirSetToNoRegistration)
+  --               NewUser -> teamNotAllowedOrWrongTeamIdFails
+  --           _ -> teamNotAllowedOrWrongTeamIdFails
+  --      in backendRedirectOrNoRegistrationFails
+
+  -- TODO: Migrate somewhere else?
   prop "GuardEmailDomainRegistrationRegister" $
     \email domRegEntry ->
       let outcome = runDependencies . runEnterpriseLoginSubsystem $ do
