@@ -165,6 +165,10 @@ rawBaseRequest domain service versioned path = do
     let HostPort h p = serviceHostPort serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
 
+-- | The bare minimum to ge a `HTTP.Request` given a URL
+externalRequest :: String -> App HTTP.Request
+externalRequest = liftIO . HTTP.parseRequest
+
 getAPIVersionFor :: (MakesValue domain) => domain -> App Int
 getAPIVersionFor domain = do
   d <- asString domain

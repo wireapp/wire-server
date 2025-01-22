@@ -1,3 +1,4 @@
+-- | See also: "Test.DomainVerification"
 module Test.EnterpriseLogin where
 
 import API.BrigInternal
@@ -144,7 +145,7 @@ testDomainRegistrationUpdate = do
   updateDomain domain
     $ object
       [ "domain_redirect" .= "sso",
-        "sso_idp_id" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
+        "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
         "team_invite" .= "allowed"
       ]
   updateDomain domain
@@ -167,7 +168,7 @@ testDomainRegistrationUpdate = do
         resp.json %. "domain_redirect" `shouldMatch` (update %. "domain_redirect")
         resp.json %. "team_invite" `shouldMatch` (update %. "team_invite")
         lookupField resp.json "backend_url" `shouldMatch` lookupField update "backend_url"
-        lookupField resp.json "sso_idp_id" `shouldMatch` lookupField update "sso_idp_id"
+        lookupField resp.json "sso_code" `shouldMatch` lookupField update "sso_code"
         lookupField resp.json "team" `shouldMatch` lookupField update "team"
 
 testDomainRegistrationUpdateInvalidCases :: App ()
@@ -258,7 +259,7 @@ testDomainRegistrationUnAuthorizeFailureWhenSso = do
   let update =
         object
           [ "domain_redirect" .= "sso",
-            "sso_idp_id" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
+            "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
             "team_invite" .= "team",
             "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
           ]
@@ -276,7 +277,7 @@ testDomainRegistrationDelete = do
   let update =
         object
           [ "domain_redirect" .= "sso",
-            "sso_idp_id" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
+            "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
             "team_invite" .= "team",
             "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
           ]

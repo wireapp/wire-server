@@ -890,3 +890,40 @@ postServiceWhitelist user tid update = do
           "whitelist"
         ]
   submit "POST" (addJSON updateJson req)
+
+domainVerificationToken :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> App Response
+domainVerificationToken domain registrationDomain mAuthToken = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "token"]
+  let req' = case mAuthToken of
+        Just authToken -> addHeader "Authorization" ("Bearer " <> authToken) req
+        Nothing -> req
+  submit "POST" req'
+
+domainVerificationTeamToken :: (HasCallStack, MakesValue user) => user -> String -> App Response
+domainVerificationTeamToken user registrationDomain = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "team-token"]
+  submit "POST" req
+
+-- brig expects an auth-token for this request. @mAuthToken@ is only `Maybe` for testing error cases!
+updateDomainRedirect :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> Value -> App Response
+updateDomainRedirect domain registrationDomain mAuthToken config = do
+  req <-
+    baseRequest domain Brig Versioned $
+      joinHttpPath ["domain-verification", registrationDomain, "backend"]
+  let req' = case mAuthToken of
+        Just authToken -> addHeader "Authorization" ("Bearer " <> authToken) req
+        Nothing -> req
+  submit "POST" $ req' & addJSON config
+
+updateTeamInvite :: (HasCallStack, MakesValue user, MakesValue payload) => user -> String -> payload -> App Response
+updateTeamInvite user registrationDomain payload = do
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["domain-verification", registrationDomain, "team"]
+  p <- make payload
+  submit "POST" $ req & addJSON p
+
+getDomainRegistrationFromEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getDomainRegistrationFromEmail domain email = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["get-domain-registration"]
+  submit "POST" $ req & addJSONObject ["email" .= email]

@@ -120,6 +120,8 @@ library
     Test.Connection
     Test.Conversation
     Test.Demo
+    Test.DNSMock
+    Test.DomainVerification
     Test.EJPD
     Test.EnterpriseLogin
     Test.Errors
@@ -230,6 +232,7 @@ library
     , data-timeout
     , deriving-aeson
     , directory
+    , dns
     , errors
     , exceptions
     , extended
