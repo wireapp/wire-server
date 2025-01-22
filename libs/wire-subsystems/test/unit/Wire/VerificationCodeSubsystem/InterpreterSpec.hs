@@ -9,7 +9,7 @@ import Polysemy.State
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Wire.MockInterpreters
+import Wire.MockInterpreters hiding (code)
 import Wire.Sem.Now
 import Wire.Sem.Random
 import Wire.VerificationCode

@@ -11,12 +11,13 @@ where
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain, domainText, mkDomain)
 import Data.Id
 import Data.Misc (HttpsUrl (..))
+import Data.Text.Encoding as T
 import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
 import Data.Text.Lazy.Builder (Builder)
-import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Lazy.Encoding as LT
 import Imports hiding (lookup)
 import Network.Mail.Mime (Address (Address), Mail (mailHeaders, mailParts, mailTo), emptyMail, plainPart)
 import Polysemy
@@ -26,12 +27,13 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
+import Text.Email.Parser qualified as Email
 import Wire.API.EnterpriseLogin
 import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.DomainRegistrationStore
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EnterpriseLoginSubsystem
-import Wire.EnterpriseLoginSubsystem.Error
+import Wire.EnterpriseLoginSubsystem.Error as Error
 
 data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
   { auditEmailSender :: EmailAddress,
@@ -56,6 +58,8 @@ runEnterpriseLoginSubsystem = interpret $
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
+    GuardEmailDomainRegistrationTeamInvitation flow tid email -> guardEmailDomainRegistrationTeamInvitationImpl flow tid email
+    GuardEmailDomainRegistrationRegister email -> guardEmailDomainRegistrationRegisterImpl email
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -328,15 +332,90 @@ sendAuditMail url subject mBefore mAfter = do
         toLazyText $
           url
             <> " called;\nOld value:\n"
-            <> fromLazyText (decodeUtf8 (maybe "null" Aeson.encodePretty mBefore))
+            <> fromLazyText (LT.decodeUtf8 (maybe "null" Aeson.encodePretty mBefore))
             <> "\nNew value:\n"
-            <> fromLazyText (decodeUtf8 (maybe "null" Aeson.encodePretty mAfter))
+            <> fromLazyText (LT.decodeUtf8 (maybe "null" Aeson.encodePretty mAfter))
   Log.info $
     Log.msg (Log.val "Domain registration audit log")
-      . Log.field "url" (encodeUtf8 $ toLazyText url)
+      . Log.field "url" (LT.encodeUtf8 $ toLazyText url)
       . Log.field "old_value" (maybe "null" Aeson.encode mBefore)
       . Log.field "new_value" (maybe "null" Aeson.encode mAfter)
   mConfig <- input
   for_ mConfig $ \config -> do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
     sendMail mail
+
+-- More info on the behavioral implications of domain registration records:
+-- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1570832467/Email+domain+registration+and+configuration#Configuration-values
+emailToDomainRegistration ::
+  forall r.
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r (Maybe DomainRegistration)
+emailToDomainRegistration email = case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
+  Right dom -> tryGetDomainRegistrationImpl dom
+  Left msg ->
+    -- The EmailAddress parser and servant *should* make this impossible, but they use
+    -- different parsers, one of us is ours and may change any time, so who knows?
+    throw . EnterpriseLoginSubsystemGuardFailed $ InvalidDomain msg
+
+guardEmailDomainRegistrationTeamInvitationImpl ::
+  forall r.
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  InvitationFlow ->
+  TeamId ->
+  EmailAddress ->
+  Sem r ()
+guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
+  mReg <- emailToDomainRegistration email
+  for_ mReg $ \reg -> do
+    -- fail if domain-redirect is set to no-registration, or
+    case reg.domainRedirect of
+      None -> ok
+      Locked -> ok
+      SSO _ -> ok
+      Backend _ -> ok
+      NoRegistration -> case invitationFlow of
+        ExistingUser -> nope DomRedirSetToNoRegistration
+        NewUser -> ok -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1587118249/Use+case+initiate+invitation+flow?focusedCommentId=1672839248
+      PreAuthorized -> ok
+    -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
+    -- the team of the inviter
+    case reg.teamInvite of
+      Allowed -> ok
+      NotAllowed -> nope TeamInviteSetToNotAllowed
+      Team allowedTid ->
+        if allowedTid == tid
+          then ok
+          else nope TeamInviteRestrictedToOtherTeam
+  where
+    ok = pure ()
+    nope = throw . EnterpriseLoginSubsystemGuardFailed
+
+guardEmailDomainRegistrationRegisterImpl ::
+  forall r.
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r ()
+guardEmailDomainRegistrationRegisterImpl email = do
+  mReg <- emailToDomainRegistration email
+  for_ mReg $ \reg -> do
+    case reg.domainRedirect of
+      None -> ok
+      Locked -> ok
+      SSO _ -> nope DomRedirSetToSSO
+      Backend _ -> nope DomRedirSetToBackend
+      NoRegistration -> nope DomRedirSetToNoRegistration
+      PreAuthorized -> ok
+  where
+    ok = pure ()
+    nope = throw . EnterpriseLoginSubsystemGuardFailed

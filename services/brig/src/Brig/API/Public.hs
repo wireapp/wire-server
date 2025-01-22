@@ -139,6 +139,7 @@ import Wire.API.User.Client qualified as Public
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
+import Wire.API.User.Identity
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
@@ -151,6 +152,7 @@ import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
+import Wire.EnterpriseLoginSubsystem
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -367,7 +369,8 @@ servantSitemap ::
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -825,7 +828,8 @@ createUser ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member EmailSending r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -833,6 +837,9 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
+  -- TODO: we need an integration test for this, but it'd be easier to write that in a
+  -- different PR where we have https://github.com/wireapp/wire-server/pull/4389.
+  (lift . liftSem . guardEmailDomainRegistrationRegister) `mapM_` (emailIdentity =<< new.newUserIdentity)
 
   result <- API.createUser new
   let acc = createdAccount result

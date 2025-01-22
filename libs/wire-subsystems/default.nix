@@ -26,6 +26,7 @@
 , currency-codes
 , data-default
 , data-timeout
+, email-validate
 , errors
 , exceptions
 , extended
@@ -117,6 +118,7 @@ mkDerivation {
     currency-codes
     data-default
     data-timeout
+    email-validate
     errors
     exceptions
     extended
@@ -206,6 +208,8 @@ mkDerivation {
     tinylog
     transformers
     types-common
+    uri-bytestring
+    uuid
     wire-api
     wire-api-federation
   ];

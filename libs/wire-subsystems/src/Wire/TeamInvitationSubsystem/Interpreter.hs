@@ -25,6 +25,8 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.EmailSubsystem
+import Wire.EnterpriseLoginSubsystem
+import Wire.EnterpriseLoginSubsystem qualified as ELS
 import Wire.GalleyAPIAccess hiding (AddTeamMember)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationStore (InvitationStore, StoredInvitation)
@@ -54,7 +56,8 @@ runTeamInvitationSubsystem ::
     Member Random r,
     Member InvitationStore r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   TeamInvitationSubsystemConfig ->
   InterpreterFor TeamInvitationSubsystem r
@@ -72,7 +75,8 @@ inviteUserImpl ::
     Member InvitationStore r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -112,7 +116,8 @@ createInvitation' ::
     Member Random r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   TeamId ->
   Maybe InvitationId ->
@@ -129,14 +134,15 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
     throw TeamInvitationBlacklistedEmail
 
   mEmailOwner <- getLocalUserAccountByUserKey uke
-  isPersonalUserMigration <- case mEmailOwner of
-    Nothing -> pure False
+  invitationFlow <- case mEmailOwner of
+    Nothing -> pure ELS.NewUser
     Just user
       | invRequest.allowExisting
           && user.userStatus == Active
           && isNothing user.userTeam ->
-          pure True
+          pure ELS.ExistingUser
       | otherwise -> throw TeamInvitationEmailTaken
+  guardEmailDomainRegistrationTeamInvitation invitationFlow tid email
 
   maxSize <- maxTeamSize <$> input
   pending <- Store.countInvitations tid
@@ -164,10 +170,9 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
               }
        in Store.insertInvitation insertInv timeout
 
-    let sendOp =
-          if isPersonalUserMigration
-            then sendTeamInvitationMailPersonalUser
-            else sendTeamInvitationMail
+    let sendOp = case invitationFlow of
+          ELS.ExistingUser -> sendTeamInvitationMailPersonalUser
+          ELS.NewUser -> sendTeamInvitationMail
 
     invitationUrl <- sendOp email tid inviterEmail code invRequest.locale
     inv <- toInvitation invitationUrl showInvitationUrl newInv

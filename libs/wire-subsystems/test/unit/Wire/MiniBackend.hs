@@ -75,8 +75,6 @@ import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.InvitationStore
 import Wire.MockInterpreters
-import Wire.MockInterpreters.ActivationCodeStore (inMemoryActivationCodeStoreInterpreter)
-import Wire.MockInterpreters.InvitationStore (inMemoryInvitationStoreInterpreter)
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
 import Wire.Sem.Concurrency
