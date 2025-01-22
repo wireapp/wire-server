@@ -55,6 +55,9 @@ repositories:
   - name: bedag
     url: 'https://bedag.github.io/helm-charts/'
 
+  - name: obeone
+    url: 'https://charts.obeone.cloud'
+
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
@@ -251,10 +254,25 @@ releases:
     values:
       - secrets:
           configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
+    needs:
+      - technitium-dnsserver
+    set:
+      - name: config.dnsOverHttpsUrl
+        value: 'http://technitium-dnsserver:5381/dns-query'
 
+  # TODO: This should be removed later (fixes a deployment issue now)
   - name: wire-server-enterprise
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/wire-server-enterprise'
     values:
       - secrets:
           configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
+    needs:
+      - '{{ .Values.namespace1 }}/technitium-dnsserver'
+
+  - name: technitium-dnsserver
+    namespace: '{{ .Values.namespace1 }}'
+    chart: obeone/technitium-dnsserver
+    values:
+      - './helm_vars/technitium/values.yaml.gotmpl'
+
