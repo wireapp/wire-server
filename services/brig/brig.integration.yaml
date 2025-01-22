@@ -35,6 +35,10 @@ galley:
   host: 127.0.0.1
   port: 8085
 
+spar:
+  host: 127.0.0.1
+  port: 8088
+
 gundeck:
   host: 127.0.0.1
   port: 8086

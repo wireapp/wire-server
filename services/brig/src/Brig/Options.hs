@@ -376,10 +376,16 @@ data Opts = Opts
     cargohold :: !Endpoint,
     -- | Galley address
     galley :: !Endpoint,
+    -- | Spar address
+    spar :: !Endpoint,
     -- | Gundeck address
     gundeck :: !Endpoint,
     -- | Federator address
     federatorInternal :: !(Maybe Endpoint),
+    -- | Wire Server Enterprise address
+    -- TODO: This needs to be optional (`Maybe`): Not everbody with have the
+    -- enterprise service.
+    wireServerEnterprise :: !Endpoint,
     -- external
 
     -- | Cassandra settings

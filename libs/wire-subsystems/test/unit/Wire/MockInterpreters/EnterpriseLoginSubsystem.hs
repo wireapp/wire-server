@@ -12,12 +12,18 @@ enterpriseLoginSubsystemTestInterpreter ::
   InterpreterFor EnterpriseLoginSubsystem r
 enterpriseLoginSubsystemTestInterpreter err =
   interpret \case
-    LockDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
-    UnlockDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
-    PreAuthorizeDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
-    UnAuthorizeDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
-    UpdateDomainRegistration _ _ -> undefined -- :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
-    DeleteDomain _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m ()
-    GetDomainRegistration _ -> undefined -- :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
+    LockDomain _ -> undefined
+    UnlockDomain _ -> undefined
+    PreAuthorizeDomain _ -> undefined
+    UnAuthorizeDomain _ -> undefined
+    UpdateDomainRegistration _ _ -> undefined
+    DeleteDomain _ -> undefined
+    GetDomainRegistration _ -> undefined
     GuardEmailDomainRegistrationTeamInvitation {} -> throw err
     GuardEmailDomainRegistrationRegister _ -> throw err
+    TryGetDomainRegistration _ -> undefined
+    RequestDomainVerificationToken _ _ -> undefined
+    RequestDomainVerificationTeamToken _ _ -> undefined
+    UpdateDomainRedirect {} -> undefined
+    UpdateTeamInvite {} -> undefined
+    GetDomainRegistrationPublic _ -> undefined

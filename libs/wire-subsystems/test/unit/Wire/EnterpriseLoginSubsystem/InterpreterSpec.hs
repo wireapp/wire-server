@@ -1,5 +1,6 @@
 module Wire.EnterpriseLoginSubsystem.InterpreterSpec where
 
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.String.Conversions (cs)
@@ -19,29 +20,63 @@ import Wire.EmailSending
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error
 import Wire.EnterpriseLoginSubsystem.Interpreter
+import Wire.GalleyAPIAccess
 import Wire.MockInterpreters.DomainRegistrationStore
 import Wire.MockInterpreters.EmailSending
+import Wire.MockInterpreters.Error
+import Wire.MockInterpreters.GalleyAPIAccess
+import Wire.MockInterpreters.Random
+import Wire.MockInterpreters.SparAPIAccess
+import Wire.MockInterpreters.UserKeyStore
+import Wire.MockInterpreters.UserSubsystem
+import Wire.ParseException
+import Wire.Rpc
 import Wire.Sem.Logger.TinyLog
+import Wire.Sem.Random
+import Wire.SparAPIAccess
+import Wire.UserKeyStore
+import Wire.UserSubsystem
 
 runDependencies ::
   Sem
     '[ DomainRegistrationStore,
-       Error EnterpriseLoginSubsystemError,
+       (Error EnterpriseLoginSubsystemError),
+       (Error ParseException),
+       GalleyAPIAccess,
+       SparAPIAccess,
        TinyLog,
-       Input (Maybe EnterpriseLoginSubsystemConfig),
-       EmailSending
+       (Input EnterpriseLoginSubsystemConfig),
+       EmailSending,
+       Random,
+       Rpc,
+       UserKeyStore,
+       UserSubsystem
      ]
     a ->
   Either EnterpriseLoginSubsystemError a
 runDependencies =
   run
+    . userSubsystemTestInterpreter []
+    . (evalState mempty . inMemoryUserKeyStoreInterpreter . raiseUnder)
+    . fakeRpc
+    . runRandomPure
     . noopEmailSendingInterpreter
-    . runInputConst Nothing
+    . runInputConst
+      ( EnterpriseLoginSubsystemConfig
+          Nothing
+          (error "undefined wire-server-enterprise endpoint")
+      )
     . discardTinyLogs
+    . miniSparAPIAccess
+    . miniGalleyAPIAccess Nothing def
+    . runErrorUnsafe
     . runError
-    . evalState mempty
-    . inMemoryDomainRegistrationStoreInterpreter
-    . raiseUnder
+    . (evalState mempty . inMemoryDomainRegistrationStoreInterpreter . raiseUnder)
+
+fakeRpc :: InterpreterFor Rpc r
+fakeRpc = interpret $ \case
+  Rpc {} -> error "Rpc not implemented"
+  RpcWithRetries {} -> error "RpcWithRetries not implemented"
 
 spec :: Spec
 spec = describe "EnterpriseLoginSubsystem" $ do

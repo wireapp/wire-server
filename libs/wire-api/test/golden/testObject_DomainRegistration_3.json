@@ -2,7 +2,7 @@
     "dns_verification_token": null,
     "domain": "example.com",
     "domain_redirect": "sso",
-    "sso_idp_id": "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284",
+    "sso_code": "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284",
     "team": "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284",
     "team_invite": "team"
 }

@@ -5,47 +5,79 @@
 module Wire.EnterpriseLoginSubsystem.Interpreter
   ( runEnterpriseLoginSubsystem,
     EnterpriseLoginSubsystemConfig (..),
+    EnterpriseLoginSubsystemEmailConfig (..),
   )
 where
 
+import Bilge hiding (delete)
+import Control.Lens ((^.), (^..), (^?))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
-import Data.Domain (Domain, domainText, mkDomain)
+import Data.ByteString.Lazy qualified as BL
+import Data.Default
+import Data.Domain
 import Data.Id
 import Data.Misc (HttpsUrl (..))
+import Data.Qualified
 import Data.Text.Encoding as T
+import Data.Text.Encoding qualified as Text
 import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
 import Data.Text.Lazy.Builder (Builder)
 import Data.Text.Lazy.Encoding as LT
 import Imports hiding (lookup)
+import Network.HTTP.Types.Method
 import Network.Mail.Mime (Address (Address), Mail (mailHeaders, mailParts, mailTo), emptyMail, plainPart)
 import Polysemy
-import Polysemy.Error (Error, throw)
-import Polysemy.Input (Input, input)
+import Polysemy.Error
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
 import Text.Email.Parser qualified as Email
+import Util.Options
 import Wire.API.EnterpriseLogin
-import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
+import Wire.API.Routes.Public.Brig.DomainVerification
+import Wire.API.Team.Feature
+import Wire.API.Team.Member
+import Wire.API.User hiding (NewUser)
+import Wire.API.User.IdentityProvider (providers)
 import Wire.DomainRegistrationStore
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EnterpriseLoginSubsystem
-import Wire.EnterpriseLoginSubsystem.Error as Error
+import Wire.EnterpriseLoginSubsystem.Error
+import Wire.GalleyAPIAccess
+import Wire.ParseException
+import Wire.Rpc
+import Wire.Sem.Random
+import Wire.SparAPIAccess
+import Wire.UserKeyStore
+import Wire.UserSubsystem
 
-data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
+data EnterpriseLoginSubsystemEmailConfig = EnterpriseLoginSubsystemEmailConfig
   { auditEmailSender :: EmailAddress,
     auditEmailRecipient :: EmailAddress
+  }
+
+data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
+  { emailConfig :: Maybe EnterpriseLoginSubsystemEmailConfig,
+    wireServerEnterpriseEndpoint :: Endpoint
   }
 
 runEnterpriseLoginSubsystem ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
+    Member (Error ParseException) r,
+    Member GalleyAPIAccess r,
+    Member SparAPIAccess r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
-    Member EmailSending r
+    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member EmailSending r,
+    Member Random r,
+    Member Rpc r,
+    Member UserKeyStore r,
+    Member UserSubsystem r
   ) =>
   Sem (EnterpriseLoginSubsystem ': r) a ->
   Sem r a
@@ -60,12 +92,27 @@ runEnterpriseLoginSubsystem = interpret $
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
     GuardEmailDomainRegistrationTeamInvitation flow tid email -> guardEmailDomainRegistrationTeamInvitationImpl flow tid email
     GuardEmailDomainRegistrationRegister email -> guardEmailDomainRegistrationRegisterImpl email
+    TryGetDomainRegistration domain -> tryGetDomainRegistrationImpl domain
+    RequestDomainVerificationToken mAuthToken domain ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        requestDomainVerificationTokenImpl mAuthToken domain
+    RequestDomainVerificationTeamToken lusr domain ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        requestDomainVerificationTeamTokenImpl lusr domain
+    UpdateDomainRedirect mAuthToken domain config ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        updateDomainRedirectImpl mAuthToken domain config
+    UpdateTeamInvite lusr domain config ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        updateTeamInviteImpl lusr domain config
+    GetDomainRegistrationPublic req ->
+      getDomainRegistrationPublicImpl req
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -85,7 +132,7 @@ unauthorizeImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -115,7 +162,7 @@ updateDomainRegistrationImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -145,7 +192,7 @@ lockDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -169,7 +216,7 @@ unlockDomainImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -195,7 +242,7 @@ preAuthorizeImpl ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
-    Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
   ) =>
   Domain ->
@@ -254,6 +301,60 @@ tryGetDomainRegistrationImpl domain = do
           throw $ EnterpriseLoginSubsystemInternalError "The stored domain registration is invalid. Please update or delete and recreate it with a valid configuration."
         Just dr -> pure dr
 
+getDomainVerificationToken ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r
+  ) =>
+  Domain ->
+  Text ->
+  Sem r DomainVerificationToken
+getDomainVerificationToken domain authToken =
+  decodeBodyOrThrow
+    =<< enterpriseRequest
+      ( method POST
+          . paths
+            [ "i",
+              "create-verification-token",
+              toByteString' domain,
+              toByteString' authToken
+            ]
+          . expect2xx
+      )
+
+verifyDNSRecord ::
+  ( Member (Error ParseException) r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member (Input Endpoint) r,
+    Member Rpc r
+  ) =>
+  Domain ->
+  Text ->
+  Sem r ()
+verifyDNSRecord domain authToken = do
+  verified <-
+    decodeBodyOrThrow
+      =<< enterpriseRequest
+        ( method POST
+            . paths
+              [ "i",
+                "verify-domain-token",
+                toByteString' domain,
+                toByteString' authToken
+              ]
+            . expect2xx
+        )
+  unless verified $
+    throw EnterpriseLoginSubsystemDomainVerificationFailed
+
+enterpriseRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
+enterpriseRequest req = do
+  ep <- input
+  rpcWithRetries "wireServerEnterprise" ep req
+
+decodeBodyOrThrow :: forall a r. (Typeable a, Aeson.FromJSON a, Member (Error ParseException) r) => Response (Maybe BL.ByteString) -> Sem r a
+decodeBodyOrThrow r = either (throw . ParseException "wireServerEnterprise") pure (responseJsonEither r)
+
 fromStored :: StoredDomainRegistration -> Maybe DomainRegistration
 fromStored sdr =
   DomainRegistration sdr.domain
@@ -264,27 +365,29 @@ fromStored sdr =
     getTeamInvite :: StoredDomainRegistration -> Maybe TeamInvite
     getTeamInvite = \case
       StoredDomainRegistration _ _ ti _ _ tid _ -> case (ti, tid) of
-        (AllowedTag, Nothing) -> Just Allowed
-        (NotAllowedTag, Nothing) -> Just NotAllowed
-        (TeamTag, Just teamId) -> Just $ Team teamId
+        (Just AllowedTag, Nothing) -> Just Allowed
+        (Just NotAllowedTag, Nothing) -> Just NotAllowed
+        (Just TeamTag, Just teamId) -> Just $ Team teamId
+        (Nothing, Nothing) -> Just Allowed
         _ -> Nothing
 
     getDomainRedirect :: StoredDomainRegistration -> Maybe DomainRedirect
     getDomainRedirect = \case
       StoredDomainRegistration _ dr _ ssoId url _ _ -> case (dr, ssoId, url) of
-        (NoneTag, Nothing, Nothing) -> Just None
-        (LockedTag, Nothing, Nothing) -> Just Locked
-        (PreAuthorizedTag, Nothing, Nothing) -> Just PreAuthorized
-        (SSOTag, Just idpId, Nothing) -> Just $ SSO idpId
-        (BackendTag, Nothing, Just beUrl) -> Just $ Backend beUrl
-        (NoRegistrationTag, Nothing, Nothing) -> Just NoRegistration
+        (Just NoneTag, Nothing, Nothing) -> Just None
+        (Just LockedTag, Nothing, Nothing) -> Just Locked
+        (Just PreAuthorizedTag, Nothing, Nothing) -> Just PreAuthorized
+        (Just SSOTag, Just idpId, Nothing) -> Just $ SSO idpId
+        (Just BackendTag, Nothing, Just beUrl) -> Just $ Backend beUrl
+        (Just NoRegistrationTag, Nothing, Nothing) -> Just NoRegistration
+        (Nothing, Nothing, Nothing) -> Just None
         _ -> Nothing
 
 toStored :: DomainRegistration -> StoredDomainRegistration
 toStored dr =
   let (domainRedirect, idpId, backendUrl) = fromDomainRedirect dr.domainRedirect
       (teamInvite, team) = fromTeamInvite dr.teamInvite
-   in StoredDomainRegistration dr.domain domainRedirect teamInvite idpId backendUrl team (dr.dnsVerificationToken)
+   in StoredDomainRegistration dr.domain (Just domainRedirect) (Just teamInvite) idpId backendUrl team dr.dnsVerificationToken
   where
     fromTeamInvite :: TeamInvite -> (TeamInviteTag, Maybe TeamId)
     fromTeamInvite Allowed = (AllowedTag, Nothing)
@@ -307,18 +410,18 @@ validate dr = do
     _ -> pure ()
 
 mkAuditMail :: EmailAddress -> EmailAddress -> Text -> LText -> Mail
-mkAuditMail from to subject body =
+mkAuditMail from to subject bdy =
   (emptyMail (Address Nothing (fromEmail from)))
     { mailTo = [Address Nothing (fromEmail to)],
       mailHeaders =
         [ ("Subject", subject),
           ("X-Zeta-Purpose", "audit")
         ],
-      mailParts = [[plainPart body]]
+      mailParts = [[plainPart bdy]]
     }
 
 sendAuditMail ::
-  ( Member (Input (Maybe EnterpriseLoginSubsystemConfig)) r,
+  ( Member (Input EnterpriseLoginSubsystemConfig) r,
     Member TinyLog r,
     Member EmailSending r
   ) =>
@@ -340,7 +443,7 @@ sendAuditMail url subject mBefore mAfter = do
       . Log.field "url" (LT.encodeUtf8 $ toLazyText url)
       . Log.field "old_value" (maybe "null" Aeson.encode mBefore)
       . Log.field "new_value" (maybe "null" Aeson.encode mAfter)
-  mConfig <- input
+  mConfig <- inputs emailConfig
   for_ mConfig $ \config -> do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
     sendMail mail
@@ -419,3 +522,187 @@ guardEmailDomainRegistrationRegisterImpl email = do
   where
     ok = pure ()
     nope = throw . EnterpriseLoginSubsystemGuardFailed
+
+requestDomainVerificationTokenImpl ::
+  ( Member Random r,
+    Member (Input Endpoint) r,
+    Member (Error ParseException) r,
+    Member Rpc r
+  ) =>
+  Maybe DomainVerificationAuthToken ->
+  Domain ->
+  Sem r DomainVerificationTokenResponse
+requestDomainVerificationTokenImpl mAuthToken domain = do
+  authToken <- maybe generateAuthToken pure mAuthToken
+  dnsToken <- getDomainVerificationToken domain (serializeDomainVerificationAuthToken authToken)
+  pure
+    DomainVerificationTokenResponse
+      { authToken = Just authToken,
+        dnsToken = dnsToken
+      }
+
+requestDomainVerificationTeamTokenImpl ::
+  forall r.
+  ( Member (Input Endpoint) r,
+    Member TinyLog r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member (Error ParseException) r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r,
+    Member DomainRegistrationStore r,
+    Member Rpc r
+  ) =>
+  Local UserId ->
+  Domain ->
+  Sem r DomainVerificationTokenResponse
+requestDomainVerificationTeamTokenImpl lusr domain = do
+  (tid, _mDomReg) <- guardTeamAdminAccess lusr domain
+  let authToken = idToText tid
+  dnsToken <- getDomainVerificationToken domain authToken
+  pure
+    DomainVerificationTokenResponse
+      { authToken = Nothing,
+        dnsToken = dnsToken
+      }
+
+updateDomainRedirectImpl ::
+  ( Member (Error EnterpriseLoginSubsystemError) r,
+    Member (Error ParseException) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member (Input Endpoint) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member EmailSending r,
+    Member Rpc r
+  ) =>
+  DomainVerificationAuthToken ->
+  Domain ->
+  DomainRedirectConfig ->
+  Sem r ()
+updateDomainRedirectImpl authToken domain config = do
+  mbDomainReg <- tryGetDomainRegistrationImpl domain
+  update <-
+    maybe
+      (throw EnterpriseLoginSubsystemOperationForbidden)
+      pure
+      $ mbDomainReg >>= computeUpdate
+  verifyDNSRecord domain (serializeDomainVerificationAuthToken authToken)
+  updateDomainRegistrationImpl domain update
+  where
+    computeUpdate reg = case (config, reg.domainRedirect) of
+      (DomainRedirectConfigRemove, NoRegistration) ->
+        Just $ DomainRegistrationUpdate PreAuthorized reg.teamInvite
+      (DomainRedirectConfigRemove, Backend _) ->
+        Just $ DomainRegistrationUpdate PreAuthorized reg.teamInvite
+      (DomainRedirectConfigBackend url, PreAuthorized) ->
+        Just $ DomainRegistrationUpdate (Backend url) NotAllowed
+      (DomainRedirectConfigNoRegistration, PreAuthorized) ->
+        Just $ DomainRegistrationUpdate NoRegistration reg.teamInvite
+      _ -> Nothing
+
+updateTeamInviteImpl ::
+  forall r.
+  ( Member (Error EnterpriseLoginSubsystemError) r,
+    Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member (Input EnterpriseLoginSubsystemConfig) r,
+    Member DomainRegistrationStore r,
+    Member EmailSending r,
+    Member GalleyAPIAccess r,
+    Member SparAPIAccess r,
+    Member Rpc r,
+    Member TinyLog r,
+    Member UserSubsystem r
+  ) =>
+  Local UserId ->
+  Domain ->
+  TeamInviteConfig ->
+  Sem r ()
+updateTeamInviteImpl luid domain config = do
+  (tid, mbDomainReg) <- guardTeamAdminAccess luid domain
+  verifyDNSRecord domain (idToText tid)
+  update <- validateUpdate tid mbDomainReg config
+  updateDomainRegistrationImpl domain update
+  where
+    validateUpdate :: TeamId -> Maybe DomainRegistration -> TeamInviteConfig -> Sem r DomainRegistrationUpdate
+    validateUpdate tid mDomReg conf = do
+      let domReg = fromMaybe defDomReg mDomReg
+      when (domReg.domainRedirect == Locked) $
+        throw EnterpriseLoginSubsystemOperationForbidden
+      when (isJust $ domReg.domainRedirect ^? _Backend) $
+        throw EnterpriseLoginSubsystemOperationForbidden
+      case conf.teamInvite of
+        Team tidConfig | tidConfig /= tid -> throw EnterpriseLoginSubsystemAuthFailure
+        validTeamInvite -> case conf.code of
+          Just idpId -> do
+            validateIdPId tid idpId
+            pure $ DomainRegistrationUpdate (SSO idpId) validTeamInvite
+          Nothing -> pure $ DomainRegistrationUpdate domReg.domainRedirect validTeamInvite
+
+    validateIdPId ::
+      TeamId ->
+      SAML.IdPId ->
+      Sem r ()
+    validateIdPId tid idp = do
+      idps <- getIdentityProviders tid
+      unless (idp `elem` idps.providers ^.. traverse . SAML.idpId) $
+        throw EnterpriseLoginSubsystemOperationForbidden
+
+    defDomReg :: DomainRegistration
+    defDomReg = DomainRegistration domain def def Nothing
+
+guardTeamAdminAccess ::
+  forall r.
+  ( Member TinyLog r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r,
+    Member DomainRegistrationStore r
+  ) =>
+  Local UserId ->
+  Domain ->
+  Sem r (TeamId, Maybe DomainRegistration)
+guardTeamAdminAccess luid domain = do
+  profile <- getSelfProfile luid >>= note EnterpriseLoginSubsystemAuthFailure
+  tid <- note EnterpriseLoginSubsystemAuthFailure profile.selfUser.userTeam
+  teamMember <-
+    getTeamMember (tUnqualified luid) tid
+      >>= note EnterpriseLoginSubsystemAuthFailure
+  validatePaymentStatus tid
+  unless (isAdminOrOwner (teamMember ^. permissions)) $
+    throw EnterpriseLoginSubsystemAuthFailure
+  mbDomainReg <- tryGetDomainRegistrationImpl domain
+  pure (tid, mbDomainReg)
+  where
+    validatePaymentStatus :: TeamId -> Sem r ()
+    validatePaymentStatus tid = do
+      -- FUTUREWORK: we need a dedicated feature flag for domain registration that is managed by ibis
+      -- If the team is paying, conference calling will always be enabled
+      feature <- getFeatureConfigForTeam @_ @ConferenceCallingConfig tid
+      when (feature.status /= FeatureStatusEnabled) $
+        throw EnterpriseLoginSubsystemPaymentRequired
+
+getDomainRegistrationPublicImpl ::
+  ( Member UserKeyStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member DomainRegistrationStore r,
+    Member TinyLog r
+  ) =>
+  GetDomainRegistrationRequest ->
+  Sem r DomainRedirect
+getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
+  -- check if the email belongs to a registered user
+  mUser <- lookupKey (mkEmailKey email)
+  case mUser of
+    Nothing -> do
+      domain <-
+        either
+          (const (throw EnterpriseLoginSubsystemInvalidDomain))
+          pure
+          $ mkDomain (Text.decodeUtf8 (domainPart email))
+      mReg <- tryGetDomainRegistrationImpl domain
+      pure $ maybe None (.domainRedirect) mReg
+    Just _ -> pure None
+
+generateAuthToken :: (Member Random r) => Sem r DomainVerificationAuthToken
+generateAuthToken = DomainVerificationAuthToken <$> Wire.Sem.Random.bytes 32

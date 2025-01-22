@@ -64,6 +64,10 @@ data:
       host: galley
       port: 8080
 
+    spar:
+      host: spar
+      port: 8080
+
     gundeck:
       host: gundeck
       port: 8080
