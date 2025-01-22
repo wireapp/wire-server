@@ -32,7 +32,7 @@ makePrisms ''DomainRedirectConfig
 
 data DomainVerificationTokenResponse = DomainVerificationTokenResponse
   { authToken :: Maybe DomainVerificationAuthToken,
-    dnsToken :: DomainVerificationToken
+    dnsToken :: DnsVerificationToken
   }
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainVerificationTokenResponse)
 
@@ -120,6 +120,32 @@ instance ToSchema TeamInviteConfig where
 
 samlIdpIdSchema :: ValueSchema NamedSwaggerDoc SAML.IdPId
 samlIdpIdSchema = SAML.fromIdPId .= fmap SAML.IdPId uuidSchema
+
+data DomainVerificationChallenge = DomainVerificationChallenge
+  { challengeId :: ChallengeId,
+    -- | unhashed/plaintext short lived challenge auth token
+    token :: Token,
+    dnsVerificationToken :: DnsVerificationToken
+  }
+  deriving (Eq, Show)
+
+instance ToSchema DomainVerificationChallenge where
+  schema =
+    object "DomainVerificationChallenge" $
+      DomainVerificationChallenge
+        <$> challengeId .= field "id" schema
+        <*> token .= field "token" schema
+        <*> (.dnsVerificationToken) .= field "dns_verification_token" schema
+
+type DomainVerificationChallengeAPI =
+  Named
+    "domain-verification-challenge"
+    ( Summary "Get a DNS verification challenge"
+        :> "domain-verification"
+        :> Capture "domain" Domain
+        :> "challenges"
+        :> Post '[JSON] DomainVerificationChallenge
+    )
 
 type DomainVerificationAPI =
   Named

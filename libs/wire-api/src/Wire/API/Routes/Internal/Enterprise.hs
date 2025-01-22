@@ -17,14 +17,12 @@ type InternalAPIBase =
     :<|> Named
            "create-verification-token"
            ( "create-verification-token"
-               :> Capture "domain" Domain
-               :> Capture "auth-token" Text
-               :> Post '[JSON] DomainVerificationToken
+               :> Post '[JSON] DnsVerificationToken
            )
     :<|> Named
            "verify-domain-token"
            ( "verify-domain-token"
                :> Capture "domain" Domain
-               :> Capture "auth-token" Text
+               :> Capture "dsn-token" DnsVerificationToken
                :> Post '[JSON] Bool
            )

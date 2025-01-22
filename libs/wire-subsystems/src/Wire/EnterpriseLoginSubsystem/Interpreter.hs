@@ -12,12 +12,16 @@ where
 
 import Bilge hiding (delete)
 import Control.Lens ((^.), (^..), (^?))
+import Crypto.Hash qualified as Crypto
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.ByteArray (convert)
+import Data.ByteString.Base64.URL qualified as B64Url
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as BL
 import Data.Default
 import Data.Domain
+import Data.Hex
 import Data.Id
 import Data.Misc (HttpsUrl (..))
 import Data.Qualified
@@ -45,6 +49,7 @@ import Wire.API.Team.Member
 import Wire.API.User hiding (NewUser)
 import Wire.API.User.IdentityProvider (providers)
 import Wire.DomainRegistrationStore
+import Wire.DomainVerificationChallengeStore (DomainVerificationChallengeStore, StoredDomainVerificationChallenge (StoredDomainVerificationChallenge), insert)
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error
@@ -99,7 +104,10 @@ runEnterpriseLoginSubsystem ::
     Member Random r,
     Member Rpc r,
     Member UserKeyStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Embed IO) r,
+    Member (Input Endpoint) r,
+    Member DomainVerificationChallengeStore r
   ) =>
   Sem (EnterpriseLoginSubsystem ': r) a ->
   Sem r a
@@ -129,6 +137,29 @@ runEnterpriseLoginSubsystem = interpret $
         updateTeamInviteImpl lusr domain config
     GetDomainRegistrationPublic req ->
       getDomainRegistrationPublicImpl req
+    CreateDomainVerificationChallenge domain ->
+      createDomainVerificationChallengeImpl domain
+
+createDomainVerificationChallengeImpl ::
+  ( Member (Embed IO) r,
+    Member (Input Endpoint) r,
+    Member (Error ParseException) r,
+    Member Rpc r,
+    Member Random r,
+    Member DomainVerificationChallengeStore r
+  ) =>
+  Domain ->
+  Sem r DomainVerificationChallenge
+createDomainVerificationChallengeImpl domain = do
+  challengeId <- randomId
+  dnsToken <- newDomainVerificationToken
+  challengeToken <- Token . B64Url.encode <$> Wire.Sem.Random.bytes 32
+  let hashedToken = render . Crypto.hash . unToken $ challengeToken
+  insert $ StoredDomainVerificationChallenge challengeId domain hashedToken dnsToken
+  pure $ DomainVerificationChallenge challengeId challengeToken dnsToken
+  where
+    render :: Crypto.Digest Crypto.SHA256 -> Token
+    render = Token . hex . convert
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -323,26 +354,16 @@ tryGetDomainRegistrationImpl domain = do
           throw $ EnterpriseLoginSubsystemInternalError "The stored domain registration is invalid. Please update or delete and recreate it with a valid configuration."
         Just dr -> pure dr
 
-getDomainVerificationToken ::
+newDomainVerificationToken ::
   ( Member (Error ParseException) r,
     Member (Input Endpoint) r,
     Member Rpc r
   ) =>
-  Domain ->
-  Text ->
-  Sem r DomainVerificationToken
-getDomainVerificationToken domain authToken =
+  Sem r DnsVerificationToken
+newDomainVerificationToken =
   decodeBodyOrThrow
     =<< enterpriseRequest
-      ( method POST
-          . paths
-            [ "i",
-              "create-verification-token",
-              toByteString' domain,
-              toByteString' authToken
-            ]
-          . expect2xx
-      )
+      (method POST . paths ["i", "create-verification-token"] . expect2xx)
 
 verifyDNSRecord ::
   ( Member (Error ParseException) r,
@@ -546,46 +567,18 @@ guardEmailDomainRegistrationRegisterImpl email = do
     nope = throw . EnterpriseLoginSubsystemGuardFailed
 
 requestDomainVerificationTokenImpl ::
-  ( Member Random r,
-    Member (Input Endpoint) r,
-    Member (Error ParseException) r,
-    Member Rpc r
-  ) =>
   Maybe DomainVerificationAuthToken ->
   Domain ->
   Sem r DomainVerificationTokenResponse
-requestDomainVerificationTokenImpl mAuthToken domain = do
-  authToken <- maybe generateAuthToken pure mAuthToken
-  dnsToken <- getDomainVerificationToken domain (serializeDomainVerificationAuthToken authToken)
-  pure
-    DomainVerificationTokenResponse
-      { authToken = Just authToken,
-        dnsToken = dnsToken
-      }
+requestDomainVerificationTokenImpl = do
+  todo "remove"
 
 requestDomainVerificationTeamTokenImpl ::
-  forall r.
-  ( Member (Input Endpoint) r,
-    Member TinyLog r,
-    Member (Error EnterpriseLoginSubsystemError) r,
-    Member (Error ParseException) r,
-    Member UserSubsystem r,
-    Member GalleyAPIAccess r,
-    Member DomainRegistrationStore r,
-    Member Rpc r
-  ) =>
   Local UserId ->
   Domain ->
   Sem r DomainVerificationTokenResponse
-requestDomainVerificationTeamTokenImpl lusr domain = do
-  (tid, _mDomReg) <- guardTeamAdminAccess lusr domain
-  let authToken = idToText tid
-  dnsToken <- getDomainVerificationToken domain authToken
-  pure
-    DomainVerificationTokenResponse
-      { authToken = Nothing,
-        dnsToken = dnsToken
-      }
+requestDomainVerificationTeamTokenImpl = do
+  todo "remove?"
 
 updateDomainRedirectImpl ::
   ( Member (Error EnterpriseLoginSubsystemError) r,
@@ -725,6 +718,3 @@ getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
       mReg <- tryGetDomainRegistrationImpl domain
       pure $ maybe None (.domainRedirect) mReg
     Just _ -> pure None
-
-generateAuthToken :: (Member Random r) => Sem r DomainVerificationAuthToken
-generateAuthToken = DomainVerificationAuthToken <$> Wire.Sem.Random.bytes 32

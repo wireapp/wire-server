@@ -81,6 +81,8 @@ library
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
     Wire.DomainRegistrationStore.Cassandra
+    Wire.DomainVerificationChallengeStore
+    Wire.DomainVerificationChallengeStore.Cassandra
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
@@ -174,6 +176,7 @@ library
     , containers
     , cql
     , crypton
+    , hex
     , currency-codes
     , data-default
     , data-timeout

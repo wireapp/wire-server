@@ -9,7 +9,6 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Base64.URL qualified as B64U
-import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
 import Data.Default (Default, def)
@@ -20,7 +19,7 @@ import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
-import Data.Text.Ascii (Ascii, AsciiText (toText))
+import Data.Text.Ascii hiding (validate)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Imports
@@ -170,9 +169,13 @@ deriving via (Schema TeamInvite) instance ToJSON TeamInvite
 
 deriving via (Schema TeamInvite) instance S.ToSchema TeamInvite
 
-newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: Ascii}
+-- | The challenge to be presented in a TXT DNS record by the owner of the domain.
+newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: AsciiBase64Url}
   deriving stock (Ord, Eq, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema DnsVerificationToken
+
+instance FromHttpApiData DnsVerificationToken where
+  parseUrlPiece = mapLeft Text.pack . fmap DnsVerificationToken . Ascii.validate
 
 instance ToSchema DnsVerificationToken where
   schema = DnsVerificationToken <$> unDnsVerificationToken .= schema
@@ -255,17 +258,6 @@ instance FromHttpApiData DomainVerificationAuthToken where
 
 instance ToByteString DomainVerificationAuthToken where
   builder = builder . Text.encodeUtf8 . serializeDomainVerificationAuthToken
-
--- | The challenge to be presented in a TXT DNS record by the owner of the domain.
-newtype DomainVerificationToken = DomainVerificationToken {unDomainVerificationToken :: Text}
-  deriving newtype (Eq, Ord, Show)
-  deriving (Aeson.FromJSON, Aeson.ToJSON, S.ToSchema) via (Schema DomainVerificationToken)
-
-instance ToSchema DomainVerificationToken where
-  schema = DomainVerificationToken <$> unDomainVerificationToken .= schema
-
-instance ToByteString DomainVerificationToken where
-  builder = byteString . Text.encodeUtf8 . unDomainVerificationToken
 
 newtype Token = Token {unToken :: ByteString}
   deriving newtype (Eq, Ord, Show)

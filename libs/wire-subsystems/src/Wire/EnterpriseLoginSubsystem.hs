@@ -48,5 +48,8 @@ data EnterpriseLoginSubsystem m a where
   GetDomainRegistrationPublic ::
     GetDomainRegistrationRequest ->
     EnterpriseLoginSubsystem m DomainRedirect
+  CreateDomainVerificationChallenge ::
+    Domain ->
+    EnterpriseLoginSubsystem m DomainVerificationChallenge
 
 makeSem ''EnterpriseLoginSubsystem
