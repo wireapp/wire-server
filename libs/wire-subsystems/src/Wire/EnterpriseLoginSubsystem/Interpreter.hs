@@ -386,7 +386,7 @@ fromStored sdr =
   where
     getTeamInvite :: StoredDomainRegistration -> Maybe TeamInvite
     getTeamInvite = \case
-      StoredDomainRegistration _ _ ti _ _ tid _ -> case (ti, tid) of
+      StoredDomainRegistration _ _ ti _ _ tid _ _ -> case (ti, tid) of
         (Just AllowedTag, Nothing) -> Just Allowed
         (Just NotAllowedTag, Nothing) -> Just NotAllowed
         (Just TeamTag, Just teamId) -> Just $ Team teamId
@@ -395,7 +395,7 @@ fromStored sdr =
 
     getDomainRedirect :: StoredDomainRegistration -> Maybe DomainRedirect
     getDomainRedirect = \case
-      StoredDomainRegistration _ dr _ ssoId url _ _ -> case (dr, ssoId, url) of
+      StoredDomainRegistration _ dr _ ssoId url _ _ _ -> case (dr, ssoId, url) of
         (Just NoneTag, Nothing, Nothing) -> Just None
         (Just LockedTag, Nothing, Nothing) -> Just Locked
         (Just PreAuthorizedTag, Nothing, Nothing) -> Just PreAuthorized
@@ -409,7 +409,7 @@ toStored :: DomainRegistration -> StoredDomainRegistration
 toStored dr =
   let (domainRedirect, idpId, backendUrl) = fromDomainRedirect dr.domainRedirect
       (teamInvite, team) = fromTeamInvite dr.teamInvite
-   in StoredDomainRegistration dr.domain (Just domainRedirect) (Just teamInvite) idpId backendUrl team dr.dnsVerificationToken
+   in StoredDomainRegistration dr.domain (Just domainRedirect) (Just teamInvite) idpId backendUrl team dr.dnsVerificationToken Nothing
   where
     fromTeamInvite :: TeamInvite -> (TeamInviteTag, Maybe TeamId)
     fromTeamInvite Allowed = (AllowedTag, Nothing)

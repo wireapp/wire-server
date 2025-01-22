@@ -11,9 +11,11 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy qualified as BL
 import Data.Default (Default, def)
 import Data.Domain
 import Data.Id
+import Data.Json.Util (base64URLSchema)
 import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -265,6 +267,13 @@ instance ToSchema DomainVerificationToken where
 instance ToByteString DomainVerificationToken where
   builder = byteString . Text.encodeUtf8 . unDomainVerificationToken
 
+newtype Token = Token {unToken :: ByteString}
+  deriving newtype (Eq, Ord, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON, S.ToSchema) via (Schema Token)
+
+instance ToSchema Token where
+  schema = Token <$> unToken .= named "Token" base64URLSchema
+
 --------------------------------------------------------------------------------
 -- CQL instances
 
@@ -313,3 +322,11 @@ instance C.Cql DomainVerificationAuthToken where
   toCql = C.toCql . serializeDomainVerificationAuthToken
   fromCql (C.CqlAscii t) = parseDomainVerificationAuthToken t
   fromCql _ = Left "DomainVerificationAuthToken value: text expected"
+
+instance C.Cql Token where
+  ctype = C.Tagged C.BlobColumn
+
+  toCql = C.CqlBlob . BL.fromStrict . unToken
+
+  fromCql (C.CqlBlob b) = pure $ Token $ BL.toStrict b
+  fromCql _ = Left "Token value: blob expected"
