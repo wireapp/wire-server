@@ -376,10 +376,14 @@ data Opts = Opts
     cargohold :: !Endpoint,
     -- | Galley address
     galley :: !Endpoint,
+    -- | Spar address
+    spar :: !Endpoint,
     -- | Gundeck address
     gundeck :: !Endpoint,
     -- | Federator address
     federatorInternal :: !(Maybe Endpoint),
+    -- | Wire Server Enterprise address
+    wireServerEnterprise :: !(Maybe Endpoint),
     -- external
 
     -- | Cassandra settings

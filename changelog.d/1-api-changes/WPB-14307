@@ -1,0 +1,6 @@
+New endpoints for domain registration and verification:
+- POST /domain-verification/:domain/token
+- POST /domain-verification/:domain/backend
+- POST /domain-verification/:domain/team-token
+- POST /domain-verification/:domain/team
+- POST /get-domain-registration

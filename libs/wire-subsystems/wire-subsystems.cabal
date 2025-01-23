@@ -90,6 +90,7 @@ library
     Wire.EnterpriseLoginSubsystem
     Wire.EnterpriseLoginSubsystem.Error
     Wire.EnterpriseLoginSubsystem.Interpreter
+    Wire.EnterpriseLoginSubsystem.Null
     Wire.Error
     Wire.Events
     Wire.FederationAPIAccess
@@ -123,6 +124,8 @@ library
     Wire.Rpc
     Wire.SessionStore
     Wire.SessionStore.Cassandra
+    Wire.SparAPIAccess
+    Wire.SparAPIAccess.Rpc
     Wire.StoredUser
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
@@ -160,6 +163,7 @@ library
     , attoparsec
     , base
     , base16-bytestring
+    , base64-bytestring
     , bilge
     , bloodhound
     , bytestring
@@ -264,6 +268,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
     Wire.MockInterpreters.SessionStore
+    Wire.MockInterpreters.SparAPIAccess
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem

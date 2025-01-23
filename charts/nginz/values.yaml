@@ -471,6 +471,17 @@ nginx_conf:
     - path: /upgrade-personal-to-team$
       envs:
       - all
+    - path: /domain-verification/([^/]*)/team(-token)?$
+      envs:
+      - all
+    - path: /domain-verification/
+      envs:
+      - all
+      disable_zauth: true
+    - path: /get-domain-registration$
+      envs:
+      - all
+      disable_zauth: true
     galley:
     - path: /conversations/code-check
       disable_zauth: true

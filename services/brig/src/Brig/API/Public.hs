@@ -1,5 +1,7 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -99,6 +101,7 @@ import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.Connection qualified as Public
+import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
@@ -108,6 +111,7 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
+import Wire.API.Routes.Bearer
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
@@ -117,6 +121,7 @@ import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Public.Cargohold
@@ -152,7 +157,8 @@ import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
-import Wire.EnterpriseLoginSubsystem
+import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
+import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -393,6 +399,7 @@ servantSitemap =
     :<|> botAPI
     :<|> servicesAPI
     :<|> providerAPI
+    :<|> domainVerificationAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -542,6 +549,14 @@ servantSitemap =
     systemSettingsAPI =
       Named @"get-system-settings-unauthorized" getSystemSettings
         :<|> Named @"get-system-settings" getSystemSettingsInternal
+
+    domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
+    domainVerificationAPI =
+      Named @"domain-verification-token" requestDomainVerificationToken
+        :<|> Named @"domain-verification-token-team" requestDomainVerificationTeamToken
+        :<|> Named @"update-domain-redirect" updateDomainRedirect
+        :<|> Named @"update-team-invite" updateTeamInvite
+        :<|> Named @"get-domain-registration" getDomainRegistration
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -839,7 +854,8 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
   -- TODO: we need an integration test for this, but it'd be easier to write that in a
   -- different PR where we have https://github.com/wireapp/wire-server/pull/4389.
-  (lift . liftSem . guardEmailDomainRegistrationRegister) `mapM_` (emailIdentity =<< new.newUserIdentity)
+  (lift . liftSem . EnterpriseLogin.guardEmailDomainRegistrationRegister)
+    `mapM_` (emailIdentity =<< new.newUserIdentity)
 
   result <- API.createUser new
   let acc = createdAccount result
@@ -1500,6 +1516,50 @@ getSystemSettingsInternal _ = do
   let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
   let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
+
+requestDomainVerificationToken ::
+  forall r.
+  (_) =>
+  Maybe (Bearer DomainVerificationAuthToken) ->
+  Domain ->
+  Handler r DomainVerificationTokenResponse
+requestDomainVerificationToken (fmap unBearer -> mAuthToken) domain =
+  lift . liftSem $ EnterpriseLogin.requestDomainVerificationToken mAuthToken domain
+
+requestDomainVerificationTeamToken ::
+  forall r.
+  (_) =>
+  Local UserId ->
+  Domain ->
+  Handler r DomainVerificationTokenResponse
+requestDomainVerificationTeamToken lusr domain =
+  lift . liftSem $ EnterpriseLogin.requestDomainVerificationTeamToken lusr domain
+
+updateDomainRedirect ::
+  (_) =>
+  Bearer DomainVerificationAuthToken ->
+  Domain ->
+  DomainRedirectConfig ->
+  Handler r ()
+updateDomainRedirect (Bearer authToken) domain config =
+  lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
+
+updateTeamInvite ::
+  (_) =>
+  Local UserId ->
+  Domain ->
+  TeamInviteConfig ->
+  Handler r ()
+updateTeamInvite lusr domain config =
+  lift . liftSem $ EnterpriseLogin.updateTeamInvite lusr domain config
+
+getDomainRegistration ::
+  (_) =>
+  GetDomainRegistrationRequest ->
+  Handler r DomainRedirect
+getDomainRegistration req =
+  lift . liftSem $
+    EnterpriseLogin.getDomainRegistrationPublic req
 
 -- Deprecated
 

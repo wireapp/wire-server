@@ -64,6 +64,10 @@ data:
       host: galley
       port: 8080
 
+    spar:
+      host: spar
+      port: 8080
+
     gundeck:
       host: gundeck
       port: 8080
@@ -80,6 +84,12 @@ data:
     federatorInternal:
       host: federator
       port: 8080
+  
+    {{- if and (.wireServerEnterprise) (default false .wireServerEnterprise.enabled) }}
+    wireServerEnterprise:
+      host: wire-server-enterprise
+      port: 8080
+    {{- end }}
 
     {{- with .rabbitmq }}
     rabbitmq:

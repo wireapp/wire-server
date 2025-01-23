@@ -31,6 +31,7 @@
 , data-timeout
 , deriving-aeson
 , directory
+, dns
 , errors
 , exceptions
 , extended
@@ -134,6 +135,7 @@ mkDerivation {
     data-timeout
     deriving-aeson
     directory
+    dns
     errors
     exceptions
     extended

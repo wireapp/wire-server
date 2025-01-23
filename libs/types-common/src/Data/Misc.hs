@@ -39,6 +39,13 @@ module Data.Misc
     HttpsUrl (..),
     mkHttpsUrl,
     ensureHttpsUrl,
+    httpsUrlToText,
+    httpsUrlFromText,
+
+    -- * Url
+    Url (..),
+    urlToText,
+    urlFromText,
 
     -- * Fingerprint
     Fingerprint (..),
@@ -224,6 +231,12 @@ mkHttpsUrl uri =
 ensureHttpsUrl :: URIRef Absolute -> HttpsUrl
 ensureHttpsUrl = HttpsUrl . (uriSchemeL . schemeBSL .~ "https")
 
+httpsUrlToText :: HttpsUrl -> Text
+httpsUrlToText = decodeUtf8 . toByteString'
+
+httpsUrlFromText :: Text -> Either String HttpsUrl
+httpsUrlFromText = runParser parser . encodeUtf8
+
 instance Show HttpsUrl where
   showsPrec i = showsPrec i . httpsUrl
 
@@ -235,8 +248,8 @@ instance FromByteString HttpsUrl where
 
 instance ToSchema HttpsUrl where
   schema =
-    (decodeUtf8 . toByteString')
-      .= parsedText "HttpsUrl" (runParser parser . encodeUtf8)
+    httpsUrlToText
+      .= parsedText "HttpsUrl" httpsUrlFromText
       & doc'
         . S.schema
         . S.example
@@ -251,6 +264,37 @@ instance Cql HttpsUrl where
 
 instance Arbitrary HttpsUrl where
   arbitrary = pure $ HttpsUrl [URI.QQ.uri|https://example.com|]
+
+--------------------------------------------------------------------------------
+-- Url
+
+-- | An absolute URL
+newtype Url = Url
+  { unUrl :: URIRef Absolute
+  }
+  deriving stock (Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Url
+
+instance ToSchema Url where
+  schema =
+    urlToText
+      .= parsedText "Url" urlFromText
+      & doc'
+        . S.schema
+        . S.example
+        ?~ toJSON ("http://example.com" :: Text)
+
+urlToText :: Url -> Text
+urlToText = decodeUtf8 . toByteString'
+
+urlFromText :: Text -> Either String Url
+urlFromText = runParser parser . encodeUtf8
+
+instance FromByteString Url where
+  parser = Url <$> uriParser strictURIParserOptions
+
+instance ToByteString Url where
+  builder = serializeURIRef . unUrl
 
 --------------------------------------------------------------------------------
 -- Fingerprint

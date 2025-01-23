@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Wire.Rpc
-  ( Rpc,
+  ( Rpc (..),
     rpc,
     rpcWithRetries,
     runRpcWithHttp,

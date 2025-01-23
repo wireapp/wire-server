@@ -77,7 +77,7 @@ testObject_DomainRegistration_6 =
     { domain = Domain "example.com",
       domainRedirect = PreAuthorized,
       teamInvite = Allowed,
-      dnsVerificationToken = Just $ DnsVerificationToken "wire-domain-<auth-token>::example.com"
+      dnsVerificationToken = Just $ DnsVerificationToken "wire-domain-Ym9vCg::example.com"
     }
 
 testObject_DomainRegistrationUpdate_1 :: DomainRegistrationUpdate

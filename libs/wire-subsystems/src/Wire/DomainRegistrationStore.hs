@@ -14,8 +14,8 @@ import Wire.API.EnterpriseLogin
 
 data StoredDomainRegistration = StoredDomainRegistration
   { domain :: Domain,
-    domainRedirect :: DomainRedirectTag,
-    teamInvite :: TeamInviteTag,
+    domainRedirect :: Maybe DomainRedirectTag,
+    teamInvite :: Maybe TeamInviteTag,
     idpId :: Maybe SAML.IdPId,
     backendUrl :: Maybe HttpsUrl,
     team :: Maybe TeamId,

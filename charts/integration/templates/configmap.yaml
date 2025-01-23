@@ -65,6 +65,11 @@ data:
       host: wireServerEnterprise.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
+    dnsMockServer:
+      host: technitium-dnsserver
+      apiPort: 5380
+      dohPort: 5381
+
     originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
 
     rabbitmq:

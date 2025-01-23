@@ -20,7 +20,7 @@ networks:
 services:
   fake_dynamodb:
     container_name: demo_wire_dynamodb
-#    image: cnadiminti/dynamodb-local:2018-04-11
+    #    image: cnadiminti/dynamodb-local:2018-04-11
     image: quay.io/wire/dynamodb_local:0.0.9
     ulimits:
       nofile:
@@ -44,7 +44,7 @@ services:
 
   fake_localstack:
     container_name: demo_wire_localstack
-#    image: localstack/localstack:0.8.0  # NB: this is younger than 0.8.6!
+    #    image: localstack/localstack:0.8.0  # NB: this is younger than 0.8.6!
     image: quay.io/wire/localstack:0.0.9
     ports:
       - 127.0.0.1:4569:4579 # ses # needed for local integration tests
@@ -60,9 +60,9 @@ services:
     container_name: demo_wire_smtp
     image: inbucket/inbucket:latest
     ports:
-        - 127.0.0.1:2500:2500
-        - 127.0.0.1:1100:1100
-        - 127.0.0.1:9000:9000
+      - 127.0.0.1:2500:2500
+      - 127.0.0.1:1100:1100
+      - 127.0.0.1:9000:9000
     networks:
       - demo_wire
 
@@ -70,7 +70,7 @@ services:
     container_name: demo_wire_s3
     image: minio/minio:RELEASE.2023-07-07T07-13-57Z
     ports:
-     - "127.0.0.1:4570:9000"
+      - "127.0.0.1:4570:9000"
     environment:
       MINIO_ACCESS_KEY: dummykey
       MINIO_SECRET_KEY: dummysecret # minio requires a secret of at least 8 chars
@@ -90,7 +90,7 @@ services:
       - demo_wire
 
   redis-cluster:
-    image: 'redis:6.0-alpine'
+    image: "redis:6.0-alpine"
     command:
       - redis-cli
       - --cluster
@@ -122,10 +122,10 @@ services:
       - redis-node-5
       - redis-node-6
   redis-node-1:
-    image: 'redis:6.0-alpine'
+    image: "redis:6.0-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '127.0.0.1:6373:6373'
+      - "127.0.0.1:6373:6373"
     volumes:
       - redis-node-1-data:/var/lib/redis
       - ./docker/redis-node-1.conf:/usr/local/etc/redis/redis.conf
@@ -136,10 +136,10 @@ services:
       redis:
         ipv4_address: 172.20.0.31
   redis-node-2:
-    image: 'redis:6.0-alpine'
+    image: "redis:6.0-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '127.0.0.1:6374:6374'
+      - "127.0.0.1:6374:6374"
     volumes:
       - redis-node-2-data:/var/lib/redis
       - ./docker/redis-node-2.conf:/usr/local/etc/redis/redis.conf
@@ -150,10 +150,10 @@ services:
       redis:
         ipv4_address: 172.20.0.32
   redis-node-3:
-    image: 'redis:6.0-alpine'
+    image: "redis:6.0-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '127.0.0.1:6375:6375'
+      - "127.0.0.1:6375:6375"
     volumes:
       - redis-node-3-data:/var/lib/redis
       - ./docker/redis-node-3.conf:/usr/local/etc/redis/redis.conf
@@ -164,10 +164,10 @@ services:
       redis:
         ipv4_address: 172.20.0.33
   redis-node-4:
-    image: 'redis:6.0-alpine'
+    image: "redis:6.0-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '127.0.0.1:6376:6376'
+      - "127.0.0.1:6376:6376"
     volumes:
       - redis-node-4-data:/var/lib/redis
       - ./docker/redis-node-4.conf:/usr/local/etc/redis/redis.conf
@@ -178,10 +178,10 @@ services:
       redis:
         ipv4_address: 172.20.0.34
   redis-node-5:
-    image: 'redis:6.0-alpine'
+    image: "redis:6.0-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '127.0.0.1:6377:6377'
+      - "127.0.0.1:6377:6377"
     volumes:
       - redis-node-5-data:/var/lib/redis
       - ./docker/redis-node-5.conf:/usr/local/etc/redis/redis.conf
@@ -192,10 +192,10 @@ services:
       redis:
         ipv4_address: 172.20.0.35
   redis-node-6:
-    image: 'redis:6.0-alpine'
+    image: "redis:6.0-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '127.0.0.1:6378:6378'
+      - "127.0.0.1:6378:6378"
     volumes:
       - redis-node-6-data:/var/lib/redis
       - ./docker/redis-node-6.conf:/usr/local/etc/redis/redis.conf
@@ -269,9 +269,9 @@ services:
       - RABBITMQ_USERNAME
       - RABBITMQ_PASSWORD
     ports:
-      - '127.0.0.1:5671:5671'
-      - '127.0.0.1:15671:15671'
-      - '127.0.0.1:15672:15672'
+      - "127.0.0.1:5671:5671"
+      - "127.0.0.1:15671:15671"
+      - "127.0.0.1:15672:15672"
     volumes:
       - ./rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/conf.d/20-wire.conf
       - ./rabbitmq-config/certificates:/etc/rabbitmq/certificates
@@ -312,6 +312,9 @@ services:
     networks:
       - demo_wire
 
+  # FUTUREWORK: Replace CoreDNS with Technitium (config below): The big benefit
+  # of the latter is that we can configure it at runtime; e.g. by creating
+  # new DNS records via a REST API.
   coredns:
     image: docker.io/coredns/coredns:1.8.4
     volumes:
@@ -326,6 +329,40 @@ services:
     networks:
       coredns:
         ipv4_address: 172.20.1.2
+  dns-server:
+    # Heavily inspired by:
+    # https://github.com/TechnitiumSoftware/DnsServer/blob/fcd631b81ba366c7d3e443b8f8103f29a90ea3fe/docker-compose.yml
+    container_name: dns-server
+    hostname: dns-server
+    image: technitium/dns-server:latest
+    ports:
+      - "5380:5380/tcp" #DNS web console (HTTP)
+      # - "53443:53443/tcp" #DNS web console (HTTPS)
+      # - "53:53/udp" #DNS service
+      # - "53:53/tcp" #DNS service
+      # - "853:853/udp" #DNS-over-QUIC service
+      # - "853:853/tcp" #DNS-over-TLS service
+      # - "443:443/udp" #DNS-over-HTTPS service (HTTP/3)
+      - "443:443/tcp" #DNS-over-HTTPS service (HTTP/1.1, HTTP/2)
+      - "5381:80/tcp" #DNS-over-HTTP service (use with reverse proxy or certbot certificate renewal)
+      # - "8053:8053/tcp" #DNS-over-HTTP service (use with reverse proxy)
+      # - "67:67/udp" #DHCP service
+    environment:
+      - DNS_SERVER_DOMAIN=localhost #The primary domain name used by this DNS Server to identify itself.
+      - DNS_SERVER_ADMIN_PASSWORD=admin #DNS web console admin user password.
+      # - DNS_SERVER_ADMIN_PASSWORD_FILE=password.txt #The path to a file that contains a plain text password for the DNS web console admin user.
+      # - DNS_SERVER_PREFER_IPV6=false #DNS Server will use IPv6 for querying whenever possible with this option enabled.
+      # - DNS_SERVER_WEB_SERVICE_LOCAL_ADDRESSES=172.17.0.1,127.0.0.1 #Comma separated list of network interface IP addresses that you want the web service to listen on for requests. The "172.17.0.1" address is the built-in Docker bridge. The "[::]" is the default value if not specified. Note! This must be used only with "host" network mode.
+      # - DNS_SERVER_WEB_SERVICE_HTTP_PORT=5380 #The TCP port number for the DNS web console over HTTP protocol.
+      # - DNS_SERVER_WEB_SERVICE_HTTPS_PORT=53443 #The TCP port number for the DNS web console over HTTPS protocol.
+      # - DNS_SERVER_WEB_SERVICE_ENABLE_HTTPS=true #Enables HTTPS for the DNS web console.
+      # - DNS_SERVER_WEB_SERVICE_USE_SELF_SIGNED_CERT=true #Enables self signed TLS certificate for the DNS web console.
+      - DNS_SERVER_OPTIONAL_PROTOCOL_DNS_OVER_HTTP=true #Enables DNS server optional protocol DNS-over-HTTP on TCP port 8053 to be used with a TLS terminating reverse proxy like nginx.
+      # - DNS_SERVER_RECURSION=AllowOnlyForPrivateNetworks #Recursion options: Allow, Deny, AllowOnlyForPrivateNetworks, UseSpecifiedNetworkACL.
+      # - DNS_SERVER_RECURSION_NETWORK_ACL=192.168.10.0/24, !192.168.10.2 #Comma separated list of IP addresses or network addresses to allow access. Add ! character at the start to deny access, e.g. !192.168.10.0/24 will deny entire subnet. The ACL is processed in the same order its listed. If no networks match, the default policy is to deny all except loopback. Valid only for `UseSpecifiedNetworkACL` recursion option.
+      # - DNS_SERVER_RECURSION_DENIED_NETWORKS=1.1.1.0/24 #Comma separated list of IP addresses or network addresses to deny recursion. Valid only for `UseSpecifiedNetworkACL` recursion option. This option is obsolete and DNS_SERVER_RECURSION_NETWORK_ACL should be used instead.
+      # - DNS_SERVER_RECURSION_ALLOWED_NETWORKS=127.0.0.1, 192.168.1.0/24 #Comma separated list of IP addresses or network addresses to allow recursion. Valid only for `UseSpecifiedNetworkACL` recursion option.  This option is obsolete and DNS_SERVER_RECURSION_NETWORK_ACL should be used instead.
+      # - DNS_SERVER_ENABLE_BLOCKING=false #Sets the DNS server to block domain names using Blocked Zone and Block List Zone.
 
 volumes:
   redis-node-1-data:

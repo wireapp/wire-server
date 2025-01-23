@@ -267,7 +267,12 @@ updateServiceMapInConfig resource forSrv config =
           _ -> pure overridden
     )
     config
-    [(srv, berInternalServicePorts resource srv :: Int) | srv <- allServices]
+    [ (srv, berInternalServicePorts resource srv :: Int)
+      | srv <- allServices,
+        -- if a service is not enabled, do not set its endpoint configuration,
+        -- unless we are starting the service itself
+        berEnableService resource srv || srv == forSrv
+    ]
 
 startBackend ::
   (HasCallStack) =>
