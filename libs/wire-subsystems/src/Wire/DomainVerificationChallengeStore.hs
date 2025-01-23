@@ -13,7 +13,7 @@ import Wire.API.Routes.Public.Brig.DomainVerification
 data StoredDomainVerificationChallenge = StoredDomainVerificationChallenge
   { challengeId :: ChallengeId,
     domain :: Domain,
-    challengeToken :: Token,
+    challengeTokenHash :: Token,
     dnsVerificationToken :: DnsVerificationToken
   }
   deriving (Show, Eq, Ord, Generic)
@@ -26,7 +26,7 @@ mkStoredDomainVerificationChallenge domain challenge =
   StoredDomainVerificationChallenge
     { challengeId = challenge.challengeId,
       domain = domain,
-      challengeToken = hashToken challenge.token,
+      challengeTokenHash = hashToken challenge.token,
       dnsVerificationToken = challenge.dnsVerificationToken
     }
 

@@ -899,6 +899,23 @@ domainVerificationToken domain registrationDomain mAuthToken = do
         Nothing -> req
   submit "POST" req'
 
+getDomainVerificationChallenge :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getDomainVerificationChallenge domain registrationDomain = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "challenges"]
+  submit "POST" req
+
+verifyDomain :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+verifyDomain domain registrationDomain challengeId challengeToken = do
+  req <-
+    baseRequest domain Brig Versioned $
+      joinHttpPath
+        [ "domain-verification",
+          registrationDomain,
+          "challenges",
+          challengeId
+        ]
+  submit "POST" $ req & addJSONObject ["challenge_token" .= challengeToken]
+
 domainVerificationTeamToken :: (HasCallStack, MakesValue user) => user -> String -> App Response
 domainVerificationTeamToken user registrationDomain = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "team-token"]

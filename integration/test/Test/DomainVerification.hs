@@ -14,6 +14,31 @@ import Testlib.Prelude
 mkDomainRedirectBackend :: String -> Value
 mkDomainRedirectBackend url = object ["domain_redirect" .= "backend", "backend_url" .= url]
 
+testDomainVerificationGetOwnershipToken :: (HasCallStack) => App ()
+testDomainVerificationGetOwnershipToken = do
+  domain <- randomDomain
+  challenge <- getDomainVerificationChallenge OwnDomain domain >>= getJSON 200
+  dnsToken <- challenge %. "dns_verification_token" & asString
+  challengeId <- challenge %. "id" & asString
+  challengeToken <- challenge %. "token" & asString
+
+  bindResponse (verifyDomain OwnDomain domain challengeId challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "domain-verification-failed"
+
+  -- [customer admin] register TXT DNS record
+  tok <- getTechnitiumApiKey
+  registerTechnitiumZone tok domain
+  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
+
+  -- verify domain
+  bindResponse (verifyDomain OwnDomain domain challengeId challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    void $ resp.json %. "domain_ownership_token" & asString
+
+  -- the challenge should be deleted after successful verification
+  verifyDomain OwnDomain domain challengeId challengeToken >>= assertStatus 404
+
 testDomainVerificationOnPremFlow :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlow = do
   domain <- randomDomain

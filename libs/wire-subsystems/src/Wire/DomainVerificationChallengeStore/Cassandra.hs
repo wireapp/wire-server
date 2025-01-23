@@ -28,7 +28,7 @@ insertImpl :: (MonadClient m) => StoredDomainVerificationChallenge -> m ()
 insertImpl challenge = retry x5 $ write cqlInsert (params LocalQuorum (asTuple challenge))
 
 cqlInsert :: PrepQuery W (TupleType StoredDomainVerificationChallenge) ()
-cqlInsert = "INSERT INTO domain_registration_challenge (id, domain, challenge_token, dns_verification_token) VALUES (?,?,?,?)"
+cqlInsert = "INSERT INTO domain_registration_challenge (id, domain, challenge_token_hash, dns_verification_token) VALUES (?,?,?,?)"
 
 lookupImpl :: (MonadClient m) => ChallengeId -> m (Maybe StoredDomainVerificationChallenge)
 lookupImpl challengeId =
@@ -36,7 +36,7 @@ lookupImpl challengeId =
     <$> retry x1 (query1 cqlSelect (params LocalQuorum (Identity challengeId)))
 
 cqlSelect :: PrepQuery R (Identity ChallengeId) (TupleType StoredDomainVerificationChallenge)
-cqlSelect = "SELECT id, domain, challenge_token, dns_verification_token FROM domain_registration_challenge WHERE id = ?"
+cqlSelect = "SELECT id, domain, challenge_token_hash, dns_verification_token FROM domain_registration_challenge WHERE id = ?"
 
 deleteImpl :: (MonadClient m) => ChallengeId -> m ()
 deleteImpl challengeId = retry x5 $ write cqlDelete (params LocalQuorum (Identity challengeId))

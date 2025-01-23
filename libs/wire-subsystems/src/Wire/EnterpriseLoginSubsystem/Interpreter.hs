@@ -11,7 +11,7 @@ module Wire.EnterpriseLoginSubsystem.Interpreter
 where
 
 import Bilge hiding (delete)
-import Control.Lens (to, (^.), (^..), (^?))
+import Control.Lens ((^.), (^..), (^?))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
@@ -175,7 +175,7 @@ verifyChallengeImpl ::
 verifyChallengeImpl domain challengeId challengeToken = do
   challenge <- Challenge.lookup challengeId >>= note EnterpriseLoginSubsystemChallengeNotFound
   unless
-    ( challenge.challengeToken == hashToken challengeToken
+    ( challenge.challengeTokenHash == hashToken challengeToken
         && challenge.domain == domain
     )
     $ do
@@ -190,6 +190,7 @@ verifyChallengeImpl domain challengeId challengeToken = do
             dnsVerificationToken = Just challenge.dnsVerificationToken
           }
     Nothing -> upsert $ (mkStoredDomainRegistration domain authToken challenge.dnsVerificationToken)
+  Challenge.delete challengeId
   pure authToken
 
 deleteDomainImpl ::
