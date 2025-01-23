@@ -25,7 +25,7 @@ data EnterpriseLoginSubsystem m a where
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
   GuardEmailDomainRegistrationTeamInvitation :: InvitationFlow -> TeamId -> EmailAddress -> EnterpriseLoginSubsystem m ()
   GuardEmailDomainRegistrationRegister :: EmailAddress -> EnterpriseLoginSubsystem m ()
-  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration -- TODO(leif): remove this
+  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
   TryGetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistration)
   RequestDomainVerificationToken ::
     Maybe DomainVerificationAuthToken ->

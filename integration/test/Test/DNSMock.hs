@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- TODO: merge with DomainVerification, EnterpriseLogin?
 module Test.DNSMock where
 
 import Control.Lens
