@@ -400,6 +400,7 @@ servantSitemap =
     :<|> servicesAPI
     :<|> providerAPI
     :<|> domainVerificationAPI
+    :<|> domainVerificationChallengeAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -555,6 +556,11 @@ servantSitemap =
       Named @"update-domain-redirect" updateDomainRedirect
         :<|> Named @"update-team-invite" updateTeamInvite
         :<|> Named @"get-domain-registration" getDomainRegistration
+
+    domainVerificationChallengeAPI :: ServerT DomainVerificationChallengeAPI (Handler r)
+    domainVerificationChallengeAPI =
+      Named @"domain-verification-challenge" getDomainVerificationChallenge
+        :<|> Named @"verify-challenge" verifyChallenge
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1540,6 +1546,24 @@ getDomainRegistration ::
 getDomainRegistration req =
   lift . liftSem $
     EnterpriseLogin.getDomainRegistrationPublic req
+
+getDomainVerificationChallenge ::
+  (_) =>
+  Domain ->
+  Handler r DomainVerificationChallenge
+getDomainVerificationChallenge domain =
+  lift . liftSem $
+    EnterpriseLogin.createDomainVerificationChallenge domain
+
+verifyChallenge ::
+  (_) =>
+  Domain ->
+  ChallengeId ->
+  ChallengeToken ->
+  Handler r DomainOwnershipToken
+verifyChallenge domain challengeId (ChallengeToken token) = do
+  lift . liftSem . fmap DomainOwnershipToken $
+    EnterpriseLogin.verifyChallenge domain challengeId token
 
 -- Deprecated
 

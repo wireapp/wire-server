@@ -11,7 +11,7 @@ module Wire.EnterpriseLoginSubsystem.Interpreter
 where
 
 import Bilge hiding (delete)
-import Control.Lens ((^.), (^..), (^?))
+import Control.Lens (to, (^.), (^..), (^?))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
@@ -165,7 +165,8 @@ verifyChallengeImpl ::
     Member (Error ParseException) r,
     Member (Input Endpoint) r,
     Member Random r,
-    Member Rpc r
+    Member Rpc r,
+    Member DomainRegistrationStore r
   ) =>
   Domain ->
   ChallengeId ->
@@ -180,9 +181,15 @@ verifyChallengeImpl domain challengeId challengeToken = do
     $ do
       throw EnterpriseLoginSubsystemAuthFailure
   verifyDNSRecord domain challenge.dnsVerificationToken
-
   authToken <- Token <$> Random.bytes 32
-  -- TODO: store auth token and dns token
+  lookup domain >>= \case
+    Just sdr ->
+      upsert $
+        sdr
+          { authTokenHash = Just $ hashToken authToken,
+            dnsVerificationToken = Just challenge.dnsVerificationToken
+          }
+    Nothing -> upsert $ (mkStoredDomainRegistration domain authToken challenge.dnsVerificationToken)
   pure authToken
 
 deleteDomainImpl ::
@@ -468,6 +475,19 @@ toStored dr =
     fromDomainRedirect (Backend url) = (BackendTag, Nothing, Just url)
     fromDomainRedirect NoRegistration = (NoRegistrationTag, Nothing, Nothing)
     fromDomainRedirect PreAuthorized = (PreAuthorizedTag, Nothing, Nothing)
+
+mkStoredDomainRegistration :: Domain -> Token -> DnsVerificationToken -> StoredDomainRegistration
+mkStoredDomainRegistration domain authToken dnsToken =
+  StoredDomainRegistration
+    { domain = domain,
+      authTokenHash = Just $ hashToken authToken,
+      dnsVerificationToken = Just dnsToken,
+      domainRedirect = Nothing,
+      teamInvite = Nothing,
+      idpId = Nothing,
+      backendUrl = Nothing,
+      team = Nothing
+    }
 
 validate :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainRegistrationUpdate -> Sem r ()
 validate dr = do
