@@ -210,6 +210,7 @@ instance ToSchema DomainRegistrationUpdate where
 
 data DomainRegistration = DomainRegistration
   { domain :: Domain,
+    authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
     teamInvite :: TeamInvite,
     dnsVerificationToken :: Maybe DnsVerificationToken
@@ -222,6 +223,7 @@ instance ToSchema DomainRegistration where
     object "DomainRegistration" $
       DomainRegistration
         <$> (.domain) .= field "domain" schema
+        <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
         <*> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)

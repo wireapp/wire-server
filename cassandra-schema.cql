@@ -559,6 +559,7 @@ CREATE TABLE brig_test.federation_remote_teams (
 CREATE TABLE brig_test.domain_registration (
     domain text PRIMARY KEY,
     auth_token_hash blob,
+    authorized_team uuid,
     backend_url blob,
     dns_verification_token ascii,
     domain_redirect int,

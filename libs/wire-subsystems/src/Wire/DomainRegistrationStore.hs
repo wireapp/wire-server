@@ -20,7 +20,8 @@ data StoredDomainRegistration = StoredDomainRegistration
     backendUrl :: Maybe HttpsUrl,
     team :: Maybe TeamId,
     dnsVerificationToken :: Maybe DnsVerificationToken,
-    authTokenHash :: Maybe Token
+    authTokenHash :: Maybe Token,
+    authorizedTeam :: Maybe TeamId
   }
   deriving (Show, Eq, Ord, Generic)
 

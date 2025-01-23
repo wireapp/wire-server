@@ -32,7 +32,8 @@ migration =
     schema'
       [r|
         ALTER TABLE domain_registration ADD
-          ( auth_token_hash blob
+          ( auth_token_hash blob,
+            authorized_team uuid
           )
       |]
     schema'
