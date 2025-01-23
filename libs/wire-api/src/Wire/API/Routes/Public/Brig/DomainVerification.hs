@@ -149,37 +149,17 @@ type DomainVerificationChallengeAPI =
 
 type DomainVerificationAPI =
   Named
-    "domain-verification-token"
-    ( Summary "Get a DNS verification token"
-        :> Header "Authorization" (Bearer DomainVerificationAuthToken)
+    "update-domain-redirect"
+    ( Summary "Verify DNS record and save domain redirect configuration"
+        :> CanThrow DomainVerificationOperationForbidden
+        :> CanThrow DomainVerificationDomainVerificationFailed
+        :> Header' '[Required, Strict] "Authorization" (Bearer DomainVerificationAuthToken)
         :> "domain-verification"
         :> Capture "domain" Domain
-        :> "token"
-        :> Post '[JSON] DomainVerificationTokenResponse
+        :> "backend"
+        :> ReqBody '[JSON] DomainRedirectConfig
+        :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
     )
-    :<|> Named
-           "domain-verification-token-team"
-           ( Summary "Get a DNS verification token"
-               :> CanThrow DomainVerificationAuthFailure
-               :> CanThrow DomainVerificationPaymentRequired
-               :> ZLocalUser
-               :> "domain-verification"
-               :> Capture "domain" Domain
-               :> "team-token"
-               :> Post '[JSON] DomainVerificationTokenResponse
-           )
-    :<|> Named
-           "update-domain-redirect"
-           ( Summary "Verify DNS record and save domain redirect configuration"
-               :> CanThrow DomainVerificationOperationForbidden
-               :> CanThrow DomainVerificationDomainVerificationFailed
-               :> Header' '[Required, Strict] "Authorization" (Bearer DomainVerificationAuthToken)
-               :> "domain-verification"
-               :> Capture "domain" Domain
-               :> "backend"
-               :> ReqBody '[JSON] DomainRedirectConfig
-               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
-           )
     :<|> Named
            "update-team-invite"
            ( Summary "Verify DNS record and save team-invite configuration"

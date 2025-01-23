@@ -8,6 +8,7 @@ import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports
 import Polysemy
 import Wire.API.EnterpriseLogin
+import Wire.API.Routes.Public.Brig.DomainVerification
 
 data StoredDomainVerificationChallenge = StoredDomainVerificationChallenge
   { challengeId :: ChallengeId,
@@ -16,6 +17,18 @@ data StoredDomainVerificationChallenge = StoredDomainVerificationChallenge
     dnsVerificationToken :: DnsVerificationToken
   }
   deriving (Show, Eq, Ord, Generic)
+
+mkStoredDomainVerificationChallenge ::
+  Domain ->
+  DomainVerificationChallenge ->
+  StoredDomainVerificationChallenge
+mkStoredDomainVerificationChallenge domain challenge =
+  StoredDomainVerificationChallenge
+    { challengeId = challenge.challengeId,
+      domain = domain,
+      challengeToken = hashToken challenge.token,
+      dnsVerificationToken = challenge.dnsVerificationToken
+    }
 
 recordInstance ''StoredDomainVerificationChallenge
 

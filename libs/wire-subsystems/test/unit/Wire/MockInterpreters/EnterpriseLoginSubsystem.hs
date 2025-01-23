@@ -22,8 +22,7 @@ enterpriseLoginSubsystemTestInterpreter err =
     GuardEmailDomainRegistrationTeamInvitation {} -> throw err
     GuardEmailDomainRegistrationRegister _ -> throw err
     TryGetDomainRegistration _ -> undefined
-    RequestDomainVerificationToken _ _ -> undefined
-    RequestDomainVerificationTeamToken _ _ -> undefined
     UpdateDomainRedirect {} -> undefined
     UpdateTeamInvite {} -> undefined
     GetDomainRegistrationPublic _ -> undefined
+    CreateDomainVerificationChallenge _ -> undefined

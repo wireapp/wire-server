@@ -5,8 +5,10 @@ module Wire.API.EnterpriseLogin where
 import Cassandra qualified as C
 import Control.Arrow
 import Control.Lens (makePrisms, (?~))
+import Crypto.Hash qualified as Crypto
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
+import Data.ByteArray (convert)
 import Data.ByteString qualified as BS
 import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion
@@ -19,7 +21,7 @@ import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
-import Data.Text.Ascii hiding (validate)
+import Data.Text.Ascii (AsciiBase64Url, AsciiText (toText))
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Imports
@@ -172,10 +174,8 @@ deriving via (Schema TeamInvite) instance S.ToSchema TeamInvite
 -- | The challenge to be presented in a TXT DNS record by the owner of the domain.
 newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: AsciiBase64Url}
   deriving stock (Ord, Eq, Show)
+  deriving newtype (FromHttpApiData)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema DnsVerificationToken
-
-instance FromHttpApiData DnsVerificationToken where
-  parseUrlPiece = mapLeft Text.pack . fmap DnsVerificationToken . Ascii.validate
 
 instance ToSchema DnsVerificationToken where
   schema = DnsVerificationToken <$> unDnsVerificationToken .= schema
@@ -265,6 +265,9 @@ newtype Token = Token {unToken :: ByteString}
 
 instance ToSchema Token where
   schema = Token <$> unToken .= named "Token" base64URLSchema
+
+hashToken :: Token -> Token
+hashToken = Token . convert . Crypto.hash @ByteString @Crypto.SHA256 . unToken
 
 --------------------------------------------------------------------------------
 -- CQL instances

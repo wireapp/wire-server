@@ -27,14 +27,6 @@ data EnterpriseLoginSubsystem m a where
   GuardEmailDomainRegistrationRegister :: EmailAddress -> EnterpriseLoginSubsystem m ()
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
   TryGetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistration)
-  RequestDomainVerificationToken ::
-    Maybe DomainVerificationAuthToken ->
-    Domain ->
-    EnterpriseLoginSubsystem m DomainVerificationTokenResponse
-  RequestDomainVerificationTeamToken ::
-    Local UserId ->
-    Domain ->
-    EnterpriseLoginSubsystem m DomainVerificationTokenResponse
   UpdateDomainRedirect ::
     DomainVerificationAuthToken ->
     Domain ->

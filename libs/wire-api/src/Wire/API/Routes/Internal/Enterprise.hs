@@ -23,6 +23,6 @@ type InternalAPIBase =
            "verify-domain-token"
            ( "verify-domain-token"
                :> Capture "domain" Domain
-               :> Capture "dsn-token" DnsVerificationToken
+               :> Capture "dns-token" DnsVerificationToken
                :> Post '[JSON] Bool
            )

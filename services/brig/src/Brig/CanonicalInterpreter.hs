@@ -42,6 +42,8 @@ import Wire.BlockListStore.Cassandra
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
+import Wire.DomainVerificationChallengeStore
+import Wire.DomainVerificationChallengeStore.Cassandra
 import Wire.EmailSending
 import Wire.EmailSending.SES
 import Wire.EmailSending.SMTP
@@ -133,6 +135,7 @@ type BrigLowerLevelEffects =
      Error PropertySubsystemError,
      Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
+     DomainVerificationChallengeStore,
      DomainRegistrationStore,
      HashPassword,
      UserKeyStore,
@@ -282,6 +285,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserKeyStoreCassandra e.casClient
               . runHashPassword e.settings.passwordHashingOptions
               . interpretDomainRegistrationStoreToCassandra e.casClient
+              . interpretDomainVerificationChallengeStoreToCassandra e.casClient
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
               . mapError propertySubsystemErrorToHttpError

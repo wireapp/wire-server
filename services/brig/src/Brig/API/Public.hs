@@ -552,9 +552,7 @@ servantSitemap =
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
-      Named @"domain-verification-token" requestDomainVerificationToken
-        :<|> Named @"domain-verification-token-team" requestDomainVerificationTeamToken
-        :<|> Named @"update-domain-redirect" updateDomainRedirect
+      Named @"update-domain-redirect" updateDomainRedirect
         :<|> Named @"update-team-invite" updateTeamInvite
         :<|> Named @"get-domain-registration" getDomainRegistration
 
@@ -1516,24 +1514,6 @@ getSystemSettingsInternal _ = do
   let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
   let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
-
-requestDomainVerificationToken ::
-  forall r.
-  (_) =>
-  Maybe (Bearer DomainVerificationAuthToken) ->
-  Domain ->
-  Handler r DomainVerificationTokenResponse
-requestDomainVerificationToken (fmap unBearer -> mAuthToken) domain =
-  lift . liftSem $ EnterpriseLogin.requestDomainVerificationToken mAuthToken domain
-
-requestDomainVerificationTeamToken ::
-  forall r.
-  (_) =>
-  Local UserId ->
-  Domain ->
-  Handler r DomainVerificationTokenResponse
-requestDomainVerificationTeamToken lusr domain =
-  lift . liftSem $ EnterpriseLogin.requestDomainVerificationTeamToken lusr domain
 
 updateDomainRedirect ::
   (_) =>
