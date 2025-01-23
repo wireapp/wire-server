@@ -114,6 +114,7 @@ data DomainVerificationChallenge = DomainVerificationChallenge
     dnsVerificationToken :: DnsVerificationToken
   }
   deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainVerificationChallenge)
 
 instance ToSchema DomainVerificationChallenge where
   schema =
@@ -122,6 +123,24 @@ instance ToSchema DomainVerificationChallenge where
         <$> challengeId .= field "id" schema
         <*> token .= field "token" schema
         <*> (.dnsVerificationToken) .= field "dns_verification_token" schema
+
+newtype ChallengeToken = ChallengeToken {unChallengeToken :: Token}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema ChallengeToken)
+
+instance ToSchema ChallengeToken where
+  schema =
+    object "ChallengeToken" $
+      ChallengeToken
+        <$> unChallengeToken .= field "challenge_token" schema
+
+newtype DomainOwnershipToken = DomainOwnershipToken {unDomainOwnershipToken :: Token}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainOwnershipToken)
+
+instance ToSchema DomainOwnershipToken where
+  schema =
+    object "DomainOwnershipToken" $
+      DomainOwnershipToken
+        <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
 type DomainVerificationChallengeAPI =
   Named
@@ -132,6 +151,16 @@ type DomainVerificationChallengeAPI =
         :> "challenges"
         :> Post '[JSON] DomainVerificationChallenge
     )
+    :<|> Named
+           "verify-challenge"
+           ( Summary "Verify a DNS verification challenge"
+               :> "domain-verification"
+               :> Capture "domain" Domain
+               :> "challenges"
+               :> Capture "challengeId" ChallengeId
+               :> ReqBody '[JSON] ChallengeToken
+               :> Post '[JSON] DomainOwnershipToken
+           )
 
 type DomainVerificationAPI =
   Named
