@@ -383,9 +383,7 @@ data Opts = Opts
     -- | Federator address
     federatorInternal :: !(Maybe Endpoint),
     -- | Wire Server Enterprise address
-    -- TODO: This needs to be optional (`Maybe`): Not everbody with have the
-    -- enterprise service.
-    wireServerEnterprise :: !Endpoint,
+    wireServerEnterprise :: !(Maybe Endpoint),
     -- external
 
     -- | Cassandra settings

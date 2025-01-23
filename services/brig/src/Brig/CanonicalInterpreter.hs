@@ -50,6 +50,7 @@ import Wire.EmailSubsystem.Interpreter
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError, enterpriseLoginSubsystemErrorToHttpError)
 import Wire.EnterpriseLoginSubsystem.Interpreter
+import Wire.EnterpriseLoginSubsystem.Null
 import Wire.Error
 import Wire.Events
 import Wire.FederationAPIAccess qualified
@@ -151,7 +152,6 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
-     Input EnterpriseLoginSubsystemConfig,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -263,7 +263,6 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runInputConst (mkEnterpriseLoginSubsystemConfig e)
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
@@ -299,7 +298,10 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
               . userSubsystemInterpreter
-              . runEnterpriseLoginSubsystem
+              . maybe
+                runEnterpriseLoginSubsystemNoConfig
+                runEnterpriseLoginSubsystemWithConfig
+                (mkEnterpriseLoginSubsystemConfig e)
               . runTeamInvitationSubsystem teamInvitationSubsystemConfig
               . authSubsystemInterpreter
           )
@@ -316,12 +318,14 @@ mkEnterpriseLoginSubsystemEmailConfig env = do
         auditEmailRecipient = recipient
       }
 
-mkEnterpriseLoginSubsystemConfig :: Env -> EnterpriseLoginSubsystemConfig
-mkEnterpriseLoginSubsystemConfig env =
-  EnterpriseLoginSubsystemConfig
-    { emailConfig = mkEnterpriseLoginSubsystemEmailConfig env,
-      wireServerEnterpriseEndpoint = env.wireServerEnterpriseEndpoint
-    }
+mkEnterpriseLoginSubsystemConfig :: Env -> Maybe EnterpriseLoginSubsystemConfig
+mkEnterpriseLoginSubsystemConfig env = do
+  endpoint <- env.wireServerEnterpriseEndpoint
+  pure
+    EnterpriseLoginSubsystemConfig
+      { emailConfig = mkEnterpriseLoginSubsystemEmailConfig env,
+        wireServerEnterpriseEndpoint = endpoint
+      }
 
 rethrowHttpErrorIO :: (Member (Final IO) r) => InterpreterFor (Error HttpError) r
 rethrowHttpErrorIO act = do

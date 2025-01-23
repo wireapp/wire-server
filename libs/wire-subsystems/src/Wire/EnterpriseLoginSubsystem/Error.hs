@@ -23,6 +23,7 @@ data EnterpriseLoginSubsystemError
   | EnterpriseLoginSubsystemInvalidAuthToken
   | EnterpriseLoginSubsystemAuthFailure
   | EnterpriseLoginSubsystemPaymentRequired
+  | EnterpriseLoginSubsystemNotEnabled
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform EnterpriseLoginSubsystemError)
 
@@ -63,3 +64,4 @@ enterpriseLoginSubsystemErrorToHttpError =
     EnterpriseLoginSubsystemInvalidAuthToken -> errorToWai @DomainVerificationInvalidAuthToken
     EnterpriseLoginSubsystemAuthFailure -> errorToWai @DomainVerificationAuthFailure
     EnterpriseLoginSubsystemPaymentRequired -> errorToWai @DomainVerificationPaymentRequired
+    EnterpriseLoginSubsystemNotEnabled -> errorToWai @DomainVerificationNotEnabled

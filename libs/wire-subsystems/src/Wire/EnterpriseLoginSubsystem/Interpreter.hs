@@ -3,7 +3,8 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.EnterpriseLoginSubsystem.Interpreter
-  ( runEnterpriseLoginSubsystem,
+  ( runEnterpriseLoginSubsystemWithConfig,
+    runEnterpriseLoginSubsystem,
     EnterpriseLoginSubsystemConfig (..),
     EnterpriseLoginSubsystemEmailConfig (..),
   )
@@ -64,6 +65,27 @@ data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
   { emailConfig :: Maybe EnterpriseLoginSubsystemEmailConfig,
     wireServerEnterpriseEndpoint :: Endpoint
   }
+
+runEnterpriseLoginSubsystemWithConfig ::
+  ( Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member (Error ParseException) r,
+    Member GalleyAPIAccess r,
+    Member SparAPIAccess r,
+    Member TinyLog r,
+    Member EmailSending r,
+    Member Random r,
+    Member Rpc r,
+    Member UserKeyStore r,
+    Member UserSubsystem r
+  ) =>
+  EnterpriseLoginSubsystemConfig ->
+  Sem (EnterpriseLoginSubsystem ': r) a ->
+  Sem r a
+runEnterpriseLoginSubsystemWithConfig config =
+  runInputConst config
+    . runEnterpriseLoginSubsystem
+    . raiseUnder
 
 runEnterpriseLoginSubsystem ::
   ( Member DomainRegistrationStore r,

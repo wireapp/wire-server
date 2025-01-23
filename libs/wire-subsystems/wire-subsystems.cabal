@@ -90,6 +90,7 @@ library
     Wire.EnterpriseLoginSubsystem
     Wire.EnterpriseLoginSubsystem.Error
     Wire.EnterpriseLoginSubsystem.Interpreter
+    Wire.EnterpriseLoginSubsystem.Null
     Wire.Error
     Wire.Events
     Wire.FederationAPIAccess

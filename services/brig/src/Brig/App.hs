@@ -180,7 +180,7 @@ data Env = Env
     gundeckEndpoint :: Endpoint,
     cargoholdEndpoint :: Endpoint,
     federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
-    wireServerEnterpriseEndpoint :: Endpoint, -- TODO: make this optional
+    wireServerEnterpriseEndpoint :: Maybe Endpoint,
     casClient :: Cas.ClientState,
     smtpEnv :: Maybe SMTP.SMTP,
     emailSender :: EmailAddress,
