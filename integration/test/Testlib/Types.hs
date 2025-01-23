@@ -70,6 +70,8 @@ data BackendResource = BackendResource
     berNginzSslPort :: Word16,
     berNginzHttp2Port :: Word16,
     berInternalServicePorts :: forall a. (Num a) => Service -> a,
+    -- | A disabled service is started anyway, but not configured in the other services.
+    berEnableService :: Service -> Bool,
     berMlsPrivateKeyPaths :: Value
   }
 

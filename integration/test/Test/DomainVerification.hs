@@ -486,3 +486,8 @@ testUpdateTeamInviteLocked = do
   bindResponse (updateTeamInvite owner domain (object ["team_invite" .= "allowed"])) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+
+testDisabledEnterpriseService :: (HasCallStack) => App ()
+testDisabledEnterpriseService = do
+  domain <- randomDomain
+  domainVerificationToken OtherDomain domain Nothing >>= assertStatus 503

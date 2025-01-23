@@ -247,9 +247,6 @@ releases:
         value: {{ .Values.federationDomain2 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
-      # TODO: This should be disabled later (fixes a deployment issue now)
-      - name: brig.config.wireServerEnterprise.enabled
-        value: true
     needs:
       - 'databases-ephemeral'
 
@@ -264,16 +261,6 @@ releases:
     set:
       - name: config.dnsOverHttpsUrl
         value: 'http://technitium-dnsserver:5381/dns-query'
-
-  # TODO: This should be removed later (fixes a deployment issue now)
-  - name: wire-server-enterprise
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/wire-server-enterprise'
-    values:
-      - secrets:
-          configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
-    needs:
-      - '{{ .Values.namespace1 }}/technitium-dnsserver'
 
   - name: technitium-dnsserver
     namespace: '{{ .Values.namespace1 }}'
