@@ -1517,7 +1517,7 @@ getSystemSettingsInternal _ = do
 
 updateDomainRedirect ::
   (_) =>
-  Bearer DomainVerificationAuthToken ->
+  Bearer Token ->
   Domain ->
   DomainRedirectConfig ->
   Handler r ()

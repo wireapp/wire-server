@@ -9,7 +9,6 @@ import Crypto.Hash qualified as Crypto
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteArray (convert)
-import Data.ByteString qualified as BS
 import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
@@ -174,7 +173,7 @@ deriving via (Schema TeamInvite) instance S.ToSchema TeamInvite
 -- | The challenge to be presented in a TXT DNS record by the owner of the domain.
 newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: AsciiBase64Url}
   deriving stock (Ord, Eq, Show)
-  deriving newtype (FromHttpApiData)
+  deriving newtype (FromHttpApiData, ToByteString)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema DnsVerificationToken
 
 instance ToSchema DnsVerificationToken where
@@ -227,38 +226,6 @@ instance ToSchema DomainRegistration where
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
--- | Bearer authentication token for domain verification requests.
-newtype DomainVerificationAuthToken = DomainVerificationAuthToken
-  { unDomainVerificationAuthToken :: ByteString
-  }
-  deriving stock (Eq, Ord, Show)
-
-parseDomainVerificationAuthToken :: Text -> Either String DomainVerificationAuthToken
-parseDomainVerificationAuthToken txt = do
-  bytes <- B64U.decodeUnpadded (Text.encodeUtf8 txt)
-  unless (BS.length bytes == 32) $ Left "Invalid random auth token length"
-  pure (DomainVerificationAuthToken bytes)
-
-serializeDomainVerificationAuthToken :: DomainVerificationAuthToken -> Text
-serializeDomainVerificationAuthToken =
-  Text.decodeUtf8
-    . B64U.encodeUnpadded
-    . unDomainVerificationAuthToken
-
-instance ToSchema DomainVerificationAuthToken where
-  schema =
-    serializeDomainVerificationAuthToken
-      .= parsedText "DomainVerificationAuthToken" parseDomainVerificationAuthToken
-
-instance S.ToParamSchema (Bearer DomainVerificationAuthToken) where
-  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
-
-instance FromHttpApiData DomainVerificationAuthToken where
-  parseUrlPiece = mapLeft Text.pack . parseDomainVerificationAuthToken
-
-instance ToByteString DomainVerificationAuthToken where
-  builder = builder . Text.encodeUtf8 . serializeDomainVerificationAuthToken
-
 newtype Token = Token {unToken :: ByteString}
   deriving newtype (Eq, Ord, Show)
   deriving (Aeson.FromJSON, Aeson.ToJSON, S.ToSchema) via (Schema Token)
@@ -268,6 +235,19 @@ instance ToSchema Token where
 
 hashToken :: Token -> Token
 hashToken = Token . convert . Crypto.hash @ByteString @Crypto.SHA256 . unToken
+
+instance S.ToParamSchema (Bearer Token) where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
+
+instance FromHttpApiData Token where
+  parseUrlPiece =
+    mapLeft Text.pack
+      . fmap Token
+      . B64U.decodeUnpadded
+      . Text.encodeUtf8
+
+instance ToByteString Token where
+  builder = builder . B64U.encodeUnpadded . unToken
 
 --------------------------------------------------------------------------------
 -- CQL instances
@@ -311,12 +291,6 @@ instance C.Cql DnsVerificationToken where
   toCql = C.toCql . toText . unDnsVerificationToken
   fromCql (C.CqlAscii t) = DnsVerificationToken <$> Ascii.validate t
   fromCql _ = Left "DnsVerificationToken value: text expected"
-
-instance C.Cql DomainVerificationAuthToken where
-  ctype = C.Tagged C.AsciiColumn
-  toCql = C.toCql . serializeDomainVerificationAuthToken
-  fromCql (C.CqlAscii t) = parseDomainVerificationAuthToken t
-  fromCql _ = Left "DomainVerificationAuthToken value: text expected"
 
 instance C.Cql Token where
   ctype = C.Tagged C.BlobColumn

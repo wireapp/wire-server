@@ -73,6 +73,7 @@ data EnterpriseLoginSubsystemConfig = EnterpriseLoginSubsystemConfig
 
 runEnterpriseLoginSubsystemWithConfig ::
   ( Member DomainRegistrationStore r,
+    Member DomainVerificationChallengeStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member (Error ParseException) r,
     Member GalleyAPIAccess r,
@@ -132,6 +133,9 @@ runEnterpriseLoginSubsystem = interpret $
     CreateDomainVerificationChallenge domain ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         createDomainVerificationChallengeImpl domain
+    VerifyChallenge domain challengeId challengeToken ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        verifyChallengeImpl domain challengeId challengeToken
 
 createDomainVerificationChallengeImpl ::
   ( Member Random r,
@@ -154,6 +158,32 @@ createDomainVerificationChallengeImpl domain = do
           }
   Challenge.insert (mkStoredDomainVerificationChallenge domain challenge)
   pure challenge
+
+verifyChallengeImpl ::
+  ( Member DomainVerificationChallengeStore r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Random r,
+    Member Rpc r
+  ) =>
+  Domain ->
+  ChallengeId ->
+  Token ->
+  Sem r Token
+verifyChallengeImpl domain challengeId challengeToken = do
+  challenge <- Challenge.lookup challengeId >>= note EnterpriseLoginSubsystemChallengeNotFound
+  unless
+    ( challenge.challengeToken == hashToken challengeToken
+        && challenge.domain == domain
+    )
+    $ do
+      throw EnterpriseLoginSubsystemAuthFailure
+  verifyDNSRecord domain challenge.dnsVerificationToken
+
+  authToken <- Token <$> Random.bytes 32
+  -- TODO: store auth token and dns token
+  pure authToken
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -366,9 +396,9 @@ verifyDNSRecord ::
     Member Rpc r
   ) =>
   Domain ->
-  Text ->
+  DnsVerificationToken ->
   Sem r ()
-verifyDNSRecord domain authToken = do
+verifyDNSRecord domain dnsToken = do
   verified <-
     decodeBodyOrThrow
       =<< enterpriseRequest
@@ -377,7 +407,7 @@ verifyDNSRecord domain authToken = do
               [ "i",
                 "verify-domain-token",
                 toByteString' domain,
-                toByteString' authToken
+                toByteString' dnsToken
               ]
             . expect2xx
         )
@@ -562,26 +592,24 @@ guardEmailDomainRegistrationRegisterImpl email = do
 
 updateDomainRedirectImpl ::
   ( Member (Error EnterpriseLoginSubsystemError) r,
-    Member (Error ParseException) r,
     Member TinyLog r,
     Member DomainRegistrationStore r,
-    Member (Input Endpoint) r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r,
-    Member Rpc r
+    Member EmailSending r
   ) =>
-  DomainVerificationAuthToken ->
+  Token ->
   Domain ->
   DomainRedirectConfig ->
   Sem r ()
-updateDomainRedirectImpl authToken domain config = do
+updateDomainRedirectImpl _authToken domain config = do
   mbDomainReg <- tryGetDomainRegistrationImpl domain
   update <-
     maybe
       (throw EnterpriseLoginSubsystemOperationForbidden)
       pure
       $ mbDomainReg >>= computeUpdate
-  verifyDNSRecord domain (serializeDomainVerificationAuthToken authToken)
+  -- TODO: authenticate and check
+  -- verifyDNSRecord domain authToken
   updateDomainRegistrationImpl domain update
   where
     computeUpdate reg = case (config, reg.domainRedirect) of
@@ -598,14 +626,11 @@ updateDomainRedirectImpl authToken domain config = do
 updateTeamInviteImpl ::
   forall r.
   ( Member (Error EnterpriseLoginSubsystemError) r,
-    Member (Error ParseException) r,
-    Member (Input Endpoint) r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
     Member DomainRegistrationStore r,
     Member EmailSending r,
     Member GalleyAPIAccess r,
     Member SparAPIAccess r,
-    Member Rpc r,
     Member TinyLog r,
     Member UserSubsystem r
   ) =>
@@ -615,7 +640,8 @@ updateTeamInviteImpl ::
   Sem r ()
 updateTeamInviteImpl luid domain config = do
   (tid, mbDomainReg) <- guardTeamAdminAccess luid domain
-  verifyDNSRecord domain (idToText tid)
+  -- authenticate and check
+  -- verifyDNSRecord domain (idToText tid)
   update <- validateUpdate tid mbDomainReg config
   updateDomainRegistrationImpl domain update
   where

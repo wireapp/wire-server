@@ -28,7 +28,7 @@ data EnterpriseLoginSubsystem m a where
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
   TryGetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistration)
   UpdateDomainRedirect ::
-    DomainVerificationAuthToken ->
+    Token ->
     Domain ->
     DomainRedirectConfig ->
     EnterpriseLoginSubsystem m ()
@@ -43,5 +43,10 @@ data EnterpriseLoginSubsystem m a where
   CreateDomainVerificationChallenge ::
     Domain ->
     EnterpriseLoginSubsystem m DomainVerificationChallenge
+  VerifyChallenge ::
+    Domain ->
+    ChallengeId ->
+    Token ->
+    EnterpriseLoginSubsystem m Token
 
 makeSem ''EnterpriseLoginSubsystem

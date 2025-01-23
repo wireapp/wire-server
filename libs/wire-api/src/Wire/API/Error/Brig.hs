@@ -114,6 +114,7 @@ data BrigError
   | DomainVerificationAuthFailure
   | DomainVerificationPaymentRequired
   | DomainVerificationNotEnabled
+  | DomainVerificationChallengeNotFound
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -340,3 +341,5 @@ type instance MapError 'DomainVerificationAuthFailure = 'StaticError 401 "domain
 type instance MapError 'DomainVerificationPaymentRequired = 'StaticError 402 "domain-registration-updated-payment-required" "Domain registration updated payment required"
 
 type instance MapError 'DomainVerificationNotEnabled = 'StaticError 503 "enterprise-service-not-enabled" "Enterprise service not enabled"
+
+type instance MapError 'DomainVerificationChallengeNotFound = 'StaticError 404 "challenge-not-found" "Challenge not found"

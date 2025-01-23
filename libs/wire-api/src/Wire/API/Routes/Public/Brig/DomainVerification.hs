@@ -30,20 +30,6 @@ data DomainRedirectConfig
 
 makePrisms ''DomainRedirectConfig
 
-data DomainVerificationTokenResponse = DomainVerificationTokenResponse
-  { authToken :: Maybe DomainVerificationAuthToken,
-    dnsToken :: DnsVerificationToken
-  }
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainVerificationTokenResponse)
-
-instance ToSchema DomainVerificationTokenResponse where
-  schema :: ValueSchema NamedSwaggerDoc DomainVerificationTokenResponse
-  schema =
-    object "DomainVerificationTokenResponse" $
-      DomainVerificationTokenResponse
-        <$> (.authToken) .= maybe_ (optField "auth_token" schema)
-        <*> (.dnsToken) .= field "dns_verification_token" schema
-
 deriving via (Schema DomainRedirectConfig) instance A.ToJSON DomainRedirectConfig
 
 deriving via (Schema DomainRedirectConfig) instance A.FromJSON DomainRedirectConfig
@@ -153,7 +139,7 @@ type DomainVerificationAPI =
     ( Summary "Verify DNS record and save domain redirect configuration"
         :> CanThrow DomainVerificationOperationForbidden
         :> CanThrow DomainVerificationDomainVerificationFailed
-        :> Header' '[Required, Strict] "Authorization" (Bearer DomainVerificationAuthToken)
+        :> Header' '[Required, Strict] "Authorization" (Bearer Token)
         :> "domain-verification"
         :> Capture "domain" Domain
         :> "backend"
