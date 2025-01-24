@@ -164,17 +164,27 @@ type DomainVerificationChallengeAPI =
 
 type DomainVerificationAPI =
   Named
-    "update-domain-redirect"
-    ( Summary "Verify DNS record and save domain redirect configuration"
-        :> CanThrow DomainVerificationOperationForbidden
-        :> CanThrow DomainVerificationDomainVerificationFailed
-        :> Header' '[Required, Strict] "Authorization" (Bearer Token)
+    "domain-verification-authorize-team"
+    ( Summary "Authorize a team to operate on a verified domain"
+        :> ZLocalUser
         :> "domain-verification"
         :> Capture "domain" Domain
-        :> "backend"
-        :> ReqBody '[JSON] DomainRedirectConfig
-        :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
+        :> "authorize-team"
+        :> ReqBody '[JSON] DomainOwnershipToken
+        :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Authorized")
     )
+    :<|> Named
+           "update-domain-redirect"
+           ( Summary "Verify DNS record and save domain redirect configuration"
+               :> CanThrow DomainVerificationOperationForbidden
+               :> CanThrow DomainVerificationDomainVerificationFailed
+               :> Header' '[Required, Strict] "Authorization" (Bearer Token)
+               :> "domain-verification"
+               :> Capture "domain" Domain
+               :> "backend"
+               :> ReqBody '[JSON] DomainRedirectConfig
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
+           )
     :<|> Named
            "update-team-invite"
            ( Summary "Verify DNS record and save team-invite configuration"
