@@ -46,7 +46,7 @@ This should have opened a 'Create your own application' window in the current pa
 
 The app is now created, but is not yet configured. If you get lost, you can always get back to it by selecting its name from the 'Enterprise applications| All applications' page.
 
-### Configuring your new application
+### Configuring your New Application
 
 If you followed the prior step, you should now be at the screen containing the settings for your application. If you didn't, please find your app by opening azure, going to 'Microsoft Entra ID', and clicking on 'Enterprise Applications' in the left hand menu.
 
