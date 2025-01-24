@@ -81,6 +81,7 @@ library
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
     Wire.DomainRegistrationStore.Cassandra
+    Wire.DomainRegistrationSubsystem
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
