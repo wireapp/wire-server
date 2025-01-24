@@ -247,12 +247,12 @@ testInvitePersonalUserToTeamLegacy = withAPIVersion 6 $ do
       resp.json %. "email" `shouldMatch` email
       resp.json %. "team" `shouldMatch` tid
 
-testInvitationTypesAreDistinct :: (HasCallStack) => App ()
-testInvitationTypesAreDistinct = do
+testInvitationTypesAreDistinct :: (HasCallStack) => Domain -> App ()
+testInvitationTypesAreDistinct domain = do
   -- We are only testing one direction because the other is not possible
   -- because the non-existing user cannot have a valid session
-  (owner, _, _) <- createTeam OwnDomain 0
-  user <- I.createUser OwnDomain def >>= getJSON 201
+  (owner, _, _) <- createTeam domain 0
+  user <- I.createUser domain def >>= getJSON 201
   email <- user %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
   code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
@@ -263,7 +263,7 @@ testInvitationTypesAreDistinct = do
             password = Just defPassword,
             teamCode = Just code
           }
-  addUser OwnDomain body >>= assertStatus 409
+  addUser domain body >>= assertStatus 409
 
 testTeamUserCannotBeInvited :: (HasCallStack) => App ()
 testTeamUserCannotBeInvited = do
