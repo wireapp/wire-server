@@ -15,7 +15,6 @@ import Data.Default (Default, def)
 import Data.Domain
 import Data.Id
 import Data.Misc
-import Data.OpenApi qualified as OpenApi
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
@@ -53,7 +52,7 @@ data DomainRedirectTag
   | NoRegistrationTag
   | PreAuthorizedTag
   deriving (Show, Ord, Eq, Enum, Bounded)
-  deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRedirectTag
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRedirectTag
 
 domainRedirectTag :: DomainRedirect -> DomainRedirectTag
 domainRedirectTag None = NoneTag
@@ -108,7 +107,7 @@ deriving via (Schema DomainRedirect) instance FromJSON DomainRedirect
 
 deriving via (Schema DomainRedirect) instance ToJSON DomainRedirect
 
-deriving via (Schema DomainRedirect) instance OpenApi.ToSchema DomainRedirect
+deriving via (Schema DomainRedirect) instance S.ToSchema DomainRedirect
 
 data TeamInvite
   = Allowed
@@ -127,7 +126,7 @@ data TeamInviteTag
   | NotAllowedTag
   | TeamTag
   deriving (Show, Ord, Eq, Enum, Bounded)
-  deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema TeamInviteTag
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema TeamInviteTag
 
 instance ToSchema TeamInviteTag where
   schema =
@@ -167,11 +166,11 @@ deriving via (Schema TeamInvite) instance FromJSON TeamInvite
 
 deriving via (Schema TeamInvite) instance ToJSON TeamInvite
 
-deriving via (Schema TeamInvite) instance OpenApi.ToSchema TeamInvite
+deriving via (Schema TeamInvite) instance S.ToSchema TeamInvite
 
 newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: Ascii}
   deriving stock (Ord, Eq, Show)
-  deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DnsVerificationToken
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DnsVerificationToken
 
 instance ToSchema DnsVerificationToken where
   schema = DnsVerificationToken <$> unDnsVerificationToken .= schema
@@ -181,7 +180,7 @@ data DomainRegistrationUpdate = DomainRegistrationUpdate
     teamInvite :: TeamInvite
   }
   deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRegistrationUpdate
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistrationUpdate
 
 instance Arbitrary DomainRegistrationUpdate where
   arbitrary = do
@@ -212,7 +211,7 @@ data DomainRegistration = DomainRegistration
     dnsVerificationToken :: Maybe DnsVerificationToken
   }
   deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON, OpenApi.ToSchema) via Schema DomainRegistration
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistration
 
 instance ToSchema DomainRegistration where
   schema =
