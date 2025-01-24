@@ -25,8 +25,8 @@ data EnterpriseLoginSubsystem m a where
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
   GuardEmailDomainRegistrationTeamInvitation :: InvitationFlow -> TeamId -> EmailAddress -> EnterpriseLoginSubsystem m ()
   GuardEmailDomainRegistrationRegister :: EmailAddress -> EnterpriseLoginSubsystem m ()
-  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-  TryGetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistration)
+  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistrationResponse
+  TryGetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistrationResponse)
   UpdateDomainRedirect ::
     Token ->
     Domain ->

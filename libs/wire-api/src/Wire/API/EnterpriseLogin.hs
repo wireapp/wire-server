@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.EnterpriseLogin where
@@ -208,7 +209,7 @@ instance ToSchema DomainRegistrationUpdate where
         <$> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
 
-data DomainRegistration = DomainRegistration
+data DomainRegistrationResponse = DomainRegistrationResponse
   { domain :: Domain,
     authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
@@ -216,17 +217,40 @@ data DomainRegistration = DomainRegistration
     dnsVerificationToken :: Maybe DnsVerificationToken
   }
   deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistration
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistrationResponse
 
-instance ToSchema DomainRegistration where
+mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse
+mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
+
+instance ToSchema DomainRegistrationResponse where
   schema =
-    object "DomainRegistration" $
-      DomainRegistration
+    object "DomainRegistrationResponse" $
+      DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
         <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
         <*> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
+
+data DomainRegistration = DomainRegistration
+  { domain :: Domain,
+    authorizedTeam :: Maybe TeamId,
+    domainRedirect :: DomainRedirect,
+    teamInvite :: TeamInvite,
+    dnsVerificationToken :: Maybe DnsVerificationToken,
+    authTokenHash :: Maybe Token
+  }
+
+mkDomainRegistration :: Domain -> DomainRegistration
+mkDomainRegistration domain =
+  DomainRegistration
+    { domain,
+      authorizedTeam = Nothing,
+      domainRedirect = def,
+      teamInvite = def,
+      dnsVerificationToken = Nothing,
+      authTokenHash = Nothing
+    }
 
 newtype Token = Token {unToken :: ByteString}
   deriving newtype (Eq, Ord, Show)
