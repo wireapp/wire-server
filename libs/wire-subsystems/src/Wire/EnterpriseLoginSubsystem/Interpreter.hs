@@ -151,7 +151,7 @@ authorizeTeamImpl ::
   Domain ->
   DomainOwnershipToken ->
   Sem r ()
-authorizeTeamImpl lusr domain token = do
+authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
   (tid, mDomainReg) <- guardTeamAdminAccess lusr domain
   mSdr <- lookup domain
   case (mDomainReg, mSdr >>= authTokenHash) of
@@ -164,8 +164,8 @@ authorizeTeamImpl lusr domain token = do
         throw EnterpriseLoginSubsystemOperationForbidden
       upsert $ toStored (Just authTokenHash) (dr {authorizedTeam = Just tid} :: DomainRegistration)
 
-checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainOwnershipToken -> Token -> Sem r ()
-checkDomainOwnership (DomainOwnershipToken token) tokenHash =
+checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Token -> Token -> Sem r ()
+checkDomainOwnership token tokenHash =
   unless (hashToken token == tokenHash) $
     throw EnterpriseLoginSubsystemUnAuthorizeError
 
@@ -662,15 +662,20 @@ updateDomainRedirectImpl ::
   Domain ->
   DomainRedirectConfig ->
   Sem r ()
-updateDomainRedirectImpl _authToken domain config = do
-  mbDomainReg <- tryGetDomainRegistrationImpl domain
+updateDomainRedirectImpl token domain config = do
+  sdr <- lookup domain >>= note EnterpriseLoginSubsystemInvalidAuthToken
+  tokenHash <- note EnterpriseLoginSubsystemInvalidAuthToken sdr.authTokenHash
+  checkDomainOwnership token tokenHash
+
+  -- FUTUREWORK: recheck dns token here?
+  -- verifyDNSRecord domain authToken
+
   update <-
     maybe
       (throw EnterpriseLoginSubsystemOperationForbidden)
       pure
-      $ mbDomainReg >>= computeUpdate
-  -- TODO: authenticate and check
-  -- verifyDNSRecord domain authToken
+      $ fromStored sdr >>= computeUpdate
+
   updateDomainRegistrationImpl domain update
   where
     computeUpdate reg = case (config, reg.domainRedirect) of
