@@ -57,8 +57,8 @@ testDomainRegistrationUnlockErrorIfNotLocked = do
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
   -- attempt to unlock should fail
   bindResponse (domainRegistrationUnlock OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 409
-    resp.json %. "label" `shouldMatch` "unlock-error"
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
 testDomainRegistrationPreAuthorize :: App ()
 testDomainRegistrationPreAuthorize = do
@@ -83,8 +83,8 @@ testDomainRegistrationPreAuthorizeFailsIfLocked = do
   assertStatus 204 =<< domainRegistrationLock OwnDomain domain
   -- pre-authorize
   bindResponse (domainRegistrationPreAuthorize OwnDomain domain) $ \resp -> do
-    resp.status `shouldMatchInt` 409
-    resp.json %. "label" `shouldMatch` "preauthorize-error"
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
   -- check that it was not set to pre-authorized
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -246,7 +246,7 @@ testDomainRegistrationUnAuthorizeFailureWhenLocked = do
             "team_invite" .= "allowed"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
-  assertStatus 409 =<< domainRegistrationUnAuthorize OwnDomain domain
+  assertStatus 403 =<< domainRegistrationUnAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain" `shouldMatch` domain
@@ -264,7 +264,7 @@ testDomainRegistrationUnAuthorizeFailureWhenSso = do
             "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
-  assertStatus 409 =<< domainRegistrationUnAuthorize OwnDomain domain
+  assertStatus 403 =<< domainRegistrationUnAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain" `shouldMatch` domain
