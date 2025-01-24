@@ -8,7 +8,7 @@ This document is for current and perspective users of the Wire cloud, who want t
 Before you begin, we are going to assume you have the following:
 - An account on <http://azure.microsoft.com>
   * admin access to that account, sufficient to add an application, and manage users.
-- A team on https://app.wire.com/ or another wire backend, and admin access to that team.
+- A team on https://app.wire.com/ or another Wire backend, and admin access to that team.
 
 ## Process
 
