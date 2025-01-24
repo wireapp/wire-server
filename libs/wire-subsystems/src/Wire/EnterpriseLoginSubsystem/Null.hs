@@ -9,5 +9,7 @@ import Wire.EnterpriseLoginSubsystem.Error
 runEnterpriseLoginSubsystemNoConfig ::
   (Member (Error EnterpriseLoginSubsystemError) r) =>
   InterpreterFor EnterpriseLoginSubsystem r
-runEnterpriseLoginSubsystemNoConfig = interpret $ \_ ->
-  throw EnterpriseLoginSubsystemNotEnabled
+runEnterpriseLoginSubsystemNoConfig = interpret $ \case
+  GuardEmailDomainRegistrationTeamInvitation {} -> pure ()
+  GuardEmailDomainRegistrationRegister {} -> pure ()
+  _ -> throw EnterpriseLoginSubsystemNotEnabled
