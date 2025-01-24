@@ -1,6 +1,6 @@
 # How to set up SSO integration with Microsoft Entra ID
 
-## Purpous and Scope
+## Purpose and Scope
 This document is for current and perspective users of the wire cloud, who want to manage their users with Microsoft Entra ID, in Azure.
 
 ## Preprequisites
