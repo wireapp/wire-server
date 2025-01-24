@@ -18,7 +18,6 @@ import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as BL
 import Data.Domain
 import Data.Id
-import Data.Misc (HttpsUrl (..))
 import Data.Qualified
 import Data.Text.Encoding as T
 import Data.Text.Encoding qualified as Text
@@ -161,7 +160,7 @@ authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
   -- FUTUREWORK: verify dns token here once again?
   unless (domainReg.domainRedirect == Locked) $
     throw EnterpriseLoginSubsystemOperationForbidden
-  upsert $ toStored domainReg
+  upsert domainReg
 
 checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Token -> Token -> Sem r ()
 checkDomainOwnership token tokenHash =
@@ -192,12 +191,13 @@ createDomainVerificationChallengeImpl domain = do
 
 verifyChallengeImpl ::
   ( Member DomainVerificationChallengeStore r,
+    Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member (Error ParseException) r,
     Member (Input Endpoint) r,
     Member Random r,
     Member Rpc r,
-    Member DomainRegistrationStore r
+    Member TinyLog r
   ) =>
   Domain ->
   ChallengeId ->
@@ -213,20 +213,18 @@ verifyChallengeImpl domain challengeId challengeToken = do
       throw EnterpriseLoginSubsystemAuthFailure
   verifyDNSRecord domain challenge.dnsVerificationToken
   authToken <- Token <$> Random.bytes 32
-  lookup domain >>= \case
-    Just sdr ->
-      upsert $
-        sdr
-          { authTokenHash = Just $ hashToken authToken,
-            dnsVerificationToken = Just challenge.dnsVerificationToken
-          }
-    Nothing -> upsert $ (mkStoredDomainRegistration domain authToken challenge.dnsVerificationToken)
+  mOld <- lookup domain
+  let old = fromMaybe (mkDomainRegistration domain) mOld
+  upsert $
+    old
+      { authTokenHash = Just $ hashToken authToken,
+        dnsVerificationToken = Just challenge.dnsVerificationToken
+      }
   Challenge.delete challengeId
   pure authToken
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
@@ -234,7 +232,7 @@ deleteDomainImpl ::
   Domain ->
   Sem r ()
 deleteDomainImpl domain = do
-  mOld <- tryGetDomainRegistrationHelper domain
+  mOld <- lookup domain
   sendAuditMail url "Domain deleted" mOld Nothing
   delete domain
   where
@@ -254,13 +252,12 @@ unauthorizeImpl ::
   Domain ->
   Sem r ()
 unauthorizeImpl domain = do
-  old <- getDomainRegistrationHelper domain
+  old <- lookupOrThrow domain
   let new = old {domainRedirect = None} :: DomainRegistration
-      newStored = toStored new
   case old.domainRedirect of
-    PreAuthorized -> audit old new *> upsert newStored
-    Backend _ -> audit old new *> upsert newStored
-    NoRegistration -> audit old new *> upsert newStored
+    PreAuthorized -> audit old new *> upsert new
+    Backend _ -> audit old new *> upsert new
+    NoRegistration -> audit old new *> upsert new
     None -> pure ()
     Locked -> throw EnterpriseLoginSubsystemUnAuthorizeError
     SSO _ -> throw EnterpriseLoginSubsystemUnAuthorizeError
@@ -287,11 +284,11 @@ updateDomainRegistrationImpl ::
   Sem r ()
 updateDomainRegistrationImpl domain update = do
   validate update
-  mOld <- tryGetDomainRegistrationHelper domain
+  mOld <- lookup domain
   let old = fromMaybe (mkDomainRegistration domain) mOld
       new =
         old {teamInvite = update.teamInvite, domainRedirect = update.domainRedirect} :: DomainRegistration
-  audit mOld new *> upsert (toStored new)
+  audit mOld new *> upsert new
   where
     audit :: Maybe DomainRegistration -> DomainRegistration -> Sem r ()
     audit mOld new = sendAuditMail url "Domain registration updated" mOld (Just new)
@@ -304,7 +301,6 @@ updateDomainRegistrationImpl domain update = do
 lockDomainImpl ::
   forall r.
   ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
     Member EmailSending r
@@ -312,9 +308,9 @@ lockDomainImpl ::
   Domain ->
   Sem r ()
 lockDomainImpl domain = do
-  mOld <- tryGetDomainRegistrationHelper domain
+  mOld <- lookup domain
   let new = (mkDomainRegistration domain) {domainRedirect = Locked} :: DomainRegistration
-  audit mOld new *> upsert (toStored new)
+  audit mOld new *> upsert new
   where
     url :: Builder
     url =
@@ -336,10 +332,10 @@ unlockDomainImpl ::
   Domain ->
   Sem r ()
 unlockDomainImpl domain = do
-  old <- getDomainRegistrationHelper domain
+  old <- lookupOrThrow domain
   let new = old {domainRedirect = None} :: DomainRegistration
   case old.domainRedirect of
-    Locked -> audit old new *> upsert (toStored new)
+    Locked -> audit old new *> upsert new
     _ -> throw EnterpriseLoginSubsystemUnlockError
   where
     url :: Builder
@@ -362,12 +358,12 @@ preAuthorizeImpl ::
   Domain ->
   Sem r ()
 preAuthorizeImpl domain = do
-  mOld <- tryGetDomainRegistrationHelper domain
+  mOld <- lookup domain
   let old = fromMaybe (mkDomainRegistration domain) mOld
       new = old {domainRedirect = PreAuthorized} :: DomainRegistration
   case old.domainRedirect of
     PreAuthorized -> pure ()
-    None -> audit mOld new *> upsert (toStored new)
+    None -> audit mOld new *> upsert new
     _ -> throw $ EnterpriseLoginSubsystemPreAuthorizeError
   where
     url :: Builder
@@ -388,50 +384,29 @@ getDomainRegistrationImpl ::
   Sem r DomainRegistrationResponse
 getDomainRegistrationImpl domain =
   mkDomainRegistrationResponse
-    <$> getDomainRegistrationHelper domain
+    <$> lookupOrThrow domain
 
-getDomainRegistrationHelper ::
+lookupOrThrow ::
   ( Member DomainRegistrationStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r
   ) =>
   Domain ->
   Sem r DomainRegistration
-getDomainRegistrationHelper domain =
-  tryGetDomainRegistrationHelper domain
+lookupOrThrow domain =
+  lookup domain
     >>= note EnterpriseLoginSubsystemErrorNotFound
 
 tryGetDomainRegistrationImpl ::
   forall r.
   ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r
   ) =>
   Domain ->
   Sem r (Maybe DomainRegistrationResponse)
 tryGetDomainRegistrationImpl domain =
   mkDomainRegistrationResponse
-    <$$> tryGetDomainRegistrationHelper domain
-
-tryGetDomainRegistrationHelper ::
-  forall r.
-  ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
-    Member TinyLog r
-  ) =>
-  Domain ->
-  Sem r (Maybe DomainRegistration)
-tryGetDomainRegistrationHelper domain = do
-  mSdr <- lookup domain
-  maybe (pure Nothing) (fmap Just . fromStoredWithExcept) mSdr
-  where
-    fromStoredWithExcept :: StoredDomainRegistration -> Sem r DomainRegistration
-    fromStoredWithExcept sdr = do
-      case fromStored sdr of
-        Nothing -> do
-          Log.err $ Log.field "domain" (toByteString' domain) . Log.msg (Log.val "Invalid stored domain registration")
-          throw $ EnterpriseLoginSubsystemInternalError "The stored domain registration is invalid. Please update or delete and recreate it with a valid configuration."
-        Just dr -> pure dr
+    <$$> lookup domain
 
 newDnsVerificationToken ::
   ( Member (Error ParseException) r,
@@ -476,78 +451,6 @@ enterpriseRequest req = do
 
 decodeBodyOrThrow :: forall a r. (Typeable a, Aeson.FromJSON a, Member (Error ParseException) r) => Response (Maybe BL.ByteString) -> Sem r a
 decodeBodyOrThrow r = either (throw . ParseException "wireServerEnterprise") pure (responseJsonEither r)
-
-fromStored :: StoredDomainRegistration -> Maybe DomainRegistration
-fromStored sdr =
-  DomainRegistration sdr.domain sdr.authorizedTeam
-    <$> getDomainRedirect sdr
-    <*> getTeamInvite sdr
-    <*> pure sdr.dnsVerificationToken
-    <*> pure sdr.authTokenHash
-  where
-    getTeamInvite :: StoredDomainRegistration -> Maybe TeamInvite
-    getTeamInvite = \case
-      StoredDomainRegistration _ _ ti _ _ tid _ _ _ -> case (ti, tid) of
-        (Just AllowedTag, Nothing) -> Just Allowed
-        (Just NotAllowedTag, Nothing) -> Just NotAllowed
-        (Just TeamTag, Just teamId) -> Just $ Team teamId
-        (Nothing, Nothing) -> Just Allowed
-        _ -> Nothing
-
-    getDomainRedirect :: StoredDomainRegistration -> Maybe DomainRedirect
-    getDomainRedirect = \case
-      StoredDomainRegistration _ dr _ ssoId url _ _ _ _ -> case (dr, ssoId, url) of
-        (Just NoneTag, Nothing, Nothing) -> Just None
-        (Just LockedTag, Nothing, Nothing) -> Just Locked
-        (Just PreAuthorizedTag, Nothing, Nothing) -> Just PreAuthorized
-        (Just SSOTag, Just idpId, Nothing) -> Just $ SSO idpId
-        (Just BackendTag, Nothing, Just beUrl) -> Just $ Backend beUrl
-        (Just NoRegistrationTag, Nothing, Nothing) -> Just NoRegistration
-        (Nothing, Nothing, Nothing) -> Just None
-        _ -> Nothing
-
-toStored :: DomainRegistration -> StoredDomainRegistration
-toStored dr =
-  let (domainRedirect, idpId, backendUrl) = fromDomainRedirect dr.domainRedirect
-      (teamInvite, team) = fromTeamInvite dr.teamInvite
-   in StoredDomainRegistration
-        { domain = dr.domain,
-          domainRedirect = Just domainRedirect,
-          teamInvite = Just teamInvite,
-          idpId,
-          backendUrl,
-          team,
-          dnsVerificationToken = dr.dnsVerificationToken,
-          authTokenHash = dr.authTokenHash,
-          authorizedTeam = dr.authorizedTeam
-        }
-  where
-    fromTeamInvite :: TeamInvite -> (TeamInviteTag, Maybe TeamId)
-    fromTeamInvite Allowed = (AllowedTag, Nothing)
-    fromTeamInvite NotAllowed = (NotAllowedTag, Nothing)
-    fromTeamInvite (Team teamId) = (TeamTag, Just teamId)
-
-    fromDomainRedirect :: DomainRedirect -> (DomainRedirectTag, Maybe SAML.IdPId, Maybe HttpsUrl)
-    fromDomainRedirect None = (NoneTag, Nothing, Nothing)
-    fromDomainRedirect Locked = (LockedTag, Nothing, Nothing)
-    fromDomainRedirect (SSO idpId) = (SSOTag, Just idpId, Nothing)
-    fromDomainRedirect (Backend url) = (BackendTag, Nothing, Just url)
-    fromDomainRedirect NoRegistration = (NoRegistrationTag, Nothing, Nothing)
-    fromDomainRedirect PreAuthorized = (PreAuthorizedTag, Nothing, Nothing)
-
-mkStoredDomainRegistration :: Domain -> Token -> DnsVerificationToken -> StoredDomainRegistration
-mkStoredDomainRegistration domain authToken dnsToken =
-  StoredDomainRegistration
-    { domain = domain,
-      authTokenHash = Just $ hashToken authToken,
-      dnsVerificationToken = Just dnsToken,
-      domainRedirect = Nothing,
-      teamInvite = Nothing,
-      idpId = Nothing,
-      backendUrl = Nothing,
-      team = Nothing,
-      authorizedTeam = Nothing
-    }
 
 validate :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainRegistrationUpdate -> Sem r ()
 validate dr = do
@@ -621,7 +524,7 @@ emailToDomainRegistration ::
   EmailAddress ->
   Sem r (Maybe DomainRegistration)
 emailToDomainRegistration email = case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
-  Right dom -> tryGetDomainRegistrationHelper dom
+  Right dom -> lookup dom
   Left msg ->
     -- The EmailAddress parser and servant *should* make this impossible, but they use
     -- different parsers, one of us is ours and may change any time, so who knows?
@@ -697,18 +600,16 @@ updateDomainRedirectImpl ::
   DomainRedirectConfig ->
   Sem r ()
 updateDomainRedirectImpl token domain config = do
-  sdr <- lookup domain >>= note EnterpriseLoginSubsystemInvalidAuthToken
-  tokenHash <- note EnterpriseLoginSubsystemInvalidAuthToken sdr.authTokenHash
+  dr <- lookup domain >>= note EnterpriseLoginSubsystemInvalidAuthToken
+  tokenHash <- note EnterpriseLoginSubsystemInvalidAuthToken dr.authTokenHash
   checkDomainOwnership token tokenHash
 
   -- FUTUREWORK: recheck dns token here?
   -- verifyDNSRecord domain authToken
 
   update <-
-    maybe
-      (throw EnterpriseLoginSubsystemOperationForbidden)
-      pure
-      $ fromStored sdr >>= computeUpdate
+    note EnterpriseLoginSubsystemOperationForbidden $
+      computeUpdate dr
 
   updateDomainRegistrationImpl domain update
   where
@@ -789,7 +690,7 @@ guardTeamAdminAccess luid domain = do
   validatePaymentStatus tid
   unless (isAdminOrOwner (teamMember ^. permissions)) $
     throw EnterpriseLoginSubsystemAuthFailure
-  mbDomainReg <- tryGetDomainRegistrationHelper domain
+  mbDomainReg <- lookup domain
   pure (tid, mbDomainReg)
   where
     validatePaymentStatus :: TeamId -> Sem r ()
