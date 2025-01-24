@@ -159,10 +159,10 @@ authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
 
 checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Maybe DomainRegistration -> Token -> Sem r DomainRegistration
 checkDomainOwnership mDomainReg ownershipToken = do
-  domainReg <- note EnterpriseLoginSubsystemUnAuthorizeError mDomainReg
-  authTokenHash <- note EnterpriseLoginSubsystemUnAuthorizeError domainReg.authTokenHash
+  domainReg <- note EnterpriseLoginSubsystemAuthFailure mDomainReg
+  authTokenHash <- note EnterpriseLoginSubsystemAuthFailure domainReg.authTokenHash
   unless (hashToken ownershipToken == authTokenHash) $
-    throw EnterpriseLoginSubsystemUnAuthorizeError
+    throw EnterpriseLoginSubsystemAuthFailure
   pure domainReg
 
 createDomainVerificationChallengeImpl ::
@@ -257,8 +257,8 @@ unauthorizeImpl domain = do
     Backend _ -> audit old new *> upsert new
     NoRegistration -> audit old new *> upsert new
     None -> pure ()
-    Locked -> throw EnterpriseLoginSubsystemUnAuthorizeError
-    SSO _ -> throw EnterpriseLoginSubsystemUnAuthorizeError
+    Locked -> throw EnterpriseLoginSubsystemOperationForbidden
+    SSO _ -> throw EnterpriseLoginSubsystemOperationForbidden
   where
     audit :: DomainRegistration -> DomainRegistration -> Sem r ()
     audit old new = sendAuditMail url "Domain unauthorized" (Just old) (Just new)
@@ -334,7 +334,7 @@ unlockDomainImpl domain = do
   let new = old {domainRedirect = None} :: DomainRegistration
   case old.domainRedirect of
     Locked -> audit old new *> upsert new
-    _ -> throw EnterpriseLoginSubsystemUnlockError
+    _ -> throw EnterpriseLoginSubsystemOperationForbidden
   where
     url :: Builder
     url =
@@ -362,7 +362,7 @@ preAuthorizeImpl domain = do
   case old.domainRedirect of
     PreAuthorized -> pure ()
     None -> audit mOld new *> upsert new
-    _ -> throw $ EnterpriseLoginSubsystemPreAuthorizeError
+    _ -> throw $ EnterpriseLoginSubsystemOperationForbidden
   where
     url :: Builder
     url =

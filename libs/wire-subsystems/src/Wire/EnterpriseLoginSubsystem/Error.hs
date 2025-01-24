@@ -11,16 +11,11 @@ import Wire.Error
 
 data EnterpriseLoginSubsystemError
   = EnterpriseLoginSubsystemErrorNotFound
-  | EnterpriseLoginSubsystemInternalError LText
   | EnterpriseLoginSubsystemErrorUpdateFailure LText
-  | EnterpriseLoginSubsystemUnlockError
-  | EnterpriseLoginSubsystemUnAuthorizeError
-  | EnterpriseLoginSubsystemPreAuthorizeError
   | EnterpriseLoginSubsystemGuardFailed GuardFailure
   | EnterpriseLoginSubsystemInvalidDomain
   | EnterpriseLoginSubsystemDomainVerificationFailed
   | EnterpriseLoginSubsystemOperationForbidden
-  | EnterpriseLoginSubsystemInvalidAuthToken
   | EnterpriseLoginSubsystemAuthFailure
   | EnterpriseLoginSubsystemPaymentRequired
   | EnterpriseLoginSubsystemNotEnabled
@@ -44,7 +39,6 @@ enterpriseLoginSubsystemErrorToHttpError :: EnterpriseLoginSubsystemError -> Htt
 enterpriseLoginSubsystemErrorToHttpError =
   StdError . \case
     EnterpriseLoginSubsystemErrorNotFound -> errorToWai @DomainVerificationErrorNotFound
-    EnterpriseLoginSubsystemInternalError msg -> Wai.mkError status500 "internal-error" msg
     EnterpriseLoginSubsystemErrorUpdateFailure msg -> Wai.mkError status400 "update-failure" msg
     EnterpriseLoginSubsystemGuardFailed err ->
       let e403 msg = Wai.mkError status403 "condition-failed" msg
@@ -56,14 +50,10 @@ enterpriseLoginSubsystemErrorToHttpError =
             TeamInviteSetToNotAllowed -> e403 "`teamInvite` is set to `not-allowed`"
             TeamInviteRestrictedToOtherTeam -> e403 "`teamInvite` is restricted to another team."
             InvalidDomain msg -> e400 msg -- probably impossible.
-    EnterpriseLoginSubsystemUnlockError -> errorToWai @DomainVerificationUnlockError
-    EnterpriseLoginSubsystemUnAuthorizeError -> errorToWai @DomainVerificationUnAuthorizeError
-    EnterpriseLoginSubsystemPreAuthorizeError -> errorToWai @DomainVerificationPreAuthorizeError
     EnterpriseLoginSubsystemInvalidDomain -> errorToWai @DomainVerificationInvalidDomain
     EnterpriseLoginSubsystemDomainVerificationFailed -> errorToWai @DomainVerificationDomainVerificationFailed
     EnterpriseLoginSubsystemOperationForbidden -> errorToWai @DomainVerificationOperationForbidden
-    EnterpriseLoginSubsystemInvalidAuthToken -> errorToWai @DomainVerificationInvalidAuthToken
-    EnterpriseLoginSubsystemAuthFailure -> errorToWai @DomainVerificationAuthFailure
     EnterpriseLoginSubsystemPaymentRequired -> errorToWai @DomainVerificationPaymentRequired
     EnterpriseLoginSubsystemNotEnabled -> errorToWai @DomainVerificationNotEnabled
     EnterpriseLoginSubsystemChallengeNotFound -> errorToWai @DomainVerificationChallengeNotFound
+    EnterpriseLoginSubsystemAuthFailure -> errorToWai @DomainVerificationAuthFailure
