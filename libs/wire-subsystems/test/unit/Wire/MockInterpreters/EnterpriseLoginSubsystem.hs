@@ -27,3 +27,4 @@ enterpriseLoginSubsystemTestInterpreter err =
     GetDomainRegistrationPublic _ -> undefined
     CreateDomainVerificationChallenge _ -> undefined
     VerifyChallenge _ _ _ -> undefined
+    AuthorizeTeam {} -> undefined

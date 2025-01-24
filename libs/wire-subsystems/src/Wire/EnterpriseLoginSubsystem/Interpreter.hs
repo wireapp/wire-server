@@ -136,6 +136,38 @@ runEnterpriseLoginSubsystem = interpret $
     VerifyChallenge domain challengeId challengeToken ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         verifyChallengeImpl domain challengeId challengeToken
+    AuthorizeTeam lusr domain ownershipToken ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        authorizeTeamImpl lusr domain ownershipToken
+
+authorizeTeamImpl ::
+  ( Member TinyLog r,
+    Member (Error EnterpriseLoginSubsystemError) r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r,
+    Member DomainRegistrationStore r
+  ) =>
+  Local UserId ->
+  Domain ->
+  DomainOwnershipToken ->
+  Sem r ()
+authorizeTeamImpl lusr domain token = do
+  (tid, mDomainReg) <- guardTeamAdminAccess lusr domain
+  mSdr <- lookup domain
+  case (mDomainReg, mSdr >>= authTokenHash) of
+    (Nothing, _) -> throw EnterpriseLoginSubsystemOperationForbidden
+    (_, Nothing) -> throw EnterpriseLoginSubsystemUnAuthorizeError
+    (Just dr, Just authTokenHash) -> do
+      checkDomainOwnership token authTokenHash
+      -- FUTUREWORK: verify dns token here once again?
+      unless (dr.domainRedirect == Locked) $
+        throw EnterpriseLoginSubsystemOperationForbidden
+      upsert $ toStored (Just authTokenHash) (dr {authorizedTeam = Just tid} :: DomainRegistration)
+
+checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainOwnershipToken -> Token -> Sem r ()
+checkDomainOwnership (DomainOwnershipToken token) tokenHash =
+  unless (hashToken token == tokenHash) $
+    throw EnterpriseLoginSubsystemUnAuthorizeError
 
 createDomainVerificationChallengeImpl ::
   ( Member Random r,

@@ -48,5 +48,6 @@ data EnterpriseLoginSubsystem m a where
     ChallengeId ->
     Token ->
     EnterpriseLoginSubsystem m Token
+  AuthorizeTeam :: Local UserId -> Domain -> DomainOwnershipToken -> EnterpriseLoginSubsystem m ()
 
 makeSem ''EnterpriseLoginSubsystem
