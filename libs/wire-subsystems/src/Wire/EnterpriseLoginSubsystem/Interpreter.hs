@@ -151,21 +151,19 @@ authorizeTeamImpl ::
   Sem r ()
 authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
   (_tid, mDomainReg) <- guardTeamAdminAccess lusr domain
-
-  -- TODO: inline these errors into checkDomainOwnership
-  domainReg <- note EnterpriseLoginSubsystemOperationForbidden mDomainReg
-  authTokenHash <- note EnterpriseLoginSubsystemUnAuthorizeError domainReg.authTokenHash
-  checkDomainOwnership token authTokenHash
-
+  domainReg <- checkDomainOwnership mDomainReg token
   -- FUTUREWORK: verify dns token here once again?
   unless (domainReg.domainRedirect == Locked) $
     throw EnterpriseLoginSubsystemOperationForbidden
   upsert domainReg
 
-checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Token -> Token -> Sem r ()
-checkDomainOwnership token tokenHash =
-  unless (hashToken token == tokenHash) $
+checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Maybe DomainRegistration -> Token -> Sem r DomainRegistration
+checkDomainOwnership mDomainReg ownershipToken = do
+  domainReg <- note EnterpriseLoginSubsystemUnAuthorizeError mDomainReg
+  authTokenHash <- note EnterpriseLoginSubsystemUnAuthorizeError domainReg.authTokenHash
+  unless (hashToken ownershipToken == authTokenHash) $
     throw EnterpriseLoginSubsystemUnAuthorizeError
+  pure domainReg
 
 createDomainVerificationChallengeImpl ::
   ( Member Random r,
@@ -600,16 +598,15 @@ updateDomainRedirectImpl ::
   DomainRedirectConfig ->
   Sem r ()
 updateDomainRedirectImpl token domain config = do
-  dr <- lookup domain >>= note EnterpriseLoginSubsystemInvalidAuthToken
-  tokenHash <- note EnterpriseLoginSubsystemInvalidAuthToken dr.authTokenHash
-  checkDomainOwnership token tokenHash
+  mDomainReg <- lookup domain
+  domainReg <- checkDomainOwnership mDomainReg token
 
   -- FUTUREWORK: recheck dns token here?
   -- verifyDNSRecord domain authToken
 
   update <-
     note EnterpriseLoginSubsystemOperationForbidden $
-      computeUpdate dr
+      computeUpdate domainReg
 
   updateDomainRegistrationImpl domain update
   where
@@ -641,14 +638,14 @@ updateTeamInviteImpl ::
   Sem r ()
 updateTeamInviteImpl luid domain config = do
   (tid, mbDomainReg) <- guardTeamAdminAccess luid domain
-  -- authenticate and check
-  -- verifyDNSRecord domain (idToText tid)
-  update <- validateUpdate tid mbDomainReg config
+  domainReg <- note EnterpriseLoginSubsystemAuthFailure mbDomainReg
+  unless (domainReg.authorizedTeam == Just tid) $
+    throw EnterpriseLoginSubsystemOperationForbidden
+  update <- validateUpdate tid domainReg config
   updateDomainRegistrationImpl domain update
   where
-    validateUpdate :: TeamId -> Maybe DomainRegistration -> TeamInviteConfig -> Sem r DomainRegistrationUpdate
-    validateUpdate tid mDomReg conf = do
-      let domReg = fromMaybe (mkDomainRegistration domain) mDomReg
+    validateUpdate :: TeamId -> DomainRegistration -> TeamInviteConfig -> Sem r DomainRegistrationUpdate
+    validateUpdate tid domReg conf = do
       when (domReg.domainRedirect == Locked) $
         throw EnterpriseLoginSubsystemOperationForbidden
       when (isJust $ domReg.domainRedirect ^? _Backend) $
