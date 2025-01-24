@@ -13,7 +13,7 @@ Before you begin, we are going to assume you have the following:
 ## Process
 
 ### Creating a new application
-Go to <https://portal.azure.com/>, and login. You should be brought to the 'Microsoft Azure' home page.
+Go to [portal.azure.com](https://portal.azure.com/), and login. You should be brought to the 'Microsoft Azure' home page.
  * In the 'Azure services' section, click on 'Microsoft Entra ID'
 
 ```{image} 00.png
