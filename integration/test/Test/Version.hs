@@ -15,7 +15,9 @@ instance TestCases Versioned' where
         MkTestCase "[version=versioned]" (Versioned' Versioned),
         MkTestCase "[version=v1]" (Versioned' (ExplicitVersion 1)),
         MkTestCase "[version=v3]" (Versioned' (ExplicitVersion 3)),
-        MkTestCase "[version=v6]" (Versioned' (ExplicitVersion 6))
+        MkTestCase "[version=v6]" (Versioned' (ExplicitVersion 6)),
+        MkTestCase "[version=v7]" (Versioned' (ExplicitVersion 7)),
+        MkTestCase "[version=v8]" (Versioned' (ExplicitVersion 8))
       ]
 
 -- | Used to test endpoints that have changed after version 5
@@ -43,9 +45,11 @@ testVersion (Versioned' v) = withModifiedBackend
       domain <- resp.json %. "domain" & asString
       federation <- resp.json %. "federation" & asBool
 
-      -- currently there is only one development version
-      -- it is however theoretically possible to have multiple development versions
-      length dev `shouldMatchInt` 1
+      -- currently there are two development versions
+      --
+      -- it is however possible to have a different number of development
+      -- versions
+      length dev `shouldMatchInt` 2
       domain `shouldMatch` dom
       federation `shouldMatch` True
 
@@ -77,6 +81,8 @@ testVersionDisabled = withModifiedBackend
       void $ getSelfWithVersion (ExplicitVersion 4) user >>= getJSON 200
       void $ getSelfWithVersion (ExplicitVersion 5) user >>= getJSON 200
       void $ getSelfWithVersion (ExplicitVersion 6) user >>= getJSON 200
+      void $ getSelfWithVersion (ExplicitVersion 7) user >>= getJSON 200
+      void $ getSelfWithVersion (ExplicitVersion 8) user >>= getJSON 200
       void $ getSelfWithVersion Unversioned user >>= getJSON 200
 
 testVersionDisabledNotAdvertised :: App ()
