@@ -21,6 +21,7 @@ import Data.Text as T
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports hiding (lookup)
 import Polysemy
+import Polysemy.Error
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
@@ -66,18 +67,23 @@ upsert :: (Member DomainRegistrationStore r) => DomainRegistration -> Sem r ()
 upsert = send . UpsertInternal . toStored
 
 lookup ::
+  forall r.
   (Member DomainRegistrationStore r, Member TinyLog r) =>
   Domain ->
   Sem r (Maybe DomainRegistration)
-lookup domain = do
-  mSdr <- send (LookupInternal (mkDomainKey domain))
-  case mSdr of
-    Nothing -> do
+lookup domain =
+  (>>= logErrors) . runError @Bool $ do
+    sdr <- send (LookupInternal (mkDomainKey domain)) >>= note False
+    fromStored sdr & note True
+  where
+    logErrors :: Either Bool a -> Sem r (Maybe a)
+    logErrors (Left False) = pure Nothing
+    logErrors (Left True) = do
       Log.err $
         Log.field "domain" (toByteString' domain)
           . Log.msg (Log.val "Invalid stored domain registration")
       pure Nothing
-    Just sdr -> pure (fromStored sdr)
+    logErrors (Right x) = pure (Just x)
 
 delete :: (Member DomainRegistrationStore r) => Domain -> Sem r ()
 delete = send . DeleteInternal . mkDomainKey
