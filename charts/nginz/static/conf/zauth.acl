@@ -1,8 +1,8 @@
 a (blacklist (regex "(/v[0-9]+)?/provider(/.*)?")
-             (regex "(/v[0-9]+)?/bot(/.*)?")
+             (regex "(/v[0-9]+)?/bot(/(?!conversation/.+).*)?")
              (regex "(/v[0-9]+)?/i/.*"))
 
-b (whitelist (regex "(/v[0-9]+)?/bot(/.*)?"))
+b (whitelist (regex "(/v[0-9]+)?/bot(/(?!conversation/.+).*)?"))
 
 p (whitelist (regex "(/v[0-9]+)?/provider(/.*)?"))
 
