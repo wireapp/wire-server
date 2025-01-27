@@ -24,7 +24,7 @@ for d in "$DIR"/*; do
     for f in "${entries[@]}"; do
         pr=$(getPRNumber "$f")
         # shellcheck disable=SC1003
-        sed -r '
+        cat "$f" | sed -r '
           # create a bullet point on the first line
           1 { s/^/\* /; }
 
@@ -32,16 +32,22 @@ for d in "$DIR"/*; do
           1 !{ s/^/  /; }
 
           # replace ## with PR number throughout
-          s/##/'"$pr"'/g
-
-          # add PR number at the end (unless already present)
-          $ { /^.*\((#.*)\)$/ ! { s/$/ ('"$pr"')/; } }
-
+          s/##/'"$pr"'/g' |
+          (
+            if grep -q -r '\(#[^)]\)' $f; then
+              cat
+            else
+              sed -r '
+                # add PR number at the end (unless already present)
+                $ { /^.*\((#.*)\)$/ ! { s/$/ ('"$pr"')/; } }
+            '
+            fi
+          ) | sed -r '
           # remove trailing whitespace
           s/\s+$//
 
           # make sure there is a trailing newline
-          $ a\' "$f"
+          $ a\'
     done
     echo ""
 done
