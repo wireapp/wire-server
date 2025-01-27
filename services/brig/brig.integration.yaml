@@ -237,6 +237,7 @@ optSettings:
     iterations: 1
     memory: 128
     parallelism: 1
+  setChallengeTTL: 172800
 
 logLevel: Warn
 logNetStrings: false

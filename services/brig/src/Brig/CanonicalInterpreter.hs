@@ -20,7 +20,6 @@ import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
-import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
 import Polysemy
 import Polysemy.Async
@@ -30,6 +29,7 @@ import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.Internal.Kind
 import Polysemy.TinyLog (TinyLog)
+import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
@@ -285,7 +285,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserKeyStoreCassandra e.casClient
               . runHashPassword e.settings.passwordHashingOptions
               . interpretDomainRegistrationStoreToCassandra e.casClient
-              . interpretDomainVerificationChallengeStoreToCassandra e.casClient
+              . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
               . mapError propertySubsystemErrorToHttpError
