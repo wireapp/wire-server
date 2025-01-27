@@ -279,6 +279,7 @@ library
     Galley.Schema.V91_TeamMemberDeletedLimitedEventFanout
     Galley.Schema.V92_MlsE2EIdConfig
     Galley.Schema.V93_ConferenceCallingSftForOneToOne
+    Galley.Schema.V94_DomainRegistrationConfig
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
