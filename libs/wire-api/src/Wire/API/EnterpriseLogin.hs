@@ -240,6 +240,7 @@ data DomainRegistration = DomainRegistration
     dnsVerificationToken :: Maybe DnsVerificationToken,
     authTokenHash :: Maybe Token
   }
+  deriving stock (Eq, Show)
 
 mkDomainRegistration :: Domain -> DomainRegistration
 mkDomainRegistration domain =

@@ -11,7 +11,6 @@ import Wire.Error
 
 data EnterpriseLoginSubsystemError
   = EnterpriseLoginSubsystemErrorNotFound
-  | EnterpriseLoginSubsystemErrorUpdateFailure LText
   | EnterpriseLoginSubsystemGuardFailed GuardFailure
   | EnterpriseLoginSubsystemInvalidDomain
   | EnterpriseLoginSubsystemDomainVerificationFailed
@@ -39,7 +38,6 @@ enterpriseLoginSubsystemErrorToHttpError :: EnterpriseLoginSubsystemError -> Htt
 enterpriseLoginSubsystemErrorToHttpError =
   StdError . \case
     EnterpriseLoginSubsystemErrorNotFound -> errorToWai @DomainVerificationErrorNotFound
-    EnterpriseLoginSubsystemErrorUpdateFailure msg -> Wai.mkError status400 "update-failure" msg
     EnterpriseLoginSubsystemGuardFailed err ->
       let e403 msg = Wai.mkError status403 "condition-failed" msg
           e400 msg = Wai.mkError status400 "invalid-domain" (LT.pack msg)

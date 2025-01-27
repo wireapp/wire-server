@@ -150,12 +150,11 @@ authorizeTeamImpl ::
   DomainOwnershipToken ->
   Sem r ()
 authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
-  (_tid, mDomainReg) <- guardTeamAdminAccess lusr domain
+  (tid, mDomainReg) <- guardTeamAdminAccess lusr domain
   domainReg <- checkDomainOwnership mDomainReg token
-  -- FUTUREWORK: verify dns token here once again?
-  unless (domainReg.domainRedirect == Locked) $
+  when (domainReg.domainRedirect == Locked) $
     throw EnterpriseLoginSubsystemOperationForbidden
-  upsert domainReg
+  upsert domainReg {authorizedTeam = Just tid}
 
 checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Maybe DomainRegistration -> Token -> Sem r DomainRegistration
 checkDomainOwnership mDomainReg ownershipToken = do
@@ -453,8 +452,8 @@ decodeBodyOrThrow r = either (throw . ParseException "wireServerEnterprise") pur
 validate :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainRegistrationUpdate -> Sem r ()
 validate dr = do
   case dr.domainRedirect of
-    Locked -> when (dr.teamInvite /= Allowed) $ throw (EnterpriseLoginSubsystemErrorUpdateFailure "Team invite must be allowed for a locked domain")
-    Backend _ -> when (dr.teamInvite /= NotAllowed) $ throw (EnterpriseLoginSubsystemErrorUpdateFailure "Team invite must not be allowed for a backend domain")
+    Locked -> when (dr.teamInvite /= Allowed) $ throw EnterpriseLoginSubsystemOperationForbidden
+    Backend _ -> when (dr.teamInvite /= NotAllowed) $ throw EnterpriseLoginSubsystemOperationForbidden
     _ -> pure ()
 
 mkAuditMail :: EmailAddress -> EmailAddress -> Text -> LText -> Mail
@@ -600,14 +599,9 @@ updateDomainRedirectImpl ::
 updateDomainRedirectImpl token domain config = do
   mDomainReg <- lookup domain
   domainReg <- checkDomainOwnership mDomainReg token
-
-  -- FUTUREWORK: recheck dns token here?
-  -- verifyDNSRecord domain authToken
-
   update <-
     note EnterpriseLoginSubsystemOperationForbidden $
       computeUpdate domainReg
-
   updateDomainRegistrationImpl domain update
   where
     computeUpdate reg = case (config, reg.domainRedirect) of
@@ -640,7 +634,7 @@ updateTeamInviteImpl luid domain config = do
   (tid, mbDomainReg) <- guardTeamAdminAccess luid domain
   domainReg <- note EnterpriseLoginSubsystemAuthFailure mbDomainReg
   unless (domainReg.authorizedTeam == Just tid) $
-    throw EnterpriseLoginSubsystemOperationForbidden
+    throw EnterpriseLoginSubsystemAuthFailure
   update <- validateUpdate tid domainReg config
   updateDomainRegistrationImpl domain update
   where
@@ -651,7 +645,7 @@ updateTeamInviteImpl luid domain config = do
       when (isJust $ domReg.domainRedirect ^? _Backend) $
         throw EnterpriseLoginSubsystemOperationForbidden
       case conf.teamInvite of
-        Team tidConfig | tidConfig /= tid -> throw EnterpriseLoginSubsystemAuthFailure
+        Team tidConfig | tidConfig /= tid -> throw EnterpriseLoginSubsystemOperationForbidden
         validTeamInvite -> case conf.code of
           Just idpId -> do
             validateIdPId tid idpId

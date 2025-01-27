@@ -17,56 +17,44 @@ mkDomainRedirectBackend url = object ["domain_redirect" .= "backend", "backend_u
 testDomainVerificationGetOwnershipToken :: (HasCallStack) => App ()
 testDomainVerificationGetOwnershipToken = do
   domain <- randomDomain
-  challenge <- getDomainVerificationChallenge OwnDomain domain >>= getJSON 200
-  dnsToken <- challenge %. "dns_verification_token" & asString
-  challengeId <- challenge %. "id" & asString
-  challengeToken <- challenge %. "token" & asString
+  challenge <- setupChallenge domain
 
-  bindResponse (verifyDomain OwnDomain domain challengeId challengeToken) $ \resp -> do
+  bindResponse (verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "domain-verification-failed"
 
-  -- [customer admin] register TXT DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
+  registerTechnitiumRecord challenge.technitiumToken domain ("wire-domain." <> domain) "TXT" challenge.dnsToken
 
   -- verify domain
-  bindResponse (verifyDomain OwnDomain domain challengeId challengeToken) $ \resp -> do
+  bindResponse (verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken) $ \resp -> do
     resp.status `shouldMatchInt` 200
     void $ resp.json %. "domain_ownership_token" & asString
 
   -- the challenge should be deleted after successful verification
-  verifyDomain OwnDomain domain challengeId challengeToken >>= assertStatus 404
+  verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken >>= assertStatus 404
 
 testDomainVerificationOnPremFlow :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlow = do
   domain <- randomDomain
-
-  -- [customer admin] fetch tokens
-  (authToken, dnsToken) <-
-    bindResponse (domainVerificationToken OwnDomain domain Nothing) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      authToken <- resp.json %. "auth_token" & asString
-      dnsToken <- resp.json %. "dns_verification_token" & asString
-      pure (authToken, dnsToken)
+  setup <- setupOwnershipToken domain
+  let ownershipToken = setup.ownershipToken
 
   -- cannot set config for non-preauthorized domain
   bindResponse
     ( updateDomainRedirect
         OwnDomain
         domain
-        (Just authToken)
+        (Just ownershipToken)
         (mkDomainRedirectBackend "https://wire.example.com")
     )
     $ \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
-  -- [backoffice] preauth
+  -- preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
-  -- [customer admin] post config without auth token (this is not allowed)
+  -- post config without ownership token (this is not allowed)
   updateDomainRedirect
     OwnDomain
     domain
@@ -74,42 +62,11 @@ testDomainVerificationOnPremFlow = do
     (mkDomainRedirectBackend "https://wire.example.com")
     >>= assertStatus 400
 
-  -- [customer admin] post config with auth token, but without creating the TXT DNS record
-  bindResponse
-    ( updateDomainRedirect
-        OwnDomain
-        domain
-        (Just authToken)
-        (mkDomainRedirectBackend "https://wire.example.com")
-    )
-    $ \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "domain-verification-failed"
-
-  -- [customer admin] register TXT DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" "WRONG-DNS-TOKEN"
-
-  -- [customer admin] post config with auth token, but with invalid TXT DNS record
-  bindResponse
-    ( updateDomainRedirect
-        OwnDomain
-        domain
-        (Just authToken)
-        (mkDomainRedirectBackend "https://wire.example.com")
-    )
-    $ \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "domain-verification-failed"
-
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
-
   -- [customer admin] post config (happy flow)
   updateDomainRedirect
     OwnDomain
     domain
-    (Just authToken)
+    (Just ownershipToken)
     (mkDomainRedirectBackend "https://wire.example.com")
     >>= assertStatus 200
 
@@ -129,13 +86,12 @@ testDomainVerificationOnPremFlow = do
 testDomainVerificationWrongAuth :: (HasCallStack) => App ()
 testDomainVerificationWrongAuth = do
   domain <- randomDomain
+  void $ setupOwnershipToken domain
+  wrongSetup <- setupOwnershipToken =<< randomDomain
+  let wrongToken = wrongSetup.ownershipToken
 
   -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-
-  -- [customer admin] fetch tokens
-  void $ domainVerificationToken OwnDomain domain Nothing >>= getJSON 200
-  wrongToken <- generateWrongToken
 
   -- [customer admin] post config with wrong token
   bindResponse
@@ -146,104 +102,36 @@ testDomainVerificationWrongAuth = do
         (mkDomainRedirectBackend "https://wire.example.com")
     )
     $ \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "domain-verification-failed"
-  where
-    generateWrongToken :: App String
-    generateWrongToken = do
-      domain <- randomDomain
-      tokens <- domainVerificationToken OwnDomain domain Nothing >>= getJSON 200
-      tokens %. "auth_token" & asString
+      resp.status `shouldMatchInt` 401
+      resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
 testDomainVerificationOnPremFlowNoRegistration :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlowNoRegistration = do
   domain <- randomDomain
+  setup <- setupOwnershipToken domain
 
   -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-
-  -- [customer admin] fetch tokens
-  tokens <- domainVerificationToken OwnDomain domain Nothing >>= getJSON 200
-  authToken <- tokens %. "auth_token" & asString
-  dnsToken <- tokens %. "dns_verification_token" & asString
-
-  -- [customer admin] register TXT DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
 
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
     domain
-    (Just authToken)
+    (Just setup.ownershipToken)
     (object ["domain_redirect" .= "no-registration"])
     >>= assertStatus 200
 
   bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
-
-testDomainVerificationTokenIsVerifiedEverytime :: (HasCallStack) => App ()
-testDomainVerificationTokenIsVerifiedEverytime = do
-  domain <- randomDomain
-
-  -- [backoffice] preauth
-  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-
-  -- [customer admin] fetch tokens
-  tokens <- domainVerificationToken OwnDomain domain Nothing >>= getJSON 200
-  authToken <- tokens %. "auth_token" & asString
-  dnsToken <- tokens %. "dns_verification_token" & asString
-
-  -- [customer admin] register TXT DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
-
-  -- [customer admin] post no-registration config
-  updateDomainRedirect
-    OwnDomain
-    domain
-    (Just authToken)
-    (object ["domain_redirect" .= "no-registration"])
-    >>= assertStatus 200
-
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "domain_redirect" `shouldMatch` "no-registration"
-
-  deleteTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" "WRONG-TOKEN"
-
-  -- [customer admin] post no-registration config - should fail
-  bindResponse
-    ( updateDomainRedirect
-        OwnDomain
-        domain
-        (Just authToken)
-        (object ["domain_redirect" .= "remove"])
-    )
-    \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "domain-verification-failed"
 
 testDomainVerificationRemoveFailure :: (HasCallStack) => App ()
 testDomainVerificationRemoveFailure = do
   domain <- randomDomain
+  setup <- setupOwnershipToken domain
 
   -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-
-  -- [customer admin] fetch tokens
-  tokens <- domainVerificationToken OwnDomain domain Nothing >>= getJSON 200
-  authToken <- tokens %. "auth_token" & asString
-  dnsToken <- tokens %. "dns_verification_token" & asString
-
-  -- [customer admin] register TXT DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
 
   bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
@@ -254,7 +142,7 @@ testDomainVerificationRemoveFailure = do
     ( updateDomainRedirect
         OwnDomain
         domain
-        (Just authToken)
+        (Just setup.ownershipToken)
         (object ["domain_redirect" .= "remove"])
     )
     $ \resp -> do
@@ -269,13 +157,13 @@ testDomainVerificationRemoveFailure = do
   updateDomainRedirect
     OwnDomain
     domain
-    (Just authToken)
+    (Just setup.ownershipToken)
     (object ["domain_redirect" .= "no-registration"])
     >>= assertStatus 200
   updateDomainRedirect
     OwnDomain
     domain
-    (Just authToken)
+    (Just setup.ownershipToken)
     (object ["domain_redirect" .= "remove"])
     >>= assertStatus 200
 
@@ -284,7 +172,7 @@ testDomainVerificationRemoveFailure = do
     ( updateDomainRedirect
         OwnDomain
         domain
-        (Just authToken)
+        (Just setup.ownershipToken)
         (object ["domain_redirect" .= "remove"])
     )
     $ \resp -> do
@@ -294,97 +182,54 @@ testDomainVerificationRemoveFailure = do
 testDomainVerificationLockedState :: (HasCallStack) => App ()
 testDomainVerificationLockedState = do
   domain <- randomDomain
+  setup <- setupOwnershipToken domain
 
   -- [backoffice] lock the domain (public email provider)
   domainRegistrationLock OwnDomain domain >>= assertStatus 204
 
-  -- tokens can still be fetched
-  tokens <- domainVerificationToken OwnDomain domain Nothing >>= getJSON 200
-  authToken <- tokens %. "auth_token" & asString
-  dnsToken <- tokens %. "dns_verification_token" & asString
-
-  -- register DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
-
   -- domain redirect cannot be updated
+  -- as locking overwrites any previous entry, the auth token will also be removed,
+  -- and this will result in an auth failure
   bindResponse
     ( updateDomainRedirect
         OwnDomain
         domain
-        (Just authToken)
+        (Just setup.ownershipToken)
         (object ["domain_redirect" .= "no-registration"])
     )
     $ \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
-
-testDomainVerificationLockedStateTeam :: (HasCallStack) => App ()
-testDomainVerificationLockedStateTeam = do
-  domain <- randomDomain
-  (owner, tid, _m : _) <- createTeam OwnDomain 2
-
-  -- set conference calling (paying team)
-  assertSuccess =<< do
-    setTeamFeatureLockStatus owner tid "conferenceCalling" "unlocked"
-    setTeamFeatureStatus owner tid "conferenceCalling" "enabled"
-
-  -- [backoffice] lock the domain (public email provider)
-  domainRegistrationLock OwnDomain domain >>= assertStatus 204
-
-  -- tokens can still be fetched
-  tokens <- domainVerificationTeamToken owner domain >>= getJSON 200
-  dnsToken <- tokens %. "dns_verification_token" & asString
-
-  -- register DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
-
-  -- team invite cannot be updated
-  bindResponse
-    ( updateTeamInvite
-        owner
-        domain
-        (object ["team_invite" .= "not-allowed"])
-    )
-    $ \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+      resp.status `shouldMatchInt` 401
+      resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
 testUpdateTeamInvite :: (HasCallStack) => App ()
 testUpdateTeamInvite = do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
 
   domain <- randomDomain
+  setup <- setupOwnershipToken domain
 
-  bindResponse (domainVerificationTeamToken owner domain) $ \resp -> do
+  bindResponse (authorizeTeam owner domain setup.ownershipToken) $ \resp -> do
     resp.status `shouldMatchInt` 402
-    resp.json %. "label" `shouldMatch` "domain-registration-updated-payment-required"
+    resp.json %. "label" `shouldMatch` "domain-registration-update-payment-required"
 
   -- set conference calling (paying team)
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "conferenceCalling" "unlocked"
     setTeamFeatureStatus owner tid "conferenceCalling" "enabled"
 
-  bindResponse (domainVerificationTeamToken mem domain) $ \resp -> do
+  bindResponse (authorizeTeam mem domain setup.ownershipToken) $ \resp -> do
     resp.status `shouldMatchInt` 401
-    resp.json %. "label" `shouldMatch` "domain-registration-updated-auth-failure"
+    resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
-  -- [customer admin] fetch tokens
-  tokens <- domainVerificationTeamToken owner domain >>= getJSON 200
-  dnsToken <- tokens %. "dns_verification_token" & asString
+  -- admin should not be able to set team-invite if the team hasn't been authorized
+  bindResponse
+    ( updateTeamInvite owner domain (object ["team_invite" .= "team", "team" .= tid])
+    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 401
+      resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
-  -- [customer admin] register TXT DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
-
-  -- setting team invite to the wrong team should fail
-  fakeTeamId <- randomId
-  updateTeamInvite owner domain (object ["team_invite" .= "team", "team" .= fakeTeamId])
-    >>= assertStatus 401
+  authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
   -- non-admin should not be able to set team-invite
   bindResponse
@@ -392,7 +237,13 @@ testUpdateTeamInvite = do
     )
     $ \resp -> do
       resp.status `shouldMatchInt` 401
-      resp.json %. "label" `shouldMatch` "domain-registration-updated-auth-failure"
+      resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
+
+  -- setting team invite to the wrong team should fail
+  fakeTeamId <- randomId
+  bindResponse (updateTeamInvite owner domain (object ["team_invite" .= "team", "team" .= fakeTeamId])) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
   -- [customer admin] set team-invite to team
   updateTeamInvite owner domain (object ["team_invite" .= "team", "team" .= tid])
@@ -425,23 +276,16 @@ testUpdateTeamInvite = do
 
 testUpdateTeamInviteSSO :: (HasCallStack) => App ()
 testUpdateTeamInviteSSO = do
+  domain <- randomDomain
   (owner, tid, _m : _) <- createTeam OwnDomain 2
+  setup <- setupOwnershipToken domain
 
   -- set conference calling (paying team)
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "conferenceCalling" "unlocked"
     setTeamFeatureStatus owner tid "conferenceCalling" "enabled"
 
-  domain <- randomDomain
-
-  -- [customer admin] fetch tokens
-  tokens <- domainVerificationTeamToken owner domain >>= getJSON 200
-  dnsToken <- tokens %. "dns_verification_token" & asString
-
-  -- [customer admin] register TXT DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
+  authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
   -- [customer admin] post team-invite config with an invalid idp
   fakeIdP <- randomId
@@ -471,30 +315,19 @@ testUpdateTeamInviteSSO = do
 testUpdateTeamInviteLocked :: (HasCallStack) => App ()
 testUpdateTeamInviteLocked = do
   (owner, tid, _m : _) <- createTeam OwnDomain 2
+  domain <- randomDomain
+  -- set domain-redirect to locked
+  domainRegistrationLock OwnDomain domain >>= assertStatus 204
+
+  setup <- setupOwnershipToken domain
 
   -- set conference calling (paying team)
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "conferenceCalling" "unlocked"
     setTeamFeatureStatus owner tid "conferenceCalling" "enabled"
 
-  domain <- randomDomain
-
-  -- [customer admin] fetch tokens
-  tokens <- domainVerificationTeamToken owner domain >>= getJSON 200
-  dnsToken <- tokens %. "dns_verification_token" & asString
-
-  -- [customer admin] register TXT DNS record
-  tok <- getTechnitiumApiKey
-  registerTechnitiumZone tok domain
-  registerTechnitiumRecord tok domain ("wire-domain." <> domain) "TXT" dnsToken
-
-  -- set domain-redirect to locked
-  domainRegistrationLock OwnDomain domain >>= assertStatus 204
-
-  -- setting team-invite to not-allowed should fail for locked domains
-  bindResponse (updateTeamInvite owner domain (object ["team_invite" .= "not-allowed"])) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+  -- can't authorize a team when the domain is locked
+  authorizeTeam owner domain setup.ownershipToken >>= assertStatus 403
 
   updateDomainRegistration
     OwnDomain
@@ -507,6 +340,8 @@ testUpdateTeamInviteLocked = do
     )
     >>= assertStatus 204
 
+  authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
+
   -- setting team-invite to allowed should fail for on-prem domains
   bindResponse (updateTeamInvite owner domain (object ["team_invite" .= "allowed"])) $ \resp -> do
     resp.status `shouldMatchInt` 403
@@ -515,4 +350,54 @@ testUpdateTeamInviteLocked = do
 testDisabledEnterpriseService :: (HasCallStack) => App ()
 testDisabledEnterpriseService = do
   domain <- randomDomain
-  domainVerificationToken OtherDomain domain Nothing >>= assertStatus 503
+
+  bindResponse (getDomainVerificationChallenge OtherDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 503
+    resp.json %. "label" `shouldMatch` "enterprise-service-not-enabled"
+
+-- helpers
+
+data ChallengeSetup = ChallengeSetup
+  { dnsToken :: String,
+    challengeId :: String,
+    challengeToken :: String,
+    technitiumToken :: String
+  }
+
+setupChallenge :: String -> App ChallengeSetup
+setupChallenge domain = do
+  challenge <- getDomainVerificationChallenge OwnDomain domain >>= getJSON 200
+  dnsToken <- challenge %. "dns_verification_token" & asString
+  challengeId <- challenge %. "id" & asString
+  challengeToken <- challenge %. "token" & asString
+
+  technitiumToken <- getTechnitiumApiKey
+  registerTechnitiumZone technitiumToken domain
+
+  pure
+    $ ChallengeSetup
+      { dnsToken,
+        challengeId,
+        challengeToken,
+        technitiumToken
+      }
+
+data DomainRegistrationSetup = DomainRegistrationSetup
+  { dnsToken :: String,
+    technitiumToken :: String,
+    ownershipToken :: String
+  }
+
+setupOwnershipToken :: String -> App DomainRegistrationSetup
+setupOwnershipToken domain = do
+  challenge <- setupChallenge domain
+
+  -- register TXT DNS record
+  registerTechnitiumRecord challenge.technitiumToken domain ("wire-domain." <> domain) "TXT" challenge.dnsToken
+
+  -- verify domain
+  ownershipToken <- bindResponse (verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_ownership_token" & asString
+
+  pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken

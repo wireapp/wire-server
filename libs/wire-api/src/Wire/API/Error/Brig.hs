@@ -324,9 +324,9 @@ type instance MapError 'DomainVerificationDomainVerificationFailed = 'StaticErro
 
 type instance MapError 'DomainVerificationOperationForbidden = 'StaticError 403 "operation-forbidden-for-domain-registration-state" "Invalid domain registration state update"
 
-type instance MapError 'DomainVerificationAuthFailure = 'StaticError 401 "domain-registration-updated-auth-failure" "Domain registration updated auth failure"
+type instance MapError 'DomainVerificationAuthFailure = 'StaticError 401 "domain-registration-update-auth-failure" "Domain registration updated auth failure"
 
-type instance MapError 'DomainVerificationPaymentRequired = 'StaticError 402 "domain-registration-updated-payment-required" "Domain registration updated payment required"
+type instance MapError 'DomainVerificationPaymentRequired = 'StaticError 402 "domain-registration-update-payment-required" "Domain registration updated payment required"
 
 type instance MapError 'DomainVerificationNotEnabled = 'StaticError 503 "enterprise-service-not-enabled" "Enterprise service not enabled"
 
