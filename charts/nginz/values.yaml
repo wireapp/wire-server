@@ -482,7 +482,7 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
-    - path: /bot/conversation/(.+)
+    - path: /bot/conversations/(.+)
       envs:
       - all
     galley:
