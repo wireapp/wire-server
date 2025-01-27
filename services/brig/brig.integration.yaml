@@ -172,11 +172,11 @@ optSettings:
     stdDev: 5
     retryAfter: 3
   setLimitFailedLogins:
-    timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
-    retryLimit: 5  # how many times can you have a failed login in that timeframe.
-  setSuspendInactiveUsers:  # if this is omitted: never suspend inactive users.
+    timeout: 5 # seconds.  if you reach the limit, how long do you have to wait to try again.
+    retryLimit: 5 # how many times can you have a failed login in that timeframe.
+  setSuspendInactiveUsers: # if this is omitted: never suspend inactive users.
     suspendTimeout: 10
-  setRichInfoLimit: 5000  # should be in sync with Spar
+  setRichInfoLimit: 5000 # should be in sync with Spar
   setDefaultUserLocale: en
   setMaxTeamSize: 32
   setMaxConvSize: 16
@@ -202,7 +202,7 @@ optSettings:
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
-  setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
+  setFeatureFlags: # see #RefConfigOptions in `/docs/reference`
     conferenceCalling:
       defaultForNew:
         status: disabled
