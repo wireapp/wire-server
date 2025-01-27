@@ -7,6 +7,7 @@ import API.Brig
 import API.BrigInternal
 import API.Common
 import API.GalleyInternal (setTeamFeatureLockStatus, setTeamFeatureStatus)
+import Control.Concurrent (threadDelay)
 import SetupHelpers
 import Test.DNSMock
 import Testlib.Prelude
@@ -385,6 +386,20 @@ testOverwriteOwnershipToken = do
     (Just setup1.ownershipToken)
     (mkDomainRedirectBackend "https://wire1.example.com")
     >>= assertStatus 401
+
+testChallengeTtl :: (HasCallStack) => App ()
+testChallengeTtl = withModifiedBackend
+  (def {brigCfg = (setField "optSettings.setChallengeTTL" (2 :: Int))})
+  $ \domain -> do
+    registrationDomain <- randomDomain
+    challenge <- getDomainVerificationChallenge domain registrationDomain >>= getJSON 200
+    challengeId <- challenge %. "id" & asString
+    challengeToken <- challenge %. "token" & asString
+
+    -- wait until the challenge ttl expires
+    liftIO $ threadDelay 2_500_000
+    bindResponse (verifyDomain domain registrationDomain challengeId challengeToken) $ \resp -> do
+      resp.status `shouldMatchInt` 404
 
 -- helpers
 
