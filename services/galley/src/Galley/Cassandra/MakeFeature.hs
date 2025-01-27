@@ -214,6 +214,20 @@ instance MakeFeature OutlookCalIntegrationConfig where
 
   featureToRow feat = Just feat.lockStatus :* Just feat.status :* Nil
 
+instance MakeFeature DomainRegistrationConfig where
+  type FeatureRow DomainRegistrationConfig = '[LockStatus, FeatureStatus]
+
+  featureColumns =
+    K "domain_registration_lock_status"
+      :* K "domain_registration_status"
+      :* Nil
+
+  rowToFeature (lockStatus :* status :* Nil) =
+    foldMap dbFeatureLockStatus lockStatus
+      <> foldMap dbFeatureStatus status
+
+  featureToRow feat = Just feat.lockStatus :* Just feat.status :* Nil
+
 instance MakeFeature MLSConfig where
   type
     FeatureRow MLSConfig =

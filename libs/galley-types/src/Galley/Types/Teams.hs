@@ -266,6 +266,13 @@ newtype instance FeatureDefaults LimitedEventFanoutConfig
   deriving (FromJSON) via Defaults (Feature LimitedEventFanoutConfig)
   deriving (ParseFeatureDefaults) via OptionalField LimitedEventFanoutConfig
 
+newtype instance FeatureDefaults DomainRegistrationConfig
+  = DomainRegistrationConfigDefaults (Feature DomainRegistrationConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (Feature DomainRegistrationConfig)
+  deriving (ParseFeatureDefaults) via OptionalField DomainRegistrationConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 

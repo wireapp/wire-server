@@ -457,3 +457,5 @@ instance SetFeatureConfig EnforceFileDownloadLocationConfig where
     pure feat
 
 instance SetFeatureConfig LimitedEventFanoutConfig
+
+instance SetFeatureConfig DomainRegistrationConfig
