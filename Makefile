@@ -85,11 +85,8 @@ clean-hint:
 cabal.project.local:
 	cp ./hack/bin/cabal.project.local.template ./cabal.project.local
 
-# Usage: make c package=brig test=1
-.PHONY: c
-c: treefmt c-fast
-
-.PHONY: c
+# Usage: make c-fast package=brig test=1
+.PHONY: c-fast
 c-fast:
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
@@ -108,7 +105,7 @@ endif
 #
 # If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
 .PHONY: ci-fast
-ci-fast: c db-migrate
+ci-fast: c-fast db-migrate
 ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
@@ -118,7 +115,7 @@ endif
 # variant of `make ci-fast` that compiles the entire project even if `package` is specified.
 .PHONY: ci-safe
 ci-safe:
-	make c package=all
+	make c-fast package=all
 	make ci-fast
 
 .PHONY: ci
@@ -128,10 +125,10 @@ ci:
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley
 .PHONY: cr
-cr: c db-migrate
+cr: c-fast db-migrate
 	./dist/run-services
 
-crm: c db-migrate
+crm: c-fast db-migrate
 	./dist/run-services -m
 
 # Run integration from new test suite
@@ -168,7 +165,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all lint-common
+lint-all: treefmt lint-common formatc hlint-check-all
 
 # For use by local devs.
 #
@@ -179,7 +176,7 @@ lint-all: formatc hlint-check-all lint-common
 # The extra 'hlint-check-pr' has been witnessed to be necessary due to
 # some bu in `hlint-inplace-pr`.  Details got lost in history.
 .PHONY: lint-all-shallow
-lint-all-shallow: lint-common formatf hlint-inplace-pr hlint-check-pr
+lint-all-shallow: treefmt lint-common formatf hlint-inplace-pr hlint-check-pr
 
 .PHONY: lint-common
 lint-common: check-local-nix-derivations treefmt-check # weeder (does not work on CI yet)
@@ -255,11 +252,11 @@ add-license:
 
 .PHONY: treefmt
 treefmt:
-	treefmt -u debug --walk=git
- 
+	treefmt -u debug --walk=filesystem
+
 .PHONY: treefmt-check
 treefmt-check:
-	treefmt --fail-on-change -u debug --walk=git
+	treefmt --fail-on-change -u debug --walk=filesystem
 
 #################################
 ## docker targets
@@ -314,7 +311,7 @@ db-migrate-package:
 
 # Reset all keyspaces and reset the ES index
 .PHONY: db-reset
-db-reset: c
+db-reset: c-fast
 	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
@@ -344,7 +341,7 @@ db-reset: c
 
 # Migrate all keyspaces and reset the ES index
 .PHONY: db-migrate
-db-migrate: c
+db-migrate: c-fast
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 > /dev/null
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 > /dev/null
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 > /dev/null
