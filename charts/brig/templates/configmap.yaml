@@ -84,7 +84,7 @@ data:
     federatorInternal:
       host: federator
       port: 8080
-  
+
     {{- if and (.wireServerEnterprise) (default false .wireServerEnterprise.enabled) }}
     wireServerEnterprise:
       host: wire-server-enterprise
@@ -381,5 +381,6 @@ data:
       {{- if .setAuditLogEmailRecipient }}
       setAuditLogEmailRecipient: {{ .setAuditLogEmailRecipient }}
       {{- end }}
+      setChallengeTTL: {{ or .setChallengeTTL 172800 }}
     {{- end }}
   {{- end }}
