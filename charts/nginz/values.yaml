@@ -471,7 +471,7 @@ nginx_conf:
     - path: /upgrade-personal-to-team$
       envs:
       - all
-    - path: /bot/conversation/(.+)
+    - path: /bot/conversations/(.+)
       envs:
       - all
     galley:
