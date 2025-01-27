@@ -355,6 +355,37 @@ testDisabledEnterpriseService = do
     resp.status `shouldMatchInt` 503
     resp.json %. "label" `shouldMatch` "enterprise-service-not-enabled"
 
+testOverwriteOwnershipToken :: (HasCallStack) => App ()
+testOverwriteOwnershipToken = do
+  domain <- randomDomain
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+
+  -- get an ownership token
+  setup1 <- setupOwnershipToken domain
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup1.ownershipToken)
+    (mkDomainRedirectBackend "https://wire1.example.com")
+    >>= assertStatus 200
+
+  -- get a second ownership token
+  setup2 <- setupOwnershipToken domain
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup2.ownershipToken)
+    (object ["domain_redirect" .= "remove"])
+    >>= assertStatus 200
+
+  -- the first ownership token is not valid anymore
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup1.ownershipToken)
+    (mkDomainRedirectBackend "https://wire1.example.com")
+    >>= assertStatus 401
+
 -- helpers
 
 data ChallengeSetup = ChallengeSetup
@@ -364,7 +395,7 @@ data ChallengeSetup = ChallengeSetup
     technitiumToken :: String
   }
 
-setupChallenge :: String -> App ChallengeSetup
+setupChallenge :: (HasCallStack) => String -> App ChallengeSetup
 setupChallenge domain = do
   challenge <- getDomainVerificationChallenge OwnDomain domain >>= getJSON 200
   dnsToken <- challenge %. "dns_verification_token" & asString
@@ -388,7 +419,7 @@ data DomainRegistrationSetup = DomainRegistrationSetup
     ownershipToken :: String
   }
 
-setupOwnershipToken :: String -> App DomainRegistrationSetup
+setupOwnershipToken :: (HasCallStack) => String -> App DomainRegistrationSetup
 setupOwnershipToken domain = do
   challenge <- setupChallenge domain
 
