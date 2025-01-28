@@ -31,7 +31,7 @@ data RateLimitConfig = RateLimitConfig
     -- IPv4 address are to be considered as key for rate limiting. Setting it to
     -- 32 will rate limit each IPv4 address separately.
     ipv4CidrBlock :: Int,
-    -- | Must be betweeen 0 and 128 (bot hinclusive). Decides how many bits of
+    -- | Must be betweeen 0 and 128 (both inclusive). Decides how many bits of
     -- the IPv6 address are to be considered as key for rate limiting. Setting
     -- it to 128 will rate limit each IPv6 address seperately. It is recommended
     -- to set this to at least 64 as most popular ISPs allocate that to each
