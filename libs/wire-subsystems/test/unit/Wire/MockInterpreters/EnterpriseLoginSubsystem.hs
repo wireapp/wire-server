@@ -26,5 +26,5 @@ enterpriseLoginSubsystemTestInterpreter err =
     UpdateTeamInvite {} -> undefined
     GetDomainRegistrationPublic _ -> undefined
     CreateDomainVerificationChallenge _ -> undefined
-    VerifyChallenge _ _ _ -> undefined
+    VerifyChallenge {} -> undefined
     AuthorizeTeam {} -> undefined
