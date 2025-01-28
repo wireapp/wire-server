@@ -12,10 +12,10 @@ import SetupHelpers (randomUser)
 import Testlib.Prelude
 
 runFederatorMetrics :: (ServiceMap -> HostPort) -> App ()
-runFederatorMetrics getService = do
+runFederatorMetrics getServiceAddress = do
   let handleRes res = res <$ res.status `shouldMatchInt` 200
-  first <- bindResponse (getMetrics OwnDomain getService) handleRes
-  second <- bindResponse (getMetrics OwnDomain getService) handleRes
+  first <- bindResponse (getMetrics OwnDomain getServiceAddress) handleRes
+  second <- bindResponse (getMetrics OwnDomain getServiceAddress) handleRes
   assertBool "Two metric requests should never match" $ first.body /= second.body
   assertBool "Second metric response should never be 0 length (the first might be)" $ BS.length second.body /= 0
   assertBool "The seconds metric response should have text indicating that it is returning metrics"
