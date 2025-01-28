@@ -64,6 +64,7 @@ featureAPI =
     <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllTeamFeaturesForTeam
     <@> deprecatedFeatureConfigAPI
     <@> deprecatedFeatureAPI
+    <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
