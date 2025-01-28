@@ -1,3 +1,11 @@
+# [2025-01-28] (Chart Release 5.10.0)
+
+## Release notes
+
+
+This is a hotfix release to re-enable adding and removing bots to conversations. (#4424, #4425, #4426)
+
+
 # [2024-12-30] (Chart Release 5.9.0)
 
 ## Release notes

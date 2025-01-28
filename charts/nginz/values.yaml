@@ -471,6 +471,9 @@ nginx_conf:
     - path: /upgrade-personal-to-team$
       envs:
       - all
+    - path: /bot/conversations/(.+)
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -503,7 +506,7 @@ nginx_conf:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
-    - path: /bot/conversation
+    - path: /bot/conversation$
       envs:
       - all
     - path: /bot/messages
