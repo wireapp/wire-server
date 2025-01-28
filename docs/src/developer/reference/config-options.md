@@ -518,6 +518,18 @@ limitedEventFanout:
     status: disabled
 ```
 
+### Domain Registration
+
+This feature flag is per default disabled and locked. It can be set by `ibis` via the internal API and it is not meant to be configured via team management.
+
+```yaml
+# galley.yaml
+domainRegistration:
+  defaults:
+    status: disabled
+    lockStatus: locked
+```
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only
