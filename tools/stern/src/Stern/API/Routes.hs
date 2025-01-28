@@ -440,6 +440,9 @@ type SternAPI =
                :> Delete '[JSON] ()
            )
     :<|> EnterpriseLoginApi
+    :<|> Named "domain-registration-get" (MkFeatureGetRoute DomainRegistrationConfig)
+    :<|> Named "domain-registration-put" (MkFeaturePutRouteNoTTL DomainRegistrationConfig)
+    :<|> Named "domain-registration-lock" (MkFeatureLockUnlockRouteNoTTL DomainRegistrationConfig)
 
 -------------------------------------------------------------------------------
 -- Swagger

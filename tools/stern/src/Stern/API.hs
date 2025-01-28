@@ -188,6 +188,9 @@ sitemap' =
     :<|> Named @"update-oauth-client" Intra.updateOAuthClient
     :<|> Named @"delete-oauth-client" Intra.deleteOAuthClient
     :<|> Intra.enterpriseLogin
+    :<|> Named @"domain-registration-get" (mkFeatureGetRoute @DomainRegistrationConfig)
+    :<|> Named @"domain-registration-put" (mkFeaturePutRouteTrivialConfigNoTTL @DomainRegistrationConfig)
+    :<|> Named @"domain-registration-lock" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @DomainRegistrationConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =
