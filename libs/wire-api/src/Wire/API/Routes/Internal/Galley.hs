@@ -98,6 +98,7 @@ type IFeatureAPI =
                     UserId
                :> Get '[JSON] AllTeamFeatures
            )
+    :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
 
 type InternalAPI = "i" :> InternalAPIBase
 
