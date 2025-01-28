@@ -107,7 +107,7 @@ withBotWithSettings settings k = do
     serviceId <- asString $ service %. "id"
     conv <- getJSON 201 =<< postConversation alice defProteus
     convId <- conv %. "id" & asString
-    assertStatus 200 =<< updateServiceConn providerId serviceId do
+    assertStatus 200 =<< updateServiceConn OwnDomain providerId serviceId do
       object ["enabled" .= True, "password" .= password]
     addBot alice providerId serviceId convId >>= k
 

@@ -609,6 +609,14 @@ newService dom providerId service = do
     resp.status `shouldMatchInt` 201
     resp.json
 
+getService :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+getService domain pid sid = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["provider", "services", sid]
+  submit "GET" $
+    req
+      & addHeader "Z-Type" "provider"
+      & addHeader "Z-Provider" pid
+
 updateService ::
   ( HasCallStack,
     MakesValue dom,
@@ -636,7 +644,11 @@ updateService dom providerId serviceId mAcceptHeader newName = do
     $ req
 
 updateServiceConn ::
-  (MakesValue conn) =>
+  ( HasCallStack,
+    MakesValue domain,
+    MakesValue conn
+  ) =>
+  domain ->
   -- | providerId
   String ->
   -- | serviceId
@@ -644,8 +656,8 @@ updateServiceConn ::
   -- | connection update as a Json object, with an obligatory "password" field
   conn ->
   App Response
-updateServiceConn providerId serviceId connectionUpdate = do
-  req <- baseRequest OwnDomain Brig Versioned do
+updateServiceConn domain providerId serviceId connectionUpdate = do
+  req <- baseRequest domain Brig Versioned do
     joinHttpPath ["provider", "services", serviceId, "connection"]
   upd <- make connectionUpdate
   submit "PUT"
@@ -941,3 +953,16 @@ deleteRegisteredTeamDomain :: (HasCallStack, MakesValue user) => user -> String 
 deleteRegisteredTeamDomain user tid registeredDomain = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "registered-domains", registeredDomain]
   submit "DELETE" req
+
+listTeamServiceProfilesByPrefix :: (MakesValue user) => user -> String -> Maybe String -> Bool -> Int -> App Response
+listTeamServiceProfilesByPrefix user tid mPrefix filterDisabled size = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "services", "whitelisted"]
+  submit "GET" $
+    req
+      & addQueryParams
+        ( catMaybes
+            [ ("prefix",) <$> mPrefix,
+              if filterDisabled then Nothing else Just ("filter_disabled", "false"),
+              Just ("size", show size)
+            ]
+        )

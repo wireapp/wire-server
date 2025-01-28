@@ -137,7 +137,6 @@ tests dom brigOpts conf p db b c g n = do
               testWhitelistSearchPermissions conf db b g,
             test p "basic functionality" $
               testWhitelistBasic conf db b g,
-            test p "search" $ testSearchWhitelist conf db b g,
             test p "search honors enabling and whitelisting" $
               testSearchWhitelistHonorUpdates conf db b,
             test p "de-whitelisted bots are removed" $
@@ -881,83 +880,6 @@ testWhitelistSearchPermissions _config _db brig galley = do
   member <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
   listTeamServiceProfilesByPrefix brig member tid Nothing True 20
     !!! const 200 === statusCode
-
-testSearchWhitelist :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
-testSearchWhitelist config db brig galley = do
-  -- Create a team, a team owner, and a team member with no permissions
-  (owner, tid) <- Team.createUserWithTeam brig
-  uid <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
-  -- Create services and add them all to the whitelist
-  pid <- providerId <$> randomProvider db brig
-  uniq <- UUID.toText . toUUID <$> randomId
-  new <- defNewService config
-  svcs <- mapM (addGetService brig pid . mkNew new) (taggedServiceNames uniq)
-  forM_ svcs $ \svc -> do
-    let sid = serviceId svc
-    enableService brig pid sid
-    whitelistService brig owner tid pid sid
-  let mkName n = Name (uniq <> "|" <> n)
-  let services :: [(ServiceId, Name)]
-      services = map (serviceId &&& serviceName) svcs
-  -- This is how we're going to call our .../services/whitelisted
-  -- endpoint. Every time we call it twice (with filter_disabled=false and
-  -- without) and assert that results match – which should always be the
-  -- case since in this test we won't have any disabled services.
-  let search :: (HasCallStack) => Maybe Text -> Http ServiceProfilePage
-      search mbName = do
-        r1 <- searchServiceWhitelist brig 20 uid tid mbName
-        r2 <- searchServiceWhitelistAll brig 20 uid tid mbName
-        liftIO $
-          assertEqual
-            ("search for " <> show mbName <> " with and without filtering")
-            r1
-            r2
-        pure r1
-  -- Check that search finds all services that we created
-  search (Just uniq)
-    >>= assertServiceDetails ("all with prefix " <> show uniq) services
-  -- Check that search works without a prefix
-  do
-    -- with the zeroes around, this service should be the first on the
-    -- resulting search results list
-    uniq2 <- mappend "0000000000|" . UUID.toText . toUUID <$> randomId
-    let name = Name (uniq2 <> "|Extra")
-    sid <- serviceId <$> addGetService brig pid (mkNew new (name, [PollTag]))
-    enableService brig pid sid
-    whitelistService brig owner tid pid sid
-    page <- search Nothing
-    assertServiceDetails "without prefix" ((sid, name) : take 19 services) page
-    liftIO $ assertEqual "has more" True (serviceProfilePageHasMore page)
-  -- This function searches for a prefix and check that the results match
-  -- our known list of services
-  let searchAndCheck :: (HasCallStack) => Name -> Http [ServiceProfile]
-      searchAndCheck (Name name) = do
-        result <- search (Just name)
-        assertServiceDetails ("name " <> show name) (select name services) result
-        pure (serviceProfilePageResults result)
-  -- Search by exact name and check that only one service is found
-  forM_ (take 3 services) $ \(sid, Name name) ->
-    search (Just name) >>= assertServiceDetails ("name " <> show name) [(sid, Name name)]
-  -- Check some chosen prefixes.
-  -- # Bjø -> Bjørn
-  _found <- map serviceProfileName <$> searchAndCheck (mkName "Bjø")
-  liftIO $ assertEqual "Bjø" [mkName "Bjørn"] _found
-  -- # Bj -> bjorn, Bjørn
-  _found <- map serviceProfileName <$> searchAndCheck (mkName "Bj")
-  liftIO $ assertEqual "Bj" [mkName "bjorn", mkName "Bjørn"] _found
-  -- # chris -> CHRISTMAS
-  _found <- map serviceProfileName <$> searchAndCheck (mkName "chris")
-  liftIO $ assertEqual "chris" [mkName "CHRISTMAS"] _found
-  -- Ensure name changes are also indexed properly
-  forM_ (take 3 services) $ \(sid, _) ->
-    searchAndAssertNameChange brig pid sid uid uniq (search . Just . fromName)
-  where
-    mkNew new (n, t) =
-      new
-        { newServiceName = n,
-          newServiceTags = unsafeRange (Set.fromList t)
-        }
-    select prefix = filter (Text.isPrefixOf (Text.toLower prefix) . Text.toLower . fromName . snd)
 
 testSearchWhitelistHonorUpdates :: Config -> DB.ClientState -> Brig -> Http ()
 testSearchWhitelistHonorUpdates config db brig = do
