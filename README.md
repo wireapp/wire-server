@@ -96,4 +96,4 @@ You have two options:
 
 * Option 2. Compile everything in this repo, then you can use the `dist/run-services`. This option is intended as a way to try out wire-server on your local development machine and not suited for production.
 
-TEST
+TEST2
