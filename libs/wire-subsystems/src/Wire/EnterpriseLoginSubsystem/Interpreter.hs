@@ -686,9 +686,7 @@ guardTeamAdminAccess luid domain = do
   where
     validatePaymentStatus :: TeamId -> Sem r ()
     validatePaymentStatus tid = do
-      -- FUTUREWORK: we need a dedicated feature flag for domain registration that is managed by ibis
-      -- If the team is paying, conference calling will always be enabled
-      feature <- getFeatureConfigForTeam @_ @ConferenceCallingConfig tid
+      feature <- getFeatureConfigForTeam @_ @DomainRegistrationConfig tid
       when (feature.status /= FeatureStatusEnabled) $
         throw EnterpriseLoginSubsystemPaymentRequired
 
