@@ -68,7 +68,7 @@ settings:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: []
 
-  featureFlags:  # see #RefConfigOptions in `/docs/reference`
+  featureFlags: # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: whitelist-teams-and-implicit-consent
     teamSearchVisibility: disabled-by-default
@@ -120,6 +120,10 @@ settings:
     limitedEventFanout:
       defaults:
         status: disabled
+    domainRegistration:
+      defaults:
+        status: disabled
+        lockStatus: locked
 
 logLevel: Warn
 logNetStrings: false

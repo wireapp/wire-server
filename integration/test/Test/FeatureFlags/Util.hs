@@ -135,7 +135,8 @@ defAllFeatures =
                 [ "enforcedDownloadLocation" .= "downloads"
                 ]
           ],
-      "limitedEventFanout" .= disabled
+      "limitedEventFanout" .= disabled,
+      "domainRegistration" .= disabledLocked
     ]
 
 hasExplicitLockStatus :: String -> Bool
@@ -146,6 +147,7 @@ hasExplicitLockStatus "guestLinks" = True
 hasExplicitLockStatus "sndFactorPasswordChallenge" = True
 hasExplicitLockStatus "outlookCalIntegration" = True
 hasExplicitLockStatus "enforceFileDownloadLocation" = True
+hasExplicitLockStatus "domainRegistration" = True
 hasExplicitLockStatus _ = False
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()

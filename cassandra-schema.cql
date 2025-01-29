@@ -1153,6 +1153,8 @@ CREATE TABLE galley_test.team_features (
     conference_calling_one_to_one int,
     conference_calling_status int,
     digital_signatures int,
+    domain_registration_lock_status int,
+    domain_registration_status int,
     enforce_file_download_location text,
     enforce_file_download_location_lock_status int,
     enforce_file_download_location_status int,

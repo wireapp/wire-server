@@ -132,6 +132,7 @@ library
     Test.FeatureFlags.ClassifiedDomains
     Test.FeatureFlags.ConferenceCalling
     Test.FeatureFlags.DigitalSignatures
+    Test.FeatureFlags.DomainRegistration
     Test.FeatureFlags.EnforceFileDownloadLocation
     Test.FeatureFlags.FileSharing
     Test.FeatureFlags.GuestLinks

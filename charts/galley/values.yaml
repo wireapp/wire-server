@@ -17,7 +17,7 @@ resources:
     memory: "500Mi"
 # This is not supported for production use, only here for testing:
 # preStop:
-#  exec: 
+#  exec:
 #   command: ["sh", "-c", "curl http://acme.example"]
 config:
   logLevel: Info
@@ -26,13 +26,13 @@ config:
   cassandra:
     host: aws-cassandra
     replicaCount: 3
-#   To enable TLS provide a CA:
-#   tlsCa: <CA in PEM format (can be self-signed)>
-#
-#   Or refer to an existing secret (containing the CA):
-#   tlsCaSecretRef:
-#     name: <secret-name>
-#     key: <ca-attribute>
+  #   To enable TLS provide a CA:
+  #   tlsCa: <CA in PEM format (can be self-signed)>
+  #
+  #   Or refer to an existing secret (containing the CA):
+  #   tlsCaSecretRef:
+  #     name: <secret-name>
+  #     key: <ca-attribute>
   enableFederation: false # keep in sync with background-worker, brig and cargohold charts' config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
   rabbitmq:
@@ -66,7 +66,7 @@ config:
     multiIngress: null
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-    disabledAPIVersions: [ development ]
+    disabledAPIVersions: [development]
     # The lifetime of a conversation guest link in seconds. Must be a value 0 < x <= 31536000 (365 days)
     # Default is 31536000 (365 days) if not set
     guestLinkTTLSeconds: 31536000
@@ -80,7 +80,7 @@ config:
     # To disable proteus for new federated conversations:
     # federationProtocols: ["mls"]
 
-    featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
+    featureFlags: # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
       appLock:
         defaults:
           config:
@@ -160,6 +160,10 @@ config:
       limitedEventFanout:
         defaults:
           status: disabled
+      domainRegistration:
+        defaults:
+          status: disabled
+          lockStatus: locked
 
   aws:
     region: "eu-west-1"
@@ -183,7 +187,8 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 tests:
-  config: {}
+  config:
+    {}
     # uploadXml:
     #   baseUrl: s3://bucket/path/
 
@@ -193,62 +198,62 @@ tests:
 
     # These "secrets" are only used in tests and are therefore safe to be stored unencrypted
     providerPrivateKey: |
-        -----BEGIN RSA PRIVATE KEY-----
-        MIIEpAIBAAKCAQEAu+Kg/PHHU3atXrUbKnw0G06FliXcNt3lMwl2os5twEDcPPFw
-        /feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPHWvUBdiLfGrZqJO223DB6D8K2Su/o
-        dmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKVVPOaOzgtAB21XKRiQ4ermqgi3/nj
-        r03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiSbUKr/BeArYRcjzr/h5m1In6fG/if
-        9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg87X883H+LA/d6X5CTiPv1VMxXdBUi
-        GPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7lanQIDAQABAoIBAQC0doVy7zgpLsBv
-        Sz0AnbPe1pjxEwRlntRbJSfSULySALqJvs5s4adSVGUBHX3z/LousAP1SRpCppuU
-        8wrLBFgjQVlaAzyQB84EEl+lNtrG8Jrvd2es9R/4sJDkqy50+yuPN5wnzWPFIjhg
-        3jP5CHDu29y0LMzsY5yjkzDe9B0bueXEZVU+guRjhpwHHKOFeAr9J9bugFUwgeAr
-        jF0TztzFAb0fsUNPiQAho1J5PyjSVgItaPfAPv/p30ROG+rz+Rd5NSSvBC5F+yOo
-        azb84zzwCg/knAfIz7SOMRrmBh2qhGZFZ8gXdq65UaYv+cpT/qo28mpAT2vOkyeD
-        aPZp0ysBAoGBAOQROoDipe/5BTHBcXYuUE1qa4RIj3wgql5I8igXr4K6ppYBmaOg
-        DL2rrnqD86chv0P4l/XOomKFwYhVGXtqRkeYnk6mQXwNVkgqcGbY5PSNyMg5+ekq
-        jSOOPHGzzTWKzYuUDUpB/Lf6jbTv8fq2GYW3ZYiqQ/xiugOvglZrTE7NAoGBANLl
-        irjByfxAWGhzCrDx0x5MBpsetadI9wUA8u1BDdymsRg73FDn3z7NipVUAMDXMGVj
-        lqbCRlHESO2yP4GaPEA4FM+MbTZSuhAYV+SY07mEPLHF64/nJas83Zp91r5rhaqJ
-        L9rWCl3KJ5OUnr3YizCnHIW72FxjwtpjxHJLupsRAoGAGIbhy8qUHeKh9F/hW9xP
-        NoQjW+6Rv7+jktA1eqpRbbW1BJzXcQldVWiJMxPNuEOg1iZ98SlvvTi1P3wnaWZc
-        eIapP7wRfs3QYaJuxCC/Pq2g0ieqALFazGAXkALOJtvujvw1Ea9XBlIjuzmyxEuh
-        Iwg+Gxx0g0f6yTquwax4YGECgYEAnpAK3qKFNO1ECzQDo8oNy0ep59MNDPtlDhQK
-        katJus5xdCD9oq7TQKrVOTTxZAvmzTQ1PqfuqueDVYOhD9Zg2n/P1cRlEGTek99Z
-        pfvppB/yak6+r3FA9yBKFS/r1zuMQg3nNweav62QV/tz5pT7AdeDMGFtaPlwtTYx
-        qyWY5aECgYBPySbPccNj+xxQzxcti2y/UXjC04RgOA/Hm1D0exa0vBqS9uxlOdG8
-        F47rKenpBrslvdfTVsCDB1xyP2ebWVzp6EqMycw6OLPxgo3fBfZ4pi6P+rByh0Cc
-        Lhfh+ET0CPnKCxtop3lUrn4ZvqchS0j3J+M0pDuqoWF5hfKxFhkEIw==
-        -----END RSA PRIVATE KEY-----
+      -----BEGIN RSA PRIVATE KEY-----
+      MIIEpAIBAAKCAQEAu+Kg/PHHU3atXrUbKnw0G06FliXcNt3lMwl2os5twEDcPPFw
+      /feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPHWvUBdiLfGrZqJO223DB6D8K2Su/o
+      dmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKVVPOaOzgtAB21XKRiQ4ermqgi3/nj
+      r03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiSbUKr/BeArYRcjzr/h5m1In6fG/if
+      9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg87X883H+LA/d6X5CTiPv1VMxXdBUi
+      GPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7lanQIDAQABAoIBAQC0doVy7zgpLsBv
+      Sz0AnbPe1pjxEwRlntRbJSfSULySALqJvs5s4adSVGUBHX3z/LousAP1SRpCppuU
+      8wrLBFgjQVlaAzyQB84EEl+lNtrG8Jrvd2es9R/4sJDkqy50+yuPN5wnzWPFIjhg
+      3jP5CHDu29y0LMzsY5yjkzDe9B0bueXEZVU+guRjhpwHHKOFeAr9J9bugFUwgeAr
+      jF0TztzFAb0fsUNPiQAho1J5PyjSVgItaPfAPv/p30ROG+rz+Rd5NSSvBC5F+yOo
+      azb84zzwCg/knAfIz7SOMRrmBh2qhGZFZ8gXdq65UaYv+cpT/qo28mpAT2vOkyeD
+      aPZp0ysBAoGBAOQROoDipe/5BTHBcXYuUE1qa4RIj3wgql5I8igXr4K6ppYBmaOg
+      DL2rrnqD86chv0P4l/XOomKFwYhVGXtqRkeYnk6mQXwNVkgqcGbY5PSNyMg5+ekq
+      jSOOPHGzzTWKzYuUDUpB/Lf6jbTv8fq2GYW3ZYiqQ/xiugOvglZrTE7NAoGBANLl
+      irjByfxAWGhzCrDx0x5MBpsetadI9wUA8u1BDdymsRg73FDn3z7NipVUAMDXMGVj
+      lqbCRlHESO2yP4GaPEA4FM+MbTZSuhAYV+SY07mEPLHF64/nJas83Zp91r5rhaqJ
+      L9rWCl3KJ5OUnr3YizCnHIW72FxjwtpjxHJLupsRAoGAGIbhy8qUHeKh9F/hW9xP
+      NoQjW+6Rv7+jktA1eqpRbbW1BJzXcQldVWiJMxPNuEOg1iZ98SlvvTi1P3wnaWZc
+      eIapP7wRfs3QYaJuxCC/Pq2g0ieqALFazGAXkALOJtvujvw1Ea9XBlIjuzmyxEuh
+      Iwg+Gxx0g0f6yTquwax4YGECgYEAnpAK3qKFNO1ECzQDo8oNy0ep59MNDPtlDhQK
+      katJus5xdCD9oq7TQKrVOTTxZAvmzTQ1PqfuqueDVYOhD9Zg2n/P1cRlEGTek99Z
+      pfvppB/yak6+r3FA9yBKFS/r1zuMQg3nNweav62QV/tz5pT7AdeDMGFtaPlwtTYx
+      qyWY5aECgYBPySbPccNj+xxQzxcti2y/UXjC04RgOA/Hm1D0exa0vBqS9uxlOdG8
+      F47rKenpBrslvdfTVsCDB1xyP2ebWVzp6EqMycw6OLPxgo3fBfZ4pi6P+rByh0Cc
+      Lhfh+ET0CPnKCxtop3lUrn4ZvqchS0j3J+M0pDuqoWF5hfKxFhkEIw==
+      -----END RSA PRIVATE KEY-----
     providerPublicKey: |
-        -----BEGIN PUBLIC KEY-----
-        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0
-        G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH
-        WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV
-        VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS
-        bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8
-        7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la
-        nQIDAQAB
-        -----END PUBLIC KEY-----
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0
+      G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH
+      WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV
+      VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS
+      bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8
+      7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la
+      nQIDAQAB
+      -----END PUBLIC KEY-----
     providerPublicCert: |
-        -----BEGIN CERTIFICATE-----
-        MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE
-        RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp
-        cmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20xHzAdBgkqhkiG9w0BCQEW
-        EGJhY2tlbmRAd2lyZS5jb20wHhcNMTYwODA0MTMxNDQyWhcNMzYwNzMwMTMxNDQy
-        WjB9MQswCQYDVQQGEwJERTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJs
-        aW4xGDAWBgNVBAoMD1dpcmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20x
-        HzAdBgkqhkiG9w0BCQEWEGJhY2tlbmRAd2lyZS5jb20wggEiMA0GCSqGSIb3DQEB
-        AQUAA4IBDwAwggEKAoIBAQC74qD88cdTdq1etRsqfDQbToWWJdw23eUzCXaizm3A
-        QNw88XD994aIArKbGn7smpkOux5LkP1Mcatb45BEg8da9QF2It8atmok7bbcMHoP
-        wrZK7+h2aeNknbPbeuFegQCtOmW74OD0r5zYtV5dMpVU85o7OC0AHbVcpGJDh6ua
-        qCLf+eOvTetfKr+o2S413q01yD4cB8bF8a+8JJgF+JJtQqv8F4CthFyPOv+HmbUi
-        fp8b+J/0YQjqbx3EdP0ltjnfCKSyjDLpqMK6qyQgWDztfzzcf4sD93pfkJOI+/VU
-        zFd0FSIY+4L0hP/oI1DX8sW3Q/ftrHnz4sZiVoWjuVqdAgMBAAEwDQYJKoZIhvcN
-        AQELBQADggEBAEuwlHElIGR56KVC1dJiw238mDGjMfQzSP76Wi4zWS6/zZwJUuog
-        BkC+vacfju8UAMvL+vdqkjOVUHor84/2wuq0qn91AjOITD7tRAZB+XLXxsikKv/v
-        OXE3A/lCiNi882NegPyXAfFPp/71CIiTQZps1eQkAvhD5t5WiFYPESxDlvEJrHFY
-        XP4+pp8fL8YPS7iZNIq+z+P8yVIw+B/Hs0ht7wFIYN0xACbU8m9+Rs08JMoT16c+
-        hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
-        T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
-        -----END CERTIFICATE-----
+      -----BEGIN CERTIFICATE-----
+      MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE
+      RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp
+      cmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20xHzAdBgkqhkiG9w0BCQEW
+      EGJhY2tlbmRAd2lyZS5jb20wHhcNMTYwODA0MTMxNDQyWhcNMzYwNzMwMTMxNDQy
+      WjB9MQswCQYDVQQGEwJERTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJs
+      aW4xGDAWBgNVBAoMD1dpcmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20x
+      HzAdBgkqhkiG9w0BCQEWEGJhY2tlbmRAd2lyZS5jb20wggEiMA0GCSqGSIb3DQEB
+      AQUAA4IBDwAwggEKAoIBAQC74qD88cdTdq1etRsqfDQbToWWJdw23eUzCXaizm3A
+      QNw88XD994aIArKbGn7smpkOux5LkP1Mcatb45BEg8da9QF2It8atmok7bbcMHoP
+      wrZK7+h2aeNknbPbeuFegQCtOmW74OD0r5zYtV5dMpVU85o7OC0AHbVcpGJDh6ua
+      qCLf+eOvTetfKr+o2S413q01yD4cB8bF8a+8JJgF+JJtQqv8F4CthFyPOv+HmbUi
+      fp8b+J/0YQjqbx3EdP0ltjnfCKSyjDLpqMK6qyQgWDztfzzcf4sD93pfkJOI+/VU
+      zFd0FSIY+4L0hP/oI1DX8sW3Q/ftrHnz4sZiVoWjuVqdAgMBAAEwDQYJKoZIhvcN
+      AQELBQADggEBAEuwlHElIGR56KVC1dJiw238mDGjMfQzSP76Wi4zWS6/zZwJUuog
+      BkC+vacfju8UAMvL+vdqkjOVUHor84/2wuq0qn91AjOITD7tRAZB+XLXxsikKv/v
+      OXE3A/lCiNi882NegPyXAfFPp/71CIiTQZps1eQkAvhD5t5WiFYPESxDlvEJrHFY
+      XP4+pp8fL8YPS7iZNIq+z+P8yVIw+B/Hs0ht7wFIYN0xACbU8m9+Rs08JMoT16c+
+      hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
+      T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
+      -----END CERTIFICATE-----

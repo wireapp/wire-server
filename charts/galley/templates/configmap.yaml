@@ -162,5 +162,9 @@ data:
         limitedEventFanout:
           {{- toYaml .settings.featureFlags.limitedEventFanout | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.domainRegistration }}
+        domainRegistration:
+          {{- toYaml .settings.featureFlags.domainRegistration | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

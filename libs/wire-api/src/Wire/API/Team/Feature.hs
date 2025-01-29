@@ -69,6 +69,7 @@ module Wire.API.Team.Feature
     MlsMigrationConfig (..),
     EnforceFileDownloadLocationConfig (..),
     LimitedEventFanoutConfig (..),
+    DomainRegistrationConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -217,6 +218,7 @@ data FeatureSingleton cfg where
   FeatureSingletonMlsMigrationConfig :: FeatureSingleton MlsMigrationConfig
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
+  FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
 
 type family DeprecatedFeatureName cfg :: Symbol
 
@@ -1149,6 +1151,29 @@ instance IsFeatureConfig LimitedEventFanoutConfig where
 instance ToSchema LimitedEventFanoutConfig where
   schema = object "LimitedEventFanoutConfig" objectSchema
 
+--------------------------------------------------------------------------------
+-- DomainRegistration feature
+
+-- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+data DomainRegistrationConfig = DomainRegistrationConfig
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainRegistrationConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName DomainRegistrationConfig)
+
+instance Default DomainRegistrationConfig where
+  def = DomainRegistrationConfig
+
+instance ToSchema DomainRegistrationConfig where
+  schema = object "DomainRegistrationConfig" objectSchema
+
+instance Default (LockableFeature DomainRegistrationConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig DomainRegistrationConfig where
+  type FeatureSymbol DomainRegistrationConfig = "domainRegistration"
+  featureSingleton = FeatureSingletonDomainRegistrationConfig
+  objectSchema = pure DomainRegistrationConfig
+
 ----------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1231,7 +1256,8 @@ type Features =
     MlsE2EIdConfig,
     MlsMigrationConfig,
     EnforceFileDownloadLocationConfig,
-    LimitedEventFanoutConfig
+    LimitedEventFanoutConfig,
+    DomainRegistrationConfig
   ]
 
 -- | list of available features as a record
