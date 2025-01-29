@@ -15,7 +15,6 @@ enterpriseLoginSubsystemTestInterpreter constMbGuardResult =
     UpdateDomainRegistration _ _ -> undefined
     DeleteDomain _ -> undefined
     GetDomainRegistration _ -> pure $ mkDomainRegistrationResponse <$> constMbGuardResult
-    GuardEmailDomainRegistrationRegister _ -> undefined
     UpdateDomainRedirect {} -> undefined
     UpdateTeamInvite {} -> undefined
     GetDomainRegistrationPublic _ -> undefined

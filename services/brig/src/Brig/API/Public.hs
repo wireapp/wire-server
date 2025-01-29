@@ -859,7 +859,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
   -- TODO: we need an integration test for this, but it'd be easier to write that in a
   -- different PR where we have https://github.com/wireapp/wire-server/pull/4389.
-  (lift . liftSem . EnterpriseLogin.guardEmailDomainRegistrationRegister)
+  (lift . liftSem . UserSubsystem.guardRegisterUser)
     `mapM_` (emailIdentity =<< new.newUserIdentity)
 
   result <- API.createUser new

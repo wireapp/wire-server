@@ -19,7 +19,6 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import Data.Text.Encoding as T
 import Data.Text.Encoding qualified as Text
 import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
 import Data.Text.Lazy.Builder (Builder)
@@ -35,7 +34,6 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
-import Text.Email.Parser qualified as Email
 import Util.Options
 import Wire.API.EnterpriseLogin
 import Wire.API.Routes.Public.Brig.DomainVerification
@@ -118,7 +116,6 @@ runEnterpriseLoginSubsystem = interpret $
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
-    GuardEmailDomainRegistrationRegister email -> guardEmailDomainRegistrationRegisterImpl email
     UpdateDomainRedirect mAuthToken domain config ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         updateDomainRedirectImpl mAuthToken domain config
@@ -492,45 +489,6 @@ sendAuditMail url subject mBefore mAfter = do
   for_ mConfig $ \config -> do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
     sendMail mail
-
--- More info on the behavioral implications of domain registration records:
--- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1570832467/Email+domain+registration+and+configuration#Configuration-values
-emailToDomainRegistration ::
-  forall r.
-  ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
-    Member TinyLog r
-  ) =>
-  EmailAddress ->
-  Sem r (Maybe DomainRegistration)
-emailToDomainRegistration email = case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
-  Right dom -> lookup dom
-  Left msg ->
-    -- The EmailAddress parser and servant *should* make this impossible, but they use
-    -- different parsers, one of us is ours and may change any time, so who knows?
-    throw . EnterpriseLoginSubsystemGuardFailed $ InvalidDomain msg
-
-guardEmailDomainRegistrationRegisterImpl ::
-  forall r.
-  ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
-    Member TinyLog r
-  ) =>
-  EmailAddress ->
-  Sem r ()
-guardEmailDomainRegistrationRegisterImpl email = do
-  mReg <- emailToDomainRegistration email
-  for_ mReg $ \reg -> do
-    case reg.domainRedirect of
-      None -> ok
-      Locked -> ok
-      SSO _ -> nope DomRedirSetToSSO
-      Backend _ -> nope DomRedirSetToBackend
-      NoRegistration -> nope DomRedirSetToNoRegistration
-      PreAuthorized -> ok
-  where
-    ok = pure ()
-    nope = throw . EnterpriseLoginSubsystemGuardFailed
 
 updateDomainRedirectImpl ::
   ( Member (Error EnterpriseLoginSubsystemError) r,

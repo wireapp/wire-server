@@ -80,7 +80,7 @@ runAllEffects args =
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
-    prop "calls guardEmailDomainRegistrationState" $
+    prop "honors dommain config from `brig.domain_registration`" $
       \(tid :: TeamId)
        (preDomRegUpd :: DomainRegistrationUpdate)
        (preInviter :: User)

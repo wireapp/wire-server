@@ -7,7 +7,6 @@ import Data.Id
 import Data.Qualified
 import Imports
 import Polysemy
-import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Routes.Public.Brig.DomainVerification
 
@@ -18,7 +17,6 @@ data EnterpriseLoginSubsystem m a where
   UnAuthorizeDomain :: Domain -> EnterpriseLoginSubsystem m ()
   UpdateDomainRegistration :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
-  GuardEmailDomainRegistrationRegister :: EmailAddress -> EnterpriseLoginSubsystem m ()
   GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistrationResponse)
   UpdateDomainRedirect ::
     Token ->

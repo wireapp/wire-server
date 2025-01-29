@@ -64,6 +64,7 @@ import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
+import Wire.DomainRegistrationStore qualified as DRS
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events
 import Wire.FederationAPIAccess
@@ -167,6 +168,8 @@ type MiniBackendLowerEffects =
     State (Map EmailKey UserId),
     IndexedUserStore,
     FederationConfigStore,
+    DRS.DomainRegistrationStore,
+    State [DRS.StoredDomainRegistration],
     PasswordResetCodeStore,
     SessionStore,
     HashPassword,
@@ -319,12 +322,6 @@ runMiniFederation ownDomain backends =
     . runInputConst MkMiniContext {ownDomain = ownDomain}
     . unMiniFederation
 
-noOpLogger ::
-  Sem (Logger (Log.Msg -> Log.Msg) ': r) a ->
-  Sem r a
-noOpLogger = interpret $ \case
-  Log _lvl _msg -> pure ()
-
 runFederationStack ::
   (HasCallStack) =>
   MiniBackend ->
@@ -417,39 +414,44 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
 
       userSubsystemInterpreter :: InterpreterFor UserSubsystem (MiniBackendLowerEffects `Append` r)
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
-   in sequentiallyPerformConcurrency
-        . noOpLogger
-        . maybeFederationAPIAccess
-        . ignoreMetrics
-        . runInputConst Nothing
-        . runInputConst (toLocalUnsafe (Domain "localdomain") ())
-        . runInputConst cfg
-        . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-        . evalState []
-        . runState localBackend
-        . evalState []
-        . miniEventInterpreter
-        . inMemoryDeleteQueueInterpreter
-        . staticHashPasswordInterpreter
-        . runInMemorySessionStore
-        . runInMemoryPasswordResetCodeStore
-        . runFederationConfigStoreInMemory
-        . inMemoryIndexedUserStoreInterpreter
-        . liftUserKeyStoreState
-        . inMemoryUserKeyStoreInterpreter
-        . liftUserStoreState
-        . inMemoryUserStoreInterpreter
-        . liftBlockListStoreState
-        . inMemoryBlockListStoreInterpreter
-        . liftActivationCodeStoreState
-        . inMemoryActivationCodeStoreInterpreter
-        . liftInvitationInfoStoreState
-        . liftInvitationStoreState
-        . runInMemoryPasswordStoreInterpreter
-        . inMemoryInvitationStoreInterpreter
-        . miniGalleyAPIAccess teamMember galleyConfigs
-        . noopEmailSubsystemInterpreter
-        . userSubsystemInterpreter
+
+      lowerInterpreters :: Sem (MiniBackendLowerEffects `Append` r) a -> Sem r (MiniBackend, a)
+      lowerInterpreters =
+        sequentiallyPerformConcurrency
+          . noopLogger
+          . maybeFederationAPIAccess
+          . ignoreMetrics
+          . runInputConst Nothing
+          . runInputConst (toLocalUnsafe (Domain "localdomain") ())
+          . runInputConst cfg
+          . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+          . evalState []
+          . runState localBackend
+          . evalState []
+          . miniEventInterpreter
+          . inMemoryDeleteQueueInterpreter
+          . staticHashPasswordInterpreter
+          . runInMemorySessionStore
+          . runInMemoryPasswordResetCodeStore
+          . evalState []
+          . inMemoryDomainRegistrationStoreInterpreter
+          . runFederationConfigStoreInMemory
+          . inMemoryIndexedUserStoreInterpreter
+          . liftUserKeyStoreState
+          . inMemoryUserKeyStoreInterpreter
+          . liftUserStoreState
+          . inMemoryUserStoreInterpreter
+          . liftBlockListStoreState
+          . inMemoryBlockListStoreInterpreter
+          . liftActivationCodeStoreState
+          . inMemoryActivationCodeStoreInterpreter
+          . liftInvitationInfoStoreState
+          . liftInvitationStoreState
+          . runInMemoryPasswordStoreInterpreter
+          . inMemoryInvitationStoreInterpreter
+          . miniGalleyAPIAccess teamMember galleyConfigs
+          . noopEmailSubsystemInterpreter
+   in lowerInterpreters . userSubsystemInterpreter
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case
