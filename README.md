@@ -95,3 +95,5 @@ You have two options:
 * Option 1. (recommended) Install wire-server on kubernetes using the configuration and instructions provided in [wire-server-deploy](https://github.com/wireapp/wire-server-deploy). This is the best option to run it on a server and recommended if you want to self-host wire-server.
 
 * Option 2. Compile everything in this repo, then you can use the `dist/run-services`. This option is intended as a way to try out wire-server on your local development machine and not suited for production.
+
+TEST
