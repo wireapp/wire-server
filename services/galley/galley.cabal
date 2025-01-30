@@ -92,6 +92,7 @@ library
     Galley.API.MLS.Commit.ExternalCommit
     Galley.API.MLS.Commit.InternalCommit
     Galley.API.MLS.Conversation
+    Galley.API.MLS.Debug
     Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
     Galley.API.MLS.IncomingMessage
