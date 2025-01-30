@@ -154,6 +154,9 @@ type DomainVerificationChallengeAPI =
     :<|> Named
            "verify-challenge"
            ( Summary "Verify a DNS verification challenge"
+               :> CanThrow DomainVerificationChallengeNotFound
+               :> CanThrow DomainVerificationAuthFailure
+               :> CanThrow DomainVerificationDomainVerificationFailed
                :> "domain-verification"
                :> Capture "domain" Domain
                :> "challenges"
@@ -166,6 +169,9 @@ type DomainVerificationAPI =
   Named
     "domain-verification-authorize-team"
     ( Summary "Authorize a team to operate on a verified domain"
+        :> CanThrow DomainVerificationAuthFailure
+        :> CanThrow DomainVerificationPaymentRequired
+        :> CanThrow DomainVerificationOperationForbidden
         :> ZLocalUser
         :> "domain-verification"
         :> Capture "domain" Domain
@@ -176,8 +182,8 @@ type DomainVerificationAPI =
     :<|> Named
            "update-domain-redirect"
            ( Summary "Verify DNS record and save domain redirect configuration"
+               :> CanThrow DomainVerificationAuthFailure
                :> CanThrow DomainVerificationOperationForbidden
-               :> CanThrow DomainVerificationDomainVerificationFailed
                :> Header' '[Required, Strict] "Authorization" (Bearer Token)
                :> "domain-verification"
                :> Capture "domain" Domain
@@ -191,7 +197,6 @@ type DomainVerificationAPI =
                :> CanThrow DomainVerificationAuthFailure
                :> CanThrow DomainVerificationPaymentRequired
                :> CanThrow DomainVerificationOperationForbidden
-               :> CanThrow DomainVerificationDomainVerificationFailed
                :> ZLocalUser
                :> "domain-verification"
                :> Capture "domain" Domain
