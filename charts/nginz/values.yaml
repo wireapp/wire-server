@@ -471,16 +471,27 @@ nginx_conf:
     - path: /upgrade-personal-to-team$
       envs:
       - all
-    - path: /domain-verification/([^/]*)/team(-token)?$
+    - path: /domain-verification/([^/]*)/challenges$
       envs:
-      - all
-    - path: /domain-verification/
+        - all
+      disable_zauth: true
+    - path: /domain-verification/([^/]*)/challenges/([^/]*)
       envs:
-      - all
+        - all
+      disable_zauth: true
+    - path: /domain-verification/([^/]*)/authorize-team$
+      envs:
+        - all
+    - path: /domain-verification/([^/]*)/team$
+      envs:
+        - all
+    - path: /domain-verification/([^/]*)/backend$
+      envs:
+        - all
       disable_zauth: true
     - path: /get-domain-registration$
       envs:
-      - all
+        - all
       disable_zauth: true
     - path: /bot/conversations/(.+)
       envs:
