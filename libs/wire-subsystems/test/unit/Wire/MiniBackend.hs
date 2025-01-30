@@ -166,6 +166,13 @@ data MiniBackendParams r = MiniBackendParams
     cfg :: UserSubsystemConfig
   }
 
+-- | `MiniBackendLowerEffects` is not a long, flat list, but a tree of effects.  This way we
+-- can work on a subtree without having to debug the entire vast list.  Makes for much better
+-- error messages.
+--
+-- FUTUREWORK: it'd be nice to have a steeper hierarchy of effects here, and maybe not
+-- organize along effect types ("all `State`s"), but the domain ("everything about block
+-- lists").
 type MiniBackendLowerEffects =
   '[ EmailSubsystem,
      GalleyAPIAccess,
@@ -183,12 +190,11 @@ type MiniBackendLowerEffects =
      HashPassword,
      DeleteQueue,
      Events,
-     Now,
-     Input UserSubsystemConfig,
-     Input (Local ()),
-     Input (Maybe AllowlistEmailDomains),
-     Metrics
+     Now
    ]
+    `Append` InputEffects
+    `Append` '[ Metrics
+              ]
     `Append` StateEffects
     `Append` '[ FederationAPIAccess MiniFederationMonad,
                 TinyLog,
@@ -206,9 +212,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . maybeFederationAPIAccess
     . stateEffectsInterpreters mb
     . ignoreMetrics
-    . runInputConst Nothing
-    . runInputConst (toLocalUnsafe (Domain "localdomain") ())
-    . runInputConst cfg
+    . inputEffectsInterpreters cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
@@ -252,6 +256,18 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . liftActivationCodeStoreState
     . liftInvitationInfoStoreState
     . liftInvitationStoreState
+
+type InputEffects =
+  '[ Input UserSubsystemConfig,
+     Input (Local ()),
+     Input (Maybe AllowlistEmailDomains)
+   ]
+
+inputEffectsInterpreters :: forall r a. UserSubsystemConfig -> Sem (InputEffects `Append` r) a -> Sem r a
+inputEffectsInterpreters cfg =
+  runInputConst Nothing
+    . runInputConst (toLocalUnsafe (Domain "localdomain") ())
+    . runInputConst cfg
 
 ----------------------------------------------------------------------
 
