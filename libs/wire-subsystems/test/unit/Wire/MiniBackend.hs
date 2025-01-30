@@ -167,82 +167,91 @@ data MiniBackendParams r = MiniBackendParams
   }
 
 type MiniBackendLowerEffects =
-  [ EmailSubsystem,
-    GalleyAPIAccess,
-    InvitationStore,
-    PasswordStore,
-    State (Map (TeamId, InvitationId) StoredInvitation),
-    State (Map InvitationCode StoredInvitation),
-    ActivationCodeStore,
-    State (Map EmailKey (Maybe UserId, ActivationCode)),
-    BlockListStore,
-    State [EmailKey],
-    UserStore,
-    State [StoredUser],
-    UserKeyStore,
-    State (Map EmailKey UserId),
-    IndexedUserStore,
-    FederationConfigStore,
-    DRS.DomainRegistrationStore,
-    State [DRS.StoredDomainRegistration],
-    PasswordResetCodeStore,
-    SessionStore,
-    HashPassword,
-    DeleteQueue,
-    Events,
-    State [InternalNotification],
-    State MiniBackend,
-    State [MiniEvent],
-    Now,
-    Input UserSubsystemConfig,
-    Input (Local ()),
-    Input (Maybe AllowlistEmailDomains),
-    Metrics,
-    FederationAPIAccess MiniFederationMonad,
-    TinyLog,
-    Concurrency 'Unsafe
-  ]
+  '[ EmailSubsystem,
+     GalleyAPIAccess,
+     InvitationStore,
+     PasswordStore,
+     ActivationCodeStore,
+     BlockListStore,
+     UserStore,
+     UserKeyStore,
+     IndexedUserStore,
+     FederationConfigStore,
+     DRS.DomainRegistrationStore,
+     PasswordResetCodeStore,
+     SessionStore,
+     HashPassword,
+     DeleteQueue,
+     Events,
+     Now,
+     Input UserSubsystemConfig,
+     Input (Local ()),
+     Input (Maybe AllowlistEmailDomains),
+     Metrics
+   ]
+    `Append` StateEffects
+    `Append` '[ FederationAPIAccess MiniFederationMonad,
+                TinyLog,
+                Concurrency 'Unsafe
+              ]
 
 miniBackendLowerEffectsInterpreters ::
   forall r a.
   MiniBackendParams r ->
   Sem (MiniBackendLowerEffects `Append` r) a ->
   Sem r (MiniBackend, a)
-miniBackendLowerEffectsInterpreters (MiniBackendParams {..}) =
+miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
   sequentiallyPerformConcurrency
     . noopLogger
     . maybeFederationAPIAccess
+    . stateEffectsInterpreters mb
     . ignoreMetrics
     . runInputConst Nothing
     . runInputConst (toLocalUnsafe (Domain "localdomain") ())
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-    . evalState []
-    . runState localBackend
-    . evalState []
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticHashPasswordInterpreter
     . runInMemorySessionStore
     . runInMemoryPasswordResetCodeStore
-    . evalState []
     . inMemoryDomainRegistrationStoreInterpreter
     . runFederationConfigStoreInMemory
     . inMemoryIndexedUserStoreInterpreter
-    . liftUserKeyStoreState
     . inMemoryUserKeyStoreInterpreter
-    . liftUserStoreState
     . inMemoryUserStoreInterpreter
-    . liftBlockListStoreState
     . inMemoryBlockListStoreInterpreter
-    . liftActivationCodeStoreState
     . inMemoryActivationCodeStoreInterpreter
-    . liftInvitationInfoStoreState
-    . liftInvitationStoreState
     . runInMemoryPasswordStoreInterpreter
     . inMemoryInvitationStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
     . noopEmailSubsystemInterpreter
+
+type StateEffects =
+  '[ State (Map (TeamId, InvitationId) StoredInvitation),
+     State (Map InvitationCode StoredInvitation),
+     State (Map EmailKey (Maybe UserId, ActivationCode)),
+     State [EmailKey],
+     State [StoredUser],
+     State (Map EmailKey UserId),
+     State [DRS.StoredDomainRegistration],
+     State [InternalNotification],
+     State MiniBackend,
+     State [MiniEvent]
+   ]
+
+stateEffectsInterpreters :: forall r r' a. MiniBackendParams r' -> Sem (StateEffects `Append` r) a -> Sem r (MiniBackend, a)
+stateEffectsInterpreters MiniBackendParams {..} =
+  evalState []
+    . runState localBackend
+    . evalState []
+    . evalState []
+    . liftUserKeyStoreState
+    . liftUserStoreState
+    . liftBlockListStoreState
+    . liftActivationCodeStoreState
+    . liftInvitationInfoStoreState
+    . liftInvitationStoreState
 
 ----------------------------------------------------------------------
 
