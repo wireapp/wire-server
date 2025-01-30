@@ -182,8 +182,8 @@ testDomainRegistrationUpdateInvalidCases = do
     checkUpdateFails :: String -> Value -> App ()
     checkUpdateFails domain update = do
       bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
-        resp.status `shouldMatchInt` 400
-        resp.json %. "label" `shouldMatch` "update-failure"
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
 testDomainRegistrationPreAuthorizedToUnAuthorize :: App ()
 testDomainRegistrationPreAuthorizedToUnAuthorize = do
