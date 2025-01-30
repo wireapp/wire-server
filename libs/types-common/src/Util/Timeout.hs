@@ -33,4 +33,4 @@ instance FromJSON Timeout where
           Timeout $
             fromIntegral @Int $
               maybe defaultV fromIntegral bounded
-  parseJSON v = typeMismatch "activationTimeout" v
+  parseJSON v = typeMismatch "Timeout" v

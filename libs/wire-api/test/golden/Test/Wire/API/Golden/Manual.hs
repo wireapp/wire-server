@@ -323,12 +323,12 @@ tests =
           ],
       testGroup "DomainRegistration" $
         testObjects
-          [ (testObject_DomainRegistration_1, "testObject_DomainRegistration_1.json"),
-            (testObject_DomainRegistration_2, "testObject_DomainRegistration_2.json"),
-            (testObject_DomainRegistration_3, "testObject_DomainRegistration_3.json"),
-            (testObject_DomainRegistration_4, "testObject_DomainRegistration_4.json"),
-            (testObject_DomainRegistration_5, "testObject_DomainRegistration_5.json"),
-            (testObject_DomainRegistration_6, "testObject_DomainRegistration_6.json")
+          [ (testObject_DomainRegistrationResponse_1, "testObject_DomainRegistrationResponse_1.json"),
+            (testObject_DomainRegistrationResponse_2, "testObject_DomainRegistrationResponse_2.json"),
+            (testObject_DomainRegistrationResponse_3, "testObject_DomainRegistrationResponse_3.json"),
+            (testObject_DomainRegistrationResponse_4, "testObject_DomainRegistrationResponse_4.json"),
+            (testObject_DomainRegistrationResponse_5, "testObject_DomainRegistrationResponse_5.json"),
+            (testObject_DomainRegistrationResponse_6, "testObject_DomainRegistrationResponse_6.json")
           ],
       testGroup "DomainRegistrationUpdate" $
         testObjects

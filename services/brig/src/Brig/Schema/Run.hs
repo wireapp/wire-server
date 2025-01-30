@@ -63,6 +63,7 @@ import Brig.Schema.V85_DropUserKeysHashed qualified as V85_DropUserKeysHashed
 import Brig.Schema.V86_WriteTimeBumper qualified as V86_WriteTimeBumper
 import Brig.Schema.V87_DropInvitationTables qualified as V87_DropInvitationTables
 import Brig.Schema.V88_DomainRegistrationTable qualified as V88_DomainRegistrationTable
+import Brig.Schema.V89_UpdateDomainRegistrationSchema qualified as V89_UpdateDomainRegistrationSchema
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
@@ -132,7 +133,8 @@ migrations =
     V85_DropUserKeysHashed.migration,
     V86_WriteTimeBumper.migration,
     V87_DropInvitationTables.migration,
-    V88_DomainRegistrationTable.migration
+    V88_DomainRegistrationTable.migration,
+    V89_UpdateDomainRegistrationSchema.migration
     -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
     -- https://github.com/wireapp/wire-server/pull/964
   ]

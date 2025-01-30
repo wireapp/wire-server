@@ -81,6 +81,8 @@ library
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
     Wire.DomainRegistrationStore.Cassandra
+    Wire.DomainVerificationChallengeStore
+    Wire.DomainVerificationChallengeStore.Cassandra
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
@@ -184,6 +186,7 @@ library
     , extra
     , HaskellNet
     , HaskellNet-SSL
+    , hex
     , HsOpenSSL
     , hspec
     , html-entities
@@ -252,6 +255,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.DomainRegistrationStore
+    Wire.MockInterpreters.DomainVerificationChallengeStore
     Wire.MockInterpreters.EmailSending
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.EnterpriseLoginSubsystem

@@ -53,6 +53,7 @@ module Data.Id
     NoId,
     OAuthClientId,
     OAuthRefreshTokenId,
+    ChallengeId,
 
     -- * Utils
     uuidSchema,
@@ -107,6 +108,7 @@ data IdTag
   | ScimToken
   | OAuthClient
   | OAuthRefreshToken
+  | Challenge
 
 idTagName :: IdTag -> Text
 idTagName Asset = "Asset"
@@ -119,6 +121,7 @@ idTagName Team = "Team"
 idTagName ScimToken = "ScimToken"
 idTagName OAuthClient = "OAuthClient"
 idTagName OAuthRefreshToken = "OAuthRefreshToken"
+idTagName Challenge = "Challenge"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
@@ -164,6 +167,8 @@ type ScimTokenId = Id 'ScimToken
 type OAuthClientId = Id 'OAuthClient
 
 type OAuthRefreshTokenId = Id 'OAuthRefreshToken
+
+type ChallengeId = Id 'Challenge
 
 -- Id -------------------------------------------------------------------------
 

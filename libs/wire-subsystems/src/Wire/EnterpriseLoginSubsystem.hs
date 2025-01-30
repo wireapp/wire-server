@@ -25,18 +25,10 @@ data EnterpriseLoginSubsystem m a where
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
   GuardEmailDomainRegistrationTeamInvitation :: InvitationFlow -> TeamId -> EmailAddress -> EnterpriseLoginSubsystem m ()
   GuardEmailDomainRegistrationRegister :: EmailAddress -> EnterpriseLoginSubsystem m ()
-  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistration
-  TryGetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistration)
-  RequestDomainVerificationToken ::
-    Maybe DomainVerificationAuthToken ->
-    Domain ->
-    EnterpriseLoginSubsystem m DomainVerificationTokenResponse
-  RequestDomainVerificationTeamToken ::
-    Local UserId ->
-    Domain ->
-    EnterpriseLoginSubsystem m DomainVerificationTokenResponse
+  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m DomainRegistrationResponse
+  TryGetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistrationResponse)
   UpdateDomainRedirect ::
-    DomainVerificationAuthToken ->
+    Token ->
     Domain ->
     DomainRedirectConfig ->
     EnterpriseLoginSubsystem m ()
@@ -48,5 +40,14 @@ data EnterpriseLoginSubsystem m a where
   GetDomainRegistrationPublic ::
     GetDomainRegistrationRequest ->
     EnterpriseLoginSubsystem m DomainRedirect
+  CreateDomainVerificationChallenge ::
+    Domain ->
+    EnterpriseLoginSubsystem m DomainVerificationChallenge
+  VerifyChallenge ::
+    Domain ->
+    ChallengeId ->
+    Token ->
+    EnterpriseLoginSubsystem m Token
+  AuthorizeTeam :: Local UserId -> Domain -> DomainOwnershipToken -> EnterpriseLoginSubsystem m ()
 
 makeSem ''EnterpriseLoginSubsystem

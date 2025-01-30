@@ -30,20 +30,6 @@ data DomainRedirectConfig
 
 makePrisms ''DomainRedirectConfig
 
-data DomainVerificationTokenResponse = DomainVerificationTokenResponse
-  { authToken :: Maybe DomainVerificationAuthToken,
-    dnsToken :: DomainVerificationToken
-  }
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainVerificationTokenResponse)
-
-instance ToSchema DomainVerificationTokenResponse where
-  schema :: ValueSchema NamedSwaggerDoc DomainVerificationTokenResponse
-  schema =
-    object "DomainVerificationTokenResponse" $
-      DomainVerificationTokenResponse
-        <$> (.authToken) .= maybe_ (optField "auth_token" schema)
-        <*> (.dnsToken) .= field "dns_verification_token" schema
-
 deriving via (Schema DomainRedirectConfig) instance A.ToJSON DomainRedirectConfig
 
 deriving via (Schema DomainRedirectConfig) instance A.FromJSON DomainRedirectConfig
@@ -121,33 +107,84 @@ instance ToSchema TeamInviteConfig where
 samlIdpIdSchema :: ValueSchema NamedSwaggerDoc SAML.IdPId
 samlIdpIdSchema = SAML.fromIdPId .= fmap SAML.IdPId uuidSchema
 
-type DomainVerificationAPI =
+data DomainVerificationChallenge = DomainVerificationChallenge
+  { challengeId :: ChallengeId,
+    -- | unhashed/plaintext short lived challenge auth token
+    token :: Token,
+    dnsVerificationToken :: DnsVerificationToken
+  }
+  deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainVerificationChallenge)
+
+instance ToSchema DomainVerificationChallenge where
+  schema =
+    object "DomainVerificationChallenge" $
+      DomainVerificationChallenge
+        <$> challengeId .= field "id" schema
+        <*> token .= field "token" schema
+        <*> (.dnsVerificationToken) .= field "dns_verification_token" schema
+
+newtype ChallengeToken = ChallengeToken {unChallengeToken :: Token}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema ChallengeToken)
+
+instance ToSchema ChallengeToken where
+  schema =
+    object "ChallengeToken" $
+      ChallengeToken
+        <$> unChallengeToken .= field "challenge_token" schema
+
+newtype DomainOwnershipToken = DomainOwnershipToken {unDomainOwnershipToken :: Token}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainOwnershipToken)
+
+instance ToSchema DomainOwnershipToken where
+  schema =
+    object "DomainOwnershipToken" $
+      DomainOwnershipToken
+        <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
+
+type DomainVerificationChallengeAPI =
   Named
-    "domain-verification-token"
-    ( Summary "Get a DNS verification token"
-        :> Header "Authorization" (Bearer DomainVerificationAuthToken)
+    "domain-verification-challenge"
+    ( Summary "Get a DNS verification challenge"
         :> "domain-verification"
         :> Capture "domain" Domain
-        :> "token"
-        :> Post '[JSON] DomainVerificationTokenResponse
+        :> "challenges"
+        :> Post '[JSON] DomainVerificationChallenge
     )
     :<|> Named
-           "domain-verification-token-team"
-           ( Summary "Get a DNS verification token"
+           "verify-challenge"
+           ( Summary "Verify a DNS verification challenge"
+               :> CanThrow DomainVerificationChallengeNotFound
                :> CanThrow DomainVerificationAuthFailure
-               :> CanThrow DomainVerificationPaymentRequired
-               :> ZLocalUser
+               :> CanThrow DomainVerificationDomainVerificationFailed
                :> "domain-verification"
                :> Capture "domain" Domain
-               :> "team-token"
-               :> Post '[JSON] DomainVerificationTokenResponse
+               :> "challenges"
+               :> Capture "challengeId" ChallengeId
+               :> ReqBody '[JSON] ChallengeToken
+               :> Post '[JSON] DomainOwnershipToken
            )
+
+type DomainVerificationAPI =
+  Named
+    "domain-verification-authorize-team"
+    ( Summary "Authorize a team to operate on a verified domain"
+        :> CanThrow DomainVerificationAuthFailure
+        :> CanThrow DomainVerificationPaymentRequired
+        :> CanThrow DomainVerificationOperationForbidden
+        :> ZLocalUser
+        :> "domain-verification"
+        :> Capture "domain" Domain
+        :> "authorize-team"
+        :> ReqBody '[JSON] DomainOwnershipToken
+        :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Authorized")
+    )
     :<|> Named
            "update-domain-redirect"
            ( Summary "Verify DNS record and save domain redirect configuration"
+               :> CanThrow DomainVerificationAuthFailure
                :> CanThrow DomainVerificationOperationForbidden
-               :> CanThrow DomainVerificationDomainVerificationFailed
-               :> Header' '[Required, Strict] "Authorization" (Bearer DomainVerificationAuthToken)
+               :> Header' '[Required, Strict] "Authorization" (Bearer Token)
                :> "domain-verification"
                :> Capture "domain" Domain
                :> "backend"
@@ -160,7 +197,6 @@ type DomainVerificationAPI =
                :> CanThrow DomainVerificationAuthFailure
                :> CanThrow DomainVerificationPaymentRequired
                :> CanThrow DomainVerificationOperationForbidden
-               :> CanThrow DomainVerificationDomainVerificationFailed
                :> ZLocalUser
                :> "domain-verification"
                :> Capture "domain" Domain

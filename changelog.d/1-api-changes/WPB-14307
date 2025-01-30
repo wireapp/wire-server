@@ -1,6 +1,7 @@
-New endpoints for domain registration and verification:
-- POST /domain-verification/:domain/token
-- POST /domain-verification/:domain/backend
-- POST /domain-verification/:domain/team-token
-- POST /domain-verification/:domain/team
-- POST /get-domain-registration
+New endpoints for domain registration and verification (#4389, #4422)
+  - POST /domain-verification/:domain/team
+  - POST /domain-verification/:domain/backend
+  - POST /domain-verification/:domain/challenges
+  - POST /domain-verification/:domain/challenges/:challengeId
+  - POST /domain-verification/:domain/authorize-team
+  - POST /get-domain-registration

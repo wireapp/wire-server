@@ -104,16 +104,13 @@ data BrigError
   | MLSServicesNotAllowed
   | NotificationQueueConnectionError
   | DomainVerificationErrorNotFound
-  | DomainVerificationUnlockError
-  | DomainVerificationUnAuthorizeError
-  | DomainVerificationPreAuthorizeError
   | DomainVerificationInvalidDomain
   | DomainVerificationDomainVerificationFailed
   | DomainVerificationOperationForbidden
-  | DomainVerificationInvalidAuthToken
   | DomainVerificationAuthFailure
   | DomainVerificationPaymentRequired
   | DomainVerificationNotEnabled
+  | DomainVerificationChallengeNotFound
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -321,22 +318,16 @@ type instance MapError 'NotificationQueueConnectionError = 'StaticError 500 "int
 
 type instance MapError 'DomainVerificationErrorNotFound = 'StaticError 404 "not-found" "Not Found"
 
-type instance MapError 'DomainVerificationUnlockError = 'StaticError 409 "unlock-error" "Domain can only be unlocked from a locked state"
-
-type instance MapError 'DomainVerificationUnAuthorizeError = 'StaticError 409 "unauthorize-error" "Domain redirect can not bet set to unauthorized when locked or SSO"
-
-type instance MapError 'DomainVerificationPreAuthorizeError = 'StaticError 409 "preauthorize-error" "Domain redirect must be 'none' to be pre-authorized"
-
 type instance MapError 'DomainVerificationInvalidDomain = 'StaticError 400 "invalid-domain" "Invalid domain"
 
 type instance MapError 'DomainVerificationDomainVerificationFailed = 'StaticError 403 "domain-verification-failed" "Domain verification failed"
 
 type instance MapError 'DomainVerificationOperationForbidden = 'StaticError 403 "operation-forbidden-for-domain-registration-state" "Invalid domain registration state update"
 
-type instance MapError 'DomainVerificationInvalidAuthToken = 'StaticError 403 "invalid-domain-verification-auth-token" "Invalid domain verification auth token"
+type instance MapError 'DomainVerificationAuthFailure = 'StaticError 401 "domain-registration-update-auth-failure" "Domain registration updated auth failure"
 
-type instance MapError 'DomainVerificationAuthFailure = 'StaticError 401 "domain-registration-updated-auth-failure" "Domain registration updated auth failure"
-
-type instance MapError 'DomainVerificationPaymentRequired = 'StaticError 402 "domain-registration-updated-payment-required" "Domain registration updated payment required"
+type instance MapError 'DomainVerificationPaymentRequired = 'StaticError 402 "domain-registration-update-payment-required" "Domain registration updated payment required"
 
 type instance MapError 'DomainVerificationNotEnabled = 'StaticError 503 "enterprise-service-not-enabled" "Enterprise service not enabled"
+
+type instance MapError 'DomainVerificationChallengeNotFound = 'StaticError 404 "challenge-not-found" "Challenge not found"

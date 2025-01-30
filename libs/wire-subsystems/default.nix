@@ -35,6 +35,7 @@
 , gitignoreSource
 , HaskellNet
 , HaskellNet-SSL
+, hex
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -127,6 +128,7 @@ mkDerivation {
     extra
     HaskellNet
     HaskellNet-SSL
+    hex
     HsOpenSSL
     hspec
     html-entities

@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.EnterpriseLogin where
@@ -5,20 +6,22 @@ module Wire.API.EnterpriseLogin where
 import Cassandra qualified as C
 import Control.Arrow
 import Control.Lens (makePrisms, (?~))
+import Crypto.Hash qualified as Crypto
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
-import Data.ByteString qualified as BS
+import Data.ByteArray (convert)
 import Data.ByteString.Base64.URL qualified as B64U
-import Data.ByteString.Builder
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy qualified as BL
 import Data.Default (Default, def)
 import Data.Domain
 import Data.Id
+import Data.Json.Util (base64URLSchema)
 import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
-import Data.Text.Ascii (Ascii, AsciiText (toText))
+import Data.Text.Ascii (AsciiBase64Url, AsciiText (toText))
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Imports
@@ -168,8 +171,10 @@ deriving via (Schema TeamInvite) instance ToJSON TeamInvite
 
 deriving via (Schema TeamInvite) instance S.ToSchema TeamInvite
 
-newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: Ascii}
+-- | The challenge to be presented in a TXT DNS record by the owner of the domain.
+newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: AsciiBase64Url}
   deriving stock (Ord, Eq, Show)
+  deriving newtype (FromHttpApiData, ToByteString)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema DnsVerificationToken
 
 instance ToSchema DnsVerificationToken where
@@ -204,66 +209,72 @@ instance ToSchema DomainRegistrationUpdate where
         <$> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
 
-data DomainRegistration = DomainRegistration
+data DomainRegistrationResponse = DomainRegistrationResponse
   { domain :: Domain,
+    authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
     teamInvite :: TeamInvite,
     dnsVerificationToken :: Maybe DnsVerificationToken
   }
   deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistration
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistrationResponse
 
-instance ToSchema DomainRegistration where
+mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse
+mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
+
+instance ToSchema DomainRegistrationResponse where
   schema =
-    object "DomainRegistration" $
-      DomainRegistration
+    object "DomainRegistrationResponse" $
+      DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
+        <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
         <*> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
--- | Bearer authentication token for domain verification requests.
-newtype DomainVerificationAuthToken = DomainVerificationAuthToken
-  { unDomainVerificationAuthToken :: ByteString
+data DomainRegistration = DomainRegistration
+  { domain :: Domain,
+    authorizedTeam :: Maybe TeamId,
+    domainRedirect :: DomainRedirect,
+    teamInvite :: TeamInvite,
+    dnsVerificationToken :: Maybe DnsVerificationToken,
+    authTokenHash :: Maybe Token
   }
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Show)
 
-parseDomainVerificationAuthToken :: Text -> Either String DomainVerificationAuthToken
-parseDomainVerificationAuthToken txt = do
-  bytes <- B64U.decodeUnpadded (Text.encodeUtf8 txt)
-  unless (BS.length bytes == 32) $ Left "Invalid random auth token length"
-  pure (DomainVerificationAuthToken bytes)
+mkDomainRegistration :: Domain -> DomainRegistration
+mkDomainRegistration domain =
+  DomainRegistration
+    { domain,
+      authorizedTeam = Nothing,
+      domainRedirect = def,
+      teamInvite = def,
+      dnsVerificationToken = Nothing,
+      authTokenHash = Nothing
+    }
 
-serializeDomainVerificationAuthToken :: DomainVerificationAuthToken -> Text
-serializeDomainVerificationAuthToken =
-  Text.decodeUtf8
-    . B64U.encodeUnpadded
-    . unDomainVerificationAuthToken
+newtype Token = Token {unToken :: ByteString}
+  deriving newtype (Eq, Ord, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON, S.ToSchema) via (Schema Token)
 
-instance ToSchema DomainVerificationAuthToken where
-  schema =
-    serializeDomainVerificationAuthToken
-      .= parsedText "DomainVerificationAuthToken" parseDomainVerificationAuthToken
+instance ToSchema Token where
+  schema = Token <$> unToken .= named "Token" base64URLSchema
 
-instance S.ToParamSchema (Bearer DomainVerificationAuthToken) where
+hashToken :: Token -> Token
+hashToken = Token . convert . Crypto.hash @ByteString @Crypto.SHA256 . unToken
+
+instance S.ToParamSchema (Bearer Token) where
   toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
-instance FromHttpApiData DomainVerificationAuthToken where
-  parseUrlPiece = mapLeft Text.pack . parseDomainVerificationAuthToken
+instance FromHttpApiData Token where
+  parseUrlPiece =
+    mapLeft Text.pack
+      . fmap Token
+      . B64U.decodeUnpadded
+      . Text.encodeUtf8
 
-instance ToByteString DomainVerificationAuthToken where
-  builder = builder . Text.encodeUtf8 . serializeDomainVerificationAuthToken
-
--- | The challenge to be presented in a TXT DNS record by the owner of the domain.
-newtype DomainVerificationToken = DomainVerificationToken {unDomainVerificationToken :: Text}
-  deriving newtype (Eq, Ord, Show)
-  deriving (Aeson.FromJSON, Aeson.ToJSON, S.ToSchema) via (Schema DomainVerificationToken)
-
-instance ToSchema DomainVerificationToken where
-  schema = DomainVerificationToken <$> unDomainVerificationToken .= schema
-
-instance ToByteString DomainVerificationToken where
-  builder = byteString . Text.encodeUtf8 . unDomainVerificationToken
+instance ToByteString Token where
+  builder = builder . B64U.encodeUnpadded . unToken
 
 --------------------------------------------------------------------------------
 -- CQL instances
@@ -308,8 +319,10 @@ instance C.Cql DnsVerificationToken where
   fromCql (C.CqlAscii t) = DnsVerificationToken <$> Ascii.validate t
   fromCql _ = Left "DnsVerificationToken value: text expected"
 
-instance C.Cql DomainVerificationAuthToken where
-  ctype = C.Tagged C.AsciiColumn
-  toCql = C.toCql . serializeDomainVerificationAuthToken
-  fromCql (C.CqlAscii t) = parseDomainVerificationAuthToken t
-  fromCql _ = Left "DomainVerificationAuthToken value: text expected"
+instance C.Cql Token where
+  ctype = C.Tagged C.BlobColumn
+
+  toCql = C.CqlBlob . BL.fromStrict . unToken
+
+  fromCql (C.CqlBlob b) = pure $ Token $ BL.toStrict b
+  fromCql _ = Left "Token value: blob expected"

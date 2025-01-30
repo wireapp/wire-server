@@ -16,12 +16,14 @@ import Test.QuickCheck
 import Wire.API.EnterpriseLogin
 import Wire.API.User.EmailAddress (domainPart)
 import Wire.DomainRegistrationStore
+import Wire.DomainVerificationChallengeStore
 import Wire.EmailSending
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error
 import Wire.EnterpriseLoginSubsystem.Interpreter
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters.DomainRegistrationStore
+import Wire.MockInterpreters.DomainVerificationChallengeStore
 import Wire.MockInterpreters.EmailSending
 import Wire.MockInterpreters.Error
 import Wire.MockInterpreters.GalleyAPIAccess
@@ -40,6 +42,7 @@ import Wire.UserSubsystem
 runDependencies ::
   Sem
     '[ DomainRegistrationStore,
+       DomainVerificationChallengeStore,
        (Error EnterpriseLoginSubsystemError),
        (Error ParseException),
        GalleyAPIAccess,
@@ -71,6 +74,7 @@ runDependencies =
     . miniGalleyAPIAccess Nothing def
     . runErrorUnsafe
     . runError
+    . (evalState mempty . inMemoryDomainVerificationChallengeStoreInterpreter . raiseUnder)
     . (evalState mempty . inMemoryDomainRegistrationStoreInterpreter . raiseUnder)
 
 fakeRpc :: InterpreterFor Rpc r

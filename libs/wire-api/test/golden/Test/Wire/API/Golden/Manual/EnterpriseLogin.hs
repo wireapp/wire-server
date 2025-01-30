@@ -26,58 +26,64 @@ import SAML2.WebSSO qualified as SAML
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.EnterpriseLogin
 
-testObject_DomainRegistration_1 :: DomainRegistration
-testObject_DomainRegistration_1 =
-  DomainRegistration
+testObject_DomainRegistrationResponse_1 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_1 =
+  DomainRegistrationResponse
     { domain = Domain "example.com",
+      authorizedTeam = Nothing,
       domainRedirect = Locked,
       teamInvite = Allowed,
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistration_2 :: DomainRegistration
-testObject_DomainRegistration_2 =
-  DomainRegistration
+testObject_DomainRegistrationResponse_2 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_2 =
+  DomainRegistrationResponse
     { domain = Domain "example.com",
+      authorizedTeam = Nothing,
       domainRedirect = None,
       teamInvite = NotAllowed,
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistration_3 :: DomainRegistration
-testObject_DomainRegistration_3 =
-  DomainRegistration
+testObject_DomainRegistrationResponse_3 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_3 =
+  DomainRegistrationResponse
     { domain = Domain "example.com",
+      authorizedTeam = Nothing,
       domainRedirect = SSO (SAML.IdPId $ fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
       teamInvite = Team $ Id (fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistration_4 :: DomainRegistration
-testObject_DomainRegistration_4 =
-  DomainRegistration
+testObject_DomainRegistrationResponse_4 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_4 =
+  DomainRegistrationResponse
     { domain = Domain "example.com",
+      authorizedTeam = Nothing,
       domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))),
       teamInvite = Allowed,
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistration_5 :: DomainRegistration
-testObject_DomainRegistration_5 =
-  DomainRegistration
+testObject_DomainRegistrationResponse_5 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_5 =
+  DomainRegistrationResponse
     { domain = Domain "example.com",
+      authorizedTeam = Id <$> UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284",
       domainRedirect = NoRegistration,
       teamInvite = Allowed,
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistration_6 :: DomainRegistration
-testObject_DomainRegistration_6 =
-  DomainRegistration
+testObject_DomainRegistrationResponse_6 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_6 =
+  DomainRegistrationResponse
     { domain = Domain "example.com",
+      authorizedTeam = Nothing,
       domainRedirect = PreAuthorized,
       teamInvite = Allowed,
-      dnsVerificationToken = Just $ DnsVerificationToken "wire-domain-Ym9vCg::example.com"
+      dnsVerificationToken = Just $ DnsVerificationToken "jfdjsejsdjsdfjsdfjlwejwekljwef"
     }
 
 testObject_DomainRegistrationUpdate_1 :: DomainRegistrationUpdate
