@@ -1,4 +1,4 @@
-New endpoints for domain registration and verification (#4389, #4422, #4433)
+New endpoints for domain registration and verification (#4389, #4422, #4433, #4434)
   - POST /domain-verification/:domain/team
   - POST /domain-verification/:domain/backend
   - POST /domain-verification/:domain/challenges
