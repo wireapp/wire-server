@@ -588,6 +588,26 @@ loginProvider dom email pass = do
         setCookieHeader = CI.mk (T.encodeUtf8 . T.pack $ "Set-Cookie")
     pure . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
 
+requestProviderPasswordResetCode ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  App Response
+requestProviderPasswordResetCode domain email = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider", "password-reset"]
+  submit "POST" $ req & addJSONObject ["email" .= email]
+
+completeProviderPasswordReset ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  Value ->
+  String ->
+  App Response
+completeProviderPasswordReset domain resetCode newPassword = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider", "password-reset", "complete"]
+  body <- make (setField "password" newPassword resetCode)
+  submit "POST" $ req & addJSON body
+
 newService ::
   ( HasCallStack,
     MakesValue dom

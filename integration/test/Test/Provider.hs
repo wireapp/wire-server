@@ -1,6 +1,7 @@
 module Test.Provider where
 
 import API.Brig
+import API.BrigInternal
 import qualified API.Cargohold as Cargohold
 import API.Common
 import qualified API.Nginz as Nginz
@@ -22,6 +23,28 @@ testProviderUploadAsset = do
   -- test Nginz API
   bindResponse (Nginz.uploadProviderAsset OwnDomain (cs cookie) "another profile pic") $ \resp -> do
     resp.status `shouldMatchInt` 201
+
+testProviderPasswordReset :: (HasCallStack) => App ()
+testProviderPasswordReset = do
+  withModifiedBackend
+    def
+      { brigCfg =
+          -- Disable password hashing rate limiting, so we can create enable services quickly
+          setField @_ @Int "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" 0
+      }
+    $ \domain -> do
+      provider <- setupProvider domain def {newProviderPassword = Just defPassword}
+      pid <- asString $ provider %. "id"
+      email <- asString $ provider %. "email"
+      requestProviderPasswordResetCode domain email >>= assertSuccess
+      resetCode <- getPasswordResetCode domain email >>= getJSON 200
+
+      completeProviderPasswordReset domain resetCode defPassword `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "somethign"
+
+      completeProviderPasswordReset domain resetCode "shiny-new-password" >>= assertSuccess
+      undefined pid email
 
 testProviderSearchWhitelist :: (HasCallStack) => App ()
 testProviderSearchWhitelist =
