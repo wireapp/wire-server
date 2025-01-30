@@ -24,6 +24,7 @@ module Galley.API.MLS.Removal
   )
 where
 
+import Control.Monad.Codensity
 import Data.Bifunctor
 import Data.Id
 import Data.Map qualified as Map
@@ -74,7 +75,7 @@ createAndSendRemoveProposals ::
     Member ProposalStore r,
     Member (Input Env) r,
     Member Random r,
-    Foldable t
+    Traversable t
   ) =>
   Local ConvOrSubConv ->
   t LeafIndex ->
@@ -86,34 +87,40 @@ createAndSendRemoveProposals ::
   -- are a strict subset of all the clients represented by the in-memory
   -- conversation/subconversation client maps.
   ClientMap ->
-  Sem r ()
-createAndSendRemoveProposals lConvOrSubConv indices qusr cm = void . runError @() $ do
+  Codensity (Sem r) ()
+createAndSendRemoveProposals lConvOrSubConv indices qusr cm = Codensity $ \k -> do
   let meta = (tUnqualified lConvOrSubConv).mlsMeta
-  activeData <- note () $ cnvmlsActiveData meta
-  let cs = activeData.ciphersuite
-  mKeyPair <- getMLSRemovalKey (csSignatureScheme cs)
-  case mKeyPair of
-    Nothing -> do
-      warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
-    Just (SomeKeyPair (_ :: Proxy ss) kp) -> do
-      for_ indices $ \idx -> do
-        let proposal = mkRawMLS (RemoveProposal idx)
-        pmsg <-
-          liftRandom $
-            mkSignedPublicMessage @ss
-              kp
+  case cnvmlsActiveData meta of
+    Nothing -> k ()
+    Just activeData -> do
+      let cs = activeData.ciphersuite
+      mKeyPair <- getMLSRemovalKey (csSignatureScheme cs)
+      case mKeyPair of
+        Nothing -> do
+          warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
+          k ()
+        Just (SomeKeyPair (_ :: Proxy ss) kp) -> do
+          msgs <- for indices $ \idx -> do
+            let proposal = mkRawMLS (RemoveProposal idx)
+            pmsg <-
+              liftRandom $
+                mkSignedPublicMessage @ss
+                  kp
+                  (cnvmlsGroupId meta)
+                  (cnvmlsEpoch meta)
+                  (TaggedSenderExternal 0)
+                  (FramedContentProposal proposal)
+            let msg = mkRawMLS (mkMessage (MessagePublic pmsg))
+            storeProposal
               (cnvmlsGroupId meta)
               (cnvmlsEpoch meta)
-              (TaggedSenderExternal 0)
-              (FramedContentProposal proposal)
-        let msg = mkRawMLS (mkMessage (MessagePublic pmsg))
-        storeProposal
-          (cnvmlsGroupId meta)
-          (cnvmlsEpoch meta)
-          (publicMessageRef cs pmsg)
-          ProposalOriginBackend
-          proposal
-        propagateMessage qusr Nothing lConvOrSubConv Nothing msg cm
+              (publicMessageRef cs pmsg)
+              ProposalOriginBackend
+              proposal
+            pure msg
+          x <- k ()
+          for_ msgs $ flip (propagateMessage qusr Nothing lConvOrSubConv Nothing) cm
+          pure x
 
 removeClientsWithClientMapRecursively ::
   ( Member (Error FederationError) r,
@@ -127,8 +134,7 @@ removeClientsWithClientMapRecursively ::
     Member SubConversationStore r,
     Member (Input Env) r,
     Member Random r,
-    Functor f,
-    Foldable f
+    Traversable f
   ) =>
   Local MLSConversation ->
   -- | A function returning the "list" of clients to be removed from either the
@@ -145,7 +151,7 @@ removeClientsWithClientMapRecursively lMlsConv getClients qusr = do
         clients = getClients (tUnqualified mainConv)
 
     planClientRemoval gid (fmap fst clients)
-    createAndSendRemoveProposals mainConv (fmap snd clients) qusr cm
+    lowerCodensity $ createAndSendRemoveProposals mainConv (fmap snd clients) qusr cm
 
   removeClientsFromSubConvs lMlsConv getClients qusr
 
@@ -161,8 +167,7 @@ removeClientsFromSubConvs ::
     Member SubConversationStore r,
     Member (Input Env) r,
     Member Random r,
-    Functor f,
-    Foldable f
+    Traversable f
   ) =>
   Local MLSConversation ->
   -- | A function returning the "list" of clients to be removed from either the
@@ -182,11 +187,12 @@ removeClientsFromSubConvs lMlsConv getClients qusr = do
         clients = getClients (tUnqualified subConv)
 
     planClientRemoval sgid (fmap fst clients)
-    createAndSendRemoveProposals
-      subConv
-      (fmap snd clients)
-      qusr
-      cm
+    lowerCodensity $
+      createAndSendRemoveProposals
+        subConv
+        (fmap snd clients)
+        qusr
+        cm
 
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::
