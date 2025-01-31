@@ -401,6 +401,26 @@ testChallengeTtl = withModifiedBackend
     bindResponse (verifyDomain domain registrationDomain challengeId challengeToken) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
+testGetAndDeleteRegisteredDomains :: (HasCallStack) => App ()
+testGetAndDeleteRegisteredDomains = do
+  (owner, tid, _mem : _) <- createTeam OwnDomain 2
+
+  -- enable domain registration feature
+  assertSuccess =<< do
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
+
+  expectedDomains <- replicateM 5 do
+    domain <- randomDomain
+    setup <- setupOwnershipToken domain
+    authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
+    pure domain
+
+  bindResponse (getRegisteredDomainsByTeam owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    actualDomains <- resp.json %. "registered_domains" & asList >>= traverse (asString . (%. "domain"))
+    actualDomains `shouldMatchSet` expectedDomains
+
 -- helpers
 
 data ChallengeSetup = ChallengeSetup
