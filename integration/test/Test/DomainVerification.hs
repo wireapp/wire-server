@@ -213,10 +213,10 @@ testUpdateTeamInvite = do
     resp.status `shouldMatchInt` 402
     resp.json %. "label" `shouldMatch` "domain-registration-update-payment-required"
 
-  -- set conference calling (paying team)
+  -- enable domain registration feature
   assertSuccess =<< do
-    setTeamFeatureLockStatus owner tid "conferenceCalling" "unlocked"
-    setTeamFeatureStatus owner tid "conferenceCalling" "enabled"
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
   bindResponse (authorizeTeam mem domain setup.ownershipToken) $ \resp -> do
     resp.status `shouldMatchInt` 401
@@ -281,10 +281,10 @@ testUpdateTeamInviteSSO = do
   (owner, tid, _m : _) <- createTeam OwnDomain 2
   setup <- setupOwnershipToken domain
 
-  -- set conference calling (paying team)
+  -- enable domain registration feature
   assertSuccess =<< do
-    setTeamFeatureLockStatus owner tid "conferenceCalling" "unlocked"
-    setTeamFeatureStatus owner tid "conferenceCalling" "enabled"
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
@@ -322,10 +322,10 @@ testUpdateTeamInviteLocked = do
 
   setup <- setupOwnershipToken domain
 
-  -- set conference calling (paying team)
+  -- enable domain registration feature
   assertSuccess =<< do
-    setTeamFeatureLockStatus owner tid "conferenceCalling" "unlocked"
-    setTeamFeatureStatus owner tid "conferenceCalling" "enabled"
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
   -- can't authorize a team when the domain is locked
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 403
