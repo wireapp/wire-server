@@ -140,6 +140,27 @@ runEnterpriseLoginSubsystem = interpret $
     GetRegisteredDomains lusr tid ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         getRegisteredDomainsImpl lusr tid
+    DeleteTeamDomain lusr tid domain -> deleteTeamDomainImpl lusr tid domain
+
+deleteTeamDomainImpl ::
+  ( Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r,
+    Member DomainRegistrationStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Domain ->
+  Sem r ()
+deleteTeamDomainImpl lsur tid domain = do
+  userTeamId <- guardTeamAdminAccess lsur
+  unless (userTeamId == tid) $
+    throw EnterpriseLoginSubsystemOperationForbidden
+  domainReg <- lookup domain >>= note EnterpriseLoginSubsystemErrorNotFound
+  unless (domainReg.authorizedTeam == Just tid) $
+    throw EnterpriseLoginSubsystemAuthFailure
+  delete domain
 
 getRegisteredDomainsImpl ::
   ( Member (Error EnterpriseLoginSubsystemError) r,

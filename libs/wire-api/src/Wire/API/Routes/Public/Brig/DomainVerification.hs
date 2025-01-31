@@ -221,7 +221,7 @@ type DomainVerificationTeamAPI =
                :> Capture "teamId" TeamId
                :> "registered-domains"
                :> Capture "domain" Domain
-               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Deleted")
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "Deleted")
            )
 
 type DomainVerificationAPI =

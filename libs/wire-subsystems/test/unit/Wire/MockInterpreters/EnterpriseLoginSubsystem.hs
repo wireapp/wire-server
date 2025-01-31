@@ -29,3 +29,4 @@ enterpriseLoginSubsystemTestInterpreter err =
     VerifyChallenge {} -> undefined
     AuthorizeTeam {} -> undefined
     GetRegisteredDomains {} -> undefined
+    DeleteTeamDomain {} -> undefined
