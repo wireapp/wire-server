@@ -567,13 +567,6 @@ servantSitemap =
       Named @"domain-verification-challenge" getDomainVerificationChallenge
         :<|> Named @"verify-challenge" verifyChallenge
 
--- Note [ephemeral user sideeffect]
--- If the user is ephemeral and expired, it will be removed upon calling
--- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
--- This leads to the following events being sent:
--- - UserDeleted event to contacts of the user
--- - MemberLeave event to members for all conversations the user was in (via galley)
-
 ---------------------------------------------------------------------------
 -- Handlers
 
