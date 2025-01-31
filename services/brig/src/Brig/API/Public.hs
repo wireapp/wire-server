@@ -561,6 +561,8 @@ servantSitemap =
     domainVerificationTeamAPI =
       Named @"domain-verification-authorize-team" authorizeTeam
         :<|> Named @"update-team-invite" updateTeamInvite
+        :<|> Named @"get-all-registered-domains" getAllRegisteredDomains
+        :<|> Named @"delete-registered-domain" deleteRegisteredDomain
 
     domainVerificationChallengeAPI :: ServerT DomainVerificationChallengeAPI (Handler r)
     domainVerificationChallengeAPI =
@@ -1545,6 +1547,12 @@ updateTeamInvite ::
   Handler r ()
 updateTeamInvite lusr domain config =
   lift . liftSem $ EnterpriseLogin.updateTeamInvite lusr domain config
+
+getAllRegisteredDomains :: Local UserId -> TeamId -> Handler r RegisteredDomains
+getAllRegisteredDomains _lusr _tid = pure $ RegisteredDomains []
+
+deleteRegisteredDomain :: Local UserId -> TeamId -> Domain -> Handler r ()
+deleteRegisteredDomain _lusr _tid _domain = pure ()
 
 getDomainRegistration ::
   (_) =>
