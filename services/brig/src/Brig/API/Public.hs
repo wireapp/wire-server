@@ -400,6 +400,7 @@ servantSitemap =
     :<|> servicesAPI
     :<|> providerAPI
     :<|> domainVerificationAPI
+    :<|> domainVerificationTeamAPI
     :<|> domainVerificationChallengeAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
@@ -553,10 +554,13 @@ servantSitemap =
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
-      Named @"domain-verification-authorize-team" authorizeTeam
-        :<|> Named @"update-domain-redirect" updateDomainRedirect
-        :<|> Named @"update-team-invite" updateTeamInvite
+      Named @"update-domain-redirect" updateDomainRedirect
         :<|> Named @"get-domain-registration" getDomainRegistration
+
+    domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
+    domainVerificationTeamAPI =
+      Named @"domain-verification-authorize-team" authorizeTeam
+        :<|> Named @"update-team-invite" updateTeamInvite
 
     domainVerificationChallengeAPI :: ServerT DomainVerificationChallengeAPI (Handler r)
     domainVerificationChallengeAPI =

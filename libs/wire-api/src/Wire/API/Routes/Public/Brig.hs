@@ -102,6 +102,7 @@ type BrigAPI =
     :<|> ServicesAPI
     :<|> ProviderAPI
     :<|> DomainVerificationAPI
+    :<|> DomainVerificationTeamAPI
     :<|> DomainVerificationChallengeAPI
 
 data BrigAPITag
