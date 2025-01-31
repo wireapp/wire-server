@@ -202,6 +202,14 @@ testDomainVerificationLockedState = do
       resp.status `shouldMatchInt` 401
       resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
+testUpgradePersonalToTeam :: (HasCallStack) => App ()
+testUpgradePersonalToTeam = do
+  _
+
+testRegisterPersonalUser :: (HasCallStack) => App ()
+testRegisterPersonalUser = do
+  _
+
 testUpdateTeamInvite :: (HasCallStack) => App ()
 testUpdateTeamInvite = do
   (owner, tid, mem : _) <- createTeam OwnDomain 2

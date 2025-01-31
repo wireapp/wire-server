@@ -17,6 +17,15 @@ import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
 
+testRegister :: (HasCallStack) => App ()
+testRegister = do
+  -- API.Brig already has activateUserV5
+  _
+
+testRegisterDomainRegistrationGuards :: (HasCallStack) => App ()
+testRegisterDomainRegistrationGuards = do
+  _
+
 testSupportedProtocols :: (HasCallStack) => OneOf Domain (FedDomain 1) -> App ()
 testSupportedProtocols bobDomain = do
   alice <- randomUser OwnDomain def

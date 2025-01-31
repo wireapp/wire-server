@@ -318,6 +318,19 @@ testUpgradePersonalToTeamAlreadyInATeam = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "user-already-in-a-team"
 
+testUpgradePersonalToTeamDomainRegistrationGuards :: (HasCallStack) => App ()
+testUpgradePersonalToTeamDomainRegistrationGuards = do
+  alice <- randomUser OwnDomain def
+  email <- alice %. "email" >>= asString
+
+  -- create a team and make it hog the email's domain.
+  team <- _
+
+  let teamName = "wonderland"
+  token <- Nginz.login OwnDomain email defPassword >>= getJSON 200 >>= (%. "access_token") & asString
+  bindResponse (Nginz.upgradePersonalToTeam alice token teamName) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+
 -- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
 testTeamMemberCsvExport :: (HasCallStack) => App ()
 testTeamMemberCsvExport = do

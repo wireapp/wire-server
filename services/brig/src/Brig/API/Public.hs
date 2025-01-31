@@ -154,11 +154,13 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
+import Wire.DomainRegistrationStore
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
 import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
 import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
+import Wire.EnterpriseLoginSubsystem.Error qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -831,7 +833,8 @@ upgradePersonalToTeam ::
   Public.BindingNewTeamUser ->
   Handler r (Either Public.UpgradePersonalToTeamError Public.CreateUserTeam)
 upgradePersonalToTeam luid bNewTeam =
-  lift . runExceptT $
+  lift . runExceptT $ do
+    -- guardEmailDomainRegistrationActivateSend
     API.upgradePersonalToTeam luid bNewTeam
 
 -- | docs/reference/user/registration.md {#RefRegistration}
@@ -1191,9 +1194,32 @@ sendActivationCode ::
   Handler r ()
 sendActivationCode ac = do
   let email = ac.emailKey
+  -- lift . liftSem $ guardEmailDomainRegistration email
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
   API.sendActivationCode email (ac.locale) !>> sendActCodeError
+
+_guardEmailDomainRegistrationActivateSend ::
+  forall r.
+  ( Member EnterpriseLoginSubsystem r,
+    Member (Error EnterpriseLogin.EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r ()
+_guardEmailDomainRegistrationActivateSend email = do
+  mReg <- EnterpriseLogin.getDomainRegistrationByEmail email
+  for_ mReg $ \reg -> do
+    case reg.domainRedirect of
+      None -> ok
+      Locked -> ok
+      SSO _ -> ok
+      Backend _ -> nope DomRedirSetToBackend
+      NoRegistration -> nope DomRedirSetToNoRegistration
+      PreAuthorized -> ok
+  where
+    ok = pure ()
+    nope = error "throw . EnterpriseLoginSubsystemGuardFailed" -- TODO
 
 searchUsersHandler ::
   (Member UserSubsystem r) =>
