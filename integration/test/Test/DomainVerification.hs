@@ -421,6 +421,23 @@ testGetAndDeleteRegisteredDomains = do
     actualDomains <- resp.json %. "registered_domains" & asList >>= traverse (asString . (%. "domain"))
     actualDomains `shouldMatchSet` expectedDomains
 
+  let checkDelete :: [String] -> App ()
+      checkDelete [] =
+        bindResponse (getRegisteredDomainsByTeam owner tid) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          actualDomains <- resp.json %. "registered_domains" & asList
+          length actualDomains `shouldMatchInt` 0
+      checkDelete (domainToDelete : remainingDomains) = do
+        bindResponse (deleteRegisteredTeamDomain owner tid domainToDelete) $ \resp -> do
+          resp.status `shouldMatchInt` 204
+        bindResponse (getRegisteredDomainsByTeam owner tid) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          actualDomains <- resp.json %. "registered_domains" & asList >>= traverse (asString . (%. "domain"))
+          actualDomains `shouldMatchSet` remainingDomains
+        checkDelete remainingDomains
+
+  checkDelete expectedDomains
+
 -- helpers
 
 data ChallengeSetup = ChallengeSetup
