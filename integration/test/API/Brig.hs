@@ -936,3 +936,13 @@ getDomainRegistrationFromEmail :: (HasCallStack, MakesValue domain) => domain ->
 getDomainRegistrationFromEmail domain email = do
   req <- baseRequest domain Brig Versioned $ joinHttpPath ["get-domain-registration"]
   submit "POST" $ req & addJSONObject ["email" .= email]
+
+getRegisteredDomainsByTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getRegisteredDomainsByTeam user tid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "registered-domains"]
+  submit "GET" req
+
+deleteRegisteredTeamDomain :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteRegisteredTeamDomain user tid registeredDomain = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "registered-domains", registeredDomain]
+  submit "DELETE" req

@@ -6,6 +6,7 @@ module Wire.DomainRegistrationStore
     DomainKey,
     upsert,
     lookup,
+    lookupByTeam,
     delete,
   )
 where
@@ -61,10 +62,22 @@ recordInstance ''StoredDomainRegistration
 data DomainRegistrationStore m a where
   UpsertInternal :: StoredDomainRegistration -> DomainRegistrationStore m ()
   LookupInternal :: DomainKey -> DomainRegistrationStore m (Maybe StoredDomainRegistration)
+  LookupByTeamInternal :: TeamId -> DomainRegistrationStore m [StoredDomainRegistration]
   DeleteInternal :: DomainKey -> DomainRegistrationStore m ()
 
 upsert :: (Member DomainRegistrationStore r) => DomainRegistration -> Sem r ()
 upsert = send . UpsertInternal . toStored
+
+lookupByTeam :: forall r. (Member DomainRegistrationStore r, Member (Log.Logger (Log.Msg -> Log.Msg)) r) => TeamId -> Sem r [DomainRegistration]
+lookupByTeam tid = do
+  rows <- send (LookupByTeamInternal tid)
+  mRegisteredDomains <- for rows fromStoredWithLogging
+  pure $ catMaybes mRegisteredDomains
+  where
+    fromStoredWithLogging :: StoredDomainRegistration -> Sem r (Maybe DomainRegistration)
+    fromStoredWithLogging row = case fromStored row of
+      Just dr -> pure (Just dr)
+      Nothing -> logInvalidDomainRegistrationError (unmkDomainKey row.domain) $> Nothing
 
 lookup ::
   forall r.
@@ -78,12 +91,14 @@ lookup domain =
   where
     logErrors :: Either Bool a -> Sem r (Maybe a)
     logErrors (Left False) = pure Nothing
-    logErrors (Left True) = do
-      Log.err $
-        Log.field "domain" (toByteString' domain)
-          . Log.msg (Log.val "Invalid stored domain registration")
-      pure Nothing
+    logErrors (Left True) = logInvalidDomainRegistrationError domain $> Nothing
     logErrors (Right x) = pure (Just x)
+
+logInvalidDomainRegistrationError :: (Member TinyLog r, ToByteString a) => a -> Sem r ()
+logInvalidDomainRegistrationError domain =
+  Log.err $
+    Log.field "domain" (toByteString' domain)
+      . Log.msg (Log.val "Invalid stored domain registration")
 
 delete :: (Member DomainRegistrationStore r) => Domain -> Sem r ()
 delete = send . DeleteInternal . mkDomainKey

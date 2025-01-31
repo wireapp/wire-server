@@ -187,6 +187,7 @@ library
     Brig.Schema.V87_DropInvitationTables
     Brig.Schema.V88_DomainRegistrationTable
     Brig.Schema.V89_UpdateDomainRegistrationSchema
+    Brig.Schema.V90_DomainRegistrationTeamIndex
     Brig.Team.API
     Brig.Team.Email
     Brig.Team.Template
