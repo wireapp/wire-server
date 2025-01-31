@@ -19,7 +19,7 @@ data SentMailContent = PasswordResetMail PasswordResetPair
 inMemoryEmailSubsystemInterpreter :: (Member (State (Map EmailAddress [SentMail])) r) => InterpreterFor EmailSubsystem r
 inMemoryEmailSubsystemInterpreter = interpret \case
   SendPasswordResetMail email keyCodePair mLocale -> modify $ Map.insertWith (<>) email [SentMail mLocale $ PasswordResetMail keyCodePair]
-  _ -> error "emailSubsystemInterpreter: implement on demand"
+  _ -> error "inMemoryEmailSubsystemInterpreter: implement on demand"
 
 getEmailsSentTo :: (Member (State (Map EmailAddress [SentMail])) r) => EmailAddress -> Sem r [SentMail]
 getEmailsSentTo email = gets $ Map.findWithDefault [] email

@@ -14,14 +14,17 @@ import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as S
+import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Internal
 import Polysemy.State
+import Polysemy.TinyLog
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -29,15 +32,17 @@ import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem.Error
+import Wire.DomainRegistrationStore qualified as DRS
 import Wire.InvitationStore (StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
+import Wire.MockInterpreters
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
-import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
+import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..), guardRegisterUserImpl)
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -878,3 +883,36 @@ spec = describe "UserSubsystem.Interpreter" do
               === ( ChangeEmailResponseNeedsActivation,
                     [user {emailUnvalidated = Just updatedEmail}]
                   )
+
+  describe "GuardRegisterUser" $
+    prop "throws the appropriate errors" $
+      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText domreg.domain
+
+            interp ::
+              Sem
+                '[ DRS.DomainRegistrationStore,
+                   State [DRS.StoredDomainRegistration],
+                   TinyLog,
+                   Error UserSubsystemError
+                 ]
+                () ->
+              Either UserSubsystemError ()
+            interp = run . runError . noopLogger . evalState [] . inMemoryDomainRegistrationStoreInterpreter
+
+            outcome = interp do
+              DRS.upsert domreg
+              guardRegisterUserImpl email
+
+            expected = case domreg.domainRedirect of
+              None -> Right ()
+              Locked -> Right ()
+              SSO _ -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
+              Backend _ -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              NoRegistration -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
+              PreAuthorized -> Right ()
+         in outcome === expected

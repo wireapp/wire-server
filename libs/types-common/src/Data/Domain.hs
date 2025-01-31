@@ -78,6 +78,9 @@ domainText = _domainText
 mkDomain :: Text -> Either String Domain
 mkDomain = Atto.parseOnly (domainParser <* Atto.endOfInput) . Text.E.encodeUtf8
 
+mkDomainFromBS :: ByteString -> Either String Domain
+mkDomainFromBS = runParser parser
+
 instance FromByteString Domain where
   parser = domainParser
 

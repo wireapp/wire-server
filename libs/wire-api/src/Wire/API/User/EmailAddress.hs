@@ -7,6 +7,7 @@ module Wire.API.User.EmailAddress
     module Text.Email.Parser,
     emailToSAMLNameID,
     emailFromSAML,
+    emailDomain,
   )
 where
 
@@ -91,6 +92,9 @@ fromEmail = decodeUtf8 . toByteString
 emailAddressText :: Text -> Maybe EmailAddress
 emailAddressText = emailAddress . encodeUtf8
 
+emailDomain :: EmailAddress -> Either String Domain
+emailDomain = mkDomainFromBS . domainPart
+
 -- | Generates any Unicode character (but not a surrogate)
 arbitraryValidMail :: Gen EmailAddress
 arbitraryValidMail = do
@@ -107,7 +111,7 @@ arbitraryValidMail = do
     isValidLoc x =
       notNull x
         && notAt x
-        && isValid (fromString (x <> "@mail.com"))
+        && isValid (fromString (x <> "@mail.example"))
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.

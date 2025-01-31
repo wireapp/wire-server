@@ -36,7 +36,7 @@ miniGalleyAPIAccess member configs = interpret $ \case
   GetAllTeamFeaturesForUser _ -> pure configs
   GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
   GetVerificationCodeEnabled _ -> error "GetVerificationCodeEnabled not implemented in miniGalleyAPIAccess"
-  GetExposeInvitationURLsToTeamAdmin _ -> error "GetExposeInvitationURLsToTeamAdmin not implemented in miniGalleyAPIAccess"
+  GetExposeInvitationURLsToTeamAdmin _ -> pure ShowInvitationUrl
   IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"
   UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
