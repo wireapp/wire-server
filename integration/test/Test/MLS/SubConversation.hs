@@ -341,8 +341,7 @@ testResendingProposals = do
   withWebSockets [alice1, alice2, charlie1] \[wsAlice1, wsAlice2, wsCharlie1] -> do
     void
       $ createExternalCommit subConvId charlie1 Nothing
-      >>= postMLSCommitBundle charlie1
-      . mkBundle
+      >>= (postMLSCommitBundle charlie1 . mkBundle)
       >>= getJSON 201
 
     -- increment epoch and add charlie1

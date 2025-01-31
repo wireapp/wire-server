@@ -84,7 +84,7 @@ processInternalCommit ::
   Epoch ->
   ProposalAction ->
   Commit ->
-  Sem r [LocalConversationUpdate]
+  Codensity (Sem r) [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdate epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
@@ -92,189 +92,191 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       newUserClients = Map.assocs (paAdd action)
 
   -- check all pending proposals are referenced in the commit
-  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
+  allPendingProposals <-
+    lift $
+      getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
   unless (all (`Set.member` referencedProposals) allPendingProposals) $
-    throwS @'MLSCommitMissingReferences
+    lift $
+      throwS @'MLSCommitMissingReferences
 
-  lowerCodensity $ do
-    withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch
-    lift $ do
-      -- no client can be directly added to a subconversation
-      when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
-        throw (mlsProtocolError "Add proposals in subconversations are not supported")
+  withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch
+  lift $ do
+    -- no client can be directly added to a subconversation
+    when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
+      throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
-      events <-
-        if convOrSub.migrationState == MLSMigrationMLS
-          then do
-            -- Note [client removal]
-            -- We support two types of removals:
-            --  1. when a user is removed from a group, all their clients have to be removed
-            --  2. when a client is deleted, that particular client (but not necessarily
-            --     other clients of the same user) has to be removed.
-            --
-            -- Type 2 requires no special processing on the backend, so here we filter
-            -- out all removals of that type, so that further checks and processing can
-            -- be applied only to type 1 removals.
-            --
-            -- Furthermore, subconversation clients can be removed arbitrarily, so this
-            -- processing is only necessary for main conversations. In the
-            -- subconversation case, an empty list is returned.
-            membersToRemove <- case convOrSub of
-              SubConv _ _ -> pure []
-              Conv _ -> mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
-                \(qtarget, Map.keysSet -> clients) -> runError @() $ do
-                  let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
-                  let removedClients = Set.intersection clients clientsInConv
+    events <-
+      if convOrSub.migrationState == MLSMigrationMLS
+        then do
+          -- Note [client removal]
+          -- We support two types of removals:
+          --  1. when a user is removed from a group, all their clients have to be removed
+          --  2. when a client is deleted, that particular client (but not necessarily
+          --     other clients of the same user) has to be removed.
+          --
+          -- Type 2 requires no special processing on the backend, so here we filter
+          -- out all removals of that type, so that further checks and processing can
+          -- be applied only to type 1 removals.
+          --
+          -- Furthermore, subconversation clients can be removed arbitrarily, so this
+          -- processing is only necessary for main conversations. In the
+          -- subconversation case, an empty list is returned.
+          membersToRemove <- case convOrSub of
+            SubConv _ _ -> pure []
+            Conv _ -> mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
+              \(qtarget, Map.keysSet -> clients) -> runError @() $ do
+                let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
+                let removedClients = Set.intersection clients clientsInConv
 
-                  -- ignore user if none of their clients are being removed
-                  when (Set.null removedClients) $ throw ()
+                -- ignore user if none of their clients are being removed
+                when (Set.null removedClients) $ throw ()
 
-                  -- return error if the user is trying to remove themself
-                  when (cidQualifiedUser senderIdentity == qtarget) $
-                    throwS @'MLSSelfRemovalNotAllowed
+                -- return error if the user is trying to remove themself
+                when (cidQualifiedUser senderIdentity == qtarget) $
+                  throwS @'MLSSelfRemovalNotAllowed
 
-                  -- FUTUREWORK: add tests against this situation for conv v subconv
-                  when (removedClients /= clientsInConv) $ do
-                    -- FUTUREWORK: turn this error into a proper response
-                    throwS @'MLSClientMismatch
+                -- FUTUREWORK: add tests against this situation for conv v subconv
+                when (removedClients /= clientsInConv) $ do
+                  -- FUTUREWORK: turn this error into a proper response
+                  throwS @'MLSClientMismatch
 
-                  pure qtarget
+                pure qtarget
 
-            -- For each user, we compare their clients with the ones being added
-            -- to the conversation, and return a list of users for of which we
-            -- were unable to get a list of MLS-capable clients.
-            --
-            -- Again, for subconversations there is no need to check anything
-            -- here, so we simply return the empty list.
-            failedAddFetching <- case convOrSub.id of
-              SubConv _ _ -> pure []
-              Conv _ ->
-                fmap catMaybes . forM newUserClients $
-                  \(qtarget, newclients) -> case Map.lookup qtarget cm of
-                    -- user is already present, skip check in this case
-                    Just _ -> do
-                      -- new user
-                      pure Nothing
-                    Nothing -> do
-                      -- final set of clients in the conversation
-                      let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
-                      -- get list of mls clients from Brig (local or remote)
-                      getClientInfo lConvOrSub qtarget ciphersuite >>= \case
-                        Left _e -> pure (Just qtarget)
-                        Right clientInfo -> do
-                          let allClients = Set.map ciId clientInfo
-                          let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
-                          -- We check the following condition:
-                          --   allMLSClients ⊆ clients ⊆ allClients
-                          -- i.e.
-                          -- - if a client has at least 1 key package, it has to be added
-                          -- - if a client is being added, it has to still exist
-                          --
-                          -- The reason why we can't simply check that clients == allMLSClients is
-                          -- that a client with no remaining key packages might be added by a user
-                          -- who just fetched its last key package.
-                          unless
-                            ( Set.isSubsetOf allMLSClients clients
-                                && Set.isSubsetOf clients allClients
-                            )
-                            $
-                            -- FUTUREWORK: turn this error into a proper response
-                            throwS @'MLSClientMismatch
-                          pure Nothing
-            for_
-              (unreachableFromList failedAddFetching)
-              (throw . unreachableUsersToUnreachableBackends)
-
-            -- Some types of conversations are created lazily on the first
-            -- commit. We do that here, with the commit lock held, but before
-            -- applying changes to the member list.
-            case convOrSub.id of
-              SubConv cnv sub | epoch == Epoch 0 -> do
-                -- create subconversation if it doesn't exist
-                msub' <- getSubConversation cnv sub
-                when (isNothing msub') $
-                  void $
-                    createSubConversation
-                      cnv
-                      sub
-                      convOrSub.mlsMeta.cnvmlsGroupId
-                pure []
-              Conv _
-                | convOrSub.meta.cnvmType == One2OneConv
-                    && epoch == Epoch 0 -> do
-                    -- create 1-1 conversation with the users as members, set
-                    -- epoch to 0 for now, it will be incremented later
-                    let senderUser = cidQualifiedUser senderIdentity
-                        mlsConv = fmap (.conv) lConvOrSub
-                        lconv = fmap mcConv mlsConv
-                    conv <- case filter ((/= senderUser) . fst) newUserClients of
-                      [(otherUser, _)] ->
-                        createMLSOne2OneConversation
-                          senderUser
-                          otherUser
-                          mlsConv
-                      _ ->
-                        throw
-                          ( mlsProtocolError
-                              "The first commit in a 1-1 conversation should add exactly 1 other user"
+          -- For each user, we compare their clients with the ones being added
+          -- to the conversation, and return a list of users for of which we
+          -- were unable to get a list of MLS-capable clients.
+          --
+          -- Again, for subconversations there is no need to check anything
+          -- here, so we simply return the empty list.
+          failedAddFetching <- case convOrSub.id of
+            SubConv _ _ -> pure []
+            Conv _ ->
+              fmap catMaybes . forM newUserClients $
+                \(qtarget, newclients) -> case Map.lookup qtarget cm of
+                  -- user is already present, skip check in this case
+                  Just _ -> do
+                    -- new user
+                    pure Nothing
+                  Nothing -> do
+                    -- final set of clients in the conversation
+                    let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
+                    -- get list of mls clients from Brig (local or remote)
+                    getClientInfo lConvOrSub qtarget ciphersuite >>= \case
+                      Left _e -> pure (Just qtarget)
+                      Right clientInfo -> do
+                        let allClients = Set.map ciId clientInfo
+                        let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
+                        -- We check the following condition:
+                        --   allMLSClients ⊆ clients ⊆ allClients
+                        -- i.e.
+                        -- - if a client has at least 1 key package, it has to be added
+                        -- - if a client is being added, it has to still exist
+                        --
+                        -- The reason why we can't simply check that clients == allMLSClients is
+                        -- that a client with no remaining key packages might be added by a user
+                        -- who just fetched its last key package.
+                        unless
+                          ( Set.isSubsetOf allMLSClients clients
+                              && Set.isSubsetOf clients allClients
                           )
-                    -- notify otherUser about being added to this 1-1 conversation
-                    let bm = convBotsAndMembers conv
-                    members <-
-                      note
-                        ( InternalErrorWithDescription
-                            "Unexpected empty member list in MLS 1-1 conversation"
-                        )
-                        $ nonEmpty (bmQualifiedMembers lconv bm)
-                    update <-
-                      notifyConversationAction
-                        SConversationJoinTag
+                          $
+                          -- FUTUREWORK: turn this error into a proper response
+                          throwS @'MLSClientMismatch
+                        pure Nothing
+          for_
+            (unreachableFromList failedAddFetching)
+            (throw . unreachableUsersToUnreachableBackends)
+
+          -- Some types of conversations are created lazily on the first
+          -- commit. We do that here, with the commit lock held, but before
+          -- applying changes to the member list.
+          case convOrSub.id of
+            SubConv cnv sub | epoch == Epoch 0 -> do
+              -- create subconversation if it doesn't exist
+              msub' <- getSubConversation cnv sub
+              when (isNothing msub') $
+                void $
+                  createSubConversation
+                    cnv
+                    sub
+                    convOrSub.mlsMeta.cnvmlsGroupId
+              pure []
+            Conv _
+              | convOrSub.meta.cnvmType == One2OneConv
+                  && epoch == Epoch 0 -> do
+                  -- create 1-1 conversation with the users as members, set
+                  -- epoch to 0 for now, it will be incremented later
+                  let senderUser = cidQualifiedUser senderIdentity
+                      mlsConv = fmap (.conv) lConvOrSub
+                      lconv = fmap mcConv mlsConv
+                  conv <- case filter ((/= senderUser) . fst) newUserClients of
+                    [(otherUser, _)] ->
+                      createMLSOne2OneConversation
                         senderUser
-                        False
-                        con
-                        lconv
-                        bm
-                        ConversationJoin
-                          { cjUsers = members,
-                            cjRole = roleNameWireMember
-                          }
-                    pure [update]
-              SubConv _ _ -> pure []
-              Conv _ -> do
-                -- remove users from the conversation and send events
-                removeEvents <-
-                  foldMap
-                    (removeMembers qusr con lConvOrSub)
-                    (nonEmpty membersToRemove)
+                        otherUser
+                        mlsConv
+                    _ ->
+                      throw
+                        ( mlsProtocolError
+                            "The first commit in a 1-1 conversation should add exactly 1 other user"
+                        )
+                  -- notify otherUser about being added to this 1-1 conversation
+                  let bm = convBotsAndMembers conv
+                  members <-
+                    note
+                      ( InternalErrorWithDescription
+                          "Unexpected empty member list in MLS 1-1 conversation"
+                      )
+                      $ nonEmpty (bmQualifiedMembers lconv bm)
+                  update <-
+                    notifyConversationAction
+                      SConversationJoinTag
+                      senderUser
+                      False
+                      con
+                      lconv
+                      bm
+                      ConversationJoin
+                        { cjUsers = members,
+                          cjRole = roleNameWireMember
+                        }
+                  pure [update]
+            SubConv _ _ -> pure []
+            Conv _ -> do
+              -- remove users from the conversation and send events
+              removeEvents <-
+                foldMap
+                  (removeMembers qusr con lConvOrSub)
+                  (nonEmpty membersToRemove)
 
-                -- add users to the conversation and send events
-                addEvents <-
-                  foldMap (addMembers qusr con lConvOrSub)
-                    . nonEmpty
-                    . map fst
-                    $ newUserClients
-                pure (addEvents <> removeEvents)
-          else pure []
+              -- add users to the conversation and send events
+              addEvents <-
+                foldMap (addMembers qusr con lConvOrSub)
+                  . nonEmpty
+                  . map fst
+                  $ newUserClients
+              pure (addEvents <> removeEvents)
+        else pure []
 
-      -- Remove clients from the conversation state. This includes client removals
-      -- of all types (see Note [client removal]).
-      for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
-        removeMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Map.keysSet clients)
+    -- Remove clients from the conversation state. This includes client removals
+    -- of all types (see Note [client removal]).
+    for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
+      removeMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Map.keysSet clients)
 
-      -- add clients to the conversation state
-      for_ newUserClients $ \(qtarget, newClients) -> do
-        addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
+    -- add clients to the conversation state
+    for_ newUserClients $ \(qtarget, newClients) -> do
+      addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
 
-      -- set cipher suite
-      when ciphersuiteUpdate $ case convOrSub.id of
-        Conv cid -> setConversationCipherSuite cid ciphersuite
-        SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
+    -- set cipher suite
+    when ciphersuiteUpdate $ case convOrSub.id of
+      Conv cid -> setConversationCipherSuite cid ciphersuite
+      SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
 
-      -- increment epoch number
-      for_ lConvOrSub incrementEpoch
+    -- increment epoch number
+    for_ lConvOrSub incrementEpoch
 
-      pure events
+    pure events
 
 addMembers ::
   (HasProposalActionEffects r) =>

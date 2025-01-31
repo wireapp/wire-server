@@ -1,0 +1,1 @@
+MLS group info is now saved with the commit lock held. This prevents a bug where group info on a later commit was overwritten by an earlier group info, leading to out-of-sync MLS state between backends and clients.
