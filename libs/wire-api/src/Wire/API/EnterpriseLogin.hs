@@ -242,6 +242,21 @@ data DomainRegistration = DomainRegistration
   }
   deriving stock (Eq, Show)
 
+instance Arbitrary DomainRegistration where
+  arbitrary = do
+    dom :: Domain <- arbitrary
+    upd :: DomainRegistrationUpdate <- arbitrary
+    mbteam :: Maybe TeamId <- arbitrary
+    pure
+      DomainRegistration
+        { domain = dom,
+          authorizedTeam = mbteam,
+          domainRedirect = upd.domainRedirect,
+          teamInvite = upd.teamInvite,
+          dnsVerificationToken = Nothing,
+          authTokenHash = Nothing
+        }
+
 mkDomainRegistration :: Domain -> DomainRegistration
 mkDomainRegistration domain =
   DomainRegistration

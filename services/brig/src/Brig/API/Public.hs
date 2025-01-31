@@ -154,11 +154,13 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
+import Wire.DomainRegistrationStore
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
 import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
 import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
+import Wire.EnterpriseLoginSubsystem.Error qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -182,6 +184,7 @@ import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
 import Wire.UserSubsystem qualified as User
+import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
@@ -830,7 +833,8 @@ upgradePersonalToTeam ::
   Public.BindingNewTeamUser ->
   Handler r (Either Public.UpgradePersonalToTeamError Public.CreateUserTeam)
 upgradePersonalToTeam luid bNewTeam =
-  lift . runExceptT $
+  lift . runExceptT $ do
+    -- guardEmailDomainRegistrationActivateSend
     API.upgradePersonalToTeam luid bNewTeam
 
 -- | docs/reference/user/registration.md {#RefRegistration}
@@ -848,8 +852,7 @@ createUser ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member EmailSending r,
-    Member ActivationCodeStore r,
-    Member EnterpriseLoginSubsystem r
+    Member ActivationCodeStore r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -859,7 +862,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
   -- TODO: we need an integration test for this, but it'd be easier to write that in a
   -- different PR where we have https://github.com/wireapp/wire-server/pull/4389.
-  (lift . liftSem . EnterpriseLogin.guardEmailDomainRegistrationRegister)
+  (lift . liftSem . UserSubsystem.guardRegisterUser)
     `mapM_` (emailIdentity =<< new.newUserIdentity)
 
   result <- API.createUser new
@@ -1191,9 +1194,32 @@ sendActivationCode ::
   Handler r ()
 sendActivationCode ac = do
   let email = ac.emailKey
+  -- lift . liftSem $ guardEmailDomainRegistration email
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
   API.sendActivationCode email (ac.locale) !>> sendActCodeError
+
+_guardEmailDomainRegistrationActivateSend ::
+  forall r.
+  ( Member EnterpriseLoginSubsystem r,
+    Member (Error EnterpriseLogin.EnterpriseLoginSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r ()
+_guardEmailDomainRegistrationActivateSend email = do
+  mReg <- EnterpriseLogin.getDomainRegistrationByEmail email
+  for_ mReg $ \reg -> do
+    case reg.domainRedirect of
+      None -> ok
+      Locked -> ok
+      SSO _ -> ok
+      Backend _ -> nope DomRedirSetToBackend
+      NoRegistration -> nope DomRedirSetToNoRegistration
+      PreAuthorized -> ok
+  where
+    ok = pure ()
+    nope = error "throw . EnterpriseLoginSubsystemGuardFailed" -- TODO
 
 searchUsersHandler ::
   (Member UserSubsystem r) =>

@@ -2,15 +2,11 @@ module Wire.MockInterpreters.EnterpriseLoginSubsystem where
 
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
+import Wire.API.EnterpriseLogin
 import Wire.EnterpriseLoginSubsystem
-import Wire.EnterpriseLoginSubsystem.Error
 
-enterpriseLoginSubsystemTestInterpreter ::
-  (Member (Error EnterpriseLoginSubsystemError) r) =>
-  EnterpriseLoginSubsystemError ->
-  InterpreterFor EnterpriseLoginSubsystem r
-enterpriseLoginSubsystemTestInterpreter err =
+enterpriseLoginSubsystemTestInterpreter :: Maybe DomainRegistration -> InterpreterFor EnterpriseLoginSubsystem r
+enterpriseLoginSubsystemTestInterpreter constMbGuardResult =
   interpret \case
     LockDomain _ -> undefined
     UnlockDomain _ -> undefined
@@ -18,10 +14,7 @@ enterpriseLoginSubsystemTestInterpreter err =
     UnAuthorizeDomain _ -> undefined
     UpdateDomainRegistration _ _ -> undefined
     DeleteDomain _ -> undefined
-    GetDomainRegistration _ -> undefined
-    GuardEmailDomainRegistrationTeamInvitation {} -> throw err
-    GuardEmailDomainRegistrationRegister _ -> throw err
-    TryGetDomainRegistration _ -> undefined
+    GetDomainRegistration _ -> pure $ mkDomainRegistrationResponse <$> constMbGuardResult
     UpdateDomainRedirect {} -> undefined
     UpdateTeamInvite {} -> undefined
     GetDomainRegistrationPublic _ -> undefined

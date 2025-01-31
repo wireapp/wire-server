@@ -73,6 +73,7 @@ import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Connection
+import Wire.API.EnterpriseLogin (DomainRegistrationResponse)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error (FederationError (..))
@@ -94,6 +95,7 @@ import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EnterpriseLoginSubsystem
+import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemErrorNotFound))
 import Wire.Events (Events)
 import Wire.Events qualified as Events
 import Wire.FederationConfigStore
@@ -153,7 +155,8 @@ servantSitemap ::
     Member (Embed IO) r,
     Member ActivationCodeStore r,
     Member (Input UserSubsystemConfig) r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member (Polysemy.Error EnterpriseLoginSubsystemError) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -430,7 +433,11 @@ internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
 
-enterpriseLoginApi :: (Member EnterpriseLoginSubsystem r) => ServerT BrigIRoutes.EnterpriseLoginApi (Handler r)
+enterpriseLoginApi ::
+  ( Member EnterpriseLoginSubsystem r,
+    Member (Polysemy.Error EnterpriseLoginSubsystemError) r
+  ) =>
+  ServerT BrigIRoutes.EnterpriseLoginApi (Handler r)
 enterpriseLoginApi =
   Named @"domain-registration-lock" (fmap (const NoContent) . lift . liftSem . lockDomain)
     :<|> Named @"domain-registration-unlock" (fmap (const NoContent) . lift . liftSem . unlockDomain)
@@ -438,10 +445,21 @@ enterpriseLoginApi =
     :<|> Named @"domain-registration-unauthorize" (fmap (const NoContent) . lift . liftSem . unAuthorizeDomain)
     :<|> Named @"domain-registration-update" (\d p -> fmap (const NoContent) . lift . liftSem $ updateDomainRegistration d p)
     :<|> Named @"domain-registration-delete" (fmap (const NoContent) . lift . liftSem . deleteDomain)
-    :<|> Named @"domain-registration-get" (lift . liftSem . getDomainRegistration)
+    :<|> Named @"domain-registration-get" getDomainRegistrationH
 
 ---------------------------------------------------------------------------
 -- Handlers
+
+getDomainRegistrationH ::
+  ( Member EnterpriseLoginSubsystem r,
+    Member (Polysemy.Error EnterpriseLoginSubsystemError) r
+  ) =>
+  Domain ->
+  Handler r DomainRegistrationResponse
+getDomainRegistrationH domain =
+  lift . liftSem $
+    getDomainRegistration domain
+      >>= Polysemy.note EnterpriseLoginSubsystemErrorNotFound
 
 -- | Add a client without authentication checks
 addClientInternalH ::

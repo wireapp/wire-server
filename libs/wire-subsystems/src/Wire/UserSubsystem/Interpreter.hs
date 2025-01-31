@@ -4,6 +4,7 @@
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
+    guardRegisterUserImpl, -- for testing (FUTUREWORK: make a better test that relies on the interface, not the implementation)
   )
 where
 
@@ -32,6 +33,7 @@ import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import Servant.Client.Core
 import System.Logger.Message qualified as Log
+import Wire.API.EnterpriseLogin
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
@@ -51,6 +53,7 @@ import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
+import Wire.DomainRegistrationStore qualified as DRS
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
@@ -82,6 +85,7 @@ runUserSubsystem ::
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member BlockListStore r,
+    Member DRS.DomainRegistrationStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r,
     Member (Error UserSubsystemError) r,
@@ -128,6 +132,8 @@ runUserSubsystem authInterpreter = interpret $
       updateHandleImpl uid mconn mb uhandle
     LookupLocaleWithDefault luid ->
       lookupLocaleOrDefaultImpl luid
+    GuardRegisterUser email ->
+      guardRegisterUserImpl email
     IsBlocked email ->
       isBlockedImpl email
     BlockListDelete email ->
@@ -198,6 +204,30 @@ internalFindTeamInvitationImpl (Just e) c =
       --             Remove after the next release.
       mAddUserError <- checkUserCanJoinTeam tid
       maybe (pure ()) (throw . UserSubsystemUserNotAllowedToJoinTeam) mAddUserError
+
+guardRegisterUserImpl ::
+  forall r.
+  ( Member DRS.DomainRegistrationStore r,
+    Member (Error UserSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r ()
+guardRegisterUserImpl email = do
+  let throwGuardFailed = throw . UserSubsystemGuardFailed
+  mReg <-
+    emailDomain email
+      -- The error is impossible as long as we use the same parser for both `EmailAddress` and
+      -- `Domain`.
+      & either (throwGuardFailed . InvalidDomain) DRS.lookup
+  for_ mReg $ \reg -> do
+    case reg.domainRedirect of
+      None -> pure ()
+      Locked -> pure ()
+      SSO _ -> throwGuardFailed DomRedirSetToSSO
+      Backend _ -> throwGuardFailed DomRedirSetToBackend
+      NoRegistration -> throwGuardFailed DomRedirSetToNoRegistration
+      PreAuthorized -> pure ()
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
