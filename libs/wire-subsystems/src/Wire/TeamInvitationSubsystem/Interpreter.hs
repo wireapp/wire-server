@@ -272,8 +272,7 @@ guardEmailDomainRegistration ::
   EmailAddress ->
   Sem r ()
 guardEmailDomainRegistration invitationFlow tid email = do
-  domain <- mapError (const TeamInvitationInvalidEmail) $ fromEither $ emailDomain email
-  mReg <- getDomainRegistration domain
+  mReg <- getDomainRegistrationByEmail email
   for_ mReg $ \reg -> do
     -- Check if domain has certain restrictions
     case reg.domainRedirect of
