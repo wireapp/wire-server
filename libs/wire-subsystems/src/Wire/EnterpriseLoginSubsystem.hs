@@ -49,5 +49,6 @@ data EnterpriseLoginSubsystem m a where
     Token ->
     EnterpriseLoginSubsystem m Token
   AuthorizeTeam :: Local UserId -> Domain -> DomainOwnershipToken -> EnterpriseLoginSubsystem m ()
+  GetRegisteredDomains :: Local UserId -> TeamId -> EnterpriseLoginSubsystem m RegisteredDomains
 
 makeSem ''EnterpriseLoginSubsystem

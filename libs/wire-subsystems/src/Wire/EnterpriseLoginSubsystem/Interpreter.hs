@@ -137,6 +137,26 @@ runEnterpriseLoginSubsystem = interpret $
     AuthorizeTeam lusr domain ownershipToken ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         authorizeTeamImpl lusr domain ownershipToken
+    GetRegisteredDomains lusr tid ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        getRegisteredDomainsImpl lusr tid
+
+getRegisteredDomainsImpl ::
+  ( Member (Error EnterpriseLoginSubsystemError) r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r,
+    Member (Log.Logger (Log.Msg -> Log.Msg)) r,
+    Member DomainRegistrationStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Sem r RegisteredDomains
+getRegisteredDomainsImpl lusr tid = do
+  userTeamId <- guardTeamAdminAccess lusr
+  unless (userTeamId == tid) $
+    throw EnterpriseLoginSubsystemOperationForbidden
+  domains <- mkDomainRegistrationResponse <$$> lookupByTeam tid
+  pure $ RegisteredDomains domains
 
 authorizeTeamImpl ::
   ( Member TinyLog r,
@@ -150,7 +170,8 @@ authorizeTeamImpl ::
   DomainOwnershipToken ->
   Sem r ()
 authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
-  (tid, mDomainReg) <- guardTeamAdminAccess lusr domain
+  tid <- guardTeamAdminAccess lusr
+  mDomainReg <- lookup domain
   domainReg <- checkDomainOwnership mDomainReg token
   when (domainReg.domainRedirect == Locked) $
     throw EnterpriseLoginSubsystemOperationForbidden
@@ -631,7 +652,8 @@ updateTeamInviteImpl ::
   TeamInviteConfig ->
   Sem r ()
 updateTeamInviteImpl luid domain config = do
-  (tid, mbDomainReg) <- guardTeamAdminAccess luid domain
+  tid <- guardTeamAdminAccess luid
+  mbDomainReg <- lookup domain
   domainReg <- note EnterpriseLoginSubsystemAuthFailure mbDomainReg
   unless (domainReg.authorizedTeam == Just tid) $
     throw EnterpriseLoginSubsystemAuthFailure
@@ -663,16 +685,13 @@ updateTeamInviteImpl luid domain config = do
 
 guardTeamAdminAccess ::
   forall r.
-  ( Member TinyLog r,
-    Member (Error EnterpriseLoginSubsystemError) r,
+  ( Member (Error EnterpriseLoginSubsystemError) r,
     Member UserSubsystem r,
-    Member GalleyAPIAccess r,
-    Member DomainRegistrationStore r
+    Member GalleyAPIAccess r
   ) =>
   Local UserId ->
-  Domain ->
-  Sem r (TeamId, Maybe DomainRegistration)
-guardTeamAdminAccess luid domain = do
+  Sem r TeamId
+guardTeamAdminAccess luid = do
   profile <- getSelfProfile luid >>= note EnterpriseLoginSubsystemAuthFailure
   tid <- note EnterpriseLoginSubsystemAuthFailure profile.selfUser.userTeam
   teamMember <-
@@ -681,8 +700,7 @@ guardTeamAdminAccess luid domain = do
   validatePaymentStatus tid
   unless (isAdminOrOwner (teamMember ^. permissions)) $
     throw EnterpriseLoginSubsystemAuthFailure
-  mbDomainReg <- lookup domain
-  pure (tid, mbDomainReg)
+  pure tid
   where
     validatePaymentStatus :: TeamId -> Sem r ()
     validatePaymentStatus tid = do

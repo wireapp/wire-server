@@ -10,3 +10,4 @@ inMemoryDomainRegistrationStoreInterpreter = interpret $ \case
   UpsertInternal dr -> modify ((dr :) . filter ((/= domain dr) . domain))
   LookupInternal d -> gets (find ((== d) . domain))
   DeleteInternal d -> modify (filter ((/= d) . domain))
+  LookupByTeamInternal tid -> gets (filter ((== Just tid) . authorizedTeam))

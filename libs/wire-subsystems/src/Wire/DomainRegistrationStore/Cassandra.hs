@@ -6,6 +6,7 @@ module Wire.DomainRegistrationStore.Cassandra
 where
 
 import Cassandra
+import Data.Id (TeamId)
 import Database.CQL.Protocol (Record (..), TupleType, asTuple)
 import Imports hiding (lookup)
 import Polysemy
@@ -24,10 +25,35 @@ interpretDomainRegistrationStoreToCassandra casClient =
     embed @IO . runClient casClient . \case
       UpsertInternal dr -> upsertImpl dr
       LookupInternal domain -> lookupImpl domain
+      LookupByTeamInternal tid -> lookupByTeamInternalImpl tid
       DeleteInternal domain -> deleteImpl domain
 
+lookupByTeamInternalImpl :: (MonadClient m) => TeamId -> m [StoredDomainRegistration]
+lookupByTeamInternalImpl tid = do
+  domains <- lookupTeamDomains tid
+  fmap asRecord <$> retry x1 (query cql (params LocalQuorum (Identity domains)))
+  where
+    cql :: PrepQuery R (Identity [DomainKey]) (TupleType StoredDomainRegistration)
+    cql = "SELECT domain, domain_redirect, team_invite, idp_id, backend_url, team, dns_verification_token, ownership_token_hash, authorized_team FROM domain_registration WHERE domain IN ?"
+
+lookupTeamDomains :: (MonadClient m) => TeamId -> m [DomainKey]
+lookupTeamDomains tid =
+  fmap runIdentity <$> retry x1 (query cql (params LocalQuorum (Identity tid)))
+  where
+    cql :: PrepQuery R (Identity TeamId) (Identity DomainKey)
+    cql = "SELECT domain FROM domain_registration_by_team WHERE team = ?"
+
 upsertImpl :: (MonadClient m) => StoredDomainRegistration -> m ()
-upsertImpl dr = retry x5 $ write cqlUpsert (params LocalQuorum (asTuple dr))
+upsertImpl dr = do
+  for_ dr.authorizedTeam $ flip upsertTeamIndex dr.domain
+  retry x5 $ write cqlUpsert (params LocalQuorum (asTuple dr))
+
+upsertTeamIndex :: (MonadClient m) => TeamId -> DomainKey -> m ()
+upsertTeamIndex tid domain =
+  retry x5 $ write cql (params LocalQuorum (tid, domain))
+  where
+    cql :: PrepQuery W (TeamId, DomainKey) ()
+    cql = "INSERT INTO domain_registration_by_team (team, domain) VALUES (?,?)"
 
 lookupImpl :: (MonadClient m) => DomainKey -> m (Maybe StoredDomainRegistration)
 lookupImpl domain =

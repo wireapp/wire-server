@@ -1548,8 +1548,8 @@ updateTeamInvite ::
 updateTeamInvite lusr domain config =
   lift . liftSem $ EnterpriseLogin.updateTeamInvite lusr domain config
 
-getAllRegisteredDomains :: Local UserId -> TeamId -> Handler r RegisteredDomains
-getAllRegisteredDomains _lusr _tid = pure $ RegisteredDomains []
+getAllRegisteredDomains :: (_) => Local UserId -> TeamId -> Handler r RegisteredDomains
+getAllRegisteredDomains lusr tid = lift . liftSem $ EnterpriseLogin.getRegisteredDomains lusr tid
 
 deleteRegisteredDomain :: Local UserId -> TeamId -> Domain -> Handler r ()
 deleteRegisteredDomain _lusr _tid _domain = pure ()
