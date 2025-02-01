@@ -19,7 +19,6 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import Data.Text.Encoding as T
 import Data.Text.Encoding qualified as Text
 import Data.Text.Internal.Builder (fromLazyText, fromText, toLazyText)
 import Data.Text.Lazy.Builder (Builder)
@@ -28,13 +27,13 @@ import Imports hiding (lookup)
 import Network.HTTP.Types.Method
 import Network.Mail.Mime (Address (Address), Mail (mailHeaders, mailParts, mailTo), emptyMail, plainPart)
 import Polysemy
-import Polysemy.Error
-import Polysemy.Input
+import Polysemy.Error (Error, note, throw)
+import Polysemy.Error qualified as Error
+import Polysemy.Input (Input, input, inputs, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
-import Text.Email.Parser qualified as Email
 import Util.Options
 import Wire.API.EnterpriseLogin
 import Wire.API.Routes.Public.Brig.DomainVerification
@@ -117,9 +116,6 @@ runEnterpriseLoginSubsystem = interpret $
     UpdateDomainRegistration domain update -> updateDomainRegistrationImpl domain update
     DeleteDomain domain -> deleteDomainImpl domain
     GetDomainRegistration domain -> getDomainRegistrationImpl domain
-    GuardEmailDomainRegistrationTeamInvitation flow tid email -> guardEmailDomainRegistrationTeamInvitationImpl flow tid email
-    GuardEmailDomainRegistrationRegister email -> guardEmailDomainRegistrationRegisterImpl email
-    TryGetDomainRegistration domain -> tryGetDomainRegistrationImpl domain
     UpdateDomainRedirect mAuthToken domain config ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         updateDomainRedirectImpl mAuthToken domain config
@@ -374,14 +370,11 @@ preAuthorizeImpl domain = do
 
 getDomainRegistrationImpl ::
   ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r
   ) =>
   Domain ->
-  Sem r DomainRegistrationResponse
-getDomainRegistrationImpl domain =
-  mkDomainRegistrationResponse
-    <$> lookupOrThrow domain
+  Sem r (Maybe DomainRegistrationResponse)
+getDomainRegistrationImpl domain = mkDomainRegistrationResponse <$$> lookup domain
 
 lookupOrThrow ::
   ( Member DomainRegistrationStore r,
@@ -390,20 +383,7 @@ lookupOrThrow ::
   ) =>
   Domain ->
   Sem r DomainRegistration
-lookupOrThrow domain =
-  lookup domain
-    >>= note EnterpriseLoginSubsystemErrorNotFound
-
-tryGetDomainRegistrationImpl ::
-  forall r.
-  ( Member DomainRegistrationStore r,
-    Member TinyLog r
-  ) =>
-  Domain ->
-  Sem r (Maybe DomainRegistrationResponse)
-tryGetDomainRegistrationImpl domain =
-  mkDomainRegistrationResponse
-    <$$> lookup domain
+lookupOrThrow = lookup >=> Error.note EnterpriseLoginSubsystemErrorNotFound
 
 newDnsVerificationToken ::
   ( Member (Error ParseException) r,
@@ -509,81 +489,6 @@ sendAuditMail url subject mBefore mAfter = do
   for_ mConfig $ \config -> do
     let mail = mkAuditMail (config.auditEmailSender) (config.auditEmailRecipient) subject auditLog
     sendMail mail
-
--- More info on the behavioral implications of domain registration records:
--- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1570832467/Email+domain+registration+and+configuration#Configuration-values
-emailToDomainRegistration ::
-  forall r.
-  ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
-    Member TinyLog r
-  ) =>
-  EmailAddress ->
-  Sem r (Maybe DomainRegistration)
-emailToDomainRegistration email = case mkDomain $ T.decodeUtf8 $ Email.domainPart email of
-  Right dom -> lookup dom
-  Left msg ->
-    -- The EmailAddress parser and servant *should* make this impossible, but they use
-    -- different parsers, one of us is ours and may change any time, so who knows?
-    throw . EnterpriseLoginSubsystemGuardFailed $ InvalidDomain msg
-
-guardEmailDomainRegistrationTeamInvitationImpl ::
-  forall r.
-  ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
-    Member TinyLog r
-  ) =>
-  InvitationFlow ->
-  TeamId ->
-  EmailAddress ->
-  Sem r ()
-guardEmailDomainRegistrationTeamInvitationImpl invitationFlow tid email = do
-  mReg <- emailToDomainRegistration email
-  for_ mReg $ \reg -> do
-    -- fail if domain-redirect is set to no-registration, or
-    case reg.domainRedirect of
-      None -> ok
-      Locked -> ok
-      SSO _ -> ok
-      Backend _ -> ok
-      NoRegistration -> case invitationFlow of
-        ExistingUser -> nope DomRedirSetToNoRegistration
-        NewUser -> ok -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1587118249/Use+case+initiate+invitation+flow?focusedCommentId=1672839248
-      PreAuthorized -> ok
-    -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
-    -- the team of the inviter
-    case reg.teamInvite of
-      Allowed -> ok
-      NotAllowed -> nope TeamInviteSetToNotAllowed
-      Team allowedTid ->
-        if allowedTid == tid
-          then ok
-          else nope TeamInviteRestrictedToOtherTeam
-  where
-    ok = pure ()
-    nope = throw . EnterpriseLoginSubsystemGuardFailed
-
-guardEmailDomainRegistrationRegisterImpl ::
-  forall r.
-  ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
-    Member TinyLog r
-  ) =>
-  EmailAddress ->
-  Sem r ()
-guardEmailDomainRegistrationRegisterImpl email = do
-  mReg <- emailToDomainRegistration email
-  for_ mReg $ \reg -> do
-    case reg.domainRedirect of
-      None -> ok
-      Locked -> ok
-      SSO _ -> nope DomRedirSetToSSO
-      Backend _ -> nope DomRedirSetToBackend
-      NoRegistration -> nope DomRedirSetToNoRegistration
-      PreAuthorized -> ok
-  where
-    ok = pure ()
-    nope = throw . EnterpriseLoginSubsystemGuardFailed
 
 updateDomainRedirectImpl ::
   ( Member (Error EnterpriseLoginSubsystemError) r,
@@ -708,6 +613,6 @@ getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
           (const (throw EnterpriseLoginSubsystemInvalidDomain))
           pure
           $ mkDomain (Text.decodeUtf8 (domainPart email))
-      mReg <- tryGetDomainRegistrationImpl domain
+      mReg <- getDomainRegistrationImpl domain
       pure $ maybe None (.domainRedirect) mReg
     Just _ -> pure None
