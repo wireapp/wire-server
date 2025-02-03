@@ -482,9 +482,6 @@ nginx_conf:
     - path: /domain-verification/([^/]*)/authorize-team$
       envs:
         - all
-    - path: /domain-verification/([^/]*)/team$
-      envs:
-        - all
     - path: /domain-verification/([^/]*)/backend$
       envs:
         - all
@@ -493,6 +490,15 @@ nginx_conf:
       envs:
         - all
       disable_zauth: true
+    - path: /domain-verification/([^/]*)/team$
+      envs:
+        - all
+    - path: /teams/([^/]*)/registered-domains$
+      envs:
+        - all
+    - path: /teams/([^/]*)/registered-domains/([^/]*)
+      envs:
+        - all
     - path: /bot/conversations/(.+)
       envs:
       - all
