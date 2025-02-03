@@ -11,6 +11,7 @@ import Database.CQL.Protocol (Record (..), TupleType, asTuple)
 import Imports hiding (lookup)
 import Polysemy
 import SAML2.WebSSO qualified as SAML
+import UnliftIO (pooledForConcurrentlyN)
 import Wire.DomainRegistrationStore
 
 deriving instance Cql SAML.IdPId
@@ -28,10 +29,10 @@ interpretDomainRegistrationStoreToCassandra casClient =
       LookupByTeamInternal tid -> lookupByTeamInternalImpl tid
       DeleteInternal domain -> deleteImpl domain
 
-lookupByTeamInternalImpl :: (MonadClient m) => TeamId -> m [StoredDomainRegistration]
+lookupByTeamInternalImpl :: (MonadClient m, MonadUnliftIO m) => TeamId -> m [StoredDomainRegistration]
 lookupByTeamInternalImpl tid = do
   domains <- lookupTeamDomains tid
-  catMaybes <$> for domains lookupImpl
+  catMaybes <$> pooledForConcurrentlyN 16 domains lookupImpl
 
 lookupTeamDomains :: (MonadClient m) => TeamId -> m [DomainKey]
 lookupTeamDomains tid =
