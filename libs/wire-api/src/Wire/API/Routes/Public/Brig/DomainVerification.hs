@@ -151,6 +151,22 @@ instance ToSchema RegisteredDomains where
       RegisteredDomains
         <$> unRegisteredDomains .= field "registered_domains" (array schema)
 
+data DomainRedirectResponse = DomainRedirectResponse
+  { userExists :: Bool,
+    redirect :: DomainRedirect
+  }
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainRedirectResponse)
+
+instance ToSchema DomainRedirectResponse where
+  schema =
+    object "DomainRedirectResponse" $
+      DomainRedirectResponse
+        <$> (\r -> True <$ guard r.userExists)
+          .= maybe_
+            ( fromMaybe False <$> optField "due_to_existing_account" schema
+            )
+        <*> (.redirect) .= domainRedirectSchema
+
 type DomainVerificationChallengeAPI =
   Named
     "domain-verification-challenge"
@@ -241,5 +257,5 @@ type DomainVerificationAPI =
                :> CanThrow DomainVerificationInvalidDomain
                :> "get-domain-registration"
                :> ReqBody '[JSON] GetDomainRegistrationRequest
-               :> Post '[JSON] DomainRedirect
+               :> Post '[JSON] DomainRedirectResponse
            )

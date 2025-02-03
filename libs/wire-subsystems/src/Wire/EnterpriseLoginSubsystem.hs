@@ -30,7 +30,7 @@ data EnterpriseLoginSubsystem m a where
     EnterpriseLoginSubsystem m ()
   GetDomainRegistrationPublic ::
     GetDomainRegistrationRequest ->
-    EnterpriseLoginSubsystem m DomainRedirect
+    EnterpriseLoginSubsystem m DomainRedirectResponse
   CreateDomainVerificationChallenge ::
     Domain ->
     EnterpriseLoginSubsystem m DomainVerificationChallenge

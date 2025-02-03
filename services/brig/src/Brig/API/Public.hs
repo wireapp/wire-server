@@ -1557,7 +1557,7 @@ deleteRegisteredDomain lusr tid domain = lift . liftSem $ EnterpriseLogin.delete
 getDomainRegistration ::
   (_) =>
   GetDomainRegistrationRequest ->
-  Handler r DomainRedirect
+  Handler r DomainRedirectResponse
 getDomainRegistration req =
   lift . liftSem $
     EnterpriseLogin.getDomainRegistrationPublic req

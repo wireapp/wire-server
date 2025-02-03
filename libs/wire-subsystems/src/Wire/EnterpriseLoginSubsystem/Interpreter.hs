@@ -650,17 +650,19 @@ getDomainRegistrationPublicImpl ::
     Member TinyLog r
   ) =>
   GetDomainRegistrationRequest ->
-  Sem r DomainRedirect
+  Sem r DomainRedirectResponse
 getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
   -- check if the email belongs to a registered user
   mUser <- lookupKey (mkEmailKey email)
-  case mUser of
-    Nothing -> do
-      domain <-
-        either
-          (const (throw EnterpriseLoginSubsystemInvalidDomain))
-          pure
-          $ mkDomain (Text.decodeUtf8 (domainPart email))
-      mReg <- getDomainRegistrationImpl domain
-      pure $ maybe None (.domainRedirect) mReg
-    Just _ -> pure None
+
+  domain <-
+    either
+      (const (throw EnterpriseLoginSubsystemInvalidDomain))
+      pure
+      $ mkDomain (Text.decodeUtf8 (domainPart email))
+  mReg <- getDomainRegistrationImpl domain
+
+  pure $ case mUser of
+    Nothing -> DomainRedirectResponse False (maybe None (.domainRedirect) mReg)
+    Just _ ->
+      DomainRedirectResponse (fmap (domainRedirectTag . (.domainRedirect)) mReg == Just BackendTag) None
