@@ -6,10 +6,12 @@ module Wire.DomainRegistrationStore.Cassandra
 where
 
 import Cassandra
+import Data.Id (TeamId)
 import Database.CQL.Protocol (Record (..), TupleType, asTuple)
 import Imports hiding (lookup)
 import Polysemy
 import SAML2.WebSSO qualified as SAML
+import UnliftIO (pooledForConcurrentlyN)
 import Wire.DomainRegistrationStore
 
 deriving instance Cql SAML.IdPId
@@ -24,10 +26,32 @@ interpretDomainRegistrationStoreToCassandra casClient =
     embed @IO . runClient casClient . \case
       UpsertInternal dr -> upsertImpl dr
       LookupInternal domain -> lookupImpl domain
+      LookupByTeamInternal tid -> lookupByTeamInternalImpl tid
       DeleteInternal domain -> deleteImpl domain
 
+lookupByTeamInternalImpl :: (MonadClient m, MonadUnliftIO m) => TeamId -> m [StoredDomainRegistration]
+lookupByTeamInternalImpl tid = do
+  domains <- lookupTeamDomains tid
+  catMaybes <$> pooledForConcurrentlyN 16 domains lookupImpl
+
+lookupTeamDomains :: (MonadClient m) => TeamId -> m [DomainKey]
+lookupTeamDomains tid =
+  fmap runIdentity <$> retry x1 (query cql (params LocalQuorum (Identity tid)))
+  where
+    cql :: PrepQuery R (Identity TeamId) (Identity DomainKey)
+    cql = "SELECT domain FROM domain_registration_by_team WHERE team = ?"
+
 upsertImpl :: (MonadClient m) => StoredDomainRegistration -> m ()
-upsertImpl dr = retry x5 $ write cqlUpsert (params LocalQuorum (asTuple dr))
+upsertImpl dr = do
+  for_ dr.authorizedTeam $ flip upsertTeamIndex dr.domain
+  retry x5 $ write cqlUpsert (params LocalQuorum (asTuple dr))
+
+upsertTeamIndex :: (MonadClient m) => TeamId -> DomainKey -> m ()
+upsertTeamIndex tid domain =
+  retry x5 $ write cql (params LocalQuorum (tid, domain))
+  where
+    cql :: PrepQuery W (TeamId, DomainKey) ()
+    cql = "INSERT INTO domain_registration_by_team (team, domain) VALUES (?,?)"
 
 lookupImpl :: (MonadClient m) => DomainKey -> m (Maybe StoredDomainRegistration)
 lookupImpl domain =

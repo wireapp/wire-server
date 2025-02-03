@@ -133,6 +133,43 @@ runEnterpriseLoginSubsystem = interpret $
     AuthorizeTeam lusr domain ownershipToken ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         authorizeTeamImpl lusr domain ownershipToken
+    GetRegisteredDomains lusr tid ->
+      runInputSem (wireServerEnterpriseEndpoint <$> input) $
+        getRegisteredDomainsImpl lusr tid
+    DeleteTeamDomain lusr tid domain -> deleteTeamDomainImpl lusr tid domain
+
+deleteTeamDomainImpl ::
+  ( Member (Error EnterpriseLoginSubsystemError) r,
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r,
+    Member DomainRegistrationStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Domain ->
+  Sem r ()
+deleteTeamDomainImpl lusr tid domain = do
+  void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
+  domainReg <- lookup domain >>= note EnterpriseLoginSubsystemErrorNotFound
+  unless (domainReg.authorizedTeam == Just tid) $
+    throw EnterpriseLoginSubsystemOperationForbidden
+  delete domain
+
+getRegisteredDomainsImpl ::
+  ( Member (Error EnterpriseLoginSubsystemError) r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r,
+    Member (Log.Logger (Log.Msg -> Log.Msg)) r,
+    Member DomainRegistrationStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Sem r RegisteredDomains
+getRegisteredDomainsImpl lusr tid = do
+  void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
+  domains <- mkDomainRegistrationResponse <$$> lookupByTeam tid
+  pure $ RegisteredDomains domains
 
 authorizeTeamImpl ::
   ( Member TinyLog r,
@@ -146,7 +183,8 @@ authorizeTeamImpl ::
   DomainOwnershipToken ->
   Sem r ()
 authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
-  (tid, mDomainReg) <- guardTeamAdminAccess lusr domain
+  tid <- guardTeamAdminAccess lusr
+  mDomainReg <- lookup domain
   domainReg <- checkDomainOwnership mDomainReg token
   when (domainReg.domainRedirect == Locked) $
     throw EnterpriseLoginSubsystemOperationForbidden
@@ -536,10 +574,11 @@ updateTeamInviteImpl ::
   TeamInviteConfig ->
   Sem r ()
 updateTeamInviteImpl luid domain config = do
-  (tid, mbDomainReg) <- guardTeamAdminAccess luid domain
-  domainReg <- note EnterpriseLoginSubsystemAuthFailure mbDomainReg
+  tid <- guardTeamAdminAccess luid
+  mbDomainReg <- lookup domain
+  domainReg <- note EnterpriseLoginSubsystemOperationForbidden mbDomainReg
   unless (domainReg.authorizedTeam == Just tid) $
-    throw EnterpriseLoginSubsystemAuthFailure
+    throw EnterpriseLoginSubsystemOperationForbidden
   update <- validateUpdate tid domainReg config
   updateDomainRegistrationImpl domain update
   where
@@ -568,26 +607,35 @@ updateTeamInviteImpl luid domain config = do
 
 guardTeamAdminAccess ::
   forall r.
-  ( Member TinyLog r,
-    Member (Error EnterpriseLoginSubsystemError) r,
+  ( Member (Error EnterpriseLoginSubsystemError) r,
     Member UserSubsystem r,
-    Member GalleyAPIAccess r,
-    Member DomainRegistrationStore r
+    Member GalleyAPIAccess r
   ) =>
   Local UserId ->
-  Domain ->
-  Sem r (TeamId, Maybe DomainRegistration)
-guardTeamAdminAccess luid domain = do
-  profile <- getSelfProfile luid >>= note EnterpriseLoginSubsystemAuthFailure
-  tid <- note EnterpriseLoginSubsystemAuthFailure profile.selfUser.userTeam
+  Sem r TeamId
+guardTeamAdminAccess = guardTeamAdminAccessWithTeamIdCheck Nothing
+
+guardTeamAdminAccessWithTeamIdCheck ::
+  forall r.
+  ( Member (Error EnterpriseLoginSubsystemError) r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r
+  ) =>
+  Maybe TeamId ->
+  Local UserId ->
+  Sem r TeamId
+guardTeamAdminAccessWithTeamIdCheck mExpectedTeam luid = do
+  profile <- getSelfProfile luid >>= note EnterpriseLoginSubsystemOperationForbidden
+  tid <- note EnterpriseLoginSubsystemOperationForbidden profile.selfUser.userTeam
+  when (any (/= tid) mExpectedTeam) $
+    throw EnterpriseLoginSubsystemOperationForbidden
   teamMember <-
     getTeamMember (tUnqualified luid) tid
-      >>= note EnterpriseLoginSubsystemAuthFailure
+      >>= note EnterpriseLoginSubsystemOperationForbidden
   validatePaymentStatus tid
   unless (isAdminOrOwner (teamMember ^. permissions)) $
-    throw EnterpriseLoginSubsystemAuthFailure
-  mbDomainReg <- lookup domain
-  pure (tid, mbDomainReg)
+    throw EnterpriseLoginSubsystemOperationForbidden
+  pure tid
   where
     validatePaymentStatus :: TeamId -> Sem r ()
     validatePaymentStatus tid = do

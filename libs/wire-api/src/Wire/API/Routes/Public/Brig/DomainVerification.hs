@@ -142,6 +142,15 @@ instance ToSchema DomainOwnershipToken where
       DomainOwnershipToken
         <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
+newtype RegisteredDomains = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse]}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RegisteredDomains)
+
+instance ToSchema RegisteredDomains where
+  schema =
+    object "RegisteredDomains" $
+      RegisteredDomains
+        <$> unRegisteredDomains .= field "registered_domains" (array schema)
+
 type DomainVerificationChallengeAPI =
   Named
     "domain-verification-challenge"
@@ -165,7 +174,7 @@ type DomainVerificationChallengeAPI =
                :> Post '[JSON] DomainOwnershipToken
            )
 
-type DomainVerificationAPI =
+type DomainVerificationTeamAPI =
   Named
     "domain-verification-authorize-team"
     ( Summary "Authorize a team to operate on a verified domain"
@@ -180,21 +189,8 @@ type DomainVerificationAPI =
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Authorized")
     )
     :<|> Named
-           "update-domain-redirect"
-           ( Summary "Verify DNS record and save domain redirect configuration"
-               :> CanThrow DomainVerificationAuthFailure
-               :> CanThrow DomainVerificationOperationForbidden
-               :> Header' '[Required, Strict] "Authorization" (Bearer Token)
-               :> "domain-verification"
-               :> Capture "domain" Domain
-               :> "backend"
-               :> ReqBody '[JSON] DomainRedirectConfig
-               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
-           )
-    :<|> Named
            "update-team-invite"
-           ( Summary "Verify DNS record and save team-invite configuration"
-               :> CanThrow DomainVerificationAuthFailure
+           ( Summary "Update the team-invite configuration"
                :> CanThrow DomainVerificationPaymentRequired
                :> CanThrow DomainVerificationOperationForbidden
                :> ZLocalUser
@@ -204,6 +200,41 @@ type DomainVerificationAPI =
                :> ReqBody '[JSON] TeamInviteConfig
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
            )
+    :<|> Named
+           "get-all-registered-domains"
+           ( Summary "Get all registered domains"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "teamId" TeamId
+               :> "registered-domains"
+               :> Get '[JSON] RegisteredDomains
+           )
+    :<|> Named
+           "delete-registered-domain"
+           ( Summary "Delete a registered domain"
+               :> CanThrow DomainVerificationPaymentRequired
+               :> CanThrow DomainVerificationOperationForbidden
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "teamId" TeamId
+               :> "registered-domains"
+               :> Capture "domain" Domain
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "Deleted")
+           )
+
+type DomainVerificationAPI =
+  Named
+    "update-domain-redirect"
+    ( Summary "Update the domain redirect configuration"
+        :> CanThrow DomainVerificationAuthFailure
+        :> CanThrow DomainVerificationOperationForbidden
+        :> Header' '[Required, Strict] "Authorization" (Bearer Token)
+        :> "domain-verification"
+        :> Capture "domain" Domain
+        :> "backend"
+        :> ReqBody '[JSON] DomainRedirectConfig
+        :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
+    )
     :<|> Named
            "get-domain-registration"
            ( Summary "Get domain registration configuration by email"

@@ -21,3 +21,5 @@ enterpriseLoginSubsystemTestInterpreter constMbGuardResult =
     CreateDomainVerificationChallenge _ -> undefined
     VerifyChallenge {} -> undefined
     AuthorizeTeam {} -> undefined
+    GetRegisteredDomains {} -> undefined
+    DeleteTeamDomain {} -> undefined

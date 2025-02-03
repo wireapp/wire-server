@@ -219,16 +219,16 @@ testUpdateTeamInvite = do
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
   bindResponse (authorizeTeam mem domain setup.ownershipToken) $ \resp -> do
-    resp.status `shouldMatchInt` 401
-    resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
   -- admin should not be able to set team-invite if the team hasn't been authorized
   bindResponse
     ( updateTeamInvite owner domain (object ["team_invite" .= "team", "team" .= tid])
     )
     $ \resp -> do
-      resp.status `shouldMatchInt` 401
-      resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
@@ -237,8 +237,8 @@ testUpdateTeamInvite = do
     ( updateTeamInvite mem domain (object ["team_invite" .= "team", "team" .= tid])
     )
     $ \resp -> do
-      resp.status `shouldMatchInt` 401
-      resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
   -- setting team invite to the wrong team should fail
   fakeTeamId <- randomId
@@ -400,6 +400,53 @@ testChallengeTtl = withModifiedBackend
     liftIO $ threadDelay 2_500_000
     bindResponse (verifyDomain domain registrationDomain challengeId challengeToken) $ \resp -> do
       resp.status `shouldMatchInt` 404
+
+testGetAndDeleteRegisteredDomains :: (HasCallStack) => App ()
+testGetAndDeleteRegisteredDomains = do
+  (owner, tid, mem : _) <- createTeam OwnDomain 2
+
+  -- enable domain registration feature
+  assertSuccess =<< do
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
+
+  expectedDomains <- replicateM 5 do
+    domain <- randomDomain
+    setup <- setupOwnershipToken domain
+    authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
+    pure domain
+
+  bindResponse (getRegisteredDomainsByTeam owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    actualDomains <- resp.json %. "registered_domains" & asList >>= traverse (asString . (%. "domain"))
+    actualDomains `shouldMatchSet` expectedDomains
+
+  getRegisteredDomainsByTeam mem tid >>= assertStatus 403
+  (otherTeamOwner, _, _) <- createTeam OwnDomain 2
+  getRegisteredDomainsByTeam otherTeamOwner tid >>= assertStatus 403
+
+  nonExistingDomain <- randomDomain
+  deleteRegisteredTeamDomain owner tid nonExistingDomain >>= assertStatus 404
+  let firstDomain = head expectedDomains
+  deleteRegisteredTeamDomain mem tid firstDomain >>= assertStatus 403
+  deleteRegisteredTeamDomain otherTeamOwner tid firstDomain >>= assertStatus 403
+
+  let checkDelete :: [String] -> App ()
+      checkDelete [] =
+        bindResponse (getRegisteredDomainsByTeam owner tid) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          actualDomains <- resp.json %. "registered_domains" & asList
+          length actualDomains `shouldMatchInt` 0
+      checkDelete (domainToDelete : remainingDomains) = do
+        bindResponse (deleteRegisteredTeamDomain owner tid domainToDelete) $ \resp -> do
+          resp.status `shouldMatchInt` 204
+        bindResponse (getRegisteredDomainsByTeam owner tid) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          actualDomains <- resp.json %. "registered_domains" & asList >>= traverse (asString . (%. "domain"))
+          actualDomains `shouldMatchSet` remainingDomains
+        checkDelete remainingDomains
+
+  checkDelete expectedDomains
 
 -- helpers
 

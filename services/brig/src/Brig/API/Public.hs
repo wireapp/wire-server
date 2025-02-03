@@ -401,6 +401,7 @@ servantSitemap =
     :<|> servicesAPI
     :<|> providerAPI
     :<|> domainVerificationAPI
+    :<|> domainVerificationTeamAPI
     :<|> domainVerificationChallengeAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
@@ -554,22 +555,20 @@ servantSitemap =
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
-      Named @"domain-verification-authorize-team" authorizeTeam
-        :<|> Named @"update-domain-redirect" updateDomainRedirect
-        :<|> Named @"update-team-invite" updateTeamInvite
+      Named @"update-domain-redirect" updateDomainRedirect
         :<|> Named @"get-domain-registration" getDomainRegistration
+
+    domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
+    domainVerificationTeamAPI =
+      Named @"domain-verification-authorize-team" authorizeTeam
+        :<|> Named @"update-team-invite" updateTeamInvite
+        :<|> Named @"get-all-registered-domains" getAllRegisteredDomains
+        :<|> Named @"delete-registered-domain" deleteRegisteredDomain
 
     domainVerificationChallengeAPI :: ServerT DomainVerificationChallengeAPI (Handler r)
     domainVerificationChallengeAPI =
       Named @"domain-verification-challenge" getDomainVerificationChallenge
         :<|> Named @"verify-challenge" verifyChallenge
-
--- Note [ephemeral user sideeffect]
--- If the user is ephemeral and expired, it will be removed upon calling
--- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
--- This leads to the following events being sent:
--- - UserDeleted event to contacts of the user
--- - MemberLeave event to members for all conversations the user was in (via galley)
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -1548,6 +1547,12 @@ updateTeamInvite ::
   Handler r ()
 updateTeamInvite lusr domain config =
   lift . liftSem $ EnterpriseLogin.updateTeamInvite lusr domain config
+
+getAllRegisteredDomains :: (_) => Local UserId -> TeamId -> Handler r RegisteredDomains
+getAllRegisteredDomains lusr tid = lift . liftSem $ EnterpriseLogin.getRegisteredDomains lusr tid
+
+deleteRegisteredDomain :: (_) => Local UserId -> TeamId -> Domain -> Handler r ()
+deleteRegisteredDomain lusr tid domain = lift . liftSem $ EnterpriseLogin.deleteTeamDomain lusr tid domain
 
 getDomainRegistration ::
   (_) =>
