@@ -247,9 +247,11 @@ testInvitePersonalUserToTeamLegacy = withAPIVersion 6 $ do
       resp.json %. "email" `shouldMatch` email
       resp.json %. "team" `shouldMatch` tid
 
-testInvitationTypesAreDistinct :: (HasCallStack) => App ()
-testInvitationTypesAreDistinct = do
-  let domain = OwnDomain -- enterprise is not enabled for OtherDomain / dynamic backends.
+testInvitationTypesAreDistinct :: (HasCallStack) => Domain -> App ()
+testInvitationTypesAreDistinct domain = do
+  -- Test all domains here to make sure that enterprise login being disabled
+  -- does not prevent user registration.
+
   -- We are only testing one direction because the other is not possible
   -- because the non-existing user cannot have a valid session
   (owner, _, _) <- createTeam domain 0

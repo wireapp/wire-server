@@ -10,4 +10,5 @@ runEnterpriseLoginSubsystemNoConfig ::
   (Member (Error EnterpriseLoginSubsystemError) r) =>
   InterpreterFor EnterpriseLoginSubsystem r
 runEnterpriseLoginSubsystemNoConfig = interpret $ \case
+  GetDomainRegistration _domain -> pure Nothing
   _ -> throw EnterpriseLoginSubsystemNotEnabled
