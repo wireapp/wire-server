@@ -448,6 +448,39 @@ testGetAndDeleteRegisteredDomains = do
 
   checkDelete expectedDomains
 
+testGetDomainRegistrationUserExists :: (HasCallStack) => App ()
+testGetDomainRegistrationUserExists = do
+  domain <- randomDomain
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+
+  -- create a user with email on this domain
+  void
+    $ randomUser
+      OwnDomain
+      def
+        { email = Just ("paolo@" <> domain)
+        }
+
+  setup <- setupOwnershipToken domain
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (mkDomainRedirectBackend "https://wire.example.com")
+    >>= assertStatus 200
+
+  bindResponse (getDomainRegistrationFromEmail OwnDomain ("sven@" <> domain)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_redirect" `shouldMatch` "backend"
+    resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
+    lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe String)
+
+  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" <> domain)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_redirect" `shouldMatch` "none"
+    lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe String)
+    resp.json %. "due_to_existing_account" `shouldMatch` True
+
 -- helpers
 
 data ChallengeSetup = ChallengeSetup
