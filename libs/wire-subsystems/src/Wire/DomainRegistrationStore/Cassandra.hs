@@ -31,10 +31,7 @@ interpretDomainRegistrationStoreToCassandra casClient =
 lookupByTeamInternalImpl :: (MonadClient m) => TeamId -> m [StoredDomainRegistration]
 lookupByTeamInternalImpl tid = do
   domains <- lookupTeamDomains tid
-  fmap asRecord <$> retry x1 (query cql (params LocalQuorum (Identity domains)))
-  where
-    cql :: PrepQuery R (Identity [DomainKey]) (TupleType StoredDomainRegistration)
-    cql = "SELECT domain, domain_redirect, team_invite, idp_id, backend_url, team, dns_verification_token, ownership_token_hash, authorized_team FROM domain_registration WHERE domain IN ?"
+  catMaybes <$> for domains lookupImpl
 
 lookupTeamDomains :: (MonadClient m) => TeamId -> m [DomainKey]
 lookupTeamDomains tid =
