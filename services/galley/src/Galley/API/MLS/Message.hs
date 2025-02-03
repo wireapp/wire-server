@@ -256,9 +256,11 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
   (events, newClients) <- lowerCodensity $ do
     (events, newClients) <- case bundle.sender of
-      SenderMember _index -> lift $ do
+      SenderMember _index -> do
         -- extract added/removed clients from bundle
-        action <- getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+        action <-
+          lift $
+            getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
         -- process additions and removals
         events <-
           processInternalCommit
