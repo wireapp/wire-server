@@ -17,6 +17,7 @@ import Data.IntMap qualified as IntMap
 import Data.Json.Util
 import Data.Qualified
 import Data.Text qualified as T
+import Galley.API.MLS.Commit.ExternalCommit
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Types
 import Imports
@@ -29,18 +30,18 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
-import Wire.API.MLS.Credential
-import Wire.API.MLS.LeafNode
-import Wire.API.MLS.Proposal
-import Wire.API.MLS.Serialisation
 import Wire.API.MLS.CommitBundle
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Epoch
 import Wire.API.MLS.Extension
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.HPKEPublicKey
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
+import Wire.API.MLS.Serialisation
 import Wire.API.Notification
-import Galley.API.MLS.Commit.ExternalCommit
 
 data RatchetTree = RatchetTree {nodes :: [Maybe Node]}
   deriving (Show, Eq)
@@ -107,15 +108,15 @@ getCommits =
         _ -> Nothing
       _ -> Nothing
 
-getProposals :: [MLSAddMessageNotif] -> [(UserId, UTCTimeMillis, Sender, [String])]
+getProposals :: [MLSAddMessageNotif] -> [(UserId, UTCTimeMillis, Sender, Epoch, [String])]
 getProposals =
   mapMaybe $ \n ->
     case n.message.value.content of
       MessagePublic p -> case p.content.value.content of
         FramedContentProposal pr ->
-          Just (n.from.qUnqualified, n.time, p.content.value.sender, ["proposal", showProposal $ Inline pr.value])
+          Just (n.from.qUnqualified, n.time, p.content.value.sender, p.content.value.epoch, ["proposal", showProposal $ Inline pr.value])
         FramedContentCommit c ->
-          Just (n.from.qUnqualified, n.time, p.content.value.sender, "commit" : showCommitProposals c.value)
+          Just (n.from.qUnqualified, n.time, p.content.value.sender, p.content.value.epoch, "commit" : showCommitProposals c.value)
         _ -> Nothing
       _ -> Nothing
 
