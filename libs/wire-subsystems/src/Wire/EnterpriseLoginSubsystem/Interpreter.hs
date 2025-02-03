@@ -157,7 +157,7 @@ deleteTeamDomainImpl lusr tid domain = do
   void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
   domainReg <- lookup domain >>= note EnterpriseLoginSubsystemErrorNotFound
   unless (domainReg.authorizedTeam == Just tid) $
-    throw EnterpriseLoginSubsystemAuthFailure
+    throw EnterpriseLoginSubsystemOperationForbidden
   delete domain
 
 getRegisteredDomainsImpl ::
@@ -671,9 +671,9 @@ updateTeamInviteImpl ::
 updateTeamInviteImpl luid domain config = do
   tid <- guardTeamAdminAccess luid
   mbDomainReg <- lookup domain
-  domainReg <- note EnterpriseLoginSubsystemAuthFailure mbDomainReg
+  domainReg <- note EnterpriseLoginSubsystemOperationForbidden mbDomainReg
   unless (domainReg.authorizedTeam == Just tid) $
-    throw EnterpriseLoginSubsystemAuthFailure
+    throw EnterpriseLoginSubsystemOperationForbidden
   update <- validateUpdate tid domainReg config
   updateDomainRegistrationImpl domain update
   where
@@ -720,16 +720,16 @@ guardTeamAdminAccessWithTeamIdCheck ::
   Local UserId ->
   Sem r TeamId
 guardTeamAdminAccessWithTeamIdCheck mExpectedTeam luid = do
-  profile <- getSelfProfile luid >>= note EnterpriseLoginSubsystemAuthFailure
-  tid <- note EnterpriseLoginSubsystemAuthFailure profile.selfUser.userTeam
+  profile <- getSelfProfile luid >>= note EnterpriseLoginSubsystemOperationForbidden
+  tid <- note EnterpriseLoginSubsystemOperationForbidden profile.selfUser.userTeam
   when (any (/= tid) mExpectedTeam) $
     throw EnterpriseLoginSubsystemOperationForbidden
   teamMember <-
     getTeamMember (tUnqualified luid) tid
-      >>= note EnterpriseLoginSubsystemAuthFailure
+      >>= note EnterpriseLoginSubsystemOperationForbidden
   validatePaymentStatus tid
   unless (isAdminOrOwner (teamMember ^. permissions)) $
-    throw EnterpriseLoginSubsystemAuthFailure
+    throw EnterpriseLoginSubsystemOperationForbidden
   pure tid
   where
     validatePaymentStatus :: TeamId -> Sem r ()

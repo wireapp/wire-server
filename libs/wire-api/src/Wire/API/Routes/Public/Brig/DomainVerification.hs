@@ -191,7 +191,6 @@ type DomainVerificationTeamAPI =
     :<|> Named
            "update-team-invite"
            ( Summary "Update the team-invite configuration"
-               :> CanThrow DomainVerificationAuthFailure
                :> CanThrow DomainVerificationPaymentRequired
                :> CanThrow DomainVerificationOperationForbidden
                :> ZLocalUser
@@ -213,7 +212,6 @@ type DomainVerificationTeamAPI =
     :<|> Named
            "delete-registered-domain"
            ( Summary "Delete a registered domain"
-               :> CanThrow DomainVerificationAuthFailure
                :> CanThrow DomainVerificationPaymentRequired
                :> CanThrow DomainVerificationOperationForbidden
                :> ZLocalUser

@@ -219,16 +219,16 @@ testUpdateTeamInvite = do
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
   bindResponse (authorizeTeam mem domain setup.ownershipToken) $ \resp -> do
-    resp.status `shouldMatchInt` 401
-    resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
   -- admin should not be able to set team-invite if the team hasn't been authorized
   bindResponse
     ( updateTeamInvite owner domain (object ["team_invite" .= "team", "team" .= tid])
     )
     $ \resp -> do
-      resp.status `shouldMatchInt` 401
-      resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
@@ -237,8 +237,8 @@ testUpdateTeamInvite = do
     ( updateTeamInvite mem domain (object ["team_invite" .= "team", "team" .= tid])
     )
     $ \resp -> do
-      resp.status `shouldMatchInt` 401
-      resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
   -- setting team invite to the wrong team should fail
   fakeTeamId <- randomId
@@ -421,14 +421,14 @@ testGetAndDeleteRegisteredDomains = do
     actualDomains <- resp.json %. "registered_domains" & asList >>= traverse (asString . (%. "domain"))
     actualDomains `shouldMatchSet` expectedDomains
 
-  getRegisteredDomainsByTeam mem tid >>= assertStatus 401
+  getRegisteredDomainsByTeam mem tid >>= assertStatus 403
   (otherTeamOwner, _, _) <- createTeam OwnDomain 2
   getRegisteredDomainsByTeam otherTeamOwner tid >>= assertStatus 403
 
   nonExistingDomain <- randomDomain
   deleteRegisteredTeamDomain owner tid nonExistingDomain >>= assertStatus 404
   let firstDomain = head expectedDomains
-  deleteRegisteredTeamDomain mem tid firstDomain >>= assertStatus 401
+  deleteRegisteredTeamDomain mem tid firstDomain >>= assertStatus 403
   deleteRegisteredTeamDomain otherTeamOwner tid firstDomain >>= assertStatus 403
 
   let checkDelete :: [String] -> App ()
