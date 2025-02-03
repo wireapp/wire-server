@@ -153,10 +153,8 @@ deleteTeamDomainImpl ::
   TeamId ->
   Domain ->
   Sem r ()
-deleteTeamDomainImpl lsur tid domain = do
-  userTeamId <- guardTeamAdminAccess lsur
-  unless (userTeamId == tid) $
-    throw EnterpriseLoginSubsystemOperationForbidden
+deleteTeamDomainImpl lusr tid domain = do
+  void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
   domainReg <- lookup domain >>= note EnterpriseLoginSubsystemErrorNotFound
   unless (domainReg.authorizedTeam == Just tid) $
     throw EnterpriseLoginSubsystemAuthFailure
@@ -173,9 +171,7 @@ getRegisteredDomainsImpl ::
   TeamId ->
   Sem r RegisteredDomains
 getRegisteredDomainsImpl lusr tid = do
-  userTeamId <- guardTeamAdminAccess lusr
-  unless (userTeamId == tid) $
-    throw EnterpriseLoginSubsystemOperationForbidden
+  void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
   domains <- mkDomainRegistrationResponse <$$> lookupByTeam tid
   pure $ RegisteredDomains domains
 
@@ -712,9 +708,22 @@ guardTeamAdminAccess ::
   ) =>
   Local UserId ->
   Sem r TeamId
-guardTeamAdminAccess luid = do
+guardTeamAdminAccess = guardTeamAdminAccessWithTeamIdCheck Nothing
+
+guardTeamAdminAccessWithTeamIdCheck ::
+  forall r.
+  ( Member (Error EnterpriseLoginSubsystemError) r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r
+  ) =>
+  Maybe TeamId ->
+  Local UserId ->
+  Sem r TeamId
+guardTeamAdminAccessWithTeamIdCheck mExpectedTeam luid = do
   profile <- getSelfProfile luid >>= note EnterpriseLoginSubsystemAuthFailure
   tid <- note EnterpriseLoginSubsystemAuthFailure profile.selfUser.userTeam
+  when (any (/= tid) mExpectedTeam) $
+    throw EnterpriseLoginSubsystemOperationForbidden
   teamMember <-
     getTeamMember (tUnqualified luid) tid
       >>= note EnterpriseLoginSubsystemAuthFailure

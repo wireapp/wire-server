@@ -403,7 +403,7 @@ testChallengeTtl = withModifiedBackend
 
 testGetAndDeleteRegisteredDomains :: (HasCallStack) => App ()
 testGetAndDeleteRegisteredDomains = do
-  (owner, tid, _mem : _) <- createTeam OwnDomain 2
+  (owner, tid, mem : _) <- createTeam OwnDomain 2
 
   -- enable domain registration feature
   assertSuccess =<< do
@@ -420,6 +420,16 @@ testGetAndDeleteRegisteredDomains = do
     resp.status `shouldMatchInt` 200
     actualDomains <- resp.json %. "registered_domains" & asList >>= traverse (asString . (%. "domain"))
     actualDomains `shouldMatchSet` expectedDomains
+
+  getRegisteredDomainsByTeam mem tid >>= assertStatus 401
+  (otherTeamOwner, _, _) <- createTeam OwnDomain 2
+  getRegisteredDomainsByTeam otherTeamOwner tid >>= assertStatus 403
+
+  nonExistingDomain <- randomDomain
+  deleteRegisteredTeamDomain owner tid nonExistingDomain >>= assertStatus 404
+  let firstDomain = head expectedDomains
+  deleteRegisteredTeamDomain mem tid firstDomain >>= assertStatus 401
+  deleteRegisteredTeamDomain otherTeamOwner tid firstDomain >>= assertStatus 403
 
   let checkDelete :: [String] -> App ()
       checkDelete [] =
