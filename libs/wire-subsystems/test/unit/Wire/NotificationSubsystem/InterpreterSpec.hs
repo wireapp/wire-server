@@ -56,7 +56,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushOrigin = Nothing,
                 _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
                 pushJson = payload1,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsCellsEvent = False
               }
           push2 =
             Push
@@ -69,7 +70,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                   Recipient user21 V2.RecipientClientsAll
                     :| [Recipient user22 V2.RecipientClientsAll],
                 pushJson = payload2,
-                _pushApsData = Just apsData
+                _pushApsData = Just apsData,
+                pushIsCellsEvent = False
               }
           duplicatePush = push2
           duplicatePushWithPush1Recipients = push2 {_pushRecipients = _pushRecipients push1}
@@ -116,7 +118,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushOrigin = Nothing,
                 _pushRecipients = lotOfRecipients,
                 pushJson = payload1,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsCellsEvent = False
               }
           pushSmallerThanFanoutLimit =
             Push
@@ -129,7 +132,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                   Recipient user21 V2.RecipientClientsAll
                     :| [Recipient user22 V2.RecipientClientsAll],
                 pushJson = payload2,
-                _pushApsData = Just apsData
+                _pushApsData = Just apsData,
+                pushIsCellsEvent = False
               }
           pushes =
             [ pushBiggerThanFanoutLimit,
@@ -170,7 +174,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushOrigin = Nothing,
                 _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
                 pushJson = payload1,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsCellsEvent = False
               }
           push2 =
             Push
@@ -183,7 +188,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                   Recipient user21 V2.RecipientClientsAll
                     :| [Recipient user22 V2.RecipientClientsAll],
                 pushJson = payload2,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsCellsEvent = False
               }
           pushes = [push1, push2]
 
@@ -226,7 +232,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushOrigin = Nothing,
                 _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
                 pushJson = payload1,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsCellsEvent = False
               }
       (_, attemptedPushes, logs) <- runMiniStackAsync mockConfig $ do
         thread <- pushAsyncImpl push1

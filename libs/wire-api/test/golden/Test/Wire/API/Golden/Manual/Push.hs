@@ -60,7 +60,8 @@ testObject_Push_1 =
       _pushNativeEncrypt = True,
       _pushNativeAps = Nothing,
       _pushNativePriority = HighPriority,
-      _pushPayload = singleton mempty
+      _pushPayload = singleton mempty,
+      _pushIsCellsEvent = False
     }
 
 testObject_Push_2 :: Push
@@ -78,5 +79,6 @@ testObject_Push_2 =
       _pushPayload =
         list1
           (KM.fromList [("foo" :: KM.Key) A..= '3', "bar" A..= True])
-          [KM.fromList [], KM.fromList ["growl" A..= ("foooood" :: Text)], KM.fromList ["lunchtime" A..= ("imminent" :: Text)]]
+          [KM.fromList [], KM.fromList ["growl" A..= ("foooood" :: Text)], KM.fromList ["lunchtime" A..= ("imminent" :: Text)]],
+      _pushIsCellsEvent = False
     }
