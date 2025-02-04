@@ -343,7 +343,7 @@ acceptOne2One lusr conv conn = do
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
-        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems')) $ \p ->
+        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems') False) $ \p ->
           pushNotifications [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
         pure conv' {Data.convLocalMembers = mems'}
     _ -> throwS @'InvalidOperation
@@ -670,7 +670,7 @@ pushConversationEvent conn e lusers bots = do
 newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
 newConversationEventPush e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
-   in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users))
+   in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users)) (isCellsEvent $ evtType e)
 
 verifyReusableCode ::
   ( Member CodeStore r,

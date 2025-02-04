@@ -122,6 +122,7 @@ toV2Push p =
     & V2.pushOriginConnection .~ _pushConn p
     & V2.pushTransient .~ _pushTransient p
     & maybe id (set V2.pushNativePriority) p._pushNativePriority
+    & V2.pushIsCellsEvent .~ p.pushIsCellsEvent
   where
     pload :: List1 Object
     pload = List1.singleton (pushJson p)

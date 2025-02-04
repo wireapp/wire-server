@@ -115,6 +115,7 @@ import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation (evtType, isCellsEvent)
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
@@ -241,7 +242,7 @@ createBindingTeam tid zusr body = do
   now <- input
   let e = newEvent tid now (EdTeamCreate team)
   pushNotifications
-    [newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| [])]
+    [newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| []) False]
   pure tid
 
 updateTeamStatus ::
@@ -303,7 +304,7 @@ updateTeamH zusr zcon tid updateData = do
   admins <- E.getTeamAdmins tid
   let e = newEvent tid now (EdTeamUpdate updateData)
   let r = userRecipient zusr :| map userRecipient (filter (/= zusr) admins)
-  pushNotifications [newPushLocal1 zusr (toJSONObject e) r & pushConn ?~ zcon & pushTransient .~ True]
+  pushNotifications [newPushLocal1 zusr (toJSONObject e) r False & pushConn ?~ zcon & pushTransient .~ True]
 
 deleteTeam ::
   forall r.
@@ -414,7 +415,7 @@ uncheckedDeleteTeam lusr zcon tid = do
         [] -> pure ()
         -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
         -- push module to never fan this out to more than the limit
-        x : xs -> pushNotifications [newPushLocal1 (tUnqualified lusr) (toJSONObject e) (x :| xs) & pushConn .~ zcon]
+        x : xs -> pushNotifications [newPushLocal1 (tUnqualified lusr) (toJSONObject e) (x :| xs) False & pushConn .~ zcon]
       -- To avoid DoS on gundeck, send conversation deletion events slowly
       pushNotificationsSlowly ue
     createConvDeleteEvents ::
@@ -432,7 +433,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       let mm = nonTeamMembers convMembs teamMembs
       let e = Conv.Event qconvId Nothing (tUntagged lusr) now Conv.EdConvDelete
       -- This event always contains all the required recipients
-      let p = newPushLocal (tUnqualified lusr) (toJSONObject e) (map localMemberToRecipient mm)
+      let p = newPushLocal (tUnqualified lusr) (toJSONObject e) (map localMemberToRecipient mm) (isCellsEvent $ evtType e)
       let ee' = map (,e) bots
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
@@ -661,7 +662,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
 
   now <- input
   let event = newEvent tid now (EdMemberUpdate targetId (Just targetPermissions))
-  let pushPriv = newPush mZusr (toJSONObject event) (map userRecipient admins')
+  let pushPriv = newPush mZusr (toJSONObject event) (map userRecipient admins') False
   for_ pushPriv (\p -> pushNotifications [p & pushConn .~ mZcon & pushTransient .~ True])
 
 updateTeamMember ::
@@ -876,7 +877,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
             userRecipient
               <$> (tUnqualified lusr :| filter (/= (tUnqualified lusr)) admins)
       pushNotifications
-        [newPushLocal1 (tUnqualified lusr) (toJSONObject e) r & pushConn .~ zcon & pushTransient .~ True]
+        [newPushLocal1 (tUnqualified lusr) (toJSONObject e) r False & pushConn .~ zcon & pushTransient .~ True]
 uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
   now <- input
   pushMemberLeaveEventToAll now
@@ -893,7 +894,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
       let r = userRecipient (tUnqualified lusr) :| membersToRecipients (Just (tUnqualified lusr)) (mems ^. teamMembers)
       when (mems ^. teamMemberListType == ListComplete) $ do
         pushNotifications
-          [newPushLocal1 (tUnqualified lusr) (toJSONObject e) r & pushTransient .~ True]
+          [newPushLocal1 (tUnqualified lusr) (toJSONObject e) r False & pushTransient .~ True]
 
 removeFromConvsAndPushConvLeaveEvent ::
   forall r.
@@ -1173,7 +1174,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
         Just o -> userRecipient <$> o :| filter (/= o) ((new ^. userId) : admins')
         Nothing -> userRecipient <$> new ^. userId :| admins'
   pushNotifications
-    [ newPushLocal1 (new ^. userId) (toJSONObject e) rs
+    [ newPushLocal1 (new ^. userId) (toJSONObject e) rs False
         & pushConn .~ originConn
         & pushTransient .~ True
     ]

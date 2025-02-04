@@ -1599,7 +1599,7 @@ addBot lusr zcon b = do
                   ]
               )
           )
-  for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users)) $ \p ->
+  for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users) (isCellsEvent $ evtType e)) $ \p ->
     pushNotifications [p & pushConn ?~ zcon]
   E.deliverAsync (map (,e) (bm : bots))
   pure e
@@ -1655,7 +1655,7 @@ rmBot lusr zcon b = do
       do
         let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t evd
-        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users)) $ \p ->
+        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users) (isCellsEvent (evtType e))) $ \p ->
           pushNotifications [p & pushConn .~ zcon]
         E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
         E.deleteClients (botUserId (b ^. rmBotId))

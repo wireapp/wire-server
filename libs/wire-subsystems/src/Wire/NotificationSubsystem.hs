@@ -1,5 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+{-# OPTIONS -Wwarn #-}
+
 module Wire.NotificationSubsystem where
 
 import Control.Concurrent.Async (Async)
@@ -27,7 +29,8 @@ data Push = Push
     pushOrigin :: Maybe UserId,
     _pushRecipients :: NonEmpty Recipient,
     pushJson :: Object,
-    _pushApsData :: Maybe ApsData
+    _pushApsData :: Maybe ApsData,
+    pushIsCellsEvent :: Bool
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform Push
@@ -53,8 +56,8 @@ data NotificationSubsystem m a where
 
 makeSem ''NotificationSubsystem
 
-newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> Push
-newPush1 from e rr =
+newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> Bool -> Push
+newPush1 from e rr isCellsEvent =
   Push
     { _pushConn = Nothing,
       _pushTransient = False,
@@ -63,15 +66,16 @@ newPush1 from e rr =
       _pushApsData = Nothing,
       pushJson = e,
       pushOrigin = from,
-      _pushRecipients = rr
+      _pushRecipients = rr,
+      pushIsCellsEvent = isCellsEvent
     }
 
-newPush :: Maybe UserId -> Object -> [Recipient] -> Maybe Push
-newPush _ _ [] = Nothing
-newPush u e (r : rr) = Just $ newPush1 u e (r :| rr)
+newPush :: Maybe UserId -> Object -> [Recipient] -> Bool -> Maybe Push
+newPush _ _ [] _ = todo
+newPush u e (r : rr) isCellsEvent = Just $ newPush1 u e (r :| rr) isCellsEvent
 
-newPushLocal :: UserId -> Object -> [Recipient] -> Maybe Push
+newPushLocal :: UserId -> Object -> [Recipient] -> Bool -> Maybe Push
 newPushLocal uid = newPush (Just uid)
 
-newPushLocal1 :: UserId -> Object -> NonEmpty Recipient -> Push
+newPushLocal1 :: UserId -> Object -> NonEmpty Recipient -> Bool -> Push
 newPushLocal1 uid = newPush1 (Just uid)

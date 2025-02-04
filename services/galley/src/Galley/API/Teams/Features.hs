@@ -213,7 +213,7 @@ pushFeatureEvent tid event = do
       let recipients = membersToRecipients Nothing (memList ^. teamMembers)
       pushNotifications $
         maybeToList $
-          (newPush Nothing (toJSONObject event) recipients)
+          (newPush Nothing (toJSONObject event) recipients False)
 
 guardLockStatus ::
   forall r.

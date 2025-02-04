@@ -17,6 +17,7 @@ module Wire.API.Push.V2
     pushNativeAps,
     pushNativePriority,
     pushPayload,
+    pushIsCellsEvent,
     singletonPayload,
     Recipient (..),
     RecipientClients (..),
@@ -255,7 +256,8 @@ data Push = Push
     -- | Native push priority.
     _pushNativePriority :: !Priority,
     -- | Opaque payload
-    _pushPayload :: !(List1 Object)
+    _pushPayload :: !(List1 Object),
+    _pushIsCellsEvent :: !Bool
   }
   deriving (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
@@ -272,7 +274,8 @@ newPush from to pload =
       _pushNativeEncrypt = True,
       _pushNativeAps = Nothing,
       _pushNativePriority = HighPriority,
-      _pushPayload = pload
+      _pushPayload = pload,
+      _pushIsCellsEvent = False
     }
 
 singletonPayload :: (ToJSONObject a) => a -> List1 Object
@@ -298,6 +301,7 @@ instance ToSchema Push where
         <*> (ifNot (== HighPriority) . _pushNativePriority)
           .= maybe_ (fromMaybe HighPriority <$> optField "native_priority" schema)
         <*> _pushPayload .= field "payload" schema
+        <*> _pushIsCellsEvent .= field "is_cells_event" schema
     where
       ifNot f a = if f a then Nothing else Just a
 
