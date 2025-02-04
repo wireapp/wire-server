@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,10 +21,13 @@ module Test.Wire.API.Roundtrip.Aeson (tests) where
 
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
+import Data.Default
+import Data.Domain
 import Data.Id (ConvId)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
+import Test.Tasty.HUnit (testCase, (@?=))
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
@@ -351,8 +356,17 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
       testRoundTrip @TeamsIntra.TeamName,
-      testProperty "EnterpriseLogin.EnterpriseLogin'" $ \(dom, new) -> do
-        EnterpriseLogin.oldToNew (EnterpriseLogin.newToOld dom new) === Right (dom, new)
+      T.testGroup "EnterpriseLogin.DomainRegistration{,Row}" $
+        [ -- TODO: move this group to a better place
+          testCase "default values match" $ do
+            let Right dom = mkDomain "example.com"
+            Right (def dom :: EnterpriseLogin.DomainRegistration)
+              @?= EnterpriseLogin.domainRegistrationFromRow (def dom)
+            (def dom :: EnterpriseLogin.DomainRegistrationRow)
+              @?= EnterpriseLogin.domainRegistrationToRow (def dom),
+          testProperty "to, from row" $ \new -> do
+            EnterpriseLogin.domainRegistrationFromRow (EnterpriseLogin.domainRegistrationToRow new) === Right new
+        ]
     ]
 
 testRoundTrip ::

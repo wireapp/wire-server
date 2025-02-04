@@ -699,6 +699,7 @@ test-suite wire-api-tests
     , cassava
     , containers             >=0.5
     , crypton
+    , data-default
     , filepath
     , hex
     , hspec

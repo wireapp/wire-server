@@ -9,6 +9,7 @@ import Wire.Error
 data EnterpriseLoginSubsystemError
   = EnterpriseLoginSubsystemErrorNotFound
   | EnterpriseLoginSubsystemInvalidDomain
+  | EnterpriseLoginSubsystemInvalidDomainUpdate String
   | EnterpriseLoginSubsystemDomainVerificationFailed
   | EnterpriseLoginSubsystemOperationForbidden
   | EnterpriseLoginSubsystemAuthFailure
@@ -25,6 +26,7 @@ enterpriseLoginSubsystemErrorToHttpError =
   StdError . \case
     EnterpriseLoginSubsystemErrorNotFound -> errorToWai @DomainVerificationErrorNotFound
     EnterpriseLoginSubsystemInvalidDomain -> errorToWai @DomainVerificationInvalidDomain
+    EnterpriseLoginSubsystemInvalidDomainUpdate _msg -> errorToWai @DomainVerificationInvalidDomainUpdate
     EnterpriseLoginSubsystemDomainVerificationFailed -> errorToWai @DomainVerificationDomainVerificationFailed
     EnterpriseLoginSubsystemOperationForbidden -> errorToWai @DomainVerificationOperationForbidden
     EnterpriseLoginSubsystemPaymentRequired -> errorToWai @DomainVerificationPaymentRequired

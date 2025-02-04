@@ -153,8 +153,10 @@ deleteTeamDomainImpl ::
 deleteTeamDomainImpl lusr tid domain = do
   void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
   domainReg <- lookup domain >>= note EnterpriseLoginSubsystemErrorNotFound
-  unless (domainReg.authorizedTeam == Just tid) $
-    throw EnterpriseLoginSubsystemOperationForbidden
+  case domainReg.settings of
+    Just (DomainForLocalTeam tid' Nothing) | tid' == tid -> pure ()
+    Just (DomainForLocalTeam tid' (Just _)) | tid' == tid -> pure ()
+    _ -> throw EnterpriseLoginSubsystemOperationForbidden
   delete domain
 
 getRegisteredDomainsImpl ::
@@ -187,9 +189,15 @@ authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
   tid <- guardTeamAdminAccess lusr
   mDomainReg <- lookup domain
   domainReg <- checkDomainOwnership mDomainReg token
-  when (domainReg.domainRedirect == Locked) $
-    throw EnterpriseLoginSubsystemOperationForbidden
-  upsert domainReg {authorizedTeam = Just tid}
+  newSettings <- case domainReg.settings of
+    Nothing -> error "TODO: what does the spec say?"
+    Just DomainLocked -> throw EnterpriseLoginSubsystemOperationForbidden
+    Just same@DomainPreAuthorized -> pure same
+    Just same@DomainNoRegistration -> pure same
+    Just same@(DomainForBackend url) -> pure same
+    Just (DomainForLocalTeam _oldTid Nothing) -> pure (DomainForLocalTeam tid Nothing)
+    Just (DomainForLocalTeam _oldTid (Just idpid)) -> pure (DomainForLocalTeam tid (Just idpid))
+  upsert domainReg {settings = Just newSettings}
 
 checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Maybe DomainRegistration -> Token -> Sem r DomainRegistration
 checkDomainOwnership mDomainReg ownershipToken = do
@@ -285,14 +293,14 @@ unauthorizeImpl ::
   Sem r ()
 unauthorizeImpl domain = do
   old <- lookupOrThrow domain
-  let new = old {domainRedirect = None} :: DomainRegistration
-  case old.domainRedirect of
-    PreAuthorized -> audit old new *> upsert new
-    Backend _ -> audit old new *> upsert new
-    NoRegistration -> audit old new *> upsert new
-    None -> pure ()
-    Locked -> throw EnterpriseLoginSubsystemOperationForbidden
-    SSO _ -> throw EnterpriseLoginSubsystemOperationForbidden
+  let new = old {settings = Nothing} :: DomainRegistration
+  case old.settings of
+    Nothing -> pure ()
+    Just DomainLocked -> throw EnterpriseLoginSubsystemOperationForbidden
+    Just DomainPreAuthorized -> audit old new *> upsert new
+    Just DomainNoRegistration -> audit old new *> upsert new
+    Just (DomainForBackend _) -> audit old new *> upsert new
+    Just (DomainForLocalTeam _ _) -> throw EnterpriseLoginSubsystemOperationForbidden
   where
     audit :: DomainRegistration -> DomainRegistration -> Sem r ()
     audit old new = sendAuditMail url "Domain unauthorized" (Just old) (Just new)
@@ -318,8 +326,9 @@ updateDomainRegistrationImpl domain update = do
   validate update
   mOld <- lookup domain
   let old = fromMaybe (def domain) mOld
-      new =
-        old {teamInvite = update.teamInvite, domainRedirect = update.domainRedirect} :: DomainRegistration
+  new <-
+    let err _ = throw $ EnterpriseLoginSubsystemInvalidDomainUpdate (show (domain, update))
+     in either err pure (domainRegistrationFromUpdate old update)
   audit mOld new *> upsert new
   where
     audit :: Maybe DomainRegistration -> DomainRegistration -> Sem r ()
@@ -330,6 +339,9 @@ updateDomainRegistrationImpl domain update = do
       "PUT /i/domain-registration/"
         <> fromText (domainText domain)
 
+-- TODO: this changes behavior in this PR: Locked overwrites all other data stored in
+-- DomainRegistrationSettings, like authorized team or sso code.  is this what we want?  (i
+-- think it is and we do!)
 lockDomainImpl ::
   forall r.
   ( Member DomainRegistrationStore r,
@@ -341,7 +353,7 @@ lockDomainImpl ::
   Sem r ()
 lockDomainImpl domain = do
   mOld <- lookup domain
-  let new = (def domain) {domainRedirect = Locked} :: DomainRegistration
+  let new = (def domain) {settings = Just DomainLocked} :: DomainRegistration
   audit mOld new *> upsert new
   where
     url :: Builder
@@ -353,6 +365,7 @@ lockDomainImpl domain = do
     audit :: Maybe DomainRegistration -> DomainRegistration -> Sem r ()
     audit old new = sendAuditMail url "Domain locked" old (Just new)
 
+-- TODO: overwrites all previous settings
 unlockDomainImpl ::
   forall r.
   ( Member DomainRegistrationStore r,
@@ -365,10 +378,10 @@ unlockDomainImpl ::
   Sem r ()
 unlockDomainImpl domain = do
   old <- lookupOrThrow domain
-  let new = old {domainRedirect = None} :: DomainRegistration
-  case old.domainRedirect of
-    Locked -> audit old new *> upsert new
-    _ -> throw EnterpriseLoginSubsystemOperationForbidden
+  let new = old {settings = Nothing} :: DomainRegistration
+  case old.settings of
+    Just DomainLocked -> audit old new *> upsert new
+    _ -> throw EnterpriseLoginSubsystemOperationForbidden -- TODO: why not do nothing?
   where
     url :: Builder
     url =
@@ -379,6 +392,7 @@ unlockDomainImpl domain = do
     audit :: DomainRegistration -> DomainRegistration -> Sem r ()
     audit old new = sendAuditMail url "Domain locked" (Just old) (Just new)
 
+-- TODO: overwrites all previous settings
 preAuthorizeImpl ::
   forall r.
   ( Member DomainRegistrationStore r,
@@ -392,10 +406,10 @@ preAuthorizeImpl ::
 preAuthorizeImpl domain = do
   mOld <- lookup domain
   let old = fromMaybe (def domain) mOld
-      new = old {domainRedirect = PreAuthorized} :: DomainRegistration
-  case old.domainRedirect of
-    PreAuthorized -> pure ()
-    None -> audit mOld new *> upsert new
+      new = old {settings = Just DomainPreAuthorized} :: DomainRegistration
+  case old.settings of
+    Just DomainPreAuthorized -> pure ()
+    Nothing -> audit mOld new *> upsert new
     _ -> throw $ EnterpriseLoginSubsystemOperationForbidden
   where
     url :: Builder
@@ -578,13 +592,16 @@ updateTeamInviteImpl luid domain config = do
   tid <- guardTeamAdminAccess luid
   mbDomainReg <- lookup domain
   domainReg <- note EnterpriseLoginSubsystemOperationForbidden mbDomainReg
-  unless (domainReg.authorizedTeam == Just tid) $
-    throw EnterpriseLoginSubsystemOperationForbidden
+  case domainReg.settings of
+    Just (DomainForLocalTeam tid' _) | tid' == tid -> throw EnterpriseLoginSubsystemOperationForbidden
+    _ -> pure ()
   update <- validateUpdate tid domainReg config
   updateDomainRegistrationImpl domain update
   where
     validateUpdate :: TeamId -> DomainRegistration -> TeamInviteConfig -> Sem r DomainRegistrationUpdate
     validateUpdate tid domReg conf = do
+      -- TODO: remove this function, validation should happen near declarations of
+      -- DomainRegistration, DomainRegistrationUpdate
       when (domReg.domainRedirect == Locked) $
         throw EnterpriseLoginSubsystemOperationForbidden
       when (isJust $ domReg.domainRedirect ^? _Backend) $

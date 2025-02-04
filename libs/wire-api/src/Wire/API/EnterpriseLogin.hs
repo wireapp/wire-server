@@ -220,54 +220,59 @@ data DomainRegistrationResponse = DomainRegistrationResponse
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistrationResponse
 
 mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse
-mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
+mkDomainRegistrationResponse = prs . domainRegistrationToRow
+  where
+    prs DomainRegistrationRow {..} = DomainRegistrationResponse {..}
 
 instance ToSchema DomainRegistrationResponse where
   schema =
     object "DomainRegistrationResponse" $
       DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
-        <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
+        <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema) -- TODO: change to "team" to make it consistent with client->server talk
         <*> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
-----------------------------------------------------------------------
-
-data DomainRegistration' = DomainRegistration'
-  { settings :: Maybe DomainRegistrationSettings',
+-- | See 'domainRegistration{From,To}Row'.
+data DomainRegistration = DomainRegistration
+  { domain :: Domain,
+    settings :: Maybe DomainRegistrationSettings,
     dnsVerificationToken :: Maybe DnsVerificationToken,
     authTokenHash :: Maybe Token
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform DomainRegistration')
+  deriving (Arbitrary) via (GenericUniform DomainRegistration)
 
-data DomainRegistrationSettings'
-  = Locked'
-  | PreAuthorized'
-  | NoRegistration'
+instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistration) where
+  def dom = DomainRegistration dom Nothing Nothing Nothing
+
+data DomainRegistrationSettings
+  = DomainLocked
+  | DomainPreAuthorized
+  | DomainNoRegistration
   | DomainForBackend HttpsUrl
   | DomainForLocalTeam TeamId (Maybe SAML.IdPId)
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform DomainRegistrationSettings')
+  deriving (Arbitrary) via (GenericUniform DomainRegistrationSettings)
 
-newToOld :: Domain -> DomainRegistration' -> DomainRegistration
-newToOld domain DomainRegistration' {..} = DomainRegistration {..}
+domainRegistrationToRow :: DomainRegistration -> DomainRegistrationRow
+domainRegistrationToRow DomainRegistration {..} = DomainRegistrationRow {..}
   where
     domainRedirect = case settings of
       Nothing -> None
-      Just Locked' -> Locked
-      Just PreAuthorized' -> PreAuthorized
-      Just NoRegistration' -> NoRegistration
+      Just DomainLocked -> Locked
+      Just DomainPreAuthorized -> PreAuthorized
+      Just DomainNoRegistration -> NoRegistration
       Just (DomainForBackend url) -> Backend url
       Just (DomainForLocalTeam _tid Nothing) -> None
       Just (DomainForLocalTeam _tid (Just idpid)) -> SSO idpid
 
     teamInvite = case settings of
       Nothing -> Allowed
-      Just Locked' -> Allowed
-      Just PreAuthorized' -> Allowed
-      Just NoRegistration' -> NotAllowed -- TODO: where does the spec cover this case?
+      Just DomainLocked -> Allowed
+      Just DomainPreAuthorized -> Allowed
+      Just DomainNoRegistration -> NotAllowed
       Just (DomainForBackend _) -> NotAllowed
       Just (DomainForLocalTeam tid _) -> Team tid
 
@@ -275,24 +280,35 @@ newToOld domain DomainRegistration' {..} = DomainRegistration {..}
       Just (DomainForLocalTeam tid _) -> Just tid
       _ -> Nothing
 
-oldToNew :: DomainRegistration -> Either String (Domain, DomainRegistration')
-oldToNew DomainRegistration {..} = do
-  settings :: Maybe DomainRegistrationSettings' <- do
-    case (domainRedirect, teamInvite, authorizedTeam) of
-      (None, Allowed, Nothing) -> Right Nothing
-      (Locked, Allowed, Nothing) -> Right (Just Locked')
-      (PreAuthorized, Allowed, Nothing) -> Right (Just PreAuthorized')
-      (NoRegistration, NotAllowed, Nothing) -> Right (Just NoRegistration')
-      (Backend url, NotAllowed, Nothing) -> Right (Just (DomainForBackend url))
-      (None, Team tid, Just tid') | tid == tid' -> Right (Just (DomainForLocalTeam tid Nothing))
-      (SSO idpid, Team tid, Just tid') | tid == tid' -> Right (Just (DomainForLocalTeam tid (Just idpid)))
-      _ -> Left ("domainRedirect, teamInvite, authorizedTeam mismatch: " <> show (domainRedirect, teamInvite, authorizedTeam))
+domainRegistrationSettingsFromRow :: DomainRedirect -> TeamInvite -> Maybe TeamId -> Either String (Maybe DomainRegistrationSettings)
+domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam =
+  case (domainRedirect, teamInvite, authorizedTeam) of
+    (None, Allowed, Nothing) -> Right Nothing
+    (Locked, Allowed, Nothing) -> Right (Just DomainLocked)
+    (PreAuthorized, Allowed, Nothing) -> Right (Just DomainPreAuthorized)
+    (NoRegistration, NotAllowed, Nothing) -> Right (Just DomainNoRegistration)
+    (Backend url, NotAllowed, Nothing) -> Right (Just (DomainForBackend url))
+    (None, Team tid, Just tid') | tid == tid' -> Right (Just (DomainForLocalTeam tid Nothing))
+    (SSO idpid, Team tid, Just tid') | tid == tid' -> Right (Just (DomainForLocalTeam tid (Just idpid)))
+    _ -> Left ("domainRedirect, teamInvite, authorizedTeam mismatch: " <> show (domainRedirect, teamInvite, authorizedTeam))
 
-  Right (domain, DomainRegistration' {..})
+domainRegistrationFromRow :: DomainRegistrationRow -> Either String DomainRegistration
+domainRegistrationFromRow DomainRegistrationRow {..} = do
+  settings <- domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam
+  Right DomainRegistration {..}
 
-----------------------------------------------------------------------
+domainRegistrationFromUpdate :: DomainRegistration -> DomainRegistrationUpdate -> Either String DomainRegistration
+domainRegistrationFromUpdate reg upd = do
+  let authorizedTeam = case upd.teamInvite of
+        Allowed -> Nothing
+        NotAllowed -> Nothing
+        Team tid -> Just tid
+  newSettings <- domainRegistrationSettingsFromRow upd.domainRedirect upd.teamInvite authorizedTeam
+  Right reg {settings = newSettings}
 
-data DomainRegistration = DomainRegistration
+-- | This type only server as a helper for json (and cql, for historical reasons).  App logic
+-- should always use 'DomainRegistration' instead.  See 'domainRegistration{From,To}Row'.
+data DomainRegistrationRow = DomainRegistrationRow
   { domain :: Domain,
     authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
@@ -301,11 +317,11 @@ data DomainRegistration = DomainRegistration
     authTokenHash :: Maybe Token
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform DomainRegistration)
+  deriving (Arbitrary) via (GenericUniform DomainRegistrationRow)
 
-instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistration) where
+instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistrationRow) where
   def domain =
-    DomainRegistration
+    DomainRegistrationRow
       { domain,
         authorizedTeam = Nothing,
         domainRedirect = def,

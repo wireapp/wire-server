@@ -230,6 +230,7 @@ mkDerivation {
     containers
     crypton
     currency-codes
+    data-default
     filepath
     hex
     hspec

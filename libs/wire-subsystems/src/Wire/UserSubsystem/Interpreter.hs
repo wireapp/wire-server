@@ -221,13 +221,14 @@ guardRegisterUserImpl email = do
       -- `Domain`.
       & either (throwGuardFailed . InvalidDomain) DRS.lookup
   for_ mReg $ \reg -> do
-    case reg.domainRedirect of
-      None -> pure ()
-      Locked -> pure ()
-      SSO _ -> throwGuardFailed DomRedirSetToSSO
-      Backend _ -> throwGuardFailed DomRedirSetToBackend
-      NoRegistration -> throwGuardFailed DomRedirSetToNoRegistration
-      PreAuthorized -> pure ()
+    case reg.settings of
+      Nothing -> pure ()
+      Just DomainLocked -> pure ()
+      Just DomainPreAuthorized -> pure ()
+      Just DomainNoRegistration -> throwGuardFailed DomRedirSetToNoRegistration
+      Just (DomainForBackend _) -> throwGuardFailed DomRedirSetToBackend
+      Just (DomainForLocalTeam _ Nothing) -> throwGuardFailed TeamInviteRestrictedToOtherTeam
+      Just (DomainForLocalTeam _ (Just _)) -> throwGuardFailed DomRedirSetToSSO
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey

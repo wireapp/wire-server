@@ -105,6 +105,7 @@ data BrigError
   | NotificationQueueConnectionError
   | DomainVerificationErrorNotFound
   | DomainVerificationInvalidDomain
+  | DomainVerificationInvalidDomainUpdate
   | DomainVerificationDomainVerificationFailed
   | DomainVerificationOperationForbidden
   | DomainVerificationAuthFailure
@@ -319,6 +320,8 @@ type instance MapError 'NotificationQueueConnectionError = 'StaticError 500 "int
 type instance MapError 'DomainVerificationErrorNotFound = 'StaticError 404 "not-found" "Not Found"
 
 type instance MapError 'DomainVerificationInvalidDomain = 'StaticError 400 "invalid-domain" "Invalid domain"
+
+type instance MapError 'DomainVerificationInvalidDomainUpdate = 'StaticError 400 "invalid-domain-update" "Invalid domain update"
 
 type instance MapError 'DomainVerificationDomainVerificationFailed = 'StaticError 403 "domain-verification-failed" "Domain verification failed"
 
