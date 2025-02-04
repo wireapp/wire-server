@@ -283,6 +283,21 @@ newToOld domain DomainRegistration' {..} = DomainRegistration {..}
       Just (DomainForLocalTeam tid _) -> Just tid
       _ -> Nothing
 
+oldToNew :: DomainRegistration -> Either String (Domain, DomainRegistration')
+oldToNew DomainRegistration {..} = do
+  settings :: Maybe DomainRegistrationSettings' <- do
+    case (domainRedirect, teamInvite, authorizedTeam) of
+      (None, Allowed, Nothing) -> Right Nothing
+      (Locked, Allowed, Nothing) -> Right (Just Locked')
+      (PreAuthorized, Allowed, Nothing) -> Right (Just PreAuthorized')
+      (NoRegistration, NotAllowed, Nothing) -> Right (Just NoRegistration')
+      (Backend url, NotAllowed, Nothing) -> Right (Just (DomainForBackend url))
+      (None, Team tid, Just tid') | tid == tid' -> Right (Just (DomainForLocalTeam tid Nothing))
+      (SSO idpid, Team tid, Just tid') | tid == tid' -> Right (Just (DomainForLocalTeam tid (Just idpid)))
+      _ -> Left ("domainRedirect, teamInvite, authorizedTeam mismatch: " <> show (domainRedirect, teamInvite, authorizedTeam))
+
+  Right (domain, DomainRegistration' {..})
+
 ----------------------------------------------------------------------
 
 data DomainRegistration = DomainRegistration
