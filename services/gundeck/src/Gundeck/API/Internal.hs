@@ -50,7 +50,7 @@ servantSitemap =
     :<|> Named @"i-clients-delete" unregisterClientH
     :<|> Named @"i-user-delete" removeUserH
     :<|> Named @"i-push-tokens-get" getPushTokensH
-    :<|> Named @"i-reg-consumable-notifs" registerConsumableNotifcationsClient
+    :<|> Named @"i-reg-consumable-notifs" registerConsumableNotificationsClient
 
 statusH :: (Applicative m) => m NoContent
 statusH = pure NoContent
@@ -67,8 +67,8 @@ removeUserH uid = NoContent <$ Client.removeUser uid
 getPushTokensH :: UserId -> Gundeck PushTok.PushTokenList
 getPushTokensH uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> PushTok.lookup uid Cassandra.All)
 
-registerConsumableNotifcationsClient :: UserId -> ClientId -> Gundeck NoContent
-registerConsumableNotifcationsClient uid cid = do
+registerConsumableNotificationsClient :: UserId -> ClientId -> Gundeck NoContent
+registerConsumableNotificationsClient uid cid = do
   chan <- getRabbitMqChan
   void . liftIO $ setupConsumableNotifications chan uid cid
   pure NoContent
