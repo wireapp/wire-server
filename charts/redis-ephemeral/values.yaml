@@ -1,5 +1,4 @@
 redis-ephemeral:
-  usePassword: false
   # We use a single node redis for now.
   architecture: standalone
   auth:

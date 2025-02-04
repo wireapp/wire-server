@@ -1,0 +1,1 @@
+Update redis-ephemeral helm chart to use the latest 6.2.X (6.2.7) image of redis.
