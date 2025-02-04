@@ -572,6 +572,12 @@ activateProvider dom key code = do
   submit "GET" (addQueryParams ps req) `bindResponse` \resp -> do
     resp.status `shouldMatchOneOf` [Number 200, Number 204]
 
+activateUser :: (HasCallStack, MakesValue dom, MakesValue bdy) => dom -> bdy -> App Response
+activateUser dom bdy = do
+  b <- make bdy
+  req <- rawBaseRequest dom Brig Versioned $ joinHttpPath ["activate", "send"]
+  submit "POST" $ (addJSON b req)
+
 activateUserV5 :: (HasCallStack, MakesValue dom, MakesValue bdy) => dom -> bdy -> App Response
 activateUserV5 dom bdy = do
   b <- make bdy

@@ -98,6 +98,9 @@ tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> 
 tests _ at opts p b c ch g aws userJournalWatcher =
   testGroup
     "account"
+    -- CAUTION: these tests are heavily outdated and in many places use /i/users instead of
+    -- /register.  also preverified has never been implemented by clients and is deprecated.
+
     [ test p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified opts b userJournalWatcher,
       test p "testCreateUserWithInvalidVerificationCode - post /register - 400 (with preverified)" $ testCreateUserWithInvalidVerificationCode b,
       test p "post /register - 201" $ testCreateUser b g,
