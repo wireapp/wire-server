@@ -152,7 +152,7 @@ splitPushes ps = do
 
 -- | Split a push into rabbitmq and legacy push. This code exists to help with
 -- migration. Once it is completed and old APIs are not supported anymore we can
--- assume everything is meant for RabbtiMQ and stop splitting.
+-- assume everything is meant for RabbitMQ and stop splitting.
 splitPush ::
   UserClientsFull ->
   Push ->
