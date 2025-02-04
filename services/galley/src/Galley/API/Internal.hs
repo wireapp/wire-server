@@ -391,7 +391,7 @@ rmUser lusr conn = do
                       (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
               pure $
-                newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)
+                newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c) (isPydioEvent $ evtType e)
                   <&> set pushConn conn
                     . set pushRoute PushV2.RouteDirect
           | otherwise -> pure Nothing

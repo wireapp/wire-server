@@ -551,7 +551,7 @@ createConnectConversation lusr conn j = do
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
       notifyCreatedConversation lusr conn c
-      for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)) $ \p ->
+      for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c) (isPydioEvent $ evtType e)) $ \p ->
         pushNotifications
           [ p
               & pushRoute .~ PushV2.RouteDirect
@@ -591,7 +591,7 @@ createConnectConversation lusr conn j = do
             Nothing -> pure $ Data.convName conv
           t <- input
           let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t (EdConnect j)
-          for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers conv)) $ \p ->
+          for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers conv) (isPydioEvent $ evtType e)) $ \p ->
             pushNotifications
               [ p
                   & pushRoute .~ PushV2.RouteDirect
@@ -691,7 +691,7 @@ notifyCreatedConversation lusr conn c = do
       c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr (lmId m))
       let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t (EdConversation c')
       pure $
-        newPushLocal1 (tUnqualified lusr) (toJSONObject e) (NonEmpty.singleton (localMemberToRecipient m))
+        newPushLocal1 (tUnqualified lusr) (toJSONObject e) (NonEmpty.singleton (localMemberToRecipient m)) (isPydioEvent $ evtType e)
           & pushConn .~ conn
           & pushRoute .~ route
 

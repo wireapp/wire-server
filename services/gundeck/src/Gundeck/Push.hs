@@ -324,7 +324,7 @@ pushViaRabbitMq p = do
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq routingKey qMsg
 
-pushToPydio
+pushToPydio = todo
 
 -- | A new notification to be stored in C* and pushed over websockets
 data NewNotification = NewNotification
