@@ -232,6 +232,59 @@ instance ToSchema DomainRegistrationResponse where
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
+----------------------------------------------------------------------
+
+data DomainRegistration' = DomainRegistration'
+  { settings :: Maybe DomainRegistrationSettings',
+    dnsVerificationToken :: Maybe DnsVerificationToken,
+    authTokenHash :: Maybe Token
+  }
+
+data DomainRegistrationSettings'
+  = Locked'
+  | PreAuthorized'
+  | NoRegistration'
+  | DomainForBackend HttpsUrl
+  | DomainForLocalTeam TeamId (Maybe SAML.IdPId)
+
+-- | we need this if there is no entry in the table.
+defDomainRegistration :: Domain -> DomainRegistration
+defDomainRegistration dom =
+  DomainRegistration
+    { domain = dom,
+      authorizedTeam = Nothing,
+      domainRedirect = None,
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing,
+      authTokenHash = Nothing
+    }
+
+newToOld :: Domain -> DomainRegistration' -> DomainRegistration
+newToOld domain DomainRegistration' {..} = DomainRegistration {..}
+  where
+    domainRedirect = case settings of
+      Nothing -> None
+      Just Locked' -> Locked
+      Just PreAuthorized' -> PreAuthorized
+      Just NoRegistration' -> NoRegistration
+      Just (DomainForBackend url) -> Backend url
+      Just (DomainForLocalTeam _tid Nothing) -> None
+      Just (DomainForLocalTeam _tid (Just idpid)) -> SSO idpid
+
+    teamInvite = case settings of
+      Nothing -> Allowed
+      Just Locked' -> Allowed
+      Just PreAuthorized' -> Allowed
+      Just NoRegistration' -> NotAllowed -- TODO: where does the spec cover this case?
+      Just (DomainForBackend _) -> NotAllowed
+      Just (DomainForLocalTeam tid _) -> Team tid
+
+    authorizedTeam = case settings of
+      Just (DomainForLocalTeam tid _) -> Just tid
+      _ -> Nothing
+
+----------------------------------------------------------------------
+
 data DomainRegistration = DomainRegistration
   { domain :: Domain,
     authorizedTeam :: Maybe TeamId,
