@@ -321,7 +321,7 @@ runGundeckAPIAccessFailure pushesRef =
       GundeckAPIAccess.UserDeleted {} -> unexpectedCall
       GundeckAPIAccess.UnregisterPushClient {} -> unexpectedCall
       GundeckAPIAccess.GetPushTokens {} -> unexpectedCall
-      GundeckAPIAccess.RegisterConsumableNotifcationsClient {} -> unexpectedCall
+      GundeckAPIAccess.RegisterConsumableNotificationsClient {} -> unexpectedCall
 
 data TestException = TestException
   deriving (Show)
@@ -340,7 +340,7 @@ runGundeckAPIAccessIORef pushesRef =
       GundeckAPIAccess.UserDeleted {} -> unexpectedCall
       GundeckAPIAccess.UnregisterPushClient {} -> unexpectedCall
       GundeckAPIAccess.GetPushTokens {} -> unexpectedCall
-      GundeckAPIAccess.RegisterConsumableNotifcationsClient {} -> unexpectedCall
+      GundeckAPIAccess.RegisterConsumableNotificationsClient {} -> unexpectedCall
 
 waitUntilPushes :: IORef [a] -> Int -> IO [a]
 waitUntilPushes pushesRef n = do
