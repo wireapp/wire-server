@@ -19,6 +19,7 @@ module Wire.API.MLS.GroupInfo
   ( GroupContext (..),
     GroupInfo (..),
     GroupInfoData (..),
+    GroupInfoTBS (..),
   )
 where
 

@@ -17,7 +17,9 @@
 
 module Galley.API.MLS.Commit.ExternalCommit
   ( getExternalCommitData,
+    getExternalCommitData',
     processExternalCommit,
+    ExternalCommitAction (..),
   )
 where
 
@@ -48,6 +50,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProposalTag
@@ -63,7 +66,6 @@ data ExternalCommitAction = ExternalCommitAction
 getExternalCommitData ::
   forall r.
   ( Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r
   ) =>
@@ -72,17 +74,28 @@ getExternalCommitData ::
   Epoch ->
   Commit ->
   Sem r ExternalCommitAction
-getExternalCommitData senderIdentity lConvOrSub epoch commit = do
+getExternalCommitData senderIdentity lConvOrSub _epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
-      groupId = cnvmlsGroupId convOrSub.mlsMeta
+      mlsData = convOrSub.mlsMeta
   activeData <-
     note (mlsProtocolError "The first commit in a group cannot be external") $
-      cnvmlsActiveData convOrSub.mlsMeta
-  let curEpoch = activeData.epoch
-  when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
-  when (epoch == Epoch 0) $
-    throw $
-      mlsProtocolError "The first commit in a group cannot be external"
+      cnvmlsActiveData mlsData
+  let groupId = cnvmlsGroupId mlsData
+  getExternalCommitData' (ciphersuite activeData) senderIdentity convOrSub.indexMap groupId commit
+
+getExternalCommitData' ::
+  forall r.
+  ( Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+  ) =>
+  CipherSuiteTag ->
+  ClientIdentity ->
+  IndexMap ->
+  GroupId ->
+  Commit ->
+  Sem r ExternalCommitAction
+getExternalCommitData' cs senderIdentity indexMap groupId commit = do
   proposals <- traverse getInlineProposal commit.proposals
 
   -- According to the spec, an external commit must contain:
@@ -100,9 +113,9 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   unless (null (Map.keys counts \\ allowedProposals)) $
     throw (mlsProtocolError "Invalid proposal type in an external commit")
 
-  evalState convOrSub.indexMap $ do
+  evalState indexMap $ do
     -- process optional removal
-    propAction <- applyProposals activeData.ciphersuite groupId proposals
+    propAction <- applyProposals cs groupId proposals
     removedIndex <- case cmAssocs (paRemove propAction) of
       [(cid, idx)]
         | cid /= senderIdentity ->
