@@ -96,7 +96,7 @@ runMessagePush loc mqcnv mp@(MessagePush _ _ _ botMembers event) = do
 toPush :: MessagePush -> Maybe Push
 toPush (MessagePush mconn mm rs _ event) =
   let usr = qUnqualified (evtFrom event)
-   in newPush (Just usr) (toJSONObject event) rs
+   in newPush (Just usr) (toJSONObject event) rs False
         <&> set pushConn mconn
         . set pushNativePriority (mmNativePriority mm)
         . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
