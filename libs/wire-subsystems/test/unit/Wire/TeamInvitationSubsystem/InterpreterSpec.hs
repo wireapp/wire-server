@@ -140,7 +140,7 @@ spec = do
                     initialUsers = [inviter] <> maybeToList existingPersonalAccount,
                     constGuardResult =
                       let domreg =
-                            (mkDomainRegistration registeredDomain :: DomainRegistration)
+                            (def registeredDomain :: DomainRegistration)
                               { domainRedirect = domRegUpd.domainRedirect,
                                 teamInvite = domRegUpd.teamInvite
                               }

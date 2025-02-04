@@ -173,8 +173,8 @@ deriving via (Schema TeamInvite) instance S.ToSchema TeamInvite
 
 -- | The challenge to be presented in a TXT DNS record by the owner of the domain.
 newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: AsciiBase64Url}
-  deriving stock (Ord, Eq, Show)
-  deriving newtype (FromHttpApiData, ToByteString)
+  deriving stock (Ord, Eq, Show, Generic)
+  deriving newtype (FromHttpApiData, ToByteString, Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema DnsVerificationToken
 
 instance ToSchema DnsVerificationToken where
@@ -247,18 +247,6 @@ data DomainRegistrationSettings'
   | DomainForBackend HttpsUrl
   | DomainForLocalTeam TeamId (Maybe SAML.IdPId)
 
--- | we need this if there is no entry in the table.
-defDomainRegistration :: Domain -> DomainRegistration
-defDomainRegistration dom =
-  DomainRegistration
-    { domain = dom,
-      authorizedTeam = Nothing,
-      domainRedirect = None,
-      teamInvite = Allowed,
-      dnsVerificationToken = Nothing,
-      authTokenHash = Nothing
-    }
-
 newToOld :: Domain -> DomainRegistration' -> DomainRegistration
 newToOld domain DomainRegistration' {..} = DomainRegistration {..}
   where
@@ -308,36 +296,22 @@ data DomainRegistration = DomainRegistration
     dnsVerificationToken :: Maybe DnsVerificationToken,
     authTokenHash :: Maybe Token
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainRegistration)
 
-instance Arbitrary DomainRegistration where
-  arbitrary = do
-    dom :: Domain <- arbitrary
-    upd :: DomainRegistrationUpdate <- arbitrary
-    mbteam :: Maybe TeamId <- arbitrary
-    pure
-      DomainRegistration
-        { domain = dom,
-          authorizedTeam = mbteam,
-          domainRedirect = upd.domainRedirect,
-          teamInvite = upd.teamInvite,
-          dnsVerificationToken = Nothing,
-          authTokenHash = Nothing
-        }
-
-mkDomainRegistration :: Domain -> DomainRegistration
-mkDomainRegistration domain =
-  DomainRegistration
-    { domain,
-      authorizedTeam = Nothing,
-      domainRedirect = def,
-      teamInvite = def,
-      dnsVerificationToken = Nothing,
-      authTokenHash = Nothing
-    }
+instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistration) where
+  def domain =
+    DomainRegistration
+      { domain,
+        authorizedTeam = Nothing,
+        domainRedirect = def,
+        teamInvite = def,
+        dnsVerificationToken = Nothing,
+        authTokenHash = Nothing
+      }
 
 newtype Token = Token {unToken :: ByteString}
-  deriving newtype (Eq, Ord, Show)
+  deriving newtype (Eq, Ord, Show, Arbitrary)
   deriving (Aeson.FromJSON, Aeson.ToJSON, S.ToSchema) via (Schema Token)
 
 instance ToSchema Token where

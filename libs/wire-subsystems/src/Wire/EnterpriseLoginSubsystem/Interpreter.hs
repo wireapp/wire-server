@@ -16,6 +16,7 @@ import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as BL
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Qualified
@@ -245,7 +246,7 @@ verifyChallengeImpl domain challengeId challengeToken = do
   verifyDNSRecord domain challenge.dnsVerificationToken
   authToken <- Token <$> Random.bytes 32
   mOld <- lookup domain
-  let old = fromMaybe (mkDomainRegistration domain) mOld
+  let old = fromMaybe (def domain) mOld
   upsert $
     old
       { authTokenHash = Just $ hashToken authToken,
@@ -316,7 +317,7 @@ updateDomainRegistrationImpl ::
 updateDomainRegistrationImpl domain update = do
   validate update
   mOld <- lookup domain
-  let old = fromMaybe (mkDomainRegistration domain) mOld
+  let old = fromMaybe (def domain) mOld
       new =
         old {teamInvite = update.teamInvite, domainRedirect = update.domainRedirect} :: DomainRegistration
   audit mOld new *> upsert new
@@ -340,7 +341,7 @@ lockDomainImpl ::
   Sem r ()
 lockDomainImpl domain = do
   mOld <- lookup domain
-  let new = (mkDomainRegistration domain) {domainRedirect = Locked} :: DomainRegistration
+  let new = (def domain) {domainRedirect = Locked} :: DomainRegistration
   audit mOld new *> upsert new
   where
     url :: Builder
@@ -390,7 +391,7 @@ preAuthorizeImpl ::
   Sem r ()
 preAuthorizeImpl domain = do
   mOld <- lookup domain
-  let old = fromMaybe (mkDomainRegistration domain) mOld
+  let old = fromMaybe (def domain) mOld
       new = old {domainRedirect = PreAuthorized} :: DomainRegistration
   case old.domainRedirect of
     PreAuthorized -> pure ()
