@@ -36,6 +36,7 @@ import Wire.API.Conversation.Member qualified as Conversation.Member
 import Wire.API.Conversation.Role qualified as Conversation.Role
 import Wire.API.Conversation.Typing qualified as Conversation.Typing
 import Wire.API.CustomBackend qualified as CustomBackend
+import Wire.API.EnterpriseLogin qualified as EnterpriseLogin
 import Wire.API.Event.Conversation qualified as Event.Conversation
 import Wire.API.Event.Team qualified as Event.Team
 import Wire.API.Event.WebSocketProtocol qualified as EventWebSocketProtocol
@@ -349,7 +350,9 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatus,
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
-      testRoundTrip @TeamsIntra.TeamName
+      testRoundTrip @TeamsIntra.TeamName,
+      testProperty "EnterpriseLogin.EnterpriseLogin'" $ \(dom, new) -> do
+        EnterpriseLogin.oldToNew (EnterpriseLogin.newToOld dom new) === Right (dom, new)
     ]
 
 testRoundTrip ::

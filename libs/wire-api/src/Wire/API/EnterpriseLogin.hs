@@ -239,6 +239,8 @@ data DomainRegistration' = DomainRegistration'
     dnsVerificationToken :: Maybe DnsVerificationToken,
     authTokenHash :: Maybe Token
   }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainRegistration')
 
 data DomainRegistrationSettings'
   = Locked'
@@ -246,6 +248,8 @@ data DomainRegistrationSettings'
   | NoRegistration'
   | DomainForBackend HttpsUrl
   | DomainForLocalTeam TeamId (Maybe SAML.IdPId)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainRegistrationSettings')
 
 newToOld :: Domain -> DomainRegistration' -> DomainRegistration
 newToOld domain DomainRegistration' {..} = DomainRegistration {..}
