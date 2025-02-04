@@ -1,5 +1,4 @@
 redis-ephemeral:
-  fullnameOverride: redis-ephemeral
   # We use a single node redis for now.
   architecture: standalone
   auth:
