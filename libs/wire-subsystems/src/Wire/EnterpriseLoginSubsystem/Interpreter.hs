@@ -391,10 +391,10 @@ unlockDomainImpl domain = do
 preAuthorizeImpl ::
   forall r.
   ( Member DomainRegistrationStore r,
-    Member (Error EnterpriseLoginSubsystemError) r,
     Member TinyLog r,
     Member (Input EnterpriseLoginSubsystemConfig) r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member (Error EnterpriseLoginSubsystemError) r
   ) =>
   Domain ->
   Sem r ()
@@ -404,8 +404,8 @@ preAuthorizeImpl domain = do
       new = old {settings = Just DomainPreAuthorized} :: DomainRegistration
   case old.settings of
     Just DomainPreAuthorized -> pure ()
-    Nothing -> audit mOld new *> upsert new
-    _ -> throw $ EnterpriseLoginSubsystemOperationForbidden
+    Just DomainLocked -> throw EnterpriseLoginSubsystemOperationForbidden
+    _ -> audit mOld new *> upsert new
   where
     url :: Builder
     url =
