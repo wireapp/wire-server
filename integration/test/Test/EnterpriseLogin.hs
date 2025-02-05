@@ -212,6 +212,18 @@ testDomainRegistrationBackendToUnAuthorize = do
             "team_invite" .= "not-allowed"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "backend"
+    resp.json %. "backend_url" `shouldMatch` "https://example.com"
+    resp.json %. "team_invite" `shouldMatch` "not-allowed"
+  {-
+    test fails because with our current model we cannot express these requirements:
+    POST /i/domain-registration/{domain}/unauthorize
+      If the domain-redirect value for that domain is pre-authorized, backend:{url} or no-registration, sets it to none.
+      Returns an error otherwise. Does not modify the team-invites value nor creates an entry if it’s missing.
+    -}
   assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
