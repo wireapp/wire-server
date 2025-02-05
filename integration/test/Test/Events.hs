@@ -518,6 +518,45 @@ testChannelKilled = do
 
         assertNoEventHelper ws `shouldMatch` WebSocketDied
 
+testSingleConsumer :: (HasCallStack) => App ()
+testSingleConsumer = do
+  alice <- randomUser OwnDomain def
+  clientId <-
+    addClient alice def {acapabilities = Just ["consumable-notifications"]}
+      >>= getJSON 201
+      >>= objId
+
+  -- add a second client in order to generate one more notification
+  clientId' <- addClient alice def >>= getJSON 201 >>= objId
+
+  lowerCodensity $ do
+    ws <- createEventsWebSocket alice (Just clientId)
+    ws' <- createEventsWebSocket alice (Just clientId)
+
+    -- the second websocket should get no notifications as long as the first
+    -- one is connected
+    lift $ assertNoEvent_ ws'
+
+    deliveryTag1 <- lift $ assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.delivery_tag"
+
+    lift $ assertNoEvent_ ws'
+
+    lift $ sendAck ws deliveryTag1 False
+    lift $ assertNoEvent_ ws'
+
+    deliveryTag2 <- lift $ assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId'
+      e %. "data.delivery_tag"
+    lift $ sendAck ws deliveryTag2 False
+
+    lift $ assertNoEvent_ ws'
+
 ----------------------------------------------------------------------
 -- helpers
 
