@@ -211,9 +211,8 @@ pushFeatureEvent tid event = do
           . Log.msg @Text "Fanout limit exceeded. Events will not be sent."
     else do
       let recipients = membersToRecipients Nothing (memList ^. teamMembers)
-      pushNotifications $
-        maybeToList $
-          (newPush Nothing (toJSONObject event) recipients False)
+      pushNotifications
+        [newPush Nothing (toJSONObject event) recipients False]
 
 guardLockStatus ::
   forall r.

@@ -161,13 +161,13 @@ splitPush clientsFull p = do
   let (rabbitmqRecipients, legacyRecipients) =
         partitionHereThereRange . rcast @_ @_ @1024 $
           mapRange splitRecipient (rangeSetToList $ p._pushRecipients)
-  case (runcons rabbitmqRecipients, runcons legacyRecipients) of
-    (Nothing, _) -> (That p)
-    (_, Nothing) -> (This p)
-    (Just (rabbit0, rabbits), Just (legacy0, legacies)) ->
+  case (null (fromRange rabbitmqRecipients), null (fromRange legacyRecipients)) of
+    (True, _) -> (That p)
+    (_, True) -> (This p)
+    (False, False) ->
       These
-        p {_pushRecipients = rangeListToSet $ rcons rabbit0 rabbits}
-        p {_pushRecipients = rangeListToSet $ rcons legacy0 legacies}
+        p {_pushRecipients = rangeListToSet rabbitmqRecipients}
+        p {_pushRecipients = rangeListToSet legacyRecipients}
   where
     splitRecipient :: Recipient -> These Recipient Recipient
     splitRecipient rcpt = do
@@ -339,7 +339,7 @@ mkNewNotification psh = NewNotification psh <$> mkNotif <*> rcps
       pure $ Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
 
     rcps :: m (List1 Recipient)
-    rcps = assertList1 . toList . fromRange $ (psh ^. pushRecipients :: Range 1 1024 (Set Recipient))
+    rcps = assertList1 . toList . fromRange $ (psh ^. pushRecipients :: Range 0 1024 (Set Recipient))
 
     -- Shouldn't fail as we just extracted this from `Range 1 1024`
     assertList1 :: [a] -> m (List1 a)

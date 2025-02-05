@@ -1166,7 +1166,7 @@ randomUser = do
       uid <- nextRandom
       pure $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
-toRecipients :: [UserId] -> Range 1 1024 (Set Recipient)
+toRecipients :: [UserId] -> Range 0 1024 (Set Recipient)
 toRecipients = unsafeRange . Set.fromList . map (`recipient` RouteAny)
 
 randomConnId :: (MonadIO m) => m ConnId

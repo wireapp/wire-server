@@ -1105,10 +1105,9 @@ pushTypingIndicatorEvents ::
   Sem r ()
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
   let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
-  for_ (newPushLocal (qUnqualified qusr) (toJSONObject e) (userRecipient <$> users) False) $ \p ->
-    pushNotifications
-      [ p
-          & pushConn .~ mcon
-          & pushRoute .~ PushV2.RouteDirect
-          & pushTransient .~ True
-      ]
+  pushNotifications
+    [ newPushLocal (qUnqualified qusr) (toJSONObject e) (userRecipient <$> users) False
+        & pushConn .~ mcon
+        & pushRoute .~ PushV2.RouteDirect
+        & pushTransient .~ True
+    ]

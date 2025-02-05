@@ -227,7 +227,7 @@ data Push = Push
     -- assumption that no 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but
     -- not in any contract.  (Changing this may require a new version module, since we need to
     -- support both the old and the new data type simultaneously during upgrade.)
-    _pushRecipients :: Range 1 1024 (Set Recipient),
+    _pushRecipients :: Range 0 1024 (Set Recipient),
     -- | Originating user
     --
     -- 'Nothing' here means that the originating user is on another backend.
@@ -262,7 +262,7 @@ data Push = Push
   deriving (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
 
-newPush :: Maybe UserId -> Range 1 1024 (Set Recipient) -> List1 Object -> Push
+newPush :: Maybe UserId -> Range 0 1024 (Set Recipient) -> List1 Object -> Push
 newPush from to pload =
   Push
     { _pushRecipients = to,

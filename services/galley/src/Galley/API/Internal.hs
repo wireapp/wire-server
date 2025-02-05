@@ -394,9 +394,9 @@ rmUser lusr conn = do
                       now
                       (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-              pure $
+              pure . Just $
                 newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c) (isCellsEvent $ evtType e)
-                  <&> set pushConn conn
+                  & set pushConn conn
                     . set pushRoute PushV2.RouteDirect
           | otherwise -> pure Nothing
 
