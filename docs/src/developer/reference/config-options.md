@@ -772,6 +772,60 @@ however the users will still be able to use them to login.
 **NOTE** It is highly recommended to move to argon2id as it will be made the
   only available choice for the `algorithm` config option in future.
 
+Due to the performance implications, password hashing has to be rate limited
+more than other operations. To allow this, the rate limiting happens at a deeper
+level than nginx. It can be configured using these options:
+
+```yaml
+brig:
+  optSettings:
+    setPasswordHashingRateLimit:
+      ipAddrLimit:
+        burst: 5
+        inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+      userLimit:
+        burst: 5
+        inverseRate: 60000000 # 1 min, makes it 60 req/hour
+      internalLimit:
+        burst: 10
+        inverseRate: 0 # No rate limiting for internal use
+      ipv4CidrBlock: 32 # Only block individual IP addresses
+      ipv6CidrBlock: 64 # Block /64 range at a time.
+      ipAddressExceptions: []
+      maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+galley:
+  settings:
+    passwordHashingRateLimit:
+      ipAddrLimit:
+        burst: 5
+        inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+      userLimit:
+        burst: 5
+        inverseRate: 60000000 # 1 min, makes it 60 req/hour
+      internalLimit:
+        burst: 10
+        inverseRate: 0 # No rate limiting for internal use
+      ipv4CidrBlock: 32 # Only block individual IP addresses
+      ipv6CidrBlock: 64 # Block /64 range at a time.
+      ipAddressExceptions: []
+      maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+```
+
+The above are the default values.
+
+The rate limiting happens using the [Token Bucket
+Algorithm](https://en.wikipedia.org/wiki/Token_bucket). The parameters can be
+separately configured for:
+1. IP Addresses to be used in case of unauthenticated requests using
+   `ipAddrLimit`.
+2. Users and providers using `userLimit`.
+3. Internal usages (like calls from backoffice) using `internalLimit`.
+
+The `ipAddressExceptions` have to be CIDR blocks which can be specified like
+`"127.0.0.0/8"` to allow any IP address from `127.0.0.0` to `127.255.255.255` to
+by pass the rate limits. To limit one particular IP address, it can be specified
+as `127.0.0.1/32`.
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.

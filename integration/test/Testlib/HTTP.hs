@@ -48,6 +48,9 @@ addJSON obj = addBody (HTTP.RequestBodyLBS (Aeson.encode obj)) "application/json
 addXML :: ByteString -> HTTP.Request -> HTTP.Request
 addXML xml = addBody (HTTP.RequestBodyBS xml) "application/xml"
 
+addClientIP :: HTTP.Request -> HTTP.Request
+addClientIP = addHeader "X-Forwarded-For" "127.0.0.42"
+
 addUrlEncodedForm :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addUrlEncodedForm form req =
   req

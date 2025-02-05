@@ -378,6 +378,7 @@ data:
       setOAuthMaxActiveRefreshTokens: {{ .setOAuthMaxActiveRefreshTokens }}
       {{- end }}
       setPasswordHashingOptions: {{ toYaml .setPasswordHashingOptions | nindent 8 }}
+      setPasswordHashingRateLimit: {{ toYaml .setPasswordHashingRateLimit | nindent 8 }}
       {{- if .setAuditLogEmailRecipient }}
       setAuditLogEmailRecipient: {{ .setAuditLogEmailRecipient }}
       {{- end }}

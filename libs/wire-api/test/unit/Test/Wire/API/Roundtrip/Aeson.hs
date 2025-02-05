@@ -20,6 +20,7 @@ module Test.Wire.API.Roundtrip.Aeson (tests) where
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
 import Data.Id (ConvId)
+import Data.Misc
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
@@ -252,7 +253,7 @@ tests =
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibility,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityView,
       testRoundTrip @User.NameUpdate,
-      testRoundTrip @User.NewUser,
+      testRoundTrip @(User.NewUser PlainTextPassword8),
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,
       testRoundTrip @(User.LimitedQualifiedUserIdList 20),
