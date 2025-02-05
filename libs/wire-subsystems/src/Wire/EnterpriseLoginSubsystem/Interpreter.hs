@@ -154,8 +154,7 @@ deleteTeamDomainImpl lusr tid domain = do
   void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
   domainReg <- lookup domain >>= note EnterpriseLoginSubsystemErrorNotFound
   case domainReg.settings of
-    Just (DomainForLocalTeam tid' Nothing) | tid' == tid -> pure ()
-    Just (DomainForLocalTeam tid' (Just _)) | tid' == tid -> pure ()
+    Just (DomainForLocalTeam tid' _) | tid' == tid -> pure ()
     _ -> throw EnterpriseLoginSubsystemOperationForbidden
   delete domain
 
@@ -190,13 +189,9 @@ authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
   mDomainReg <- lookup domain
   domainReg <- checkDomainOwnership mDomainReg token
   newSettings <- case domainReg.settings of
-    Nothing -> error "TODO: what does the spec say?"
     Just DomainLocked -> throw EnterpriseLoginSubsystemOperationForbidden
-    Just same@DomainPreAuthorized -> pure same
-    Just same@DomainNoRegistration -> pure same
-    Just same@(DomainForBackend _url) -> pure same
-    Just (DomainForLocalTeam _oldTid Nothing) -> pure (DomainForLocalTeam tid Nothing)
-    Just (DomainForLocalTeam _oldTid (Just idpid)) -> pure (DomainForLocalTeam tid (Just idpid))
+    Just (DomainForLocalTeam _oldTid (Just idpid)) -> pure (DomainForLocalTeam tid (Just idpid)) -- TODO: really?  https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1690501212/Use+case+Set+or+delete+the+domain+configuration+for+a+team?focusedCommentId=1709047823
+    _ -> pure (DomainForLocalTeam tid Nothing)
   upsert domainReg {settings = Just newSettings}
 
 checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Maybe DomainRegistration -> Token -> Sem r DomainRegistration
@@ -606,8 +601,6 @@ updateTeamInviteImpl luid domain config = do
     -- into 'DomainRegistration'?
     validateUpdate :: TeamId -> DomainRegistration -> TeamInviteConfig -> Sem r DomainRegistrationUpdate
     validateUpdate tid (domainRegistrationToRow -> domReg) conf = do
-      -- TODO: remove this function, validation should happen near declarations of
-      -- DomainRegistration, DomainRegistrationUpdate
       when (domReg.domainRedirect == Locked) $
         throw EnterpriseLoginSubsystemOperationForbidden
       when (isJust $ domReg.domainRedirect ^? _Backend) $
