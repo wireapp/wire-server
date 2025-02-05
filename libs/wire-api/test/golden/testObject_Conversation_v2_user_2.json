@@ -62,6 +62,7 @@
     "message_timer": 1319272593797015,
     "name": "",
     "protocol": "proteus",
+    "cells_state": "pending",
     "qualified_id": {
         "domain": "golden.example.com",
         "id": "00000000-0000-0000-0000-000000000002"
