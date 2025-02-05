@@ -134,7 +134,7 @@ localElasticSettings =
     { _esConnection =
         ESConnectionSettings
           { esServer = [uri|https://localhost:9200|],
-            esIndex = ES.IndexName "directory_test",
+            esIndex = [ES.qqIndexName|directory_test|],
             esCaCert = Just "test/resources/elasticsearch-ca.pem",
             esInsecureSkipVerifyTls = False,
             esCredentials = Just "test/resources/elasticsearch-credentials.yaml"
@@ -172,13 +172,14 @@ elasticServerParser =
 restrictedElasticSettingsParser :: Parser ElasticSettings
 restrictedElasticSettingsParser = do
   server <- elasticServerParser
-  prefix <-
-    strOption
+  indexName <-
+    option
+      readTestIndexName
       ( long "elasticsearch-index-prefix"
           <> metavar "PREFIX"
           <> help "Elasticsearch Index Prefix. The actual index name will be PREFIX_test."
-          <> value "directory"
-          <> showDefault
+          <> value [ES.qqIndexName|directory_test|]
+          <> showDefaultWith (const "directory")
       )
   mCreds <- credentialsPathParser
   mCaCert <- caCertParser
@@ -188,23 +189,33 @@ restrictedElasticSettingsParser = do
       { _esConnection =
           localElasticSettings._esConnection
             { esServer = server,
-              esIndex = ES.IndexName (prefix <> "_test"),
+              esIndex = indexName,
               esCredentials = mCreds,
               esCaCert = mCaCert,
               esInsecureSkipVerifyTls = verifyCa
             }
       }
+  where
+    readTestIndexName :: ReadM ES.IndexName
+    readTestIndexName = eitherReader mkTestIndexName
+
+    mkTestIndexName :: String -> Either String ES.IndexName
+    mkTestIndexName prefix = mapLeft Text.unpack (ES.mkIndexName (Text.pack (prefix <> "_test")))
 
 indexNameParser :: Parser ES.IndexName
 indexNameParser =
-  ES.IndexName . view packed
-    <$> strOption
-      ( long "elasticsearch-index"
-          <> metavar "STRING"
-          <> help "Elasticsearch Index Name."
-          <> value (view (_IndexName . unpacked) localElasticSettings._esConnection.esIndex)
-          <> showDefault
-      )
+  option
+    readIndexName
+    ( long "elasticsearch-index"
+        <> metavar "STRING"
+        <> help "Elasticsearch Index Name."
+        <> value
+          (localElasticSettings._esConnection.esIndex)
+        <> showDefault
+    )
+
+readIndexName :: ReadM ES.IndexName
+readIndexName = eitherReader $ (\s -> mapLeft Text.unpack $ ES.mkIndexName (Text.pack s))
 
 connectionSettingsParser :: Parser ESConnectionSettings
 connectionSettingsParser =
@@ -332,12 +343,12 @@ reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
 reindexToAnotherIndexSettingsParser =
   ReindexFromAnotherIndexSettings
     <$> connectionSettingsParser
-    <*> ( ES.IndexName . view packed
-            <$> strOption
-              ( long "destination-index"
-                  <> metavar "STRING"
-                  <> help "Elasticsearch index name to reindex to"
-              )
+    <*> ( option
+            readIndexName
+            ( long "destination-index"
+                <> metavar "STRING"
+                <> help "Elasticsearch index name to reindex to"
+            )
         )
     <*> option
       auto
@@ -415,9 +426,6 @@ commandParser =
               )
           )
     )
-
-_IndexName :: Iso' ES.IndexName Text
-_IndexName = iso (\(ES.IndexName n) -> n) ES.IndexName
 
 _Keyspace :: Iso' C.Keyspace Text
 _Keyspace = iso C.unKeyspace C.Keyspace

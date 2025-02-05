@@ -2,6 +2,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
@@ -44,7 +45,7 @@ import Brig.Options qualified as Opts
 import Cassandra qualified as C
 import Cassandra.Options qualified as CassOpts
 import Control.Lens ((.~), (?~), (^.))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Data.Aeson (Value, decode)
 import Data.Aeson qualified as Aeson
 import Data.Domain (Domain (Domain))
@@ -55,6 +56,7 @@ import Data.String.Conversions
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
+import Database.Bloodhound.Common.Requests qualified as ESR
 import Federation.Util
 import Imports
 import Network.HTTP.ReverseProxy (waiProxyTo)
@@ -773,9 +775,16 @@ withESProxy ::
   (ES.Server -> ES.IndexName -> m a) ->
   m a
 withESProxy lg opts f = do
-  indexName <- ES.IndexName <$> randomHandle
+  indexName <- mkIndexNameOrFail <$> randomHandle
   liftIO $ createCommand lg opts indexName
   withESProxyOnly [indexName] opts $ flip f indexName
+
+mkIndexNameOrFail :: Text -> ES.IndexName
+mkIndexNameOrFail indexNameText =
+  either
+    (\v -> error ("Invalid index name " ++ Text.unpack v))
+    id
+    $ ES.mkIndexName indexNameText
 
 createCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
 createCommand logger opts newIndexName =
@@ -820,7 +829,7 @@ indexProxyServer idxs opts mgr =
       proxyApp req
         | (headMay (Wai.pathInfo req)) `elem` [Just "_reindex", Just "_tasks"] =
             forwardRequest
-        | (any (\(ES.IndexName idx) -> (headMay (Wai.pathInfo req) == Just idx)) idxs) =
+        | (any (\(ES.unIndexName -> idx) -> (headMay (Wai.pathInfo req) == Just idx)) idxs) =
             forwardRequest
         | otherwise =
             denyRequest req
@@ -844,41 +853,40 @@ testWithBothIndicesAndOpts opts mgr name f =
         f newOpts <* deleteIndex opts indexName
     ]
 
-withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
+withOldIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
 withOldIndex opts f = do
   lg <- Log.create Log.StdOut
-  indexName <- randomHandle
+  indexName <- mkIndexNameOrFail <$> randomHandle
   createIndexWithMapping lg opts indexName oldMapping
-  let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName)
-  withSettingsOverrides newOpts f <* deleteIndex opts indexName
+  let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ indexName
+  withSettingsOverrides newOpts f <* deleteIndex opts (ES.unIndexName indexName)
 
-optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
+optsForOldIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
   lg <- Log.create Log.StdOut
-  indexName <- randomHandle
+  indexName <- mkIndexNameOrFail <$> randomHandle
   createIndexWithMapping lg opts indexName oldMapping
-  pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName), indexName)
+  pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ indexName, ES.unIndexName indexName)
 
-createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts -> Text -> Value -> m ()
-createIndexWithMapping lg opts name val = do
-  let indexName = ES.IndexName name
+createIndexWithMapping :: (MonadIO m, MonadCatch m, HasCallStack) => Log.Logger -> Opt.Opts -> ES.IndexName -> Value -> m ()
+createIndexWithMapping lg opts indexName val = do
   liftIO $ createCommand lg opts indexName
-  mappingReply <- runBH opts $ ES.putMapping indexName (ES.MappingName "user") val
+  (mappingReply, _value) <- runBH opts . ES.performBHRequest . ES.keepBHResponse $ ESR.putMapping @Value indexName val
   unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
-    liftIO $ assertFailure $ "failed to create mapping: " <> show name
+    liftIO $ assertFailure $ "failed to create mapping: " <> show indexName
 
 -- | This doesn't fail if ES returns error because we don't really want to fail the tests for this
-deleteIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> m ()
-deleteIndex opts name = do
-  let indexName = ES.IndexName name
-  void $ runBH opts $ ES.deleteIndex indexName
+deleteIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> Text -> m ()
+deleteIndex opts name =
+  let indexName = mkIndexNameOrFail name
+   in void $ runBH opts $ ES.deleteIndex indexName
 
-runBH :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.BH m a -> m a
+runBH :: (MonadIO m, MonadThrow m, HasCallStack) => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
   let (ES.Server esURL) = opts ^. Opt.elasticsearchLens . Opt.urlLens
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   let bEnv = mkBHEnv esURL mgr
-  ES.runBH bEnv action
+  either throwM pure =<< (ES.runBH bEnv action)
 
 --- | This was copied from at Brig.User.Search.Index.indexMapping at commit 75e6f6e
 oldMapping :: Value

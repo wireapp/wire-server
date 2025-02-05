@@ -1,0 +1,192 @@
+singleNode: true
+
+# Helm labels and annotations are automatically added for these Kubernetes
+# manifests.
+extraObjects:
+  - apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: opensearch-cert
+      namespace: {{ .Release.Namespace }}
+    spec:
+      issuerRef:
+        name: elasticsearch
+        kind: Issuer
+
+      usages:
+        - server auth
+        - client auth
+      duration: 2160h     # 90d
+      renewBefore: 360h   # 15d
+      isCA: false
+      secretName: opensearch-ephemeral-certificate
+
+      privateKey:
+        algorithm: ECDSA
+        size: 384
+        encoding: PKCS8
+        rotationPolicy: Always
+
+      dnsNames:
+      - opensearch-cluster-master
+      - opensearch-cluster-master.{{ .Release.Namespace }}.svc.cluster.local
+
+      commonName: opensearch-cluster-master
+
+opensearchHome: /usr/share/opensearch
+
+config:
+  opensearch.yml: |
+    cluster.name: opensearch-cluster
+
+    # Bind to all interfaces because we don't know what IP address Docker will assign to us.
+    network.host: 0.0.0.0
+
+    discovery.type: single-node
+
+    action.auto_create_index: true
+
+    # WARNING: This config is not meant to be used as prod setup! Revise all
+    # lines before you copy them.
+    plugins:
+      security:
+        nodes_dn:
+          - '/CN=opensearch-cluster-master.*/'
+        ssl:
+          transport:
+            pemcert_filepath: esnode.pem
+            pemkey_filepath: esnode-key.pem
+            pemtrustedcas_filepath: root-ca.pem
+            enforce_hostname_verification: false
+          http:
+            enabled: true
+            pemcert_filepath: esnode.pem
+            pemkey_filepath: esnode-key.pem
+            pemtrustedcas_filepath: root-ca.pem
+        allow_unsafe_democertificates: true
+        allow_default_init_securityindex: true
+        audit.type: internal_opensearch
+        enable_snapshot_restore_privilege: true
+        check_snapshot_restore_write_privileges: true
+        restapi:
+          roles_enabled: ["all_access", "security_rest_api_access"]
+        system_indices:
+          enabled: true
+          indices:
+            [
+              ".opendistro-alerting-config",
+              ".opendistro-alerting-alert*",
+              ".opendistro-anomaly-results*",
+              ".opendistro-anomaly-detector*",
+              ".opendistro-anomaly-checkpoints",
+              ".opendistro-anomaly-detection-state",
+              ".opendistro-reports-*",
+              ".opendistro-notifications-*",
+              ".opendistro-notebooks",
+              ".opendistro-asynchronous-search-response*",
+            ]
+
+securityConfig:
+  enabled: true
+  # The path will be different for OpenSearch 2.x.x!
+  path: "/usr/share/opensearch/plugins/opensearch-security/securityconfig"
+
+  # Configure one user with full access (this could be refined in future.)
+  # Credentials: elastic:changeme
+  config:
+    dataComplete: "true"
+    data:
+      config.yml: |
+        _meta:
+          type: "config"
+          config_version: 2
+
+        config:
+          dynamic:
+            authc:
+              basic_internal_auth_domain:
+                description: "Authenticate using HTTP basic against the internal users database"
+                http_enabled: true
+                transport_enabled: true
+                order: 1
+                http_authenticator:
+                  type: basic
+                  challenge: true
+                authentication_backend:
+                  type: internal
+
+      internal_users.yml: |
+        _meta:
+          type: "internalusers"
+          config_version: 2
+
+        elastic:
+          hash: "$2y$12$GRc68jkEX1m4uQpTVbwURu79xHxZ7vsbyEctOAADQwPjlhYS4LJVa"
+          reserved: true
+          description: "Wire User"
+          backend_roles:
+            - index_manager
+
+      roles_mapping.yml: |
+        _meta:
+          type: "rolesmapping"
+          config_version: 2
+
+        all_access:
+          reserved: false
+          backend_roles:
+            - index_manager
+          description: "Map index_manager to full_access"
+
+      allowlist.yml: |
+        _meta:
+          type: "allowlist"
+          config_version: 2
+
+        config:
+          enabled: false
+
+      roles.yml: |
+        _meta:
+          type: "roles"
+          config_version: 2
+
+      nodes_dn.yml: |
+        _meta:
+          type: "nodesdn"
+          config_version: 2
+
+      action_groups.yml: |
+        _meta:
+          type: "actiongroups"
+          config_version: 2
+
+      tenants.yml: |
+        _meta:
+          type: "tenants"
+          config_version: 2
+
+extraEnvs:
+  - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+    value: "Ch4ng3m3Secr3t!"
+  - name: DISABLE_INSTALL_DEMO_CONFIG
+    value: "true"
+
+persistence:
+  enabled: false
+
+secretMounts:
+  - name: node-pem
+    secretName: opensearch-ephemeral-certificate
+    path: /usr/share/opensearch/config/esnode.pem
+    subPath: tls.crt
+
+  - name: node-key
+    secretName: opensearch-ephemeral-certificate
+    path: /usr/share/opensearch/config/esnode-key.pem
+    subPath: tls.key
+
+  - name: root-cacert
+    secretName: opensearch-ephemeral-certificate
+    path: /usr/share/opensearch/config/root-ca.pem
+    subPath: ca.crt
