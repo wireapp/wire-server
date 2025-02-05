@@ -23,6 +23,7 @@ import Control.Lens (set, to, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Json.Util
@@ -745,7 +746,8 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       nonCreatorMembers = Set.empty,
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
-      protocol = convProtocol
+      protocol = convProtocol,
+      pydioState = Just cnvmPydioState
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -805,7 +807,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             -- domain.
             cnvmTeam = Nothing,
             cnvmMessageTimer = messageTimer,
-            cnvmReceiptMode = receiptMode
+            cnvmReceiptMode = receiptMode,
+            cnvmPydioState = fromMaybe def pydioState
           }
         (ConvMembers this others)
         ProtocolProteus
