@@ -33,6 +33,7 @@ where
 
 import Control.Error (headMay)
 import Control.Lens hiding ((??))
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Misc (FutureWork (FutureWork))
@@ -628,7 +629,8 @@ newRegularConversation lusr newConv = do
                   cnvmName = fmap fromRange (newConvName newConv),
                   cnvmMessageTimer = newConvMessageTimer newConv,
                   cnvmReceiptMode = newConvReceiptMode newConv,
-                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
+                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
+                  cnvmPydioState = def
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv
