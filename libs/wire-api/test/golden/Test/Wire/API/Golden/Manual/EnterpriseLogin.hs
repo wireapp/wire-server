@@ -50,7 +50,7 @@ testObject_DomainRegistrationResponse_3 :: DomainRegistrationResponse
 testObject_DomainRegistrationResponse_3 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
-      authorizedTeam = Nothing,
+      authorizedTeam = Just $ Id (fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
       domainRedirect = SSO (SAML.IdPId $ fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
       teamInvite = Team $ Id (fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
       dnsVerificationToken = Nothing

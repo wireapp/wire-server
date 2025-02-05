@@ -229,7 +229,7 @@ instance ToSchema DomainRegistrationResponse where
     object "DomainRegistrationResponse" $
       DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
-        <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema) -- TODO: change to "team" to make it consistent with client->server talk
+        <*> (.authorizedTeam) .= maybe_ (optField "team" schema)
         <*> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
