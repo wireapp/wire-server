@@ -317,7 +317,7 @@ genPush :: (HasCallStack) => MockEnv -> Gen Push
 genPush env = do
   let alluids = allUsers env
   sender <- QC.elements alluids
-  rcps :: Range 1 1024 (Set Recipient) <- do
+  rcps :: Range 0 1024 (Set Recipient) <- do
     numrcp <- choose (1, min 1024 (length alluids))
     rcps <- genRecipients numrcp env
     unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
@@ -377,7 +377,7 @@ shrinkPushes = shrinkList shrinkPush
   where
     shrinkPush :: Push -> [Push]
     shrinkPush psh = (\rcps -> psh & pushRecipients .~ rcps) <$> shrinkRecipients (psh ^. pushRecipients)
-    shrinkRecipients :: Range 1 1024 (Set Recipient) -> [Range 1 1024 (Set Recipient)]
+    shrinkRecipients :: Range 0 1024 (Set Recipient) -> [Range 0 1024 (Set Recipient)]
     shrinkRecipients = fmap unsafeRange . map Set.fromList . filter (not . null) . shrinkList shrinkRecipient . Set.toList . fromRange
     shrinkRecipient :: Recipient -> [Recipient]
     shrinkRecipient _ = []
