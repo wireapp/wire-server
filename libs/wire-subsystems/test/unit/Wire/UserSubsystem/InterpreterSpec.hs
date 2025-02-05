@@ -908,11 +908,12 @@ spec = describe "UserSubsystem.Interpreter" do
               DRS.upsert domreg
               guardRegisterUserImpl email
 
-            expected = case domreg.domainRedirect of
-              None -> Right ()
-              Locked -> Right ()
-              SSO _ -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
-              Backend _ -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
-              NoRegistration -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
-              PreAuthorized -> Right ()
+            expected = case domreg.settings of
+              Nothing -> Right ()
+              Just DomainLocked -> Right ()
+              Just DomainPreAuthorized -> Right ()
+              Just DomainNoRegistration -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
+              Just (DomainForBackend _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              Just (DomainForLocalTeam _tid Nothing) -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              Just (DomainForLocalTeam _tid (Just _idp)) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
          in outcome === expected

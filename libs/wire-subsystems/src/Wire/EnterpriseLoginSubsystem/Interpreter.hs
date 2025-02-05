@@ -194,7 +194,7 @@ authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
     Just DomainLocked -> throw EnterpriseLoginSubsystemOperationForbidden
     Just same@DomainPreAuthorized -> pure same
     Just same@DomainNoRegistration -> pure same
-    Just same@(DomainForBackend url) -> pure same
+    Just same@(DomainForBackend _url) -> pure same
     Just (DomainForLocalTeam _oldTid Nothing) -> pure (DomainForLocalTeam tid Nothing)
     Just (DomainForLocalTeam _oldTid (Just idpid)) -> pure (DomainForLocalTeam tid (Just idpid))
   upsert domainReg {settings = Just newSettings}
@@ -562,7 +562,10 @@ updateDomainRedirectImpl token domain config = do
       computeUpdate domainReg
   updateDomainRegistrationImpl domain update
   where
-    computeUpdate reg = case (config, reg.domainRedirect) of
+    -- TODO: it is more straight-forward for 'computeUpdate' to use the DomainRegistrationRow to
+    -- compute the update value.  maybe the update type should also be adjusted to fit better
+    -- into 'DomainRegistration'?
+    computeUpdate (domainRegistrationToRow -> reg) = case (config, reg.domainRedirect) of
       (DomainRedirectConfigRemove, NoRegistration) ->
         Just $ DomainRegistrationUpdate PreAuthorized reg.teamInvite
       (DomainRedirectConfigRemove, Backend _) ->
@@ -598,8 +601,11 @@ updateTeamInviteImpl luid domain config = do
   update <- validateUpdate tid domainReg config
   updateDomainRegistrationImpl domain update
   where
+    -- TODO: it is more straight-forward for 'computeUpdate' to use the DomainRegistrationRow to
+    -- compute the update value.  maybe the update type should also be adjusted to fit better
+    -- into 'DomainRegistration'?
     validateUpdate :: TeamId -> DomainRegistration -> TeamInviteConfig -> Sem r DomainRegistrationUpdate
-    validateUpdate tid domReg conf = do
+    validateUpdate tid (domainRegistrationToRow -> domReg) conf = do
       -- TODO: remove this function, validation should happen near declarations of
       -- DomainRegistration, DomainRegistrationUpdate
       when (domReg.domainRedirect == Locked) $
