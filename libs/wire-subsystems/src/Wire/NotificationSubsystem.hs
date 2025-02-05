@@ -1,14 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-{-# OPTIONS -Wwarn #-}
-
 module Wire.NotificationSubsystem where
 
 import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Imports
 import Polysemy
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
@@ -27,7 +24,7 @@ data Push = Push
     _pushRoute :: Route,
     _pushNativePriority :: Maybe Priority,
     pushOrigin :: Maybe UserId,
-    _pushRecipients :: NonEmpty Recipient,
+    _pushRecipients :: [Recipient],
     pushJson :: Object,
     _pushApsData :: Maybe ApsData,
     pushIsCellsEvent :: Bool
@@ -56,8 +53,8 @@ data NotificationSubsystem m a where
 
 makeSem ''NotificationSubsystem
 
-newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> Bool -> Push
-newPush1 from e rr isCellsEvent =
+newPush :: Maybe UserId -> Object -> [Recipient] -> Bool -> Push
+newPush from e rr isCellsEvent =
   Push
     { _pushConn = Nothing,
       _pushTransient = False,
@@ -70,12 +67,5 @@ newPush1 from e rr isCellsEvent =
       pushIsCellsEvent = isCellsEvent
     }
 
-newPush :: Maybe UserId -> Object -> [Recipient] -> Bool -> Maybe Push
-newPush _ _ [] _ = todo
-newPush u e (r : rr) isCellsEvent = Just $ newPush1 u e (r :| rr) isCellsEvent
-
-newPushLocal :: UserId -> Object -> [Recipient] -> Bool -> Maybe Push
+newPushLocal :: UserId -> Object -> [Recipient] -> Bool -> Push
 newPushLocal uid = newPush (Just uid)
-
-newPushLocal1 :: UserId -> Object -> NonEmpty Recipient -> Bool -> Push
-newPushLocal1 uid = newPush1 (Just uid)

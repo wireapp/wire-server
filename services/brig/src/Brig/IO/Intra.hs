@@ -182,9 +182,9 @@ onClientEvent ::
   Sem r ()
 onClientEvent orig conn e = do
   let event = ClientEvent e
-  let rcps = Recipient orig V2.RecipientClientsAll :| []
+  let rcpt = Recipient orig V2.RecipientClientsAll
   pushNotifications
-    [ newPush1 (Just orig) (toJSONObject event) rcps False
+    [ newPush (Just orig) (toJSONObject event) [rcpt] False
         & pushConn .~ conn
         & pushApsData .~ toApsData event
     ]
@@ -356,7 +356,7 @@ notify ::
 notify event orig route conn recipients = do
   rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
   let push =
-        newPush1 (Just orig) (toJSONObject event) rs False
+        newPush (Just orig) (toJSONObject event) (toList rs) False
           & pushConn .~ conn
           & pushRoute .~ route
           & pushApsData .~ toApsData event

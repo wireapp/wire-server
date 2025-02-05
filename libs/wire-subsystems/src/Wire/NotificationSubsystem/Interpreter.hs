@@ -4,7 +4,6 @@ import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
-import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Proxy
@@ -156,7 +155,7 @@ chunkPushes maxRecipients
     splitPush :: Natural -> Push -> (Push, Push)
     splitPush n p =
       let (r1, r2) = splitAt (fromIntegral n) (toList p._pushRecipients)
-       in (p {_pushRecipients = fromJust $ nonEmpty r1}, p {_pushRecipients = fromJust $ nonEmpty r2})
+       in (p {_pushRecipients = r1}, p {_pushRecipients = r2})
 
 pushSlowlyImpl ::
   ( Member Delay r,

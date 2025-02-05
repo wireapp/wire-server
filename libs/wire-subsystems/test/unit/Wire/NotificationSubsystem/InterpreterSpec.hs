@@ -4,7 +4,6 @@ import Control.Concurrent.Async (async, wait)
 import Control.Exception (throwIO)
 import Data.Data (Proxy (Proxy))
 import Data.Id
-import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
 import Data.List1 qualified as List1
 import Data.Range (fromRange, toRange)
 import Data.Set qualified as Set
@@ -54,7 +53,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRoute = V2.RouteDirect,
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
-                _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
+                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
                 pushJson = payload1,
                 _pushApsData = Nothing,
                 pushIsCellsEvent = False
@@ -67,8 +66,9 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Just V2.LowPriority,
                 pushOrigin = Just origin2,
                 _pushRecipients =
-                  Recipient user21 V2.RecipientClientsAll
-                    :| [Recipient user22 V2.RecipientClientsAll],
+                  [ Recipient user21 V2.RecipientClientsAll,
+                    Recipient user22 V2.RecipientClientsAll
+                  ],
                 pushJson = payload2,
                 _pushApsData = Just apsData,
                 pushIsCellsEvent = False
@@ -107,7 +107,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       origin2 <- generate arbitrary
       (user21, user22) <- generate arbitrary
       (payload1, payload2) <- generate $ resize 1 arbitrary
-      lotOfRecipients <- fromList <$> replicateM 31 (generate arbitrary)
+      lotOfRecipients <- replicateM 31 (generate arbitrary)
       apsData <- generate arbitrary
       let pushBiggerThanFanoutLimit =
             Push
@@ -129,8 +129,9 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Just V2.LowPriority,
                 pushOrigin = Just origin2,
                 _pushRecipients =
-                  Recipient user21 V2.RecipientClientsAll
-                    :| [Recipient user22 V2.RecipientClientsAll],
+                  [ Recipient user21 V2.RecipientClientsAll,
+                    Recipient user22 V2.RecipientClientsAll
+                  ],
                 pushJson = payload2,
                 _pushApsData = Just apsData,
                 pushIsCellsEvent = False
@@ -172,7 +173,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRoute = V2.RouteDirect,
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
-                _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
+                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
                 pushJson = payload1,
                 _pushApsData = Nothing,
                 pushIsCellsEvent = False
@@ -185,8 +186,9 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Just V2.LowPriority,
                 pushOrigin = Just origin2,
                 _pushRecipients =
-                  Recipient user21 V2.RecipientClientsAll
-                    :| [Recipient user22 V2.RecipientClientsAll],
+                  [ Recipient user21 V2.RecipientClientsAll,
+                    Recipient user22 V2.RecipientClientsAll
+                  ],
                 pushJson = payload2,
                 _pushApsData = Nothing,
                 pushIsCellsEvent = False
@@ -230,7 +232,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRoute = V2.RouteDirect,
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
-                _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
+                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
                 pushJson = payload1,
                 _pushApsData = Nothing,
                 pushIsCellsEvent = False
@@ -361,7 +363,7 @@ waitUntilPushes pushesRef n = do
 normalisePush :: Push -> [Push]
 normalisePush p =
   map
-    (\r -> p {_pushRecipients = r :| []})
+    (\r -> p {_pushRecipients = [r]})
     (toList (_pushRecipients p))
 
 sizeOfChunks :: [Push] -> Natural
