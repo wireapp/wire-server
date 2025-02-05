@@ -30,6 +30,7 @@ import Galley.Data.Scope
 import Imports
 import Text.RawString.QQ
 import Wire.API.Conversation
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -212,28 +213,28 @@ updateTeamSplashScreen = {- `IF EXISTS`, but that requires benchmarking -} "upda
 
 -- Conversations ------------------------------------------------------------
 
-selectConv ::
-  PrepQuery
-    R
-    (Identity ConvId)
-    ( ConvType,
-      Maybe UserId,
-      Maybe (C.Set Access),
-      Maybe AccessRoleLegacy,
-      Maybe (C.Set AccessRole),
-      Maybe Text,
-      Maybe TeamId,
-      Maybe Bool,
-      Maybe Milliseconds,
-      Maybe ReceiptMode,
-      Maybe ProtocolTag,
-      Maybe GroupId,
-      Maybe Epoch,
-      Maybe (Writetime Epoch),
-      Maybe CipherSuiteTag,
-      Maybe GroupConvType
-    )
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type from conversation where conv = ?"
+type ConvRow =
+  ( ConvType,
+    Maybe UserId,
+    Maybe (C.Set Access),
+    Maybe AccessRoleLegacy,
+    Maybe (C.Set AccessRole),
+    Maybe Text,
+    Maybe TeamId,
+    Maybe Bool,
+    Maybe Milliseconds,
+    Maybe ReceiptMode,
+    Maybe ProtocolTag,
+    Maybe GroupId,
+    Maybe Epoch,
+    Maybe (Writetime Epoch),
+    Maybe CipherSuiteTag,
+    Maybe GroupConvType,
+    Maybe CellsState
+  )
+
+selectConv :: PrepQuery R (Identity ConvId) ConvRow
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, cells_state from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
@@ -295,6 +296,9 @@ updateConvEpoch = {- `IF EXISTS`, but that requires benchmarking -} "update conv
 
 updateConvCipherSuite :: PrepQuery W (CipherSuiteTag, ConvId) ()
 updateConvCipherSuite = "update conversation set cipher_suite = ? where conv = ?"
+
+updateConvCellsState :: PrepQuery W (CellsState, ConvId) ()
+updateConvCellsState = "update conversation set cells_state = ? where conv = ?"
 
 deleteConv :: PrepQuery W (Identity ConvId) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"

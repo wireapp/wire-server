@@ -23,6 +23,7 @@ import Control.Lens (set, to, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Json.Util
@@ -770,7 +771,8 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
       protocol = convProtocol,
-      groupConvType = cnvmGroupConvType
+      groupConvType = cnvmGroupConvType,
+      cellsState = Just cnvmCellsState
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -831,7 +833,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmTeam = Nothing,
             cnvmMessageTimer = messageTimer,
             cnvmReceiptMode = receiptMode,
-            cnvmGroupConvType = groupConvType
+            cnvmGroupConvType = groupConvType,
+            cnvmCellsState = fromMaybe def cellsState
           }
         (ConvMembers this others)
         ProtocolProteus

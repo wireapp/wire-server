@@ -67,7 +67,8 @@ specConversationCreated = describe "ConversationCreated" $ do
               messageTimer = Nothing,
               receiptMode = Nothing,
               protocol = ProtocolProteus,
-              groupConvType = Nothing
+              groupConvType = Nothing,
+              cellsState = Nothing
             }
 
     eitherDecode jsonStr `shouldBe` Right expected

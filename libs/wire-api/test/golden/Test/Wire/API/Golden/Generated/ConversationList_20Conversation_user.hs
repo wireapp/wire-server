@@ -27,6 +27,7 @@ import Data.Set qualified as Set
 import Data.UUID qualified as UUID (fromString)
 import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
 
@@ -49,7 +50,8 @@ testObject_ConversationList_20Conversation_user_1 =
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),
                     cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0}),
-                    cnvmGroupConvType = Just GroupConversation
+                    cnvmGroupConvType = Just GroupConversation,
+                    cnvmCellsState = CellsReady
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =

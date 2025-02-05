@@ -81,6 +81,7 @@ library
     Wire.API.Conversation.Action
     Wire.API.Conversation.Action.Tag
     Wire.API.Conversation.Bot
+    Wire.API.Conversation.CellsState
     Wire.API.Conversation.Code
     Wire.API.Conversation.Member
     Wire.API.Conversation.Protocol
