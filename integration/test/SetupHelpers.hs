@@ -309,7 +309,7 @@ setupProvider ::
 setupProvider u (NewProvider {..}) = do
   dom <- objDomain u
   providerEmail <- randomEmail
-  provider <-
+  newProviderResponse <-
     newProvider u $
       object
         [ "name" .= newProviderName,
@@ -319,7 +319,7 @@ setupProvider u (NewProvider {..}) = do
           "url" .= newProviderUrl
         ]
   pass <- case newProviderPassword of
-    Nothing -> provider %. "password" & asString
+    Nothing -> newProviderResponse %. "password" & asString
     Just pass -> pure pass
   (key, code) <- do
     pair <-
@@ -330,7 +330,9 @@ setupProvider u (NewProvider {..}) = do
     c <- pair %. "code" & asString
     pure (k, c)
   activateProvider dom key code
-  loginProvider dom providerEmail pass $> provider
+  void $ loginProvider dom providerEmail pass
+  pid <- asString $ newProviderResponse %. "id"
+  getProvider dom pid >>= getJSON 200
 
 lhDeviceIdOf :: (MakesValue user) => user -> App String
 lhDeviceIdOf bob = do

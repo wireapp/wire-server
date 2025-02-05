@@ -1,6 +1,7 @@
 module Test.Bot where
 
 import API.Brig
+import API.Common
 import API.Galley
 import Control.Lens hiding ((.=))
 import qualified Data.Aeson as Aeson
@@ -98,8 +99,8 @@ withBotWithSettings settings k = do
   alice <- randomUser OwnDomain def
 
   withMockServer settings mkBotService \(host, port) _chan -> do
-    provider <- setupProvider alice def
-    password <- provider %. "password" & asString
+    password <- randomString 20
+    provider <- setupProvider alice def {newProviderPassword = Just password}
     providerId <- provider %. "id" & asString
     service <-
       newService OwnDomain providerId

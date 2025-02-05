@@ -11,14 +11,13 @@ import Testlib.Prelude
 testProviderUploadAsset :: (HasCallStack) => App ()
 testProviderUploadAsset = do
   alice <- randomUser OwnDomain def
-  provider <- setupProvider alice def
+  provider <- setupProvider alice def { newProviderPassword = Just defPassword }
   providerEmail <- provider %. "email" & asString
   pid <- provider %. "id" & asString
   -- test cargohold API
   bindResponse (Cargohold.uploadProviderAsset OwnDomain pid "profile pic") $ \resp -> do
     resp.status `shouldMatchInt` 201
-  pw <- provider %. "password" & asString
-  cookie <- loginProvider OwnDomain providerEmail pw
+  cookie <- loginProvider OwnDomain providerEmail defPassword
   -- test Nginz API
   bindResponse (Nginz.uploadProviderAsset OwnDomain (cs cookie) "another profile pic") $ \resp -> do
     resp.status `shouldMatchInt` 201

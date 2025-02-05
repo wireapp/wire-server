@@ -547,6 +547,18 @@ newProvider user provider = do
     resp.status `shouldMatchInt` 201
     resp.json
 
+getProvider ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  App Response
+getProvider domain pid = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider"]
+  submit "GET" $
+    req
+      & zType "provider"
+      & zProvider pid
+
 activateProvider ::
   ( HasCallStack,
     MakesValue dom
