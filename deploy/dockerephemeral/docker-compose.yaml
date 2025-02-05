@@ -208,7 +208,7 @@ services:
 
   elasticsearch:
     container_name: demo_wire_elasticsearch
-    image: elasticsearch:6.8.23
+    image: elasticsearch:7.17.27
     ulimits:
       nofile:
         soft: 65536
