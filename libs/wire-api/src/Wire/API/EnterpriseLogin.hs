@@ -27,7 +27,7 @@ import Data.Text.Encoding qualified as Text
 import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
-import Test.QuickCheck (suchThat)
+import Test.QuickCheck (elements, suchThat)
 import Web.HttpApiData
 import Wire.API.Routes.Bearer
 import Wire.Arbitrary
@@ -211,6 +211,9 @@ instance ToSchema DomainRegistrationUpdate where
 
 data DomainRegistrationResponse = DomainRegistrationResponse
   { domain :: Domain,
+    -- | the team that is allowed to change domain registration without further proof of
+    -- ownership.  'teamInvite' *usually* contains the same team id (if any), but in the case
+    -- where backoffice/stern sets teamInvite, it shouldn't set authorizedTeam!
     authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
     teamInvite :: TeamInvite,
@@ -229,7 +232,7 @@ instance ToSchema DomainRegistrationResponse where
     object "DomainRegistrationResponse" $
       DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
-        <*> (.authorizedTeam) .= maybe_ (optField "team" schema)
+        <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
         <*> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
@@ -239,13 +242,25 @@ data DomainRegistration = DomainRegistration
   { domain :: Domain,
     settings :: Maybe DomainRegistrationSettings,
     dnsVerificationToken :: Maybe DnsVerificationToken,
-    authTokenHash :: Maybe Token
+    authTokenHash :: Maybe Token,
+    authorizedTeam :: Maybe TeamId
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform DomainRegistration)
+
+instance Arbitrary DomainRegistration where
+  arbitrary = do
+    domain <- arbitrary
+    settings <- arbitrary
+    dnsVerificationToken <- arbitrary
+    authTokenHash <- arbitrary
+    authorizedTeam <- do
+      case settings of
+        Just (DomainForLocalTeam tid _) -> elements [Nothing, Just tid]
+        _ -> arbitrary
+    pure DomainRegistration {..}
 
 instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistration) where
-  def dom = DomainRegistration dom Nothing Nothing Nothing
+  def dom = DomainRegistration dom Nothing Nothing Nothing Nothing
 
 data DomainRegistrationSettings
   = DomainLocked
@@ -276,34 +291,27 @@ domainRegistrationToRow DomainRegistration {..} = DomainRegistrationRow {..}
       Just (DomainForBackend _) -> NotAllowed
       Just (DomainForLocalTeam tid _) -> Team tid
 
-    authorizedTeam = case settings of
-      Just (DomainForLocalTeam tid _) -> Just tid
-      _ -> Nothing
-
 domainRegistrationSettingsFromRow :: DomainRedirect -> TeamInvite -> Maybe TeamId -> Either String (Maybe DomainRegistrationSettings)
 domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam =
   case (domainRedirect, teamInvite, authorizedTeam) of
-    (None, Allowed, Nothing) -> Right Nothing
-    (Locked, Allowed, Nothing) -> Right (Just DomainLocked)
-    (PreAuthorized, Allowed, Nothing) -> Right (Just DomainPreAuthorized)
-    (NoRegistration, NotAllowed, Nothing) -> Right (Just DomainNoRegistration)
-    (Backend url, NotAllowed, Nothing) -> Right (Just (DomainForBackend url))
-    (None, Team tid, Just tid') | tid == tid' -> Right (Just (DomainForLocalTeam tid Nothing))
-    (SSO idpid, Team tid, Just tid') | tid == tid' -> Right (Just (DomainForLocalTeam tid (Just idpid)))
-    _ -> Left ("domainRedirect, teamInvite, authorizedTeam mismatch: " <> show (domainRedirect, teamInvite, authorizedTeam))
+    (None, Allowed, _) -> Right Nothing
+    (Locked, Allowed, _) -> Right (Just DomainLocked)
+    (PreAuthorized, Allowed, _) -> Right (Just DomainPreAuthorized)
+    (NoRegistration, NotAllowed, _) -> Right (Just DomainNoRegistration)
+    (Backend url, NotAllowed, _) -> Right (Just (DomainForBackend url))
+    (None, Team tid, atid) | all (== tid) atid -> Right (Just (DomainForLocalTeam tid Nothing))
+    (SSO idpid, Team tid, atid) | all (== tid) atid -> Right (Just (DomainForLocalTeam tid (Just idpid)))
+    _ -> Left ("domainRegistrationSettingsFromRow: domainRedirect, teamInvite, authorizedTeam mismatch: " <> show (domainRedirect, teamInvite, authorizedTeam))
 
 domainRegistrationFromRow :: DomainRegistrationRow -> Either String DomainRegistration
 domainRegistrationFromRow DomainRegistrationRow {..} = do
   settings <- domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam
   Right DomainRegistration {..}
 
+-- TODO: We can refactor the Update type!
 domainRegistrationFromUpdate :: DomainRegistration -> DomainRegistrationUpdate -> Either String DomainRegistration
 domainRegistrationFromUpdate reg upd = do
-  let authorizedTeam = case upd.teamInvite of
-        Allowed -> Nothing
-        NotAllowed -> Nothing
-        Team tid -> Just tid
-  newSettings <- domainRegistrationSettingsFromRow upd.domainRedirect upd.teamInvite authorizedTeam
+  newSettings <- domainRegistrationSettingsFromRow upd.domainRedirect upd.teamInvite reg.authorizedTeam
   Right reg {settings = newSettings}
 
 -- | This type only server as a helper for json (and cql, for historical reasons).  App logic
