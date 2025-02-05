@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -21,13 +19,10 @@ module Test.Wire.API.Roundtrip.Aeson (tests) where
 
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
-import Data.Default
-import Data.Domain
 import Data.Id (ConvId)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
-import Test.Tasty.HUnit (testCase, (@?=))
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
@@ -41,7 +36,6 @@ import Wire.API.Conversation.Member qualified as Conversation.Member
 import Wire.API.Conversation.Role qualified as Conversation.Role
 import Wire.API.Conversation.Typing qualified as Conversation.Typing
 import Wire.API.CustomBackend qualified as CustomBackend
-import Wire.API.EnterpriseLogin qualified as EnterpriseLogin
 import Wire.API.Event.Conversation qualified as Event.Conversation
 import Wire.API.Event.Team qualified as Event.Team
 import Wire.API.Event.WebSocketProtocol qualified as EventWebSocketProtocol
@@ -355,18 +349,7 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatus,
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
-      testRoundTrip @TeamsIntra.TeamName,
-      T.testGroup "EnterpriseLogin.DomainRegistration{,Row}" $
-        [ -- TODO: move this group to a better place
-          testCase "default values match" $ do
-            let Right dom = mkDomain "example.com"
-            Right (def dom :: EnterpriseLogin.DomainRegistration)
-              @?= EnterpriseLogin.domainRegistrationFromRow (def dom)
-            (def dom :: EnterpriseLogin.DomainRegistrationRow)
-              @?= EnterpriseLogin.domainRegistrationToRow (def dom),
-          testProperty "to, from row" $ \new -> do
-            EnterpriseLogin.domainRegistrationFromRow (EnterpriseLogin.domainRegistrationToRow new) === Right new
-        ]
+      testRoundTrip @TeamsIntra.TeamName
     ]
 
 testRoundTrip ::
