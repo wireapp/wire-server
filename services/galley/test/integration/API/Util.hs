@@ -1501,7 +1501,8 @@ registerRemoteConv convId originUser name othMembers = do
           nonCreatorMembers = othMembers,
           messageTimer = Nothing,
           receiptMode = Nothing,
-          protocol = ProtocolProteus
+          protocol = ProtocolProteus,
+          pydioState = Nothing
         }
 
 -------------------------------------------------------------------------------
@@ -2298,6 +2299,7 @@ mkProteusConv cnvId creator selfRole otherMembers =
         Nothing
         Nothing
         Nothing
+        def
     )
     (RemoteConvMembers selfRole otherMembers)
     ProtocolProteus
