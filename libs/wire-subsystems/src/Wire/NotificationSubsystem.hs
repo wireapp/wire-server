@@ -1,5 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+{-# OPTIONS -Wwarn #-}
+
 module Wire.NotificationSubsystem where
 
 import Control.Concurrent.Async (Async)
