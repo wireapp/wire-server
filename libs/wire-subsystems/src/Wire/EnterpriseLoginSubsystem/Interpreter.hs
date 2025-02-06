@@ -542,23 +542,22 @@ updateDomainRedirectImpl ::
 updateDomainRedirectImpl token domain config = do
   mDomainReg <- lookup domain
   domainReg <- checkDomainOwnership mDomainReg token
+  let row = domainRegistrationToRow domainReg
   update <-
     note EnterpriseLoginSubsystemOperationForbidden $
-      computeUpdate domainReg
+      validateUpdate row.domainRedirect row.teamInvite
   updateDomainRegistrationImpl domain update
   where
-    -- TODO: it is more straight-forward for 'computeUpdate' to use the DomainRegistrationRow to
-    -- compute the update value.  maybe the update type should also be adjusted to fit better
-    -- into 'DomainRegistration'?
-    computeUpdate (domainRegistrationToRow -> reg) = case (config, reg.domainRedirect) of
+    validateUpdate :: DomainRedirect -> TeamInvite -> Maybe DomainRegistrationUpdate
+    validateUpdate  domainRedirect teamInvite = case (config, domainRedirect) of
       (DomainRedirectConfigRemove, NoRegistration) ->
-        Just $ DomainRegistrationUpdate PreAuthorized reg.teamInvite
+        Just $ DomainRegistrationUpdate PreAuthorized teamInvite
       (DomainRedirectConfigRemove, Backend _) ->
-        Just $ DomainRegistrationUpdate PreAuthorized reg.teamInvite
+        Just $ DomainRegistrationUpdate PreAuthorized teamInvite
       (DomainRedirectConfigBackend url, PreAuthorized) ->
         Just $ DomainRegistrationUpdate (Backend url) NotAllowed
       (DomainRedirectConfigNoRegistration, PreAuthorized) ->
-        Just $ DomainRegistrationUpdate NoRegistration reg.teamInvite
+        Just $ DomainRegistrationUpdate NoRegistration teamInvite
       _ -> Nothing
 
 updateTeamInviteImpl ::
