@@ -1,0 +1,1 @@
+Make app data types for domain registration more restrictive.  This has led to a few minor changes in behavior towards better consistency and a better understanding of the domain.  (And would have been easier to do in the specs, before starting the implementation...)
