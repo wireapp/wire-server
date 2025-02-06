@@ -255,8 +255,7 @@ instance Arbitrary DomainRegistration where
     authTokenHash <- arbitrary
     authorizedTeam <- do
       case settings of
-        Just (DomainTeamInvite tid) -> elements [Nothing, Just tid]
-        Just (DomainTeamInviteSso tid _) -> elements [Nothing, Just tid]
+        Just (DomainForLocalTeam tid _) -> elements [Nothing, Just tid]
         _ -> arbitrary
     pure DomainRegistration {..}
 
@@ -268,9 +267,7 @@ data DomainRegistrationSettings
   | DomainPreAuthorized
   | DomainNoRegistration
   | DomainForBackend HttpsUrl
-  | DomainForSso SAML.IdPId
-  | DomainTeamInvite TeamId
-  | DomainTeamInviteSso TeamId SAML.IdPId
+  | DomainForLocalTeam TeamId (Maybe SAML.IdPId)
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform DomainRegistrationSettings)
 
@@ -283,9 +280,8 @@ domainRegistrationToRow DomainRegistration {..} = DomainRegistrationRow {..}
       Just DomainPreAuthorized -> PreAuthorized
       Just DomainNoRegistration -> NoRegistration
       Just (DomainForBackend url) -> Backend url
-      Just (DomainForSso idpid) -> SSO idpid
-      Just (DomainTeamInvite _tid) -> None
-      Just (DomainTeamInviteSso _tid idpid) -> SSO idpid
+      Just (DomainForLocalTeam _tid Nothing) -> None
+      Just (DomainForLocalTeam _tid (Just idpid)) -> SSO idpid
 
     teamInvite = case settings of
       Nothing -> Allowed
@@ -293,9 +289,7 @@ domainRegistrationToRow DomainRegistration {..} = DomainRegistrationRow {..}
       Just DomainPreAuthorized -> Allowed
       Just DomainNoRegistration -> NotAllowed
       Just (DomainForBackend _) -> NotAllowed
-      Just (DomainForSso _) -> NotAllowed
-      Just (DomainTeamInvite tid) -> Team tid
-      Just (DomainTeamInviteSso tid _) -> Team tid
+      Just (DomainForLocalTeam tid _) -> Team tid
 
 domainRegistrationSettingsFromRow :: DomainRedirect -> TeamInvite -> Maybe TeamId -> Either String (Maybe DomainRegistrationSettings)
 domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam =
@@ -305,9 +299,8 @@ domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam =
     (PreAuthorized, Allowed, _) -> Right (Just DomainPreAuthorized)
     (NoRegistration, NotAllowed, _) -> Right (Just DomainNoRegistration)
     (Backend url, NotAllowed, _) -> Right (Just (DomainForBackend url))
-    (None, Team tid, atid) | all (== tid) atid -> Right (Just (DomainForLocalTeam (Just tid) Nothing))
-    (SSO idpid, Team tid, atid) | all (== tid) atid -> Right (Just (DomainForLocalTeam (Just tid) (Just idpid)))
-    (SSO idpid, _, _) -> Right (Just (DomainForLocalTeam Nothing (Just idpid)))
+    (None, Team tid, atid) | all (== tid) atid -> Right (Just (DomainForLocalTeam tid Nothing))
+    (SSO idpid, Team tid, atid) | all (== tid) atid -> Right (Just (DomainForLocalTeam tid (Just idpid)))
     _ -> Left ("domainRegistrationSettingsFromRow: domainRedirect, teamInvite, authorizedTeam mismatch: " <> show (domainRedirect, teamInvite, authorizedTeam))
 
 domainRegistrationFromRow :: DomainRegistrationRow -> Either String DomainRegistration
