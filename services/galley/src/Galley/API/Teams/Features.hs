@@ -459,3 +459,5 @@ instance SetFeatureConfig EnforceFileDownloadLocationConfig where
 instance SetFeatureConfig LimitedEventFanoutConfig
 
 instance SetFeatureConfig DomainRegistrationConfig
+
+instance SetFeatureConfig PydioConfig
