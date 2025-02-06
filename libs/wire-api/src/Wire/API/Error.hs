@@ -24,6 +24,7 @@ module Wire.API.Error
     MapError,
     errorToResponse,
     errorToWai,
+    errorToWaiWithMessage,
     APIError (..),
 
     -- * Static errors and Servant
@@ -297,6 +298,9 @@ mapToDynamicError = mapToRuntimeError (dynError @(MapError e))
 
 errorToWai :: forall e. (KnownError (MapError e)) => Wai.Error
 errorToWai = dynErrorToWai (dynError @(MapError e))
+
+errorToWaiWithMessage :: forall e. (KnownError (MapError e)) => LT.Text -> Wai.Error
+errorToWaiWithMessage msg = (dynErrorToWai (dynError @(MapError e))) {Wai.message = msg}
 
 errorToResponse :: forall e. (KnownError (MapError e)) => JSONResponse
 errorToResponse = toResponse (dynError @(MapError e))
