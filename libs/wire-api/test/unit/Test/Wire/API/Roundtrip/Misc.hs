@@ -24,7 +24,7 @@ import Data.Domain
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.HUnit (testCase, (@?=))
-import Test.Tasty.QuickCheck (testProperty, (===))
+import Test.Tasty.QuickCheck
 import Wire.API.EnterpriseLogin
 
 tests :: T.TestTree
@@ -37,10 +37,11 @@ tests =
               @?= domainRegistrationFromRow (def dom)
             (def dom :: DomainRegistrationRow)
               @?= domainRegistrationToRow (def dom),
-          testProperty "to, from row" $ \new -> do
-            let row = domainRegistrationToRow new
-                reRow = domainRegistrationToRow (domainRegistrationFromRow row)
-            domainRegistrationFromRow row === Right new
-            row === reRow
+          testProperty "to, from row" $ \original -> do
+            let convertedToRow = domainRegistrationToRow original
+                roundtripToDomRegOrError = domainRegistrationFromRow convertedToRow
+                convertedBackToRowOrError = domainRegistrationToRow <$> roundtripToDomRegOrError
+            roundtripToDomRegOrError === Right original
+              .&&. convertedBackToRowOrError === Right convertedToRow
         ]
     ]
