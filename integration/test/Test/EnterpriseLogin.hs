@@ -142,13 +142,12 @@ testDomainRegistrationUpdate = do
         "backend_url" .= "https://example.com",
         "team_invite" .= "not-allowed"
       ]
-  -- TODO (leif, fisx): is this an allowed configuration?
-  -- updateDomain domain
-  --   $ object
-  --     [ "domain_redirect" .= "sso",
-  --       "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
-  --       "team_invite" .= "not-allowed"
-  --     ]
+  updateDomain domain
+    $ object
+      [ "domain_redirect" .= "sso",
+        "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
+        "team_invite" .= "not-allowed"
+      ]
   updateDomain domain
     $ object
       [ "domain_redirect" .= "no-registration",
