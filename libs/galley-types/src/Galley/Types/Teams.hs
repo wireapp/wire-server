@@ -279,6 +279,13 @@ newtype instance FeatureDefaults DomainRegistrationConfig
   deriving (FromJSON) via Defaults (LockableFeature DomainRegistrationConfig)
   deriving (ParseFeatureDefaults) via OptionalField DomainRegistrationConfig
 
+newtype instance FeatureDefaults PydioConfig
+  = PydioConfigDefaults (LockableFeature PydioConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature PydioConfig)
+  deriving (ParseFeatureDefaults) via OptionalField PydioConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 
