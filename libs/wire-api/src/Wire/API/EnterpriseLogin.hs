@@ -340,7 +340,7 @@ domainRegistrationFromUpdate reg upd = do
   newSettings <- domainRegistrationSettingsFromRow upd.domainRedirect upd.teamInvite reg.authorizedTeam
   Right reg {settings = newSettings}
 
--- | This type only server as a helper for json (and cql, for historical reasons).  App logic
+-- | This type only serves as a helper for json (and cql, for historical reasons).  App logic
 -- should always use 'DomainRegistration' instead.  See 'domainRegistration{From,To}Row'.
 data DomainRegistrationRow = DomainRegistrationRow
   { domain :: Domain,
