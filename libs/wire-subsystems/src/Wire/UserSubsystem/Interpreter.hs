@@ -225,10 +225,10 @@ guardRegisterUserImpl email = do
       Nothing -> pure ()
       Just DomainLocked -> pure ()
       Just DomainPreAuthorized -> pure ()
-      Just DomainNoRegistration -> throwGuardFailed DomRedirSetToNoRegistration
+      Just (DomainNoRegistration _) -> todo $ throwGuardFailed DomRedirSetToNoRegistration
       Just (DomainForBackend _) -> throwGuardFailed DomRedirSetToBackend
-      Just (DomainForLocalTeam _ Nothing) -> throwGuardFailed TeamInviteRestrictedToOtherTeam
-      Just (DomainForLocalTeam _ (Just _)) -> throwGuardFailed DomRedirSetToSSO
+      Just (DomainTeamInviteRestricted _) -> todo
+      Just (DomainCloudSso _ _) -> throwGuardFailed DomRedirSetToSSO
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey

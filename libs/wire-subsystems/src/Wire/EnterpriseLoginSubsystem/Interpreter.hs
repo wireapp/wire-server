@@ -153,9 +153,8 @@ deleteTeamDomainImpl ::
 deleteTeamDomainImpl lusr tid domain = do
   void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
   domainReg <- lookup domain >>= note EnterpriseLoginSubsystemErrorNotFound
-  case domainReg.settings of
-    Just (DomainForLocalTeam tid' _) | tid' == tid -> pure ()
-    _ -> throw EnterpriseLoginSubsystemOperationForbidden
+  unless (domainReg.authorizedTeam == Just tid) $
+    throw EnterpriseLoginSubsystemOperationForbidden
   delete domain
 
 getRegisteredDomainsImpl ::
@@ -188,11 +187,9 @@ authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
   tid <- guardTeamAdminAccess lusr
   mDomainReg <- lookup domain
   domainReg <- checkDomainOwnership mDomainReg token
-  newSettings <- case domainReg.settings of
-    Just DomainLocked -> throw EnterpriseLoginSubsystemOperationForbidden
-    Just (DomainForLocalTeam _oldTid (Just idpid)) -> pure (DomainForLocalTeam tid (Just idpid)) -- TODO: really?  https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1690501212/Use+case+Set+or+delete+the+domain+configuration+for+a+team?focusedCommentId=1709047823
-    _ -> pure (DomainForLocalTeam tid Nothing)
-  upsert domainReg {settings = Just newSettings}
+  when (domainReg.settings == Just DomainLocked) $
+    throw EnterpriseLoginSubsystemOperationForbidden
+  upsert domainReg {authorizedTeam  = Just tid}
 
 checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Maybe DomainRegistration -> Token -> Sem r DomainRegistration
 checkDomainOwnership mDomainReg ownershipToken = do
@@ -293,9 +290,10 @@ unauthorizeImpl domain = do
     Nothing -> pure ()
     Just DomainLocked -> throw EnterpriseLoginSubsystemOperationForbidden
     Just DomainPreAuthorized -> audit old new *> upsert new
-    Just DomainNoRegistration -> audit old new *> upsert new
+    Just (DomainNoRegistration _) -> audit old new *> upsert new
     Just (DomainForBackend _) -> audit old new *> upsert new
-    Just (DomainForLocalTeam _ _) -> throw EnterpriseLoginSubsystemOperationForbidden
+    Just (DomainTeamInviteRestricted _) -> audit old new *> upsert new
+    Just (DomainCloudSso _ _) -> throw EnterpriseLoginSubsystemOperationForbidden
   where
     audit :: DomainRegistration -> DomainRegistration -> Sem r ()
     audit old new = sendAuditMail url "Domain unauthorized" (Just old) (Just new)
@@ -582,9 +580,8 @@ updateTeamInviteImpl luid domain config = do
   tid <- guardTeamAdminAccess luid
   mbDomainReg <- lookup domain
   domainReg <- note EnterpriseLoginSubsystemOperationForbidden mbDomainReg
-  case domainReg.settings of
-    Just (DomainForLocalTeam tid' _) | tid' == tid -> throw EnterpriseLoginSubsystemOperationForbidden
-    _ -> pure ()
+  unless (domainReg.authorizedTeam == Just tid) $
+    throw EnterpriseLoginSubsystemOperationForbidden
   update <- validateUpdate tid domainReg config
   updateDomainRegistrationImpl domain update
   where
