@@ -233,7 +233,7 @@ testDomainRegistrationNoRegistrationToUnAuthorize = do
   let update =
         object
           [ "domain_redirect" .= "no-registration",
-            "team_invite" .= "not-allowed"
+            "team_invite" .= "allowed"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
   assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
