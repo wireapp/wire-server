@@ -156,4 +156,4 @@ executeTeamUserSearchWithMaybeState brig teamid self mbSearchText mRoleFilter mS
 
 mkBHEnv :: Text -> HTTP.Manager -> ES.BHEnv
 mkBHEnv url mgr = do
-  (ES.mkBHEnv (ES.Server url) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
+  (ES.mkBHEnv (ES.Server url) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "LPuxX8XGGqshkTVbg4ci")}

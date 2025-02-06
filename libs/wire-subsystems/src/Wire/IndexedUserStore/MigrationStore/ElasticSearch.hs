@@ -25,7 +25,7 @@ ensureMigrationIndexImpl env = do
       Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
     ES.runBH env (ES.createIndexWith [] 1 migrationIndexName)
       >>= throwIfNotCreated CreateMigrationIndexFailed
-  ES.runBH env (ES.putMapping migrationIndexName migrationMappingName migrationIndexMapping)
+  ES.runBH env (ES.putMapping migrationIndexName migrationIndexMapping)
     >>= throwIfNotCreated PutMappingFailed
   where
     throwIfNotCreated mkErr response =

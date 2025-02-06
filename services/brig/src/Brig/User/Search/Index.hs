@@ -187,12 +187,12 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
 
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
-      throwM (IndexError "Index creation failed.")
+      throwM (IndexError $ "Index creation failed: " <> Text.pack (show cr))
     mr <-
       traceES "Put mapping" $
-        ES.putMapping idx (ES.MappingName "user") indexMapping
+        ES.putMapping idx indexMapping
     unless (ES.isSuccess mr) $
-      throwM (IndexError "Put Mapping failed.")
+      throwM (IndexError $ "Put Mapping failed: " <> Text.pack (show mr))
 
 analysisSettings :: ES.Analysis
 analysisSettings =
@@ -219,7 +219,7 @@ updateMapping = liftIndexIO $ do
   -- https://github.com/wireapp/wire-server-deploy/blob/92311d189818ffc5e26ff589f81b95c95de8722c/charts/elasticsearch-index/templates/create-index.yaml
   void $
     traceES "Put mapping" $
-      ES.putMapping idx (ES.MappingName "user") indexMapping
+      ES.putMapping idx indexMapping
 
 resetIndex ::
   (MonadIndexIO m) =>
