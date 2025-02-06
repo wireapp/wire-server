@@ -81,6 +81,8 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
+    :<|> IFeatureStatusLockStatusPut PydioConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -98,7 +100,6 @@ type IFeatureAPI =
                     UserId
                :> Get '[JSON] AllTeamFeatures
            )
-    :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
 
 type InternalAPI = "i" :> InternalAPIBase
 
