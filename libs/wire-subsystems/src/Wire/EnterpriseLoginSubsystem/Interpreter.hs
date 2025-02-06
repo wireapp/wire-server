@@ -292,7 +292,7 @@ unauthorizeImpl domain = do
     Just DomainPreAuthorized -> audit old new *> upsert new
     Just (DomainNoRegistration _) -> audit old new *> upsert new
     Just (DomainForBackend _) -> audit old new *> upsert new
-    Just (DomainTeamInviteRestricted _) -> audit old new *> upsert new
+    Just (DomainTeamInviteRestricted _) -> pure ()
     Just (DomainCloudSso _ _) -> throw EnterpriseLoginSubsystemOperationForbidden
   where
     audit :: DomainRegistration -> DomainRegistration -> Sem r ()
