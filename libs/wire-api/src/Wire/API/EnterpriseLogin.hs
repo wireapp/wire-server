@@ -200,6 +200,8 @@ instance Arbitrary DomainRegistrationUpdate where
         case dr.domainRedirect of
           Locked -> dr.teamInvite == Allowed
           Backend _ -> dr.teamInvite == NotAllowed
+          NoRegistration -> dr.teamInvite /= NotAllowed
+          PreAuthorized -> dr.teamInvite == Allowed
           _ -> True
 
 instance ToSchema DomainRegistrationUpdate where

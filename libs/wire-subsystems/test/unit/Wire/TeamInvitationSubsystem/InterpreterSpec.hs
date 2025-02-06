@@ -139,11 +139,6 @@ spec = do
                   { teamOwner = inviterMember,
                     initialUsers = [inviter] <> maybeToList existingPersonalAccount,
                     constGuardResult =
-                      -- TODO: this fails, i think because domainRegistrationFromUpdate needs
-                      -- to set the team for, eg., `DomainRegistrationUpdate {domainRedirect =
-                      -- SSO (IdPId {fromIdPId = 46ed514c-a479-588e-7857-c41b2029be79}),
-                      -- teamInvite = Allowed}`, but there is no team id available.  do we
-                      -- need to fix the types some more?
                       either error Just $ domainRegistrationFromUpdate (def registeredDomain) domRegUpd
                   }
 

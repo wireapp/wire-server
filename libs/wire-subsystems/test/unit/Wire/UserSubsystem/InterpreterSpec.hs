@@ -912,8 +912,8 @@ spec = describe "UserSubsystem.Interpreter" do
               Nothing -> Right ()
               Just DomainLocked -> Right ()
               Just DomainPreAuthorized -> Right ()
-              Just (DomainNoRegistration _) -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
-              Just (DomainForBackend _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
-              Just (DomainTeamInviteRestricted _) -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
-              Just (DomainCloudSso _ _) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
+              Just (DomainNoRegistration _) -> Left UserSubsystemRegistrationForbiddenForDomain
+              Just (DomainForBackend _) -> Left UserSubsystemRegistrationForbiddenForDomain
+              Just (DomainTeamInviteRestricted _) -> Left UserSubsystemRegistrationForbiddenForDomain
+              Just (DomainCloudSso _ _) -> Left UserSubsystemRegistrationForbiddenForDomain
          in outcome === expected
