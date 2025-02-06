@@ -318,7 +318,6 @@ updateDomainRegistrationImpl ::
   DomainRegistrationUpdate ->
   Sem r ()
 updateDomainRegistrationImpl domain update = do
-  validate update
   mOld <- lookup domain
   let old = fromMaybe (def domain) mOld
   new <-
@@ -476,13 +475,6 @@ enterpriseRequest req = do
 
 decodeBodyOrThrow :: forall a r. (Typeable a, Aeson.FromJSON a, Member (Error ParseException) r) => Response (Maybe BL.ByteString) -> Sem r a
 decodeBodyOrThrow r = either (throw . ParseException "wireServerEnterprise") pure (responseJsonEither r)
-
-validate :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainRegistrationUpdate -> Sem r ()
-validate dr = do
-  case dr.domainRedirect of
-    Locked -> when (dr.teamInvite /= Allowed) $ throw EnterpriseLoginSubsystemOperationForbidden
-    Backend _ -> when (dr.teamInvite /= NotAllowed) $ throw EnterpriseLoginSubsystemOperationForbidden
-    _ -> pure ()
 
 mkAuditMail :: EmailAddress -> EmailAddress -> Text -> LText -> Mail
 mkAuditMail from to subject bdy =

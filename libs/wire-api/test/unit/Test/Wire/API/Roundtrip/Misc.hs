@@ -25,19 +25,22 @@ import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.HUnit (testCase, (@?=))
 import Test.Tasty.QuickCheck (testProperty, (===))
-import Wire.API.EnterpriseLogin qualified as EnterpriseLogin
+import Wire.API.EnterpriseLogin
 
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (6_000_000) "6s") . T.testGroup "MISC roundtrip tests" $
-    [ T.testGroup "EnterpriseLogin.DomainRegistration{,Row}" $
+    [ T.testGroup "DomainRegistration{,Row}" $
         [ testCase "default values match" $ do
             let Right dom = mkDomain "example.com"
-            Right (def dom :: EnterpriseLogin.DomainRegistration)
-              @?= EnterpriseLogin.domainRegistrationFromRow (def dom)
-            (def dom :: EnterpriseLogin.DomainRegistrationRow)
-              @?= EnterpriseLogin.domainRegistrationToRow (def dom),
+            Right (def dom :: DomainRegistration)
+              @?= domainRegistrationFromRow (def dom)
+            (def dom :: DomainRegistrationRow)
+              @?= domainRegistrationToRow (def dom),
           testProperty "to, from row" $ \new -> do
-            EnterpriseLogin.domainRegistrationFromRow (EnterpriseLogin.domainRegistrationToRow new) === Right new
+            let row = domainRegistrationToRow new
+                reRow = domainRegistrationToRow (domainRegistrationFromRow row)
+            domainRegistrationFromRow row === Right new
+            row === reRow
         ]
     ]

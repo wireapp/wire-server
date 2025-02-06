@@ -142,12 +142,13 @@ testDomainRegistrationUpdate = do
         "backend_url" .= "https://example.com",
         "team_invite" .= "not-allowed"
       ]
-  updateDomain domain
-    $ object
-      [ "domain_redirect" .= "sso",
-        "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
-        "team_invite" .= "not-allowed"
-      ]
+  -- TODO (leif, fisx): is this an allowed configuration?
+  -- updateDomain domain
+  --   $ object
+  --     [ "domain_redirect" .= "sso",
+  --       "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
+  --       "team_invite" .= "not-allowed"
+  --     ]
   updateDomain domain
     $ object
       [ "domain_redirect" .= "no-registration",
@@ -182,8 +183,8 @@ testDomainRegistrationUpdateInvalidCases = do
     checkUpdateFails :: (HasCallStack) => String -> Value -> App ()
     checkUpdateFails domain update = do
       bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
-        resp.status `shouldMatchInt` 403
-        resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "invalid-domain-update"
 
 testDomainRegistrationPreAuthorizedToUnAuthorize :: (HasCallStack) => App ()
 testDomainRegistrationPreAuthorizedToUnAuthorize = do
