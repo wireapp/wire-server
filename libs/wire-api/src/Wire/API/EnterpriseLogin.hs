@@ -335,7 +335,6 @@ domainRegistrationFromRow DomainRegistrationRow {..} = do
   settings <- domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam
   Right DomainRegistration {..}
 
--- TODO: We can refactor the Update type!
 domainRegistrationFromUpdate :: DomainRegistration -> DomainRegistrationUpdate -> Either String DomainRegistration
 domainRegistrationFromUpdate reg upd = do
   newSettings <- domainRegistrationSettingsFromRow upd.domainRedirect upd.teamInvite reg.authorizedTeam
