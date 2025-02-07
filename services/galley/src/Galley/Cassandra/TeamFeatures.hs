@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wwarn #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -26,10 +26,7 @@ where
 import Cassandra
 import Data.Id
 import Galley.API.Teams.Features.Get
-import Galley.Cassandra.FeatureTH
-import Galley.Cassandra.GetAllTeamFeatures
 import Galley.Cassandra.Instances ()
-import Galley.Cassandra.MakeFeature
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.TeamFeatureStore qualified as TFS
@@ -61,10 +58,13 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
     embedClient $ getAllDbFeatures tid
 
 getDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
-getDbFeature = $(featureCases [|fetchFeature|])
+getDbFeature = todo
 
 setDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockableFeature cfg -> m ()
-setDbFeature = $(featureCases [|storeFeature|])
+setDbFeature = todo
 
 setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Tagged cfg LockStatus -> m ()
-setFeatureLockStatus = $(featureCases [|storeFeatureLockStatus|])
+setFeatureLockStatus = todo
+
+getAllDbFeatures :: TeamId -> m (AllFeatures DbFeature)
+getAllDbFeatures = todo

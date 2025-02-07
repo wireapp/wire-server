@@ -42,10 +42,11 @@ data TeamFeatureStore m a where
     TeamFeatureStore m (AllFeatures DbFeature)
 
 getDbFeature ::
+  forall cfg r.
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   TeamId ->
   Sem r (DbFeature cfg)
-getDbFeature tid = send (GetDbFeature featureSingleton tid)
+getDbFeature tid = send (GetDbFeature @cfg featureSingleton tid)
 
 setDbFeature ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>

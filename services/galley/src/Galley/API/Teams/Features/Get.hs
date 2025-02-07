@@ -43,6 +43,8 @@ import Data.Kind
 import Data.Qualified (Local, tUnqualified)
 import Data.SOP
 import Data.Tagged
+import Data.Text.Lazy qualified as LT
+import Galley.API.Error
 import Galley.API.LegalHold.Team
 import Galley.API.Util
 import Galley.Effects
@@ -73,6 +75,7 @@ type DefaultGetFeatureForUserConstraints cfg r =
 -- | Don't export methods of this typeclass
 class
   ( IsFeatureConfig cfg,
+    ParseDbFeature cfg,
     GetFeatureDefaults (FeatureDefaults cfg),
     NpProject cfg Features
   ) =>
@@ -84,7 +87,7 @@ class
       DefaultGetFeatureForUserConstraints cfg r
 
   type ComputeFeatureConstraints cfg (r :: EffectRow) :: Constraint
-  type ComputeFeatureConstraints cfg r = ()
+  type ComputeFeatureConstraints cfg r = (Member (Error InternalError) r)
 
   getFeatureForUser ::
     (GetFeatureForUserConstraints cfg r) =>
@@ -103,12 +106,13 @@ class
     DbFeature cfg ->
     Sem r (LockableFeature cfg)
   default computeFeature ::
+    (Member (Error InternalError) r) =>
     TeamId ->
     LockableFeature cfg ->
     DbFeature cfg ->
     Sem r (LockableFeature cfg)
   computeFeature _tid defFeature dbFeature =
-    pure $
+    runFeatureParser $
       genericComputeFeature @cfg defFeature dbFeature
 
 getFeature ::
@@ -144,6 +148,15 @@ getFeatureInternal tid = do
 toTeamStatus :: TeamId -> LockableFeature cfg -> Multi.TeamStatus cfg
 toTeamStatus tid feat = Multi.TeamStatus tid feat.status
 
+runFeatureParser ::
+  forall r a.
+  (Member (Error InternalError) r) =>
+  Either Text a ->
+  Sem r a
+runFeatureParser =
+  mapError (InternalErrorWithDescription . LT.fromStrict)
+    . fromEither
+
 getTeamAndCheckMembership ::
   ( Member TeamStore r,
     Member (ErrorS 'NotATeamMember) r,
@@ -162,6 +175,7 @@ getTeamAndCheckMembership uid = do
 getAllTeamFeaturesForTeam ::
   forall r.
   ( Member (Input Opts) r,
+    Member (Error InternalError) r,
     Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
@@ -193,7 +207,8 @@ getAllTeamFeaturesForServer =
 
 getAllTeamFeatures ::
   forall r.
-  ( Member (Input Opts) r,
+  ( Member (Error InternalError) r,
+    Member (Input Opts) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
     Member TeamStore r
@@ -219,6 +234,7 @@ instance (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatu
 getAllTeamFeaturesForUser ::
   forall r.
   ( Member BrigAccess r,
+    Member (Error InternalError) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS OperationDenied) r,
@@ -355,11 +371,11 @@ instance GetFeatureConfig ConferenceCallingConfig where
     pure $ withLockStatus (def @(LockableFeature ConferenceCallingConfig)).lockStatus feat
 
   computeFeature _tid defFeature dbFeature =
-    pure $
-      let feat = applyDbFeature dbFeature defFeature {status = FeatureStatusEnabled}
-       in case feat.lockStatus of
-            LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
-            LockStatusUnlocked -> feat
+    runFeatureParser $ do
+      feat <- genericComputeFeature defFeature {status = FeatureStatusEnabled} dbFeature
+      pure $ case feat.lockStatus of
+        LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
+        LockStatusUnlocked -> feat
 
 instance GetFeatureConfig SelfDeletingMessagesConfig
 
@@ -374,14 +390,14 @@ instance GetFeatureConfig MLSConfig
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type
     ComputeFeatureConstraints ExposeInvitationURLsToTeamAdminConfig r =
-      (Member (Input Opts) r)
+      (Member (Error InternalError) r, Member (Input Opts) r)
 
   -- the lock status of this feature is calculated from the allow list, not the database
   computeFeature tid defFeature dbFeature = do
     allowList <- input <&> view (settings . exposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     let teamAllowed = tid `elem` allowList
         lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
-    pure $ genericComputeFeature defFeature (dbFeatureLockStatus lockStatus <> dbFeature)
+    runFeatureParser $ genericComputeFeature defFeature (dbFeature {lockStatus = Just lockStatus})
 
 instance GetFeatureConfig OutlookCalIntegrationConfig
 
@@ -405,6 +421,7 @@ guardSecondFactorDisabled ::
   ( Member TeamFeatureStore r,
     Member (Input Opts) r,
     Member (ErrorS 'AccessDenied) r,
+    Member (Error InternalError) r,
     Member TeamStore r,
     Member ConversationStore r
   ) =>

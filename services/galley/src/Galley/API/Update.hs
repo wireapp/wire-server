@@ -489,6 +489,7 @@ addCodeUnqualifiedWithReqBody ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -513,6 +514,7 @@ addCodeUnqualified ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -540,6 +542,7 @@ addCode ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -637,6 +640,7 @@ getCode ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -664,6 +668,7 @@ checkReusableCode ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member TeamFeatureStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
@@ -735,6 +740,7 @@ joinConversationByReusableCode ::
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
