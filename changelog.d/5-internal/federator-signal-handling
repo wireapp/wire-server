@@ -1,1 +1,0 @@
-federator: Install signal handlers for SIGINT and SIGTERM, close sockets when receiving these signals

@@ -1,5 +1,0 @@
-Add a flag to the response body of `POST /get-domain-registration` to indicate
-whether `domain_redirect` is set to `none` due to the existence of a registered
-account. This makes it possible for clients to let a user log in with an
-existing cloud account even if a redirection to an on-prem backend is set up
-for their domain.
