@@ -890,3 +890,59 @@ postServiceWhitelist user tid update = do
           "whitelist"
         ]
   submit "POST" (addJSON updateJson req)
+
+getDomainVerificationChallenge :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getDomainVerificationChallenge domain registrationDomain = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "challenges"]
+  submit "POST" req
+
+verifyDomain :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+verifyDomain domain registrationDomain challengeId challengeToken = do
+  req <-
+    baseRequest domain Brig Versioned $
+      joinHttpPath
+        [ "domain-verification",
+          registrationDomain,
+          "challenges",
+          challengeId
+        ]
+  submit "POST" $ req & addJSONObject ["challenge_token" .= challengeToken]
+
+authorizeTeam :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+authorizeTeam user registrationDomain ownershipToken = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["domain-verification", registrationDomain, "authorize-team"]
+  submit "POST" $ req & addJSONObject ["domain_ownership_token" .= ownershipToken]
+
+-- brig expects an auth-token for this request. @mAuthToken@ is only `Maybe` for testing error cases!
+updateDomainRedirect :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> Value -> App Response
+updateDomainRedirect domain registrationDomain mAuthToken config = do
+  req <-
+    baseRequest domain Brig Versioned $
+      joinHttpPath ["domain-verification", registrationDomain, "backend"]
+  let req' = case mAuthToken of
+        Just authToken -> addHeader "Authorization" ("Bearer " <> authToken) req
+        Nothing -> req
+  submit "POST" $ req' & addJSON config
+
+updateTeamInvite :: (HasCallStack, MakesValue user, MakesValue payload) => user -> String -> payload -> App Response
+updateTeamInvite user registrationDomain payload = do
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["domain-verification", registrationDomain, "team"]
+  p <- make payload
+  submit "POST" $ req & addJSON p
+
+getDomainRegistrationFromEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getDomainRegistrationFromEmail domain email = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["get-domain-registration"]
+  submit "POST" $ req & addJSONObject ["email" .= email]
+
+getRegisteredDomainsByTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getRegisteredDomainsByTeam user tid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "registered-domains"]
+  submit "GET" req
+
+deleteRegisteredTeamDomain :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteRegisteredTeamDomain user tid registeredDomain = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "registered-domains", registeredDomain]
+  submit "DELETE" req

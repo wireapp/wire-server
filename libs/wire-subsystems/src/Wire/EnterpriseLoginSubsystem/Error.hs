@@ -1,27 +1,33 @@
 module Wire.EnterpriseLoginSubsystem.Error where
 
 import Imports
-import Network.HTTP.Types
-import Network.Wai.Utilities qualified as Wai
+import Wire.API.Error
+import Wire.API.Error.Brig
+import Wire.Arbitrary
 import Wire.Error
 
 data EnterpriseLoginSubsystemError
   = EnterpriseLoginSubsystemErrorNotFound
-  | EnterpriseLoginSubsystemInternalError LText
-  | EnterpriseLoginSubsystemErrorUpdateFailure LText
-  | EnterpriseLoginSubsystemUnlockError
-  | EnterpriseLoginSubsystemUnAuthorizeError
-  | EnterpriseLoginSubsystemPreAuthorizeError
-  deriving (Show, Eq)
+  | EnterpriseLoginSubsystemInvalidDomain
+  | EnterpriseLoginSubsystemDomainVerificationFailed
+  | EnterpriseLoginSubsystemOperationForbidden
+  | EnterpriseLoginSubsystemAuthFailure
+  | EnterpriseLoginSubsystemPaymentRequired
+  | EnterpriseLoginSubsystemNotEnabled
+  | EnterpriseLoginSubsystemChallengeNotFound
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform EnterpriseLoginSubsystemError)
 
 instance Exception EnterpriseLoginSubsystemError
 
 enterpriseLoginSubsystemErrorToHttpError :: EnterpriseLoginSubsystemError -> HttpError
 enterpriseLoginSubsystemErrorToHttpError =
   StdError . \case
-    EnterpriseLoginSubsystemErrorNotFound -> Wai.mkError status404 "not-found" "Not Found"
-    EnterpriseLoginSubsystemInternalError msg -> Wai.mkError status500 "internal-error" msg
-    EnterpriseLoginSubsystemErrorUpdateFailure msg -> Wai.mkError status400 "update-failure" msg
-    EnterpriseLoginSubsystemUnlockError -> Wai.mkError status409 "unlock-error" "Domain can only be unlocked from a locked state"
-    EnterpriseLoginSubsystemUnAuthorizeError -> Wai.mkError status409 "unauthorize-error" "Domain redirect can not bet set to unauthorized when locked or SSO"
-    EnterpriseLoginSubsystemPreAuthorizeError -> Wai.mkError status409 "preauthorize-error" "Domain redirect must be 'none' to be pre-authorized"
+    EnterpriseLoginSubsystemErrorNotFound -> errorToWai @DomainVerificationErrorNotFound
+    EnterpriseLoginSubsystemInvalidDomain -> errorToWai @DomainVerificationInvalidDomain
+    EnterpriseLoginSubsystemDomainVerificationFailed -> errorToWai @DomainVerificationDomainVerificationFailed
+    EnterpriseLoginSubsystemOperationForbidden -> errorToWai @DomainVerificationOperationForbidden
+    EnterpriseLoginSubsystemPaymentRequired -> errorToWai @DomainVerificationPaymentRequired
+    EnterpriseLoginSubsystemNotEnabled -> errorToWai @DomainVerificationNotEnabled
+    EnterpriseLoginSubsystemChallengeNotFound -> errorToWai @DomainVerificationChallengeNotFound
+    EnterpriseLoginSubsystemAuthFailure -> errorToWai @DomainVerificationAuthFailure

@@ -18,6 +18,7 @@
 module Galley.API.MLS.Util where
 
 import Control.Comonad
+import Control.Monad.Codensity
 import Data.Hex
 import Data.Id
 import Data.Qualified
@@ -105,34 +106,32 @@ getPendingBackendRemoveProposals gid epoch = do
   pure indexSet
 
 withCommitLock ::
-  forall r a.
-  ( Members
-      '[ Resource,
-         ConversationStore,
-         ErrorS 'MLSStaleMessage,
-         SubConversationStore
-       ]
-      r
+  forall r.
+  ( Member Resource r,
+    Member ConversationStore r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member SubConversationStore r
   ) =>
   Local ConvOrSubConvId ->
   GroupId ->
   Epoch ->
-  Sem r a ->
-  Sem r a
-withCommitLock lConvOrSubId gid epoch action =
-  bracket
-    ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
-        when (lockAcquired == NotAcquired) $
-          throwS @'MLSStaleMessage
-    )
-    (const $ releaseCommitLock gid epoch)
-    $ \_ -> do
-      actualEpoch <-
-        fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
-          Conv cnv -> getConversationEpoch cnv
-          SubConv cnv sub -> getSubConversationEpoch cnv sub
-      unless (actualEpoch == epoch) $ throwS @'MLSStaleMessage
-      action
+  Codensity (Sem r) ()
+withCommitLock lConvOrSubId gid epoch =
+  Codensity $ \k ->
+    bracket
+      ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
+          when (lockAcquired == NotAcquired) $
+            throwS @'MLSStaleMessage
+      )
+      (const $ releaseCommitLock gid epoch)
+      ( const $ do
+          actualEpoch <-
+            fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
+              Conv cnv -> getConversationEpoch cnv
+              SubConv cnv sub -> getSubConversationEpoch cnv sub
+          unless (actualEpoch == epoch) $ throwS @'MLSStaleMessage
+          k ()
+      )
   where
     ttl = fromIntegral (600 :: Int) -- 10 minutes
 

@@ -19,6 +19,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Text.Email.Parser
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
@@ -135,6 +136,10 @@ data UserSubsystem m a where
   UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
   -- | Return the user's locale (or the default locale if the users exists and has none).
   LookupLocaleWithDefault :: Local UserId -> UserSubsystem m (Maybe Locale)
+  -- | Throw error if registered domain forbids user account creation under this email
+  -- address.  (This may become internal to the interpreter once migration to wire-subsystems
+  -- has progressed enough.)
+  GuardRegisterUser :: EmailAddress -> UserSubsystem m ()
   -- | Check if an email is blocked.
   IsBlocked :: EmailAddress -> UserSubsystem m Bool
   -- | Remove an email from the block list.

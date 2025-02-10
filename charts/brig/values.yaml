@@ -160,6 +160,8 @@ config:
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}
+  wireServerEnterprise:
+    enabled: false
 
 turnStatic:
   v1:

@@ -1,5 +1,7 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -99,6 +101,7 @@ import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.Connection qualified as Public
+import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
@@ -108,6 +111,7 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
+import Wire.API.Routes.Bearer
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
@@ -117,6 +121,7 @@ import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Public.Cargohold
@@ -139,6 +144,7 @@ import Wire.API.User.Client qualified as Public
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
+import Wire.API.User.Identity
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
@@ -151,6 +157,8 @@ import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
+import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
+import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -174,6 +182,7 @@ import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
 import Wire.UserSubsystem qualified as User
+import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
@@ -367,7 +376,8 @@ servantSitemap ::
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -390,6 +400,9 @@ servantSitemap =
     :<|> botAPI
     :<|> servicesAPI
     :<|> providerAPI
+    :<|> domainVerificationAPI
+    :<|> domainVerificationTeamAPI
+    :<|> domainVerificationChallengeAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -540,12 +553,22 @@ servantSitemap =
       Named @"get-system-settings-unauthorized" getSystemSettings
         :<|> Named @"get-system-settings" getSystemSettingsInternal
 
--- Note [ephemeral user sideeffect]
--- If the user is ephemeral and expired, it will be removed upon calling
--- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
--- This leads to the following events being sent:
--- - UserDeleted event to contacts of the user
--- - MemberLeave event to members for all conversations the user was in (via galley)
+    domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
+    domainVerificationAPI =
+      Named @"update-domain-redirect" updateDomainRedirect
+        :<|> Named @"get-domain-registration" getDomainRegistration
+
+    domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
+    domainVerificationTeamAPI =
+      Named @"domain-verification-authorize-team" authorizeTeam
+        :<|> Named @"update-team-invite" updateTeamInvite
+        :<|> Named @"get-all-registered-domains" getAllRegisteredDomains
+        :<|> Named @"delete-registered-domain" deleteRegisteredDomain
+
+    domainVerificationChallengeAPI :: ServerT DomainVerificationChallengeAPI (Handler r)
+    domainVerificationChallengeAPI =
+      Named @"domain-verification-challenge" getDomainVerificationChallenge
+        :<|> Named @"verify-challenge" verifyChallenge
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -833,6 +856,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
+  -- TODO: we need an integration test for this, but it'd be easier to write that in a
+  -- different PR where we have https://github.com/wireapp/wire-server/pull/4389.
+  (lift . liftSem . UserSubsystem.guardRegisterUser)
+    `mapM_` (emailIdentity =<< new.newUserIdentity)
 
   result <- API.createUser new
   let acc = createdAccount result
@@ -1493,6 +1520,65 @@ getSystemSettingsInternal _ = do
   let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
   let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
+
+authorizeTeam ::
+  (_) =>
+  Local UserId ->
+  Domain ->
+  DomainOwnershipToken ->
+  Handler r ()
+authorizeTeam lusr domain token =
+  lift . liftSem $ EnterpriseLogin.authorizeTeam lusr domain token
+
+updateDomainRedirect ::
+  (_) =>
+  Bearer Token ->
+  Domain ->
+  DomainRedirectConfig ->
+  Handler r ()
+updateDomainRedirect (Bearer authToken) domain config =
+  lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
+
+updateTeamInvite ::
+  (_) =>
+  Local UserId ->
+  Domain ->
+  TeamInviteConfig ->
+  Handler r ()
+updateTeamInvite lusr domain config =
+  lift . liftSem $ EnterpriseLogin.updateTeamInvite lusr domain config
+
+getAllRegisteredDomains :: (_) => Local UserId -> TeamId -> Handler r RegisteredDomains
+getAllRegisteredDomains lusr tid = lift . liftSem $ EnterpriseLogin.getRegisteredDomains lusr tid
+
+deleteRegisteredDomain :: (_) => Local UserId -> TeamId -> Domain -> Handler r ()
+deleteRegisteredDomain lusr tid domain = lift . liftSem $ EnterpriseLogin.deleteTeamDomain lusr tid domain
+
+getDomainRegistration ::
+  (_) =>
+  GetDomainRegistrationRequest ->
+  Handler r DomainRedirectResponse
+getDomainRegistration req =
+  lift . liftSem $
+    EnterpriseLogin.getDomainRegistrationPublic req
+
+getDomainVerificationChallenge ::
+  (_) =>
+  Domain ->
+  Handler r DomainVerificationChallenge
+getDomainVerificationChallenge domain =
+  lift . liftSem $
+    EnterpriseLogin.createDomainVerificationChallenge domain
+
+verifyChallenge ::
+  (_) =>
+  Domain ->
+  ChallengeId ->
+  ChallengeToken ->
+  Handler r DomainOwnershipToken
+verifyChallenge domain challengeId (ChallengeToken token) = do
+  lift . liftSem . fmap DomainOwnershipToken $
+    EnterpriseLogin.verifyChallenge domain challengeId token
 
 -- Deprecated
 

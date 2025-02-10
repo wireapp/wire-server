@@ -31,6 +31,7 @@
 , data-timeout
 , deriving-aeson
 , directory
+, dns
 , errors
 , exceptions
 , extended
@@ -70,6 +71,7 @@
 , stm
 , streaming-commons
 , string-conversions
+, system-linux-proc
 , tagged
 , temporary
 , text
@@ -133,6 +135,7 @@ mkDerivation {
     data-timeout
     deriving-aeson
     directory
+    dns
     errors
     exceptions
     extended
@@ -169,6 +172,7 @@ mkDerivation {
     stm
     streaming-commons
     string-conversions
+    system-linux-proc
     tagged
     temporary
     text

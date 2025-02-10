@@ -49,14 +49,14 @@ repositories:
   - name: stable
     url: 'https://charts.helm.sh/stable'
 
-  - name: bitnami
-    url: 'https://charts.bitnami.com/bitnami'
-
   - name: ingress
     url: 'https://kubernetes.github.io/ingress-nginx'
 
   - name: bedag
     url: 'https://bedag.github.io/helm-charts/'
+
+  - name: obeone
+    url: 'https://charts.obeone.cloud'
 
 releases:
   - name: 'fake-aws'
@@ -229,6 +229,8 @@ releases:
         value: {{ .Values.federationDomain1 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
+      - name: brig.config.wireServerEnterprise.enabled
+        value: true
     needs:
       - 'databases-ephemeral'
 
@@ -254,10 +256,15 @@ releases:
     values:
       - secrets:
           configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
+    needs:
+      - technitium-dnsserver
+    set:
+      - name: config.dnsOverHttpsUrl
+        value: 'http://technitium-dnsserver:5381/dns-query'
 
-  - name: wire-server-enterprise
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/wire-server-enterprise'
+  - name: technitium-dnsserver
+    namespace: '{{ .Values.namespace1 }}'
+    chart: obeone/technitium-dnsserver
     values:
-      - secrets:
-          configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
+      - './helm_vars/technitium/values.yaml.gotmpl'
+

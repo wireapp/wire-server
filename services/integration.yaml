@@ -183,6 +183,11 @@ cassandra:
   host: 127.0.0.1
   port: 9042
 
+dnsMockServer:
+  host: localhost
+  apiPort: 5380
+  dohPort: 5381
+
 federation-v0:
   originDomain: federation-v0.example.com
   brig:

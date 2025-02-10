@@ -182,6 +182,7 @@ library
     Wire.API.Routes.Public
     Wire.API.Routes.Public.Brig
     Wire.API.Routes.Public.Brig.Bot
+    Wire.API.Routes.Public.Brig.DomainVerification
     Wire.API.Routes.Public.Brig.OAuth
     Wire.API.Routes.Public.Brig.Provider
     Wire.API.Routes.Public.Brig.Services

@@ -7,6 +7,7 @@ module Wire.API.User.EmailAddress
     module Text.Email.Parser,
     emailToSAMLNameID,
     emailFromSAML,
+    emailDomain,
   )
 where
 
@@ -17,9 +18,11 @@ where
 import Cassandra.CQL qualified as C
 import Data.ByteString.Conversion hiding (toByteString)
 import Data.Data (Proxy (..))
+import Data.Domain
 import Data.OpenApi hiding (Schema, ToSchema)
 import Data.Schema
 import Data.Text hiding (null)
+import Data.Text qualified as T
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Deriving.Aeson
@@ -89,12 +92,15 @@ fromEmail = decodeUtf8 . toByteString
 emailAddressText :: Text -> Maybe EmailAddress
 emailAddressText = emailAddress . encodeUtf8
 
+emailDomain :: EmailAddress -> Either String Domain
+emailDomain = mkDomainFromBS . domainPart
+
 -- | Generates any Unicode character (but not a surrogate)
 arbitraryValidMail :: Gen EmailAddress
 arbitraryValidMail = do
   loc <- arbitrary `suchThat` isValidLoc
-  dom <- arbitrary `suchThat` isValidDom
-  pure . fromJust $ emailAddress (fromString $ loc <> "@" <> dom)
+  Domain dom <- arbitrary
+  pure . fromJust $ emailAddress (fromString $ loc <> "@" <> T.unpack dom)
   where
     notAt :: String -> Bool
     notAt = notElem '@'
@@ -105,13 +111,7 @@ arbitraryValidMail = do
     isValidLoc x =
       notNull x
         && notAt x
-        && isValid (fromString (x <> "@mail.com"))
-
-    isValidDom :: String -> Bool
-    isValidDom x =
-      notNull x
-        && notAt x
-        && isValid (fromString ("me@" <> x))
+        && isValid (fromString (x <> "@mail.example"))
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.

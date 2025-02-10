@@ -1,0 +1,36 @@
+env:
+  DNS_SERVER_DOMAIN: localhost #The primary domain name used by this DNS Server to identify itself.
+  DNS_SERVER_ADMIN_PASSWORD: admin #DNS web console admin user password.
+  DNS_SERVER_OPTIONAL_PROTOCOL_DNS_OVER_HTTP: "true" #Enables DNS server optional protocol DNS-over-HTTP on TCP port 80.
+
+service:
+  main:
+    annotations: {}
+    enabled: true
+    primary: true
+    type: ClusterIP
+    externalTrafficPolicy: null # non-sense for local types
+    ports:
+      doh-http:
+        enabled: true
+        port: 5381
+        targetPort: 80
+        protocol: TCP
+      admin-console:
+        enabled: true
+        port: 5380
+        targetPort: 5380
+        protocol: TCP
+
+# We don't want this to be reachable from outside. Things inside the cluster
+# shall use the Service.
+ingress:
+  # -- Enable and configure ingress settings for the chart under this key.
+  # @default -- See the [docs](https://github.com/k8s-at-home/library-charts/blob/main/charts/stable/common/README.md)
+  main:
+    enabled: false
+
+# We want to have a clean plate on every restart
+persistence:
+  config:
+    enabled: false

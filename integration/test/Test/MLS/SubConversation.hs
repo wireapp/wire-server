@@ -338,12 +338,37 @@ testResendingProposals = do
   leaveConv subConvId bob2
   leaveConv subConvId bob3
 
-  subConv <- getMLSConv subConvId
-  withWebSockets (charlie1 : toList subConv.members) \wss -> do
-    void $ createExternalCommit subConvId charlie1 Nothing >>= sendAndConsumeCommitBundle
+  withWebSockets [alice1, alice2, charlie1] \[wsAlice1, wsAlice2, wsCharlie1] -> do
+    void
+      $ createExternalCommit subConvId charlie1 Nothing
+      >>= (postMLSCommitBundle charlie1 . mkBundle)
+      >>= getJSON 201
+
+    -- increment epoch and add charlie1
+    modifyMLSState $ \mls ->
+      mls
+        { convs =
+            Map.adjust
+              ( \conv' ->
+                  conv'
+                    { epoch = conv'.epoch + 1,
+                      members = conv'.members <> conv'.newMembers,
+                      newMembers = mempty
+                    }
+              )
+              subConvId
+              mls.convs
+        }
 
     -- consume proposals after backend resends them
-    for_ wss \ws -> do
+    for_ [wsAlice1, wsAlice2] $ \ws -> do
+      commitMsg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
+      commitMsg %. "message.content.sender" `shouldMatch` "NewMemberCommit"
+      replicateM 3 do
+        msg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
+        msg %. "message.content.sender.External" `shouldMatchInt` 0
+    void $ do
+      let ws = wsCharlie1
       replicateM 3 do
         msg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
         msg %. "message.content.sender.External" `shouldMatchInt` 0

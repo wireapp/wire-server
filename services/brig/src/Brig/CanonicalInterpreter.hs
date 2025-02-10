@@ -20,7 +20,6 @@ import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
-import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
 import Polysemy
 import Polysemy.Async
@@ -30,6 +29,7 @@ import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.Internal.Kind
 import Polysemy.TinyLog (TinyLog)
+import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
@@ -42,6 +42,8 @@ import Wire.BlockListStore.Cassandra
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
+import Wire.DomainVerificationChallengeStore
+import Wire.DomainVerificationChallengeStore.Cassandra
 import Wire.EmailSending
 import Wire.EmailSending.SES
 import Wire.EmailSending.SMTP
@@ -50,6 +52,7 @@ import Wire.EmailSubsystem.Interpreter
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError, enterpriseLoginSubsystemErrorToHttpError)
 import Wire.EnterpriseLoginSubsystem.Interpreter
+import Wire.EnterpriseLoginSubsystem.Null
 import Wire.Error
 import Wire.Events
 import Wire.FederationAPIAccess qualified
@@ -90,6 +93,8 @@ import Wire.Sem.Random
 import Wire.Sem.Random.IO
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
+import Wire.SparAPIAccess (SparAPIAccess)
+import Wire.SparAPIAccess.Rpc
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
@@ -108,8 +113,8 @@ import Wire.VerificationCodeSubsystem.Interpreter
 type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
      TeamInvitationSubsystem,
-     UserSubsystem,
-     EnterpriseLoginSubsystem
+     EnterpriseLoginSubsystem,
+     UserSubsystem
    ]
     `Append` BrigLowerLevelEffects
 
@@ -130,6 +135,7 @@ type BrigLowerLevelEffects =
      Error PropertySubsystemError,
      Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
+     DomainVerificationChallengeStore,
      DomainRegistrationStore,
      HashPassword,
      UserKeyStore,
@@ -149,7 +155,6 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
-     Input (Maybe EnterpriseLoginSubsystemConfig),
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -162,6 +167,7 @@ type BrigLowerLevelEffects =
      Random,
      PasswordResetCodeStore,
      GalleyAPIAccess,
+     SparAPIAccess,
      EmailSending,
      Rpc,
      Metrics,
@@ -247,6 +253,7 @@ runBrigToIO e (AppT ma) = do
               . runMetricsToIO
               . runRpcWithHttp e.httpManager e.requestId
               . emailSendingInterpreter e
+              . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
               . passwordResetCodeStoreToCassandra @Cas.Client
               . randomToIO
@@ -259,7 +266,6 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runInputConst (mkEnterpriseLoginSubsystemConfig e)
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
@@ -279,6 +285,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserKeyStoreCassandra e.casClient
               . runHashPassword e.settings.passwordHashingOptions
               . interpretDomainRegistrationStoreToCassandra e.casClient
+              . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
               . mapError propertySubsystemErrorToHttpError
@@ -294,19 +301,35 @@ runBrigToIO e (AppT ma) = do
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
-              . runEnterpriseLoginSubsystem
               . userSubsystemInterpreter
+              . maybe
+                runEnterpriseLoginSubsystemNoConfig
+                runEnterpriseLoginSubsystemWithConfig
+                (mkEnterpriseLoginSubsystemConfig e)
               . runTeamInvitationSubsystem teamInvitationSubsystemConfig
               . authSubsystemInterpreter
           )
     )
     $ runReaderT ma e
 
-mkEnterpriseLoginSubsystemConfig :: Env -> Maybe EnterpriseLoginSubsystemConfig
-mkEnterpriseLoginSubsystemConfig env = do
+mkEnterpriseLoginSubsystemEmailConfig :: Env -> Maybe EnterpriseLoginSubsystemEmailConfig
+mkEnterpriseLoginSubsystemEmailConfig env = do
   recipient <- env.settings.auditLogEmailRecipient
   let sender = env.emailSender
-  pure $ EnterpriseLoginSubsystemConfig {auditEmailSender = sender, auditEmailRecipient = recipient}
+  pure
+    EnterpriseLoginSubsystemEmailConfig
+      { auditEmailSender = sender,
+        auditEmailRecipient = recipient
+      }
+
+mkEnterpriseLoginSubsystemConfig :: Env -> Maybe EnterpriseLoginSubsystemConfig
+mkEnterpriseLoginSubsystemConfig env = do
+  endpoint <- env.wireServerEnterpriseEndpoint
+  pure
+    EnterpriseLoginSubsystemConfig
+      { emailConfig = mkEnterpriseLoginSubsystemEmailConfig env,
+        wireServerEnterpriseEndpoint = endpoint
+      }
 
 rethrowHttpErrorIO :: (Member (Final IO) r) => InterpreterFor (Error HttpError) r
 rethrowHttpErrorIO act = do

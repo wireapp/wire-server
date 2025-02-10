@@ -1,4 +1,6 @@
 dependencies:
 - name: redis-cluster
   version: 7.6.4
-  repository: https://charts.bitnami.com/bitnami
+  # Use helm repo from the git repo because bitnami's repo is failing
+  # intermittently
+  repository: https://raw.githubusercontent.com/bitnami/charts/234a73987975ffeb0674dc60287012052ce0ddfc/bitnami

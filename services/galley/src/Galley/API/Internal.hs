@@ -269,6 +269,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -286,6 +287,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
+    <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
 
 rmUser ::
   forall p1 p2 r.

@@ -8,7 +8,7 @@ import Control.Monad.Trans.Maybe
 import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as Conduit
 import Data.Id
-import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis)
 import Data.Range (Range, fromRange)
 import Database.CQL.Protocol (Record (..), TupleType, asRecord)
 import Imports
@@ -38,22 +38,11 @@ insertInvitationImpl ::
   -- | The timeout for the invitation code.
   Timeout ->
   Client StoredInvitation
-insertInvitationImpl (MkInsertInvitation invId teamId role (toUTCTimeMillis -> now) uid email name code) timeout = do
-  let inv =
-        MkStoredInvitation
-          { teamId = teamId,
-            role = Just role,
-            invitationId = invId,
-            createdAt = now,
-            createdBy = uid,
-            email = email,
-            name = name,
-            code = code
-          }
+insertInvitationImpl (insertInvToStoredInv -> inv@(MkStoredInvitation teamId role invId now uid email name code)) timeout = do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    addPrepQuery cqlInsert (teamId, Just role, invId, now, uid, email, name, code, round timeout)
+    addPrepQuery cqlInsert (teamId, role, invId, now, uid, email, name, code, round timeout)
     addPrepQuery cqlInsertInfo (code, teamId, invId, round timeout)
     addPrepQuery cqlInsertByEmail (email, teamId, invId, code, round timeout)
   pure inv

@@ -126,6 +126,7 @@ backendResources dynConfs =
                     berNginzSslPort = Ports.portForDyn Ports.NginzSSL i,
                     berNginzHttp2Port = Ports.portForDyn Ports.NginzHttp2 i,
                     berInternalServicePorts = Ports.internalServicePorts name,
+                    berEnableService = const True,
                     berMlsPrivateKeyPaths = dynConf.mlsPrivateKeyPaths
                   }
         )
@@ -156,6 +157,7 @@ backendA =
       berVHost = "backendA",
       berNginzSslPort = Ports.port Ports.NginzSSL BackendA,
       berInternalServicePorts = Ports.internalServicePorts BackendA,
+      berEnableService = const True,
       berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendA,
       berMlsPrivateKeyPaths =
         object
@@ -195,6 +197,9 @@ backendB =
       berVHost = "backendB",
       berNginzSslPort = Ports.port Ports.NginzSSL BackendB,
       berInternalServicePorts = Ports.internalServicePorts BackendB,
+      berEnableService = \case
+        WireServerEnterprise -> False
+        _ -> True,
       berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendB,
       berMlsPrivateKeyPaths =
         object

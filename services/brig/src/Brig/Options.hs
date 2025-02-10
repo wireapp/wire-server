@@ -376,10 +376,14 @@ data Opts = Opts
     cargohold :: !Endpoint,
     -- | Galley address
     galley :: !Endpoint,
+    -- | Spar address
+    spar :: !Endpoint,
     -- | Gundeck address
     gundeck :: !Endpoint,
     -- | Federator address
     federatorInternal :: !(Maybe Endpoint),
+    -- | Wire Server Enterprise address
+    wireServerEnterprise :: !(Maybe Endpoint),
     -- external
 
     -- | Cassandra settings
@@ -588,7 +592,9 @@ data Settings = Settings
     -- | Options to override the default Argon2id settings for specific operators.
     passwordHashingOptions :: !(PasswordHashingOptions),
     -- | Optional recipient email address for email domain registration audit logs
-    auditLogEmailRecipient :: !(Maybe EmailAddress)
+    auditLogEmailRecipient :: !(Maybe EmailAddress),
+    -- | Time-to-live for new domain verification challenges, in seconds
+    challengeTTL :: !Timeout
   }
   deriving (Show, Generic)
 

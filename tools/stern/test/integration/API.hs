@@ -101,7 +101,9 @@ tests s =
       test s "/teams/:tid/search-visibility" testSearchVisibility,
       test s "/sso-domain-redirect" testRudSsoDomainRedirect,
       test s "i/oauth/clients" testCrudOAuthClient,
-      test s "i/domain-registration" testDomainRegistration
+      test s "i/domain-registration" testDomainRegistration,
+      test s "GET /teams/:tid/features/domainRegistration" $ testFeatureStatus @DomainRegistrationConfig,
+      test s "PUT /teams/:tid/features/domainRegistration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @DomainRegistrationConfig
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`

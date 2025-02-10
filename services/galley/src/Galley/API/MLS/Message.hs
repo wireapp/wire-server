@@ -29,6 +29,7 @@ module Galley.API.MLS.Message
   )
 where
 
+import Control.Monad.Codensity
 import Data.Domain
 import Data.Id
 import Data.Json.Util
@@ -253,47 +254,48 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
-  (events, newClients) <- case bundle.sender of
-    SenderMember _index -> do
-      -- extract added/removed clients from bundle
-      action <- getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
-
-      -- process additions and removals
-      events <-
-        processInternalCommit
+  (events, newClients) <- lowerCodensity $ do
+    (events, newClients) <- case bundle.sender of
+      SenderMember _index -> do
+        -- extract added/removed clients from bundle
+        action <-
+          lift $
+            getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+        -- process additions and removals
+        events <-
+          processInternalCommit
+            senderIdentity
+            conn
+            lConvOrSub
+            ciphersuite
+            ciphersuiteUpdate
+            bundle.epoch
+            action
+            bundle.commit.value
+        -- the sender client is included in the Add action on the first commit,
+        -- but it doesn't need to get a welcome message, so we filter it out here
+        let newClients = filter ((/=) senderIdentity) (cmIdentities (paAdd action))
+        pure (events, newClients)
+      SenderExternal _ -> lift $ throw (mlsProtocolError "Unexpected sender")
+      SenderNewMemberProposal -> lift $ throw (mlsProtocolError "Unexpected sender")
+      SenderNewMemberCommit -> do
+        action <- lift $ getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+        processExternalCommit
           senderIdentity
-          conn
           lConvOrSub
           ciphersuite
           ciphersuiteUpdate
           bundle.epoch
           action
-          bundle.commit.value
-      -- the sender client is included in the Add action on the first commit,
-      -- but it doesn't need to get a welcome message, so we filter it out here
-      let newClients = filter ((/=) senderIdentity) (cmIdentities (paAdd action))
-      pure (events, newClients)
-    SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
-    SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
-    SenderNewMemberCommit -> do
-      action <- getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
-      processExternalCommit
-        senderIdentity
-        lConvOrSub
-        ciphersuite
-        ciphersuiteUpdate
-        bundle.epoch
-        action
-        bundle.commit.value.path
-      pure ([], [])
-
-  storeGroupInfo (tUnqualified lConvOrSub).id (GroupInfoData bundle.groupInfo.raw)
-
-  propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
+          bundle.commit.value.path
+        pure ([], [])
+    lift $ do
+      storeGroupInfo (tUnqualified lConvOrSub).id (GroupInfoData bundle.groupInfo.raw)
+      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
+    pure (events, newClients)
 
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn newClients welcome
-
   pure events
 
 postMLSCommitBundleToRemoteConv ::

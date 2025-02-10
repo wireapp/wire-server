@@ -13,6 +13,7 @@
 , attoparsec
 , base
 , base16-bytestring
+, base64-bytestring
 , bilge
 , bloodhound
 , bytestring
@@ -26,6 +27,7 @@
 , currency-codes
 , data-default
 , data-timeout
+, email-validate
 , errors
 , exceptions
 , extended
@@ -33,6 +35,7 @@
 , gitignoreSource
 , HaskellNet
 , HaskellNet-SSL
+, hex
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -104,6 +107,7 @@ mkDerivation {
     attoparsec
     base
     base16-bytestring
+    base64-bytestring
     bilge
     bloodhound
     bytestring
@@ -117,12 +121,14 @@ mkDerivation {
     currency-codes
     data-default
     data-timeout
+    email-validate
     errors
     exceptions
     extended
     extra
     HaskellNet
     HaskellNet-SSL
+    hex
     HsOpenSSL
     hspec
     html-entities
@@ -206,6 +212,8 @@ mkDerivation {
     tinylog
     transformers
     types-common
+    uri-bytestring
+    uuid
     wire-api
     wire-api-federation
   ];

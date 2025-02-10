@@ -23,6 +23,7 @@ where
 
 import Control.Comonad
 import Control.Lens (forOf_)
+import Control.Monad.Codensity
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
@@ -141,52 +142,56 @@ processExternalCommit ::
   Epoch ->
   ExternalCommitAction ->
   Maybe UpdatePath ->
-  Sem r ()
+  Codensity (Sem r) ()
 processExternalCommit senderIdentity lConvOrSub ciphersuite ciphersuiteUpdate epoch action updatePath = do
   let convOrSub = tUnqualified lConvOrSub
 
   -- only members can join a subconversation
   forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
     unless (isClientMember senderIdentity (mcMembers mlsConv)) $
-      throwS @'MLSSubConvClientNotInParent
+      lift $
+        throwS @'MLSSubConvClientNotInParent
 
   -- extract leaf node from update path and validate it
   leafNode <-
     (.leaf)
-      <$> note
-        (mlsProtocolError "External commits need an update path")
-        updatePath
+      <$> lift
+        ( note
+            (mlsProtocolError "External commits need an update path")
+            updatePath
+        )
   let groupId = cnvmlsGroupId convOrSub.mlsMeta
   let extra = LeafNodeTBSExtraCommit groupId action.add
   case validateLeafNode ciphersuite (Just senderIdentity) extra leafNode.value of
     Left errMsg ->
-      throw $
+      lift . throw $
         mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
     Right _ -> pure ()
 
-  withCommitLock (fmap (.id) lConvOrSub) groupId epoch $ do
-    executeExternalCommitAction lConvOrSub senderIdentity action
+  withCommitLock (fmap (.id) lConvOrSub) groupId epoch
 
-    -- increment epoch number
-    lConvOrSub' <- for lConvOrSub incrementEpoch
+  lift $ executeExternalCommitAction lConvOrSub senderIdentity action
 
-    -- fetch backend remove proposals of the previous epoch
-    indices0 <- getPendingBackendRemoveProposals groupId epoch
+  -- increment epoch number
+  lConvOrSub' <- for lConvOrSub $ lift . incrementEpoch
 
-    -- skip proposals for clients already removed by the external commit
-    let indices = maybe id Set.delete action.remove indices0
+  -- fetch backend remove proposals of the previous epoch
+  indices0 <- lift $ getPendingBackendRemoveProposals groupId epoch
 
-    -- set cipher suite
-    when ciphersuiteUpdate $ case convOrSub.id of
-      Conv cid -> setConversationCipherSuite cid ciphersuite
-      SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
+  -- skip proposals for clients already removed by the external commit
+  let indices = maybe id Set.delete action.remove indices0
 
-    -- requeue backend remove proposals for the current epoch
-    createAndSendRemoveProposals
-      lConvOrSub'
-      indices
-      (cidQualifiedUser senderIdentity)
-      (tUnqualified lConvOrSub').members
+  -- set cipher suite
+  lift $ when ciphersuiteUpdate $ case convOrSub.id of
+    Conv cid -> setConversationCipherSuite cid ciphersuite
+    SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
+
+  -- requeue backend remove proposals for the current epoch
+  createAndSendRemoveProposals
+    lConvOrSub'
+    (toList indices)
+    (cidQualifiedUser senderIdentity)
+    (tUnqualified lConvOrSub').members
 
 executeExternalCommitAction ::
   forall r.

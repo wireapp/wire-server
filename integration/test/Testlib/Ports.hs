@@ -8,6 +8,7 @@ data PortNamespace
   | NginzHttp2
   | FederatorExternal
   | ServiceInternal Service
+  deriving (Show, Eq)
 
 port :: (Num a) => PortNamespace -> BackendName -> a
 port NginzSSL bn = mkPort 8443 bn

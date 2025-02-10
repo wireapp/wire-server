@@ -21,9 +21,11 @@ import qualified Network.WebSockets as WS
 import Notifications
 import Servant.API (AsApi, ToServant, toServant)
 import Servant.API.Generic (fromServant)
+import Servant.Client (AsClientT)
 import qualified Servant.Client as Servant
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.ResourcePool
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -383,7 +385,7 @@ testTransientEventsDoNotTriggerDeadLetters = do
 
     -- consume it
     runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-      assertEvent ws $ \e -> do
+      assertFindsEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "type" `shouldMatch` "event"
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
@@ -465,38 +467,95 @@ testChannelLimit = withModifiedBackend
 
       -- the first client fails to connect because the server runs out of channels
       do
-        ws <- createEventsWebSocket alice (Just client0)
-        lift $ assertNoEvent_ ws
+        eithWS <- createEventsWebSocketEither alice (Just client0)
+        case eithWS of
+          Left (WS.MalformedResponse respHead _) ->
+            lift $ respHead.responseCode `shouldMatchInt` 503
+          Left e ->
+            lift $ assertFailure $ "Expected websocket to fail with response code 503, got some other handshake exception: " <> displayException e
+          Right _ -> lift $ assertFailure "Expected websocket hanshake to fail, but it didn't"
 
 testChannelKilled :: (HasCallStack) => App ()
-testChannelKilled = startDynamicBackendsReturnResources [def] $ \[backend] -> do
-  let domain = backend.berDomain
-  alice <- randomUser domain def
-  [c1, c2] <-
-    replicateM 2
-      $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
+testChannelKilled = do
+  pool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 pool) $ \[backend] -> do
+    -- Some times RabbitMQ still remembers connections from previous uses of the
+    -- dynamic backend. So we wait to ensure that we kill connection only for our
+    -- current.
+    void $ killAllRabbitMqConns backend
+    waitUntilNoRabbitMqConns backend
+
+    runCodensity (startDynamicBackend backend def) $ \_ -> do
+      let domain = backend.berDomain
+      alice <- randomUser domain def
+      [c1, c2] <-
+        replicateM 2
+          $ addClient alice def {acapabilities = Just ["consumable-notifications"]}
+          >>= getJSON 201
+          >>= (%. "id")
+          >>= asString
+
+      runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
+        -- If creating the user takes longer (async) than adding the clients, we get a
+        -- `"user.activate"` here, so we use `assertFindsEvent`.
+        assertFindsEvent ws $ \e -> do
+          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+          e %. "data.event.payload.0.client.id" `shouldMatch` c1
+          ackEvent ws e
+
+        assertEvent ws $ \e -> do
+          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+          e %. "data.event.payload.0.client.id" `shouldMatch` c2
+          ackEvent ws e
+
+        -- The RabbitMQ admin API takes some time to see new connections, so we need
+        -- to try a few times.
+        recoverAll (constantDelay 500_000 <> limitRetries 10) $ \_ -> do
+          conns <- killAllRabbitMqConns backend
+          assertAtLeastOne conns
+
+        waitUntilNoRabbitMqConns backend
+
+        assertNoEventHelper ws `shouldMatch` WebSocketDied
+
+testSingleConsumer :: (HasCallStack) => App ()
+testSingleConsumer = do
+  alice <- randomUser OwnDomain def
+  clientId <-
+    addClient alice def {acapabilities = Just ["consumable-notifications"]}
       >>= getJSON 201
-      >>= (%. "id")
-      >>= asString
+      >>= objId
 
-  runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
-    -- If creating the user takes longer (async) than adding the clients, we get a
-    -- `"user.activate"` here, so we use `assertFindsEvent`.
+  -- add a second client in order to generate one more notification
+  clientId' <- addClient alice def >>= getJSON 201 >>= objId
 
-    assertFindsEvent ws $ \e -> do
+  lowerCodensity $ do
+    ws <- createEventsWebSocket alice (Just clientId)
+    ws' <- createEventsWebSocket alice (Just clientId)
+
+    -- the second websocket should get no notifications as long as the first
+    -- one is connected
+    lift $ assertNoEvent_ ws'
+
+    deliveryTag1 <- lift $ assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` c1
-      ackEvent ws e
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.delivery_tag"
 
-    assertFindsEvent ws $ \e -> do
+    lift $ assertNoEvent_ ws'
+
+    lift $ sendAck ws deliveryTag1 False
+    lift $ assertNoEvent_ ws'
+
+    deliveryTag2 <- lift $ assertEvent ws $ \e -> do
+      e %. "type" `shouldMatch` "event"
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` c2
+      e %. "data.event.payload.0.client.id" `shouldMatch` clientId'
+      e %. "data.delivery_tag"
+    lift $ sendAck ws deliveryTag2 False
 
-    recoverAll
-      (constantDelay 500_000 <> limitRetries 10)
-      (const (killConnection backend))
-
-    assertWebSocketDied ws
+    lift $ assertNoEvent_ ws'
 
 ----------------------------------------------------------------------
 -- helpers
@@ -512,10 +571,22 @@ createEventsWebSocket ::
   Maybe String ->
   Codensity App EventWebSocket
 createEventsWebSocket user cid = do
+  eithWS <- createEventsWebSocketEither user cid
+  case eithWS of
+    Left e -> lift $ assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
+    Right ws -> pure ws
+
+createEventsWebSocketEither ::
+  (HasCallStack, MakesValue uid) =>
+  uid ->
+  Maybe String ->
+  Codensity App (Either WS.HandshakeException EventWebSocket)
+createEventsWebSocketEither user cid = do
   eventsChan <- liftIO newChan
   ackChan <- liftIO newEmptyMVar
   serviceMap <- lift $ getServiceMap =<< objDomain user
   apiVersion <- lift $ getAPIVersionFor $ objDomain user
+  wsStarted <- newEmptyMVar
   let minAPIVersion = 8
   lift
     . when (apiVersion < minAPIVersion)
@@ -525,7 +596,8 @@ createEventsWebSocket user cid = do
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
       path = "/v" <> show apiVersion <> "/events" <> maybe "" ("?client=" <>) cid
       caHdrs = [(fromString "Z-User", toByteString' uid)]
-      app conn =
+      app conn = do
+        putMVar wsStarted (Right ())
         race_
           (wsRead conn `catch` (writeChan eventsChan . Left))
           (wsWrite conn)
@@ -545,23 +617,26 @@ createEventsWebSocket user cid = do
             WS.sendBinaryData conn (encode ack)
               >> wsWrite conn
 
-  wsThread <- Codensity $ \k -> do
-    withAsync
-      ( liftIO
-          $ WS.runClientWith
-            caHost
-            (fromIntegral caPort)
-            path
-            WS.defaultConnectionOptions
-            caHdrs
-            app
-      )
-      k
+  wsThread <-
+    Codensity
+      $ withAsync
+      $ liftIO
+      $ WS.runClientWith caHost (fromIntegral caPort) path WS.defaultConnectionOptions caHdrs app
+      `catch` \(e :: WS.HandshakeException) -> putMVar wsStarted (Left e)
 
-  Codensity $ \k ->
-    k (EventWebSocket eventsChan ackChan) `finally` do
-      putMVar ackChan Nothing
-      liftIO $ wait wsThread
+  timeOutSeconds <- asks (.timeOutSeconds)
+  mStarted <- lift $ timeout (timeOutSeconds * 1_000_000) (takeMVar wsStarted)
+  case mStarted of
+    Nothing -> do
+      cancel wsThread
+      lift $ assertFailure $ "Websocket failed to connect within " <> show timeOutSeconds <> "s"
+    Just (Left e) ->
+      pure (Left e)
+    Just (Right ()) ->
+      Codensity $ \k ->
+        k (Right $ EventWebSocket eventsChan ackChan) `finally` do
+          putMVar ackChan Nothing
+          liftIO $ wait wsThread
 
 ackFullSync :: (HasCallStack) => EventWebSocket -> App ()
 ackFullSync ws =
@@ -592,7 +667,9 @@ assertEvent ws expectations = do
   timeOutSeconds <- asks (.timeOutSeconds)
   timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
     Nothing -> assertFailure $ "No event received for " <> show timeOutSeconds <> "s"
-    Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+    Just (Left ex) ->
+      addFailureContext ("WSException: " <> displayException ex)
+        $ assertFailure "Websocket closed when waiting for more events"
     Just (Right e) -> do
       pretty <- prettyJSON e
       addFailureContext ("event:\n" <> pretty)
@@ -607,7 +684,9 @@ assertFindsEvent ws expectations = go 0
       timeOutSeconds <- asks (.timeOutSeconds)
       timeout (timeOutSeconds * 1_000_000) (readChan ws.events) >>= \case
         Nothing -> assertFailure $ show ignoredEventCount <> " event(s) received, no matching event received for " <> show timeOutSeconds <> "s"
-        Just (Left _) -> assertFailure "Websocket closed when waiting for more events"
+        Just (Left ex) ->
+          addFailureContext ("WSException: " <> displayException ex)
+            $ assertFailure "Websocket closed when waiting for more events"
         Just (Right ev) -> do
           (expectations ev)
             `catch` \(_ :: AssertionFailure) -> do
@@ -661,15 +740,31 @@ consumeAllEvents ws = do
       ackEvent ws e
       consumeAllEvents ws
 
-killConnection :: (HasCallStack) => BackendResource -> App ()
-killConnection backend = do
+-- | Only considers connections from cannon
+waitUntilNoRabbitMqConns :: (HasCallStack) => BackendResource -> App ()
+waitUntilNoRabbitMqConns backend = do
   rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
-  connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack backend.berVHost)
-  connection <-
-    assertOne
-      [ c | c <- connections, c.userProvidedName == Just (Text.pack "pool 0")
-      ]
-  void $ rabbitmqAdminClient.deleteConnection connection.name
+  recoverAll
+    (constantDelay 500_000 <> limitRetries 10)
+    (const (go rabbitmqAdminClient))
+  where
+    go rabbitmqAdminClient = do
+      cannonConnections <- getCannonConnections rabbitmqAdminClient backend.berVHost
+      cannonConnections `shouldMatch` ([] :: [Connection])
+
+-- | Only kills connections from cannon and returns them
+killAllRabbitMqConns :: (HasCallStack) => BackendResource -> App [Connection]
+killAllRabbitMqConns backend = do
+  rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
+  cannonConnections <- getCannonConnections rabbitmqAdminClient backend.berVHost
+  for_ cannonConnections $ \connection ->
+    rabbitmqAdminClient.deleteConnection connection.name
+  pure cannonConnections
+
+getCannonConnections :: AdminAPI (AsClientT App) -> String -> App [Connection]
+getCannonConnections rabbitmqAdminClient vhost = do
+  connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack vhost)
+  pure $ filter (\c -> maybe False (fromString "pool " `Text.isPrefixOf`) c.userProvidedName) connections
 
 mkRabbitMqAdminClientForResource :: BackendResource -> App (AdminAPI (Servant.AsClientT App))
 mkRabbitMqAdminClientForResource backend = do

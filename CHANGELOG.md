@@ -1,3 +1,70 @@
+# [2025-02-07] (Chart Release 5.11.0)
+
+## API changes
+
+
+* New endpoints for domain registration and verification (#4389, #4422, #4433, #4434, #4438)
+    - POST /domain-verification/:domain/team
+    - POST /domain-verification/:domain/backend
+    - POST /domain-verification/:domain/challenges
+    - POST /domain-verification/:domain/challenges/:challengeId
+    - POST /domain-verification/:domain/authorize-team
+    - POST /get-domain-registration
+    - GET /teams/:tid/registered-domains
+    - DELETE /teams/:tid/registered-domains/:domain
+
+* Deprecated API endpoints were removed from API version V8. (#4407)
+
+* Add a flag to the response body of `POST /get-domain-registration` to indicate
+  whether `domain_redirect` is set to `none` due to the existence of a registered
+  account. This makes it possible for clients to let a user log in with an
+  existing cloud account even if a redirection to an on-prem backend is set up
+  for their domain. (#4441)
+
+
+## Features
+
+
+* Team feature config for domain registration (#4429)
+
+
+## Bug fixes and other updates
+
+
+* Fix 503 on user registration when the enterprise service is disabled (#4421)
+
+* Fix 503 on team invitation when wire-server-enterprise is disabled (#4439)
+
+* Fix bug in nginz: `/consent/<foo>` requests not correctly forwarded to `galeb`. (#4376)
+
+* MLS: when recreating external (backend) proposals, these are now propagated to
+  the clients only after the corresponding external commit has been forwarded to
+  the clients. (#4412)
+
+* MLS group info is now saved with the commit lock held. This prevents a bug where group info on a later commit was overwritten by an earlier group info, leading to out-of-sync MLS state between backends and clients. (#4436)
+
+
+## Internal changes
+
+
+* Internal spar endpoint to retrieve the team's identity providers (#4417)
+
+* Adjust existing onboarding flow to new domain registration constraints.
+
+  Endpoints:
+
+  - POST /teams/{id}/invitations
+  - POST /register (#4409)
+
+* federator: Install signal handlers for SIGINT and SIGTERM, close sockets when receiving these signals (#4398)
+
+* /i/index/refresh now uses the correct URL for additional indices. Thus, the
+  refreshed indices can reside on different ElasticSearch instances. This
+  endpoint is exclusively called from tests. (#4413)
+
+* Test single consumer behaviour of notifications (#4443)
+
+
 # [2025-01-28] (Chart Release 5.10.0)
 
 ## Release notes

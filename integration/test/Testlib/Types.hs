@@ -70,6 +70,8 @@ data BackendResource = BackendResource
     berNginzSslPort :: Word16,
     berNginzHttp2Port :: Word16,
     berInternalServicePorts :: forall a. (Num a) => Service -> a,
+    -- | A disabled service is started anyway, but not configured in the other services.
+    berEnableService :: Service -> Bool,
     berMlsPrivateKeyPaths :: Value
   }
 
@@ -105,6 +107,15 @@ instance FromJSON RabbitMQConfig where
         <*> ob .: fromString "tls"
         <*> ob .: fromString "vHost"
 
+data DNSMockServerConfig = DNSMockServerConfig
+  { host :: !String,
+    apiPort :: !Word16,
+    dohPort :: !Word16
+  }
+  deriving (Show, Generic)
+
+instance FromJSON DNSMockServerConfig
+
 -- | Initialised once per testsuite.
 data GlobalEnv = GlobalEnv
   { gServiceMap :: Map String ServiceMap,
@@ -122,7 +133,8 @@ data GlobalEnv = GlobalEnv
     gRabbitMQConfigV0 :: RabbitMQConfig,
     gRabbitMQConfigV1 :: RabbitMQConfig,
     gTempDir :: FilePath,
-    gTimeOutSeconds :: Int
+    gTimeOutSeconds :: Int,
+    gDNSMockServerConfig :: DNSMockServerConfig
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -135,7 +147,8 @@ data IntegrationConfig = IntegrationConfig
     rabbitmq :: RabbitMQConfig,
     rabbitmqV0 :: RabbitMQConfig,
     rabbitmqV1 :: RabbitMQConfig,
-    cassandra :: CassandraConfig
+    cassandra :: CassandraConfig,
+    dnsMockServer :: DNSMockServerConfig
   }
   deriving (Show, Generic)
 
@@ -153,6 +166,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "rabbitmq-v0"
         <*> o .: fromString "rabbitmq-v1"
         <*> o .: fromString "cassandra"
+        <*> o .: fromString "dnsMockServer"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -229,7 +243,8 @@ data Env = Env
     resourcePool :: ResourcePool BackendResource,
     rabbitMQConfig :: RabbitMQConfig,
     timeOutSeconds :: Int,
-    currentTestName :: Maybe String
+    currentTestName :: Maybe String,
+    dnsMockServerConfig :: DNSMockServerConfig
   }
 
 data Response = Response

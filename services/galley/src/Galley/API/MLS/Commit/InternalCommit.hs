@@ -21,6 +21,7 @@ import Control.Comonad
 import Control.Error.Util (hush)
 import Control.Lens
 import Control.Lens.Extras (is)
+import Control.Monad.Codensity
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map qualified as Map
@@ -83,7 +84,7 @@ processInternalCommit ::
   Epoch ->
   ProposalAction ->
   Commit ->
-  Sem r [LocalConversationUpdate]
+  Codensity (Sem r) [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdate epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
@@ -91,12 +92,16 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       newUserClients = Map.assocs (paAdd action)
 
   -- check all pending proposals are referenced in the commit
-  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
+  allPendingProposals <-
+    lift $
+      getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
   unless (all (`Set.member` referencedProposals) allPendingProposals) $
-    throwS @'MLSCommitMissingReferences
+    lift $
+      throwS @'MLSCommitMissingReferences
 
-  withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch $ do
+  withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch
+  lift $ do
     -- no client can be directly added to a subconversation
     when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")

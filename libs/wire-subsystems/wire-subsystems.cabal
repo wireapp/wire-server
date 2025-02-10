@@ -81,6 +81,8 @@ library
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
     Wire.DomainRegistrationStore.Cassandra
+    Wire.DomainVerificationChallengeStore
+    Wire.DomainVerificationChallengeStore.Cassandra
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
@@ -90,6 +92,7 @@ library
     Wire.EnterpriseLoginSubsystem
     Wire.EnterpriseLoginSubsystem.Error
     Wire.EnterpriseLoginSubsystem.Interpreter
+    Wire.EnterpriseLoginSubsystem.Null
     Wire.Error
     Wire.Events
     Wire.FederationAPIAccess
@@ -123,6 +126,8 @@ library
     Wire.Rpc
     Wire.SessionStore
     Wire.SessionStore.Cassandra
+    Wire.SparAPIAccess
+    Wire.SparAPIAccess.Rpc
     Wire.StoredUser
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
@@ -160,6 +165,7 @@ library
     , attoparsec
     , base
     , base16-bytestring
+    , base64-bytestring
     , bilge
     , bloodhound
     , bytestring
@@ -173,12 +179,14 @@ library
     , currency-codes
     , data-default
     , data-timeout
+    , email-validate
     , errors
     , exceptions
     , extended
     , extra
     , HaskellNet
     , HaskellNet-SSL
+    , hex
     , HsOpenSSL
     , hspec
     , html-entities
@@ -241,11 +249,16 @@ test-suite wire-subsystems-tests
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.BlockListStore
+    Wire.MockInterpreters.DomainRegistrationStore
+    Wire.MockInterpreters.DomainVerificationChallengeStore
+    Wire.MockInterpreters.EmailSending
     Wire.MockInterpreters.EmailSubsystem
+    Wire.MockInterpreters.EnterpriseLoginSubsystem
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.Events
     Wire.MockInterpreters.FederationConfigStore
@@ -259,12 +272,15 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
     Wire.MockInterpreters.SessionStore
+    Wire.MockInterpreters.SparAPIAccess
+    Wire.MockInterpreters.TinyLog
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
+    Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
@@ -307,6 +323,8 @@ test-suite wire-subsystems-tests
     , tinylog
     , transformers
     , types-common
+    , uri-bytestring
+    , uuid
     , wire-api
     , wire-api-federation
     , wire-subsystems

@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 import Data.Maybe (isJust, mapMaybe)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import GHC.Stack as Stack
@@ -44,6 +45,11 @@ assertOne :: (HasCallStack, Foldable t) => t a -> App a
 assertOne xs = case toList xs of
   [x] -> pure x
   other -> assertFailure ("Expected one, but got " <> show (length other))
+
+assertAtLeastOne :: (HasCallStack, Foldable t) => t a -> App ()
+assertAtLeastOne xs = case toList xs of
+  [] -> assertFailure ("Expected at least one, but got nothing")
+  _ -> pure ()
 
 expectFailure :: (HasCallStack) => (AssertionFailure -> App ()) -> App a -> App ()
 expectFailure checkFailure action = do
@@ -153,7 +159,7 @@ shouldMatchBase64 ::
   b ->
   App ()
 a `shouldMatchBase64` b = do
-  xa <- Text.decodeUtf8 . B64.decodeLenient . Text.encodeUtf8 . Text.pack <$> asString a
+  xa <- Text.decodeUtf8With Text.lenientDecode . B64.decodeLenient . Text.encodeUtf8 . Text.pack <$> asString a
   xa `shouldMatch` b
 
 shouldNotMatch ::
@@ -389,14 +395,14 @@ prettyResponse r =
           Nothing -> []
           Just b ->
             [ colored yellow "request body:",
-              Text.unpack . Text.decodeUtf8 $ case Aeson.decode (BS.fromStrict b) of
+              Text.unpack . Text.decodeUtf8With Text.lenientDecode $ case Aeson.decode (BS.fromStrict b) of
                 Just v -> BS.toStrict (Aeson.encodePretty (v :: Aeson.Value))
                 Nothing -> hex b
             ],
         pure $ colored blue "response status: " <> show r.status,
         pure $ colored blue "response body:",
         pure $
-          ( TL.unpack . TL.decodeUtf8 $
+          ( TL.unpack . TL.decodeUtf8With Text.lenientDecode $
               case r.jsonBody of
                 Just b -> (Aeson.encodePretty b)
                 Nothing -> BS.fromStrict r.body

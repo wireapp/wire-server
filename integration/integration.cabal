@@ -100,6 +100,7 @@ library
     API.GundeckInternal
     API.Nginz
     API.Spar
+    API.SparInternal
     MLS.Util
     Notifications
     RunAllTests
@@ -119,6 +120,8 @@ library
     Test.Connection
     Test.Conversation
     Test.Demo
+    Test.DNSMock
+    Test.DomainVerification
     Test.EJPD
     Test.EnterpriseLogin
     Test.Errors
@@ -129,6 +132,7 @@ library
     Test.FeatureFlags.ClassifiedDomains
     Test.FeatureFlags.ConferenceCalling
     Test.FeatureFlags.DigitalSignatures
+    Test.FeatureFlags.DomainRegistration
     Test.FeatureFlags.EnforceFileDownloadLocation
     Test.FeatureFlags.FileSharing
     Test.FeatureFlags.GuestLinks
@@ -229,6 +233,7 @@ library
     , data-timeout
     , deriving-aeson
     , directory
+    , dns
     , errors
     , exceptions
     , extended
@@ -265,6 +270,7 @@ library
     , stm
     , streaming-commons
     , string-conversions
+    , system-linux-proc
     , tagged
     , temporary
     , text

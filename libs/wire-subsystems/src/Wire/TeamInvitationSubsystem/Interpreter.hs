@@ -17,6 +17,7 @@ import System.Logger.Message as Log
 import URI.ByteString
 import Util.Logging
 import Util.Timeout (Timeout (..))
+import Wire.API.EnterpriseLogin
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Teams
@@ -25,6 +26,7 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.EmailSubsystem
+import Wire.EnterpriseLoginSubsystem
 import Wire.GalleyAPIAccess hiding (AddTeamMember)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationStore (InvitationStore, StoredInvitation)
@@ -54,7 +56,8 @@ runTeamInvitationSubsystem ::
     Member Random r,
     Member InvitationStore r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   TeamInvitationSubsystemConfig ->
   InterpreterFor TeamInvitationSubsystem r
@@ -72,7 +75,8 @@ inviteUserImpl ::
     Member InvitationStore r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -112,7 +116,8 @@ createInvitation' ::
     Member Random r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   TeamId ->
   Maybe InvitationId ->
@@ -129,14 +134,15 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
     throw TeamInvitationBlacklistedEmail
 
   mEmailOwner <- getLocalUserAccountByUserKey uke
-  isPersonalUserMigration <- case mEmailOwner of
-    Nothing -> pure False
+  invitationFlow <- case mEmailOwner of
+    Nothing -> pure InviteNewUser
     Just user
       | invRequest.allowExisting
           && user.userStatus == Active
           && isNothing user.userTeam ->
-          pure True
+          pure InviteExistingUser
       | otherwise -> throw TeamInvitationEmailTaken
+  guardEmailDomainRegistration invitationFlow tid email
 
   maxSize <- maxTeamSize <$> input
   pending <- Store.countInvitations tid
@@ -164,10 +170,9 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
               }
        in Store.insertInvitation insertInv timeout
 
-    let sendOp =
-          if isPersonalUserMigration
-            then sendTeamInvitationMailPersonalUser
-            else sendTeamInvitationMail
+    let sendOp = case invitationFlow of
+          InviteExistingUser -> sendTeamInvitationMailPersonalUser
+          InviteNewUser -> sendTeamInvitationMail
 
     invitationUrl <- sendOp email tid inviterEmail code invRequest.locale
     inv <- toInvitation invitationUrl showInvitationUrl newInv
@@ -256,3 +261,44 @@ ensurePermissionToAddUser u t inviteePerms = do
 
 logInvitationCode :: InvitationCode -> (Msg -> Msg)
 logInvitationCode code = field "invitation_code" (AsciiText.toText $ fromInvitationCode code)
+
+guardEmailDomainRegistration ::
+  forall r.
+  ( Member EnterpriseLoginSubsystem r,
+    Member (Error TeamInvitationSubsystemError) r
+  ) =>
+  InvitationFlow ->
+  TeamId ->
+  EmailAddress ->
+  Sem r ()
+guardEmailDomainRegistration invitationFlow tid email = do
+  domain <- mapError (const TeamInvitationInvalidEmail) $ fromEither $ emailDomain email
+  mReg <- getDomainRegistration domain
+  for_ mReg $ \reg -> do
+    -- Check if domain has certain restrictions
+    case reg.domainRedirect of
+      None -> pure ()
+      Locked -> pure ()
+      SSO _ -> pure ()
+      Backend _ ->
+        -- The 'teamInvite' attribute for this should be 'NotAllowed', so we
+        -- don't have to check here.
+        pure ()
+      PreAuthorized -> pure ()
+      NoRegistration -> case invitationFlow of
+        InviteExistingUser -> throw TeamInvitationNotAllowedForEmail
+        InviteNewUser -> pure () -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1587118249/Use+case+initiate+invitation+flow?focusedCommentId=1672839248
+
+    -- team-invitation is set to not-allowed or team:{team id} for any team ID that is not
+    -- the team of the inviter
+    case reg.teamInvite of
+      Allowed -> pure ()
+      NotAllowed -> throw TeamInvitationNotAllowedForEmail
+      Team allowedTid ->
+        if allowedTid == tid
+          then pure ()
+          else throw TeamInvitationNotAllowedForEmail
+
+data InvitationFlow = InviteExistingUser | InviteNewUser
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via GenericUniform InvitationFlow
