@@ -25,7 +25,10 @@ ensureMigrationIndexImpl env = do
       Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
     ES.runBH env (ES.createIndexWith [] 1 migrationIndexName)
       >>= throwIfNotCreated CreateMigrationIndexFailed
-  ES.runBH env (ES.putMapping migrationIndexName migrationIndexMapping)
+  -- TODO: We need to stay consistent about the mapping name, otherwise ES 7
+  -- complains about having to deal with two: _doc and wire_brig_migrations.
+  -- So, we can either try to stick with our name or the default _doc.
+  ES.runBH env (ES.putNamedMapping migrationIndexName migrationMappingName migrationIndexMapping)
     >>= throwIfNotCreated PutMappingFailed
   where
     throwIfNotCreated mkErr response =
