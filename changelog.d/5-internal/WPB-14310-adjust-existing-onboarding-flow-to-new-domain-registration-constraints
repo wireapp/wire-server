@@ -1,6 +1,0 @@
-Adjust existing onboarding flow to new domain registration constraints.
-
-Endpoints:
-
-- POST /teams/{id}/invitations
-- POST /register
