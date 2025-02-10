@@ -17,8 +17,9 @@ defPassword = "hunter2."
 
 randomEmail :: App String
 randomEmail = do
-  u <- randomName
-  pure $ u <> "@example.com"
+  usr <- randomName
+  dom <- randomDomain
+  pure $ usr <> "@" <> dom
 
 randomDomain :: App String
 randomDomain = do

@@ -173,8 +173,8 @@ deriving via (Schema TeamInvite) instance S.ToSchema TeamInvite
 
 -- | The challenge to be presented in a TXT DNS record by the owner of the domain.
 newtype DnsVerificationToken = DnsVerificationToken {unDnsVerificationToken :: AsciiBase64Url}
-  deriving stock (Ord, Eq, Show)
-  deriving newtype (FromHttpApiData, ToByteString)
+  deriving stock (Ord, Eq, Show, Generic)
+  deriving newtype (FromHttpApiData, ToByteString, Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema DnsVerificationToken
 
 instance ToSchema DnsVerificationToken where
@@ -200,6 +200,8 @@ instance Arbitrary DomainRegistrationUpdate where
         case dr.domainRedirect of
           Locked -> dr.teamInvite == Allowed
           Backend _ -> dr.teamInvite == NotAllowed
+          NoRegistration -> dr.teamInvite /= NotAllowed
+          PreAuthorized -> dr.teamInvite == Allowed
           _ -> True
 
 instance ToSchema DomainRegistrationUpdate where
@@ -211,6 +213,9 @@ instance ToSchema DomainRegistrationUpdate where
 
 data DomainRegistrationResponse = DomainRegistrationResponse
   { domain :: Domain,
+    -- | the team that is allowed to change domain registration without further proof of
+    -- ownership.  'teamInvite' *usually* contains the same team id (if any), but in the case
+    -- where backoffice/stern sets teamInvite, it shouldn't set authorizedTeam!
     authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
     teamInvite :: TeamInvite,
@@ -220,7 +225,9 @@ data DomainRegistrationResponse = DomainRegistrationResponse
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistrationResponse
 
 mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse
-mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
+mkDomainRegistrationResponse = prs . domainRegistrationToRow
+  where
+    prs DomainRegistrationRow {..} = DomainRegistrationResponse {..}
 
 instance ToSchema DomainRegistrationResponse where
   schema =
@@ -232,7 +239,102 @@ instance ToSchema DomainRegistrationResponse where
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
+instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistration) where
+  def dom = DomainRegistration dom Nothing Nothing Nothing
+
 data DomainRegistration = DomainRegistration
+  { domain :: Domain,
+    settings :: Maybe DomainRegistrationSettings,
+    authTokenHash :: Maybe Token,
+    dnsVerificationToken :: Maybe DnsVerificationToken
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainRegistration)
+
+data DomainForTeamSettings = DomainForTeamSettings
+  { teamId :: TeamId,
+    ssoId :: Maybe SAML.IdPId,
+    authorized :: Bool
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainForTeamSettings)
+
+data DomainRegistrationSettings
+  = DomainLocked
+  | DomainPreAuthorized
+  | DomainForBackend HttpsUrl
+  | DomainForTeam DomainForTeamSettings
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainRegistrationSettings)
+
+domainRegistrationToRow :: DomainRegistration -> DomainRegistrationRow
+domainRegistrationToRow DomainRegistration {..} = DomainRegistrationRow {..}
+  where
+    authorizedTeam = case settings of
+      Just (DomainForTeam dft) -> if dft.authorized then Just dft.teamId else Nothing
+      _ -> Nothing
+
+    domainRedirect = case settings of
+      Nothing -> None
+      Just DomainLocked -> Locked
+      Just DomainPreAuthorized -> PreAuthorized
+      Just (DomainForBackend url) -> Backend url
+      Just (DomainForTeam teamSettings) ->
+        maybe NoRegistration SSO teamSettings.ssoId
+
+    teamInvite = case settings of
+      Nothing -> Allowed
+      Just DomainLocked -> Allowed
+      Just DomainPreAuthorized -> Allowed
+      Just (DomainForBackend _) -> NotAllowed
+      Just (DomainForTeam dft) -> Team dft.teamId
+
+domainRegistrationSettingsFromRow :: DomainRedirect -> TeamInvite -> Maybe TeamId -> Either String (Maybe DomainRegistrationSettings)
+domainRegistrationSettingsFromRow domainRedirect teamInvite mAuthorizedTeam = do
+  case (domainRedirect, teamInvite) of
+    (None, Allowed) -> Right Nothing
+    (None, NotAllowed) -> err
+    (None, Team tid) -> do
+      Right (Just (DomainForTeam (DomainForTeamSettings tid Nothing (authorized tid))))
+    ----------------------------------
+    (SSO idpid, Team tid) -> Right (Just (DomainForTeam (DomainForTeamSettings tid (Just idpid) (authorized tid))))
+    (SSO _, _) -> err
+    ----------------------------------
+    (Locked, Allowed) -> Right (Just DomainLocked)
+    (Locked, _) -> err
+    ----------------------------------
+    (PreAuthorized, Allowed) -> Right (Just DomainPreAuthorized)
+    (PreAuthorized, _) -> err
+    ----------------------------------
+    (NoRegistration, Team tid) -> Right (Just (DomainForTeam (DomainForTeamSettings tid Nothing (authorized tid))))
+    (NoRegistration, _) -> err
+    ----------------------------------
+    (Backend url, NotAllowed) -> Right (Just (DomainForBackend url))
+    (Backend _, _) -> err
+  where
+    authorized :: TeamId -> Bool
+    authorized tid = case mAuthorizedTeam of
+      Just authorizedTeam -> authorizedTeam == tid
+      Nothing -> False
+    err :: Either String a
+    err = Left $ "domainRegistrationSettingsFromRow: domainRedirect, teamInvite mismatch: " <> show (domainRedirect, teamInvite)
+
+domainRegistrationFromRow :: DomainRegistrationRow -> Either String DomainRegistration
+domainRegistrationFromRow DomainRegistrationRow {..} = do
+  settings <- domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam
+  Right DomainRegistration {..}
+
+domainRegistrationFromUpdate :: DomainRegistration -> DomainRegistrationUpdate -> Either String DomainRegistration
+domainRegistrationFromUpdate reg upd = do
+  let authorizedTeam = case settings reg of
+        Just (DomainForTeam dft) -> if dft.authorized then Just dft.teamId else Nothing
+        _ -> Nothing
+  newSettings <- domainRegistrationSettingsFromRow upd.domainRedirect upd.teamInvite authorizedTeam
+  Right reg {settings = newSettings}
+
+-- | This type only serves as a helper for json (and cql, for historical reasons).  App logic
+-- should always use 'DomainRegistration' instead.  See 'domainRegistration{From,To}Row'.
+data DomainRegistrationRow = DomainRegistrationRow
   { domain :: Domain,
     authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
@@ -240,36 +342,22 @@ data DomainRegistration = DomainRegistration
     dnsVerificationToken :: Maybe DnsVerificationToken,
     authTokenHash :: Maybe Token
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainRegistrationRow)
 
-instance Arbitrary DomainRegistration where
-  arbitrary = do
-    dom :: Domain <- arbitrary
-    upd :: DomainRegistrationUpdate <- arbitrary
-    mbteam :: Maybe TeamId <- arbitrary
-    pure
-      DomainRegistration
-        { domain = dom,
-          authorizedTeam = mbteam,
-          domainRedirect = upd.domainRedirect,
-          teamInvite = upd.teamInvite,
-          dnsVerificationToken = Nothing,
-          authTokenHash = Nothing
-        }
-
-mkDomainRegistration :: Domain -> DomainRegistration
-mkDomainRegistration domain =
-  DomainRegistration
-    { domain,
-      authorizedTeam = Nothing,
-      domainRedirect = def,
-      teamInvite = def,
-      dnsVerificationToken = Nothing,
-      authTokenHash = Nothing
-    }
+instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistrationRow) where
+  def domain =
+    DomainRegistrationRow
+      { domain,
+        authorizedTeam = Nothing,
+        domainRedirect = def,
+        teamInvite = def,
+        dnsVerificationToken = Nothing,
+        authTokenHash = Nothing
+      }
 
 newtype Token = Token {unToken :: ByteString}
-  deriving newtype (Eq, Ord, Show)
+  deriving newtype (Eq, Ord, Show, Arbitrary)
   deriving (Aeson.FromJSON, Aeson.ToJSON, S.ToSchema) via (Schema Token)
 
 instance ToSchema Token where

@@ -1,5 +1,6 @@
 module Wire.EnterpriseLoginSubsystem.Error where
 
+import Data.Text.Lazy as LT
 import Imports
 import Wire.API.Error
 import Wire.API.Error.Brig
@@ -9,6 +10,7 @@ import Wire.Error
 data EnterpriseLoginSubsystemError
   = EnterpriseLoginSubsystemErrorNotFound
   | EnterpriseLoginSubsystemInvalidDomain
+  | EnterpriseLoginSubsystemInvalidDomainUpdate String
   | EnterpriseLoginSubsystemDomainVerificationFailed
   | EnterpriseLoginSubsystemOperationForbidden
   | EnterpriseLoginSubsystemAuthFailure
@@ -25,6 +27,7 @@ enterpriseLoginSubsystemErrorToHttpError =
   StdError . \case
     EnterpriseLoginSubsystemErrorNotFound -> errorToWai @DomainVerificationErrorNotFound
     EnterpriseLoginSubsystemInvalidDomain -> errorToWai @DomainVerificationInvalidDomain
+    EnterpriseLoginSubsystemInvalidDomainUpdate msg -> errorToWaiWithMessage @DomainVerificationInvalidDomainUpdate (LT.pack msg)
     EnterpriseLoginSubsystemDomainVerificationFailed -> errorToWai @DomainVerificationDomainVerificationFailed
     EnterpriseLoginSubsystemOperationForbidden -> errorToWai @DomainVerificationOperationForbidden
     EnterpriseLoginSubsystemPaymentRequired -> errorToWai @DomainVerificationPaymentRequired

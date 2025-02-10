@@ -5,7 +5,7 @@ import API.BrigInternal
 import API.Common
 import Testlib.Prelude
 
-testDomainRegistrationLock :: App ()
+testDomainRegistrationLock :: (HasCallStack) => App ()
 testDomainRegistrationLock = do
   domain <- randomDomain
   -- it should not yet exist
@@ -29,7 +29,7 @@ testDomainRegistrationLock = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     resp.json %. "team_invite" `shouldMatch` "allowed"
 
-testDomainRegistrationLockPreviousValueOverwritten :: App ()
+testDomainRegistrationLockPreviousValueOverwritten :: (HasCallStack) => App ()
 testDomainRegistrationLockPreviousValueOverwritten = do
   domain <- randomDomain
   -- pre-authorize
@@ -46,7 +46,7 @@ testDomainRegistrationLockPreviousValueOverwritten = do
     resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "locked"
 
-testDomainRegistrationUnlockErrorIfNotLocked :: App ()
+testDomainRegistrationUnlockErrorIfNotLocked :: (HasCallStack) => App ()
 testDomainRegistrationUnlockErrorIfNotLocked = do
   domain <- randomDomain
   -- pre-authorize
@@ -60,7 +60,7 @@ testDomainRegistrationUnlockErrorIfNotLocked = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
-testDomainRegistrationPreAuthorize :: App ()
+testDomainRegistrationPreAuthorize :: (HasCallStack) => App ()
 testDomainRegistrationPreAuthorize = do
   domain <- randomDomain
   -- it should not yet exist
@@ -76,7 +76,7 @@ testDomainRegistrationPreAuthorize = do
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
     resp.json %. "team_invite" `shouldMatch` "allowed"
 
-testDomainRegistrationPreAuthorizeFailsIfLocked :: App ()
+testDomainRegistrationPreAuthorizeFailsIfLocked :: (HasCallStack) => App ()
 testDomainRegistrationPreAuthorizeFailsIfLocked = do
   domain <- randomDomain
   -- add to deny-list
@@ -101,7 +101,7 @@ testDomainRegistrationPreAuthorizeFailsIfLocked = do
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
     resp.json %. "team_invite" `shouldMatch` "allowed"
 
-testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite :: App ()
+testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite :: (HasCallStack) => App ()
 testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite = do
   domain <- randomDomain
   -- it should not yet exist
@@ -119,11 +119,11 @@ testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite = do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
-    resp.json %. "team_invite" `shouldMatch` "team"
-    resp.json %. "team" `shouldMatch` "3bc23f21-dc03-4922-9563-c3beedf895db"
+    resp.json %. "team_invite" `shouldMatch` "allowed"
+    lookupField resp.json "team" `shouldMatch` (Nothing :: Maybe Value)
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe Value)
 
-testDomainRegistrationQueriesDoNotCreateEntry :: App ()
+testDomainRegistrationQueriesDoNotCreateEntry :: (HasCallStack) => App ()
 testDomainRegistrationQueriesDoNotCreateEntry = do
   domain <- randomDomain
   assertStatus 404 =<< getDomainRegistration OwnDomain domain
@@ -131,7 +131,7 @@ testDomainRegistrationQueriesDoNotCreateEntry = do
   assertStatus 404 =<< domainRegistrationUnAuthorize OwnDomain domain
   assertStatus 404 =<< getDomainRegistration OwnDomain domain
 
-testDomainRegistrationUpdate :: App ()
+testDomainRegistrationUpdate :: (HasCallStack) => App ()
 testDomainRegistrationUpdate = do
   domain <- randomDomain
   -- it should not yet exist
@@ -146,7 +146,8 @@ testDomainRegistrationUpdate = do
     $ object
       [ "domain_redirect" .= "sso",
         "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
-        "team_invite" .= "allowed"
+        "team_invite" .= "team",
+        "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
       ]
   updateDomain domain
     $ object
@@ -155,7 +156,7 @@ testDomainRegistrationUpdate = do
         "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
       ]
   where
-    updateDomain :: String -> Value -> App ()
+    updateDomain :: (HasCallStack) => String -> Value -> App ()
     updateDomain domain update = do
       -- update
       assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
@@ -171,7 +172,7 @@ testDomainRegistrationUpdate = do
         lookupField resp.json "sso_code" `shouldMatch` lookupField update "sso_code"
         lookupField resp.json "team" `shouldMatch` lookupField update "team"
 
-testDomainRegistrationUpdateInvalidCases :: App ()
+testDomainRegistrationUpdateInvalidCases :: (HasCallStack) => App ()
 testDomainRegistrationUpdateInvalidCases = do
   domain <- randomDomain
   checkUpdateFails domain $ object ["domain_redirect" .= "locked", "team_invite" .= "not-allowed"]
@@ -179,13 +180,13 @@ testDomainRegistrationUpdateInvalidCases = do
   checkUpdateFails domain $ object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com", "team_invite" .= "team", "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"]
   checkUpdateFails domain $ object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com", "team_invite" .= "allowed"]
   where
-    checkUpdateFails :: String -> Value -> App ()
+    checkUpdateFails :: (HasCallStack) => String -> Value -> App ()
     checkUpdateFails domain update = do
       bindResponse (updateDomainRegistration OwnDomain domain update) $ \resp -> do
-        resp.status `shouldMatchInt` 403
-        resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "invalid-domain-update"
 
-testDomainRegistrationPreAuthorizedToUnAuthorize :: App ()
+testDomainRegistrationPreAuthorizedToUnAuthorize :: (HasCallStack) => App ()
 testDomainRegistrationPreAuthorizedToUnAuthorize = do
   domain <- randomDomain
   let update =
@@ -202,7 +203,7 @@ testDomainRegistrationPreAuthorizedToUnAuthorize = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     resp.json %. "team_invite" `shouldMatch` "allowed"
 
-testDomainRegistrationBackendToUnAuthorize :: App ()
+testDomainRegistrationBackendToUnAuthorize :: (HasCallStack) => App ()
 testDomainRegistrationBackendToUnAuthorize = do
   domain <- randomDomain
   let update =
@@ -212,21 +213,28 @@ testDomainRegistrationBackendToUnAuthorize = do
             "team_invite" .= "not-allowed"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "backend"
+    resp.json %. "backend_url" `shouldMatch` "https://example.com"
+    resp.json %. "team_invite" `shouldMatch` "not-allowed"
   assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
   bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain" `shouldMatch` domain
     resp.json %. "domain_redirect" `shouldMatch` "none"
-    resp.json %. "team_invite" `shouldMatch` "not-allowed"
+    resp.json %. "team_invite" `shouldMatch` "allowed"
   assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
 
-testDomainRegistrationNoRegistrationToUnAuthorize :: App ()
+testDomainRegistrationNoRegistrationToUnAuthorize :: (HasCallStack) => App ()
 testDomainRegistrationNoRegistrationToUnAuthorize = do
   domain <- randomDomain
   let update =
         object
           [ "domain_redirect" .= "no-registration",
-            "team_invite" .= "allowed"
+            "team_invite" .= "team",
+            "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
   assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain
@@ -237,7 +245,7 @@ testDomainRegistrationNoRegistrationToUnAuthorize = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     resp.json %. "team_invite" `shouldMatch` "allowed"
 
-testDomainRegistrationUnAuthorizeFailureWhenLocked :: App ()
+testDomainRegistrationUnAuthorizeFailureWhenLocked :: (HasCallStack) => App ()
 testDomainRegistrationUnAuthorizeFailureWhenLocked = do
   domain <- randomDomain
   let update =
@@ -253,7 +261,7 @@ testDomainRegistrationUnAuthorizeFailureWhenLocked = do
     resp.json %. "domain_redirect" `shouldMatch` "locked"
     resp.json %. "team_invite" `shouldMatch` "allowed"
 
-testDomainRegistrationUnAuthorizeFailureWhenSso :: App ()
+testDomainRegistrationUnAuthorizeFailureWhenSso :: (HasCallStack) => App ()
 testDomainRegistrationUnAuthorizeFailureWhenSso = do
   domain <- randomDomain
   let update =
@@ -271,7 +279,7 @@ testDomainRegistrationUnAuthorizeFailureWhenSso = do
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "team_invite" `shouldMatch` "team"
 
-testDomainRegistrationDelete :: App ()
+testDomainRegistrationDelete :: (HasCallStack) => App ()
 testDomainRegistrationDelete = do
   domain <- randomDomain
   let update =

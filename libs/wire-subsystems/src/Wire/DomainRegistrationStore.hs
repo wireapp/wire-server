@@ -103,13 +103,17 @@ logInvalidDomainRegistrationError domain =
 delete :: (Member DomainRegistrationStore r) => Domain -> Sem r ()
 delete = send . DeleteInternal . mkDomainKey
 
+-- | Inconsistently stored domain registrations (according to 'domainRegistrationFromRow') are
+-- discarded.
 fromStored :: StoredDomainRegistration -> Maybe DomainRegistration
-fromStored sdr =
-  DomainRegistration (unmkDomainKey sdr.domain) sdr.authorizedTeam
-    <$> getDomainRedirect sdr
-    <*> getTeamInvite sdr
-    <*> pure sdr.dnsVerificationToken
-    <*> pure sdr.authTokenHash
+fromStored sdr = do
+  row <-
+    DomainRegistrationRow (unmkDomainKey sdr.domain) sdr.authorizedTeam
+      <$> getDomainRedirect sdr
+      <*> getTeamInvite sdr
+      <*> pure sdr.dnsVerificationToken
+      <*> pure sdr.authTokenHash
+  either (const Nothing) Just (domainRegistrationFromRow row)
   where
     getTeamInvite :: StoredDomainRegistration -> Maybe TeamInvite
     getTeamInvite = \case
@@ -133,7 +137,7 @@ fromStored sdr =
         _ -> Nothing
 
 toStored :: DomainRegistration -> StoredDomainRegistration
-toStored dr =
+toStored (domainRegistrationToRow -> dr) =
   let (domainRedirect, idpId, backendUrl) = fromDomainRedirect dr.domainRedirect
       (teamInvite, team) = fromTeamInvite dr.teamInvite
    in StoredDomainRegistration

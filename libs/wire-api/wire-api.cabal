@@ -673,6 +673,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.ByteString
     Test.Wire.API.Roundtrip.CSV
     Test.Wire.API.Roundtrip.HttpApiData
+    Test.Wire.API.Roundtrip.Misc
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
     Test.Wire.API.Routes.Version
@@ -699,6 +700,7 @@ test-suite wire-api-tests
     , cassava
     , containers             >=0.5
     , crypton
+    , data-default
     , filepath
     , hex
     , hspec

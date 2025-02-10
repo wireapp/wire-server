@@ -7,9 +7,12 @@ import Data.Id
 import Data.Qualified
 import Imports
 import Polysemy
+import Text.Email.Validate
 import Wire.API.EnterpriseLogin
 import Wire.API.Routes.Public.Brig.DomainVerification
+import Wire.API.User.EmailAddress
 
+-- | FUTUREWORK: Rename this to `DomainRegistrationSubsystem`
 data EnterpriseLoginSubsystem m a where
   LockDomain :: Domain -> EnterpriseLoginSubsystem m ()
   UnlockDomain :: Domain -> EnterpriseLoginSubsystem m ()
@@ -44,3 +47,17 @@ data EnterpriseLoginSubsystem m a where
   DeleteTeamDomain :: Local UserId -> TeamId -> Domain -> EnterpriseLoginSubsystem m ()
 
 makeSem ''EnterpriseLoginSubsystem
+
+getDomainRegistrationByEmail ::
+  forall r.
+  (Member EnterpriseLoginSubsystem r) =>
+  EmailAddress ->
+  Sem r (Maybe DomainRegistrationResponse)
+getDomainRegistrationByEmail email = do
+  case emailDomain email of
+    Left _ ->
+      -- this can only be nothing if EmailAddress and Domain parsers disagree on what
+      -- constitutes a valid domain.
+      pure Nothing
+    Right domain ->
+      getDomainRegistration domain

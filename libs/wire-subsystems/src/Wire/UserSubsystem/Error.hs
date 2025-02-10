@@ -6,7 +6,6 @@ import Network.HTTP.Types (status400, status403, status404)
 import Network.Wai.Utilities qualified as Wai
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.Arbitrary
 import Wire.Error
 
 -- | All errors that are thrown by the user subsystem are subsumed under this sum type.
@@ -34,18 +33,9 @@ data UserSubsystemError
   | UserSubsystemMLSServicesNotAllowed
   | UserSubsystemChangeBlocklistedEmail
   | UserSubsystemEmailExists
-  | UserSubsystemGuardFailed GuardFailure
+  | UserSubsystemRegistrationForbiddenForDomain
+  | UserSubsystemInvalidDomain String
   deriving (Eq, Show)
-
-data GuardFailure
-  = DomRedirSetToSSO
-  | DomRedirSetToBackend
-  | DomRedirSetToNoRegistration
-  | TeamInviteSetToNotAllowed
-  | TeamInviteRestrictedToOtherTeam
-  | InvalidDomain String
-  deriving (Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform GuardFailure)
 
 userSubsystemErrorToHttpError :: UserSubsystemError -> HttpError
 userSubsystemErrorToHttpError =
@@ -71,15 +61,7 @@ userSubsystemErrorToHttpError =
     UserSubsystemMLSServicesNotAllowed -> errorToWai @E.MLSServicesNotAllowed
     UserSubsystemChangeBlocklistedEmail -> errorToWai @E.BlacklistedEmail
     UserSubsystemEmailExists -> errorToWai @'E.UserKeyExists
-    UserSubsystemGuardFailed err ->
-      let e403 msg = Wai.mkError status403 "condition-failed" msg
-          e400 msg = Wai.mkError status400 "invalid-domain" (LT.pack msg)
-       in case err of
-            DomRedirSetToSSO -> e403 "`domain_redirect` is set to `sso:{code}`"
-            DomRedirSetToBackend -> e403 "`domain_redirect` is set to `backend`"
-            DomRedirSetToNoRegistration -> e403 "`domain_redirect` is set to `no-registration`"
-            TeamInviteSetToNotAllowed -> e403 "`teamInvite` is set to `not-allowed`"
-            TeamInviteRestrictedToOtherTeam -> e403 "`teamInvite` is restricted to another team."
-            InvalidDomain parseErr -> e400 parseErr
+    UserSubsystemRegistrationForbiddenForDomain -> Wai.mkError status403 "registration-forbidden-for-domain" "Domain is configured for enterprise login."
+    UserSubsystemInvalidDomain msg -> Wai.mkError status400 "invalid-domain" (LT.pack msg)
 
 instance Exception UserSubsystemError

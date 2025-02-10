@@ -25,7 +25,6 @@ import Wire.API.User.Identity (EmailAddress)
 data DomainRedirectConfig
   = DomainRedirectConfigRemove
   | DomainRedirectConfigBackend HttpsUrl
-  | DomainRedirectConfigNoRegistration
   deriving stock (Eq, Show)
 
 makePrisms ''DomainRedirectConfig
@@ -39,7 +38,6 @@ deriving via (Schema DomainRedirectConfig) instance S.ToSchema DomainRedirectCon
 data DomainRedirectConfigTag
   = DomainRedirectConfigRemoveTag
   | DomainRedirectConfigBackendTag
-  | DomainRedirectConfigNoRegistrationTag
   deriving (Show, Ord, Eq, Enum, Bounded)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema DomainRedirectConfigTag
 
@@ -49,8 +47,7 @@ instance ToSchema DomainRedirectConfigTag where
       "DomainRedirectConfigTag"
       $ mconcat
         [ element "remove" DomainRedirectConfigRemoveTag,
-          element "backend" DomainRedirectConfigBackendTag,
-          element "no-registration" DomainRedirectConfigNoRegistrationTag
+          element "backend" DomainRedirectConfigBackendTag
         ]
 
 domainRedirectConfigTagObjectSchema :: ObjectSchema SwaggerDoc DomainRedirectConfigTag
@@ -61,7 +58,6 @@ domainRedirectConfigToTag :: DomainRedirectConfig -> DomainRedirectConfigTag
 domainRedirectConfigToTag = \case
   DomainRedirectConfigRemove -> DomainRedirectConfigRemoveTag
   DomainRedirectConfigBackend _ -> DomainRedirectConfigBackendTag
-  DomainRedirectConfigNoRegistration -> DomainRedirectConfigNoRegistrationTag
 
 domainRedirectConfigSchema :: ObjectSchema SwaggerDoc DomainRedirectConfig
 domainRedirectConfigSchema =
@@ -74,7 +70,6 @@ domainRedirectConfigSchema =
     domainRedirectConfigObjectSchema :: DomainRedirectConfigTag -> ObjectSchema SwaggerDoc DomainRedirectConfig
     domainRedirectConfigObjectSchema = \case
       DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackend backendUrlSchema
-      DomainRedirectConfigNoRegistrationTag -> tag _DomainRedirectConfigNoRegistration (pure ())
       DomainRedirectConfigRemoveTag -> tag _DomainRedirectConfigRemove (pure ())
 
 instance ToSchema DomainRedirectConfig where

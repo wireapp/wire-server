@@ -125,6 +125,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team
+import Wire.API.Team qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member
@@ -419,7 +420,7 @@ getUserBindingTeam u = do
   teams <- parseResponse (mkError status502 "bad-upstream") r
   pure $
     listToMaybe $
-      fmap (view teamId) $
+      fmap (view API.teamId) $
         filter ((== Binding) . view teamBinding) $
           teams
             ^. teamListTeams

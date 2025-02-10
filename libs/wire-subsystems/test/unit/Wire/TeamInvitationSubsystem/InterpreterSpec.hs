@@ -139,12 +139,7 @@ spec = do
                   { teamOwner = inviterMember,
                     initialUsers = [inviter] <> maybeToList existingPersonalAccount,
                     constGuardResult =
-                      let domreg =
-                            (mkDomainRegistration registeredDomain :: DomainRegistration)
-                              { domainRedirect = domRegUpd.domainRedirect,
-                                teamInvite = domRegUpd.teamInvite
-                              }
-                       in Just domreg
+                      either error Just $ domainRegistrationFromUpdate (def registeredDomain) domRegUpd
                   }
 
               -- run the test

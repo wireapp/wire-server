@@ -214,20 +214,19 @@ guardRegisterUserImpl ::
   EmailAddress ->
   Sem r ()
 guardRegisterUserImpl email = do
-  let throwGuardFailed = throw . UserSubsystemGuardFailed
   mReg <-
     emailDomain email
-      -- The error is impossible as long as we use the same parser for both `EmailAddress` and
-      -- `Domain`.
-      & either (throwGuardFailed . InvalidDomain) DRS.lookup
+      -- The error is impossible as long as the parsers for `EmailAddress` and `Domain` agree
+      -- on what constitutes a valid domain.
+      & either (throw . UserSubsystemInvalidDomain) DRS.lookup
   for_ mReg $ \reg -> do
-    case reg.domainRedirect of
-      None -> pure ()
-      Locked -> pure ()
-      SSO _ -> throwGuardFailed DomRedirSetToSSO
-      Backend _ -> throwGuardFailed DomRedirSetToBackend
-      NoRegistration -> throwGuardFailed DomRedirSetToNoRegistration
-      PreAuthorized -> pure ()
+    case reg.settings of
+      Nothing -> pure ()
+      Just DomainLocked -> pure ()
+      Just DomainPreAuthorized -> pure ()
+      Just (DomainForBackend _) -> throw UserSubsystemRegistrationForbiddenForDomain
+      -- TODO(leif): we need to check if this is a team invitation
+      Just (DomainForTeam _) -> todo
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
