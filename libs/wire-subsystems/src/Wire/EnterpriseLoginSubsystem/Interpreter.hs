@@ -153,8 +153,9 @@ deleteTeamDomainImpl ::
 deleteTeamDomainImpl lusr tid domain = do
   void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
   domainReg <- lookup domain >>= note EnterpriseLoginSubsystemErrorNotFound
-  unless (domainReg.authorizedTeam == Just tid) $
-    throw EnterpriseLoginSubsystemOperationForbidden
+  case domainReg.settings of
+    Just (DomainForTeam dft) | dft.authorized -> pure ()
+    _ -> throw EnterpriseLoginSubsystemOperationForbidden
   delete domain
 
 getRegisteredDomainsImpl ::
@@ -189,7 +190,7 @@ authorizeTeamImpl lusr domain (DomainOwnershipToken token) = do
   domainReg <- checkDomainOwnership mDomainReg token
   when (domainReg.settings == Just DomainLocked) $
     throw EnterpriseLoginSubsystemOperationForbidden
-  upsert domainReg {authorizedTeam = Just tid}
+  upsert domainReg {settings = Just (DomainForTeam (DomainForTeamSettings tid Nothing True))}
 
 checkDomainOwnership :: (Member (Error EnterpriseLoginSubsystemError) r) => Maybe DomainRegistration -> Token -> Sem r DomainRegistration
 checkDomainOwnership mDomainReg ownershipToken = do
@@ -290,10 +291,11 @@ unauthorizeImpl domain = do
     Nothing -> pure ()
     Just DomainLocked -> throw EnterpriseLoginSubsystemOperationForbidden
     Just DomainPreAuthorized -> audit old new *> upsert new
-    Just (DomainNoRegistration _) -> audit old new *> upsert new
     Just (DomainForBackend _) -> audit old new *> upsert new
-    Just (DomainTeamInviteRestricted _) -> pure ()
-    Just (DomainCloudSso _ _) -> throw EnterpriseLoginSubsystemOperationForbidden
+    Just (DomainForTeam settings) -> do
+      when (isJust settings.ssoId) $
+        throw EnterpriseLoginSubsystemOperationForbidden
+      audit old new *> upsert new
   where
     audit :: DomainRegistration -> DomainRegistration -> Sem r ()
     audit old new = sendAuditMail url "Domain unauthorized" (Just old) (Just new)
@@ -396,8 +398,11 @@ preAuthorizeImpl domain = do
       new = old {settings = Just DomainPreAuthorized} :: DomainRegistration
   case old.settings of
     Nothing -> audit mOld new *> upsert new
-    Just (DomainTeamInviteRestricted _) -> audit mOld new *> upsert new
     Just DomainPreAuthorized -> pure ()
+    Just (DomainForTeam settings) -> do
+      when (isJust settings.ssoId) $
+        throw EnterpriseLoginSubsystemOperationForbidden
+      audit mOld new *> upsert new
     Just _ -> throw EnterpriseLoginSubsystemOperationForbidden
   where
     url :: Builder
@@ -552,8 +557,6 @@ updateDomainRedirectImpl token domain config = do
         Just $ DomainRegistrationUpdate PreAuthorized Allowed
       (DomainRedirectConfigBackend url, PreAuthorized) ->
         Just $ DomainRegistrationUpdate (Backend url) NotAllowed
-      (DomainRedirectConfigNoRegistration, PreAuthorized) ->
-        Just $ DomainRegistrationUpdate NoRegistration teamInvite
       _ -> Nothing
 
 updateTeamInviteImpl ::
@@ -575,8 +578,9 @@ updateTeamInviteImpl luid domain config = do
   tid <- guardTeamAdminAccess luid
   mbDomainReg <- lookup domain
   domainReg <- note EnterpriseLoginSubsystemOperationForbidden mbDomainReg
-  unless (domainReg.authorizedTeam == Just tid) $
-    throw EnterpriseLoginSubsystemOperationForbidden
+  case domainReg.settings of
+    Just (DomainForTeam dft) | dft.authorized -> pure ()
+    _ -> throw EnterpriseLoginSubsystemOperationForbidden
   update <- validateUpdate tid ((.domainRedirect) $ domainRegistrationToRow domainReg) config
   updateDomainRegistrationImpl domain update
   where

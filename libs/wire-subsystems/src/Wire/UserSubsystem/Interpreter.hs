@@ -224,10 +224,9 @@ guardRegisterUserImpl email = do
       Nothing -> pure ()
       Just DomainLocked -> pure ()
       Just DomainPreAuthorized -> pure ()
-      Just (DomainNoRegistration _) -> throw UserSubsystemRegistrationForbiddenForDomain
       Just (DomainForBackend _) -> throw UserSubsystemRegistrationForbiddenForDomain
-      Just (DomainTeamInviteRestricted _) -> throw UserSubsystemRegistrationForbiddenForDomain
-      Just (DomainCloudSso _ _) -> throw UserSubsystemRegistrationForbiddenForDomain
+      -- TODO(leif): we need to check if this is a team invitation
+      Just (DomainForTeam _) -> todo
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey

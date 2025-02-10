@@ -106,26 +106,6 @@ testDomainVerificationWrongAuth = do
       resp.status `shouldMatchInt` 401
       resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
-testDomainVerificationOnPremFlowNoRegistration :: (HasCallStack) => App ()
-testDomainVerificationOnPremFlowNoRegistration = do
-  domain <- randomDomain
-  setup <- setupOwnershipToken domain
-
-  -- [backoffice] preauth
-  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-
-  -- [customer admin] post no-registration config
-  updateDomainRedirect
-    OwnDomain
-    domain
-    (Just setup.ownershipToken)
-    (object ["domain_redirect" .= "no-registration"])
-    >>= assertStatus 200
-
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "domain_redirect" `shouldMatch` "no-registration"
-
 testDomainVerificationRemoveFailure :: (HasCallStack) => App ()
 testDomainVerificationRemoveFailure = do
   domain <- randomDomain

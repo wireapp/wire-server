@@ -52,10 +52,10 @@ spec = describe "UserSubsystem.Interpreter" do
         \viewerTeam (localTargetUsersNotPending :: [NotPendingStoredUser]) targetUsers1 targetUsers2 visibility localDomain remoteDomain1 remoteDomain2 -> do
           let remoteBackend1 = def {users = targetUsers1}
               remoteBackend2 = def {users = targetUsers2}
-              viewer = viewerTeam {teamId = Nothing}
+              viewer = viewerTeam {teamId = Nothing} :: StoredUser
               -- Having teams adds complications in email visibility,
               -- all that stuff is tested in [without federation] tests
-              localTargetUsers = map (\user -> (coerce user) {teamId = Nothing}) localTargetUsersNotPending
+              localTargetUsers = map (\user -> (coerce user) {teamId = Nothing} :: StoredUser) localTargetUsersNotPending
               federation = [(remoteDomain1, remoteBackend1), (remoteDomain2, remoteBackend2)]
               mkUserIds domain = map (flip Qualified domain . (.id))
               localTargets = mkUserIds localDomain localTargetUsers
@@ -119,7 +119,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
         \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) config domain sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
-              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
+              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} :: StoredUser else targetUserNoTeam
               localBackend = def {users = [targetUser, viewer]}
               retrievedProfiles =
                 runNoFederationStack localBackend (Just teamMember) config $
@@ -134,7 +134,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "gets a local user profile when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
         \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) config domain sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
-              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
+              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} :: StoredUser else targetUserNoTeam
               localBackend = def {users = [targetUser, viewer]}
               retrievedProfile =
                 runNoFederationStack localBackend (Just teamMember) config $
@@ -912,8 +912,5 @@ spec = describe "UserSubsystem.Interpreter" do
               Nothing -> Right ()
               Just DomainLocked -> Right ()
               Just DomainPreAuthorized -> Right ()
-              Just (DomainNoRegistration _) -> Left UserSubsystemRegistrationForbiddenForDomain
-              Just (DomainForBackend _) -> Left UserSubsystemRegistrationForbiddenForDomain
-              Just (DomainTeamInviteRestricted _) -> Left UserSubsystemRegistrationForbiddenForDomain
-              Just (DomainCloudSso _ _) -> Left UserSubsystemRegistrationForbiddenForDomain
+              Just _ -> Left UserSubsystemRegistrationForbiddenForDomain
          in outcome === expected

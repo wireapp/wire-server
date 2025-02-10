@@ -146,7 +146,8 @@ testDomainRegistrationUpdate = do
     $ object
       [ "domain_redirect" .= "sso",
         "sso_code" .= "f82bad56-df61-49c0-bc9a-dc45c8ee1000",
-        "team_invite" .= "not-allowed"
+        "team_invite" .= "team",
+        "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
       ]
   updateDomain domain
     $ object
@@ -232,7 +233,8 @@ testDomainRegistrationNoRegistrationToUnAuthorize = do
   let update =
         object
           [ "domain_redirect" .= "no-registration",
-            "team_invite" .= "allowed"
+            "team_invite" .= "team",
+            "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
   assertStatus 204 =<< domainRegistrationUnAuthorize OwnDomain domain

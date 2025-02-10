@@ -27,7 +27,7 @@ import Data.Text.Encoding qualified as Text
 import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
-import Test.QuickCheck (elements, suchThat)
+import Test.QuickCheck (suchThat)
 import Web.HttpApiData
 import Wire.API.Routes.Bearer
 import Wire.Arbitrary
@@ -239,76 +239,66 @@ instance ToSchema DomainRegistrationResponse where
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
--- | See 'domainRegistration{From,To}Row'.
+instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistration) where
+  def dom = DomainRegistration dom Nothing Nothing Nothing
+
 data DomainRegistration = DomainRegistration
   { domain :: Domain,
     settings :: Maybe DomainRegistrationSettings,
-    dnsVerificationToken :: Maybe DnsVerificationToken,
     authTokenHash :: Maybe Token,
-    authorizedTeam :: Maybe TeamId
+    dnsVerificationToken :: Maybe DnsVerificationToken
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainRegistration)
 
-instance Arbitrary DomainRegistration where
-  arbitrary = do
-    domain <- arbitrary
-    settings <- arbitrary
-    dnsVerificationToken <- arbitrary
-    authTokenHash <- arbitrary
-    authorizedTeam <- do
-      case settings of
-        Just (DomainNoRegistration (Just tid)) -> elements [Nothing, Just tid]
-        Just (DomainTeamInviteRestricted (Just tid)) -> elements [Nothing, Just tid]
-        Just (DomainCloudSso _ (Team tid)) -> elements [Nothing, Just tid]
-        _ -> arbitrary
-    pure DomainRegistration {..}
-
-instance {-# OVERLAPPING #-} Default (Domain -> DomainRegistration) where
-  def dom = DomainRegistration dom Nothing Nothing Nothing Nothing
+data DomainForTeamSettings = DomainForTeamSettings
+  { teamId :: TeamId,
+    ssoId :: Maybe SAML.IdPId,
+    authorized :: Bool
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DomainForTeamSettings)
 
 data DomainRegistrationSettings
   = DomainLocked
   | DomainPreAuthorized
-  | DomainNoRegistration (Maybe TeamId)
   | DomainForBackend HttpsUrl
-  | DomainTeamInviteRestricted (Maybe TeamId)
-  | DomainCloudSso SAML.IdPId TeamInvite
+  | DomainForTeam DomainForTeamSettings
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform DomainRegistrationSettings)
 
 domainRegistrationToRow :: DomainRegistration -> DomainRegistrationRow
 domainRegistrationToRow DomainRegistration {..} = DomainRegistrationRow {..}
   where
+    authorizedTeam = case settings of
+      Just (DomainForTeam dft) -> if dft.authorized then Just dft.teamId else Nothing
+      _ -> Nothing
+
     domainRedirect = case settings of
       Nothing -> None
       Just DomainLocked -> Locked
       Just DomainPreAuthorized -> PreAuthorized
-      Just (DomainNoRegistration _) -> NoRegistration
       Just (DomainForBackend url) -> Backend url
-      Just (DomainTeamInviteRestricted _) -> None
-      Just (DomainCloudSso idpid _) -> SSO idpid
+      Just (DomainForTeam teamSettings) ->
+        maybe NoRegistration SSO teamSettings.ssoId
 
     teamInvite = case settings of
       Nothing -> Allowed
       Just DomainLocked -> Allowed
       Just DomainPreAuthorized -> Allowed
-      Just (DomainNoRegistration Nothing) -> Allowed
-      Just (DomainNoRegistration (Just tid)) -> Team tid
       Just (DomainForBackend _) -> NotAllowed
-      Just (DomainTeamInviteRestricted Nothing) -> NotAllowed
-      Just (DomainTeamInviteRestricted (Just tid)) -> Team tid
-      Just (DomainCloudSso _ ti) -> ti
+      Just (DomainForTeam dft) -> Team dft.teamId
 
 domainRegistrationSettingsFromRow :: DomainRedirect -> TeamInvite -> Maybe TeamId -> Either String (Maybe DomainRegistrationSettings)
-domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam =
+domainRegistrationSettingsFromRow domainRedirect teamInvite mAuthorizedTeam = do
   case (domainRedirect, teamInvite) of
     (None, Allowed) -> Right Nothing
-    (None, NotAllowed) -> Right (Just (DomainTeamInviteRestricted Nothing))
-    (None, Team tid) -> guardTeam authorizedTeam $ Right (Just (DomainTeamInviteRestricted (Just tid)))
+    (None, NotAllowed) -> err
+    (None, Team tid) -> do
+      Right (Just (DomainForTeam (DomainForTeamSettings tid Nothing (authorized tid))))
     ----------------------------------
-    (SSO idpid, Allowed) -> Right (Just (DomainCloudSso idpid Allowed))
-    (SSO idpid, NotAllowed) -> Right (Just (DomainCloudSso idpid NotAllowed))
-    (SSO idpid, Team tid) -> guardTeam authorizedTeam $ Right (Just (DomainCloudSso idpid (Team tid)))
+    (SSO idpid, Team tid) -> Right (Just (DomainForTeam (DomainForTeamSettings tid (Just idpid) (authorized tid))))
+    (SSO _, _) -> err
     ----------------------------------
     (Locked, Allowed) -> Right (Just DomainLocked)
     (Locked, _) -> err
@@ -316,19 +306,18 @@ domainRegistrationSettingsFromRow domainRedirect teamInvite authorizedTeam =
     (PreAuthorized, Allowed) -> Right (Just DomainPreAuthorized)
     (PreAuthorized, _) -> err
     ----------------------------------
-    (NoRegistration, Allowed) -> Right (Just (DomainNoRegistration Nothing))
-    (NoRegistration, NotAllowed) -> err
-    (NoRegistration, Team tid) -> guardTeam authorizedTeam $ Right (Just (DomainNoRegistration (Just tid)))
+    (NoRegistration, Team tid) -> Right (Just (DomainForTeam (DomainForTeamSettings tid Nothing (authorized tid))))
+    (NoRegistration, _) -> err
     ----------------------------------
     (Backend url, NotAllowed) -> Right (Just (DomainForBackend url))
     (Backend _, _) -> err
   where
-    guardTeam :: Maybe TeamId -> Either String a -> Either String a
-    guardTeam Nothing x = x
-    guardTeam (Just tid) x = if all (== tid) authorizedTeam then x else Left "Authorized team mismatch"
-
+    authorized :: TeamId -> Bool
+    authorized tid = case mAuthorizedTeam of
+      Just authorizedTeam -> authorizedTeam == tid
+      Nothing -> False
     err :: Either String a
-    err = Left $ "domainRegistrationSettingsFromRow: domainRedirect, teamInvite, authorizedTeam mismatch: " <> show (domainRedirect, teamInvite, authorizedTeam)
+    err = Left $ "domainRegistrationSettingsFromRow: domainRedirect, teamInvite mismatch: " <> show (domainRedirect, teamInvite)
 
 domainRegistrationFromRow :: DomainRegistrationRow -> Either String DomainRegistration
 domainRegistrationFromRow DomainRegistrationRow {..} = do
@@ -337,7 +326,10 @@ domainRegistrationFromRow DomainRegistrationRow {..} = do
 
 domainRegistrationFromUpdate :: DomainRegistration -> DomainRegistrationUpdate -> Either String DomainRegistration
 domainRegistrationFromUpdate reg upd = do
-  newSettings <- domainRegistrationSettingsFromRow upd.domainRedirect upd.teamInvite reg.authorizedTeam
+  let authorizedTeam = case settings reg of
+        Just (DomainForTeam dft) -> if dft.authorized then Just dft.teamId else Nothing
+        _ -> Nothing
+  newSettings <- domainRegistrationSettingsFromRow upd.domainRedirect upd.teamInvite authorizedTeam
   Right reg {settings = newSettings}
 
 -- | This type only serves as a helper for json (and cql, for historical reasons).  App logic
