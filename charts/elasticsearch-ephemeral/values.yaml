@@ -1,7 +1,7 @@
 image:
   repository: elasticsearch
   # Keep this aligned with the Elastic Search version in wire-server-deploy!
-  tag: 7.17.27
+  tag: 6.8.23
 
 service:
   httpPort: 9200
