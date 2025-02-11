@@ -260,7 +260,7 @@ testInvitationTypesAreDistinct domain = do
   inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
   code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
   let body =
-        AddUser
+        def
           { name = Just email,
             email = Just email,
             password = Just defPassword,

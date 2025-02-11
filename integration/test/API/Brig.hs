@@ -17,11 +17,12 @@ data AddUser = AddUser
   { name :: Maybe String,
     email :: Maybe String,
     teamCode :: Maybe String,
-    password :: Maybe String
+    password :: Maybe String,
+    newTeamName :: Maybe String
   }
 
 instance Default AddUser where
-  def = AddUser Nothing Nothing Nothing Nothing
+  def = AddUser Nothing Nothing Nothing Nothing Nothing
 
 data NewProvider = NewProvider
   { newProviderName :: String,
@@ -104,11 +105,13 @@ addUser dom opts = do
   submit "POST" $
     req
       & addJSONObject
-        [ "name" .= name,
-          "email" .= opts.email,
-          "team_code" .= opts.teamCode,
-          "password" .= fromMaybe defPassword opts.password
-        ]
+        ( [ "name" .= name,
+            "email" .= opts.email,
+            "team_code" .= opts.teamCode,
+            "password" .= fromMaybe defPassword opts.password
+          ]
+            <> ["team" .= object ["name" .= n, "icon" .= "default"] | n <- toList opts.newTeamName]
+        )
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_users__uid_domain___uid_
 getUser ::

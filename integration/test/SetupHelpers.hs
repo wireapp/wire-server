@@ -85,7 +85,7 @@ createTeamMember inviter args = do
       %. "code"
       & asString
   let body =
-        AddUser
+        def
           { name = Just newUserEmail,
             email = Just newUserEmail,
             password = Just defPassword,

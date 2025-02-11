@@ -52,6 +52,10 @@ testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "condition-failed"
 
+  addUser OwnDomain def {email = Just email, newTeamName = Just "new test team"} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
 testAllowRegistrationWhenEmailDomainIsTakenByATeamButRedirectIsNone :: (HasCallStack) => App ()
 testAllowRegistrationWhenEmailDomainIsTakenByATeamButRedirectIsNone = do
   (owner, tid, _) <- createTeam OwnDomain 2
