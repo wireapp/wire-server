@@ -32,6 +32,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
+import Test.DNSMock
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.Printing (indent)
@@ -492,3 +493,50 @@ loginWithSaml expectSuccess tid scimUser (iid, (meta, privcreds)) = do
             & cs
             & SAML.decodeElem
             & fromRight (error "")
+
+-- helpers
+
+data ChallengeSetup = ChallengeSetup
+  { dnsToken :: String,
+    challengeId :: String,
+    challengeToken :: String,
+    technitiumToken :: String
+  }
+
+setupChallenge :: (MakesValue domain, HasCallStack) => domain -> String -> App ChallengeSetup
+setupChallenge domain registrationDomain = do
+  challenge <- getDomainVerificationChallenge domain registrationDomain >>= getJSON 200
+  dnsToken <- challenge %. "dns_verification_token" & asString
+  challengeId <- challenge %. "id" & asString
+  challengeToken <- challenge %. "token" & asString
+
+  technitiumToken <- getTechnitiumApiKey
+  registerTechnitiumZone technitiumToken registrationDomain
+
+  pure $
+    ChallengeSetup
+      { dnsToken,
+        challengeId,
+        challengeToken,
+        technitiumToken
+      }
+
+data DomainRegistrationSetup = DomainRegistrationSetup
+  { dnsToken :: String,
+    technitiumToken :: String,
+    ownershipToken :: String
+  }
+
+setupOwnershipToken :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
+setupOwnershipToken domain registrationDomain = do
+  challenge <- setupChallenge domain registrationDomain
+
+  -- register TXT DNS record
+  registerTechnitiumRecord challenge.technitiumToken registrationDomain ("wire-domain." <> registrationDomain) "TXT" challenge.dnsToken
+
+  -- verify domain
+  ownershipToken <- bindResponse (verifyDomain OwnDomain registrationDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_ownership_token" & asString
+
+  pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken

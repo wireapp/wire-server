@@ -18,7 +18,7 @@ mkDomainRedirectBackend url = object ["domain_redirect" .= "backend", "backend_u
 testDomainVerificationGetOwnershipToken :: (HasCallStack) => App ()
 testDomainVerificationGetOwnershipToken = do
   domain <- randomDomain
-  challenge <- setupChallenge domain
+  challenge <- setupChallenge OwnDomain domain
 
   bindResponse (verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken) $ \resp -> do
     resp.status `shouldMatchInt` 403
@@ -37,7 +37,7 @@ testDomainVerificationGetOwnershipToken = do
 testDomainVerificationOnPremFlow :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlow = do
   domain <- randomDomain
-  setup <- setupOwnershipToken domain
+  setup <- setupOwnershipToken OwnDomain domain
   let ownershipToken = setup.ownershipToken
 
   -- cannot set config for non-preauthorized domain
@@ -87,8 +87,8 @@ testDomainVerificationOnPremFlow = do
 testDomainVerificationWrongAuth :: (HasCallStack) => App ()
 testDomainVerificationWrongAuth = do
   domain <- randomDomain
-  void $ setupOwnershipToken domain
-  wrongSetup <- setupOwnershipToken =<< randomDomain
+  void $ setupOwnershipToken OwnDomain domain
+  wrongSetup <- setupOwnershipToken OwnDomain =<< randomDomain
   let wrongToken = wrongSetup.ownershipToken
 
   -- [backoffice] preauth
@@ -109,7 +109,7 @@ testDomainVerificationWrongAuth = do
 testDomainVerificationOnPremFlowNoRegistration :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlowNoRegistration = do
   domain <- randomDomain
-  setup <- setupOwnershipToken domain
+  setup <- setupOwnershipToken OwnDomain domain
 
   -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
@@ -129,7 +129,7 @@ testDomainVerificationOnPremFlowNoRegistration = do
 testDomainVerificationRemoveFailure :: (HasCallStack) => App ()
 testDomainVerificationRemoveFailure = do
   domain <- randomDomain
-  setup <- setupOwnershipToken domain
+  setup <- setupOwnershipToken OwnDomain domain
 
   -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
@@ -183,7 +183,7 @@ testDomainVerificationRemoveFailure = do
 testDomainVerificationLockedState :: (HasCallStack) => App ()
 testDomainVerificationLockedState = do
   domain <- randomDomain
-  setup <- setupOwnershipToken domain
+  setup <- setupOwnershipToken OwnDomain domain
 
   -- [backoffice] lock the domain (public email provider)
   domainRegistrationLock OwnDomain domain >>= assertStatus 204
@@ -207,7 +207,7 @@ testUpdateTeamInvite = do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
 
   domain <- randomDomain
-  setup <- setupOwnershipToken domain
+  setup <- setupOwnershipToken OwnDomain domain
 
   bindResponse (authorizeTeam owner domain setup.ownershipToken) $ \resp -> do
     resp.status `shouldMatchInt` 402
@@ -279,7 +279,7 @@ testUpdateTeamInviteSSO :: (HasCallStack) => App ()
 testUpdateTeamInviteSSO = do
   domain <- randomDomain
   (owner, tid, _m : _) <- createTeam OwnDomain 2
-  setup <- setupOwnershipToken domain
+  setup <- setupOwnershipToken OwnDomain domain
 
   -- enable domain registration feature
   assertSuccess =<< do
@@ -320,7 +320,7 @@ testUpdateTeamInviteLocked = do
   -- set domain-redirect to locked
   domainRegistrationLock OwnDomain domain >>= assertStatus 204
 
-  setup <- setupOwnershipToken domain
+  setup <- setupOwnershipToken OwnDomain domain
 
   -- enable domain registration feature
   assertSuccess =<< do
@@ -362,7 +362,7 @@ testOverwriteOwnershipToken = do
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
   -- get an ownership token
-  setup1 <- setupOwnershipToken domain
+  setup1 <- setupOwnershipToken OwnDomain domain
   updateDomainRedirect
     OwnDomain
     domain
@@ -371,7 +371,7 @@ testOverwriteOwnershipToken = do
     >>= assertStatus 200
 
   -- get a second ownership token
-  setup2 <- setupOwnershipToken domain
+  setup2 <- setupOwnershipToken OwnDomain domain
   updateDomainRedirect
     OwnDomain
     domain
@@ -412,7 +412,7 @@ testGetAndDeleteRegisteredDomains = do
 
   expectedDomains <- replicateM 5 do
     domain <- randomDomain
-    setup <- setupOwnershipToken domain
+    setup <- setupOwnershipToken OwnDomain domain
     authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
     pure domain
 
@@ -461,7 +461,7 @@ testGetDomainRegistrationUserExists = do
         { email = Just ("paolo@" <> domain)
         }
 
-  setup <- setupOwnershipToken domain
+  setup <- setupOwnershipToken OwnDomain domain
   updateDomainRedirect
     OwnDomain
     domain
@@ -480,50 +480,3 @@ testGetDomainRegistrationUserExists = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe String)
     resp.json %. "due_to_existing_account" `shouldMatch` True
-
--- helpers
-
-data ChallengeSetup = ChallengeSetup
-  { dnsToken :: String,
-    challengeId :: String,
-    challengeToken :: String,
-    technitiumToken :: String
-  }
-
-setupChallenge :: (HasCallStack) => String -> App ChallengeSetup
-setupChallenge domain = do
-  challenge <- getDomainVerificationChallenge OwnDomain domain >>= getJSON 200
-  dnsToken <- challenge %. "dns_verification_token" & asString
-  challengeId <- challenge %. "id" & asString
-  challengeToken <- challenge %. "token" & asString
-
-  technitiumToken <- getTechnitiumApiKey
-  registerTechnitiumZone technitiumToken domain
-
-  pure
-    $ ChallengeSetup
-      { dnsToken,
-        challengeId,
-        challengeToken,
-        technitiumToken
-      }
-
-data DomainRegistrationSetup = DomainRegistrationSetup
-  { dnsToken :: String,
-    technitiumToken :: String,
-    ownershipToken :: String
-  }
-
-setupOwnershipToken :: (HasCallStack) => String -> App DomainRegistrationSetup
-setupOwnershipToken domain = do
-  challenge <- setupChallenge domain
-
-  -- register TXT DNS record
-  registerTechnitiumRecord challenge.technitiumToken domain ("wire-domain." <> domain) "TXT" challenge.dnsToken
-
-  -- verify domain
-  ownershipToken <- bindResponse (verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "domain_ownership_token" & asString
-
-  pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken
