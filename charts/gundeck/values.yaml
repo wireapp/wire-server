@@ -35,7 +35,7 @@ config:
     #   name: <secret-name>
     #   key: <ca-attribute>
   redis:
-    host: redis-ephemeral-master
+    host: databases-ephemeral-redis-ephemeral-master
     port: 6379
     connectionMode: "master" # master | cluster
     enableTls: false
