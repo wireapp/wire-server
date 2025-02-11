@@ -163,11 +163,15 @@ bulkUpsertImpl cfg docs = do
             ES.ExternalGTE (ES.ExternalDocVersion v) -> (Just "external_gte", Just v)
             ES.ForceVersion (ES.ExternalDocVersion v) -> (Just "force", Just v)
        in object
+            -- TODO: I'm not 100% confident about using `version` and `version_type` instead of the underscore prefixed names.
+            -- However, comparing the docs, this should be fine:
+            -- https://www.elastic.co/guide/en/elasticsearch/reference/7.17/docs-index_.html#index-versioning
+            -- https://www.elastic.co/guide/en/elasticsearch/reference/6.8/docs-bulk.html#bulk-versioning
             [ "index"
                 .= object
                   [ "_id" .= docId,
-                    "_version_type" .= versionType,
-                    "_version" .= version
+                    "version_type" .= versionType,
+                    "version" .= version
                   ]
             ]
 
