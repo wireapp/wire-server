@@ -171,6 +171,7 @@ library
     Test.Property
     Test.Provider
     Test.PushToken
+    Test.Register
     Test.Roles
     Test.Search
     Test.Services
