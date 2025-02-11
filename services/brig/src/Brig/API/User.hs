@@ -333,12 +333,14 @@ createUser new = do
     case newUserTeam new of
       Just (NewTeamMember i) -> do
         inv <- lift $ liftSem $ internalFindTeamInvitation (mkEmailKey <$> email) i
+
         pure (Nothing, Just inv, Just inv.teamId)
       Just (NewTeamCreator t) -> do
         (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
-      Nothing ->
+      Nothing -> do
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUser)
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) <$> teamInvitation
   mbExistingAccount <-

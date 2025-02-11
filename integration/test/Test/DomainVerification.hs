@@ -37,6 +37,8 @@ testDomainVerificationGetOwnershipToken = do
 testDomainVerificationOnPremFlow :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlow = do
   domain <- randomDomain
+  void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
+
   setup <- setupOwnershipToken OwnDomain domain
   let ownershipToken = setup.ownershipToken
 
@@ -70,8 +72,6 @@ testDomainVerificationOnPremFlow = do
     (Just ownershipToken)
     (mkDomainRedirectBackend "https://wire.example.com")
     >>= assertStatus 200
-
-  void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
 
   -- [customer user] pull the redirect config based on email
   bindResponse (getDomainRegistrationFromEmail OwnDomain ("sven@" ++ domain)) \resp -> do
