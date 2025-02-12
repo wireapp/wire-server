@@ -140,6 +140,7 @@ data UserSubsystem m a where
   -- address.  (This may become internal to the interpreter once migration to wire-subsystems
   -- has progressed enough.)
   GuardRegisterUserEmailDomain :: EmailAddress -> UserSubsystem m ()
+  GuardUpgradePersonalUserToTeamEmailDomain :: EmailAddress -> UserSubsystem m ()
   -- | Check if an email is blocked.
   IsBlocked :: EmailAddress -> UserSubsystem m Bool
   -- | Remove an email from the block list.

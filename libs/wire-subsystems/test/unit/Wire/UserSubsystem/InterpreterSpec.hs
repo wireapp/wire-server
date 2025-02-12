@@ -883,7 +883,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   )
 
   describe "GuardRegisterUserEmailDomain" $ do
-    prop "throws the appropriate errors for non team users" $
+    prop "throws the appropriate errors" $
       \(domreg :: DomainRegistration) (preEmail :: EmailAddress) config ->
         let email :: EmailAddress
             email = unsafeEmailAddress l (cs d)
@@ -906,6 +906,32 @@ spec = describe "UserSubsystem.Interpreter" do
               Backend _ -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
               NoRegistration -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
               PreAuthorized -> Right ()
+         in outcome === expected
+
+  describe "GuardUpgradePersonalUserEmailDomain" $ do
+    prop "throws the appropriate errors" $
+      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText domreg.domain
+
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                DRS.upsert domreg
+                guardUpgradePersonalUserToTeamEmailDomain email
+
+            expected = case (domreg.domainRedirect, domreg.teamInvite) of
+              (NoRegistration, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
+              (Backend {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              (SSO {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
+              (_, NotAllowed) -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              (_, Team _) -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              _ -> Right ()
          in outcome === expected
 
   describe "InternalFindTeamInvitation" $ do

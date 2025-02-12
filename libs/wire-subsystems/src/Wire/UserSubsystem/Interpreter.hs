@@ -133,6 +133,8 @@ runUserSubsystem authInterpreter = interpret $
       lookupLocaleOrDefaultImpl luid
     GuardRegisterUserEmailDomain email ->
       guardRegisterUserEmailDomainImpl email
+    GuardUpgradePersonalUserToTeamEmailDomain email ->
+      guardUpgradePersonalUserToTeamEmailDomainImpl email
     IsBlocked email ->
       isBlockedImpl email
     BlockListDelete email ->
@@ -241,6 +243,30 @@ guardRegisterUserEmailDomainImpl email = do
       Backend _ -> throwGuardFailed DomRedirSetToBackend
       NoRegistration -> throwGuardFailed DomRedirSetToNoRegistration
       PreAuthorized -> pure ()
+
+guardUpgradePersonalUserToTeamEmailDomainImpl ::
+  forall r.
+  ( Member DRS.DomainRegistrationStore r,
+    Member (Error UserSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r ()
+guardUpgradePersonalUserToTeamEmailDomainImpl email = do
+  let throwGuardFailed = throw . UserSubsystemGuardFailed
+  mReg <-
+    emailDomain email
+      -- The error is impossible as long as we use the same parser for both `EmailAddress` and
+      -- `Domain`.
+      & either (throwGuardFailed . InvalidDomain) DRS.lookup
+  for_ mReg $ \reg -> do
+    case (reg.domainRedirect, reg.teamInvite) of
+      (NoRegistration, _) -> throwGuardFailed DomRedirSetToNoRegistration
+      (Backend {}, _) -> throwGuardFailed DomRedirSetToBackend
+      (SSO {}, _) -> throwGuardFailed DomRedirSetToSSO
+      (_, NotAllowed) -> throwGuardFailed TeamInviteSetToNotAllowed
+      (_, Team _) -> throwGuardFailed TeamInviteRestrictedToOtherTeam
+      _ -> pure ()
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey

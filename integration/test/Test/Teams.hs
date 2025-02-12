@@ -321,6 +321,28 @@ testUpgradePersonalToTeamAlreadyInATeam = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "user-already-in-a-team"
 
+testUpgradePersonalToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
+testUpgradePersonalToTeamEmailDomainForAnotherBackend = do
+  domain <- randomDomain
+  let email = "alice@" <> domain
+  alice <- randomUser OwnDomain def {I.email = Just email}
+
+  setup <- setupOwnershipToken OwnDomain domain
+  -- [backoffice] preauth
+  I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+
+  -- [customer admin] post no-registration config
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    >>= assertStatus 200
+
+  bindResponse (upgradePersonalToTeam alice "wonderland") $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
 -- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
 testTeamMemberCsvExport :: (HasCallStack) => App ()
 testTeamMemberCsvExport = do

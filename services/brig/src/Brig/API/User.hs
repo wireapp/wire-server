@@ -281,6 +281,8 @@ upgradePersonalToTeam luid bNewTeam = do
     throwE UpgradePersonalToTeamErrorAlreadyInATeam
 
   lift $ do
+    liftSem $
+      for_ (userEmail user) guardUpgradePersonalUserToTeamEmailDomain
     -- generate team ID
     tid <- randomId
 
