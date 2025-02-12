@@ -86,7 +86,7 @@ testObject_LockableFeature_team_18 =
         (fromIntegral @Int (60 * 60 * 24))
         empty
         (either (\e -> error (show e)) (Alt . Just) $ parseHttpsUrl "https://example.com")
-        False
+        (UseProxyOnMobile False)
     )
 
 parseHttpsUrl :: ByteString -> Either String HttpsUrl
@@ -101,5 +101,5 @@ testObject_LockableFeature_team_19 =
         (fromIntegral @Int (60 * 60 * 24))
         (either (\e -> error (show e)) (Alt . Just) $ parseHttpsUrl "https://example.com")
         empty
-        True
+        (UseProxyOnMobile True)
     )

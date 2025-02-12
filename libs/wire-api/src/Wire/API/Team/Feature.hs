@@ -66,6 +66,7 @@ module Wire.API.Team.Feature
     MLSConfigB (..),
     MLSConfig,
     OutlookCalIntegrationConfig (..),
+    UseProxyOnMobile (..),
     MlsE2EIdConfigB (..),
     MlsE2EIdConfig,
     MlsMigrationConfigB (..),
@@ -102,12 +103,13 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Misc (HttpsUrl)
-import Data.Monoid
+import Data.Monoid hiding (First)
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
+import Data.Semigroup
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
@@ -116,7 +118,7 @@ import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
 import Generics.SOP qualified as GSOP
-import Imports
+import Imports hiding (First)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
@@ -1028,11 +1030,25 @@ instance ToSchema OutlookCalIntegrationConfig where
 ----------------------------------------------------------------------
 -- MlsE2EIdConfig
 
+newtype UseProxyOnMobile = UseProxyOnMobile {unUseProxyOnMobile :: Bool}
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UseProxyOnMobile)
+  deriving (Semigroup) via First Bool
+  deriving (ToSchema) via Bool
+
+-- | This instance is necessary to derive ApplicativeB below, but it isn't
+-- actually used.
+instance Monoid UseProxyOnMobile where
+  mempty = error "Internal error: UseProxyOnMobile is not a monoid"
+
+instance Default UseProxyOnMobile where
+  def = UseProxyOnMobile False
+
 data MlsE2EIdConfigB t f = MlsE2EIdConfig
   { verificationExpiration :: Wear t f NominalDiffTime,
     acmeDiscoveryUrl :: Alt Maybe HttpsUrl,
     crlProxy :: Alt Maybe HttpsUrl,
-    useProxyOnMobile :: Wear t f Bool
+    useProxyOnMobile :: UseProxyOnMobile
   }
   deriving (BareB, Generic)
 
@@ -1053,7 +1069,7 @@ deriving instance Eq MlsE2EIdConfig
 deriving instance Show MlsE2EIdConfig
 
 instance Default MlsE2EIdConfig where
-  def = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) empty empty False
+  def = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) empty empty def
 
 instance Arbitrary MlsE2EIdConfig where
   arbitrary =
@@ -1072,7 +1088,7 @@ instance (FieldFunctor SwaggerDoc f) => ToSchema (MlsE2EIdConfigB Covered f) whe
         <*> (getAlt . acmeDiscoveryUrl)
           .= fmap Alt (maybe_ (optField "acmeDiscoveryUrl" schema))
         <*> (getAlt . crlProxy) .= fmap Alt (maybe_ (optField "crlProxy" schema))
-        <*> useProxyOnMobile .= extractF (fieldF "useProxyOnMobile" schema)
+        <*> useProxyOnMobile .= fmap (fromMaybe def) (optField "useProxyOnMobile" schema)
     where
       fromSeconds :: Int -> NominalDiffTime
       fromSeconds = fromIntegral
@@ -1465,10 +1481,10 @@ instance
   where
   parseDbConfig (BarbieFeature cfg) = fmap (BarbieFeature . applyConfig cfg) . schemaParseJSON
     where
-      f :: Identity a -> Maybe a -> Identity a
-      f (Identity x) = Identity . fromMaybe x
+      f :: Maybe a -> Identity a -> Identity a
+      f m (Identity x) = Identity $ fromMaybe x m
 
-      applyConfig cfg1 cfg2 = bstrip $ bzipWith f (bcover cfg1) cfg2
+      applyConfig cfg1 cfg2 = bstrip $ bzipWith f cfg2 (bcover cfg1)
 
 instance (BareB b, ToSchema (b Covered Identity)) => ToSchema (BarbieFeature b) where
   schema = (bcover . unBarbieFeature) .= fmap (BarbieFeature . bstrip) schema
