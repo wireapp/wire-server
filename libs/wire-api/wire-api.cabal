@@ -218,6 +218,7 @@ library
     Wire.API.Team.Conversation
     Wire.API.Team.Export
     Wire.API.Team.Feature
+    Wire.API.Team.Feature.TH
     Wire.API.Team.HardTruncationLimit
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold
@@ -275,6 +276,7 @@ library
     , cereal
     , comonad
     , conduit
+    , constraints
     , containers                 >=0.5
     , cookie
     , crypton

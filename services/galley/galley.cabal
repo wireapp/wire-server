@@ -302,6 +302,7 @@ library
     , cassandra-util                        >=0.16.2
     , cassava                               >=0.5.2
     , comonad
+    , constraints
     , containers                            >=0.5
     , crypton
     , crypton-x509
@@ -338,6 +339,7 @@ library
     , resourcet                             >=1.1
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
+    , schema-profunctor
     , servant
     , servant-client
     , servant-server

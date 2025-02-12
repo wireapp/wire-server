@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -247,6 +248,9 @@ data DbFeature cfg = DbFeature
     lockStatus :: Maybe LockStatus,
     config :: A.Value
   }
+
+instance Default (DbFeature cfg) where
+  def = DbFeature {status = Nothing, lockStatus = Nothing, config = A.object []}
 
 resolveDbFeature ::
   forall cfg.
@@ -1405,8 +1409,9 @@ instance {-# OVERLAPPING #-} NpProject x (x : xs) where
 instance (NpProject x xs) => NpProject x (y : xs) where
   npProject' p (_ :* xs) = npProject' p xs
 
-instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpProject x '[] where
-  npProject' = error "npProject': someone naughty removed the type error constraint"
+-- TODO: restore
+-- instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpProject x '[] where
+--   npProject' = error "npProject': someone naughty removed the type error constraint"
 
 -- | Get the first field of a given type out of an @'NP' f xs@.
 npProject :: forall x f xs. (NpProject x xs) => NP f xs -> f x
@@ -1421,8 +1426,9 @@ instance {-# OVERLAPPING #-} NpUpdate x (x : xs) where
 instance (NpUpdate x xs) => NpUpdate x (y : xs) where
   npUpdate' p x (y :* xs) = y :* npUpdate' p x xs
 
-instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpUpdate x '[] where
-  npUpdate' = error "npUpdate': someone naughty removed the type error constraint"
+-- TODO: restore
+-- instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpUpdate x '[] where
+--   npUpdate' = error "npUpdate': someone naughty removed the type error constraint"
 
 -- | Update the first field of a given type in an @'NP' f xs@.
 npUpdate :: forall x f xs. (NpUpdate x xs) => f x -> NP f xs -> NP f xs
