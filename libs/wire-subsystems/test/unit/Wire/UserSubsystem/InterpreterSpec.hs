@@ -20,7 +20,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Internal
 import Polysemy.State
-import Polysemy.TinyLog
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -36,13 +35,12 @@ import Wire.DomainRegistrationStore qualified as DRS
 import Wire.InvitationStore (StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
-import Wire.MockInterpreters
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
-import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..), guardRegisterUserImpl)
+import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -884,29 +882,22 @@ spec = describe "UserSubsystem.Interpreter" do
                     [user {emailUnvalidated = Just updatedEmail}]
                   )
 
-  describe "GuardRegisterUser" $
-    prop "throws the appropriate errors" $
-      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) ->
+  describe "GuardRegisterUserEmailDomain" $ do
+    prop "throws the appropriate errors for non team users" $
+      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) config ->
         let email :: EmailAddress
             email = unsafeEmailAddress l (cs d)
               where
                 l :: ByteString = localPart preEmail
                 d :: Text = domainText domreg.domain
 
-            interp ::
-              Sem
-                '[ DRS.DomainRegistrationStore,
-                   State [DRS.StoredDomainRegistration],
-                   TinyLog,
-                   Error UserSubsystemError
-                 ]
-                () ->
-              Either UserSubsystemError ()
-            interp = run . runError . noopLogger . evalState [] . inMemoryDomainRegistrationStoreInterpreter
-
-            outcome = interp do
-              DRS.upsert domreg
-              guardRegisterUserImpl email
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                DRS.upsert domreg
+                guardRegisterUserEmailDomain email
 
             expected = case domreg.domainRedirect of
               None -> Right ()

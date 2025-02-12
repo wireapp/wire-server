@@ -4,7 +4,6 @@
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
-    guardRegisterUserImpl, -- for testing (FUTUREWORK: make a better test that relies on the interface, not the implementation)
   )
 where
 
@@ -132,8 +131,8 @@ runUserSubsystem authInterpreter = interpret $
       updateHandleImpl uid mconn mb uhandle
     LookupLocaleWithDefault luid ->
       lookupLocaleOrDefaultImpl luid
-    GuardRegisterUser email ->
-      guardRegisterUserImpl email
+    GuardRegisterUserEmailDomain email ->
+      guardRegisterUserEmailDomainImpl email
     IsBlocked email ->
       isBlockedImpl email
     BlockListDelete email ->
@@ -205,7 +204,7 @@ internalFindTeamInvitationImpl (Just e) c =
       mAddUserError <- checkUserCanJoinTeam tid
       maybe (pure ()) (throw . UserSubsystemUserNotAllowedToJoinTeam) mAddUserError
 
-guardRegisterUserImpl ::
+guardRegisterUserEmailDomainImpl ::
   forall r.
   ( Member DRS.DomainRegistrationStore r,
     Member (Error UserSubsystemError) r,
@@ -213,7 +212,7 @@ guardRegisterUserImpl ::
   ) =>
   EmailAddress ->
   Sem r ()
-guardRegisterUserImpl email = do
+guardRegisterUserEmailDomainImpl email = do
   let throwGuardFailed = throw . UserSubsystemGuardFailed
   mReg <-
     emailDomain email

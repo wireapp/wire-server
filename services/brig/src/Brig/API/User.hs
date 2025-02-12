@@ -335,12 +335,12 @@ createUser new = do
         inv <- lift $ liftSem $ internalFindTeamInvitation (mkEmailKey <$> email) i
         pure (Nothing, Just inv, Just inv.teamId)
       Just (NewTeamCreator t) -> do
-        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUser)
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUserEmailDomain)
         (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
       Nothing -> do
-        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUser)
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUserEmailDomain)
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) <$> teamInvitation
   mbExistingAccount <-
