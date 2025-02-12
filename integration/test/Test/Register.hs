@@ -97,7 +97,7 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
     resp.status `shouldMatchInt` 201
     resp.json %. "id"
 
-  updateTeamInvite owner domain (object ["team_invite" .= "allowed", "sso" .= idp])
+  updateTeamInvite owner domain (object ["team_invite" .= "not-allowed", "sso" .= idp])
     >>= assertStatus 200
 
   let email = "user@" <> domain
@@ -105,13 +105,58 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "condition-failed"
 
-  -- Ensure that invitation to other teams still work because `team_invite` is set to `allowed`
   (owner2, _, _) <- createTeam OwnDomain 1
+
+  -- Inviting a user to another team doesn't work
+  postInvitation owner2 def {email = Just email} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
+  -- Inviting a user to the same team also doesn't work
+  postInvitation owner def {email = Just email} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
+  updateTeamInvite owner domain (object ["team_invite" .= "allowed", "sso" .= idp])
+    >>= assertStatus 200
+
+  -- Now invitation to any teams works
   invitationToTeam2 <- postInvitation owner2 def {email = Just email} >>= getJSON 201
-  invitationCode <- (getInvitationCode owner2 invitationToTeam2 >>= getJSON 200) %. "code" & asString
-  let body =
-        def
-          { email = Just email,
-            teamCode = Just invitationCode
-          }
-  addUser owner2 body >>= assertSuccess
+  invitationCodeToTeam2 <- (getInvitationCode owner2 invitationToTeam2 >>= getJSON 200) %. "code" & asString
+  assertSuccess
+    =<< addUser
+      owner2
+      def
+        { email = Just email,
+          teamCode = Just invitationCodeToTeam2
+        }
+
+  let email2 = "user2@" <> domain
+  invitationToOrigTeam <- postInvitation owner def {email = Just email2} >>= getJSON 201
+  invitationCodeToOrigTeam <- (getInvitationCode owner invitationToOrigTeam >>= getJSON 200) %. "code" & asString
+  assertSuccess
+    =<< addUser
+      owner
+      def
+        { email = Just email2,
+          teamCode = Just invitationCodeToOrigTeam
+        }
+
+  updateTeamInvite owner domain (object ["team_invite" .= "team", "sso" .= idp, "team" .= tid])
+    >>= assertStatus 200
+
+  -- Now invitaions only work for the orig team
+  let email3 = "user3@" <> domain
+  postInvitation owner2 def {email = Just email3} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
+  invitation2ToOrigTeam <- postInvitation owner def {email = Just email3} >>= getJSON 201
+  invitation2CodeToOrigTeam <- (getInvitationCode owner invitation2ToOrigTeam >>= getJSON 200) %. "code" & asString
+  assertSuccess
+    =<< addUser
+      owner
+      def
+        { email = Just email3,
+          teamCode = Just invitation2CodeToOrigTeam
+        }

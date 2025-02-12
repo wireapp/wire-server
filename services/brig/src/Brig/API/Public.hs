@@ -144,7 +144,6 @@ import Wire.API.User.Client qualified as Public
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
-import Wire.API.User.Identity
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
@@ -182,7 +181,6 @@ import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
 import Wire.UserSubsystem qualified as User
-import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
