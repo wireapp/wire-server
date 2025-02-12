@@ -93,11 +93,10 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  idp <- bindResponse (registerTestIdPWithMeta owner) $ \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json %. "id"
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
 
-  updateTeamInvite owner domain (object ["team_invite" .= "not-allowed", "sso" .= idp])
+  updateTeamInvite owner domain (object ["team_invite" .= "not-allowed", "sso" .= idpId])
     >>= assertStatus 200
 
   let email = "user@" <> domain
@@ -105,7 +104,12 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "condition-failed"
 
+  -- Registering with SSO works
+  void $ loginWithSaml True tid ("sso@" <> domain) (idpId, idpMeta)
+
   (owner2, _, _) <- createTeam OwnDomain 1
+
+  -- TODO: Do we have to block SSO and SCIM regsitrations for other teams here?
 
   -- Inviting a user to another team doesn't work
   postInvitation owner2 def {email = Just email} `bindResponse` \resp -> do
@@ -117,7 +121,7 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "condition-failed"
 
-  updateTeamInvite owner domain (object ["team_invite" .= "allowed", "sso" .= idp])
+  updateTeamInvite owner domain (object ["team_invite" .= "allowed", "sso" .= idpId])
     >>= assertStatus 200
 
   -- Now invitation to any teams works
@@ -142,7 +146,7 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
           teamCode = Just invitationCodeToOrigTeam
         }
 
-  updateTeamInvite owner domain (object ["team_invite" .= "team", "sso" .= idp, "team" .= tid])
+  updateTeamInvite owner domain (object ["team_invite" .= "team", "sso" .= idpId, "team" .= tid])
     >>= assertStatus 200
 
   -- Now invitaions only work for the orig team
