@@ -419,12 +419,11 @@ registerTestIdPWithMetaWithPrivateCreds owner = do
 -- | Given a team configured with saml sso, attempt a login with valid credentials.  This
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.
-loginWithSaml :: (HasCallStack) => Bool -> String -> Value -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
-loginWithSaml expectSuccess tid scimUser (iid, (meta, privcreds)) = do
+loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
+loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
   spmeta <- getSPMetadata OwnDomain tid
   authnreq <- initiateSamlLogin OwnDomain iid
-  email <- scimUser %. "externalId" >>= asString
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
   authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
   loginResp <- finalizeSamlLogin OwnDomain tid authnResp
