@@ -1,0 +1,1 @@
+For internal CI: Cleanup nginx ingress class objects after running integration tests.
