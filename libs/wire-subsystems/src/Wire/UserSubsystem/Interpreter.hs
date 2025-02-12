@@ -180,7 +180,9 @@ internalFindTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member (GalleyAPIAccess) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member TinyLog r,
+    Member DRS.DomainRegistrationStore r
   ) =>
   Maybe EmailKey ->
   InvitationCode ->
@@ -195,6 +197,18 @@ internalFindTeamInvitationImpl (Just e) c =
     Nothing -> throw UserSubsystemInvalidInvitationCode
   where
     ensureMemberCanJoin tid = do
+      let throwGuardFailed = throw . UserSubsystemGuardFailed
+      mDomreg <-
+        emailDomain e.emailKeyOrig
+          -- The error is impossible as long as we use the same parser for both `EmailAddress` and
+          -- `Domain`.
+          & either (throwGuardFailed . InvalidDomain) DRS.lookup
+      for_ mDomreg $ \domreg -> case domreg.teamInvite of
+        Allowed -> pure ()
+        Team allowedTeam | allowedTeam == tid -> pure ()
+        Team _ -> throwGuardFailed TeamInviteRestrictedToOtherTeam
+        NotAllowed -> throwGuardFailed TeamInviteSetToNotAllowed
+
       maxSize <- maxTeamSize <$> input
       (TeamSize teamSize) <- IndexedUserStore.getTeamSize tid
       when (teamSize >= fromIntegral maxSize) $
@@ -943,7 +957,9 @@ acceptTeamInvitationImpl ::
     Member IndexedUserStore r,
     Member Metrics r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member TinyLog r,
+    Member DRS.DomainRegistrationStore r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->

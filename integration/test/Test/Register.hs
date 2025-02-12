@@ -164,3 +164,27 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
         { email = Just email3,
           teamCode = Just invitation2CodeToOrigTeam
         }
+
+testDisallowAcceptingInvitesAfterDomainIsClaimed :: (HasCallStack) => App ()
+testDisallowAcceptingInvitesAfterDomainIsClaimed = do
+  domain <- randomDomain
+  (owner, _, _) <- createTeam OwnDomain 1
+  let email = "user@" <> domain
+  invitation <- postInvitation owner def {email = Just email} >>= getJSON 201
+  invitationCode <- (getInvitationCode owner invitation >>= getJSON 200) %. "code" & asString
+
+  setup <- setupOwnershipToken OwnDomain domain
+  -- [backoffice] preauth
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+
+  -- [customer admin] post no-registration config
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    >>= assertStatus 200
+
+  addUser owner def {email = Just email, teamCode = Just invitationCode} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"

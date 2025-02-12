@@ -32,7 +32,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem.Error
 import Wire.DomainRegistrationStore qualified as DRS
-import Wire.InvitationStore (StoredInvitation)
+import Wire.InvitationStore (InsertInvitation, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
 import Wire.StoredUser
@@ -906,4 +906,43 @@ spec = describe "UserSubsystem.Interpreter" do
               Backend _ -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
               NoRegistration -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
               PreAuthorized -> Right ()
+         in outcome === expected
+
+  describe "InternalFindTeamInvitation" $ do
+    prop "throws error if email" $
+      \(preDomreg :: DomainRegistration) (preEmail :: EmailAddress) (preInv :: InsertInvitation) (invIntoSameTeamAsDomain :: Bool) timeout config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText preDomreg.domain
+
+            inv :: InsertInvitation = preInv {InvitationStore.inviteeEmail = email}
+            domreg =
+              if invIntoSameTeamAsDomain
+                then
+                  preDomreg
+                    { teamInvite = case preDomreg.teamInvite of
+                        Team _ -> Team inv.teamId
+                        x -> x
+                    } ::
+                    DomainRegistration
+                else preDomreg
+
+            storedInv = InvitationStore.insertInvToStoredInv inv
+
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runError
+              $ interpretNoFederationStack def Nothing def config {maxTeamSize = 100} do
+                void $ InvitationStore.insertInvitation inv timeout
+                DRS.upsert domreg
+                internalFindTeamInvitation (Just $ mkEmailKey email) storedInv.code
+
+            expected = case domreg.teamInvite of
+              NotAllowed -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              Allowed -> Right storedInv
+              Team tid | tid == storedInv.teamId -> Right storedInv
+              Team _ -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
          in outcome === expected

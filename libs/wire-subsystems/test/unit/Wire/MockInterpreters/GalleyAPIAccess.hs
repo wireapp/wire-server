@@ -20,7 +20,7 @@ miniGalleyAPIAccess member configs = interpret $ \case
   GetConv _ _ -> error "GetConv not implemented in miniGalleyAPIAccess"
   GetTeamConv {} -> error "GetTeamConv not implemented in miniGalleyAPIAccess"
   NewClient _ _ -> error "NewClient not implemented in miniGalleyAPIAccess"
-  CheckUserCanJoinTeam _ -> error "CheckUserCanJoinTeam not implemented in miniGalleyAPIAccess"
+  CheckUserCanJoinTeam _ -> pure Nothing
   AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember _ _ -> pure member
