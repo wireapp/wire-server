@@ -14,6 +14,8 @@ export FEDERATION_DOMAIN_1="."
 export FEDERATION_DOMAIN_2="."
 export FEDERATION_DOMAIN_BASE_1="."
 export FEDERATION_DOMAIN_BASE_2="."
+export FEDERATION_CA_CERTIFICATE="."
+export ENTERPRISE_IMAGE_PULL_SECRET="."
 
 KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
 KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"
@@ -27,8 +29,5 @@ fi
 # shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
 helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy --skip-deps --skip-charts --concurrency 0 || echo "Failed to delete helm deployments, ignoring this failure as next steps will the destroy namespaces anyway."
-
-kubectl delete ingressclass "nginx-$NAMESPACE_1" || true
-kubectl delete ingressclass "nginx-$NAMESPACE_2" || true
 
 kubectl delete namespace "$NAMESPACE_1" "$NAMESPACE_2"
