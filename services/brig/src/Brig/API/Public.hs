@@ -153,6 +153,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
+import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
@@ -375,7 +376,8 @@ servantSitemap ::
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
     Member (Input UserSubsystemConfig) r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member DomainRegistrationStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -1385,7 +1387,9 @@ updateUserEmail ::
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member DomainRegistrationStore r,
+    Member TinyLog r
   ) =>
   UserId ->
   UserId ->

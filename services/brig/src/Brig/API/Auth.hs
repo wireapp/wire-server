@@ -52,6 +52,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.BlockListStore
+import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess
@@ -139,7 +140,9 @@ changeSelfEmail ::
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
