@@ -30,7 +30,4 @@ fi
 . "$DIR/helm_overrides.sh"
 helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy --skip-deps --skip-charts --concurrency 0 || echo "Failed to delete helm deployments, ignoring this failure as next steps will the destroy namespaces anyway."
 
-kubectl delete ingressclass "nginx-$NAMESPACE_1" || true
-kubectl delete ingressclass "nginx-$NAMESPACE_2" || true
-
 kubectl delete namespace "$NAMESPACE_1" "$NAMESPACE_2"
