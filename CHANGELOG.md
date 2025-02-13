@@ -1,3 +1,17 @@
+# [2025-02-13] (Chart Release 5.12.0)
+
+## Internal changes
+
+
+* Use ElasticSearch 6.8.23 in our local dev setups (`docker-compose`.) This is the version we use on CI, staging and prod. (#4446)
+
+* Fix issue with cleanup of resources after integration tests, namely fix 'helmfile destroy' (#4450)
+
+* For internal CI: Cleanup nginx ingress class objects after running integration tests. (#4449)
+
+* Use Nix flake (tom-bombadil) to create and upload SBOM files in CI. (#4448)
+
+
 # [2025-02-07] (Chart Release 5.11.0)
 
 ## API changes

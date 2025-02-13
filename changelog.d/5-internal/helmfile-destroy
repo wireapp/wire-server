@@ -1,1 +1,0 @@
-Fix issue with cleanup of resources after integration tests, namely fix 'helmfile destroy'
