@@ -881,6 +881,43 @@ spec = describe "UserSubsystem.Interpreter" do
               === ( ChangeEmailResponseNeedsActivation,
                     [user {emailUnvalidated = Just updatedEmail}]
                   )
+    prop "Email change is not allowed if the email domain is taken by another backend or team" $
+      \(preDomreg :: DomainRegistration) (locx :: Local ()) (NotPendingStoredUser user') (preEmail :: EmailAddress) (domainTakenBySameTeam :: Bool) config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText domreg.domain
+            user = user' {managedBy = Nothing}
+            lusr = qualifyAs locx user.id
+            localBackend = def {users = [user]}
+            domreg =
+              if domainTakenBySameTeam
+                then
+                  preDomreg
+                    { teamInvite = case (preDomreg.teamInvite, user.teamId) of
+                        (Team _, Just tid) -> Team tid
+                        (x, _) -> x
+                    } ::
+                    DomainRegistration
+                else preDomreg
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runError
+              $ interpretNoFederationStack localBackend Nothing def config do
+                DRS.upsert domreg
+                void $ requestEmailChange lusr email UpdateOriginWireClient
+
+            expected = case (domreg.domainRedirect, domreg.teamInvite) of
+              (NoRegistration, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
+              (Backend {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              (SSO {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
+              (_, NotAllowed) -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              (_, Team _) | not domainTakenBySameTeam && isJust user.teamId -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              (_, Team _) | isNothing user.teamId -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              _ -> pure ()
+         in outcome === expected
 
   describe "GuardRegisterUserEmailDomain" $ do
     prop "throws the appropriate errors" $
