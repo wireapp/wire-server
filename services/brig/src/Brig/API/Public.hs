@@ -175,6 +175,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
@@ -377,7 +378,8 @@ servantSitemap ::
     Member HashPassword r,
     Member (Input UserSubsystemConfig) r,
     Member EnterpriseLoginSubsystem r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -1389,7 +1391,8 @@ updateUserEmail ::
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member DomainRegistrationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member SparAPIAccess r
   ) =>
   UserId ->
   UserId ->

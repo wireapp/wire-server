@@ -40,6 +40,7 @@ import Imports
 import Network.HTTP.Media ((//))
 import SAML2.WebSSO (IdPConfig)
 import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
 import Wire.API.User.Orphans (samlSchemaOptions)
@@ -67,6 +68,7 @@ data WireIdP = WireIdP
     _handle :: IdPHandle
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform WireIdP)
 
 data WireIdPAPIVersion
   = -- | initial API

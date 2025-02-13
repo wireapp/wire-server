@@ -3,6 +3,7 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
+import Control.Lens ((.~))
 import Control.Lens.At ()
 import Data.Bifunctor (first)
 import Data.Coerce
@@ -20,6 +21,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Internal
 import Polysemy.State
+import SAML2.WebSSO qualified as SAML
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -29,6 +31,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem.Error
 import Wire.DomainRegistrationStore qualified as DRS
@@ -882,7 +885,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     [user {emailUnvalidated = Just updatedEmail}]
                   )
     prop "Email change is not allowed if the email domain is taken by another backend or team" $
-      \(preDomreg :: DomainRegistration) (locx :: Local ()) (NotPendingStoredUser user') (preEmail :: EmailAddress) (domainTakenBySameTeam :: Bool) config ->
+      \(preDomreg :: DomainRegistration) (locx :: Local ()) (NotPendingStoredUser user') (preEmail :: EmailAddress) (domainTakenBySameTeam :: Bool) preIdp config ->
         let email :: EmailAddress
             email = unsafeEmailAddress l (cs d)
               where
@@ -890,7 +893,21 @@ spec = describe "UserSubsystem.Interpreter" do
                 d :: Text = domainText domreg.domain
             user = user' {managedBy = Nothing}
             lusr = qualifyAs locx user.id
-            localBackend = def {users = [user]}
+            localBackend =
+              def
+                { users = [user],
+                  teamIdps = case (preDomreg.domainRedirect, user.teamId, domainTakenBySameTeam) of
+                    (SSO ssoId, Just tid, True) ->
+                      Map.singleton tid $
+                        IdPList
+                          [ preIdp
+                              & SAML.idpId .~ ssoId
+                              & SAML.idpExtraInfo . team .~ tid
+                          ]
+                    (SSO _, Just tid, False) ->
+                      Map.singleton tid $ IdPList [preIdp & SAML.idpExtraInfo . team .~ tid]
+                    _ -> mempty
+                }
             domreg =
               if domainTakenBySameTeam
                 then
@@ -912,11 +929,12 @@ spec = describe "UserSubsystem.Interpreter" do
             expected = case (domreg.domainRedirect, domreg.teamInvite) of
               (NoRegistration, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
               (Backend {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              (SSO {}, _) | domainTakenBySameTeam && isJust user.teamId -> Right ()
               (SSO {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
               (_, NotAllowed) -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
               (_, Team _) | not domainTakenBySameTeam && isJust user.teamId -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
               (_, Team _) | isNothing user.teamId -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
-              _ -> pure ()
+              _ -> Right ()
          in outcome === expected
 
   describe "GuardRegisterUserEmailDomain" $ do

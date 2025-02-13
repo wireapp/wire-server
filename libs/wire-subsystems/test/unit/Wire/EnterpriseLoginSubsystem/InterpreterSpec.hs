@@ -62,7 +62,7 @@ runDependencies =
           (error "undefined wire-server-enterprise endpoint")
       )
     . discardTinyLogs
-    . miniSparAPIAccess
+    . emptySparAPIAccess
     . miniGalleyAPIAccess Nothing def
     . runErrorUnsafe
     . runError

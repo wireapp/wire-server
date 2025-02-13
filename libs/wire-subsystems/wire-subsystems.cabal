@@ -314,6 +314,7 @@ test-suite wire-subsystems-tests
     , QuickCheck
     , quickcheck-instances
     , random
+    , saml2-web-sso
     , scientific
     , servant-client-core
     , streaming-commons

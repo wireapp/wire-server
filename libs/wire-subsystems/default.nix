@@ -203,6 +203,7 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    saml2-web-sso
     scientific
     servant-client-core
     streaming-commons

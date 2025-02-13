@@ -56,6 +56,7 @@ import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess
+import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UpdateOriginType (..), UserSubsystem)
@@ -142,7 +143,8 @@ changeSelfEmail ::
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member TinyLog r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->

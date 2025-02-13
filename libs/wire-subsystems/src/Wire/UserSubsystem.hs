@@ -7,6 +7,7 @@ module Wire.UserSubsystem
   )
 where
 
+import Control.Lens ((^.))
 import Data.Default
 import Data.Domain
 import Data.Handle (Handle)
@@ -20,6 +21,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
+import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
@@ -29,6 +31,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.IdentityProvider hiding (team)
 import Wire.API.User.Search
 import Wire.ActivationCodeStore
 import Wire.Arbitrary
@@ -40,6 +43,7 @@ import Wire.EmailSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationStore
+import Wire.SparAPIAccess (SparAPIAccess, getIdentityProviders)
 import Wire.StoredUser qualified as SU
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
@@ -227,7 +231,8 @@ requestEmailChange ::
     Member ActivationCodeStore r,
     Member (Input UserSubsystemConfig) r,
     Member TinyLog r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   Local UserId ->
   EmailAddress ->
@@ -260,7 +265,13 @@ requestEmailChange lusr email allowScim = do
         case (reg.domainRedirect, reg.teamInvite) of
           (NoRegistration, _) -> throwGuardFailed DomRedirSetToNoRegistration
           (Backend {}, _) -> throwGuardFailed DomRedirSetToBackend
-          (SSO {}, _) -> throwGuardFailed DomRedirSetToSSO
+          (SSO idpId, _) -> do
+            case mTeam of
+              Nothing -> throwGuardFailed DomRedirSetToSSO
+              Just tid -> do
+                identityProviders <- getIdentityProviders tid
+                unless (idpId `elem` ((^. SAML.idpId) <$> identityProviders.providers)) $
+                  throwGuardFailed DomRedirSetToSSO
           (_, NotAllowed) -> throwGuardFailed TeamInviteSetToNotAllowed
           (_, Team tid) | mTeam /= Just tid -> throwGuardFailed TeamInviteRestrictedToOtherTeam
           _ -> pure ()

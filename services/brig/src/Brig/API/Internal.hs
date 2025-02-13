@@ -115,6 +115,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
+import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
@@ -158,7 +159,8 @@ servantSitemap ::
     Member (Input UserSubsystemConfig) r,
     Member EnterpriseLoginSubsystem r,
     Member (Polysemy.Error EnterpriseLoginSubsystemError) r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -216,7 +218,8 @@ accountAPI ::
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -583,7 +586,8 @@ changeSelfEmailMaybeSendH ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member TinyLog r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   UserId ->
   EmailUpdate ->
@@ -605,7 +609,8 @@ changeSelfEmailMaybeSend ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member TinyLog r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   UserId ->
   MaybeSendEmail ->
