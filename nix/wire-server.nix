@@ -464,43 +464,18 @@ let
       export LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive
     '';
   };
-  allLocalPackages = pkgs.symlinkJoin {
-    name = "all-local-packages";
-    paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
-  };
 
   allImages = pkgs.linkFarm "all-images" (images localModsEnableAll);
 
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
 
-  toplevel-derivations =
-    let
-      mk = pkg:
-        import ./pkg-info.nix {
-          inherit pkg;
-          inherit (pkgs) lib hostPlatform writeText;
-        };
-      out = import ./all-toplevel-derivations.nix {
-        inherit (pkgs) lib;
-        fn = mk;
-        # more than two takes more than 32GB of RAM, so this is what
-        # we're limiting ourselves to
-        recursionDepth = 2;
-        keyFilter = k: k != "passthru";
-        # only import the package sets we want; this makes the database
-        # less copmplete but makes it so that nix doesn't get OOMkilled
-        pkgSet = {
-          inherit pkgs;
-          inherit haskellPackages;
-        };
-      };
-    in
-    pkgs.writeText "all-toplevel.jsonl" (builtins.concatStringsSep "\n" out);
+  tom-bombadil = builtins.getFlake "github:wireapp/tom-bombadil";
+  localPkgs = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
+  bomDependencies = tom-bombadil.lib.${builtins.currentSystem}.bomDependenciesDrv pkgs localPkgs haskellPackages;
 in
 {
-  inherit ciImage hoogleImage allImages allLocalPackages
-    toplevel-derivations haskellPackages haskellPackagesUnoptimizedNoDocs imagesList;
+  inherit ciImage hoogleImage allImages haskellPackages haskellPackagesUnoptimizedNoDocs imagesList bomDependencies;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;

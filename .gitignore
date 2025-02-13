@@ -102,3 +102,6 @@ services/nginz/third_party/nginx-module-vts
 
 # dumped out by running tests in kind
 logs-integration
+
+# BOM file - https://github.com/wireapp/tom-bombadil
+sbom.json

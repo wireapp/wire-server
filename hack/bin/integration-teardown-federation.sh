@@ -14,6 +14,8 @@ export FEDERATION_DOMAIN_1="."
 export FEDERATION_DOMAIN_2="."
 export FEDERATION_DOMAIN_BASE_1="."
 export FEDERATION_DOMAIN_BASE_2="."
+export FEDERATION_CA_CERTIFICATE="."
+export ENTERPRISE_IMAGE_PULL_SECRET="."
 
 KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
 KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"

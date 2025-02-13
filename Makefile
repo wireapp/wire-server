@@ -589,16 +589,18 @@ kind-restart-%: .local/kind-kubeconfig
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
+sbom.json:
+	nix -Lv build -f nix wireServer.bomDependencies && \
+	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
+
 # Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
-# changing the directory is necessary because of some quirkiness of how
-# runhaskell / ghci behaves (it doesn't find modules that aren't in the same
-# directory as the script that is being executed)
 .PHONY: upload-bombon
-upload-bombon:
-	cd ./hack/bin && ./bombon.hs -- \
+upload-bombon: sbom.json
+	nix run 'github:wireapp/tom-bombadil#upload-bom' -- \
+		--project-name "wire-server"  \
 		--project-version $(HELM_SEMVER) \
-		--api-key $(DEPENDENCY_TRACK_API_KEY) \
-		--auto-create
+		--auto-create \
+		--bom-file ./sbom.json
 
 .PHONY: openapi-validate
 openapi-validate:

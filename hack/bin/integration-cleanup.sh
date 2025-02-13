@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# Script to delete any helm releases prefixed with `test-` older than 20 minutes deemed inactive
+# Script to delete any helm releases prefixed with `test-` older than 2 hours deemed inactive
+# Also deletes leftover nginx ingress classes.
 #
 # Motivation: cleanup of old test clusters that were not deleted (e.g. by the CI system, because it broke)
 
@@ -21,3 +22,5 @@ if [ -n "$releases" ]; then
 else
     echo "Nothing to clean up."
 fi
+
+"${DIR}"/integration-teardown-ingress-classes.sh
