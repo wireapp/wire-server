@@ -27,6 +27,7 @@ where
 import Data.Default
 import Data.Id
 import Data.Range
+import Data.Tagged
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
@@ -58,9 +59,9 @@ computeLegalHoldFeatureStatus ::
     Member LegalHoldStore r
   ) =>
   TeamId ->
-  DbFeature LegalholdConfig ->
+  Tagged LegalholdConfig DbFeature ->
   Sem r FeatureStatus
-computeLegalHoldFeatureStatus tid dbFeature =
+computeLegalHoldFeatureStatus tid (Tagged dbFeature) =
   getLegalHoldFlag >>= \case
     FeatureLegalHoldDisabledPermanently -> pure FeatureStatusDisabled
     FeatureLegalHoldDisabledByDefault ->

@@ -111,6 +111,7 @@ import Data.SOP
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
 import Data.Semigroup
+import Data.Tagged
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
@@ -243,20 +244,20 @@ featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 -- DbFeature
 
 -- | Feature data stored in the database
-data DbFeature cfg = DbFeature
+data DbFeature = DbFeature
   { status :: Maybe FeatureStatus,
     lockStatus :: Maybe LockStatus,
     config :: A.Value
   }
 
-instance Default (DbFeature cfg) where
+instance Default DbFeature where
   def = DbFeature {status = Nothing, lockStatus = Nothing, config = A.object []}
 
 resolveDbFeature ::
   forall cfg.
   (ParseDbFeature cfg) =>
   LockableFeature cfg ->
-  DbFeature cfg ->
+  DbFeature ->
   A.Parser (LockableFeature cfg)
 resolveDbFeature defFeature dbFeature = do
   let lockStatus = fromMaybe defFeature.lockStatus dbFeature.lockStatus
@@ -561,10 +562,10 @@ instance ToSchema LockStatusResponse where
 genericComputeFeature ::
   (ParseDbFeature cfg) =>
   LockableFeature cfg ->
-  DbFeature cfg ->
+  Tagged cfg DbFeature ->
   Either Text (LockableFeature cfg)
 genericComputeFeature defFeature =
-  first T.pack . A.parseEither (resolveDbFeature defFeature)
+  first T.pack . A.parseEither (resolveDbFeature defFeature) . unTagged
 
 --------------------------------------------------------------------------------
 -- GuestLinks feature

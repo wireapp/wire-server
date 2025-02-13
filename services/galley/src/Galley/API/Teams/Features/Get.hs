@@ -103,13 +103,13 @@ class
     (ComputeFeatureConstraints cfg r) =>
     TeamId ->
     LockableFeature cfg ->
-    DbFeature cfg ->
+    Tagged cfg DbFeature ->
     Sem r (LockableFeature cfg)
   default computeFeature ::
     (Member (Error InternalError) r) =>
     TeamId ->
     LockableFeature cfg ->
-    DbFeature cfg ->
+    Tagged cfg DbFeature ->
     Sem r (LockableFeature cfg)
   computeFeature _tid defFeature dbFeature =
     runFeatureParser $
@@ -223,9 +223,9 @@ getAllTeamFeatures tid = do
     compute ::
       (ComputeFeatureConstraints p r, GetFeatureConfig p) =>
       LockableFeature p ->
-      DbFeature p ->
+      K DbFeature p ->
       (Sem r :.: LockableFeature) p
-    compute defFeature feat = Comp $ computeFeature tid defFeature feat
+    compute defFeature (K feat) = Comp $ computeFeature tid defFeature (Tagged feat)
 
 class (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllTeamFeaturesForUserConstraints r cfg
 
@@ -397,7 +397,10 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
     allowList <- input <&> view (settings . exposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     let teamAllowed = tid `elem` allowList
         lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
-    runFeatureParser $ genericComputeFeature defFeature (dbFeature {lockStatus = Just lockStatus})
+    runFeatureParser $
+      genericComputeFeature
+        defFeature
+        (fmap (\f -> f {lockStatus = Just lockStatus} :: DbFeature) dbFeature)
 
 instance GetFeatureConfig OutlookCalIntegrationConfig
 

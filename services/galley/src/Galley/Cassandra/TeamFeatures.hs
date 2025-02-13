@@ -24,12 +24,15 @@ module Galley.Cassandra.TeamFeatures
   )
 where
 
-import Cassandra
+import Cassandra hiding (Tagged)
+import Cassandra qualified as C
 import Data.Aeson qualified as A
 import Data.Constraint
 import Data.Default
 import Data.Id
+import Data.SOP
 import Data.Schema
+import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
 import Galley.API.Teams.Features.Get
@@ -71,7 +74,7 @@ instance Default DbConfig where
   def = DbConfig (A.object [])
 
 instance Cql DbConfig where
-  ctype = Tagged TextColumn
+  ctype = C.Tagged TextColumn
 
   fromCql (CqlText t) = fmap DbConfig . A.eitherDecode' . LT.encodeUtf8 . LT.fromStrict $ t
   fromCql _ = Left "service key pem: blob expected"
@@ -85,15 +88,15 @@ getDbFeature ::
   ) =>
   FeatureSingleton cfg ->
   TeamId ->
-  Sem r (DbFeature cfg)
+  Sem r (Tagged cfg DbFeature)
 getDbFeature sing tid = case featureSingIsFeature sing of
   Dict -> do
     let q :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
         q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
     (embedClient $ retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))) >>= \case
-      Nothing -> pure def
+      Nothing -> pure (Tagged def)
       Just (status, lockStatus, fromMaybe def -> DbConfig config) ->
-        pure DbFeature {..}
+        pure (Tagged DbFeature {..})
 
 setDbFeature ::
   forall cfg r.
@@ -139,5 +142,5 @@ setFeatureLockStatus sing tid (Tagged lockStatus) = case featureSingIsFeature si
       retry x5 $
         write q (params LocalQuorum (lockStatus, tid, featureName @cfg))
 
-getAllDbFeatures :: TeamId -> m (AllFeatures DbFeature)
+getAllDbFeatures :: TeamId -> m (AllFeatures (K DbFeature))
 getAllDbFeatures = todo
