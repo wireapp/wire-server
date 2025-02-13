@@ -426,8 +426,7 @@ loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
   authnreq <- initiateSamlLogin OwnDomain iid
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
   authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  loginResp <- finalizeSamlLogin OwnDomain tid authnResp
-  validateLoginResp loginResp
+  finalizeSamlLogin OwnDomain tid authnResp `bindResponse` validateLoginResp
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
