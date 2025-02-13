@@ -30,6 +30,7 @@ import Data.Aeson qualified as A
 import Data.Constraint
 import Data.Default
 import Data.Id
+import Data.Map qualified as M
 import Data.SOP
 import Data.Schema
 import Data.Tagged
@@ -66,7 +67,7 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
     setFeatureLockStatus sing tid (Tagged lock)
   TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
-    embedClient $ getAllDbFeatures tid
+    getAllDbFeatures tid
 
 newtype DbConfig = DbConfig A.Value
 
@@ -142,5 +143,22 @@ setFeatureLockStatus sing tid (Tagged lockStatus) = case featureSingIsFeature si
       retry x5 $
         write q (params LocalQuorum (lockStatus, tid, featureName @cfg))
 
-getAllDbFeatures :: TeamId -> m (AllFeatures (K DbFeature))
-getAllDbFeatures = todo
+getAllDbFeatures ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
+  TeamId ->
+  Sem r (AllFeatures (K DbFeature))
+getAllDbFeatures tid = do
+  let q :: PrepQuery R (Identity TeamId) (Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
+      q = "select feature, status, lock_status, config from team_features_dyn where team = ?"
+  rows <- embedClient $ retry x1 $ query q (params LocalQuorum (Identity tid))
+  let m = M.fromList $ do
+        ( name,
+          status,
+          lockStatus,
+          fromMaybe def -> DbConfig config
+          ) <-
+          rows
+        pure (name, DbFeature {..})
+  pure $ mkAllFeatures m

@@ -82,6 +82,7 @@ module Wire.API.Team.Feature
     NpUpdate (..),
     npUpdate,
     AllTeamFeatures,
+    mkAllFeatures,
   )
 where
 
@@ -103,14 +104,15 @@ import Data.Either.Extra (maybeToEither)
 import Data.Id
 import Data.Json.Util
 import Data.Kind
+import Data.Map qualified as M
 import Data.Misc (HttpsUrl)
-import Data.Monoid hiding (First)
+import Data.Monoid hiding (All, First)
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
-import Data.Semigroup
+import Data.Semigroup hiding (All)
 import Data.Tagged
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -120,7 +122,7 @@ import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
 import Generics.SOP qualified as GSOP
-import Imports hiding (First)
+import Imports hiding (All, First)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
@@ -1495,3 +1497,16 @@ instance
 
 instance (BareB b, ToSchema (b Covered Identity)) => ToSchema (BarbieFeature b) where
   schema = (bcover . unBarbieFeature) .= fmap (BarbieFeature . bstrip) schema
+
+-- | Convert a map indexed by feature name to an NP value.
+mkAllFeatures ::
+  forall cfgs a.
+  (Default a, All IsFeatureConfig cfgs) =>
+  Map Text a ->
+  NP (K a) cfgs
+mkAllFeatures m =
+  hmap (mapKK (fromMaybe def)) $
+    hcpure (Proxy @IsFeatureConfig) get
+  where
+    get :: forall cfg. (IsFeatureConfig cfg) => K (Maybe a) cfg
+    get = K $ M.lookup (featureName @cfg) m
