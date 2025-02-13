@@ -7,7 +7,8 @@ import Wire.UserSearch.Migration
 
 -- | Increase this number any time you want to force reindexing.
 expectedMigrationVersion :: MigrationVersion
-expectedMigrationVersion = MigrationVersion 6
+-- 7 is made up for forcing migrations in test deployments - Technically, there are no changes to 6.
+expectedMigrationVersion = MigrationVersion 7
 
 -- | Bulk operations, must not be used from any web handler
 data IndexedUserStoreBulk m a where
