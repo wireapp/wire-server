@@ -83,8 +83,9 @@ releases:
     values:
       - redis-ephemeral:
           redis-ephemeral:
-            usePassword: true
-            password: very-secure-redis-master-password
+            auth:
+              enabled: true
+              password: very-secure-redis-master-password
             tls:
               enabled: true
               certificatesSecret: redis-certificate
@@ -107,9 +108,10 @@ releases:
     chart: '../.local/charts/redis-ephemeral'
     values:
       - redis-ephemeral:
-          nameOverride: redis-ephemeral-2
-          usePassword: true
-          password: very-secure-redis-master-password-2
+          fullnameOverride: redis-ephemeral-2
+          auth:
+            enabled: true
+            password: very-secure-redis-master-password-2
 
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
@@ -123,8 +125,9 @@ releases:
     values:
       - redis-ephemeral:
           redis-ephemeral:
-            usePassword: true
-            password: very-secure-redis-master-password
+            auth:
+              enabled: true
+              password: very-secure-redis-master-password
             tls:
               enabled: true
               certificatesSecret: redis-certificate
