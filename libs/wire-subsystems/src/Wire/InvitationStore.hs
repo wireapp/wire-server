@@ -63,6 +63,7 @@ data InsertInvitation = MkInsertInvitation
     code :: InvitationCode
   }
   deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform InsertInvitation)
 
 recordInstance ''InsertInvitation
 

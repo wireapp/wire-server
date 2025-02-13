@@ -144,7 +144,6 @@ import Wire.API.User.Client qualified as Public
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
-import Wire.API.User.Identity
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
@@ -154,6 +153,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
+import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
@@ -175,6 +175,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
@@ -182,7 +183,6 @@ import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
 import Wire.UserSubsystem qualified as User
-import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
@@ -377,7 +377,9 @@ servantSitemap ::
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
     Member (Input UserSubsystemConfig) r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -856,10 +858,6 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
-  -- TODO: we need an integration test for this, but it'd be easier to write that in a
-  -- different PR where we have https://github.com/wireapp/wire-server/pull/4389.
-  (lift . liftSem . UserSubsystem.guardRegisterUser)
-    `mapM_` (emailIdentity =<< new.newUserIdentity)
 
   result <- API.createUser new
   let acc = createdAccount result
@@ -1391,7 +1389,10 @@ updateUserEmail ::
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member DomainRegistrationStore r,
+    Member TinyLog r,
+    Member SparAPIAccess r
   ) =>
   UserId ->
   UserId ->

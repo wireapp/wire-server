@@ -93,6 +93,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
+import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemErrorNotFound))
@@ -114,6 +115,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
+import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
@@ -156,7 +158,9 @@ servantSitemap ::
     Member ActivationCodeStore r,
     Member (Input UserSubsystemConfig) r,
     Member EnterpriseLoginSubsystem r,
-    Member (Polysemy.Error EnterpriseLoginSubsystemError) r
+    Member (Polysemy.Error EnterpriseLoginSubsystemError) r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -213,7 +217,9 @@ accountAPI ::
     Member (Embed IO) r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -578,7 +584,10 @@ changeSelfEmailMaybeSendH ::
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   UserId ->
   EmailUpdate ->
@@ -598,7 +607,10 @@ changeSelfEmailMaybeSend ::
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   UserId ->
   MaybeSendEmail ->

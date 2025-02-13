@@ -58,6 +58,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Activation (ActivationCode)
+import Wire.API.User.IdentityProvider
 import Wire.API.User.Password
 import Wire.ActivationCodeStore
 import Wire.AuthenticationSubsystem
@@ -85,6 +86,7 @@ import Wire.Sem.Metrics
 import Wire.Sem.Metrics.IO (ignoreMetrics)
 import Wire.Sem.Now hiding (get)
 import Wire.SessionStore (SessionStore)
+import Wire.SparAPIAccess
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -176,6 +178,7 @@ data MiniBackendParams r = MiniBackendParams
 type MiniBackendLowerEffects =
   '[ EmailSubsystem,
      GalleyAPIAccess,
+     SparAPIAccess,
      InvitationStore,
      PasswordStore,
      ActivationCodeStore,
@@ -212,7 +215,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . maybeFederationAPIAccess
     . stateEffectsInterpreters mb
     . ignoreMetrics
-    . inputEffectsInterpreters cfg
+    . inputEffectsInterpreters cfg localBackend.teamIdps
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
@@ -228,6 +231,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryActivationCodeStoreInterpreter
     . runInMemoryPasswordStoreInterpreter
     . inMemoryInvitationStoreInterpreter
+    . miniSparAPIAccess
     . miniGalleyAPIAccess teamMember galleyConfigs
     . noopEmailSubsystemInterpreter
 
@@ -260,12 +264,14 @@ stateEffectsInterpreters MiniBackendParams {..} =
 type InputEffects =
   '[ Input UserSubsystemConfig,
      Input (Local ()),
-     Input (Maybe AllowlistEmailDomains)
+     Input (Maybe AllowlistEmailDomains),
+     Input (Map TeamId IdPList)
    ]
 
-inputEffectsInterpreters :: forall r a. UserSubsystemConfig -> Sem (InputEffects `Append` r) a -> Sem r a
-inputEffectsInterpreters cfg =
-  runInputConst Nothing
+inputEffectsInterpreters :: forall r a. UserSubsystemConfig -> Map TeamId IdPList -> Sem (InputEffects `Append` r) a -> Sem r a
+inputEffectsInterpreters cfg teamIdps =
+  runInputConst teamIdps
+    . runInputConst Nothing
     . runInputConst (toLocalUnsafe (Domain "localdomain") ())
     . runInputConst cfg
 
@@ -281,7 +287,8 @@ data MiniBackend = MkMiniBackend
     blockList :: [EmailKey],
     activationCodes :: Map EmailKey (Maybe UserId, ActivationCode),
     invitationInfos :: Map InvitationCode StoredInvitation,
-    invitations :: Map (TeamId, InvitationId) StoredInvitation
+    invitations :: Map (TeamId, InvitationId) StoredInvitation,
+    teamIdps :: Map TeamId IdPList
   }
   deriving stock (Eq, Show, Generic)
 
@@ -294,7 +301,8 @@ instance Default MiniBackend where
         blockList = mempty,
         activationCodes = mempty,
         invitationInfos = mempty,
-        invitations = mempty
+        invitations = mempty,
+        teamIdps = mempty
       }
 
 -- | represents an entire federated, stateful world of backends
@@ -445,7 +453,14 @@ interpretFederationStackState ::
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
 interpretFederationStackState localBackend backends teamMember cfg =
-  interpretMaybeFederationStackState (MiniBackendParams (miniFederationAPIAccess backends) localBackend teamMember def cfg)
+  interpretMaybeFederationStackState
+    MiniBackendParams
+      { maybeFederationAPIAccess = (miniFederationAPIAccess backends),
+        localBackend = localBackend,
+        teamMember = teamMember,
+        galleyConfigs = def,
+        cfg = cfg
+      }
 
 runNoFederationStack ::
   MiniBackend ->
@@ -481,7 +496,13 @@ interpretNoFederationStackState ::
   Sem r (MiniBackend, a)
 interpretNoFederationStackState localBackend teamMember galleyConfigs cfg =
   interpretMaybeFederationStackState
-    (MiniBackendParams emptyFederationAPIAcesss localBackend teamMember galleyConfigs cfg)
+    MiniBackendParams
+      { maybeFederationAPIAccess = emptyFederationAPIAcesss,
+        localBackend = localBackend,
+        teamMember = teamMember,
+        galleyConfigs = galleyConfigs,
+        cfg = cfg
+      }
 
 interpretMaybeFederationStackState ::
   forall r a.

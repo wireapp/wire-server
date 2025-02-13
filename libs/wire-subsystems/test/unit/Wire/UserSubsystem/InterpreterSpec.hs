@@ -3,6 +3,7 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
+import Control.Lens ((.~))
 import Control.Lens.At ()
 import Data.Bifunctor (first)
 import Data.Coerce
@@ -20,7 +21,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Internal
 import Polysemy.State
-import Polysemy.TinyLog
+import SAML2.WebSSO qualified as SAML
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -30,19 +31,19 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem.Error
 import Wire.DomainRegistrationStore qualified as DRS
-import Wire.InvitationStore (StoredInvitation)
+import Wire.InvitationStore (InsertInvitation, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
-import Wire.MockInterpreters
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
-import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..), guardRegisterUserImpl)
+import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -883,30 +884,75 @@ spec = describe "UserSubsystem.Interpreter" do
               === ( ChangeEmailResponseNeedsActivation,
                     [user {emailUnvalidated = Just updatedEmail}]
                   )
+    prop "Email change is not allowed if the email domain is taken by another backend or team" $
+      \(preDomreg :: DomainRegistration) (locx :: Local ()) (NotPendingStoredUser user') (preEmail :: EmailAddress) (domainTakenBySameTeam :: Bool) preIdp config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText domreg.domain
+            user = user' {managedBy = Nothing}
+            lusr = qualifyAs locx user.id
+            localBackend =
+              def
+                { users = [user],
+                  teamIdps = case (preDomreg.domainRedirect, user.teamId, domainTakenBySameTeam) of
+                    (SSO ssoId, Just tid, True) ->
+                      Map.singleton tid $
+                        IdPList
+                          [ preIdp
+                              & SAML.idpId .~ ssoId
+                              & SAML.idpExtraInfo . team .~ tid
+                          ]
+                    (SSO _, Just tid, False) ->
+                      Map.singleton tid $ IdPList [preIdp & SAML.idpExtraInfo . team .~ tid]
+                    _ -> mempty
+                }
+            domreg =
+              if domainTakenBySameTeam
+                then
+                  preDomreg
+                    { teamInvite = case (preDomreg.teamInvite, user.teamId) of
+                        (Team _, Just tid) -> Team tid
+                        (x, _) -> x
+                    } ::
+                    DomainRegistration
+                else preDomreg
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runError
+              $ interpretNoFederationStack localBackend Nothing def config do
+                DRS.upsert domreg
+                void $ requestEmailChange lusr email UpdateOriginWireClient
 
-  describe "GuardRegisterUser" $
+            expected = case (domreg.domainRedirect, domreg.teamInvite) of
+              (NoRegistration, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
+              (Backend {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              (SSO {}, _) | domainTakenBySameTeam && isJust user.teamId -> Right ()
+              (SSO {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
+              (_, NotAllowed) -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              (_, Team _) | not domainTakenBySameTeam && isJust user.teamId -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              (_, Team _) | isNothing user.teamId -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              _ -> Right ()
+         in outcome === expected
+
+  describe "GuardRegisterUserEmailDomain" $ do
     prop "throws the appropriate errors" $
-      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) ->
+      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) config ->
         let email :: EmailAddress
             email = unsafeEmailAddress l (cs d)
               where
                 l :: ByteString = localPart preEmail
                 d :: Text = domainText domreg.domain
 
-            interp ::
-              Sem
-                '[ DRS.DomainRegistrationStore,
-                   State [DRS.StoredDomainRegistration],
-                   TinyLog,
-                   Error UserSubsystemError
-                 ]
-                () ->
-              Either UserSubsystemError ()
-            interp = run . runError . noopLogger . evalState [] . inMemoryDomainRegistrationStoreInterpreter
-
-            outcome = interp do
-              DRS.upsert domreg
-              guardRegisterUserImpl email
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                DRS.upsert domreg
+                guardRegisterUserEmailDomain email
 
             expected = case domreg.domainRedirect of
               None -> Right ()
@@ -915,4 +961,69 @@ spec = describe "UserSubsystem.Interpreter" do
               Backend _ -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
               NoRegistration -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
               PreAuthorized -> Right ()
+         in outcome === expected
+
+  describe "GuardUpgradePersonalUserEmailDomain" $ do
+    prop "throws the appropriate errors" $
+      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText domreg.domain
+
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                DRS.upsert domreg
+                guardUpgradePersonalUserToTeamEmailDomain email
+
+            expected = case (domreg.domainRedirect, domreg.teamInvite) of
+              (NoRegistration, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
+              (Backend {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              (SSO {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
+              (_, NotAllowed) -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              (_, Team _) -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              _ -> Right ()
+         in outcome === expected
+
+  describe "InternalFindTeamInvitation" $ do
+    prop "throws error if email" $
+      \(preDomreg :: DomainRegistration) (preEmail :: EmailAddress) (preInv :: InsertInvitation) (invIntoSameTeamAsDomain :: Bool) timeout config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText preDomreg.domain
+
+            inv :: InsertInvitation = preInv {InvitationStore.inviteeEmail = email}
+            domreg =
+              if invIntoSameTeamAsDomain
+                then
+                  preDomreg
+                    { teamInvite = case preDomreg.teamInvite of
+                        Team _ -> Team inv.teamId
+                        x -> x
+                    } ::
+                    DomainRegistration
+                else preDomreg
+
+            storedInv = InvitationStore.insertInvToStoredInv inv
+
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runError
+              $ interpretNoFederationStack def Nothing def config {maxTeamSize = 100} do
+                void $ InvitationStore.insertInvitation inv timeout
+                DRS.upsert domreg
+                internalFindTeamInvitation (Just $ mkEmailKey email) storedInv.code
+
+            expected = case domreg.teamInvite of
+              NotAllowed -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              Allowed -> Right storedInv
+              Team tid | tid == storedInv.teamId -> Right storedInv
+              Team _ -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
          in outcome === expected

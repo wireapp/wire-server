@@ -227,6 +227,54 @@ testInvitePersonalUserToTeamMultipleInvitations = do
     resp.json %. "team" `shouldMatch` tid
   acceptTeamInvitation user code (Just defPassword) >>= assertStatus 400
 
+testInvitePersonalUserToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
+testInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
+  domain <- randomDomain
+
+  (owner, _, _) <- createTeam OwnDomain 0
+  let email = "user@" <> domain
+  void $ I.createUser OwnDomain def {I.email = Just email} >>= getJSON 201
+
+  setup <- setupOwnershipToken OwnDomain domain
+  -- [backoffice] preauth
+  I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  -- [customer admin] post no-registration config
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    >>= assertStatus 200
+
+  postInvitation owner (PostInvitation (Just email) Nothing) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
+testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
+testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
+  domain <- randomDomain
+
+  (owner, _, _) <- createTeam OwnDomain 0
+  let email = "user@" <> domain
+  user <- I.createUser OwnDomain def {I.email = Just email} >>= getJSON 201
+  inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
+  code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+
+  setup <- setupOwnershipToken OwnDomain domain
+  -- [backoffice] preauth
+  I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  -- [customer admin] post no-registration config
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    >>= assertStatus 200
+
+  acceptTeamInvitation user code (Just defPassword) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
 testInvitePersonalUserToTeamLegacy :: (HasCallStack) => App ()
 testInvitePersonalUserToTeamLegacy = withAPIVersion 6 $ do
   (owner, tid, _) <- createTeam OwnDomain 0
@@ -260,7 +308,7 @@ testInvitationTypesAreDistinct domain = do
   inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
   code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
   let body =
-        AddUser
+        def
           { name = Just email,
             email = Just email,
             password = Just defPassword,
@@ -320,6 +368,28 @@ testUpgradePersonalToTeamAlreadyInATeam = do
   bindResponse (upgradePersonalToTeam alice "wonderland") $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "user-already-in-a-team"
+
+testUpgradePersonalToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
+testUpgradePersonalToTeamEmailDomainForAnotherBackend = do
+  domain <- randomDomain
+  let email = "alice@" <> domain
+  alice <- randomUser OwnDomain def {I.email = Just email}
+
+  setup <- setupOwnershipToken OwnDomain domain
+  -- [backoffice] preauth
+  I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+
+  -- [customer admin] post no-registration config
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    >>= assertStatus 200
+
+  bindResponse (upgradePersonalToTeam alice "wonderland") $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
 
 -- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
 testTeamMemberCsvExport :: (HasCallStack) => App ()

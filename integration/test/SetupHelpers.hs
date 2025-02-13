@@ -32,6 +32,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
+import Test.DNSMock
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.Printing (indent)
@@ -84,7 +85,7 @@ createTeamMember inviter args = do
       %. "code"
       & asString
   let body =
-        AddUser
+        def
           { name = Just newUserEmail,
             email = Just newUserEmail,
             password = Just defPassword,
@@ -418,16 +419,14 @@ registerTestIdPWithMetaWithPrivateCreds owner = do
 -- | Given a team configured with saml sso, attempt a login with valid credentials.  This
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.
-loginWithSaml :: (HasCallStack) => Bool -> String -> Value -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
-loginWithSaml expectSuccess tid scimUser (iid, (meta, privcreds)) = do
+loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
+loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
   spmeta <- getSPMetadata OwnDomain tid
   authnreq <- initiateSamlLogin OwnDomain iid
-  email <- scimUser %. "externalId" >>= asString
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
   authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  loginResp <- finalizeSamlLogin OwnDomain tid authnResp
-  validateLoginResp loginResp
+  finalizeSamlLogin OwnDomain tid authnResp `bindResponse` validateLoginResp
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
@@ -492,3 +491,50 @@ loginWithSaml expectSuccess tid scimUser (iid, (meta, privcreds)) = do
             & cs
             & SAML.decodeElem
             & fromRight (error "")
+
+-- helpers
+
+data ChallengeSetup = ChallengeSetup
+  { dnsToken :: String,
+    challengeId :: String,
+    challengeToken :: String,
+    technitiumToken :: String
+  }
+
+setupChallenge :: (MakesValue domain, HasCallStack) => domain -> String -> App ChallengeSetup
+setupChallenge domain registrationDomain = do
+  challenge <- getDomainVerificationChallenge domain registrationDomain >>= getJSON 200
+  dnsToken <- challenge %. "dns_verification_token" & asString
+  challengeId <- challenge %. "id" & asString
+  challengeToken <- challenge %. "token" & asString
+
+  technitiumToken <- getTechnitiumApiKey
+  registerTechnitiumZone technitiumToken registrationDomain
+
+  pure $
+    ChallengeSetup
+      { dnsToken,
+        challengeId,
+        challengeToken,
+        technitiumToken
+      }
+
+data DomainRegistrationSetup = DomainRegistrationSetup
+  { dnsToken :: String,
+    technitiumToken :: String,
+    ownershipToken :: String
+  }
+
+setupOwnershipToken :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
+setupOwnershipToken domain registrationDomain = do
+  challenge <- setupChallenge domain registrationDomain
+
+  -- register TXT DNS record
+  registerTechnitiumRecord challenge.technitiumToken registrationDomain ("wire-domain." <> registrationDomain) "TXT" challenge.dnsToken
+
+  -- verify domain
+  ownershipToken <- bindResponse (verifyDomain OwnDomain registrationDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_ownership_token" & asString
+
+  pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken

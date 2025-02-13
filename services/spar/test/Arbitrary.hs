@@ -41,9 +41,6 @@ import Wire.API.User.Saml
 instance Arbitrary IdPList where
   arbitrary = IdPList <$> arbitrary
 
-instance Arbitrary WireIdP where
-  arbitrary = WireIdP <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
 instance Arbitrary ScimTokenHash where
   arbitrary = hashScimToken <$> arbitrary
 

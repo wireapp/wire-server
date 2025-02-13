@@ -224,12 +224,15 @@ validateStateLoginAllUsers owner tid state = do
     when (isNothing mIdp) $ do
       registerUser OwnDomain tid email
 
-    maybe (loginWithPassword 200 scimUser) (loginWithSaml True tid scimUser) mIdp
+    loginEmail <- case mIdp of
+      Nothing -> scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+      Just _ -> pure email
+    maybe (loginWithPassword 200 loginEmail) (loginWithSaml True tid loginEmail) mIdp
 
     bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
       resp.status `shouldMatchInt` 204
 
-    maybe (loginWithPassword 403 scimUser) (loginWithSaml False tid scimUser) mIdp
+    maybe (loginWithPassword 403 loginEmail) (loginWithSaml False tid loginEmail) mIdp
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do
@@ -238,8 +241,7 @@ validateError resp errStatus errLabel = do
     resp.json %. "code" `shouldMatchInt` errStatus
     resp.json %. "label" `shouldMatch` errLabel
 
-loginWithPassword :: (HasCallStack) => Int -> Value -> App ()
-loginWithPassword expectedStatus scimUser = do
-  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+loginWithPassword :: (HasCallStack) => Int -> String -> App ()
+loginWithPassword expectedStatus email = do
   bindResponse (login OwnDomain email defPassword) $ \resp -> do
     resp.status `shouldMatchInt` expectedStatus

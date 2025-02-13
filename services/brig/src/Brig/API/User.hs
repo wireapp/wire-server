@@ -281,6 +281,8 @@ upgradePersonalToTeam luid bNewTeam = do
     throwE UpgradePersonalToTeamErrorAlreadyInATeam
 
   lift $ do
+    liftSem $
+      for_ (userEmail user) guardUpgradePersonalUserToTeamEmailDomain
     -- generate team ID
     tid <- randomId
 
@@ -335,10 +337,12 @@ createUser new = do
         inv <- lift $ liftSem $ internalFindTeamInvitation (mkEmailKey <$> email) i
         pure (Nothing, Just inv, Just inv.teamId)
       Just (NewTeamCreator t) -> do
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUserEmailDomain)
         (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
-      Nothing ->
+      Nothing -> do
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUserEmailDomain)
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) <$> teamInvitation
   mbExistingAccount <-

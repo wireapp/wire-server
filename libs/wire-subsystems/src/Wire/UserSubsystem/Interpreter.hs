@@ -4,7 +4,6 @@
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
-    guardRegisterUserImpl, -- for testing (FUTUREWORK: make a better test that relies on the interface, not the implementation)
   )
 where
 
@@ -132,8 +131,10 @@ runUserSubsystem authInterpreter = interpret $
       updateHandleImpl uid mconn mb uhandle
     LookupLocaleWithDefault luid ->
       lookupLocaleOrDefaultImpl luid
-    GuardRegisterUser email ->
-      guardRegisterUserImpl email
+    GuardRegisterUserEmailDomain email ->
+      guardRegisterUserEmailDomainImpl email
+    GuardUpgradePersonalUserToTeamEmailDomain email ->
+      guardUpgradePersonalUserToTeamEmailDomainImpl email
     IsBlocked email ->
       isBlockedImpl email
     BlockListDelete email ->
@@ -181,7 +182,9 @@ internalFindTeamInvitationImpl ::
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member (GalleyAPIAccess) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member TinyLog r,
+    Member DRS.DomainRegistrationStore r
   ) =>
   Maybe EmailKey ->
   InvitationCode ->
@@ -196,6 +199,18 @@ internalFindTeamInvitationImpl (Just e) c =
     Nothing -> throw UserSubsystemInvalidInvitationCode
   where
     ensureMemberCanJoin tid = do
+      let throwGuardFailed = throw . UserSubsystemGuardFailed
+      mDomreg <-
+        emailDomain e.emailKeyOrig
+          -- The error is impossible as long as we use the same parser for both `EmailAddress` and
+          -- `Domain`.
+          & either (throwGuardFailed . InvalidDomain) DRS.lookup
+      for_ mDomreg $ \domreg -> case domreg.teamInvite of
+        Allowed -> pure ()
+        Team allowedTeam | allowedTeam == tid -> pure ()
+        Team _ -> throwGuardFailed TeamInviteRestrictedToOtherTeam
+        NotAllowed -> throwGuardFailed TeamInviteSetToNotAllowed
+
       maxSize <- maxTeamSize <$> input
       (TeamSize teamSize) <- IndexedUserStore.getTeamSize tid
       when (teamSize >= fromIntegral maxSize) $
@@ -205,7 +220,7 @@ internalFindTeamInvitationImpl (Just e) c =
       mAddUserError <- checkUserCanJoinTeam tid
       maybe (pure ()) (throw . UserSubsystemUserNotAllowedToJoinTeam) mAddUserError
 
-guardRegisterUserImpl ::
+guardRegisterUserEmailDomainImpl ::
   forall r.
   ( Member DRS.DomainRegistrationStore r,
     Member (Error UserSubsystemError) r,
@@ -213,7 +228,7 @@ guardRegisterUserImpl ::
   ) =>
   EmailAddress ->
   Sem r ()
-guardRegisterUserImpl email = do
+guardRegisterUserEmailDomainImpl email = do
   let throwGuardFailed = throw . UserSubsystemGuardFailed
   mReg <-
     emailDomain email
@@ -228,6 +243,30 @@ guardRegisterUserImpl email = do
       Backend _ -> throwGuardFailed DomRedirSetToBackend
       NoRegistration -> throwGuardFailed DomRedirSetToNoRegistration
       PreAuthorized -> pure ()
+
+guardUpgradePersonalUserToTeamEmailDomainImpl ::
+  forall r.
+  ( Member DRS.DomainRegistrationStore r,
+    Member (Error UserSubsystemError) r,
+    Member TinyLog r
+  ) =>
+  EmailAddress ->
+  Sem r ()
+guardUpgradePersonalUserToTeamEmailDomainImpl email = do
+  let throwGuardFailed = throw . UserSubsystemGuardFailed
+  mReg <-
+    emailDomain email
+      -- The error is impossible as long as we use the same parser for both `EmailAddress` and
+      -- `Domain`.
+      & either (throwGuardFailed . InvalidDomain) DRS.lookup
+  for_ mReg $ \reg -> do
+    case (reg.domainRedirect, reg.teamInvite) of
+      (NoRegistration, _) -> throwGuardFailed DomRedirSetToNoRegistration
+      (Backend {}, _) -> throwGuardFailed DomRedirSetToBackend
+      (SSO {}, _) -> throwGuardFailed DomRedirSetToSSO
+      (_, NotAllowed) -> throwGuardFailed TeamInviteSetToNotAllowed
+      (_, Team _) -> throwGuardFailed TeamInviteRestrictedToOtherTeam
+      _ -> pure ()
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
@@ -944,7 +983,9 @@ acceptTeamInvitationImpl ::
     Member IndexedUserStore r,
     Member Metrics r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member TinyLog r,
+    Member DRS.DomainRegistrationStore r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->
