@@ -25,6 +25,7 @@ import Brig.Index.Options qualified as IndexOpts
 import Brig.Options (Opts (galley))
 import Brig.Options qualified as BrigOpts
 import Control.Lens ((.~))
+import Control.Lens.Combinators (none)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
@@ -86,7 +87,12 @@ testCreateIndexWhenNotPresent brigOpts = do
             Right indexSettings -> do
               assertEqual "Shard count should be set" (ES.ShardCount replicas) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
               assertEqual "Replica count should be set" (ES.ReplicaCount replicas) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Refresh interval should be set" [ES.RefreshInterval refreshInterval] (ES.sSummaryUpdateable indexSettings)
+              -- Check if the `RefreshInterval` is part of `UpdateIndexSettings`.
+              -- There can be more settings. E.g. ElasticSearch 7 has these:
+              -- `[RefreshInterval 5s, RoutingAllocationInclude (NodeAttrFilter {nodeAttrFilterName = NodeAttrName "_tier_preference", nodeAttrFilterValues = "data_content" :| []} :| [])]`
+              assertBool "Refresh interval should be set" $ (ES.RefreshInterval refreshInterval) `elem` (ES.sSummaryUpdateable indexSettings)
+
+-- assertEqual "Refresh interval should be set" [ES.RefreshInterval refreshInterval] (ES.sSummaryUpdateable indexSettings)
 
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
@@ -132,4 +138,13 @@ testCreateIndexWhenPresent brigOpts = do
             Right indexSettings -> do
               assertEqual "Shard count should not be updated" (ES.ShardCount 1) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
               assertEqual "Replica count should not be updated" (ES.ReplicaCount 1) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Refresh interval should not be updated" [] (ES.sSummaryUpdateable indexSettings)
+              -- Ensure that the `RefreshInterval` is not part of `UpdateIndexSettings`.
+              -- There can be more settings. E.g. ElasticSearch 7 has this by default:
+              -- `[RoutingAllocationInclude (NodeAttrFilter {nodeAttrFilterName = NodeAttrName "_tier_preference", nodeAttrFilterValues = "data_content" :| []} :| [])]`
+              assertBool "Refresh interval should not be updated" $
+                none
+                  ( \case
+                      ES.RefreshInterval _ -> True
+                      _otherwise -> False
+                  )
+                  (ES.sSummaryUpdateable indexSettings)

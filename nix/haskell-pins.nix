@@ -87,8 +87,8 @@ let
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
-        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
-        hash = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
+        rev = "9ce5c7afb3a0d61ac86f0c40d48e21f1199ebdb9";
+        hash = "sha256-9CpJ10QMqlINsr1EyiGCXCNFq+xaKOq6RKyHL3XqRVA=";
       };
     };
 
