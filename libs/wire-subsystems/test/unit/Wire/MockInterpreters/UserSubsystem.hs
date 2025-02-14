@@ -25,7 +25,7 @@ userSubsystemTestInterpreter initialUsers =
     CheckHandles _ _ -> error "CheckHandles: implement on demand (userSubsystemInterpreter)"
     UpdateHandle {} -> error "UpdateHandle: implement on demand (userSubsystemInterpreter)"
     LookupLocaleWithDefault _ -> error "LookupLocaleWithDefault: implement on demand (userSubsystemInterpreter)"
-    GuardRegisterUserEmailDomain {} -> error "GuardRegisterUserEmailDomain: implemented on demand (userSubsystemInterpreter)"
+    GuardRegisterActivateUserEmailDomain {} -> error "GuardRegisterActivateUserEmailDomain: implemented on demand (userSubsystemInterpreter)"
     GuardUpgradePersonalUserToTeamEmailDomain {} -> error "GuardUpgradePersonalUserToTeamEmailDomain: implemented on demand (userSubsystemInterpreter)"
     IsBlocked _ -> pure False
     BlockListDelete _ -> error "BlockListDelete: implement on demand (userSubsystemInterpreter)"

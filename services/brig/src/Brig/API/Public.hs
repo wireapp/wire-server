@@ -1448,7 +1448,8 @@ activateKey ::
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
-      wrapClientE (API.preverify tgt code) !>> actError
+      (emailKey, _) <- wrapClientE (API.preverify tgt code) !>> actError
+      lift $ liftSem $ guardRegisterActivateUserEmailDomain (emailKeyOrig emailKey)
       pure ActivationRespDryRun
   | otherwise = do
       result <- API.activate tgt code Nothing !>> actError
