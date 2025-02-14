@@ -36,6 +36,7 @@ import Data.Schema
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
+import Debug.Trace
 import Galley.API.Teams.Features.Get
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
@@ -69,7 +70,7 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
     getAllDbFeatures tid
 
-newtype DbConfig = DbConfig A.Value
+newtype DbConfig = DbConfig {unDbConfig :: A.Value}
 
 instance Default DbConfig where
   def = DbConfig (A.object [])
@@ -96,7 +97,7 @@ getDbFeature sing tid = case featureSingIsFeature sing of
         q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
     (embedClient $ retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))) >>= \case
       Nothing -> pure (Tagged def)
-      Just (status, lockStatus, fromMaybe def -> DbConfig config) ->
+      Just (status, lockStatus, fmap unDbConfig -> config) ->
         pure (Tagged DbFeature {..})
 
 setDbFeature ::
@@ -157,7 +158,7 @@ getAllDbFeatures tid = do
         ( name,
           status,
           lockStatus,
-          fromMaybe def -> DbConfig config
+          fmap unDbConfig -> config
           ) <-
           rows
         pure (name, DbFeature {..})

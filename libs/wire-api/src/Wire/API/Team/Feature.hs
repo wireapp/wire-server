@@ -249,11 +249,12 @@ featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 data DbFeature = DbFeature
   { status :: Maybe FeatureStatus,
     lockStatus :: Maybe LockStatus,
-    config :: A.Value
+    config :: Maybe A.Value
   }
+  deriving (Eq, Show)
 
 instance Default DbFeature where
-  def = DbFeature {status = Nothing, lockStatus = Nothing, config = A.object []}
+  def = DbFeature {status = Nothing, lockStatus = Nothing, config = Nothing}
 
 resolveDbFeature ::
   forall cfg.
@@ -269,7 +270,12 @@ resolveDbFeature defFeature dbFeature = do
         (defFeature :: LockableFeature cfg) {lockStatus = LockStatusLocked}
     LockStatusUnlocked -> do
       let status = fromMaybe defFeature.status dbFeature.status
-      config <- parseDbConfig defFeature.config dbFeature.config
+      config <-
+        maybe
+          (pure defFeature.config)
+          (parseDbConfig defFeature.config)
+          dbFeature.config
+
       pure LockableFeature {status, lockStatus, config}
 
 ----------------------------------------------------------------------
