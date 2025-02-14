@@ -264,36 +264,75 @@ testUpdateEmailForEmailDomainForAnotherBackend = do
 
 testActivateEmailForEmailDomainForAnotherBackend :: (HasCallStack) => App ()
 testActivateEmailForEmailDomainForAnotherBackend = do
-  domain <- randomDomain
-  user <- randomUser OwnDomain def
-  email <- user %. "email" & asString
-  (cookie, token) <- bindResponse (login user email defPassword) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    token <- resp.json %. "access_token" & asString
-    let cookie = fromJust $ getCookie "zuid" resp
-    pure ("zuid=" <> cookie, token)
+  tid <- randomId
+  sso <- randomId
+  object
+    [ "domain_redirect" .= "backend",
+      "backend_url" .= "https://example.com",
+      "team_invite" .= "not-allowed"
+    ]
+    & testActivateEmailShouldBeAllowed False
+  object
+    [ "domain_redirect" .= "none",
+      "team_invite" .= "allowed"
+    ]
+    & testActivateEmailShouldBeAllowed True
+  object
+    [ "domain_redirect" .= "no-registration",
+      "team_invite" .= "team",
+      "team" .= tid
+    ]
+    & testActivateEmailShouldBeAllowed False
+  object
+    [ "domain_redirect" .= "no-registration",
+      "team_invite" .= "not-allowed"
+    ]
+    & testActivateEmailShouldBeAllowed False
+  object
+    [ "domain_redirect" .= "sso",
+      "sso_code" .= sso,
+      "team_invite" .= "not-allowed"
+    ]
+    & testActivateEmailShouldBeAllowed False
+  object
+    [ "domain_redirect" .= "sso",
+      "sso_code" .= sso,
+      "team_invite" .= "team",
+      "team" .= tid
+    ]
+    & testActivateEmailShouldBeAllowed False
+  where
+    testActivateEmailShouldBeAllowed :: (HasCallStack) => Bool -> Value -> App ()
+    testActivateEmailShouldBeAllowed activateAllowed update = do
+      registrationDomain <- randomDomain
+      user <- randomUser OwnDomain def
+      email <- user %. "email" & asString
+      (cookie, token) <- bindResponse (login user email defPassword) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        token <- resp.json %. "access_token" & asString
+        let cookie = fromJust $ getCookie "zuid" resp
+        pure ("zuid=" <> cookie, token)
 
-  let newEmail = "galadriel@" <> domain
-  updateEmail user newEmail cookie token >>= assertSuccess
+      let newEmail = "galadriel@" <> registrationDomain
+      updateEmail user newEmail cookie token >>= assertSuccess
 
-  (key, code) <- bindResponse (getActivationCode user newEmail) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    (,)
-      <$> (resp.json %. "key" & asString)
-      <*> (resp.json %. "code" & asString)
+      (key, code) <- bindResponse (getActivationCode user newEmail) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        (,)
+          <$> (resp.json %. "key" & asString)
+          <*> (resp.json %. "code" & asString)
 
-  setup <- setupOwnershipToken OwnDomain domain
-  I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-  updateDomainRedirect
-    OwnDomain
-    domain
-    (Just setup.ownershipToken)
-    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
-    >>= assertStatus 200
+      I.updateDomainRegistration OwnDomain registrationDomain update >>= assertSuccess
 
-  API.Brig.activate user key code `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "condition-failed"
+      if activateAllowed
+        then do
+          API.Brig.activate user key code >>= assertSuccess
+          getSelf user `bindResponse` \resp -> do
+            resp.json %. "email" `shouldMatch` newEmail
+        else do
+          API.Brig.activate user key code `bindResponse` \resp -> do
+            resp.status `shouldMatchInt` 403
+            resp.json %. "label" `shouldMatch` "condition-failed"
 
-  bindResponse (getSelf user) $ \resp -> do
-    resp.json %. "email" `shouldMatch` email
+          getSelf user `bindResponse` \resp -> do
+            resp.json %. "email" `shouldMatch` email
