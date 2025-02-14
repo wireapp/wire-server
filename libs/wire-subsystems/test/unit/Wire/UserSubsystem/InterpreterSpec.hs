@@ -937,7 +937,7 @@ spec = describe "UserSubsystem.Interpreter" do
               _ -> Right ()
          in outcome === expected
 
-  describe "GuardRegisterUserEmailDomain" $ do
+  describe "GuardRegisterActivateUserEmailDomain" $ do
     prop "throws the appropriate errors" $
       \(domreg :: DomainRegistration) (preEmail :: EmailAddress) config ->
         let email :: EmailAddress
@@ -952,7 +952,7 @@ spec = describe "UserSubsystem.Interpreter" do
               . runError
               $ interpretNoFederationStack def Nothing def config do
                 DRS.upsert domreg
-                guardRegisterUserEmailDomain email
+                guardRegisterActivateUserEmailDomain email
 
             expected = case domreg.domainRedirect of
               None -> Right ()

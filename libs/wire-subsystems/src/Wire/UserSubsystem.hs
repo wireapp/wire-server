@@ -149,7 +149,7 @@ data UserSubsystem m a where
   -- | Throw error if registered domain forbids user account creation under this email
   -- address.  (This may become internal to the interpreter once migration to wire-subsystems
   -- has progressed enough.)
-  GuardRegisterUserEmailDomain :: EmailAddress -> UserSubsystem m ()
+  GuardRegisterActivateUserEmailDomain :: EmailAddress -> UserSubsystem m ()
   GuardUpgradePersonalUserToTeamEmailDomain :: EmailAddress -> UserSubsystem m ()
   -- | Check if an email is blocked.
   IsBlocked :: EmailAddress -> UserSubsystem m Bool

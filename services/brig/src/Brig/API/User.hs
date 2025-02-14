@@ -337,12 +337,12 @@ createUser new = do
         inv <- lift $ liftSem $ internalFindTeamInvitation (mkEmailKey <$> email) i
         pure (Nothing, Just inv, Just inv.teamId)
       Just (NewTeamCreator t) -> do
-        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUserEmailDomain)
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterActivateUserEmailDomain)
         (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
       Nothing -> do
-        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterUserEmailDomain)
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterActivateUserEmailDomain)
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) <$> teamInvitation
   mbExistingAccount <-
@@ -683,10 +683,10 @@ preverify ::
   ) =>
   ActivationTarget ->
   ActivationCode ->
-  ExceptT ActivationError m ()
+  ExceptT ActivationError m (EmailKey, Maybe UserId)
 preverify tgt code = do
   key <- mkActivationKey tgt
-  void $ Data.verifyCode key code
+  Data.verifyCode key code
 
 onActivated ::
   ( Member TinyLog r,

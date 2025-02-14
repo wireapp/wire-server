@@ -131,8 +131,8 @@ runUserSubsystem authInterpreter = interpret $
       updateHandleImpl uid mconn mb uhandle
     LookupLocaleWithDefault luid ->
       lookupLocaleOrDefaultImpl luid
-    GuardRegisterUserEmailDomain email ->
-      guardRegisterUserEmailDomainImpl email
+    GuardRegisterActivateUserEmailDomain email ->
+      guardRegisterActivateUserEmailDomainImpl email
     GuardUpgradePersonalUserToTeamEmailDomain email ->
       guardUpgradePersonalUserToTeamEmailDomainImpl email
     IsBlocked email ->
@@ -220,7 +220,7 @@ internalFindTeamInvitationImpl (Just e) c =
       mAddUserError <- checkUserCanJoinTeam tid
       maybe (pure ()) (throw . UserSubsystemUserNotAllowedToJoinTeam) mAddUserError
 
-guardRegisterUserEmailDomainImpl ::
+guardRegisterActivateUserEmailDomainImpl ::
   forall r.
   ( Member DRS.DomainRegistrationStore r,
     Member (Error UserSubsystemError) r,
@@ -228,7 +228,7 @@ guardRegisterUserEmailDomainImpl ::
   ) =>
   EmailAddress ->
   Sem r ()
-guardRegisterUserEmailDomainImpl email = do
+guardRegisterActivateUserEmailDomainImpl email = do
   let throwGuardFailed = throw . UserSubsystemGuardFailed
   mReg <-
     emailDomain email
