@@ -261,3 +261,39 @@ testUpdateEmailForEmailDomainForAnotherBackend = do
 
   bindResponse (getSelf user) $ \resp -> do
     resp.json %. "email" `shouldMatch` email
+
+testActivateEmailForEmailDomainForAnotherBackend :: (HasCallStack) => App ()
+testActivateEmailForEmailDomainForAnotherBackend = do
+  domain <- randomDomain
+  user <- randomUser OwnDomain def
+  email <- user %. "email" & asString
+  (cookie, token) <- bindResponse (login user email defPassword) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    token <- resp.json %. "access_token" & asString
+    let cookie = fromJust $ getCookie "zuid" resp
+    pure ("zuid=" <> cookie, token)
+
+  let newEmail = "galadriel@" <> domain
+  updateEmail user newEmail cookie token >>= assertSuccess
+
+  (key, code) <- bindResponse (getActivationCode user newEmail) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (,)
+      <$> (resp.json %. "key" & asString)
+      <*> (resp.json %. "code" & asString)
+
+  setup <- setupOwnershipToken OwnDomain domain
+  I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    >>= assertStatus 200
+
+  API.Brig.activate user key code `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
+  bindResponse (getSelf user) $ \resp -> do
+    resp.json %. "email" `shouldMatch` email
