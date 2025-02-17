@@ -567,17 +567,21 @@ executable galley-migrate-data
     Run
     V1_BackfillBillingTeamMembers
     V3_BackfillTeamAdmins
+    V4_MigrateToDynamicFeatures
 
   hs-source-dirs: migrate-data/src
   build-depends:
+    , barbies
     , base
     , cassandra-util
     , conduit
     , containers
+    , data-default
     , exceptions
     , extended
     , imports
     , optparse-applicative
+    , schema-profunctor
     , text
     , time
     , tinylog
