@@ -863,9 +863,9 @@ createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts ->
 createIndexWithMapping lg opts name val = do
   let indexName = ES.IndexName name
   liftIO $ createCommand lg opts indexName
-  mappingReply <- runBH opts $ ES.putMapping indexName (ES.MappingName "user") val
+  mappingReply <- runBH opts $ ES.putMapping indexName val
   unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
-    liftIO $ assertFailure $ "failed to create mapping: " <> show name
+    liftIO $ assertFailure $ "failed to create mapping: " <> show name <> ", error: " <> show mappingReply
 
 -- | This doesn't fail if ES returns error because we don't really want to fail the tests for this
 deleteIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> m ()

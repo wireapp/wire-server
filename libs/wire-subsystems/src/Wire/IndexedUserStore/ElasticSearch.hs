@@ -163,11 +163,15 @@ bulkUpsertImpl cfg docs = do
             ES.ExternalGTE (ES.ExternalDocVersion v) -> (Just "external_gte", Just v)
             ES.ForceVersion (ES.ExternalDocVersion v) -> (Just "force", Just v)
        in object
+            -- TODO: I'm not 100% confident about using `version` and `version_type` instead of the underscore prefixed names.
+            -- However, comparing the docs, this should be fine:
+            -- https://www.elastic.co/guide/en/elasticsearch/reference/7.17/docs-index_.html#index-versioning
+            -- https://www.elastic.co/guide/en/elasticsearch/reference/6.8/docs-bulk.html#bulk-versioning
             [ "index"
                 .= object
                   [ "_id" .= docId,
-                    "_version_type" .= versionType,
-                    "_version" .= version
+                    "version_type" .= versionType,
+                    "version" .= version
                   ]
             ]
 
@@ -264,7 +268,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
           mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
           results = mapMaybe ES.hitSource hits
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = ES.hitsTotalValue . ES.hitsTotal . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -293,7 +297,7 @@ queryIndex cfg s (IndexQuery q f _) = do
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = ES.hitsTotalValue . ES.hitsTotal . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -516,7 +520,7 @@ runInBothES cfg f = do
   pure (x, y)
 
 mappingName :: ES.MappingName
-mappingName = ES.MappingName "user"
+mappingName = ES.MappingName "_doc"
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []
