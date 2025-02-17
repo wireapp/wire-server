@@ -92,7 +92,7 @@ rowQuery :: PrepQuery R () FeatureRow
 rowQuery =
   "select \
   \ team_id, \
-  \ app_lock_enforc, \
+  \ app_lock_enforce, \
   \ app_lock_inactivity_timeout_secs, \
   \ app_lock_status, \
   \ conference_calling, \
