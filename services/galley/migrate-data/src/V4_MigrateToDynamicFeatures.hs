@@ -1,3 +1,6 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -19,6 +22,7 @@ module V4_MigrateToDynamicFeatures where
 
 import Barbies.Bare
 import Cassandra
+import Cassandra qualified as C
 import Conduit
 import Data.Conduit.List qualified as C
 import Data.Default
@@ -26,6 +30,7 @@ import Data.Id
 import Data.Misc
 import Data.Schema
 import Data.Time.Clock
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Galley.DataMigration.Types
 import Imports
 import Wire.API.Conversation.Protocol
@@ -84,11 +89,10 @@ type FeatureRow2 =
     Maybe LockStatus, -- mls_e2eid_lock_status
     Maybe FeatureStatus, -- mls_e2eid_status
     Maybe Bool, -- mls_e2eid_use_proxy_on_mobile
-    Maybe UTCTime, -- mls_e2eid_ver_exp
     Maybe LockStatus, -- mls_lock_status
-    Maybe UTCTime, -- mls_migration_finalise_regardless_after
+    Maybe OptionalUTCTime, -- mls_migration_finalise_regardless_after
     Maybe LockStatus, -- mls_migration_lock_status
-    Maybe UTCTime, -- mls_migration_start_time
+    Maybe OptionalUTCTime, -- mls_migration_start_time
     Maybe FeatureStatus, -- mls_migration_status
     Maybe (Cassandra.Set UserId), -- mls_protocol_toggle_users
     Maybe FeatureStatus, -- mls_status
@@ -192,8 +196,63 @@ instance IsFeatureRow FeatureRow1 where
                   enforce_file_download_location
             }
 
+      writeFeature tid $
+        Tagged @ExposeInvitationURLsToTeamAdminConfig $
+          (def :: DbFeature) {status = expose_invitation_urls_to_team_admin}
+
+      writeFeature tid $
+        Tagged @FileSharingConfig $
+          (def :: DbFeature)
+            { status = file_sharing,
+              lockStatus = file_sharing_lock_status
+            }
+      writeFeature tid $
+        Tagged @GuestLinksConfig $
+          (def :: DbFeature)
+            { status = guest_links_status,
+              lockStatus = guest_links_lock_status
+            }
+
+      writeFeature tid $
+        Tagged @LegalholdConfig $
+          (def :: DbFeature) {status = legalhold_status}
+
+      writeFeature tid $
+        Tagged @LimitedEventFanoutConfig $
+          (def :: DbFeature) {status = limited_event_fanout_status}
+
 instance IsFeatureRow FeatureRow2 where
-  rowQuery = ""
+  rowQuery =
+    "select \
+    \ mls_allowed_ciphersuites, \
+    \ mls_default_ciphersuite, \
+    \ mls_default_protocol, \
+    \ mls_e2eid_acme_discovery_url, \
+    \ mls_e2eid_crl_proxy, \
+    \ mls_e2eid_grace_period, \
+    \ mls_e2eid_lock_status, \
+    \ mls_e2eid_status, \
+    \ mls_e2eid_use_proxy_on_mobile, \
+    \ mls_lock_status, \
+    \ mls_migration_finalise_regardless_after, \
+    \ mls_migration_lock_status, \
+    \ mls_migration_start_time, \
+    \ mls_migration_status, \
+    \ mls_protocol_toggle_users, \
+    \ mls_status, \
+    \ mls_supported_protocols, \
+    \ outlook_cal_integration_lock_status, \
+    \ outlook_cal_integration_status, \
+    \ search_visibility_inbound_status, \
+    \ search_visibility_status, \
+    \ self_deleting_messages_lock_status, \
+    \ self_deleting_messages_status, \
+    \ self_deleting_messages_ttl, \
+    \ snd_factor_password_challenge_lock_status, \
+    \ snd_factor_password_challenge_status, \
+    \ sso_status, \
+    \ validate_saml_emails \
+    \ from team_features"
   writeFeatures
     ( team_id,
       mls_allowed_ciphersuites,
@@ -205,7 +264,6 @@ instance IsFeatureRow FeatureRow2 where
       mls_e2eid_lock_status,
       mls_e2eid_status,
       mls_e2eid_use_proxy_on_mobile,
-      mls_e2eid_ver_exp,
       mls_lock_status,
       mls_migration_finalise_regardless_after,
       mls_migration_lock_status,
@@ -225,7 +283,99 @@ instance IsFeatureRow FeatureRow2 where
       snd_factor_password_challenge_status,
       sso_status,
       validate_saml_emails
-      ) = pure ()
+      ) = do
+      writeFeature team_id $
+        Tagged @MLSConfig $
+          DbFeature
+            { status = mls_status,
+              lockStatus = mls_lock_status,
+              config =
+                Just . DbConfig $
+                  schemaToJSON
+                    ( MLSConfig @Covered
+                        (fmap C.fromSet mls_protocol_toggle_users)
+                        mls_default_protocol
+                        (fmap C.fromSet mls_allowed_ciphersuites)
+                        mls_default_ciphersuite
+                        (fmap C.fromSet mls_supported_protocols)
+                    )
+            }
+
+      writeFeature team_id $
+        Tagged @MlsE2EIdConfig $
+          DbFeature
+            { status = mls_e2eid_status,
+              lockStatus = mls_e2eid_lock_status,
+              config =
+                Just . DbConfig $
+                  schemaToJSON
+                    ( MlsE2EIdConfig @Covered
+                        (fmap fromIntegral mls_e2eid_grace_period)
+                        (Alt mls_e2eid_acme_discovery_url)
+                        (Alt mls_e2eid_crl_proxy)
+                        (maybe def UseProxyOnMobile mls_e2eid_use_proxy_on_mobile)
+                    )
+            }
+
+      writeFeature team_id $
+        Tagged @MlsMigrationConfig $
+          DbFeature
+            { status = mls_migration_status,
+              lockStatus = mls_migration_lock_status,
+              config =
+                Just . DbConfig $
+                  schemaToJSON
+                    ( MlsMigrationConfig
+                        (maybeToNullable (fmap unOptionalUTCTime mls_migration_start_time))
+                        (maybeToNullable (fmap unOptionalUTCTime mls_migration_finalise_regardless_after))
+                    )
+            }
+
+      writeFeature team_id $
+        Tagged @OutlookCalIntegrationConfig $
+          (def :: DbFeature)
+            { status = outlook_cal_integration_status,
+              lockStatus = outlook_cal_integration_lock_status
+            }
+
+      writeFeature team_id $
+        Tagged @SearchVisibilityInboundConfig $
+          (def :: DbFeature)
+            { status = search_visibility_inbound_status
+            }
+
+      writeFeature team_id $
+        Tagged @SearchVisibilityAvailableConfig $
+          (def :: DbFeature)
+            { status = search_visibility_status
+            }
+
+      writeFeature team_id $
+        Tagged @SelfDeletingMessagesConfig $
+          DbFeature
+            { status = self_deleting_messages_status,
+              lockStatus = self_deleting_messages_lock_status,
+              config =
+                DbConfig
+                  . schemaToJSON
+                  . SelfDeletingMessagesConfig
+                  <$> self_deleting_messages_ttl
+            }
+
+      writeFeature team_id $
+        Tagged @SndFactorPasswordChallengeConfig $
+          (def :: DbFeature)
+            { status = snd_factor_password_challenge_status,
+              lockStatus = snd_factor_password_challenge_lock_status
+            }
+
+      writeFeature team_id $
+        Tagged @SSOConfig $
+          (def :: DbFeature) {status = sso_status}
+
+      writeFeature team_id $
+        Tagged @ValidateSAMLEmailsConfig
+          (def :: DbFeature) {status = validate_saml_emails}
 
 getFeatures :: (IsFeatureRow row, MonadClient m) => ConduitM () [row] m ()
 getFeatures = paginateC rowQuery (paramsP LocalQuorum () pageSize) x5
@@ -254,6 +404,18 @@ instance Cql ProtocolTag where
       then Left $ "unexpected protocol: " ++ show i
       else Right $ toEnum i'
   fromCql _ = Left "protocol: int expected"
+
+-- Optional time stamp. A 'Nothing' value is represented as 0.
+newtype OptionalUTCTime = OptionalUTCTime {unOptionalUTCTime :: Maybe UTCTime}
+
+instance Cql OptionalUTCTime where
+  ctype = Tagged (untag (ctype @UTCTime))
+
+  toCql = toCql . fromMaybe (posixSecondsToUTCTime 0) . unOptionalUTCTime
+
+  fromCql x = do
+    t <- fromCql x
+    pure . OptionalUTCTime $ guard (utcTimeToPOSIXSeconds t /= 0) $> t
 
 writeFeature ::
   forall cfg m.

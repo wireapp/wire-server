@@ -84,6 +84,7 @@ module Wire.API.Team.Feature
     npUpdate,
     AllTeamFeatures,
     mkAllFeatures,
+    maybeToNullable,
   )
 where
 
@@ -1171,7 +1172,7 @@ instance ParseDbFeature MlsMigrationConfig where
   parseDbConfig cfg = fmap (bzipWith f cfg) . schemaParseJSON . unDbConfig
     where
       f :: Maybe a -> Nullable a -> Maybe a
-      f v = maybe v id . nullableToMaybe
+      f v = fromMaybe v . nullableToMaybe
 
 instance Arbitrary MlsMigrationConfig where
   arbitrary = do
