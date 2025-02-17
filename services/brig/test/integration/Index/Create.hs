@@ -64,7 +64,8 @@ testCreateIndexWhenNotPresent brigOpts = do
                 esIndex = indexName,
                 esCaCert = brigOpts.elasticsearch.caCert,
                 esInsecureSkipVerifyTls = brigOpts.elasticsearch.insecureSkipVerifyTls,
-                esCredentials = brigOpts.elasticsearch.credentials
+                esCredentials = brigOpts.elasticsearch.credentials,
+                esMigrationIndexName = Nothing
               }
       let esSettings =
             IndexOpts.localElasticSettings
@@ -92,8 +93,6 @@ testCreateIndexWhenNotPresent brigOpts = do
               -- `[RefreshInterval 5s, RoutingAllocationInclude (NodeAttrFilter {nodeAttrFilterName = NodeAttrName "_tier_preference", nodeAttrFilterValues = "data_content" :| []} :| [])]`
               assertBool "Refresh interval should be set" $ (ES.RefreshInterval refreshInterval) `elem` (ES.sSummaryUpdateable indexSettings)
 
--- assertEqual "Refresh interval should be set" [ES.RefreshInterval refreshInterval] (ES.sSummaryUpdateable indexSettings)
-
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
   let (ES.Server esURL) = brigOpts.elasticsearch.url
@@ -110,7 +109,8 @@ testCreateIndexWhenPresent brigOpts = do
                 esIndex = indexName,
                 esCaCert = brigOpts.elasticsearch.caCert,
                 esInsecureSkipVerifyTls = brigOpts.elasticsearch.insecureSkipVerifyTls,
-                esCredentials = brigOpts.elasticsearch.credentials
+                esCredentials = brigOpts.elasticsearch.credentials,
+                esMigrationIndexName = Nothing
               }
           esSettings =
             IndexOpts.localElasticSettings

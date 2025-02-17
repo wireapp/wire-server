@@ -79,9 +79,10 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
+import Wire.IndexedUserStore.MigrationStore.ElasticSearch (defaultMigrationIndexName)
 
-tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
-tests opts mgr galley brig = do
+tests :: Opt.Opts -> ES.Server -> Manager -> Galley -> Brig -> IO TestTree
+tests opts additionalElasticSearch mgr galley brig = do
   testSetupOutboundOnly <- runHttpT mgr prepareUsersForSearchVisibilityNoNameOutsideTeamTests
   pure $
     testGroup "search" $
@@ -99,9 +100,16 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "user with umlaut" $ testSearchWithUmlaut brig,
         testWithBothIndices opts mgr "user with japanese name" $ testSearchCJK brig,
         testGroup "index migration" $
-          [ test mgr "migration to new index from existing index" $ testMigrationToNewIndex opts brig runReindexFromAnotherIndex,
-            test mgr "migration to new index from database" $ testMigrationToNewIndex opts brig (runReindexFromDatabase Reindex),
-            test mgr "migration to new index from database (force sync)" $ testMigrationToNewIndex opts brig (runReindexFromDatabase ReindexSameOrNewer)
+          [ testGroup "same ElasticSearch instance" $
+              let esServer = (opts ^. Opt.elasticsearchLens . Opt.urlLens)
+               in [ test mgr "migration to new index from existing index" $ testMigrationToNewIndex opts brig esServer runReindexFromAnotherIndex,
+                    test mgr "migration to new index from database" $ testMigrationToNewIndex opts brig esServer (runReindexFromDatabase Reindex),
+                    test mgr "migration to new index from database (force sync)" $ testMigrationToNewIndex opts brig esServer (runReindexFromDatabase ReindexSameOrNewer)
+                  ],
+            testGroup "different ElasticSearch instance" $
+              [ test mgr "migration to new index from database" $
+                  testMigrationToNewIndex opts brig additionalElasticSearch (runReindexFromDatabase Migrate)
+              ]
           ],
         testGroup "team A: SearchVisibilityStandard (= unrestricted outbound search)" $
           [ testGroup "team A: SearchableByOwnTeam (= restricted inbound search)" $
@@ -624,16 +632,18 @@ testMigrationToNewIndex ::
   (TestConstraints m, MonadUnliftIO m) =>
   Opt.Opts ->
   Brig ->
-  (Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()) ->
+  ES.Server ->
+  (Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()) ->
   m ()
-testMigrationToNewIndex opts brig migrateIndexCommand = do
+testMigrationToNewIndex opts brig additionalIndexServer migrateIndexCommand = do
   logger <- Log.create Log.StdOut
+  migrationIndexName <- ES.IndexName <$> randomHandle
   -- running brig with `withSettingsOverride` to direct it to the expected index(es).  it's
   -- important to make both old and new index name/url explicit via `withESProxy`, or the
   -- calls to `refreshIndex` in this test will interfere with parallel test runs of this test.
-  withESProxy logger opts $ \oldESUrl oldESIndex ->
-    withESProxy logger opts $ \newESUrl newESIndex ->
-      withESProxyOnly [oldESIndex, newESIndex] opts $ \bothIndexUrl -> do
+  withESProxy logger opts migrationIndexName $ \oldESUrl oldESIndex ->
+    withESProxy logger (opts & Opt.elasticsearchLens . Opt.urlLens .~ additionalIndexServer) migrationIndexName $
+      \newESUrl newESIndex -> do
         let optsWithIndex :: Text -> Opt.Opts
             optsWithIndex "old" =
               opts
@@ -653,7 +663,7 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
             optsWithIndex "oldAccessToBoth" =
               -- Configure only the old index. However, allow HTTP access to both
               -- (such that jobs can create and fill the new one).
-              optsWithIndex "old" & Opt.elasticsearchLens . Opt.urlLens .~ bothIndexUrl
+              optsWithIndex "old" & Opt.elasticsearchLens . Opt.urlLens .~ additionalIndexServer
 
         -- Phase 1: Using old index only
         (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides (optsWithIndex "old") $ do
@@ -687,7 +697,7 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
           assertEventuallyCanFindByName brig phase1TeamUser1 phase2TeamUser
 
         -- Run Migrations
-        liftIO $ migrateIndexCommand logger (optsWithIndex "oldAccessToBoth") newESIndex
+        liftIO $ migrateIndexCommand logger (optsWithIndex "oldAccessToBoth") newESIndex migrationIndexName
 
         -- Phase 3: Using old index for search, writing to both indices, migrations have run
         (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
@@ -709,6 +719,7 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
 
         -- Phase 4: Using only new index
         withSettingsOverrides (optsWithIndex "new") $ do
+          refreshIndex brig
           -- Searching should work for phase1 users
           assertEventuallyCanFindByName brig phase1TeamUser1 phase1TeamUser2
           assertEventuallyCanFindByName brig phase1TeamUser1 phase1NonTeamUser
@@ -721,10 +732,10 @@ testMigrationToNewIndex opts brig migrateIndexCommand = do
           assertEventuallyCanFindByName brig phase1TeamUser1 phase3NonTeamUser
           assertEventuallyCanFindByName brig phase1TeamUser1 phase3TeamUser
 
-runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
-runReindexFromAnotherIndex logger opts newIndexName =
+runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
+runReindexFromAnotherIndex logger opts newIndexName migrationIndexName =
   let esOldOpts :: Opt.ElasticSearchOpts = opts ^. Opt.elasticsearchLens
-      esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts
+      esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts migrationIndexName
       reindexSettings = ReindexFromAnotherIndexSettings esOldConnectionSettings newIndexName 5
    in runCommand logger $ ReindexFromAnotherIndex reindexSettings
 
@@ -733,10 +744,11 @@ runReindexFromDatabase ::
   Log.Logger ->
   Opt.Opts ->
   ES.IndexName ->
+  ES.IndexName ->
   IO ()
-runReindexFromDatabase syncCommand logger opts newIndexName =
+runReindexFromDatabase syncCommand logger opts newIndexName migrationIndexName =
   let esNewOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ newIndexName)
-      esNewConnectionSettings :: ESConnectionSettings = toESConnectionSettings esNewOpts
+      esNewConnectionSettings :: ESConnectionSettings = toESConnectionSettings esNewOpts migrationIndexName
       replicas = 2
       shards = 2
       refreshInterval = 5
@@ -756,8 +768,8 @@ runReindexFromDatabase syncCommand logger opts newIndexName =
       endpoint :: Endpoint = opts.galley
    in runCommand logger $ syncCommand elasticSettings cassandraSettings endpoint
 
-toESConnectionSettings :: ElasticSearchOpts -> ESConnectionSettings
-toESConnectionSettings opts = ESConnectionSettings {..}
+toESConnectionSettings :: ElasticSearchOpts -> ES.IndexName -> ESConnectionSettings
+toESConnectionSettings opts migrationIndexName = ESConnectionSettings {..}
   where
     toText (ES.Server url) = url
     esServer = (fromRight undefined . URI.parseURI URI.strictURIParserOptions . Text.encodeUtf8 . toText) opts.url
@@ -765,27 +777,29 @@ toESConnectionSettings opts = ESConnectionSettings {..}
     esCaCert = opts.caCert
     esInsecureSkipVerifyTls = opts.insecureSkipVerifyTls
     esCredentials = opts.credentials
+    esMigrationIndexName = Just migrationIndexName
 
 withESProxy ::
   (TestConstraints m, MonadUnliftIO m, HasCallStack) =>
   Log.Logger ->
   Opt.Opts ->
+  ES.IndexName ->
   (ES.Server -> ES.IndexName -> m a) ->
   m a
-withESProxy lg opts f = do
+withESProxy lg opts migrationIndexName f = do
   indexName <- ES.IndexName <$> randomHandle
-  liftIO $ createCommand lg opts indexName
+  liftIO $ createCommand lg opts indexName migrationIndexName
   withESProxyOnly [indexName] opts $ flip f indexName
 
-createCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> IO ()
-createCommand logger opts newIndexName =
+createCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
+createCommand logger opts newIndexName migrationIndexName =
   let esNewOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ newIndexName)
       replicas = 2
       shards = 2
       refreshInterval = 5
       esSettings =
         IndexOpts.localElasticSettings
-          & IndexOpts.esConnection .~ toESConnectionSettings esNewOpts
+          & IndexOpts.esConnection .~ toESConnectionSettings esNewOpts migrationIndexName
           & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
           & IndexOpts.esIndexShardCount .~ shards
           & IndexOpts.esIndexRefreshInterval .~ refreshInterval
@@ -831,7 +845,7 @@ testWithBothIndices opts mgr name f = do
   testGroup
     name
     [ test mgr "new-index" $ withSettingsOverrides opts f,
-      test mgr "old-index" $ withOldIndex opts f
+      test mgr "old-index" $ withOldIndex opts defaultMigrationIndexName f
     ]
 
 testWithBothIndicesAndOpts :: Opt.Opts -> Manager -> TestName -> ((HasCallStack) => Opt.Opts -> Http ()) -> TestTree
@@ -840,29 +854,29 @@ testWithBothIndicesAndOpts opts mgr name f =
     name
     [ test mgr "new-index" (f opts),
       test mgr "old-index" $ do
-        (newOpts, indexName) <- optsForOldIndex opts
+        (newOpts, indexName) <- optsForOldIndex opts defaultMigrationIndexName
         f newOpts <* deleteIndex opts indexName
     ]
 
-withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
-withOldIndex opts f = do
+withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.IndexName -> WaiTest.Session a -> m a
+withOldIndex opts migrationIndexName f = do
   lg <- Log.create Log.StdOut
   indexName <- randomHandle
-  createIndexWithMapping lg opts indexName oldMapping
+  createIndexWithMapping lg opts migrationIndexName indexName oldMapping
   let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName)
   withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
-optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
-optsForOldIndex opts = do
+optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.IndexName -> m (Opt.Opts, Text)
+optsForOldIndex opts migrationIndexName = do
   lg <- Log.create Log.StdOut
   indexName <- randomHandle
-  createIndexWithMapping lg opts indexName oldMapping
+  createIndexWithMapping lg opts migrationIndexName indexName oldMapping
   pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName), indexName)
 
-createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts -> Text -> Value -> m ()
-createIndexWithMapping lg opts name val = do
+createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts -> ES.IndexName -> Text -> Value -> m ()
+createIndexWithMapping lg opts migrationIndexName name val = do
   let indexName = ES.IndexName name
-  liftIO $ createCommand lg opts indexName
+  liftIO $ createCommand lg opts indexName migrationIndexName
   mappingReply <- runBH opts $ ES.putMapping indexName val
   unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
     liftIO $ assertFailure $ "failed to create mapping: " <> show name <> ", error: " <> show mappingReply

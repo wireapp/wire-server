@@ -76,7 +76,8 @@ data ESConnectionSettings = ESConnectionSettings
     esIndex :: ES.IndexName,
     esCaCert :: Maybe FilePath,
     esInsecureSkipVerifyTls :: Bool,
-    esCredentials :: Maybe FilePathSecrets
+    esCredentials :: Maybe FilePathSecrets,
+    esMigrationIndexName :: Maybe ES.IndexName
   }
   deriving (Show)
 
@@ -137,7 +138,8 @@ localElasticSettings =
             esIndex = ES.IndexName "directory_test",
             esCaCert = Just "test/resources/elasticsearch-ca.pem",
             esInsecureSkipVerifyTls = False,
-            esCredentials = Just "test/resources/elasticsearch-credentials.yaml"
+            esCredentials = Just "test/resources/elasticsearch-credentials.yaml",
+            esMigrationIndexName = Nothing
           },
       _esIndexShardCount = 1,
       _esIndexReplicas = ES.ReplicaCount 1,
@@ -214,6 +216,7 @@ connectionSettingsParser =
     <*> caCertParser
     <*> verifyCaParser
     <*> credentialsPathParser
+    <*> pure Nothing
 
 caCertParser :: Parser (Maybe FilePath)
 caCertParser =

@@ -121,6 +121,7 @@ runSem esConn cas galleyEndpoint logger action = do
             additionalConn = Nothing
           }
       reqId = (RequestId "brig-index")
+      migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
   runFinal
     . embedToFinal
     . unsafelyPerformConcurrency
@@ -133,7 +134,7 @@ runSem esConn cas galleyEndpoint logger action = do
     . interpretFederationDomainConfig casClient Nothing mempty
     . raiseUnder @(Embed Client)
     . throwErrorToIOFinal @MigrationException
-    . interpretIndexedUserMigrationStoreES bhEnv
+    . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
     . interpretUserStoreCassandra casClient
