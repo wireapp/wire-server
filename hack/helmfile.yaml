@@ -22,6 +22,7 @@ environments:
           enabled: false
       - elasticsearch:
           host: opensearch-cluster-master
+          additionalHost: elasticsearch-ephemeral
           caSecretName: opensearch-ephemeral-certificate
   default-elasticsearch6:
     values:
@@ -33,6 +34,7 @@ environments:
           enabled: false
       - elasticsearch:
           host: elasticsearch-ephemeral
+          additionalHost: opensearch-cluster-master
           caSecretName: elasticsearch-ephemeral-certificate
   default-ssl:
     values:
@@ -44,6 +46,7 @@ environments:
           enabled: true
       - elasticsearch:
           host: elasticsearch-ephemeral
+          additionalHost: opensearch-cluster-master
           caSecretName: elasticsearch-ephemeral-certificate
   kind:
     values:
@@ -55,6 +58,7 @@ environments:
           enabled: false
       - elasticsearch:
           host: elasticsearch-ephemeral
+          additionalHost: opensearch-cluster-master
           caSecretName: elasticsearch-ephemeral-certificate
   kind-ssl:
     values:
@@ -66,6 +70,7 @@ environments:
           enabled: true
       - elasticsearch:
           host: elasticsearch-ephemeral
+          additionalHost: opensearch-cluster-master
           caSecretName: elasticsearch-ephemeral-certificate
 ---
 repositories:
@@ -126,7 +131,6 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/cassandra-ephemeral'
 
-{{ if eq .Values.elasticsearch.host "elasticsearch-ephemeral" }}
   - name: 'elasticsearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/elasticsearch-ephemeral'
@@ -146,7 +150,6 @@ releases:
           issuerRef:
             name: elasticsearch
             kind: Issuer
-{{ end }}
 
   - name: 'redis-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
@@ -171,7 +174,6 @@ releases:
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/cassandra-ephemeral'
 
-{{ if eq .Values.elasticsearch.host "opensearch-cluster-master" }}
   - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: 'opensearch/opensearch'
@@ -189,7 +191,6 @@ releases:
     version: "1.31.0"
     values:
       - './helm_vars/opensearch/values.yaml.gotmpl'
-{{ end }}
 
   # Required for testing redis migration
   - name: 'redis-ephemeral-2'

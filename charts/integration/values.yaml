@@ -114,6 +114,7 @@ config:
 
   elasticsearch:
     host: elasticsearch-ephemeral
+    additionalHost: opensearch-cluster-master
 
   sqsEndpointUrl: http://fake-aws-sqs:4568
   sesEndpointUrl: http://fake-aws-ses:4569

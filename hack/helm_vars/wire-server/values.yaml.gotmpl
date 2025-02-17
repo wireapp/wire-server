@@ -586,6 +586,7 @@ integration:
       {{- end }}
     elasticsearch:
       host: {{ .Values.elasticsearch.host }}
+      additionalHost: {{ .Values.elasticsearch.additionalHost }}
       tlsCaSecretRef:
         name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"

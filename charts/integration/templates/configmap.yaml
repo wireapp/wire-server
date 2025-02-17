@@ -250,3 +250,5 @@ data:
         port: 8080
 
     integrationTestHostName: integration-headless.{{ .Release.Namespace }}.svc.cluster.local
+
+    additionalElasticSearch: https://{{ .Values.config.elasticsearch.additionalHost }}:9200
