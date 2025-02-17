@@ -1,4 +1,5 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wwarn #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,13 +24,16 @@ module Galley.Cassandra.TeamFeatures
   )
 where
 
-import Cassandra
+import Cassandra hiding (Tagged)
+import Data.Constraint
+import Data.Default
 import Data.Id
+import Data.Map qualified as M
+import Data.SOP
+import Data.Schema
+import Data.Tagged
 import Galley.API.Teams.Features.Get
-import Galley.Cassandra.FeatureTH
-import Galley.Cassandra.GetAllTeamFeatures
 import Galley.Cassandra.Instances ()
-import Galley.Cassandra.MakeFeature
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.TeamFeatureStore qualified as TFS
@@ -38,6 +42,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Team.Feature
+import Wire.API.Team.Feature.TH
 
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -49,22 +54,89 @@ interpretTeamFeatureStoreToCassandra ::
 interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetDbFeature sing tid -> do
     logEffect "TeamFeatureStore.GetFeatureConfig"
-    embedClient $ getDbFeature sing tid
+    getDbFeature sing tid
   TFS.SetDbFeature sing tid feat -> do
     logEffect "TeamFeatureStore.SetFeatureConfig"
-    embedClient $ setDbFeature sing tid feat
+    setDbFeature sing tid feat
   TFS.SetFeatureLockStatus sing tid lock -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
-    embedClient $ setFeatureLockStatus sing tid (Tagged lock)
+    setFeatureLockStatus sing tid (Tagged lock)
   TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
-    embedClient $ getAllDbFeatures tid
+    getAllDbFeatures tid
 
-getDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
-getDbFeature = $(featureCases [|fetchFeature|])
+getDbFeature ::
+  forall cfg r.
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  Sem r (Tagged cfg DbFeature)
+getDbFeature sing tid = case featureSingIsFeature sing of
+  Dict -> do
+    let q :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
+        q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
+    (embedClient $ retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))) >>= \case
+      Nothing -> pure (Tagged def)
+      Just (status, lockStatus, config) ->
+        pure (Tagged DbFeature {..})
 
-setDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockableFeature cfg -> m ()
-setDbFeature = $(featureCases [|storeFeature|])
+setDbFeature ::
+  forall cfg r.
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  LockableFeature cfg ->
+  Sem r ()
+setDbFeature sing tid feat = case featureSingIsFeature sing of
+  Dict -> do
+    let q :: PrepQuery W (FeatureStatus, LockStatus, DbConfig, TeamId, Text) ()
+        q = "update team_features_dyn set status = ?, lock_status = ?, config = ? where team = ? and feature = ?"
+    embedClient $
+      retry x5 $
+        write
+          q
+          ( params
+              LocalQuorum
+              ( feat.status,
+                feat.lockStatus,
+                DbConfig (schemaToJSON feat.config),
+                tid,
+                featureName @cfg
+              )
+          )
 
-setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Tagged cfg LockStatus -> m ()
-setFeatureLockStatus = $(featureCases [|storeFeatureLockStatus|])
+setFeatureLockStatus ::
+  forall cfg r.
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  Tagged cfg LockStatus ->
+  Sem r ()
+setFeatureLockStatus sing tid (Tagged lockStatus) = case featureSingIsFeature sing of
+  Dict -> do
+    let q :: PrepQuery W (LockStatus, TeamId, Text) ()
+        q = "update team_features_dyn set  lock_status = ? where team = ? and feature = ?"
+    embedClient $
+      retry x5 $
+        write q (params LocalQuorum (lockStatus, tid, featureName @cfg))
+
+getAllDbFeatures ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
+  TeamId ->
+  Sem r (AllFeatures (K DbFeature))
+getAllDbFeatures tid = do
+  let q :: PrepQuery R (Identity TeamId) (Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
+      q = "select feature, status, lock_status, config from team_features_dyn where team = ?"
+  rows <- embedClient $ retry x1 $ query q (params LocalQuorum (Identity tid))
+  let m = M.fromList $ do
+        (name, status, lockStatus, config) <- rows
+        pure (name, DbFeature {..})
+  pure $ mkAllFeatures m

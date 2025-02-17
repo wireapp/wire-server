@@ -139,12 +139,8 @@ library
     Galley.Cassandra.Conversation.MLS
     Galley.Cassandra.ConversationList
     Galley.Cassandra.CustomBackend
-    Galley.Cassandra.FeatureTH
-    Galley.Cassandra.GetAllTeamFeatures
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
-    Galley.Cassandra.MakeFeature
-    Galley.Cassandra.Orphans
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
@@ -280,6 +276,7 @@ library
     Galley.Schema.V92_MlsE2EIdConfig
     Galley.Schema.V93_ConferenceCallingSftForOneToOne
     Galley.Schema.V94_DomainRegistrationConfig
+    Galley.Schema.V95_DynamicFeatures
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
@@ -305,6 +302,7 @@ library
     , cassandra-util                        >=0.16.2
     , cassava                               >=0.5.2
     , comonad
+    , constraints
     , containers                            >=0.5
     , crypton
     , crypton-x509
@@ -317,7 +315,6 @@ library
     , extended
     , extra                                 >=1.3
     , galley-types                          >=0.65.0
-    , generics-sop
     , hex
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -342,17 +339,16 @@ library
     , resourcet                             >=1.1
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
+    , schema-profunctor
     , servant
     , servant-client
     , servant-server
     , singletons
-    , singletons-base
     , sop-core
     , split                                 >=0.2
     , ssl-util                              >=0.1
     , stm                                   >=2.4
     , tagged
-    , template-haskell
     , text                                  >=0.11
     , time                                  >=1.4
     , tinylog                               >=0.10
@@ -565,17 +561,21 @@ executable galley-migrate-data
     Run
     V1_BackfillBillingTeamMembers
     V3_BackfillTeamAdmins
+    V4_MigrateToDynamicFeatures
 
   hs-source-dirs: migrate-data/src
   build-depends:
+    , barbies
     , base
     , cassandra-util
     , conduit
     , containers
+    , data-default
     , exceptions
     , extended
     , imports
     , optparse-applicative
+    , schema-profunctor
     , text
     , time
     , tinylog

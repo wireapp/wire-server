@@ -245,6 +245,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
       Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
+      Member (Error InternalError) r,
       Member (Error NoChanges) r,
       Member BrigAccess r,
       Member ExternalAccess r,

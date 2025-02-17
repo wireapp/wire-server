@@ -19,6 +19,7 @@
 
 module Test.Wire.API.Golden.Generated.LockableFeature_team where
 
+import Control.Applicative
 import Data.ByteString.Conversion (parser, runParser)
 import Data.Domain
 import Data.Misc
@@ -83,9 +84,9 @@ testObject_LockableFeature_team_18 =
     LockStatusLocked
     ( MlsE2EIdConfig
         (fromIntegral @Int (60 * 60 * 24))
-        Nothing
-        (either (\e -> error (show e)) Just $ parseHttpsUrl "https://example.com")
-        False
+        empty
+        (either (\e -> error (show e)) (Alt . Just) $ parseHttpsUrl "https://example.com")
+        (UseProxyOnMobile False)
     )
 
 parseHttpsUrl :: ByteString -> Either String HttpsUrl
@@ -98,7 +99,7 @@ testObject_LockableFeature_team_19 =
     LockStatusLocked
     ( MlsE2EIdConfig
         (fromIntegral @Int (60 * 60 * 24))
-        (either (\e -> error (show e)) Just $ parseHttpsUrl "https://example.com")
-        Nothing
-        True
+        (either (\e -> error (show e)) (Alt . Just) $ parseHttpsUrl "https://example.com")
+        empty
+        (UseProxyOnMobile True)
     )

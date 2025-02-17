@@ -285,14 +285,17 @@ schemaOut (SchemaP _ _ (SchemaOut o)) = o
 
 class (Functor f) => FieldFunctor doc f where
   parseFieldF :: (A.Value -> A.Parser a) -> A.Object -> Text -> A.Parser (f a)
+  extractF :: (Monoid w) => SchemaP doc v w a b -> SchemaP doc v w (f a) b
   mkDocF :: doc -> doc
 
 instance FieldFunctor doc Identity where
   parseFieldF f obj key = Identity <$> A.explicitParseField f obj (Key.fromText key)
+  extractF = lmap runIdentity
   mkDocF = id
 
 instance (HasOpt doc) => FieldFunctor doc Maybe where
   parseFieldF f obj key = A.explicitParseFieldMaybe f obj (Key.fromText key)
+  extractF = maybe_
   mkDocF = mkOpt
 
 -- | A schema for a one-field JSON object.

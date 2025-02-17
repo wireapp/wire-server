@@ -19,6 +19,7 @@ module Galley.API.Public.Bot where
 
 import Data.Id
 import Data.Qualified
+import Galley.API.Error
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features qualified as Features
 import Galley.API.Update
@@ -27,6 +28,7 @@ import Galley.Effects
 import Galley.Effects qualified as E
 import Galley.Options
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -46,6 +48,7 @@ getBotConversation ::
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member TeamStore r

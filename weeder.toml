@@ -38,8 +38,6 @@ roots = [ # may of the entries here are about general-purpose module
          "^Data.Range.rsingleton",
          "^Data.Schema.fieldWithDocModifierF$",
          "^Data.ZAuth.Validation.*$",
-         "^Galley.Cassandra.FeatureTH.generateSOPInstances$",
-         "^Galley.Cassandra.FeatureTH.generateTupleP$",
          "^Galley.Types.Teams.canSeePermsOf", # TODO: figure out why weeder is confused by let bindings with curried infix notation
          "^Galley.Types.UserList.ulDiff$",
          "^Gundeck.Monad.runGundeck$",

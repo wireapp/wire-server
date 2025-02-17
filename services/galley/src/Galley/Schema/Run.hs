@@ -95,6 +95,7 @@ import Galley.Schema.V91_TeamMemberDeletedLimitedEventFanout qualified as V91_Te
 import Galley.Schema.V92_MlsE2EIdConfig qualified as V92_MlsE2EIdConfig
 import Galley.Schema.V93_ConferenceCallingSftForOneToOne qualified as V93_ConferenceCallingSftForOneToOne
 import Galley.Schema.V94_DomainRegistrationConfig qualified as V94_DomainRegistrationConfig
+import Galley.Schema.V95_DynamicFeatures qualified as V95_DynamicFeatures
 import Imports
 import Options.Applicative
 import System.Logger.Extended qualified as Log
@@ -190,7 +191,8 @@ migrations =
     V91_TeamMemberDeletedLimitedEventFanout.migration,
     V92_MlsE2EIdConfig.migration,
     V93_ConferenceCallingSftForOneToOne.migration,
-    V94_DomainRegistrationConfig.migration
+    V94_DomainRegistrationConfig.migration,
+    V95_DynamicFeatures.migration
     -- FUTUREWORK: once #1726 has made its way to master/production,
     -- the 'message' field in connections table can be dropped.
     -- See also https://github.com/wireapp/wire-server/pull/1747/files

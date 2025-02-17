@@ -633,6 +633,7 @@ getConversationByReusableCode ::
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -665,6 +666,7 @@ getConversationByReusableCode lusr key value = do
 ensureGuestLinksEnabled ::
   forall r.
   ( Member (ErrorS 'GuestLinksDisabled) r,
+    Member (Error InternalError) r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
@@ -678,6 +680,7 @@ ensureGuestLinksEnabled mbTid =
 getConversationGuestLinksStatus ::
   forall r.
   ( Member ConversationStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Input Opts) r,
@@ -693,7 +696,8 @@ getConversationGuestLinksStatus uid convId = do
 
 getConversationGuestLinksFeatureStatus ::
   forall r.
-  ( Member TeamFeatureStore r,
+  ( Member (Error InternalError) r,
+    Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
   Maybe TeamId ->

@@ -374,7 +374,7 @@ instance SetFeatureConfig AppLockConfig where
   type SetFeatureForTeamConstraints AppLockConfig r = Member (Error TeamFeatureError) r
 
   prepareFeature _tid feat = do
-    when ((applockInactivityTimeoutSecs feat.config) < 30) $
+    when ((feat.config.timeout) < 30) $
       throw AppLockInactivityTimeoutTooLow
     pure feat
 
@@ -397,7 +397,8 @@ instance SetFeatureConfig MLSConfig where
     SetFeatureForTeamConstraints MLSConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member TeamFeatureStore r,
-        Member (Error TeamFeatureError) r
+        Member (Error TeamFeatureError) r,
+        Member (Error InternalError) r
       )
   prepareFeature tid feat = do
     mlsMigrationConfig <- getFeatureForTeam @MlsMigrationConfig tid
@@ -425,7 +426,7 @@ guardMlsE2EIdConfig ::
   Feature MlsE2EIdConfig ->
   Sem r a
 guardMlsE2EIdConfig handler uid tid feat = do
-  when (isNothing feat.config.crlProxy) $ throw MLSE2EIDMissingCrlProxy
+  when (isNothing (getAlt feat.config.crlProxy)) $ throw MLSE2EIDMissingCrlProxy
   handler uid tid feat
 
 instance SetFeatureConfig MlsMigrationConfig where
@@ -433,6 +434,7 @@ instance SetFeatureConfig MlsMigrationConfig where
     SetFeatureForTeamConstraints MlsMigrationConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member (Error TeamFeatureError) r,
+        Member (Error InternalError) r,
         Member TeamFeatureStore r
       )
   prepareFeature tid feat = do

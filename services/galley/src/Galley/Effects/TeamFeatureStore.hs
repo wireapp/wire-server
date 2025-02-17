@@ -18,6 +18,8 @@
 module Galley.Effects.TeamFeatureStore where
 
 import Data.Id
+import Data.SOP
+import Data.Tagged
 import Polysemy
 import Wire.API.Team.Feature
 
@@ -26,7 +28,7 @@ data TeamFeatureStore m a where
   GetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
-    TeamFeatureStore m (DbFeature cfg)
+    TeamFeatureStore m (Tagged cfg DbFeature)
   SetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
@@ -39,13 +41,14 @@ data TeamFeatureStore m a where
     TeamFeatureStore m ()
   GetAllDbFeatures ::
     TeamId ->
-    TeamFeatureStore m (AllFeatures DbFeature)
+    TeamFeatureStore m (AllFeatures (K DbFeature))
 
 getDbFeature ::
+  forall cfg r.
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   TeamId ->
-  Sem r (DbFeature cfg)
-getDbFeature tid = send (GetDbFeature featureSingleton tid)
+  Sem r (Tagged cfg DbFeature)
+getDbFeature tid = send (GetDbFeature @cfg featureSingleton tid)
 
 setDbFeature ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
@@ -63,5 +66,5 @@ setFeatureLockStatus ::
 setFeatureLockStatus tid lockStatus =
   send (SetFeatureLockStatus (featureSingleton @cfg) tid lockStatus)
 
-getAllDbFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures DbFeature)
+getAllDbFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures (K DbFeature))
 getAllDbFeatures tid = send (GetAllDbFeatures tid)
