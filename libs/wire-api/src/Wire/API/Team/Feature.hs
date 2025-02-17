@@ -27,6 +27,7 @@ module Wire.API.Team.Feature
     featureName,
     featureNameBS,
     LockStatus (..),
+    DbConfig (..),
     DbFeature (..),
     resolveDbFeature,
     LockableFeature (..),
@@ -118,6 +119,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Encoding qualified as TL
 import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
@@ -249,7 +251,7 @@ featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 data DbFeature = DbFeature
   { status :: Maybe FeatureStatus,
     lockStatus :: Maybe LockStatus,
-    config :: Maybe A.Value
+    config :: Maybe DbConfig
   }
   deriving (Eq, Show)
 
@@ -277,6 +279,20 @@ resolveDbFeature defFeature dbFeature = do
           dbFeature.config
 
       pure LockableFeature {status, lockStatus, config}
+
+newtype DbConfig = DbConfig {unDbConfig :: A.Value}
+  deriving (Eq, Show)
+
+instance Default DbConfig where
+  def = DbConfig (A.object [])
+
+instance Cass.Cql DbConfig where
+  ctype = Cass.Tagged Cass.TextColumn
+
+  fromCql (Cass.CqlText t) = fmap DbConfig . A.eitherDecode' . TL.encodeUtf8 . TL.fromStrict $ t
+  fromCql _ = Left "service key pem: blob expected"
+
+  toCql (DbConfig c) = Cass.CqlText . TL.toStrict . TL.decodeUtf8 . A.encode $ c
 
 ----------------------------------------------------------------------
 -- LockableFeature
@@ -1152,7 +1168,7 @@ instance Default MlsMigrationConfig where
   def = MlsMigrationConfig Nothing Nothing
 
 instance ParseDbFeature MlsMigrationConfig where
-  parseDbConfig cfg = fmap (bzipWith f cfg) . schemaParseJSON
+  parseDbConfig cfg = fmap (bzipWith f cfg) . schemaParseJSON . unDbConfig
     where
       f :: Maybe a -> Nullable a -> Maybe a
       f v = maybe v id . nullableToMaybe
@@ -1467,7 +1483,7 @@ deriving via (Schema AllTeamFeatures) instance (S.ToSchema AllTeamFeatures)
 -- even when it does not matter.
 
 class ParseDbFeature cfg where
-  parseDbConfig :: cfg -> A.Value -> A.Parser cfg
+  parseDbConfig :: cfg -> DbConfig -> A.Parser cfg
 
 newtype TrivialFeature cfg = TrivialFeature cfg
 
@@ -1480,7 +1496,7 @@ instance (GSOP.IsProductType cfg '[]) => Default (TrivialFeature cfg) where
 newtype SimpleFeature cfg = SimpleFeature cfg
 
 instance (GSOP.IsWrappedType cfg a, ToSchema cfg) => ParseDbFeature (SimpleFeature cfg) where
-  parseDbConfig _ = fmap SimpleFeature . schemaParseJSON
+  parseDbConfig _ = fmap SimpleFeature . schemaParseJSON . unDbConfig
 
 instance (GSOP.IsWrappedType cfg a, Default a) => Default (SimpleFeature cfg) where
   def = SimpleFeature (GSOP.wrappedTypeTo def)
@@ -1494,7 +1510,10 @@ instance
   ) =>
   ParseDbFeature (BarbieFeature b)
   where
-  parseDbConfig (BarbieFeature cfg) = fmap (BarbieFeature . applyConfig cfg) . schemaParseJSON
+  parseDbConfig (BarbieFeature cfg) =
+    fmap (BarbieFeature . applyConfig cfg)
+      . schemaParseJSON
+      . unDbConfig
     where
       f :: Maybe a -> Identity a -> Identity a
       f m (Identity x) = Identity $ fromMaybe x m
