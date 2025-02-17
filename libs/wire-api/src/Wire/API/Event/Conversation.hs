@@ -26,6 +26,7 @@ module Wire.API.Event.Conversation
     EventType (..),
     EventData (..),
     AddCodeResult (..),
+    isPydioEvent,
 
     -- * Event lenses
     _EdMembersJoin,
@@ -223,6 +224,15 @@ eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
+
+isPydioEvent :: EventType -> Bool
+isPydioEvent MemberJoin = True
+isPydioEvent MemberLeave = True
+isPydioEvent MemberStateUpdate = True
+isPydioEvent ConvRename = True
+isPydioEvent ConvCreate = True
+isPydioEvent ConvDelete = True
+isPydioEvent _ = False
 
 --------------------------------------------------------------------------------
 -- Event data helpers

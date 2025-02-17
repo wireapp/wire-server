@@ -4,7 +4,6 @@ import Control.Concurrent.Async (async, wait)
 import Control.Exception (throwIO)
 import Data.Data (Proxy (Proxy))
 import Data.Id
-import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
 import Data.List1 qualified as List1
 import Data.Range (fromRange, toRange)
 import Data.Set qualified as Set
@@ -54,9 +53,10 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRoute = V2.RouteDirect,
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
-                _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
+                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
                 pushJson = payload1,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsPydioEvent = False
               }
           push2 =
             Push
@@ -66,10 +66,12 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Just V2.LowPriority,
                 pushOrigin = Just origin2,
                 _pushRecipients =
-                  Recipient user21 V2.RecipientClientsAll
-                    :| [Recipient user22 V2.RecipientClientsAll],
+                  [ Recipient user21 V2.RecipientClientsAll,
+                    Recipient user22 V2.RecipientClientsAll
+                  ],
                 pushJson = payload2,
-                _pushApsData = Just apsData
+                _pushApsData = Just apsData,
+                pushIsPydioEvent = False
               }
           duplicatePush = push2
           duplicatePushWithPush1Recipients = push2 {_pushRecipients = _pushRecipients push1}
@@ -105,7 +107,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       origin2 <- generate arbitrary
       (user21, user22) <- generate arbitrary
       (payload1, payload2) <- generate $ resize 1 arbitrary
-      lotOfRecipients <- fromList <$> replicateM 31 (generate arbitrary)
+      lotOfRecipients <- replicateM 31 (generate arbitrary)
       apsData <- generate arbitrary
       let pushBiggerThanFanoutLimit =
             Push
@@ -116,7 +118,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushOrigin = Nothing,
                 _pushRecipients = lotOfRecipients,
                 pushJson = payload1,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsPydioEvent = False
               }
           pushSmallerThanFanoutLimit =
             Push
@@ -126,10 +129,12 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Just V2.LowPriority,
                 pushOrigin = Just origin2,
                 _pushRecipients =
-                  Recipient user21 V2.RecipientClientsAll
-                    :| [Recipient user22 V2.RecipientClientsAll],
+                  [ Recipient user21 V2.RecipientClientsAll,
+                    Recipient user22 V2.RecipientClientsAll
+                  ],
                 pushJson = payload2,
-                _pushApsData = Just apsData
+                _pushApsData = Just apsData,
+                pushIsPydioEvent = False
               }
           pushes =
             [ pushBiggerThanFanoutLimit,
@@ -168,9 +173,10 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRoute = V2.RouteDirect,
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
-                _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
+                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
                 pushJson = payload1,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsPydioEvent = False
               }
           push2 =
             Push
@@ -180,10 +186,12 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Just V2.LowPriority,
                 pushOrigin = Just origin2,
                 _pushRecipients =
-                  Recipient user21 V2.RecipientClientsAll
-                    :| [Recipient user22 V2.RecipientClientsAll],
+                  [ Recipient user21 V2.RecipientClientsAll,
+                    Recipient user22 V2.RecipientClientsAll
+                  ],
                 pushJson = payload2,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsPydioEvent = False
               }
           pushes = [push1, push2]
 
@@ -224,9 +232,10 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRoute = V2.RouteDirect,
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
-                _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
+                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
                 pushJson = payload1,
-                _pushApsData = Nothing
+                _pushApsData = Nothing,
+                pushIsPydioEvent = False
               }
       (_, attemptedPushes, logs) <- runMiniStackAsync mockConfig $ do
         thread <- pushAsyncImpl push1
@@ -321,7 +330,7 @@ runGundeckAPIAccessFailure pushesRef =
       GundeckAPIAccess.UserDeleted {} -> unexpectedCall
       GundeckAPIAccess.UnregisterPushClient {} -> unexpectedCall
       GundeckAPIAccess.GetPushTokens {} -> unexpectedCall
-      GundeckAPIAccess.RegisterConsumableNotifcationsClient {} -> unexpectedCall
+      GundeckAPIAccess.RegisterConsumableNotificationsClient {} -> unexpectedCall
 
 data TestException = TestException
   deriving (Show)
@@ -340,7 +349,7 @@ runGundeckAPIAccessIORef pushesRef =
       GundeckAPIAccess.UserDeleted {} -> unexpectedCall
       GundeckAPIAccess.UnregisterPushClient {} -> unexpectedCall
       GundeckAPIAccess.GetPushTokens {} -> unexpectedCall
-      GundeckAPIAccess.RegisterConsumableNotifcationsClient {} -> unexpectedCall
+      GundeckAPIAccess.RegisterConsumableNotificationsClient {} -> unexpectedCall
 
 waitUntilPushes :: IORef [a] -> Int -> IO [a]
 waitUntilPushes pushesRef n = do
@@ -354,7 +363,7 @@ waitUntilPushes pushesRef n = do
 normalisePush :: Push -> [Push]
 normalisePush p =
   map
-    (\r -> p {_pushRecipients = r :| []})
+    (\r -> p {_pushRecipients = [r]})
     (toList (_pushRecipients p))
 
 sizeOfChunks :: [Push] -> Natural

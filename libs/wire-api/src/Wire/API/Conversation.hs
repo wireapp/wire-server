@@ -90,6 +90,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
@@ -111,6 +112,7 @@ import Imports
 import System.Random (randomRIO)
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.PydioState
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.Event.LeaveReason
 import Wire.API.MLS.Group
@@ -136,7 +138,8 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode
+    cnvmReceiptMode :: Maybe ReceiptMode,
+    cnvmPydioState :: PydioState
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -152,7 +155,8 @@ defConversationMetadata mCreator =
       cnvmName = Nothing,
       cnvmTeam = Nothing,
       cnvmMessageTimer = Nothing,
-      cnvmReceiptMode = Nothing
+      cnvmReceiptMode = Nothing,
+      cnvmPydioState = def
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -212,6 +216,7 @@ conversationMetadataObjectSchema sch =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+    <*> cnvmPydioState .= (fromMaybe def <$> optField "pydio_state" schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
