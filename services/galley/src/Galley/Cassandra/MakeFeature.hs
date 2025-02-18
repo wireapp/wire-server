@@ -109,14 +109,14 @@ instance MakeFeature AppLockConfig where
       <> dbFeatureModConfig
         ( \defCfg ->
             AppLockConfig
-              (fromMaybe defCfg.applockEnforceAppLock enforce)
-              (fromMaybe defCfg.applockInactivityTimeoutSecs timeout)
+              (fromMaybe defCfg.enforce enforce)
+              (fromMaybe defCfg.timeout timeout)
         )
 
   featureToRow feat =
     Just feat.status
-      :* Just feat.config.applockEnforceAppLock
-      :* Just feat.config.applockInactivityTimeoutSecs
+      :* Just feat.config.enforce
+      :* Just feat.config.timeout
       :* Nil
 
 instance MakeFeature ClassifiedDomainsConfig where
@@ -336,9 +336,12 @@ instance MakeFeature MlsE2EIdConfig where
               defCfg
                 { verificationExpiration =
                     maybe defCfg.verificationExpiration fromIntegral gracePeriod,
-                  acmeDiscoveryUrl = acmeDiscoveryUrl <|> defCfg.acmeDiscoveryUrl,
-                  crlProxy = crlProxy <|> defCfg.crlProxy,
-                  useProxyOnMobile = fromMaybe defCfg.useProxyOnMobile useProxyOnMobile
+                  acmeDiscoveryUrl = Alt acmeDiscoveryUrl <|> defCfg.acmeDiscoveryUrl,
+                  crlProxy = Alt crlProxy <|> defCfg.crlProxy,
+                  useProxyOnMobile =
+                    fromMaybe
+                      defCfg.useProxyOnMobile
+                      (fmap UseProxyOnMobile useProxyOnMobile)
                 }
           )
 
@@ -346,9 +349,9 @@ instance MakeFeature MlsE2EIdConfig where
     Just feat.lockStatus
       :* Just feat.status
       :* Just (truncate feat.config.verificationExpiration)
-      :* feat.config.acmeDiscoveryUrl
-      :* feat.config.crlProxy
-      :* Just feat.config.useProxyOnMobile
+      :* getAlt feat.config.acmeDiscoveryUrl
+      :* getAlt feat.config.crlProxy
+      :* Just (unUseProxyOnMobile feat.config.useProxyOnMobile)
       :* Nil
 
 -- Optional time stamp. A 'Nothing' value is represented as 0.

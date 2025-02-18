@@ -262,6 +262,7 @@ library
     , aeson                      >=2.0.1.0
     , asn1-encoding
     , attoparsec                 >=0.10
+    , barbies
     , base                       >=4       && <5
     , base64-bytestring          >=1.0
     , binary

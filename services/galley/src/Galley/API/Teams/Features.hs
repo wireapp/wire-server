@@ -374,7 +374,7 @@ instance SetFeatureConfig AppLockConfig where
   type SetFeatureForTeamConstraints AppLockConfig r = Member (Error TeamFeatureError) r
 
   prepareFeature _tid feat = do
-    when ((applockInactivityTimeoutSecs feat.config) < 30) $
+    when (feat.config.timeout < 30) $
       throw AppLockInactivityTimeoutTooLow
     pure feat
 
@@ -425,7 +425,7 @@ guardMlsE2EIdConfig ::
   Feature MlsE2EIdConfig ->
   Sem r a
 guardMlsE2EIdConfig handler uid tid feat = do
-  when (isNothing feat.config.crlProxy) $ throw MLSE2EIDMissingCrlProxy
+  when (isNothing (getAlt feat.config.crlProxy)) $ throw MLSE2EIDMissingCrlProxy
   handler uid tid feat
 
 instance SetFeatureConfig MlsMigrationConfig where
