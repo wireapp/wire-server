@@ -520,7 +520,7 @@ runInBothES cfg f = do
   pure (x, y)
 
 mappingName :: ES.MappingName
-mappingName = ES.MappingName "_doc"
+mappingName = ES.MappingName "user"
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []

@@ -79,6 +79,7 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
+import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch (defaultMigrationIndexName)
 
 tests :: Opt.Opts -> ES.Server -> Manager -> Galley -> Brig -> IO TestTree
@@ -877,7 +878,7 @@ createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts ->
 createIndexWithMapping lg opts migrationIndexName name val = do
   let indexName = ES.IndexName name
   liftIO $ createCommand lg opts indexName migrationIndexName
-  mappingReply <- runBH opts $ ES.putMapping indexName val
+  mappingReply <- runBH opts $ ES.putNamedMapping indexName mappingName val
   unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
     liftIO $ assertFailure $ "failed to create mapping: " <> show name <> ", error: " <> show mappingReply
 
