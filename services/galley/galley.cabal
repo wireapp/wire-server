@@ -280,6 +280,7 @@ library
     Galley.Schema.V92_MlsE2EIdConfig
     Galley.Schema.V93_ConferenceCallingSftForOneToOne
     Galley.Schema.V94_DomainRegistrationConfig
+    Galley.Schema.V95_TeamFeatureDataMigrationState
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
