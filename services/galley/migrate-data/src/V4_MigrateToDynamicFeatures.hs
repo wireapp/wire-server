@@ -299,9 +299,9 @@ writeFeatures
             config =
               Just . DbConfig $
                 schemaToJSON
-                  ( MlsMigrationConfig
-                      (maybeToNullable (fmap unOptionalUTCTime mls_migration_start_time))
-                      (maybeToNullable (fmap unOptionalUTCTime mls_migration_finalise_regardless_after))
+                  ( MlsMigrationConfig @Covered
+                      (fmap unOptionalUTCTime mls_migration_start_time)
+                      (fmap unOptionalUTCTime mls_migration_finalise_regardless_after)
                   )
           }
 

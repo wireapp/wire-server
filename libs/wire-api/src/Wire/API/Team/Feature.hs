@@ -85,7 +85,6 @@ module Wire.API.Team.Feature
     npUpdate,
     AllTeamFeatures,
     mkAllFeatures,
-    maybeToNullable,
   )
 where
 
@@ -1162,27 +1161,30 @@ instance IsFeatureConfig MlsE2EIdConfig where
 ----------------------------------------------------------------------
 -- MlsMigration
 
-data MlsMigrationConfigB f = MlsMigrationConfig
-  { startTime :: f UTCTime,
-    finaliseRegardlessAfter :: f UTCTime
+data MlsMigrationConfigB t f = MlsMigrationConfig
+  { startTime :: Wear t f (Maybe UTCTime),
+    finaliseRegardlessAfter :: Wear t f (Maybe UTCTime)
   }
-  deriving (Generic, GSOP.Generic, FunctorB, ApplicativeB)
-  deriving (RenderableSymbol) via (RenderableTypeName MlsMigrationConfig)
+  deriving (BareB, Generic)
 
-type MlsMigrationConfig = MlsMigrationConfigB Maybe
+deriving instance FunctorB (MlsMigrationConfigB Covered)
+
+deriving instance ApplicativeB (MlsMigrationConfigB Covered)
+
+type MlsMigrationConfig = MlsMigrationConfigB Bare Identity
 
 deriving instance Eq MlsMigrationConfig
 
 deriving instance Show MlsMigrationConfig
 
+deriving via (BarbieFeature MlsMigrationConfigB) instance (ParseDbFeature MlsMigrationConfig)
+
+deriving via (BarbieFeature MlsMigrationConfigB) instance (ToSchema MlsMigrationConfig)
+
+deriving via (RenderableTypeName MlsMigrationConfig) instance (RenderableSymbol MlsMigrationConfig)
+
 instance Default MlsMigrationConfig where
   def = MlsMigrationConfig Nothing Nothing
-
-instance ParseDbFeature MlsMigrationConfig where
-  parseDbConfig cfg = fmap (bzipWith f cfg) . schemaParseJSON . unDbConfig
-    where
-      f :: Maybe a -> Nullable a -> Maybe a
-      f v = fromMaybe v . nullableToMaybe
 
 instance Arbitrary MlsMigrationConfig where
   arbitrary = do
@@ -1194,12 +1196,25 @@ instance Arbitrary MlsMigrationConfig where
           finaliseRegardlessAfter = finaliseRegardlessAfter
         }
 
-instance (ToFieldSchema f) => ToSchema (MlsMigrationConfigB f) where
+-- | This class enables non-standard JSON instances for the Identity case of
+-- this feature. For backwards compatibility, we need to make the two fields
+-- optional even in the Identity case. A missing field gets parsed as
+-- `Nothing`. Whereas with the default instance, they would be rejected.
+class NestedMaybeFieldFunctor f where
+  nestedMaybeField :: Text -> ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (f (Maybe a))
+
+instance NestedMaybeFieldFunctor Maybe where
+  nestedMaybeField name sch = maybe_ (optField name (nullable sch))
+
+instance NestedMaybeFieldFunctor Identity where
+  nestedMaybeField name sch = Identity <$> runIdentity .= maybe_ (optField name sch)
+
+instance (NestedMaybeFieldFunctor f) => ToSchema (MlsMigrationConfigB Covered f) where
   schema =
     object "MlsMigration" $
       MlsMigrationConfig
-        <$> startTime .= toFieldSchema "startTime" (unnamed utcTimeSchema)
-        <*> finaliseRegardlessAfter .= toFieldSchema "finaliseRegardlessAfter" (unnamed utcTimeSchema)
+        <$> startTime .= nestedMaybeField "startTime" (unnamed utcTimeSchema)
+        <*> finaliseRegardlessAfter .= nestedMaybeField "finaliseRegardlessAfter" (unnamed utcTimeSchema)
 
 instance Default (LockableFeature MlsMigrationConfig) where
   def = defLockedFeature
@@ -1208,30 +1223,6 @@ instance IsFeatureConfig MlsMigrationConfig where
   type FeatureSymbol MlsMigrationConfig = "mlsMigration"
   featureSingleton = FeatureSingletonMlsMigrationConfig
   objectSchema = field "config" schema
-
-data Nullable a = Absent | PresentNull | Present a
-  deriving (Functor)
-
-nullableToMaybe :: Nullable a -> Maybe (Maybe a)
-nullableToMaybe Absent = Nothing
-nullableToMaybe PresentNull = Just Nothing
-nullableToMaybe (Present a) = Just (Just a)
-
-maybeToNullable :: Maybe (Maybe a) -> Nullable a
-maybeToNullable Nothing = Absent
-maybeToNullable (Just Nothing) = PresentNull
-maybeToNullable (Just (Just a)) = Present a
-
-class ToFieldSchema f where
-  toFieldSchema :: Text -> ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (f a)
-
-instance ToFieldSchema Maybe where
-  toFieldSchema key sch = maybe_ (optField key sch)
-
-instance ToFieldSchema Nullable where
-  toFieldSchema key sch =
-    fmap maybeToNullable $
-      nullableToMaybe .= maybe_ (optField key (nullable sch))
 
 ----------------------------------------------------------------------
 -- EnforceFileDownloadLocationConfig
