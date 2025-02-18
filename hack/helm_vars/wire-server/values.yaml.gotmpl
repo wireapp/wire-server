@@ -153,6 +153,9 @@ brig:
       general:
         emailSender: backend-integrationk8s@wire.com
         smsSender: dummy
+  test:
+    elasticsearch:
+      additionalHost: {{ .Values.elasticsearch.additionalHost }}
   secrets:
     # these secrets are only used during integration tests and should therefore be safe to include unencrypted in git.
     # Normally these would live in a separately-encrypted secrets.yaml file and incorporated using the helm secrets plugin (wrapper around mozilla sops)
@@ -586,7 +589,6 @@ integration:
       {{- end }}
     elasticsearch:
       host: {{ .Values.elasticsearch.host }}
-      additionalHost: {{ .Values.elasticsearch.additionalHost }}
       tlsCaSecretRef:
         name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"

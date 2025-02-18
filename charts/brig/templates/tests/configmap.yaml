@@ -89,3 +89,5 @@ data:
       federatorExternal:
         host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8081
+
+    additionalElasticSearch: https://{{ .Values.test.elasticsearch.additionalHost }}:9200
