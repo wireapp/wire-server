@@ -54,7 +54,7 @@ import Test.Tasty.Runners
 import TestSetup
 import Wire.API.Internal.Notification (ntfPayload)
 import Wire.API.Provider.Service
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature hiding (timeout)
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
