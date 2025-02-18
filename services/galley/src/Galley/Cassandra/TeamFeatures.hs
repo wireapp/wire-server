@@ -59,12 +59,36 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
     embedClient $ getAllDbFeatures tid
+  TFS.GetMigrationState tid -> do
+    embedClient $ getMigrationState tid
+
+getMigrationState :: (MonadClient m) => TeamId -> m TeamFeatureMigrationState
+getMigrationState tid = do
+  maybe MigrationNotStarted runIdentity <$> retry x1 (query1 cql (params LocalQuorum (Identity tid)))
+  where
+    cql :: PrepQuery R (Identity TeamId) (Identity TeamFeatureMigrationState)
+    cql = "SELECT migration_state FROM team_features WHERE team_id = ?"
 
 getDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
-getDbFeature = $(featureCases [|fetchFeature|])
+getDbFeature cfg tid = do
+  migrationState <- getMigrationState tid
+  case migrationState of
+    MigrationNotStarted -> $(featureCases [|fetchFeature|]) cfg tid
+    MigrationInProgress -> $(featureCases [|fetchFeature|]) cfg tid
+    MigrationCompleted -> todo
 
 setDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockableFeature cfg -> m ()
-setDbFeature = $(featureCases [|storeFeature|])
+setDbFeature feature tid cfg = do
+  migrationState <- getMigrationState tid
+  case migrationState of
+    MigrationNotStarted -> $(featureCases [|storeFeature|]) feature tid cfg
+    MigrationInProgress -> todo
+    MigrationCompleted -> todo
 
 setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Tagged cfg LockStatus -> m ()
-setFeatureLockStatus = $(featureCases [|storeFeatureLockStatus|])
+setFeatureLockStatus feature tid ls = do
+  migrationState <- getMigrationState tid
+  case migrationState of
+    MigrationNotStarted -> $(featureCases [|storeFeatureLockStatus|]) feature tid ls
+    MigrationInProgress -> todo
+    MigrationCompleted -> todo

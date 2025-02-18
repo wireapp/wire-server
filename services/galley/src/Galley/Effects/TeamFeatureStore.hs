@@ -40,6 +40,7 @@ data TeamFeatureStore m a where
   GetAllDbFeatures ::
     TeamId ->
     TeamFeatureStore m (AllFeatures DbFeature)
+  GetMigrationState :: TeamId -> TeamFeatureStore m TeamFeatureMigrationState
 
 getDbFeature ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>

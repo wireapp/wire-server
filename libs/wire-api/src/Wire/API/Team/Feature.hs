@@ -89,6 +89,7 @@ module Wire.API.Team.Feature
     AllTeamFeatures,
     parseDbFeature,
     mkAllFeatures,
+    TeamFeatureMigrationState (..),
   )
 where
 
@@ -1531,3 +1532,24 @@ mkAllFeatures m =
   where
     get :: forall cfg. (IsFeatureConfig cfg) => K (Maybe a) cfg
     get = K $ M.lookup (featureName @cfg) m
+
+--------------------------------------------------------------------------------
+-- Team Feature Migration
+
+data TeamFeatureMigrationState = MigrationNotStarted | MigrationInProgress | MigrationCompleted
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureMigrationState)
+
+instance Cass.Cql TeamFeatureMigrationState where
+  ctype = Cass.Tagged Cass.IntColumn
+
+  fromCql (Cass.CqlInt n) = case n of
+    0 -> pure MigrationNotStarted
+    1 -> pure MigrationInProgress
+    2 -> pure MigrationCompleted
+    _ -> Left "fromCql: Invalid TeamFeatureMigrationState value"
+  fromCql _ = Left "fromCql: TeamFeatureMigrationState: CqlInt or CqlNull expected"
+
+  toCql MigrationNotStarted = Cass.CqlInt 0
+  toCql MigrationInProgress = Cass.CqlInt 1
+  toCql MigrationCompleted = Cass.CqlInt 2
