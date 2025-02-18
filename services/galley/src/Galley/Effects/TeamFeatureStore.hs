@@ -32,7 +32,7 @@ data TeamFeatureStore m a where
   SetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
-    LockableFeature cfg ->
+    Tagged cfg DbFeature ->
     TeamFeatureStore m ()
   SetFeatureLockStatus ::
     FeatureSingleton cfg ->
@@ -53,7 +53,7 @@ getDbFeature tid = send (GetDbFeature @cfg featureSingleton tid)
 setDbFeature ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   TeamId ->
-  LockableFeature cfg ->
+  Tagged cfg DbFeature ->
   Sem r ()
 setDbFeature tid feat = send (SetDbFeature featureSingleton tid feat)
 

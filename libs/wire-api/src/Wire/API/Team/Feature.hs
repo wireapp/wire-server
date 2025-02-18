@@ -29,6 +29,7 @@ module Wire.API.Team.Feature
     LockStatus (..),
     DbConfig (..),
     DbFeature (..),
+    featureToDB,
     resolveDbFeature,
     LockableFeature (..),
     defUnlockedFeature,
@@ -258,6 +259,15 @@ data DbFeature = DbFeature
 
 instance Default DbFeature where
   def = DbFeature {status = Nothing, lockStatus = Nothing, config = Nothing}
+
+featureToDB :: (IsFeatureConfig cfg) => LockableFeature cfg -> Tagged cfg DbFeature
+featureToDB feat =
+  Tagged $
+    DbFeature
+      { status = Just feat.status,
+        lockStatus = Just feat.lockStatus,
+        config = Just (DbConfig (schemaToJSON feat.config))
+      }
 
 resolveDbFeature ::
   forall cfg.

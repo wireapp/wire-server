@@ -189,7 +189,7 @@ persistFeature ::
   LockableFeature cfg ->
   Sem r (LockableFeature cfg)
 persistFeature tid feat = do
-  setDbFeature tid feat
+  setDbFeature tid (featureToDB feat)
   getFeatureForTeam @cfg tid
 
 pushFeatureEvent ::
@@ -255,7 +255,7 @@ initialiseTeamFeatures tid = do
   -- set MLS initial config
   let MLSDefaults fdef = npProject flags
   let feat = initialFeature fdef
-  setDbFeature tid feat
+  setDbFeature tid (featureToDB feat)
   pure ()
 
 -------------------------------------------------------------------------------

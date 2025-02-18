@@ -339,7 +339,6 @@ library
     , resourcet                             >=1.1
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
-    , schema-profunctor
     , servant
     , servant-client
     , servant-server

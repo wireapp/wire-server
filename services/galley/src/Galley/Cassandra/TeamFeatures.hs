@@ -30,7 +30,6 @@ import Data.Default
 import Data.Id
 import Data.Map qualified as M
 import Data.SOP
-import Data.Schema
 import Data.Tagged
 import Galley.API.Teams.Features.Get
 import Galley.Cassandra.Instances ()
@@ -89,11 +88,11 @@ setDbFeature ::
   ) =>
   FeatureSingleton cfg ->
   TeamId ->
-  LockableFeature cfg ->
+  Tagged cfg DbFeature ->
   Sem r ()
-setDbFeature sing tid feat = case featureSingIsFeature sing of
+setDbFeature sing tid (Tagged feat) = case featureSingIsFeature sing of
   Dict -> do
-    let q :: PrepQuery W (FeatureStatus, LockStatus, DbConfig, TeamId, Text) ()
+    let q :: PrepQuery W (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig, TeamId, Text) ()
         q = "update team_features_dyn set status = ?, lock_status = ?, config = ? where team = ? and feature = ?"
     embedClient $
       retry x5 $
@@ -103,7 +102,7 @@ setDbFeature sing tid feat = case featureSingIsFeature sing of
               LocalQuorum
               ( feat.status,
                 feat.lockStatus,
-                DbConfig (schemaToJSON feat.config),
+                feat.config,
                 tid,
                 featureName @cfg
               )
