@@ -1,6 +1,6 @@
 image:
   repository: softwaremill/elasticmq-native
-  tag: 1.5.2
+  tag: 1.6.11
 
 # TODO: in a wire-server chart, these queue names should match the ones defined in galley/brig/gundeck (i.e. only be defined once)
 queueNames:
