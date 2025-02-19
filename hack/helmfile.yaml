@@ -24,18 +24,6 @@ environments:
           host: opensearch-cluster-master
           additionalHost: elasticsearch-ephemeral
           caSecretName: opensearch-ephemeral-certificate
-  default-elasticsearch6:
-    values:
-      - ./helm_vars/common.yaml.gotmpl
-      - imagePullPolicy: Always
-      - storageClass: hcloud-volumes
-      - cassandraHost: cassandra-ephemeral
-      - useK8ssandraSSL:
-          enabled: false
-      - elasticsearch:
-          host: elasticsearch-ephemeral
-          additionalHost: opensearch-cluster-master
-          caSecretName: elasticsearch-ephemeral-certificate
   default-ssl:
     values:
       - ./helm_vars/common.yaml.gotmpl
