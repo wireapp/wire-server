@@ -1553,6 +1553,9 @@ data TeamFeatureMigrationState = MigrationNotStarted | MigrationInProgress | Mig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamFeatureMigrationState)
 
+instance Default TeamFeatureMigrationState where
+  def = MigrationNotStarted
+
 instance Cass.Cql TeamFeatureMigrationState where
   ctype = Cass.Tagged Cass.IntColumn
 
