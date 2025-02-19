@@ -25,9 +25,20 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 95 "temporary column to track the state of the team feature migration" $
+  Migration 95 "temporary column to track the state of the team feature migration, new feature table" $ do
     schema'
       [r| ALTER TABLE team_features ADD (
             migration_state int
         )
+     |]
+
+    schema'
+      [r| CREATE TABLE team_features_dyn (
+            team   uuid,
+            feature ascii,
+            status int,
+            lock_status int,
+            config text,
+            PRIMARY KEY (team, feature)
+        ) WITH compaction = {'class': 'LeveledCompactionStrategy'};
      |]
