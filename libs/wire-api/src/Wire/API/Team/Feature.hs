@@ -88,7 +88,7 @@ module Wire.API.Team.Feature
     npUpdate,
     AllTeamFeatures,
     parseDbFeature,
-    serialiseDbConfig,
+    serialiseDbFeature,
     mkAllFeatures,
     TeamFeatureMigrationState (..),
   )
@@ -1525,8 +1525,13 @@ parseDbFeature feat =
         <> foldMap dbFeatureLockStatus feat.lockStatus
         <> dbFeatureModConfig f
 
-serialiseDbConfig :: (IsFeatureConfig cfg) => cfg -> DbConfig
-serialiseDbConfig = DbConfig . schemaToJSON
+serialiseDbFeature :: (IsFeatureConfig cfg) => LockableFeature cfg -> LockableFeaturePatch DbConfig
+serialiseDbFeature feat =
+  LockableFeaturePatch
+    { status = Just feat.status,
+      lockStatus = Just feat.lockStatus,
+      config = Just . DbConfig . schemaToJSON $ feat.config
+    }
 
 -- | Convert a map indexed by feature name to an NP value.
 mkAllFeatures ::

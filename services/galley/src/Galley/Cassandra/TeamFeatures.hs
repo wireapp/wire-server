@@ -178,17 +178,18 @@ setDbFeatureDyn ::
   Sem r ()
 setDbFeatureDyn sing tid feat = case featureSingIsFeature sing of
   Dict -> do
-    let q :: PrepQuery W (FeatureStatus, LockStatus, DbConfig, TeamId, Text) ()
+    let q :: PrepQuery W (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig, TeamId, Text) ()
         q = "update team_features_dyn set status = ?, lock_status = ?, config = ? where team = ? and feature = ?"
+        dbFeat = serialiseDbFeature feat
     embedClient $
       retry x5 $
         write
           q
           ( params
               LocalQuorum
-              ( feat.status,
-                feat.lockStatus,
-                serialiseDbConfig feat.config,
+              ( dbFeat.status,
+                dbFeat.lockStatus,
+                dbFeat.config,
                 tid,
                 featureName @cfg
               )
