@@ -20,7 +20,6 @@ envVars:
 By default Wire users can choose, whether to use constant bit rate (CBR) or variable bit rate (VBR) encoding for 1:1 calls (conference calls always use CBR).
 Since there is a theoretical risk of information leakage through packet size analysis when using Opus with variable bitrate encoding during audio calls, CBR can be fully enforced for 1:1 calls in the web app, too.
 
-
 To enforce CBR add the following to your config:
 
 ```yaml
@@ -31,7 +30,7 @@ envVars:
 
 ## Disable media plugins
 
-Wire is built for media plugins to be active in the chat windows so that users don't have to click the link and leave the app. In some cases it may be desired that these plugins get disabled by default. With this setting all media plugins, including but not limited to YouTube, Spotify, Soundcloud, and Vimeo can be disabled.
+Wire is built for media plugins to be active in the chat windows so that users don’t have to click the link and leave the app. In some cases it may be desired that these plugins get disabled by default. With this setting all media plugins, including but not limited to YouTube, Spotify, Soundcloud, and Vimeo can be disabled.
 
 To disable media plugins add the following to your configuration:
 
