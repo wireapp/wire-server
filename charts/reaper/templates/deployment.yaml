@@ -29,7 +29,7 @@ spec:
               app: reaper
       containers:
       - name: reaper
-        image: bitnami/kubectl:1.24.12
+        image: bitnami/kubectl:1.32.2
         command: ["bash"]
         args:
         - -c
