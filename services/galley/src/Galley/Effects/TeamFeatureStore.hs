@@ -40,7 +40,7 @@ data TeamFeatureStore m a where
   GetAllDbFeatures ::
     TeamId ->
     TeamFeatureStore m (AllFeatures DbFeature)
-  GetMigrationState :: TeamId -> TeamFeatureStore m TeamFeatureMigrationState
+  SetMigrationState :: TeamId -> TeamFeatureMigrationState -> TeamFeatureStore m ()
 
 getDbFeature ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
@@ -66,3 +66,6 @@ setFeatureLockStatus tid lockStatus =
 
 getAllDbFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures DbFeature)
 getAllDbFeatures tid = send (GetAllDbFeatures tid)
+
+setMigrationState :: (Member TeamFeatureStore r) => TeamId -> TeamFeatureMigrationState -> Sem r ()
+setMigrationState tid state = send (SetMigrationState tid state)

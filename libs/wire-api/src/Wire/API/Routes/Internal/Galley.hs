@@ -99,6 +99,16 @@ type IFeatureAPI =
                :> Get '[JSON] AllTeamFeatures
            )
     :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
+    -- migration state
+    :<|> Named
+           "put-feature-migration-state"
+           ( Summary "Manually set migration state (for testing)"
+               :> "teams"
+               :> Capture "team" TeamId
+               :> "feature-migration-state"
+               :> ReqBody '[JSON] TeamFeatureMigrationState
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "OK")
+           )
 
 type InternalAPI = "i" :> InternalAPIBase
 
