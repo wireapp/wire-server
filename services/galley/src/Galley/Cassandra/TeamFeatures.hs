@@ -27,6 +27,7 @@ where
 import Cassandra
 import Data.Aeson.Types qualified as A
 import Data.Constraint
+import Data.Default
 import Data.Id
 import Data.Map qualified as M
 import Data.Text.Lazy qualified as LT
@@ -78,9 +79,9 @@ getMigrationState ::
   TeamId ->
   Sem r TeamFeatureMigrationState
 getMigrationState tid = embedClient $ do
-  maybe MigrationNotStarted runIdentity <$> retry x1 (query1 cql (params LocalQuorum (Identity tid)))
+  fromMaybe def . join . fmap runIdentity <$> retry x1 (query1 cql (params LocalQuorum (Identity tid)))
   where
-    cql :: PrepQuery R (Identity TeamId) (Identity TeamFeatureMigrationState)
+    cql :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureMigrationState))
     cql = "SELECT migration_state FROM team_features WHERE team_id = ?"
 
 getDbFeature ::
