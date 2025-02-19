@@ -88,6 +88,7 @@ module Wire.API.Team.Feature
     npUpdate,
     AllTeamFeatures,
     parseDbFeature,
+    serialiseDbConfig,
     mkAllFeatures,
     TeamFeatureMigrationState (..),
   )
@@ -204,7 +205,8 @@ class
     ToSchema cfg,
     Default (LockableFeature cfg),
     KnownSymbol (FeatureSymbol cfg),
-    NpProject cfg Features
+    NpProject cfg Features,
+    ParseDbFeature cfg
   ) =>
   IsFeatureConfig cfg
   where
@@ -373,6 +375,9 @@ data LockableFeaturePatch (cfg :: Type) = LockableFeaturePatch
   }
   deriving stock (Eq, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (LockableFeaturePatch cfg))
+
+instance Default (LockableFeaturePatch cfg) where
+  def = LockableFeaturePatch Nothing Nothing Nothing
 
 -- | The ToJSON implementation of `LockableFeaturePatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
@@ -1510,30 +1515,33 @@ instance (BareB b, ToSchema (b Covered Identity)) => ToSchema (BarbieFeature b) 
 parseDbFeature ::
   forall cfg.
   (ParseDbFeature cfg) =>
-  Maybe FeatureStatus ->
-  Maybe LockStatus ->
-  Maybe DbConfig ->
+  LockableFeaturePatch DbConfig ->
   A.Parser (DbFeature cfg)
-parseDbFeature status lockStatus dbConfig =
+parseDbFeature feat =
   do
-    f <- maybe (pure id) parseDbConfig dbConfig
+    f <- maybe (pure id) parseDbConfig feat.config
     pure $
-      foldMap dbFeatureStatus status
-        <> foldMap dbFeatureLockStatus lockStatus
+      foldMap dbFeatureStatus feat.status
+        <> foldMap dbFeatureLockStatus feat.lockStatus
         <> dbFeatureModConfig f
+
+serialiseDbConfig :: (IsFeatureConfig cfg) => cfg -> DbConfig
+serialiseDbConfig = DbConfig . schemaToJSON
 
 -- | Convert a map indexed by feature name to an NP value.
 mkAllFeatures ::
-  forall cfgs a.
-  (Default a, All IsFeatureConfig cfgs) =>
-  Map Text a ->
-  NP (K a) cfgs
+  forall cfgs.
+  ( All IsFeatureConfig cfgs,
+    All ParseDbFeature cfgs
+  ) =>
+  Map Text (LockableFeaturePatch DbConfig) ->
+  A.Parser (NP DbFeature cfgs)
 mkAllFeatures m =
-  hmap (mapKK (fromMaybe def)) $
+  hctraverse' (Proxy @ParseDbFeature) (parseDbFeature . unK) $
     hcpure (Proxy @IsFeatureConfig) get
   where
-    get :: forall cfg. (IsFeatureConfig cfg) => K (Maybe a) cfg
-    get = K $ M.lookup (featureName @cfg) m
+    get :: forall cfg. (IsFeatureConfig cfg) => K (LockableFeaturePatch DbConfig) cfg
+    get = K $ M.findWithDefault def (featureName @cfg) m
 
 --------------------------------------------------------------------------------
 -- Team Feature Migration

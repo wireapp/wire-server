@@ -306,6 +306,7 @@ library
     , cassandra-util                        >=0.16.2
     , cassava                               >=0.5.2
     , comonad
+    , constraints
     , containers                            >=0.5
     , crypton
     , crypton-x509

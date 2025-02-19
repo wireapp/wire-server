@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -24,7 +25,12 @@ module Galley.Cassandra.TeamFeatures
 where
 
 import Cassandra
+import Data.Aeson.Types qualified as A
+import Data.Constraint
 import Data.Id
+import Data.Map qualified as M
+import Data.Text.Lazy qualified as LT
+import Galley.API.Error
 import Galley.API.Teams.Features.Get
 import Galley.Cassandra.FeatureTH
 import Galley.Cassandra.GetAllTeamFeatures
@@ -35,13 +41,16 @@ import Galley.Cassandra.Util
 import Galley.Effects.TeamFeatureStore qualified as TFS
 import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Team.Feature
+import Wire.API.Team.Feature.TH
 
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
+    Member (Error InternalError) r,
     Member TinyLog r
   ) =>
   Sem (TFS.TeamFeatureStore ': r) a ->
@@ -49,46 +58,181 @@ interpretTeamFeatureStoreToCassandra ::
 interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetDbFeature sing tid -> do
     logEffect "TeamFeatureStore.GetFeatureConfig"
-    embedClient $ getDbFeature sing tid
+    getDbFeature sing tid
   TFS.SetDbFeature sing tid feat -> do
     logEffect "TeamFeatureStore.SetFeatureConfig"
-    embedClient $ setDbFeature sing tid feat
+    setDbFeature sing tid feat
   TFS.SetFeatureLockStatus sing tid lock -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
-    embedClient $ setFeatureLockStatus sing tid (Tagged lock)
+    setFeatureLockStatus sing tid (Tagged lock)
   TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
-    embedClient $ getAllDbFeatures tid
+    getAllDbFeatures tid
   TFS.GetMigrationState tid -> do
-    embedClient $ getMigrationState tid
+    getMigrationState tid
 
-getMigrationState :: (MonadClient m) => TeamId -> m TeamFeatureMigrationState
-getMigrationState tid = do
+getMigrationState ::
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r
+  ) =>
+  TeamId ->
+  Sem r TeamFeatureMigrationState
+getMigrationState tid = embedClient $ do
   maybe MigrationNotStarted runIdentity <$> retry x1 (query1 cql (params LocalQuorum (Identity tid)))
   where
     cql :: PrepQuery R (Identity TeamId) (Identity TeamFeatureMigrationState)
     cql = "SELECT migration_state FROM team_features WHERE team_id = ?"
 
-getDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
+getDbFeature ::
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r,
+    Member (Error InternalError) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  Sem r (DbFeature cfg)
 getDbFeature cfg tid = do
   migrationState <- getMigrationState tid
   case migrationState of
-    MigrationNotStarted -> $(featureCases [|fetchFeature|]) cfg tid
-    MigrationInProgress -> $(featureCases [|fetchFeature|]) cfg tid
-    MigrationCompleted -> todo
+    MigrationCompleted -> getDbFeatureDyn cfg tid
+    _ -> embedClient $ $(featureCases [|fetchFeature|]) cfg tid
 
-setDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockableFeature cfg -> m ()
+setDbFeature ::
+  ( Member (Input ClientState) r,
+    Member (Error InternalError) r,
+    Member (Embed IO) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  LockableFeature cfg ->
+  Sem r ()
 setDbFeature feature tid cfg = do
   migrationState <- getMigrationState tid
   case migrationState of
-    MigrationNotStarted -> $(featureCases [|storeFeature|]) feature tid cfg
-    MigrationInProgress -> todo
-    MigrationCompleted -> todo
+    MigrationNotStarted -> embedClient $ $(featureCases [|storeFeature|]) feature tid cfg
+    MigrationInProgress -> readOnlyError
+    MigrationCompleted -> setDbFeatureDyn feature tid cfg
 
-setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Tagged cfg LockStatus -> m ()
+setFeatureLockStatus ::
+  ( Member (Input ClientState) r,
+    Member (Error InternalError) r,
+    Member (Embed IO) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  Tagged cfg LockStatus ->
+  Sem r ()
 setFeatureLockStatus feature tid ls = do
   migrationState <- getMigrationState tid
   case migrationState of
-    MigrationNotStarted -> $(featureCases [|storeFeatureLockStatus|]) feature tid ls
-    MigrationInProgress -> todo
-    MigrationCompleted -> todo
+    MigrationNotStarted -> embedClient $ $(featureCases [|storeFeatureLockStatus|]) feature tid ls
+    MigrationInProgress -> readOnlyError
+    MigrationCompleted -> setFeatureLockStatusDyn feature tid ls
+
+getAllDbFeatures ::
+  ( Member (Input ClientState) r,
+    Member (Error InternalError) r,
+    Member (Embed IO) r
+  ) =>
+  TeamId ->
+  Sem r (AllFeatures DbFeature)
+getAllDbFeatures tid = do
+  migrationState <- getMigrationState tid
+  case migrationState of
+    MigrationCompleted -> getAllDbFeaturesDyn tid
+    _ -> embedClient $ getAllDbFeaturesLegacy tid
+
+readOnlyError :: (Member (Error InternalError) r) => Sem r a
+readOnlyError = throw (InternalErrorWithDescription "migration in progress")
+
+--------------------------------------------------------------------------------
+-- Dynamic features
+
+getDbFeatureDyn ::
+  forall cfg r.
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r,
+    Member (Error InternalError) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  Sem r (DbFeature cfg)
+getDbFeatureDyn sing tid = case featureSingIsFeature sing of
+  Dict -> do
+    let q :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
+        q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
+    (embedClient $ retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))) >>= \case
+      Nothing -> pure mempty
+      Just (status, lockStatus, config) ->
+        runFeatureParser . parseDbFeature $
+          LockableFeaturePatch {..}
+
+setDbFeatureDyn ::
+  forall cfg r.
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  LockableFeature cfg ->
+  Sem r ()
+setDbFeatureDyn sing tid feat = case featureSingIsFeature sing of
+  Dict -> do
+    let q :: PrepQuery W (FeatureStatus, LockStatus, DbConfig, TeamId, Text) ()
+        q = "update team_features_dyn set status = ?, lock_status = ?, config = ? where team = ? and feature = ?"
+    embedClient $
+      retry x5 $
+        write
+          q
+          ( params
+              LocalQuorum
+              ( feat.status,
+                feat.lockStatus,
+                serialiseDbConfig feat.config,
+                tid,
+                featureName @cfg
+              )
+          )
+
+setFeatureLockStatusDyn ::
+  forall cfg r.
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  Tagged cfg LockStatus ->
+  Sem r ()
+setFeatureLockStatusDyn sing tid (Tagged lockStatus) = case featureSingIsFeature sing of
+  Dict -> do
+    let q :: PrepQuery W (LockStatus, TeamId, Text) ()
+        q = "update team_features_dyn set  lock_status = ? where team = ? and feature = ?"
+    embedClient $
+      retry x5 $
+        write q (params LocalQuorum (lockStatus, tid, featureName @cfg))
+
+getAllDbFeaturesDyn ::
+  ( Member (Embed IO) r,
+    Member (Error InternalError) r,
+    Member (Input ClientState) r
+  ) =>
+  TeamId ->
+  Sem r (AllFeatures DbFeature)
+getAllDbFeaturesDyn tid = do
+  let q :: PrepQuery R (Identity TeamId) (Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
+      q = "select feature, status, lock_status, config from team_features_dyn where team = ?"
+  rows <- embedClient $ retry x1 $ query q (params LocalQuorum (Identity tid))
+  let m = M.fromList $ do
+        (name, status, lockStatus, config) <- rows
+        pure (name, LockableFeaturePatch {..})
+  runFeatureParser $ mkAllFeatures m
+
+runFeatureParser ::
+  forall r a.
+  (Member (Error InternalError) r) =>
+  A.Parser a ->
+  Sem r a
+runFeatureParser p =
+  mapError (InternalErrorWithDescription . LT.pack)
+    . fromEither
+    $ A.parseEither (const p) ()
