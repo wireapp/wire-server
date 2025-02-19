@@ -141,7 +141,7 @@ spec:
 {{ toYaml .Values.resources | indent 12 }}
       initContainers:
       - name: cannon-configurator
-        image: alpine:3.18.2
+        image: alpine:3.21.3
         {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}

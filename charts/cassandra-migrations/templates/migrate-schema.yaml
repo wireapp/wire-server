@@ -166,7 +166,7 @@ spec:
 
       containers:
         - name: job-done
-          image: alpine:3.18.2
+          image: alpine:3.21.3
         {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
