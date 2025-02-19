@@ -29,3 +29,8 @@ testPatchAppLock table = do
               "inactivityTimeoutSecs" .= A.Number 240
             ]
       ]
+
+testPatchAppLockReadOnly :: (HasCallStack) => App ()
+testPatchAppLockReadOnly = do
+  checkPatchReadOnly OwnDomain "appLock"
+    $ object ["lockStatus" .= "locked"]

@@ -60,6 +60,15 @@ testMlsPatch table = do
                 ]
           ]
 
+testMlsReadOnly :: (HasCallStack) => APIAccess -> App ()
+testMlsReadOnly access =
+  runFeatureTestsReadOnly OwnDomain access
+    $ mkFeatureTests "mls"
+    & addUpdate mls2
+
+testPatchMlsReadOnly :: (HasCallStack) => App ()
+testPatchMlsReadOnly = checkPatchReadOnly OwnDomain "mls" mls2
+
 mls1 :: String -> Value
 mls1 uid =
   object

@@ -13,3 +13,13 @@ testConversationGuestLinks table access =
 
 testPatchGuestLinks :: (HasCallStack) => FeatureTable -> App ()
 testPatchGuestLinks table = checkPatchWithTable table OwnDomain "conversationGuestLinks" disabled
+
+testConversationGuestLinksReadOnly :: (HasCallStack) => APIAccess -> App ()
+testConversationGuestLinksReadOnly access =
+  runFeatureTestsReadOnly OwnDomain access
+    $ mkFeatureTests "conversationGuestLinks"
+    & addUpdate disabled
+    & addUpdate enabled
+
+testPatchGuestLinksReadOnly :: (HasCallStack) => App ()
+testPatchGuestLinksReadOnly = checkPatchReadOnly OwnDomain "conversationGuestLinks" disabled

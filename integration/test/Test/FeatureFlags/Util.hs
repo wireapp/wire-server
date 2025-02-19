@@ -369,3 +369,63 @@ updateMigrationState domain tid ft = case ft of
   FeatureTableLegacy -> pure ()
   FeatureTableDyn -> do
     Internal.setTeamFeatureMigrationState domain tid "completed" >>= assertSuccess
+
+runFeatureTestsReadOnly ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  APIAccess ->
+  FeatureTests ->
+  App ()
+runFeatureTestsReadOnly domain access ft = do
+  defFeature <- defAllFeatures %. ft.name
+  do
+    user <- randomUser domain def
+    bindResponse (Public.getFeatureConfigs user) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      feat <- resp.json %. ft.name
+      lockStatus <- feat %. "lockStatus"
+      expected <- setField "lockStatus" lockStatus defFeature
+      feat `shouldMatch` expected
+
+  (owner, tid, _) <- createTeam domain 0
+
+  checkFeature ft.name owner tid defFeature
+
+  -- unlock the feature
+  Internal.setTeamFeatureLockStatus owner tid ft.name "unlocked"
+
+  -- set migration state to in progress
+  void $ Internal.setTeamFeatureMigrationState domain tid "in_progress"
+  featureStatus <- Internal.getTeamFeature domain tid ft.name >>= getJSON 200
+
+  -- locking the feature should not work
+  Internal.setTeamFeatureLockStatusResponse owner tid ft.name "locked" `bindResponse` assertMigrationInProgress
+
+  -- updates do not work
+  for_ ft.updates $ \u -> do
+    setFeature access owner tid ft.name u `bindResponse` assertMigrationInProgress
+
+  checkFeature ft.name owner tid featureStatus
+
+assertMigrationInProgress :: (HasCallStack) => Response -> App ()
+assertMigrationInProgress res = do
+  res.status `shouldMatchInt` 500
+  res.json %. "label" `shouldMatch` "internal-error"
+  res.json %. "message" `shouldMatch` "migration in progress"
+
+checkPatchReadOnly ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  Value ->
+  App ()
+checkPatchReadOnly domain featureName patch = do
+  (owner, tid, _) <- createTeam domain 0
+  void $ Internal.setTeamFeatureMigrationState domain tid "in_progress"
+  defFeature <- defAllFeatures %. featureName
+
+  checkFeature featureName owner tid defFeature
+  Internal.patchTeamFeature domain tid featureName patch
+    `bindResponse` assertMigrationInProgress
+
+  checkFeature featureName owner tid defFeature
