@@ -218,8 +218,19 @@ checkPatch ::
   String ->
   Value ->
   App ()
-checkPatch domain featureName patch = do
+checkPatch = checkPatchWithTable FeatureTableLegacy
+
+checkPatchWithTable ::
+  (HasCallStack, MakesValue domain) =>
+  FeatureTable ->
+  domain ->
+  String ->
+  Value ->
+  App ()
+checkPatchWithTable table domain featureName patch = do
   (owner, tid, _) <- createTeam domain 0
+  updateMigrationState domain tid table
+
   defFeature <- defAllFeatures %. featureName
 
   let valueOrDefault :: String -> App Value
@@ -267,11 +278,12 @@ data FeatureTests = FeatureTests
     -- payload)
     updates :: [Value],
     invalidUpdates :: [Value],
-    owner :: Maybe Value
+    owner :: Maybe Value,
+    table :: FeatureTable
   }
 
 mkFeatureTests :: String -> FeatureTests
-mkFeatureTests name = FeatureTests name [] [] Nothing
+mkFeatureTests name = FeatureTests name [] [] Nothing FeatureTableLegacy
 
 addUpdate :: Value -> FeatureTests -> FeatureTests
 addUpdate up ft = ft {updates = ft.updates <> [up]}
@@ -283,6 +295,9 @@ setOwner :: (MakesValue user) => user -> FeatureTests -> App FeatureTests
 setOwner owner ft = do
   x <- make owner
   pure ft {owner = Just x}
+
+setTable :: FeatureTable -> FeatureTests -> FeatureTests
+setTable table ft = ft {table = table}
 
 runFeatureTests ::
   (HasCallStack, MakesValue domain) =>

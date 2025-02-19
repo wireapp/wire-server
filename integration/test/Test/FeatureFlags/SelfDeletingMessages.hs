@@ -13,23 +13,24 @@ feature ps timeout =
            ]
     )
 
-testSelfDeletingMessages :: (HasCallStack) => APIAccess -> App ()
-testSelfDeletingMessages access =
+testSelfDeletingMessages :: (HasCallStack) => FeatureTable -> APIAccess -> App ()
+testSelfDeletingMessages table access =
   mkFeatureTests "selfDeletingMessages"
     & addUpdate (feature ["status" .= "disabled"] (0 :: Int))
     & addUpdate (feature ["status" .= "enabled"] (30 :: Int))
     & addInvalidUpdate (feature ["status" .= "enabled"] "")
+    & setTable table
     & runFeatureTests OwnDomain access
 
-testPatchSelfDeletingMessages :: (HasCallStack) => App ()
-testPatchSelfDeletingMessages = do
-  checkPatch OwnDomain "selfDeletingMessages"
+testPatchSelfDeletingMessages :: (HasCallStack) => FeatureTable -> App ()
+testPatchSelfDeletingMessages table = do
+  checkPatchWithTable table OwnDomain "selfDeletingMessages"
     $ object ["lockStatus" .= "locked"]
-  checkPatch OwnDomain "selfDeletingMessages"
+  checkPatchWithTable table OwnDomain "selfDeletingMessages"
     $ object ["status" .= "disabled"]
-  checkPatch OwnDomain "selfDeletingMessages"
+  checkPatchWithTable table OwnDomain "selfDeletingMessages"
     $ object ["lockStatus" .= "locked", "status" .= "disabled"]
-  checkPatch OwnDomain "selfDeletingMessages"
+  checkPatchWithTable table OwnDomain "selfDeletingMessages"
     $ object ["lockStatus" .= "unlocked", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 30]]
-  checkPatch OwnDomain "selfDeletingMessages"
+  checkPatchWithTable table OwnDomain "selfDeletingMessages"
     $ object ["config" .= object ["enforcedTimeoutSeconds" .= A.Number 60]]
