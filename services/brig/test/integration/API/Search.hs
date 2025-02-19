@@ -789,11 +789,11 @@ withESProxy ::
   m a
 withESProxy lg opts migrationIndexName f = do
   indexName <- ES.IndexName <$> randomHandle
-  liftIO $ createCommand lg opts indexName migrationIndexName
+  liftIO $ createEsIndexCommand lg opts indexName migrationIndexName
   withESProxyOnly [indexName] opts $ flip f indexName
 
-createCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
-createCommand logger opts newIndexName migrationIndexName =
+createEsIndexCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
+createEsIndexCommand logger opts newIndexName migrationIndexName =
   let esNewOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ newIndexName)
       replicas = 2
       shards = 2
@@ -877,7 +877,7 @@ optsForOldIndex opts migrationIndexName = do
 createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts -> ES.IndexName -> Text -> Value -> m ()
 createIndexWithMapping lg opts migrationIndexName name val = do
   let indexName = ES.IndexName name
-  liftIO $ createCommand lg opts indexName migrationIndexName
+  liftIO $ createEsIndexCommand lg opts indexName migrationIndexName
   mappingReply <- runBH opts $ ES.putNamedMapping indexName mappingName val
   unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
     liftIO $ assertFailure $ "failed to create mapping: " <> show name <> ", error: " <> show mappingReply
