@@ -44,9 +44,10 @@ testLimitedEventFanout = do
 
 -- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
 -- features are there.
-testAllFeatures :: (HasCallStack) => App ()
-testAllFeatures = do
+testAllFeatures :: (HasCallStack) => FeatureTable -> App ()
+testAllFeatures ft = do
   (_, tid, m : _) <- createTeam OwnDomain 2
+  updateMigrationState OwnDomain tid ft
   bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     defAllFeatures `shouldMatch` resp.json

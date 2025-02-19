@@ -35,7 +35,7 @@ migration =
     schema'
       [r| CREATE TABLE team_features_dyn (
             team   uuid,
-            feature ascii,
+            feature text,
             status int,
             lock_status int,
             config text,

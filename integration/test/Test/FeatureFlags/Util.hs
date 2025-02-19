@@ -345,3 +345,12 @@ runFeatureTests domain access ft = do
       setField "ttl" "unlimited"
         =<< setField "lockStatus" "unlocked" update
     checkFeature ft.name owner tid expected
+
+data FeatureTable = FeatureTableLegacy | FeatureTableDyn
+  deriving (Show, Eq, Generic)
+
+updateMigrationState :: (HasCallStack, MakesValue domain) => domain -> String -> FeatureTable -> App ()
+updateMigrationState domain tid ft = case ft of
+  FeatureTableLegacy -> pure ()
+  FeatureTableDyn -> do
+    Internal.setTeamFeatureMigrationState domain tid "completed" >>= assertSuccess

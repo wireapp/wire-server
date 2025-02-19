@@ -94,7 +94,7 @@ getMigrationState ::
   TeamId ->
   Sem r TeamFeatureMigrationState
 getMigrationState tid = embedClient $ do
-  fromMaybe def . join . fmap runIdentity <$> retry x1 (query1 cql (params LocalQuorum (Identity tid)))
+  fromMaybe def . (runIdentity =<<) <$> retry x1 (query1 cql (params LocalQuorum (Identity tid)))
   where
     cql :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureMigrationState))
     cql = "SELECT migration_state FROM team_features WHERE team_id = ?"
@@ -177,7 +177,7 @@ getDbFeatureDyn sing tid = case featureSingIsFeature sing of
   Dict -> do
     let q :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
         q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
-    (embedClient $ retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))) >>= \case
+    embedClient (retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))) >>= \case
       Nothing -> pure mempty
       Just (status, lockStatus, config) ->
         runFeatureParser . parseDbFeature $
