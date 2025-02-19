@@ -218,8 +218,20 @@ checkPatch ::
   String ->
   Value ->
   App ()
-checkPatch domain featureName patch = do
+checkPatch = checkPatchWithTable FeatureTableLegacy
+
+checkPatchWithTable ::
+  (HasCallStack, MakesValue domain) =>
+  FeatureTable ->
+  domain ->
+  String ->
+  Value ->
+  App ()
+checkPatchWithTable table domain featureName patch = do
   (owner, tid, _) <- createTeam domain 0
+  when (table == FeatureTableDynamic) $ do
+    Internal.setMigrationState domain tid "completed" >>= assertSuccess
+
   defFeature <- defAllFeatures %. featureName
 
   let valueOrDefault :: String -> App Value

@@ -103,6 +103,7 @@ type IFeatureAPI =
     :<|> Named
            "put-feature-migration-state"
            ( Summary "Manually set migration state (for testing)"
+               :> "i"
                :> "teams"
                :> Capture "team" TeamId
                :> "feature-migration-state"

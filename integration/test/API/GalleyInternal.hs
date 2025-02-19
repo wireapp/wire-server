@@ -136,3 +136,9 @@ getTeam :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 getTeam domain tid = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid]
   submit "GET" $ req
+
+setMigrationState :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> App Response
+setMigrationState domain team state = do
+  tid <- asString team
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "feature-migration-state"]
+  submit "PUT" $ req & addJSON state

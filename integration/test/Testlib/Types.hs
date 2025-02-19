@@ -364,6 +364,9 @@ instance Show AssertionFailure where
 instance Exception AssertionFailure where
   displayException (AssertionFailure _ _ _ msg) = msg
 
+data FeatureTable = FeatureTableLegacy | FeatureTableDynamic
+  deriving (Eq, Show, Generic)
+
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving newtype
     ( Functor,
