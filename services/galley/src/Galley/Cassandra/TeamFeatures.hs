@@ -69,8 +69,23 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
     getAllDbFeatures tid
-  TFS.GetMigrationState tid -> do
-    getMigrationState tid
+  TFS.SetMigrationState tid state -> do
+    logEffect "TeamFeatureStore.SetMigrationState"
+    setMigrationState tid state
+
+setMigrationState ::
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r
+  ) =>
+  TeamId ->
+  TeamFeatureMigrationState ->
+  Sem r ()
+setMigrationState tid state = embedClient $ do
+  retry x5 $
+    write cql (params LocalQuorum (state, tid))
+  where
+    cql :: PrepQuery W (TeamFeatureMigrationState, TeamId) ()
+    cql = "UPDATE team_features SET migration_state = ? WHERE team_id = ?"
 
 getMigrationState ::
   ( Member (Input ClientState) r,

@@ -1554,9 +1554,19 @@ mkAllFeatures m =
 data TeamFeatureMigrationState = MigrationNotStarted | MigrationInProgress | MigrationCompleted
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamFeatureMigrationState)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema TeamFeatureMigrationState)
 
 instance Default TeamFeatureMigrationState where
   def = MigrationNotStarted
+
+instance ToSchema TeamFeatureMigrationState where
+  schema =
+    enum @Text "TeamFeatureMigrationState" $
+      mconcat
+        [ element "not_started" MigrationNotStarted,
+          element "in_progress" MigrationInProgress,
+          element "completed" MigrationCompleted
+        ]
 
 instance Cass.Cql TeamFeatureMigrationState where
   ctype = Cass.Tagged Cass.IntColumn
