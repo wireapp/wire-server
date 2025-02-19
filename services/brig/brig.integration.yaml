@@ -17,8 +17,6 @@ elasticsearch:
   insecureSkipVerifyTls: false
   additionalCredentials: test/resources/elasticsearch-credentials.yaml
   additionalCaCert: test/resources/elasticsearch-ca.pem
-  # TODO: OpenSearch uses the same certificate as ElasticSearch. I don't know
-  # why it can be verified for the later, but not for the former.
   additionalInsecureSkipVerifyTls: false
 
 rabbitmq:
