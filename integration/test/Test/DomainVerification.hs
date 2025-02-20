@@ -66,23 +66,62 @@ testDomainVerificationOnPremFlow = do
     >>= assertStatus 400
 
   -- [customer admin] post config (happy flow)
-  updateDomainRedirect
-    OwnDomain
+  checkUpdateRedirectSuccessful
     domain
-    (Just ownershipToken)
+    ownershipToken
     (mkDomainRedirectBackend "https://wire.example.com")
-    >>= assertStatus 200
 
-  -- [customer user] pull the redirect config based on email
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("sven@" ++ domain)) \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "domain_redirect" `shouldMatch` "backend"
-    resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
+  -- idempotence
+  checkUpdateRedirectSuccessful
+    domain
+    ownershipToken
+    (mkDomainRedirectBackend "https://wire.example.com")
 
-  -- [customer user] using a registered emails should return `none`
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "domain_redirect" `shouldMatch` "none"
+  -- [customer admin] update the previously set backend url
+  checkUpdateRedirectSuccessful
+    domain
+    ownershipToken
+    (mkDomainRedirectBackend "https://wire2.example.com")
+
+  -- [customer admin] update to no-registration
+  checkUpdateRedirectSuccessful
+    domain
+    ownershipToken
+    (object ["domain_redirect" .= "no-registration"])
+
+  -- idempotence
+  checkUpdateRedirectSuccessful
+    domain
+    ownershipToken
+    (object ["domain_redirect" .= "no-registration"])
+
+  -- [customer admin] transition from no-registration back to backend
+  checkUpdateRedirectSuccessful
+    domain
+    ownershipToken
+    (mkDomainRedirectBackend "https://wire.example.com")
+  where
+    checkUpdateRedirectSuccessful :: (HasCallStack) => String -> String -> Value -> App ()
+    checkUpdateRedirectSuccessful domain token config = do
+      updateDomainRedirect
+        OwnDomain
+        domain
+        (Just token)
+        config
+        >>= assertStatus 200
+
+      bindResponse (getDomainRegistrationFromEmail OwnDomain ("sven@" ++ domain)) \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "domain_redirect" `shouldMatch` (config %. "domain_redirect")
+        lookupField resp.json "backend_url" `shouldMatch` (lookupField config "backend_url")
+
+      bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "domain_redirect" `shouldMatch` "none"
+        isBackend <- config %. "domain_redirect" >>= asString <&> (== "backend")
+        if isBackend
+          then resp.json %. "due_to_existing_account" `shouldMatch` True
+          else lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe String)
 
 testDomainVerificationWrongAuth :: (HasCallStack) => App ()
 testDomainVerificationWrongAuth = do
@@ -139,16 +178,12 @@ testDomainVerificationRemoveFailure = do
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
 
   -- [customer admin] try to remove entry
-  bindResponse
-    ( updateDomainRedirect
-        OwnDomain
-        domain
-        (Just setup.ownershipToken)
-        (object ["domain_redirect" .= "remove"])
-    )
-    $ \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (object ["domain_redirect" .= "remove"])
+    >>= assertSuccess
 
   -- check that it's still set to preauthorized
   bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
@@ -161,24 +196,13 @@ testDomainVerificationRemoveFailure = do
     (Just setup.ownershipToken)
     (object ["domain_redirect" .= "no-registration"])
     >>= assertStatus 200
+
   updateDomainRedirect
     OwnDomain
     domain
     (Just setup.ownershipToken)
     (object ["domain_redirect" .= "remove"])
     >>= assertStatus 200
-
-  -- removing again should fail
-  bindResponse
-    ( updateDomainRedirect
-        OwnDomain
-        domain
-        (Just setup.ownershipToken)
-        (object ["domain_redirect" .= "remove"])
-    )
-    $ \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
 testDomainVerificationLockedState :: (HasCallStack) => App ()
 testDomainVerificationLockedState = do
