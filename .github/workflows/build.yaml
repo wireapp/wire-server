@@ -22,16 +22,8 @@ jobs:
 
       - name: Clone wire-docs and build
         run: |
-          # Clone the wire-docs repo into a subdirectory
           git clone --branch main https://github.com/wireapp/wire-docs.git wire-docs
-
-          # Verify that the directory exists
-          ls -la
-
-          # (Perform any submodule modifications here as needed)
           cd wire-docs
-
-          cat .gitmodules
           
           CURRENT_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
 
@@ -45,9 +37,4 @@ jobs:
           sed -i "s|branch = clean-wire-server-docs|branch = ${CURRENT_BRANCH}|g" .gitmodules
           
           cat .gitmodules
-
-          # Optionally check the .gitmodules file in wire-docs
-          cat .gitmodules
-
-          # Run the build command
           make build
