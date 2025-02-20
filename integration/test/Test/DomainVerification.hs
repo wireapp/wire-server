@@ -504,3 +504,32 @@ testGetDomainRegistrationUserExists = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe String)
     resp.json %. "due_to_existing_account" `shouldMatch` True
+
+testSsoLoginNoEmailVerification :: (HasCallStack) => App ()
+testSsoLoginNoEmailVerification = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  emailDomain <- randomDomain
+  -- enable domain registration feature
+  assertSuccess =<< do
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
+
+  domain <- randomDomain
+  setup <- setupOwnershipToken OwnDomain domain
+  authorizeTeam owner domain setup.ownershipToken >>= assertSuccess
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+
+  updateTeamInvite owner domain (object ["team_invite" .= "not-allowed", "sso" .= idpId]) >>= assertSuccess
+
+  let email = "user@" <> emailDomain
+  loginWithSaml True tid email (idpId, idpMeta)
+  getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` email
+
+-- TODO: test same idp but different email domain needs activation
