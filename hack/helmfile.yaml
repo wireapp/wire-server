@@ -20,6 +20,10 @@ environments:
       - cassandraHost: cassandra-ephemeral
       - useK8ssandraSSL:
           enabled: false
+      - elasticsearch:
+          host: opensearch-cluster-master
+          additionalHost: elasticsearch-ephemeral
+          caSecretName: opensearch-ephemeral-certificate
   default-ssl:
     values:
       - ./helm_vars/common.yaml.gotmpl
@@ -28,6 +32,10 @@ environments:
       - cassandraHost: k8ssandra-cluster-datacenter-1-service
       - useK8ssandraSSL:
           enabled: true
+      - elasticsearch:
+          host: elasticsearch-ephemeral
+          additionalHost: opensearch-cluster-master
+          caSecretName: elasticsearch-ephemeral-certificate
   kind:
     values:
       - ./helm_vars/common.yaml.gotmpl
@@ -36,6 +44,10 @@ environments:
       - cassandraHost: cassandra-ephemeral
       - useK8ssandraSSL:
           enabled: false
+      - elasticsearch:
+          host: elasticsearch-ephemeral
+          additionalHost: opensearch-cluster-master
+          caSecretName: elasticsearch-ephemeral-certificate
   kind-ssl:
     values:
       - ./helm_vars/common.yaml.gotmpl
@@ -44,6 +56,10 @@ environments:
       - cassandraHost: k8ssandra-cluster-datacenter-1-service
       - useK8ssandraSSL:
           enabled: true
+      - elasticsearch:
+          host: elasticsearch-ephemeral
+          additionalHost: opensearch-cluster-master
+          caSecretName: elasticsearch-ephemeral-certificate
 ---
 repositories:
   - name: stable
@@ -57,6 +73,9 @@ repositories:
 
   - name: obeone
     url: 'https://charts.obeone.cloud'
+
+  - name: opensearch
+    url: 'https://opensearch-project.github.io/helm-charts/'
 
 releases:
   - name: 'fake-aws'
@@ -77,30 +96,89 @@ releases:
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
 
-  - name: 'databases-ephemeral'
+  - name: 'redis-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/databases-ephemeral'
+    chart: '../.local/charts/redis-ephemeral'
     values:
       - redis-ephemeral:
-          redis-ephemeral:
-            auth:
-              enabled: true
-              password: very-secure-redis-master-password
-            tls:
-              enabled: true
-              certificatesSecret: redis-certificate
-              certFilename: "tls.crt"
-              certKeyFilename: "tls.key"
-              certCAFilename: "ca.crt"
-              authClients: false
-        elasticsearch-ephemeral:
+          fullnameOverride: databases-ephemeral-redis-ephemeral
+          auth:
+            enabled: true
+            password: very-secure-redis-master-password
           tls:
             enabled: true
-            issuerRef:
-              name: elasticsearch
-              kind: Issuer
+            certificatesSecret: redis-certificate
+            certFilename: "tls.crt"
+            certKeyFilename: "tls.key"
+            certCAFilename: "ca.crt"
+            authClients: false
     needs:
       - certs
+
+  - name: 'cassandra-ephemeral'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/cassandra-ephemeral'
+
+  - name: 'elasticsearch-ephemeral'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/elasticsearch-ephemeral'
+    values:
+      - tls:
+          enabled: true
+          issuerRef:
+            name: elasticsearch
+            kind: Issuer
+
+  - name: 'elasticsearch-ephemeral'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: '../.local/charts/elasticsearch-ephemeral'
+    values:
+      - tls:
+          enabled: true
+          issuerRef:
+            name: elasticsearch
+            kind: Issuer
+
+  - name: 'redis-ephemeral'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: '../.local/charts/redis-ephemeral'
+    values:
+      - redis-ephemeral:
+          fullnameOverride: databases-ephemeral-redis-ephemeral
+          auth:
+            enabled: true
+            password: very-secure-redis-master-password
+          tls:
+            enabled: true
+            certificatesSecret: redis-certificate
+            certFilename: "tls.crt"
+            certKeyFilename: "tls.key"
+            certCAFilename: "ca.crt"
+            authClients: false
+    needs:
+      - certs
+
+  - name: 'cassandra-ephemeral'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: '../.local/charts/cassandra-ephemeral'
+
+  - name: 'opensearch-ephemeral'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: 'opensearch/opensearch'
+    # The 1.x.x and 2.x.x chart versions belong to the OpenSearch versions 1.x.x
+    # and 2.x.x respectively. I.e. both strains are actively maintained.
+    version: "1.31.0"
+    values:
+      - './helm_vars/opensearch/values.yaml.gotmpl'
+
+  - name: 'opensearch-ephemeral-2'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: 'opensearch/opensearch'
+    # The 1.x.x and 2.x.x chart versions belong to the OpenSearch versions 1.x.x
+    # and 2.x.x respectively. I.e. both strains are actively maintained.
+    version: "1.31.0"
+    values:
+      - './helm_vars/opensearch/values.yaml.gotmpl'
 
   # Required for testing redis migration
   - name: 'redis-ephemeral-2'
@@ -118,31 +196,6 @@ releases:
     chart: bedag/raw
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
-
-  - name: 'databases-ephemeral'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/databases-ephemeral'
-    values:
-      - redis-ephemeral:
-          redis-ephemeral:
-            auth:
-              enabled: true
-              password: very-secure-redis-master-password
-            tls:
-              enabled: true
-              certificatesSecret: redis-certificate
-              certFilename: "tls.crt"
-              certKeyFilename: "tls.key"
-              certCAFilename: "ca.crt"
-              authClients: false
-        elasticsearch-ephemeral:
-          tls:
-            enabled: true
-            issuerRef:
-              name: elasticsearch
-              kind: Issuer
-    needs:
-      - certs
 
   - name: k8ssandra-test-cluster
     chart: '../.local/charts/k8ssandra-test-cluster'
@@ -235,7 +288,8 @@ releases:
       - name: brig.config.wireServerEnterprise.enabled
         value: true
     needs:
-      - 'databases-ephemeral'
+      - 'cassandra-ephemeral'
+      - 'redis-ephemeral'
 
   - name: 'wire-server'
     namespace: '{{ .Values.namespace2 }}'
@@ -251,7 +305,8 @@ releases:
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
     needs:
-      - 'databases-ephemeral'
+      - 'cassandra-ephemeral'
+      - 'redis-ephemeral'
 
   - name: wire-server-enterprise
     namespace: '{{ .Values.namespace1 }}'
@@ -270,4 +325,3 @@ releases:
     chart: obeone/technitium-dnsserver
     values:
       - './helm_vars/technitium/values.yaml.gotmpl'
-

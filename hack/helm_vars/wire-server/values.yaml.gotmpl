@@ -28,10 +28,10 @@ elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     scheme: https
-    host: elasticsearch-ephemeral
+    host: {{ .Values.elasticsearch.host }}
     index: directory_test
     tlsCaSecretRef:
-      name: "elasticsearch-ephemeral-certificate"
+      name: {{ .Values.elasticsearch.caSecretName }}
       key: "ca.crt"
   cassandra:
     host: {{ .Values.cassandraHost }}
@@ -68,13 +68,13 @@ brig:
     {{- end }}
     elasticsearch:
       scheme: https
-      host: elasticsearch-ephemeral
+      host: {{ .Values.elasticsearch.host }}
       index: directory_test
       tlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"
       additionalTlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"
     rabbitmq:
       port: 5671
@@ -153,6 +153,9 @@ brig:
       general:
         emailSender: backend-integrationk8s@wire.com
         smsSender: dummy
+  test:
+    elasticsearch:
+      additionalHost: {{ .Values.elasticsearch.additionalHost }}
   secrets:
     # these secrets are only used during integration tests and should therefore be safe to include unencrypted in git.
     # Normally these would live in a separately-encrypted secrets.yaml file and incorporated using the helm secrets plugin (wrapper around mozilla sops)
@@ -585,8 +588,9 @@ integration:
         key: ca.crt
       {{- end }}
     elasticsearch:
+      host: {{ .Values.elasticsearch.host }}
       tlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"
     redis:
       tlsCaSecretRef:

@@ -232,6 +232,51 @@ services:
     networks:
       - demo_wire
 
+  opensearch:
+    container_name: opensearch
+    image: opensearchproject/opensearch:1.3.20
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "127.0.0.1:9201:9200"
+      - "127.0.0.1:9301:9300"
+    environment:
+      - "bootstrap.system_call_filter=false"
+      - "JVM_OPTIONS_ES=-Xmx512m -Xms512m"
+      - "discovery.type=single-node"
+
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=Ch4ng3m3Secr3t!"
+    volumes:
+      - ./docker/elasticsearch-cert.pem:/usr/share/opensearch/config/certs/tls.crt
+      - ./docker/elasticsearch-key.pem:/usr/share/opensearch/config/certs/tls.key
+      - ./docker/elasticsearch-ca.pem:/usr/share/opensearch/config/certs/ca.crt
+      - ./docker/opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+      - ./docker/opensearch/opensearch-security/config.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/config.yml
+      - ./docker/opensearch/opensearch-security/internal_users.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/internal_users.yml
+      - ./docker/opensearch/opensearch-security/roles_mapping.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/roles_mapping.yml
+      - ./docker/opensearch/opensearch-security/allowlist.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/allowlist.yml
+      - ./docker/opensearch/opensearch-security/roles.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/roles.yml
+      - ./docker/opensearch/opensearch-security/nodes_dn.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/nodes_dn.yml
+      - ./docker/opensearch/opensearch-security/action_groups.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/action_groups.yml
+      - ./docker/opensearch/opensearch-security/tenants.yml:/usr/share/opensearch/plugins/opensearch-security/securityconfig/tenants.yml
+    networks:
+      - demo_wire
+
+  opensearch-dashboard:
+    image: opensearchproject/opensearch-dashboards:1
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    expose:
+      - "5601"
+    volumes:
+      - ./docker/opensearch/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+    networks:
+      - demo_wire
+
   cassandra:
     container_name: demo_wire_cassandra
     #image: cassandra:3.11.2

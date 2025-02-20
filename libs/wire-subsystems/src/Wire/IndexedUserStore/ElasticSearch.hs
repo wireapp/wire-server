@@ -166,8 +166,8 @@ bulkUpsertImpl cfg docs = do
             [ "index"
                 .= object
                   [ "_id" .= docId,
-                    "_version_type" .= versionType,
-                    "_version" .= version
+                    "version_type" .= versionType,
+                    "version" .= version
                   ]
             ]
 
@@ -264,7 +264,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
           mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
           results = mapMaybe ES.hitSource hits
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = ES.hitsTotalValue . ES.hitsTotal . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -293,7 +293,7 @@ queryIndex cfg s (IndexQuery q f _) = do
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = ES.hitsTotalValue . ES.hitsTotal . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,

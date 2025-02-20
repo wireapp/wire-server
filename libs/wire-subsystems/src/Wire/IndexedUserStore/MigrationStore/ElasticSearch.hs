@@ -12,20 +12,20 @@ import Wire.IndexedUserStore.MigrationStore
 import Wire.Sem.Logger qualified as Log
 import Wire.UserSearch.Migration
 
-interpretIndexedUserMigrationStoreES :: (Member (Embed IO) r, Member (Error MigrationException) r, Member TinyLog r) => ES.BHEnv -> InterpreterFor IndexedUserMigrationStore r
-interpretIndexedUserMigrationStoreES env = interpret $ \case
-  EnsureMigrationIndex -> ensureMigrationIndexImpl env
-  GetLatestMigrationVersion -> getLatestMigrationVersionImpl env
-  PersistMigrationVersion v -> persistMigrationVersionImpl env v
+interpretIndexedUserMigrationStoreES :: (Member (Embed IO) r, Member (Error MigrationException) r, Member TinyLog r) => ES.BHEnv -> ES.IndexName -> InterpreterFor IndexedUserMigrationStore r
+interpretIndexedUserMigrationStoreES env migrationIndexName = interpret $ \case
+  EnsureMigrationIndex -> ensureMigrationIndexImpl env migrationIndexName
+  GetLatestMigrationVersion -> getLatestMigrationVersionImpl env migrationIndexName
+  PersistMigrationVersion v -> persistMigrationVersionImpl env v migrationIndexName
 
-ensureMigrationIndexImpl :: (Member TinyLog r, Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> Sem r ()
-ensureMigrationIndexImpl env = do
+ensureMigrationIndexImpl :: (Member TinyLog r, Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> ES.IndexName -> Sem r ()
+ensureMigrationIndexImpl env migrationIndexName = do
   unlessM (ES.runBH env $ ES.indexExists migrationIndexName) $ do
     Log.info $
       Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
     ES.runBH env (ES.createIndexWith [] 1 migrationIndexName)
       >>= throwIfNotCreated CreateMigrationIndexFailed
-  ES.runBH env (ES.putMapping migrationIndexName migrationMappingName migrationIndexMapping)
+  ES.runBH env (ES.putNamedMapping migrationIndexName migrationMappingName migrationIndexMapping)
     >>= throwIfNotCreated PutMappingFailed
   where
     throwIfNotCreated mkErr response =
@@ -33,8 +33,8 @@ ensureMigrationIndexImpl env = do
         throw $
           mkErr (show response)
 
-getLatestMigrationVersionImpl :: (Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> Sem r MigrationVersion
-getLatestMigrationVersionImpl env = do
+getLatestMigrationVersionImpl :: (Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> ES.IndexName -> Sem r MigrationVersion
+getLatestMigrationVersionImpl env migrationIndexName = do
   reply <- ES.runBH env $ ES.searchByIndex migrationIndexName (ES.mkSearch Nothing Nothing)
   resp <- liftIO $ ES.parseEsResponse reply
   result <- either (throw . FetchMigrationVersionsFailed . show) pure resp
@@ -47,8 +47,8 @@ getLatestMigrationVersionImpl env = do
         then throw $ VersionSourceMissing result
         else pure $ maximum $ catMaybes vs
 
-persistMigrationVersionImpl :: (Member (Embed IO) r, Member TinyLog r, Member (Error MigrationException) r) => ES.BHEnv -> MigrationVersion -> Sem r ()
-persistMigrationVersionImpl env v = do
+persistMigrationVersionImpl :: (Member (Embed IO) r, Member TinyLog r, Member (Error MigrationException) r) => ES.BHEnv -> MigrationVersion -> ES.IndexName -> Sem r ()
+persistMigrationVersionImpl env v migrationIndexName = do
   let docId = ES.DocId . Text.pack . show $ migrationVersion v
   persistResponse <- ES.runBH env $ ES.indexDocument migrationIndexName migrationMappingName ES.defaultIndexDocumentSettings v docId
   if ES.isCreated persistResponse
@@ -58,8 +58,8 @@ persistMigrationVersionImpl env v = do
           . Log.field "migrationVersion" v
     else throw $ PersistVersionFailed v $ show persistResponse
 
-migrationIndexName :: ES.IndexName
-migrationIndexName = ES.IndexName "wire_brig_migrations"
+defaultMigrationIndexName :: ES.IndexName
+defaultMigrationIndexName = ES.IndexName "wire_brig_migrations"
 
 migrationMappingName :: ES.MappingName
 migrationMappingName = ES.MappingName "wire_brig_migrations"
