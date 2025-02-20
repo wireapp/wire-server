@@ -156,6 +156,85 @@ runUserSubsystem authInterpreter = interpret $
       internalFindTeamInvitationImpl mEmailKey code
     GetUserExportData uid -> getUserExportDataImpl uid
     RemoveEmailEither luid -> removeEmailEitherImpl luid
+    CreateUser newUser -> createUserImpl newUser
+
+createUserImpl :: NewUserPublic -> Sem r RegisterSuccess
+createUserImpl (NewUserPublic new) = do
+  checkRestrictedUserCreation new
+  -- for_ (Public.newUserEmail new) $
+  --   mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
+
+  -- result <- API.createUser new
+  -- let acc = createdAccount result
+
+  -- let eac = createdEmailActivation result
+  -- let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
+  -- let newUserLabel = Public.newUserLabel new
+  -- let newUserTeam = Public.newUserTeam new
+
+  -- let context =
+  --       let invitationCode = case Public.newUserTeam new of
+  --             (Just (Public.NewTeamMember code)) -> Just code
+  --             _ -> Nothing
+  --        in ( logFunction "Brig.API.Public.createUser"
+  --               . logUser (Public.userId acc)
+  --               . maybe id logHandle (Public.userHandle acc)
+  --               . maybe id logTeam (Public.userTeam acc)
+  --               . maybe id logEmail (Public.userEmail acc)
+  --               . maybe id logInvitationCode invitationCode
+  --           )
+  -- lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
+
+  -- let Public.User {userLocale, userDisplayName} = acc
+  --     userEmail = Public.userEmail acc
+  --     userId = Public.userId acc
+  -- lift $ do
+  --   for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
+  --     sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
+  --   for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
+  --     sendWelcomeEmail e ct ut (Just userLocale)
+  -- cok <-
+  --   Auth.toWebCookie =<< case userStatus acc of
+  --     Public.Ephemeral ->
+  --       lift . wrapHttpClient $
+  --         Auth.newCookie @ZAuth.User userId Nothing Public.SessionCookie newUserLabel
+  --     _ ->
+  --       lift . wrapHttpClient $
+  --         Auth.newCookie @ZAuth.User userId Nothing Public.PersistentCookie newUserLabel
+  -- -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
+  -- pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
+  todo
+
+checkRestrictedUserCreation :: NewUser -> Sem r ()
+checkRestrictedUserCreation new = do
+  restrictPlease <- fromMaybe False <$> asks (.settings.restrictUserCreation)
+  when
+    ( restrictPlease
+        && not (isNewUserTeamMember new)
+        && not (isNewUserEphemeral new)
+    )
+    $ throw
+    $ UserSubsystemRegisterError todo
+
+-- where
+--   sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
+--   sendActivationEmail email name (key, code) locale mTeamUser
+--     | Just teamUser <- mTeamUser,
+--       Public.NewTeamCreator creator <- teamUser,
+--       let Public.BindingNewTeamUser team _ = creator =
+--         liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team.newTeamName)
+--     | otherwise =
+--         liftSem $ sendActivationMail email name key code locale
+
+--   sendWelcomeEmail :: (Member EmailSending r) => Public.EmailAddress -> Public.CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
+--   -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
+--   sendWelcomeEmail e (Public.CreateUserTeam t n) newUser l = case newUser of
+--     Public.NewTeamCreator _ ->
+--       pure ()
+--     Public.NewTeamMember _ ->
+--       Team.sendMemberWelcomeMail e t n l
+--     Public.NewTeamMemberSSO _ ->
+--       Team.sendMemberWelcomeMail e t n l
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do

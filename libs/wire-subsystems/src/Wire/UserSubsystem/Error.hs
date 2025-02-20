@@ -6,6 +6,7 @@ import Network.HTTP.Types (status400, status403, status404)
 import Network.Wai.Utilities qualified as Wai
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.API.User
 import Wire.Arbitrary
 import Wire.Error
 
@@ -35,6 +36,7 @@ data UserSubsystemError
   | UserSubsystemChangeBlocklistedEmail
   | UserSubsystemEmailExists
   | UserSubsystemGuardFailed GuardFailure
+  | UserSubsystemRegisterError RegisterError
   deriving (Eq, Show)
 
 data GuardFailure
@@ -81,5 +83,6 @@ userSubsystemErrorToHttpError =
             TeamInviteSetToNotAllowed -> e403 "`teamInvite` is set to `not-allowed`"
             TeamInviteRestrictedToOtherTeam -> e403 "`teamInvite` is restricted to another team."
             InvalidDomain parseErr -> e400 parseErr
+    UserSubsystemRegisterError _ -> todo
 
 instance Exception UserSubsystemError

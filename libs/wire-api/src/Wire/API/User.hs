@@ -828,7 +828,7 @@ data RegisterError
   | RegisterErrorBlacklistedEmail
   | RegisterErrorTooManyTeamMembers
   | RegisterErrorUserCreationRestricted
-  deriving (Show, Generic)
+  deriving (Show, Eq, Generic)
   deriving (AsUnion RegisterErrorResponses) via GenericAsUnion RegisterErrorResponses RegisterError
 
 instance GSOP.Generic RegisterError
