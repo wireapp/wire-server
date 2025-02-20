@@ -42,6 +42,7 @@ module Spar.Intra.Brig
     getStatusMaybe,
     setStatus,
     getDefaultUserLocale,
+    getDomainRegistration,
   )
 where
 
@@ -63,6 +64,7 @@ import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
 import Wire.API.Locale
+import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
@@ -429,4 +431,15 @@ getDefaultUserLocale = do
   resp <- call $ method GET . paths ["/i/users/locale"]
   case statusCode resp of
     200 -> luLocale <$> parseResponse @LocaleUpdate "brig" resp
+    _ -> rethrow "brig" resp
+
+getDomainRegistration :: (HasCallStack, MonadSparToBrig m) => EmailAddress -> m DomainRedirectResponse
+getDomainRegistration email = do
+  resp <-
+    call $
+      method POST
+        . paths ["/get-domain-registration"]
+        . json (GetDomainRegistrationRequest email)
+  case statusCode resp of
+    200 -> parseResponse @DomainRedirectResponse "brig" resp
     _ -> rethrow "brig" resp
