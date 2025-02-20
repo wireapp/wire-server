@@ -117,7 +117,6 @@ type ProviderAPI =
                :> "provider"
                :> "password-reset"
                :> "complete"
-               :> Header' '[Required, Strict] "X-Forwarded-For" IpAddr
                :> ReqBody '[JSON] CompletePasswordReset
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )

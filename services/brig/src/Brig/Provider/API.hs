@@ -338,10 +338,9 @@ completePasswordReset ::
     Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
-  IpAddr ->
   Public.CompletePasswordReset ->
   (Handler r) ()
-completePasswordReset ip (Public.CompletePasswordReset key value newpwd) = do
+completePasswordReset (Public.CompletePasswordReset key value newpwd) = do
   guardSecondFactorDisabled Nothing
   code <- (lift . liftSem $ verifyCode key VerificationCode.PasswordReset value) >>= maybeInvalidCode
   case Id <$> code.codeAccount of
@@ -349,7 +348,7 @@ completePasswordReset ip (Public.CompletePasswordReset key value newpwd) = do
     Just pid -> do
       whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid newpwd)) do
         throwStd (errorToWai @E.ResetPasswordMustDiffer)
-      hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitIp ip) newpwd
+      hashedPwd <- lift . liftSem $ HashPassword.hashPassword6 (RateLimitProvider pid) newpwd
       wrapClientE $ DB.updateAccountPassword pid hashedPwd
       lift . liftSem $ deleteCode key VerificationCode.PasswordReset
 
