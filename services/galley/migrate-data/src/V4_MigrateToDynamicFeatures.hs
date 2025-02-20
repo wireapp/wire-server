@@ -317,10 +317,10 @@ writeFeatures
         { status = self_deleting_messages_status,
           lockStatus = self_deleting_messages_lock_status,
           config =
-            DbConfig
+            Just
+              . DbConfig
               . schemaToJSON
-              . SelfDeletingMessagesConfig
-              <$> self_deleting_messages_ttl
+              $ SelfDeletingMessagesConfig @Covered self_deleting_messages_ttl
         }
 
     writeFeature @SndFactorPasswordChallengeConfig team_id $

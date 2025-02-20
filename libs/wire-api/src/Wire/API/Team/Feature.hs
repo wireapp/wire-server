@@ -57,7 +57,8 @@ module Wire.API.Team.Feature
     LegalholdConfig (..),
     SSOConfig (..),
     SearchVisibilityAvailableConfig (..),
-    SelfDeletingMessagesConfig (..),
+    SelfDeletingMessagesConfigB (..),
+    SelfDeletingMessagesConfig,
     ValidateSAMLEmailsConfig (..),
     DigitalSignaturesConfig (..),
     ConferenceCallingConfigB (..),
@@ -949,23 +950,37 @@ instance ToSchema FileSharingConfig where
 ----------------------------------------------------------------------
 -- SelfDeletingMessagesConfig
 
-data SelfDeletingMessagesConfig = SelfDeletingMessagesConfig
-  { sdmEnforcedTimeoutSeconds :: Int32
+data SelfDeletingMessagesConfigB t f = SelfDeletingMessagesConfig
+  { sdmEnforcedTimeoutSeconds :: Wear t f Int32
   }
-  deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SelfDeletingMessagesConfig)
-  deriving (Arbitrary) via (GenericUniform SelfDeletingMessagesConfig)
-  deriving (RenderableSymbol) via (RenderableTypeName SelfDeletingMessagesConfig)
-  deriving (ParseDbFeature) via (SimpleFeature SelfDeletingMessagesConfig)
+  deriving (BareB, Generic)
+
+instance FunctorB (SelfDeletingMessagesConfigB Covered)
+
+instance ApplicativeB (SelfDeletingMessagesConfigB Covered)
+
+type SelfDeletingMessagesConfig = SelfDeletingMessagesConfigB Bare Identity
+
+deriving instance (Eq SelfDeletingMessagesConfig)
+
+deriving instance (Show SelfDeletingMessagesConfig)
+
+deriving via (GenericUniform SelfDeletingMessagesConfig) instance (Arbitrary SelfDeletingMessagesConfig)
+
+deriving via (RenderableTypeName SelfDeletingMessagesConfig) instance (RenderableSymbol SelfDeletingMessagesConfig)
+
+deriving via (BarbieFeature SelfDeletingMessagesConfigB) instance (ParseDbFeature SelfDeletingMessagesConfig)
+
+deriving via (BarbieFeature SelfDeletingMessagesConfigB) instance (ToSchema SelfDeletingMessagesConfig)
 
 instance Default SelfDeletingMessagesConfig where
   def = SelfDeletingMessagesConfig 0
 
-instance ToSchema SelfDeletingMessagesConfig where
+instance (FieldFunctor SwaggerDoc f) => ToSchema (SelfDeletingMessagesConfigB Covered f) where
   schema =
     object "SelfDeletingMessagesConfig" $
       SelfDeletingMessagesConfig
-        <$> sdmEnforcedTimeoutSeconds .= field "enforcedTimeoutSeconds" schema
+        <$> sdmEnforcedTimeoutSeconds .= extractF (fieldF "enforcedTimeoutSeconds" schema)
 
 instance Default (LockableFeature SelfDeletingMessagesConfig) where
   def = defUnlockedFeature
@@ -1504,16 +1519,6 @@ instance (GSOP.IsProductType cfg '[]) => ParseDbFeature (TrivialFeature cfg) whe
 
 instance (GSOP.IsProductType cfg '[]) => Default (TrivialFeature cfg) where
   def = TrivialFeature (GSOP.productTypeTo Nil)
-
-newtype SimpleFeature cfg = SimpleFeature cfg
-
-instance (GSOP.IsWrappedType cfg a, ToSchema cfg) => ParseDbFeature (SimpleFeature cfg) where
-  parseDbConfig (DbConfig v) = do
-    config <- schemaParseJSON v
-    pure . const $ SimpleFeature config
-
-instance (GSOP.IsWrappedType cfg a, Default a) => Default (SimpleFeature cfg) where
-  def = SimpleFeature (GSOP.wrappedTypeTo def)
 
 newtype BarbieFeature b = BarbieFeature {unBarbieFeature :: b Bare Identity}
 
