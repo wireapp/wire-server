@@ -509,6 +509,7 @@ testSsoLoginNoEmailVerification :: (HasCallStack) => App ()
 testSsoLoginNoEmailVerification = do
   (owner, tid, _) <- createTeam OwnDomain 1
   emailDomain <- randomDomain
+
   -- enable domain registration feature
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
@@ -525,7 +526,7 @@ testSsoLoginNoEmailVerification = do
   updateTeamInvite owner domain (object ["team_invite" .= "not-allowed", "sso" .= idpId]) >>= assertSuccess
 
   let email = "user@" <> emailDomain
-  loginWithSaml True tid email (idpId, idpMeta)
+  void $ loginWithSaml True tid email (idpId, idpMeta)
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     user <- res.json >>= asList >>= assertOne
