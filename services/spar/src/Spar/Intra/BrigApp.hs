@@ -32,6 +32,7 @@ module Spar.Intra.BrigApp
     authorizeScimTokenManagement,
     parseResponse,
     giveDefaultHandle,
+    emailDomainIsRegisteredForSSO,
 
     -- * re-exports, mostly for historical reasons and lazyness
     emailFromSAML,
@@ -40,6 +41,7 @@ where
 
 import Brig.Types.Intra
 import Control.Lens
+import Control.Lens.Extras
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
@@ -59,6 +61,8 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Wire.API.EnterpriseLogin
+import Wire.API.Routes.Public.Brig.DomainVerification
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Wire.API.User
 import Wire.API.User.Scim (ValidScimId (..))
@@ -188,3 +192,8 @@ giveDefaultHandle usr = case userHandle usr of
         uid = userId usr
     BrigAccess.setHandle uid handle
     pure handle
+
+emailDomainIsRegisteredForSSO :: (HasCallStack, Member BrigAccess r) => EmailAddress -> Sem r Bool
+emailDomainIsRegisteredForSSO email = do
+  response <- BrigAccess.getDomainRegistration email
+  pure $ is _SSO response.redirect
