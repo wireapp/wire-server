@@ -225,8 +225,11 @@ writeFeatures
         { status = enforce_file_download_location_status,
           lockStatus = enforce_file_download_location_lock_status,
           config =
-            Just . DbConfig . schemaToJSON . EnforceFileDownloadLocationConfig $
-              enforce_file_download_location
+            Just . DbConfig . schemaToJSON . EnforceFileDownloadLocationConfig @Covered $
+              case enforce_file_download_location of
+                Nothing -> Nothing
+                Just "" -> Just Nothing
+                Just loc -> Just (Just loc)
         }
 
     writeFeature @ExposeInvitationURLsToTeamAdminConfig team_id $

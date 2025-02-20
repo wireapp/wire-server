@@ -78,7 +78,8 @@ module Wire.API.Team.Feature
     MlsE2EIdConfig,
     MlsMigrationConfigB (..),
     MlsMigrationConfig,
-    EnforceFileDownloadLocationConfig (..),
+    EnforceFileDownloadLocationConfigB (..),
+    EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
     Features,
@@ -1221,21 +1222,38 @@ instance IsFeatureConfig MlsMigrationConfig where
 ----------------------------------------------------------------------
 -- EnforceFileDownloadLocationConfig
 
-data EnforceFileDownloadLocationConfig = EnforceFileDownloadLocationConfig
-  { enforcedDownloadLocation :: Maybe Text
+data EnforceFileDownloadLocationConfigB t f = EnforceFileDownloadLocationConfig
+  { enforcedDownloadLocation :: Wear t f (Maybe Text)
   }
-  deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (RenderableSymbol) via (RenderableTypeName EnforceFileDownloadLocationConfig)
-  deriving (Default, ParseDbFeature) via (SimpleFeature EnforceFileDownloadLocationConfig)
+  deriving (BareB, Generic)
+
+deriving instance FunctorB (EnforceFileDownloadLocationConfigB Covered)
+
+deriving instance ApplicativeB (EnforceFileDownloadLocationConfigB Covered)
+
+type EnforceFileDownloadLocationConfig = EnforceFileDownloadLocationConfigB Bare Identity
+
+deriving instance (Eq EnforceFileDownloadLocationConfig)
+
+deriving instance (Show EnforceFileDownloadLocationConfig)
+
+deriving via (RenderableTypeName EnforceFileDownloadLocationConfig) instance (RenderableSymbol EnforceFileDownloadLocationConfig)
+
+deriving via (BarbieFeature EnforceFileDownloadLocationConfigB) instance (ToSchema EnforceFileDownloadLocationConfig)
+
+deriving via (BarbieFeature EnforceFileDownloadLocationConfigB) instance (ParseDbFeature EnforceFileDownloadLocationConfig)
+
+instance Default EnforceFileDownloadLocationConfig where
+  def = EnforceFileDownloadLocationConfig Nothing
 
 instance Arbitrary EnforceFileDownloadLocationConfig where
   arbitrary = EnforceFileDownloadLocationConfig . fmap (T.pack . getPrintableString) <$> arbitrary
 
-instance ToSchema EnforceFileDownloadLocationConfig where
+instance (NestedMaybe f) => ToSchema (EnforceFileDownloadLocationConfigB Covered f) where
   schema =
     object "EnforceFileDownloadLocation" $
       EnforceFileDownloadLocationConfig
-        <$> enforcedDownloadLocation .= maybe_ (optField "enforcedDownloadLocation" schema)
+        <$> enforcedDownloadLocation .= nestedMaybeField "enforcedDownloadLocation" (unnamed schema)
 
 instance Default (LockableFeature EnforceFileDownloadLocationConfig) where
   def = defLockedFeature
