@@ -336,3 +336,27 @@ testActivateEmailForEmailDomainForAnotherBackend = do
 
           getSelf user `bindResponse` \resp -> do
             resp.json %. "email" `shouldMatch` email
+
+testPasswordChange :: (HasCallStack) => App ()
+testPasswordChange =
+  withModifiedBackend
+    def
+      { brigCfg =
+          -- Disable password hashing rate limiting, so we can create enable services quickly
+          setField @_ @Int "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" 0
+      }
+    $ \domain -> do
+      user <- randomUser domain def
+      email <- asString $ user %. "email"
+      newPassword <- randomString 20
+
+      putPassword user defPassword defPassword `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.json %. "label" `shouldMatch` "password-must-differ"
+
+      putPassword user defPassword newPassword >>= assertSuccess
+
+      login domain email defPassword `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "invalid-credentials"
+      login domain email newPassword >>= assertSuccess

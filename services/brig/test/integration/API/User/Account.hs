@@ -129,7 +129,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
       test p "head /self/password - 200/404" $ testPasswordSet b,
       test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
-      test p "put /self/password - 200" $ testPasswordChange b,
+      test p "put /self/password - 403 (anon user)" $ testPasswordChangeAnonUser b,
       test p "put /self/locale - 200" $ testUserLocaleUpdate b userJournalWatcher,
       test p "post /activate/send - 200" $ testSendActivationCode opts b,
       test p "post /activate/send - 400 invalid input" $ testSendActivationCodeInvalidEmailOrPhone b,
@@ -1123,38 +1123,13 @@ testPasswordSetInvalidPasswordLength brig = do
           [ "new_password" .= ("secret" :: Text)
           ]
 
-testPasswordChange :: Brig -> Http ()
-testPasswordChange brig = do
-  (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
-  put (brig . path "/self/password" . contentJson . zUser uid . body pwChange)
-    !!! const 200 === statusCode
-  -- login with new password
-  login
-    brig
-    (MkLogin (LoginByEmail email) newPass Nothing Nothing)
-    PersistentCookie
-    !!! const 200 === statusCode
-  -- try to change the password to itself should fail
-  put (brig . path "/self/password" . contentJson . zUser uid . body pwChange')
-    !!! const 409 === statusCode
-  -- Setting a password for an anonymous / unverified user should fail
+testPasswordChangeAnonUser :: Brig -> Http ()
+testPasswordChangeAnonUser brig = do
   uid2 <- userId <$> createAnonUser "foo2" brig
   put (brig . path "/self/password" . contentJson . zUser uid2 . body pwSet)
     !!! (const 403 === statusCode)
   where
     newPass = plainTextPassword6Unsafe "topsecret"
-    pwChange =
-      RequestBodyLBS . encode $
-        object
-          [ "old_password" .= defPassword,
-            "new_password" .= newPass
-          ]
-    pwChange' =
-      RequestBodyLBS . encode $
-        object
-          [ "old_password" .= newPass,
-            "new_password" .= newPass
-          ]
     pwSet =
       RequestBodyLBS . encode $
         object

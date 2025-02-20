@@ -442,6 +442,16 @@ putHandle user handle = do
   submit "PUT" $
     req & addJSONObject ["handle" .= handle]
 
+putPassword :: (MakesValue user) => user -> String -> String -> App Response
+putPassword user oldPassword newPassword = do
+  req <- baseRequest user Brig Versioned "/self/password"
+  submit "PUT" $
+    req
+      & addJSONObject
+        [ "old_password" .= oldPassword,
+          "new_password" .= newPassword
+        ]
+
 getUserSupportedProtocols ::
   (HasCallStack, MakesValue user, MakesValue target) =>
   user ->
