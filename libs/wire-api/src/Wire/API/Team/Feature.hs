@@ -60,7 +60,8 @@ module Wire.API.Team.Feature
     SelfDeletingMessagesConfig (..),
     ValidateSAMLEmailsConfig (..),
     DigitalSignaturesConfig (..),
-    ConferenceCallingConfig (..),
+    ConferenceCallingConfigB (..),
+    ConferenceCallingConfig,
     GuestLinksConfig (..),
     ExposeInvitationURLsToTeamAdminConfig (..),
     SndFactorPasswordChallengeConfig (..),
@@ -137,6 +138,7 @@ import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Named hiding (unnamed)
+import Wire.API.Team.Feature.Profunctor
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
@@ -729,6 +731,9 @@ one2OneCallsFromUseSftFlag :: Bool -> One2OneCalls
 one2OneCallsFromUseSftFlag False = One2OneCallsTurn
 one2OneCallsFromUseSftFlag True = One2OneCallsSft
 
+one2OneCallsSchema :: ValueSchema SwaggerDoc One2OneCalls
+one2OneCallsSchema = one2OneCallsFromUseSftFlag <$> (== One2OneCallsSft) .= unnamed schema
+
 instance Default One2OneCalls where
   def = One2OneCallsTurn
 
@@ -744,13 +749,31 @@ instance Cass.Cql One2OneCalls where
   toCql One2OneCallsTurn = Cass.CqlInt 0
   toCql One2OneCallsSft = Cass.CqlInt 1
 
-data ConferenceCallingConfig = ConferenceCallingConfig
-  { one2OneCalls :: One2OneCalls
+data ConferenceCallingConfigB t f = ConferenceCallingConfig
+  { one2OneCalls :: Wear t f One2OneCalls
   }
-  deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (Arbitrary) via (GenericUniform ConferenceCallingConfig)
-  deriving (RenderableSymbol) via (RenderableTypeName ConferenceCallingConfig)
-  deriving (ParseDbFeature, Default) via (SimpleFeature ConferenceCallingConfig)
+  deriving (BareB, Generic)
+
+deriving instance FunctorB (ConferenceCallingConfigB Covered)
+
+deriving instance ApplicativeB (ConferenceCallingConfigB Covered)
+
+type ConferenceCallingConfig = ConferenceCallingConfigB Bare Identity
+
+deriving instance (Eq ConferenceCallingConfig)
+
+deriving instance (Show ConferenceCallingConfig)
+
+deriving via (GenericUniform ConferenceCallingConfig) instance (Arbitrary ConferenceCallingConfig)
+
+deriving via (RenderableTypeName ConferenceCallingConfig) instance (RenderableSymbol ConferenceCallingConfig)
+
+deriving via (BarbieFeature ConferenceCallingConfigB) instance (ParseDbFeature ConferenceCallingConfig)
+
+deriving via (BarbieFeature ConferenceCallingConfigB) instance (ToSchema ConferenceCallingConfig)
+
+instance Default ConferenceCallingConfig where
+  def = ConferenceCallingConfig def
 
 instance Default (LockableFeature ConferenceCallingConfig) where
   def = defLockedFeature {status = FeatureStatusEnabled}
@@ -760,14 +783,13 @@ instance IsFeatureConfig ConferenceCallingConfig where
   featureSingleton = FeatureSingletonConferenceCallingConfig
   objectSchema = fromMaybe def <$> optField "config" schema
 
-instance ToSchema ConferenceCallingConfig where
+instance (OptWithDefault f) => ToSchema (ConferenceCallingConfigB Covered f) where
   schema =
     object "ConferenceCallingConfig" $
       ConferenceCallingConfig
-        <$> ((== One2OneCallsSft) . one2OneCalls)
-          .= ( maybe def one2OneCallsFromUseSftFlag
-                 <$> optField "useSFTForOneToOneCalls" schema
-             )
+        <$> one2OneCalls
+          .= fromOpt
+            (optField "useSFTForOneToOneCalls" one2OneCallsSchema)
 
 --------------------------------------------------------------------------------
 -- SndFactorPasswordChallenge feature
@@ -1181,20 +1203,7 @@ instance Arbitrary MlsMigrationConfig where
           finaliseRegardlessAfter = finaliseRegardlessAfter
         }
 
--- | This class enables non-standard JSON instances for the Identity case of
--- this feature. For backwards compatibility, we need to make the two fields
--- optional even in the Identity case. A missing field gets parsed as
--- `Nothing`. Whereas with the default instance, they would be rejected.
-class NestedMaybeFieldFunctor f where
-  nestedMaybeField :: Text -> ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (f (Maybe a))
-
-instance NestedMaybeFieldFunctor Maybe where
-  nestedMaybeField name sch = maybe_ (optField name (nullable sch))
-
-instance NestedMaybeFieldFunctor Identity where
-  nestedMaybeField name sch = Identity <$> runIdentity .= maybe_ (optField name sch)
-
-instance (NestedMaybeFieldFunctor f) => ToSchema (MlsMigrationConfigB Covered f) where
+instance (NestedMaybe f) => ToSchema (MlsMigrationConfigB Covered f) where
   schema =
     object "MlsMigration" $
       MlsMigrationConfig

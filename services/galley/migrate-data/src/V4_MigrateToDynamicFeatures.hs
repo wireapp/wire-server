@@ -207,7 +207,8 @@ writeFeatures
         { status = conference_calling_status,
           lockStatus = conference_calling,
           config =
-            DbConfig . schemaToJSON . ConferenceCallingConfig <$> conference_calling_one_to_one
+            Just . DbConfig . schemaToJSON $
+              ConferenceCallingConfig @Covered conference_calling_one_to_one
         }
 
     writeFeature @DigitalSignaturesConfig team_id $
