@@ -44,6 +44,9 @@ userNotFound = errorToWai @'UserNotFound
 noMatchingAssetEndpoint :: Error
 noMatchingAssetEndpoint = errorToWai @'NoMatchingAssetEndpoint
 
+incompleteBody :: Error
+incompleteBody = errorToWai @'IncompleteBody
+
 clientError :: LText -> Error
 clientError = mkError status400 "client-error"
 

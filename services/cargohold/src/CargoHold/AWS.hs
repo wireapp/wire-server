@@ -37,6 +37,7 @@ where
 import Amazonka (AWSRequest, AWSResponse)
 import qualified Amazonka as AWS
 import qualified Amazonka.S3 as S3
+import CargoHold.API.Error
 import CargoHold.CloudFront
 import CargoHold.Options hiding (cloudFront, s3Bucket)
 import Conduit
@@ -177,10 +178,15 @@ exec env request = do
         Log.field "remote" (Log.val "S3")
           ~~ Log.msg (show err)
           ~~ Log.msg (show req)
-      -- We just re-throw the error, but logging it here also gives us the request
-      -- that caused it.
-      throwM (GeneralError err)
+      -- We re-throw the error, but distinguish between user errors and server
+      -- errors. Logging it here also gives us the request that caused it.
+      rethrowError err
     Right r -> pure r
+
+rethrowError :: (MonadThrow m) => AWS.Error -> m a
+rethrowError e = case e of
+  AWS.ServiceError se | se ^. AWS.serviceError_code == AWS.ErrorCode "IncompleteBody" -> throwM incompleteBody
+  _ -> throwM (GeneralError e)
 
 execStream ::
   ( AWSRequest r,

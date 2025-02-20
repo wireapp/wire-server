@@ -28,6 +28,7 @@ data CargoholdError
   | NoMatchingAssetEndpoint
   | UnverifiedUser
   | UserNotFound
+  | IncompleteBody
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CargoholdError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -46,3 +47,5 @@ type instance MapError 'UserNotFound = 'StaticError 403 "not-found" "User not fo
 
 -- | Return `AssetNotFound` to hide there's a multi-ingress setup.
 type instance MapError 'NoMatchingAssetEndpoint = MapError 'AssetNotFound
+
+type instance MapError 'IncompleteBody = 'StaticError 400 "incomplete-body" "HTTP content-length header does not match body size"
