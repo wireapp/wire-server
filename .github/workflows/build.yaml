@@ -1,0 +1,42 @@
+name: CI Build
+
+on:
+  pull_request:
+    branches:
+      - develop
+  push:
+    paths:
+      - 'docs/**'
+      - cassandra-schema.cql
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: cachix/install-nix-action@v16
+
+      - name: Clone wire-docs repository
+        run: |
+          git clone --branch main https://github.com/wireapp/wire-docs.git wire-docs
+
+      - name: Modify submodule configuration
+        working-directory: wire-docs
+        run: |
+          cat .gitmodules
+          
+          CURRENT_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
+          CURRENT_BRANCH="${GITHUB_REF#refs/heads/}"
+          
+          sed -i "s|url = https://github.com/mohitrajain/wire-server.git|url = ${CURRENT_REPO_URL}|g" .gitmodules
+          sed -i "s|branch = clean-wire-server-docs|branch = ${CURRENT_BRANCH}|g" .gitmodules
+          
+          cat .gitmodules
+
+      - name: Build project
+        working-directory: wire-docs
+        run: cd wire-docs && make build
