@@ -117,10 +117,7 @@ tests dom brigOpts conf p db b c g n = do
             test p "register + activate internal" $ testRegisterProviderInternal b,
             test p "login" $ testLoginProvider db b,
             test p "update" $ testUpdateProvider db b,
-            test p "delete" $ testDeleteProvider db b,
-            test p "password-reset" $ testPasswordResetProvider db b,
-            test p "email/password update with password reset" $
-              testPasswordResetAfterEmailUpdateProvider db b
+            test p "delete" $ testDeleteProvider db b
           ],
         testGroup
           "service"
@@ -246,74 +243,6 @@ testDeleteProvider db brig = do
   let new = defNewProvider (providerEmail prv)
   response <- retryWhileN 10 ((==) 429 . statusCode) $ registerProvider brig new
   liftIO $ statusCode response @?= 201
-
-testPasswordResetProvider :: DB.ClientState -> Brig -> Http ()
-testPasswordResetProvider db brig = do
-  prv <- randomProvider db brig
-  let email = providerEmail prv
-  let newPw = plainTextPassword6Unsafe "newsupersecret"
-  initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
-  -- password reset with same password fails.
-  resetPw defProviderPassword email !!! const 409 === statusCode
-  -- password reset with different password works.
-  resetPw newPw email !!! const 200 === statusCode
-  loginProvider brig email defProviderPassword
-    !!! const 403 === statusCode
-  loginProvider brig email newPw
-    !!! const 200 === statusCode
-  where
-    resetPw :: PlainTextPassword6 -> EmailAddress -> Http ResponseLBS
-    resetPw newPw email = do
-      -- Get the code directly from the DB
-      let gen = mkVerificationCodeGen email
-      Just vcode <- lookupCode db gen Code.PasswordReset
-      let passwordResetData =
-            CompletePasswordReset
-              (Code.codeKey vcode)
-              (Code.codeValue vcode)
-              newPw
-      completePasswordResetProvider brig passwordResetData
-
-testPasswordResetAfterEmailUpdateProvider :: DB.ClientState -> Brig -> Http ()
-testPasswordResetAfterEmailUpdateProvider db brig = do
-  newEmail <- randomEmail
-  prv <- randomProvider db brig
-  let pid = providerId prv
-  let origEmail = providerEmail prv
-  initiateEmailUpdateProvider brig pid (EmailUpdate newEmail) !!! const 202 === statusCode
-  initiatePasswordResetProvider brig (PasswordReset origEmail) !!! const 201 === statusCode
-  -- Get password reset code directly from the DB
-  let genOrig = mkVerificationCodeGen origEmail
-  Just vcodePw <- lookupCode db genOrig Code.PasswordReset
-  let passwordResetData =
-        CompletePasswordReset
-          (Code.codeKey vcodePw)
-          (Code.codeValue vcodePw)
-          (plainTextPassword6Unsafe "doesnotmatter")
-  -- Activate the new email
-  let genNew = mkVerificationCodeGen newEmail
-  Just vcodeEm <- lookupCode db genNew Code.IdentityVerification
-  activateProvider brig (Code.codeKey vcodeEm) (Code.codeValue vcodeEm)
-    !!! const 200 === statusCode
-  p <- responseJsonError =<< (getProvider brig pid <!! const 200 === statusCode)
-  liftIO $ assertEqual "email" newEmail (providerEmail p)
-  -- attempting to complete password reset should fail
-  completePasswordResetProvider brig passwordResetData !!! const 403 === statusCode
-  -- ensure you can login with the new email address and not with the old one
-  loginProvider brig origEmail defProviderPassword !!! const 403 === statusCode
-  loginProvider brig newEmail defProviderPassword !!! const 200 === statusCode
-  -- exercise the password change endpoint
-  let newPass = plainTextPassword6Unsafe "newpass"
-  let pwChangeFail = PasswordChange (plainTextPassword6Unsafe "notcorrect") newPass
-  updateProviderPassword brig pid pwChangeFail !!! const 403 === statusCode
-  let pwChange = PasswordChange defProviderPassword newPass
-  updateProviderPassword brig pid pwChange !!! const 200 === statusCode
-  -- put /provider/password gives 409 if new password is the same.
-  let pwChange' = PasswordChange newPass newPass
-  updateProviderPassword brig pid pwChange' !!! const 409 === statusCode
-  -- Check the login process again
-  loginProvider brig newEmail defProviderPassword !!! const 403 === statusCode
-  loginProvider brig newEmail newPass !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Provider Services
@@ -1054,56 +983,6 @@ updateProvider brig pid upd =
       . header "Z-Provider" (toByteString' pid)
       . contentJson
       . body (RequestBodyLBS (encode upd))
-
-updateProviderPassword ::
-  Brig ->
-  ProviderId ->
-  PasswordChange ->
-  Http ResponseLBS
-updateProviderPassword brig pid upd =
-  put $
-    brig
-      . path "/provider/password"
-      . header "Z-Type" "provider"
-      . header "Z-Provider" (toByteString' pid)
-      . contentJson
-      . body (RequestBodyLBS (encode upd))
-
-initiateEmailUpdateProvider ::
-  Brig ->
-  ProviderId ->
-  EmailUpdate ->
-  Http ResponseLBS
-initiateEmailUpdateProvider brig pid upd =
-  put $
-    brig
-      . path "/provider/email"
-      . header "Z-Type" "provider"
-      . header "Z-Provider" (toByteString' pid)
-      . contentJson
-      . body (RequestBodyLBS (encode upd))
-
-initiatePasswordResetProvider ::
-  Brig ->
-  PasswordReset ->
-  Http ResponseLBS
-initiatePasswordResetProvider brig npr =
-  post $
-    brig
-      . path "/provider/password-reset"
-      . contentJson
-      . body (RequestBodyLBS (encode npr))
-
-completePasswordResetProvider ::
-  Brig ->
-  CompletePasswordReset ->
-  Http ResponseLBS
-completePasswordResetProvider brig e =
-  post $
-    brig
-      . path "/provider/password-reset/complete"
-      . contentJson
-      . body (RequestBodyLBS (encode e))
 
 deleteProvider ::
   Brig ->

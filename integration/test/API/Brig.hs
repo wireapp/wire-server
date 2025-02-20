@@ -4,7 +4,6 @@ import API.BrigCommon
 import API.Common
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
-import qualified Data.CaseInsensitive as CI
 import Data.Foldable
 import Data.Function
 import qualified Data.Text as T
@@ -591,17 +590,47 @@ loginProvider ::
   dom ->
   String ->
   String ->
-  App ByteString
+  App Response
 loginProvider dom email pass = do
   d <- asString dom
   req <-
     rawBaseRequest d Brig Versioned $
       joinHttpPath ["provider", "login"]
-  submit "POST" (addJSONObject ["email" .= email, "password" .= pass] req) `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    let hs = headers resp
-        setCookieHeader = CI.mk (T.encodeUtf8 . T.pack $ "Set-Cookie")
-    pure . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
+  submit "POST" (addJSONObject ["email" .= email, "password" .= pass] req)
+
+requestProviderPasswordResetCode ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  App Response
+requestProviderPasswordResetCode domain email = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider", "password-reset"]
+  submit "POST" $ req & addJSONObject ["email" .= email]
+
+completeProviderPasswordReset ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  Value ->
+  String ->
+  App Response
+completeProviderPasswordReset domain resetCode newPassword = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider", "password-reset", "complete"]
+  body <- make (setField "password" newPassword resetCode)
+  submit "POST" $ req & addJSON body
+
+requestProviderEmailUpdateCode ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  String ->
+  App Response
+requestProviderEmailUpdateCode domain pid newEmail = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider", "email"]
+  submit "PUT" $
+    req
+      & zType "provider"
+      & zProvider pid
+      & addJSONObject ["email" .= newEmail]
 
 newService ::
   ( HasCallStack,

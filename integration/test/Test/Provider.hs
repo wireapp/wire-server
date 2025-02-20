@@ -1,6 +1,7 @@
 module Test.Provider where
 
 import API.Brig
+import API.BrigInternal
 import qualified API.Cargohold as Cargohold
 import API.Common
 import qualified API.Nginz as Nginz
@@ -11,16 +12,82 @@ import Testlib.Prelude
 testProviderUploadAsset :: (HasCallStack) => App ()
 testProviderUploadAsset = do
   alice <- randomUser OwnDomain def
-  provider <- setupProvider alice def { newProviderPassword = Just defPassword }
+  provider <- setupProvider alice def {newProviderPassword = Just defPassword}
   providerEmail <- provider %. "email" & asString
   pid <- provider %. "id" & asString
   -- test cargohold API
   bindResponse (Cargohold.uploadProviderAsset OwnDomain pid "profile pic") $ \resp -> do
     resp.status `shouldMatchInt` 201
-  cookie <- loginProvider OwnDomain providerEmail defPassword
+  cookie <-
+    loginProvider OwnDomain providerEmail defPassword `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      let hs = headers resp
+          setCookieHeader = fromString "Set-Cookie"
+      pure . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
+
   -- test Nginz API
   bindResponse (Nginz.uploadProviderAsset OwnDomain (cs cookie) "another profile pic") $ \resp -> do
     resp.status `shouldMatchInt` 201
+
+testProviderPasswordReset :: (HasCallStack) => App ()
+testProviderPasswordReset = do
+  withModifiedBackend
+    def
+      { brigCfg =
+          -- Disable password hashing rate limiting, so we can create enable services quickly
+          setField @_ @Int "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" 0
+      }
+    $ \domain -> do
+      provider <- setupProvider domain def {newProviderPassword = Just defPassword}
+      email <- asString $ provider %. "email"
+      requestProviderPasswordResetCode domain email >>= assertSuccess
+      resetCode <- getProviderPasswordResetCodeInternal domain email >>= getJSON 200
+
+      completeProviderPasswordReset domain resetCode defPassword `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.json %. "label" `shouldMatch` "password-must-differ"
+
+      completeProviderPasswordReset domain resetCode "shiny-new-password" >>= assertSuccess
+      loginProvider domain email "shiny-new-password" >>= assertSuccess
+      loginProvider domain email defPassword `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "invalid-credentials"
+
+testProviderPasswordResetAfterEmailUpdate :: (HasCallStack) => App ()
+testProviderPasswordResetAfterEmailUpdate = do
+  withModifiedBackend
+    def
+      { brigCfg =
+          -- Disable password hashing rate limiting, so we can create enable services quickly
+          setField @_ @Int "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" 0
+      }
+    $ \domain -> do
+      provider <- setupProvider domain def {newProviderPassword = Just defPassword}
+      origEmail <- asString $ provider %. "email"
+      pid <- asString $ provider %. "id"
+      newEmail <- randomEmail
+      requestProviderPasswordResetCode domain origEmail >>= assertSuccess
+      requestProviderEmailUpdateCode domain pid newEmail >>= assertSuccess
+      passwordResetCode <- getProviderPasswordResetCodeInternal domain origEmail >>= getJSON 200
+      emailUpdateKeyCodePair <- getProviderActivationCodeInternal domain newEmail >>= getJSON 200
+      emailUpdateKey <- asString $ emailUpdateKeyCodePair %. "key"
+      emailUpdateCode <- asString $ emailUpdateKeyCodePair %. "code"
+
+      activateProvider domain emailUpdateKey emailUpdateCode
+
+      completeProviderPasswordReset domain passwordResetCode "shiny-new-password" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "invalid-code"
+
+      loginProvider domain origEmail defPassword `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "invalid-credentials"
+      loginProvider domain newEmail defPassword >>= assertSuccess
+
+      requestProviderPasswordResetCode domain newEmail >>= assertSuccess
+      newPasswordResetCode <- getProviderPasswordResetCodeInternal domain newEmail >>= getJSON 200
+      completeProviderPasswordReset domain newPasswordResetCode "shiny-new-password" >>= assertSuccess
+      loginProvider domain newEmail "shiny-new-password" >>= assertSuccess
 
 testProviderSearchWhitelist :: (HasCallStack) => App ()
 testProviderSearchWhitelist =
@@ -111,7 +178,7 @@ createAndEnableService domain teamAdmin tid pid newSvc = do
 -- NB: in some of the tests above, we depend on the fact that there are exactly
 -- 20 services here and the fact that they are ordered alphabetically.
 taggedServiceNames :: String -> [(String, [String])]
-taggedServiceNames prefix =
+taggedServiceNames prefix = 
   [ (prefixed "Alpha", ["social", "quiz", "business"]),
     (prefixed "Beta", ["social", "music", "lifestyle"]),
     (prefixed "bjorn", ["social", "quiz", "travel"]),

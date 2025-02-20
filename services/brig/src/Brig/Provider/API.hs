@@ -211,7 +211,9 @@ internalProviderAPI ::
     Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.ProviderAPI (Handler r)
-internalProviderAPI = Named @"get-provider-activation-code" getActivationCode
+internalProviderAPI =
+  Named @"get-provider-activation-code" getActivationCode
+    :<|> Named @"get-provider-password-reset-code" getPasswordResetCode
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -300,6 +302,15 @@ getActivationCode email = do
   let gen = mkVerificationCodeGen email
   code <- lift . liftSem $ internalLookupCode gen.genKey IdentityVerification
   maybe (throwStd activationKeyNotFound) (pure . codeToKeyValuePair) code
+
+getPasswordResetCode ::
+  (Member VerificationCodeSubsystem r) =>
+  EmailAddress ->
+  Handler r Code.KeyValuePair
+getPasswordResetCode email = do
+  let gen = mkVerificationCodeGen email
+  code <- lift . liftSem $ internalLookupCode gen.genKey VerificationCode.PasswordReset
+  maybe (throwStd $ notFound "Password reset key not found.") (pure . codeToKeyValuePair) code
 
 login ::
   ( Member GalleyAPIAccess r,

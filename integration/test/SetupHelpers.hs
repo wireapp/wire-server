@@ -330,7 +330,7 @@ setupProvider u (NewProvider {..}) = do
     c <- pair %. "code" & asString
     pure (k, c)
   activateProvider dom key code
-  void $ loginProvider dom providerEmail pass
+  loginProvider dom providerEmail pass >>= assertSuccess
   pid <- asString $ newProviderResponse %. "id"
   getProvider dom pid >>= getJSON 200
 

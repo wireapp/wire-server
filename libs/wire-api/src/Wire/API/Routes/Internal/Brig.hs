@@ -744,15 +744,22 @@ type FederationRemotesAPI =
            )
 
 type ProviderAPI =
-  ( Named
-      "get-provider-activation-code"
-      ( Summary "Retrieve activation code via api instead of email (for testing only)"
-          :> "provider"
-          :> "activation-code"
-          :> QueryParam' '[Required, Strict] "email" EmailAddress
-          :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
-      )
-  )
+  Named
+    "get-provider-activation-code"
+    ( Summary "Retrieve activation code via api instead of email (for testing only)"
+        :> "provider"
+        :> "activation-code"
+        :> QueryParam' '[Required, Strict] "email" EmailAddress
+        :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+    )
+    :<|> Named
+           "get-provider-password-reset-code"
+           ( Summary "Retrieve password-reset code via api instead of email (for testing only)"
+               :> "provider"
+               :> "password-reset-code"
+               :> QueryParam' '[Required, Strict] "email" EmailAddress
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+           )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
