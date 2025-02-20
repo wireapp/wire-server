@@ -59,6 +59,11 @@ getUsersId domain ids = do
   req <- baseRequest domain Brig Unversioned "/i/users"
   submit "GET" $ req & addQueryParams [("ids", intercalate "," ids)]
 
+getUsersByEmail :: (HasCallStack, MakesValue domain) => domain -> [String] -> App Response
+getUsersByEmail domain emails = do
+  req <- baseRequest domain Brig Unversioned "/i/users"
+  submit "GET" $ req & addQueryParams [("email", intercalate "," emails)]
+
 data FedConn = FedConn
   { domain :: String,
     searchStrategy :: String,

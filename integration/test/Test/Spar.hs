@@ -4,7 +4,7 @@ module Test.Spar where
 
 import qualified API.Brig as Brig
 import API.BrigInternal as BrigInternal
-import API.Common (randomEmail, randomExternalId, randomHandle)
+import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
@@ -379,3 +379,21 @@ testSparCreateTwoScimTokensForOneIdp = do
   createScimTokenV6 owner def >>= assertStatus 400
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
   length tokens `shouldMatchInt` 0
+
+testSsoLoginAndEmailVerification :: (HasCallStack) => App ()
+testSsoLoginAndEmailVerification = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  emailDomain <- randomDomain
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+
+  let email = "user@" <> emailDomain
+  loginWithSaml True tid email (idpId, idpMeta)
+  activateEmail OwnDomain email
+  getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` email
