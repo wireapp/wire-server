@@ -760,6 +760,8 @@ deriving instance FunctorB (ConferenceCallingConfigB Covered)
 
 deriving instance ApplicativeB (ConferenceCallingConfigB Covered)
 
+deriving instance TraversableB (ConferenceCallingConfigB Covered)
+
 type ConferenceCallingConfig = ConferenceCallingConfigB Bare Identity
 
 deriving instance (Eq ConferenceCallingConfig)
@@ -883,6 +885,8 @@ instance FunctorB (AppLockConfigB Covered)
 
 instance ApplicativeB (AppLockConfigB Covered)
 
+instance TraversableB (AppLockConfigB Covered)
+
 type AppLockConfig = AppLockConfigB Bare Identity
 
 deriving instance Eq AppLockConfig
@@ -959,6 +963,8 @@ instance FunctorB (SelfDeletingMessagesConfigB Covered)
 
 instance ApplicativeB (SelfDeletingMessagesConfigB Covered)
 
+instance TraversableB (SelfDeletingMessagesConfigB Covered)
+
 type SelfDeletingMessagesConfig = SelfDeletingMessagesConfigB Bare Identity
 
 deriving instance (Eq SelfDeletingMessagesConfig)
@@ -1005,6 +1011,8 @@ data MLSConfigB t f = MLSConfig
 deriving instance FunctorB (MLSConfigB Covered)
 
 deriving instance ApplicativeB (MLSConfigB Covered)
+
+deriving instance TraversableB (MLSConfigB Covered)
 
 type MLSConfig = MLSConfigB Bare Identity
 
@@ -1118,6 +1126,8 @@ deriving instance FunctorB (MlsE2EIdConfigB Covered)
 
 deriving instance ApplicativeB (MlsE2EIdConfigB Covered)
 
+deriving instance TraversableB (MlsE2EIdConfigB Covered)
+
 type MlsE2EIdConfig = MlsE2EIdConfigB Bare Identity
 
 deriving via (RenderableTypeName MlsE2EIdConfig) instance (RenderableSymbol MlsE2EIdConfig)
@@ -1194,6 +1204,8 @@ deriving instance FunctorB (MlsMigrationConfigB Covered)
 
 deriving instance ApplicativeB (MlsMigrationConfigB Covered)
 
+deriving instance TraversableB (MlsMigrationConfigB Covered)
+
 type MlsMigrationConfig = MlsMigrationConfigB Bare Identity
 
 deriving instance Eq MlsMigrationConfig
@@ -1245,6 +1257,8 @@ data EnforceFileDownloadLocationConfigB t f = EnforceFileDownloadLocationConfig
 deriving instance FunctorB (EnforceFileDownloadLocationConfigB Covered)
 
 deriving instance ApplicativeB (EnforceFileDownloadLocationConfigB Covered)
+
+deriving instance TraversableB (EnforceFileDownloadLocationConfigB Covered)
 
 type EnforceFileDownloadLocationConfig = EnforceFileDownloadLocationConfigB Bare Identity
 

@@ -3,10 +3,12 @@
 
 module V4_MigrateToDynamicFeatures where
 
+import Barbies
 import Barbies.Bare
 import Cassandra
 import Cassandra qualified as C
 import Conduit
+import Data.ByteString.Conversion
 import Data.Conduit.List qualified as C
 import Data.Default
 import Data.Id
@@ -16,6 +18,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Galley.DataMigration.Types
 import Imports
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature
@@ -142,7 +145,7 @@ rowQuery =
   \ from team_features"
 
 writeFeatures ::
-  (MonadClient m) =>
+  (MonadClient m, Log.MonadLogger m) =>
   FeatureRow ->
   m ()
 writeFeatures
@@ -195,145 +198,147 @@ writeFeatures
     sso_status,
     validate_saml_emails
     ) = do
-    writeFeature @AppLockConfig team_id $
-      (def :: LockableFeaturePatch DbConfig)
+    writeFeatureB team_id $
+      (def :: LockableFeaturePatch AppLockConfig)
         { status = app_lock_status,
-          config =
-            Just . DbConfig $
-              schemaToJSON (AppLockConfig @Covered app_lock_enforce app_lock_inactivity_timeout_secs)
+          config = Just $ AppLockConfig @Covered app_lock_enforce app_lock_inactivity_timeout_secs
         }
-    writeFeature @ConferenceCallingConfig team_id $
+    writeFeatureB team_id $
       LockableFeaturePatch
         { status = conference_calling_status,
           lockStatus = conference_calling,
           config =
-            Just . DbConfig . schemaToJSON $
-              ConferenceCallingConfig @Covered conference_calling_one_to_one
+            Just $ ConferenceCallingConfig @Covered conference_calling_one_to_one
         }
 
-    writeFeature @DigitalSignaturesConfig team_id $
-      (def :: LockableFeaturePatch DbConfig) {status = digital_signatures}
+    writeFeature team_id $
+      (def :: LockableFeaturePatch DigitalSignaturesConfig) {status = digital_signatures}
 
-    writeFeature @DomainRegistrationConfig team_id $
-      (def :: LockableFeaturePatch DbConfig)
+    writeFeature team_id $
+      (def :: LockableFeaturePatch DomainRegistrationConfig)
         { status = domain_registration_status,
           lockStatus = domain_registration_lock_status
         }
 
-    writeFeature @EnforceFileDownloadLocationConfig team_id $
+    writeFeatureB team_id $
       LockableFeaturePatch
         { status = enforce_file_download_location_status,
           lockStatus = enforce_file_download_location_lock_status,
           config =
-            Just . DbConfig . schemaToJSON . EnforceFileDownloadLocationConfig @Covered $
-              case enforce_file_download_location of
-                Nothing -> Nothing
-                Just "" -> Just Nothing
-                Just loc -> Just (Just loc)
+            Just $
+              EnforceFileDownloadLocationConfig @Covered $
+                case enforce_file_download_location of
+                  Nothing -> Nothing
+                  Just "" -> Just Nothing
+                  Just loc -> Just (Just loc)
         }
 
-    writeFeature @ExposeInvitationURLsToTeamAdminConfig team_id $
-      (def :: LockableFeaturePatch DbConfig) {status = expose_invitation_urls_to_team_admin}
+    writeFeature team_id $
+      (def :: LockableFeaturePatch ExposeInvitationURLsToTeamAdminConfig)
+        { status = expose_invitation_urls_to_team_admin
+        }
 
-    writeFeature @FileSharingConfig team_id $
-      (def :: LockableFeaturePatch DbConfig)
+    writeFeature team_id $
+      (def :: LockableFeaturePatch FileSharingConfig)
         { status = file_sharing,
           lockStatus = file_sharing_lock_status
         }
 
-    writeFeature @GuestLinksConfig team_id $
-      (def :: LockableFeaturePatch DbConfig)
+    writeFeature team_id $
+      (def :: LockableFeaturePatch GuestLinksConfig)
         { status = guest_links_status,
           lockStatus = guest_links_lock_status
         }
-    writeFeature @LegalholdConfig team_id $
-      (def :: LockableFeaturePatch DbConfig) {status = legalhold_status}
 
-    writeFeature @LimitedEventFanoutConfig team_id $
-      (def :: LockableFeaturePatch DbConfig) {status = limited_event_fanout_status}
+    writeFeature team_id $
+      (def :: LockableFeaturePatch LegalholdConfig)
+        { status = legalhold_status
+        }
 
-    writeFeature @MLSConfig team_id $
+    writeFeature team_id $
+      (def :: LockableFeaturePatch LimitedEventFanoutConfig)
+        { status = limited_event_fanout_status
+        }
+
+    writeFeatureB team_id $
       LockableFeaturePatch
         { status = mls_status,
           lockStatus = mls_lock_status,
           config =
-            Just . DbConfig $
-              schemaToJSON
-                ( MLSConfig @Covered
-                    (fmap C.fromSet mls_protocol_toggle_users)
-                    mls_default_protocol
-                    (fmap C.fromSet mls_allowed_ciphersuites)
-                    mls_default_ciphersuite
-                    (fmap C.fromSet mls_supported_protocols)
-                )
+            Just $
+              ( MLSConfig @Covered
+                  (fmap C.fromSet mls_protocol_toggle_users)
+                  mls_default_protocol
+                  (fmap C.fromSet mls_allowed_ciphersuites)
+                  mls_default_ciphersuite
+                  (fmap C.fromSet mls_supported_protocols)
+              )
         }
 
-    writeFeature @MlsE2EIdConfig team_id $
+    writeFeatureB team_id $
       LockableFeaturePatch
         { status = mls_e2eid_status,
           lockStatus = mls_e2eid_lock_status,
           config =
-            Just . DbConfig $
-              schemaToJSON
-                ( MlsE2EIdConfig @Covered
-                    (fmap fromIntegral mls_e2eid_grace_period)
-                    (Alt mls_e2eid_acme_discovery_url)
-                    (Alt mls_e2eid_crl_proxy)
-                    (maybe def UseProxyOnMobile mls_e2eid_use_proxy_on_mobile)
-                )
+            Just $
+              ( MlsE2EIdConfig @Covered
+                  (fmap fromIntegral mls_e2eid_grace_period)
+                  (Alt mls_e2eid_acme_discovery_url)
+                  (Alt mls_e2eid_crl_proxy)
+                  (maybe def UseProxyOnMobile mls_e2eid_use_proxy_on_mobile)
+              )
         }
 
-    writeFeature @MlsMigrationConfig team_id $
+    writeFeatureB team_id $
       LockableFeaturePatch
         { status = mls_migration_status,
           lockStatus = mls_migration_lock_status,
           config =
-            Just . DbConfig $
-              schemaToJSON
-                ( MlsMigrationConfig @Covered
-                    (fmap unOptionalUTCTime mls_migration_start_time)
-                    (fmap unOptionalUTCTime mls_migration_finalise_regardless_after)
-                )
+            Just $
+              ( MlsMigrationConfig @Covered
+                  (fmap unOptionalUTCTime mls_migration_start_time)
+                  (fmap unOptionalUTCTime mls_migration_finalise_regardless_after)
+              )
         }
 
-    writeFeature @OutlookCalIntegrationConfig team_id $
-      (def :: LockableFeaturePatch DbConfig)
+    writeFeature team_id $
+      (def :: LockableFeaturePatch OutlookCalIntegrationConfig)
         { status = outlook_cal_integration_status,
           lockStatus = outlook_cal_integration_lock_status
         }
 
-    writeFeature @SearchVisibilityInboundConfig team_id $
-      (def :: LockableFeaturePatch DbConfig)
+    writeFeature team_id $
+      (def :: LockableFeaturePatch SearchVisibilityInboundConfig)
         { status = search_visibility_inbound_status
         }
 
-    writeFeature @SearchVisibilityAvailableConfig team_id $
-      (def :: LockableFeaturePatch DbConfig)
+    writeFeature team_id $
+      (def :: LockableFeaturePatch SearchVisibilityAvailableConfig)
         { status = search_visibility_status
         }
 
-    writeFeature @SelfDeletingMessagesConfig team_id $
+    writeFeatureB team_id $
       LockableFeaturePatch
         { status = self_deleting_messages_status,
           lockStatus = self_deleting_messages_lock_status,
           config =
-            Just
-              . DbConfig
-              . schemaToJSON
-              $ SelfDeletingMessagesConfig @Covered self_deleting_messages_ttl
+            Just $
+              SelfDeletingMessagesConfig @Covered self_deleting_messages_ttl
         }
 
-    writeFeature @SndFactorPasswordChallengeConfig team_id $
-      (def :: LockableFeaturePatch DbConfig)
+    writeFeature team_id $
+      (def :: LockableFeaturePatch SndFactorPasswordChallengeConfig)
         { status = snd_factor_password_challenge_status,
           lockStatus = snd_factor_password_challenge_lock_status
         }
 
-    writeFeature @SSOConfig team_id $
-      (def :: LockableFeaturePatch DbConfig) {status = sso_status}
+    writeFeature team_id $
+      (def :: LockableFeaturePatch SSOConfig) {status = sso_status}
 
-    writeFeature @ValidateSAMLEmailsConfig team_id $
-      (def :: LockableFeaturePatch DbConfig) {status = validate_saml_emails}
+    writeFeature team_id $
+      (def :: LockableFeaturePatch ValidateSAMLEmailsConfig)
+        { status = validate_saml_emails
+        }
 
 ----------------------------------------------------------------------------
 
@@ -378,11 +383,42 @@ instance Cql OptionalUTCTime where
 
 writeFeature ::
   forall cfg m.
-  (IsFeatureConfig cfg, MonadClient m) =>
+  (IsFeatureConfig cfg, MonadClient m, Log.MonadLogger m) =>
+  TeamId ->
+  LockableFeaturePatch cfg ->
+  m ()
+writeFeature tid feat =
+  writeDbFeature @cfg
+    tid
+    feat {config = fmap (DbConfig . schemaToJSON) feat.config}
+
+writeFeatureB ::
+  forall b cfg m.
+  ( cfg ~ b Bare Identity,
+    ToSchema (b Covered Maybe),
+    TraversableB (b Covered),
+    IsFeatureConfig cfg,
+    MonadClient m,
+    Log.MonadLogger m
+  ) =>
+  TeamId ->
+  LockableFeaturePatch (b Covered Maybe) ->
+  m ()
+writeFeatureB tid feat = do
+  let dbConfig = feat.config >>= serialiseBarbieConfig
+  writeDbFeature @cfg tid feat {config = dbConfig}
+
+writeDbFeature ::
+  forall cfg m.
+  (IsFeatureConfig cfg, MonadClient m, Log.MonadLogger m) =>
   TeamId ->
   LockableFeaturePatch DbConfig ->
   m ()
-writeFeature tid feat = do
+writeDbFeature tid feat = do
+  Log.info $
+    Log.msg ("writing feature" :: ByteString)
+      . Log.field "team" (toByteString' tid)
+      . Log.field "feature" (featureName @cfg)
   let q :: PrepQuery W (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig, TeamId, Text) ()
       q = "update team_features_dyn set status = ?, lock_status = ?, config = ? where team = ? and feature = ?"
   retry x5 $
@@ -397,3 +433,14 @@ writeFeature tid feat = do
             featureName @cfg
           )
       )
+
+serialiseBarbieConfig ::
+  ( TraversableB (b Covered),
+    ToSchema (b Covered Maybe)
+  ) =>
+  b Covered Maybe ->
+  Maybe DbConfig
+serialiseBarbieConfig cfg = do
+  -- ensure at least one field is set
+  void $ getAlt (bfoldMap (Alt . void) cfg)
+  pure . DbConfig $ schemaToJSON cfg
