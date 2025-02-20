@@ -93,6 +93,7 @@ checkEmail uid expectedEmail = do
   call $
     get (brig . path "/self" . zUser uid) !!! do
       const 200 === statusCode
+      const (Just Active) === (fmap userStatus . responseJsonMaybe)
       const expectedEmail === (userEmail <=< responseJsonMaybe)
 
 activate ::

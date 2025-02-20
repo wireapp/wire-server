@@ -36,6 +36,7 @@ import Test.DNSMock
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.Printing (indent)
+import Text.Regex.TDFA ((=~))
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
@@ -430,19 +431,20 @@ registerTestIdPWithMetaWithPrivateCreds owner = do
 -- | Given a team configured with saml sso, attempt a login with valid credentials.  This
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.
-loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
+loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App (Maybe String, SAML.SignedAuthnResponse)
 loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
   spmeta <- getSPMetadata OwnDomain tid
   authnreq <- initiateSamlLogin OwnDomain iid
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
   authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  finalizeSamlLogin OwnDomain tid authnResp `bindResponse` validateLoginResp
+  mUid <- finalizeSamlLogin OwnDomain tid authnResp `bindResponse` validateLoginResp
+  pure (mUid, authnResp)
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
 
-    validateLoginResp :: (HasCallStack) => Response -> App ()
+    validateLoginResp :: (HasCallStack) => Response -> App (Maybe String)
     validateLoginResp resp =
       if expectSuccess
         then do
@@ -467,12 +469,23 @@ loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
           bdy `shouldContain` "}, receiverOrigin)"
           hasPersistentCookieHeader resp
 
-    hasPersistentCookieHeader :: Response -> App ()
+    hasPersistentCookieHeader :: Response -> App (Maybe String)
     hasPersistentCookieHeader rsp = do
-      let cookie = getCookie "zuid" rsp
-      case cookie of
-        Nothing -> expectSuccess `shouldMatch` False
-        Just _ -> expectSuccess `shouldMatch` True
+      let mCookie = getCookie "zuid" rsp
+      case mCookie of
+        Nothing -> do
+          expectSuccess `shouldMatch` False
+          pure Nothing
+        Just cookie -> do
+          expectSuccess `shouldMatch` True
+          pure $ getUserIdFromCookie cookie
+
+    getUserIdFromCookie :: String -> Maybe String
+    getUserIdFromCookie cookie = do
+      let regex = "u=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+      case cookie =~ regex :: [[String]] of
+        [[_, uuid]] -> Just uuid
+        _ -> Nothing
 
     runSimpleSP :: SAML.SimpleSP a -> App a
     runSimpleSP action = liftIO $ do

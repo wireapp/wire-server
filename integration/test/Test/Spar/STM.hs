@@ -227,12 +227,12 @@ validateStateLoginAllUsers owner tid state = do
     loginEmail <- case mIdp of
       Nothing -> scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
       Just _ -> pure email
-    maybe (loginWithPassword 200 loginEmail) (loginWithSaml True tid loginEmail) mIdp
+    maybe (loginWithPassword 200 loginEmail) (void . loginWithSaml True tid loginEmail) mIdp
 
     bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
       resp.status `shouldMatchInt` 204
 
-    maybe (loginWithPassword 403 loginEmail) (loginWithSaml False tid loginEmail) mIdp
+    maybe (loginWithPassword 403 loginEmail) (void . loginWithSaml False tid loginEmail) mIdp
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do

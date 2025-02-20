@@ -9,8 +9,13 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
+import Control.Lens (to, (^.))
+import qualified Data.CaseInsensitive as CI
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
+import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import qualified SAML2.WebSSO.XML as SAMLXML
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
@@ -390,10 +395,42 @@ testSsoLoginAndEmailVerification = do
   idpId <- asString $ idp.json %. "id"
 
   let email = "user@" <> emailDomain
-  loginWithSaml True tid email (idpId, idpMeta)
+  void $ loginWithSaml True tid email (idpId, idpMeta)
   activateEmail OwnDomain email
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     user <- res.json >>= asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
+
+testSsoLoginNoSamlEmailValidation :: (HasCallStack) => App ()
+testSsoLoginNoSamlEmailValidation = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  emailDomain <- randomDomain
+
+  assertSuccess =<< do
+    setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+
+  let email = "user@" <> emailDomain
+  (Just uid, authnResp) <- loginWithSaml True tid email (idpId, idpMeta)
+  let parsed :: SAML.AuthnResponse =
+        fromRight (error "invalid authnResponse")
+          . SAMLXML.parseFromDocument
+          . SAML.fromSignedAuthnResponse
+          $ authnResp
+      uref = fromRight (error "invalid userRef") $ SAML.getUserRef parsed
+      eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
+  eid `shouldMatch` email
+  getUsersId OwnDomain [uid] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
+
+  getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json >>= asList >>= shouldBeEmpty
