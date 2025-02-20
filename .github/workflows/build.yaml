@@ -20,23 +20,34 @@ jobs:
       - name: Setup Nix
         uses: cachix/install-nix-action@v16
 
-      - name: Clone wire-docs repository
+      - name: Clone wire-docs and build
         run: |
+          # Clone the wire-docs repo into a subdirectory
           git clone --branch main https://github.com/wireapp/wire-docs.git wire-docs
 
-      - name: Modify submodule configuration
-        working-directory: wire-docs
-        run: |
+          # Verify that the directory exists
+          ls -la
+
+          # (Perform any submodule modifications here as needed)
+          cd wire-docs
+
           cat .gitmodules
           
           CURRENT_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
-          CURRENT_BRANCH="${GITHUB_REF#refs/heads/}"
-          
+
+          if [ -n "$GITHUB_HEAD_REF" ]; then
+              CURRENT_BRANCH="$GITHUB_HEAD_REF"
+          else
+              CURRENT_BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+
           sed -i "s|url = https://github.com/mohitrajain/wire-server.git|url = ${CURRENT_REPO_URL}|g" .gitmodules
           sed -i "s|branch = clean-wire-server-docs|branch = ${CURRENT_BRANCH}|g" .gitmodules
           
           cat .gitmodules
 
-      - name: Build project
-        working-directory: wire-docs
-        run: cd wire-docs && make build
+          # Optionally check the .gitmodules file in wire-docs
+          cat .gitmodules
+
+          # Run the build command
+          make build
