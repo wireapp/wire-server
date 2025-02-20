@@ -178,7 +178,7 @@ createAndEnableService domain teamAdmin tid pid newSvc = do
 -- NB: in some of the tests above, we depend on the fact that there are exactly
 -- 20 services here and the fact that they are ordered alphabetically.
 taggedServiceNames :: String -> [(String, [String])]
-taggedServiceNames prefix = 
+taggedServiceNames prefix =
   [ (prefixed "Alpha", ["social", "quiz", "business"]),
     (prefixed "Beta", ["social", "music", "lifestyle"]),
     (prefixed "bjorn", ["social", "quiz", "travel"]),
