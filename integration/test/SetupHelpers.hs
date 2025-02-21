@@ -562,3 +562,11 @@ setupOwnershipToken domain registrationDomain = do
     resp.json %. "domain_ownership_token" & asString
 
   pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken
+
+activateEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
+activateEmail domain email = do
+  (actkey, code) <- bindResponse (getActivationCode domain email) $ \res -> do
+    (,)
+      <$> (res.json %. "key" >>= asString)
+      <*> (res.json %. "code" >>= asString)
+  API.Brig.activate domain actkey code >>= assertSuccess

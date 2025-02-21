@@ -290,14 +290,6 @@ registerUser domain tid email = do
     >>= Brig.registerUser domain email
     >>= assertSuccess
 
-activateEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
-activateEmail domain email = do
-  (actkey, code) <- bindResponse (BrigInternal.getActivationCode domain email) $ \res -> do
-    (,)
-      <$> (res.json %. "key" >>= asString)
-      <*> (res.json %. "code" >>= asString)
-  Brig.activate domain actkey code >>= assertSuccess
-
 checkSparGetUserAndFindByExtId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> (Value -> App ()) -> App ()
 checkSparGetUserAndFindByExtId domain tok extId uid k = do
   usersByExtIdResp <- findUsersByExternalId domain tok extId

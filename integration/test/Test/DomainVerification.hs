@@ -510,27 +510,33 @@ testSsoLoginNoEmailVerification = do
   (owner, tid, _) <- createTeam OwnDomain 1
   emailDomain <- randomDomain
 
-  -- enable domain registration feature
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
-  domain <- randomDomain
-  setup <- setupOwnershipToken OwnDomain domain
-  authorizeTeam owner domain setup.ownershipToken >>= assertSuccess
+  setup <- setupOwnershipToken OwnDomain emailDomain
+  authorizeTeam owner emailDomain setup.ownershipToken >>= assertSuccess
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
   idpId <- asString $ idp.json %. "id"
 
-  updateTeamInvite owner domain (object ["team_invite" .= "not-allowed", "sso" .= idpId]) >>= assertSuccess
+  updateTeamInvite owner emailDomain (object ["team_invite" .= "not-allowed", "sso" .= idpId]) >>= assertSuccess
 
   let email = "user@" <> emailDomain
-  void $ loginWithSaml True tid email (idpId, idpMeta)
-  getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+  (Just uid, _) <- loginWithSaml True tid email (idpId, idpMeta)
+  getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     user <- res.json >>= asList >>= assertOne
     user %. "status" `shouldMatch` "active"
-    user %. "email" `shouldMatch` email
+    lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
 
--- TODO: test same idp but different email domain needs activation
+  otherEmailDomain <- randomDomain
+  let otherEmail = "otherUser@" <> otherEmailDomain
+  (Just otherUid, _) <- loginWithSaml True tid otherEmail (idpId, idpMeta)
+  activateEmail OwnDomain otherEmail
+  getUsersId OwnDomain [otherUid] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` otherEmail
