@@ -529,7 +529,7 @@ testSsoLoginNoEmailVerification = do
     res.status `shouldMatchInt` 200
     user <- res.json >>= asList >>= assertOne
     user %. "status" `shouldMatch` "active"
-    lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
+    user %. "email" `shouldMatch` email
 
   otherEmailDomain <- randomDomain
   let otherEmail = "otherUser@" <> otherEmailDomain

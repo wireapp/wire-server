@@ -188,8 +188,3 @@ giveDefaultHandle usr = case userHandle usr of
         uid = userId usr
     BrigAccess.setHandle uid handle
     pure handle
-
-emailDomainIsRegisteredForSSO :: (HasCallStack, Member BrigAccess r) => EmailAddress -> Sem r Bool
-emailDomainIsRegisteredForSSO email = do
-  response <- BrigAccess.getDomainRegistration email
-  pure $ is _SSO response.redirect

@@ -80,6 +80,5 @@ data BrigAccess m a where
   GetStatusMaybe :: UserId -> BrigAccess m (Maybe AccountStatus)
   SetStatus :: UserId -> AccountStatus -> BrigAccess m ()
   GetDefaultUserLocale :: BrigAccess m Locale
-  GetDomainRegistration :: EmailAddress -> BrigAccess m DomainRedirectResponse
 
 makeSem ''BrigAccess

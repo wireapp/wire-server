@@ -79,7 +79,6 @@ activateKey ::
   ExceptT ActivationError (AppT r) (Maybe ActivationEvent)
 activateKey k c u = do
   (emailKey, mUser) <- wrapClientE (verifyCode k c)
-  lift $ liftSem $ guardRegisterActivateUserEmailDomain (emailKeyOrig emailKey)
   pickUser (emailKey, mUser) >>= activate
   where
     pickUser :: (t, Maybe UserId) -> ExceptT ActivationError (AppT r) (t, UserId)
