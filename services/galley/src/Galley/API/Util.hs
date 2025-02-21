@@ -23,6 +23,7 @@ import Control.Lens (set, to, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Json.Util
@@ -341,8 +342,8 @@ acceptOne2One lusr conv conn = do
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
-        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems')) $ \p ->
-          pushNotifications [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
+            p = newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems') False
+        pushNotifications [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
         pure conv' {Data.convLocalMembers = mems'}
     _ -> throwS @'InvalidOperation
   where
@@ -642,14 +643,16 @@ pushConversationEvent ::
   f BotMember ->
   Sem r ()
 pushConversationEvent conn e lusers bots = do
-  for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
-    pushNotifications [p & set pushConn conn]
+  pushNotifications
+    [ newConversationEventPush e (fmap toList lusers)
+        & set pushConn conn
+    ]
   deliverAsync (map (,e) (toList bots))
 
-newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
+newConversationEventPush :: Event -> Local [UserId] -> Push
 newConversationEventPush e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
-   in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users))
+   in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users)) (isPydioEvent $ evtType e)
 
 verifyReusableCode ::
   ( Member CodeStore r,
@@ -743,7 +746,8 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       nonCreatorMembers = Set.empty,
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
-      protocol = convProtocol
+      protocol = convProtocol,
+      pydioState = Just cnvmPydioState
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -803,7 +807,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             -- domain.
             cnvmTeam = Nothing,
             cnvmMessageTimer = messageTimer,
-            cnvmReceiptMode = receiptMode
+            cnvmReceiptMode = receiptMode,
+            cnvmPydioState = fromMaybe def pydioState
           }
         (ConvMembers this others)
         ProtocolProteus

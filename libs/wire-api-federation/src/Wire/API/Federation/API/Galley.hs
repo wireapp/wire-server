@@ -37,6 +37,7 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.PydioState
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
@@ -350,7 +351,8 @@ data ConversationCreated conv = ConversationCreated
     nonCreatorMembers :: Set OtherMember,
     messageTimer :: Maybe Milliseconds,
     receiptMode :: Maybe ReceiptMode,
-    protocol :: Protocol
+    protocol :: Protocol,
+    pydioState :: Maybe PydioState -- TODO: remove Maybe
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))
