@@ -339,9 +339,7 @@ instance MakeFeature MlsE2EIdConfig where
                   acmeDiscoveryUrl = Alt acmeDiscoveryUrl <|> defCfg.acmeDiscoveryUrl,
                   crlProxy = Alt crlProxy <|> defCfg.crlProxy,
                   useProxyOnMobile =
-                    fromMaybe
-                      defCfg.useProxyOnMobile
-                      (fmap UseProxyOnMobile useProxyOnMobile)
+                    maybe defCfg.useProxyOnMobile UseProxyOnMobile useProxyOnMobile
                 }
           )
 
