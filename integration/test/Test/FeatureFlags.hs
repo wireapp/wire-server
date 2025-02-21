@@ -29,11 +29,11 @@ import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testLimitedEventFanout :: (HasCallStack) => FeatureTable -> App ()
-testLimitedEventFanout ft = do
+testLimitedEventFanout :: (HasCallStack) => App ()
+testLimitedEventFanout = do
   let featureName = "limitedEventFanout"
   (_alice, team, _) <- createTeam OwnDomain 1
-  updateMigrationState OwnDomain team ft
+  -- getTeamFeatureStatus OwnDomain team "limitedEventFanout" "enabled"
   bindResponse (Internal.getTeamFeature OwnDomain team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
@@ -44,10 +44,9 @@ testLimitedEventFanout ft = do
 
 -- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
 -- features are there.
-testAllFeatures :: (HasCallStack) => FeatureTable -> App ()
-testAllFeatures ft = do
+testAllFeatures :: (HasCallStack) => App ()
+testAllFeatures = do
   (_, tid, m : _) <- createTeam OwnDomain 2
-  updateMigrationState OwnDomain tid ft
   bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     defAllFeatures `shouldMatch` resp.json
@@ -71,10 +70,9 @@ testAllFeatures ft = do
     resp.status `shouldMatchInt` 200
     defAllFeatures `shouldMatch` resp.json
 
-testFeatureConfigConsistency :: (HasCallStack) => FeatureTable -> App ()
-testFeatureConfigConsistency ft = do
+testFeatureConfigConsistency :: (HasCallStack) => App ()
+testFeatureConfigConsistency = do
   (_, tid, m : _) <- createTeam OwnDomain 2
-  updateMigrationState OwnDomain tid ft
 
   allFeaturesRes <- Public.getFeatureConfigs m >>= parseObjectKeys
 
@@ -90,10 +88,9 @@ testFeatureConfigConsistency ft = do
         (A.Object hm) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
         x -> assertFailure ("JSON was not an object, but " <> show x)
 
-testNonMemberAccess :: (HasCallStack) => FeatureTable -> Feature -> App ()
-testNonMemberAccess ft (Feature featureName) = do
+testNonMemberAccess :: (HasCallStack) => Feature -> App ()
+testNonMemberAccess (Feature featureName) = do
   (_, tid, _) <- createTeam OwnDomain 0
-  updateMigrationState OwnDomain tid ft
   nonMember <- randomUser OwnDomain def
   Public.getTeamFeature nonMember tid featureName
     >>= assertForbidden
