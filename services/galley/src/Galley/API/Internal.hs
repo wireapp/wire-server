@@ -61,7 +61,6 @@ import Galley.Effects.CustomBackendStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ServiceStore
-import Galley.Effects.TeamFeatureStore qualified as E
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
@@ -289,8 +288,6 @@ featureAPI =
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
     <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
-    -- migration state
-    <@> mkNamedAPI @"put-feature-migration-state" E.setMigrationState
 
 rmUser ::
   forall p1 p2 r.
