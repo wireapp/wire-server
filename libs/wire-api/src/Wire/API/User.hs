@@ -1586,20 +1586,24 @@ instance ToSchema NameUpdate where
 data ChangeEmailResponse
   = ChangeEmailResponseIdempotent
   | ChangeEmailResponseNeedsActivation
+  | ChangeEmailResponseActivated
   deriving (Eq, Show)
 
 instance
   AsUnion
     '[ Respond 202 "Update accepted and pending activation of the new email" (),
-       Respond 204 "No update, current and new email address are the same" ()
+       Respond 204 "No update, current and new email address are the same" (),
+       Respond 204 "Email address activated" ()
      ]
     ChangeEmailResponse
   where
   toUnion ChangeEmailResponseNeedsActivation = Z (I ())
   toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
+  toUnion ChangeEmailResponseActivated = S (S (Z (I ())))
   fromUnion (Z (I ())) = ChangeEmailResponseNeedsActivation
   fromUnion (S (Z (I ()))) = ChangeEmailResponseIdempotent
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (S (Z (I ())))) = ChangeEmailResponseActivated
+  fromUnion (S (S (S x))) = case x of {}
 
 -----------------------------------------------------------------------------
 -- Account Deletion

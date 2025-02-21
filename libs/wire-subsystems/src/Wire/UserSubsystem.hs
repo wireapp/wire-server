@@ -310,6 +310,8 @@ createEmailChangeToken lusr email updateOrigin = do
     -- The user already has an email address and the new one is exactly the same
     Just current | current == email -> pure ChangeEmailIdempotent
     _ -> do
+      -- if the user is managed by SCIM, the email change must be initiated by SCIM
+      -- they are not allowed to change their email address themselves in that case
       unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
         throw UserSubsystemEmailManagedByScim
       actTimeout <- inputs (.activationCodeTimeout)

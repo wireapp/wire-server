@@ -242,7 +242,6 @@ validateSamlEmailIfExists ::
 validateSamlEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> do
     mbTid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
-    let email = Intra.emailFromSAML . CI.original $ samlEmail
     validateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
   _ -> pure ()
 

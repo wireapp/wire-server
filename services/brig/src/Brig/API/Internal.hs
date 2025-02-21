@@ -74,7 +74,7 @@ import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Connection
-import Wire.API.EnterpriseLogin (DomainRegistrationResponse)
+import Wire.API.EnterpriseLogin hiding (domain)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error (FederationError (..))
@@ -87,6 +87,7 @@ import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.Activation qualified as Public
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
@@ -94,7 +95,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
-import Wire.DomainRegistrationStore (DomainRegistrationStore)
+import Wire.DomainRegistrationStore hiding (domain)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemErrorNotFound))
@@ -223,7 +224,9 @@ accountAPI ::
     Member (Input UserSubsystemConfig) r,
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SparAPIAccess r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -591,15 +594,38 @@ changeSelfEmailMaybeSendH ::
     Member (Input UserSubsystemConfig) r,
     Member TinyLog r,
     Member DomainRegistrationStore r,
-    Member SparAPIAccess r
+    Member SparAPIAccess r,
+    Member EnterpriseLoginSubsystem r,
+    Member Events r,
+    Member GalleyAPIAccess r,
+    Member PasswordResetCodeStore r
   ) =>
   UserId ->
   EmailUpdate ->
   Maybe Bool ->
   (Handler r) ChangeEmailResponse
-changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
+changeSelfEmailMaybeSendH uid body (fromMaybe False -> validate) = do
   let email = euEmail body
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
+  luid <- qualifyLocal uid
+  needsActivation <-
+    isNothing <$> runMaybeT do
+      domain <- hoistMaybe . hush $ emailDomain email
+      domReg <- MaybeT . lift . liftSem $ getDomainRegistration domain
+      profile <- MaybeT . lift . liftSem $ getSelfProfile luid
+      tid <- hoistMaybe . userTeam $ selfUser profile
+      guard (domReg.authorizedTeam == Just tid)
+
+  -- `UpdateOriginType` is hard coded to `UpdateOriginScim` here, so we implicitly assume that the endpoint of this handler is only used by SCIM.
+  if needsActivation
+    then do
+      changeSelfEmailMaybeSend uid (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
+    else do
+      token <- lift $ liftSem $ createEmailChangeToken luid email UpdateOriginScim
+      case token of
+        ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+        ChangeEmailNeedsActivation (_, Activation k c, _) -> do
+          let activate = Public.Activate (Public.ActivateKey k) c False
+          API.activateNoVerifyEmailDomain activate.activateTarget c (Just uid) !>> actError $> ChangeEmailResponseActivated
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 

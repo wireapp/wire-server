@@ -73,27 +73,3 @@ spec = do
     it "roundtrips" . property $
       \(ValidScimIdNoNameIDQualifiers x) ->
         veidFromUserSSOId @(Either String) (veidToUserSSOId x) (justHere x.validScimIdAuthInfo) === Right x
-
-  describe "emailDomainIsRegisteredForSSO" $ do
-    it "should return true for domain redirect sso" . property $ \email response ->
-      let actual =
-            run . (mockBrig email response) $
-              emailDomainIsRegisteredForSSO email
-          expected = case response.redirect of
-            None -> False
-            Locked -> False
-            SSO _ -> True
-            Backend _ -> False
-            NoRegistration -> False
-            PreAuthorized -> False
-       in actual === expected
-
-mockBrig ::
-  forall (r :: EffectRow) a.
-  EmailAddress ->
-  DomainRedirectResponse ->
-  Sem (BrigAccess ': r) a ->
-  Sem r a
-mockBrig email response = interpret $ \case
-  (GetDomainRegistration email') | email' == email -> pure $ response
-  _ -> error "Throw error here to avoid implementation of all cases."
