@@ -9,8 +9,8 @@ import Test.FeatureFlags.Util
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
 
-testLegalholdDisabledByDefault :: (HasCallStack) => FeatureTable -> App ()
-testLegalholdDisabledByDefault table = do
+testLegalholdDisabledByDefault :: (HasCallStack) => App ()
+testLegalholdDisabledByDefault = do
   let put uid tid st = Internal.setTeamFeatureConfig uid tid "legalhold" (object ["status" .= st]) >>= assertSuccess
   let patch uid tid st = Internal.setTeamFeatureStatus uid tid "legalhold" st >>= assertSuccess
   forM_ [put, patch] $ \setFeatureStatus -> do
@@ -18,7 +18,6 @@ testLegalholdDisabledByDefault table = do
       def {galleyCfg = setField "settings.featureFlags.legalhold" "disabled-by-default"}
       $ \domain -> do
         (owner, tid, m : _) <- createTeam domain 2
-        updateMigrationState domain tid table
         nonMember <- randomUser domain def
         assertForbidden =<< Public.getTeamFeature nonMember tid "legalhold"
         -- Test default
@@ -30,8 +29,8 @@ testLegalholdDisabledByDefault table = do
         checkFeature "legalhold" owner tid disabled
 
 -- always disabled
-testLegalholdDisabledPermanently :: (HasCallStack) => FeatureTable -> App ()
-testLegalholdDisabledPermanently table = do
+testLegalholdDisabledPermanently :: (HasCallStack) => App ()
+testLegalholdDisabledPermanently = do
   let cfgLhDisabledPermanently =
         def
           { galleyCfg = setField "settings.featureFlags.legalhold" "disabled-permanently"
@@ -47,7 +46,6 @@ testLegalholdDisabledPermanently table = do
     -- Happy case: DB has no config for the team
     runCodensity (startDynamicBackend testBackend cfgLhDisabledPermanently) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
-      updateMigrationState domain tid table
       checkFeature "legalhold" owner tid disabled
       assertStatus 403 =<< Internal.setTeamFeatureStatus domain tid "legalhold" "enabled"
       assertStatus 403 =<< Internal.setTeamFeatureConfig domain tid "legalhold" (object ["status" .= "enabled"])
@@ -56,7 +54,6 @@ testLegalholdDisabledPermanently table = do
     -- changed to disabled-permanently
     (owner, tid) <- runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
-      updateMigrationState domain tid table
       checkFeature "legalhold" owner tid disabled
       assertSuccess =<< Internal.setTeamFeatureStatus domain tid "legalhold" "enabled"
       checkFeature "legalhold" owner tid enabled
@@ -66,8 +63,8 @@ testLegalholdDisabledPermanently table = do
       checkFeature "legalhold" owner tid disabled
 
 -- enabled if team is allow listed, disabled in any other case
-testLegalholdWhitelistTeamsAndImplicitConsent :: (HasCallStack) => FeatureTable -> App ()
-testLegalholdWhitelistTeamsAndImplicitConsent table = do
+testLegalholdWhitelistTeamsAndImplicitConsent :: (HasCallStack) => App ()
+testLegalholdWhitelistTeamsAndImplicitConsent = do
   let cfgLhWhitelistTeamsAndImplicitConsent =
         def
           { galleyCfg = setField "settings.featureFlags.legalhold" "whitelist-teams-and-implicit-consent"
@@ -83,7 +80,6 @@ testLegalholdWhitelistTeamsAndImplicitConsent table = do
     -- Happy case: DB has no config for the team
     (owner, tid) <- runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
-      updateMigrationState domain tid table
       checkFeature "legalhold" owner tid disabled
       Internal.legalholdWhitelistTeam tid owner >>= assertSuccess
       checkFeature "legalhold" owner tid enabled
@@ -105,8 +101,8 @@ testLegalholdWhitelistTeamsAndImplicitConsent table = do
     runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
       checkFeature "legalhold" owner tid enabled
 
-testExposeInvitationURLsToTeamAdminConfig :: (HasCallStack) => FeatureTable -> App ()
-testExposeInvitationURLsToTeamAdminConfig table = do
+testExposeInvitationURLsToTeamAdminConfig :: (HasCallStack) => App ()
+testExposeInvitationURLsToTeamAdminConfig = do
   let cfgExposeInvitationURLsTeamAllowlist tids =
         def
           { galleyCfg = setField "settings.exposeInvitationURLsTeamAllowlist" tids
@@ -118,7 +114,6 @@ testExposeInvitationURLsToTeamAdminConfig table = do
         testNoAllowlistEntry :: (HasCallStack) => App (Value, String)
         testNoAllowlistEntry = runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist ([] :: [String])) $ \_ -> do
           (owner, tid, _) <- createTeam domain 1
-          updateMigrationState domain tid table
           checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
           -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
           -- a team that is not in the allow list cannot enable the feature, it will always be disabled and locked
