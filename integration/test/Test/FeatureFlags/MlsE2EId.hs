@@ -18,8 +18,8 @@ mlsE2EId1 =
           ]
     ]
 
-testMLSE2EId :: (HasCallStack) => FeatureTable -> APIAccess -> App ()
-testMLSE2EId table access = do
+testMLSE2EId :: (HasCallStack) => APIAccess -> App ()
+testMLSE2EId access = do
   invalid <-
     mlsE2EId1
       & if (access == InternalAPI)
@@ -34,16 +34,15 @@ testMLSE2EId table access = do
     & addUpdate mlsE2EId1
     & addUpdate mlsE2EId2
     & addInvalidUpdate invalid
-    & setTable table
     & runFeatureTests OwnDomain access
 
-testPatchE2EId :: (HasCallStack) => FeatureTable -> App ()
-testPatchE2EId table = do
-  checkPatchWithTable table OwnDomain "mlsE2EId" (object ["lockStatus" .= "locked"])
-  checkPatchWithTable table OwnDomain "mlsE2EId" (object ["status" .= "enabled"])
-  checkPatchWithTable table OwnDomain "mlsE2EId"
+testPatchE2EId :: (HasCallStack) => App ()
+testPatchE2EId = do
+  checkPatch OwnDomain "mlsE2EId" (object ["lockStatus" .= "locked"])
+  checkPatch OwnDomain "mlsE2EId" (object ["status" .= "enabled"])
+  checkPatch OwnDomain "mlsE2EId"
     $ object ["lockStatus" .= "locked", "status" .= "enabled"]
-  checkPatchWithTable table OwnDomain "mlsE2EId"
+  checkPatch OwnDomain "mlsE2EId"
     $ object
       [ "lockStatus" .= "unlocked",
         "config"
@@ -54,7 +53,7 @@ testPatchE2EId table = do
             ]
       ]
 
-  checkPatchWithTable table OwnDomain "mlsE2EId"
+  checkPatch OwnDomain "mlsE2EId"
     $ object
       [ "config"
           .= object
@@ -64,10 +63,9 @@ testPatchE2EId table = do
             ]
       ]
 
-testMlsE2EConfigCrlProxyRequired :: (HasCallStack) => FeatureTable -> App ()
-testMlsE2EConfigCrlProxyRequired table = do
+testMlsE2EConfigCrlProxyRequired :: (HasCallStack) => App ()
+testMlsE2EConfigCrlProxyRequired = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  updateMigrationState OwnDomain tid table
   let configWithoutCrlProxy =
         object
           [ "config"
@@ -97,10 +95,9 @@ testMlsE2EConfigCrlProxyRequired table = do
   expectedResponse <- configWithCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
   checkFeature "mlsE2EId" owner tid expectedResponse
 
-testMlsE2EConfigCrlProxyNotRequiredInV5 :: (HasCallStack) => FeatureTable -> App ()
-testMlsE2EConfigCrlProxyNotRequiredInV5 table = do
+testMlsE2EConfigCrlProxyNotRequiredInV5 :: (HasCallStack) => App ()
+testMlsE2EConfigCrlProxyNotRequiredInV5 = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  updateMigrationState OwnDomain tid table
   let configWithoutCrlProxy =
         object
           [ "config"
