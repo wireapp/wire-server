@@ -49,6 +49,7 @@ import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, _Just)
+import Control.Lens.Extras (is)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -614,6 +615,7 @@ changeSelfEmailMaybeSendH uid body (fromMaybe False -> validate) = do
       profile <- MaybeT . lift . liftSem $ getSelfProfile luid
       tid <- hoistMaybe . userTeam $ selfUser profile
       guard (domReg.authorizedTeam == Just tid)
+      guard (domReg.domainRedirect & is _SSO)
 
   -- `UpdateOriginType` is hard coded to `UpdateOriginScim` here, so we implicitly assume that the endpoint of this handler is only used by SCIM.
   if needsActivation
