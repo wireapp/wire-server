@@ -72,7 +72,6 @@ spec = do
 specCreateToken :: SpecWith TestEnv
 specCreateToken = describe "POST /auth-tokens" $ do
   it "works" testCreateToken
-  it "respects the token limit" testTokenLimit
   it "requires the team to have no more than one IdP" testNumIdPs
   it "testCreateTokenAuthorizesOnlyAdmins - authorizes only admins and owners" testCreateTokenAuthorizesOnlyAdmins
   it "requires a password" testCreateTokenRequiresPassword
@@ -165,38 +164,6 @@ getVerificationCode brig uid action = do
       get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
         <!! const 200 === statusCode
   pure $ responseJsonUnsafe @Code.Value resp
-
--- | Test that only up to @maxScimTokens@ can be created.
---
--- We assume that in tests, the token limit is 2.
-testTokenLimit :: TestSpar ()
-testTokenLimit = do
-  env <- ask
-  -- Create two tokens
-  (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-  _ <- registerTestIdP owner
-  replicateM_ 8 $
-    createToken
-      owner
-      CreateScimToken
-        { description = "testTokenLimit / #1-8",
-          password = Just defPassword,
-          verificationCode = Nothing,
-          name = Nothing,
-          idp = Nothing
-        }
-  -- Try to create the ninth token and see that it fails
-  createToken_
-    owner
-    CreateScimToken
-      { description = "testTokenLimit / #8",
-        password = Just defPassword,
-        verificationCode = Nothing,
-        name = Nothing,
-        idp = Nothing
-      }
-    (env ^. teSpar)
-    !!! checkErr 403 (Just "token-limit-reached")
 
 testNumIdPs :: TestSpar ()
 testNumIdPs = do

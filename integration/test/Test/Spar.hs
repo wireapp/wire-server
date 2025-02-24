@@ -307,6 +307,20 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
 
   userByUid `shouldMatch` userByIdExtId
 
+testSparScimTokenLimit :: (HasCallStack) => App ()
+testSparScimTokenLimit = withModifiedBackend
+  def
+    { brigCfg =
+        -- Disable password hashing rate limiting, so we can create enable services quickly
+        setField @_ @Int "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" 0
+    }
+  $ \domain -> do
+    (owner, _tid, _) <- createTeam domain 1
+    replicateM_ 8 $ createScimToken owner def >>= assertSuccess
+    createScimToken owner def `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "token-limit-reached"
+
 testSparCreateScimTokenNoName :: (HasCallStack) => App ()
 testSparCreateScimTokenNoName = do
   (owner, _tid, mem : _) <- createTeam OwnDomain 2

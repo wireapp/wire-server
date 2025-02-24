@@ -108,6 +108,8 @@ import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
 import Wire.API.User
+import Wire.HashPassword (HashPassword)
+import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
 
 getBotConversation ::
@@ -641,14 +643,16 @@ getConversationByReusableCode ::
     Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member (Input Opts) r
+    Member (Input Opts) r,
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   Key ->
   Value ->
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
-  c <- verifyReusableCode False Nothing (ConversationCode key value Nothing)
+  c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) False Nothing (ConversationCode key value Nothing)
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled (Data.convTeam conv)

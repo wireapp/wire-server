@@ -218,6 +218,18 @@ getProviderActivationCodeInternal dom email = do
       joinHttpPath ["i", "provider", "activation-code"]
   submit "GET" (addQueryParams [("email", email)] req)
 
+getProviderPasswordResetCodeInternal ::
+  (HasCallStack, MakesValue dom) =>
+  dom ->
+  String ->
+  App Response
+getProviderPasswordResetCodeInternal dom email = do
+  d <- make dom
+  req <-
+    rawBaseRequest d Brig Unversioned $
+      joinHttpPath ["i", "provider", "password-reset-code"]
+  submit "GET" (addQueryParams [("email", email)] req)
+
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
 addClient ::
   (HasCallStack, MakesValue user) =>

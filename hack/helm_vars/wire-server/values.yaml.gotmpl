@@ -135,6 +135,7 @@ brig:
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
+
       # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
       setPasswordHashingOptions:
@@ -142,6 +143,10 @@ brig:
         iterations: 1
         parallelism: 4
         memory: 32 # This needs to be at least 8 * parallelism.
+      setPasswordHashingRateLimit:
+        ipAddressExceptions:
+        - 127.0.0.1/8
+
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
@@ -292,6 +297,9 @@ galley:
         iterations: 1
         parallelism: 4
         memory: 32 # This needs to be at least 8 * parallelism.
+      passwordHashingRateLimit:
+        ipAddressExceptions:
+        - 127.0.0.1/8
 
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.

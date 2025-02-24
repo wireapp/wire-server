@@ -1829,7 +1829,13 @@ registerUser brig tid email = do
   inv :: Invitation <- responseJsonError =<< r <!! statusCode === const 200
   Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
   call $
-    post (brig . path "/register" . contentJson . json (acceptWithName (Name "Alice") email inviteeCode))
+    post
+      ( brig
+          . path "/register"
+          . header "X-Forwarded-For" "127.0.0.42"
+          . contentJson
+          . json (acceptWithName (Name "Alice") email inviteeCode)
+      )
       !!! const 201 === statusCode
 
 -- | Test that when the user is updated via SCIM, the data in Brig is also updated.
