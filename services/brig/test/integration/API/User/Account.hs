@@ -975,8 +975,7 @@ testEmailUpdate brig userJournalWatcher = do
   -- this test fails since there can be only one user with "test+...@example.com"
   ensureNoOtherUserWithEmail (unsafeEmailAddress "test" "example.com")
   -- we want to use a non-trusted domain in order to verify profile changes
-  flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
-  flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+  initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
 
   -- adding a clean-up step seems to avoid the subsequent failures.
   -- If subsequent runs start failing, it's possible that the aggressive setting
@@ -992,8 +991,8 @@ testEmailUpdate brig userJournalWatcher = do
         deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
         Util.assertDeleteJournaled userJournalWatcher (Auth.user t) "user deletion"
 
-    initiateUpdateAndActivate :: EmailAddress -> UserId -> Http ()
-    initiateUpdateAndActivate eml uid = do
+    initiateUpdateAndActivate :: UserId -> EmailAddress -> Http ()
+    initiateUpdateAndActivate uid eml = do
       initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
       activateEmail brig eml
       checkEmail brig uid eml
