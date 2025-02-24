@@ -2,7 +2,6 @@
 
 module Test.Spar where
 
-import qualified API.Brig as Brig
 import API.BrigInternal as BrigInternal
 import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
@@ -148,7 +147,7 @@ testSparExternalIdDifferentFromEmail = do
     res.status `shouldMatchInt` 200
     res.json >>= asList >>= shouldBeEmpty
 
-  registerUser OwnDomain tid email
+  registerInvitedUser OwnDomain tid email
 
   checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
     u %. "externalId" `shouldMatch` extId
@@ -238,7 +237,7 @@ testSparExternalIdUpdateToANonEmail = do
     resp.status `shouldMatchInt` 201
     (resp.json %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString) `shouldMatch` email
     resp.json %. "id" >>= asString
-  registerUser OwnDomain tid email
+  registerInvitedUser OwnDomain tid email
 
   let extId = "notanemailaddress"
   updatedScimUser <- setField "externalId" extId scimUser
@@ -251,7 +250,7 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
   scimUser <- randomScimUser >>= removeField "emails"
   email <- scimUser %. "externalId" >>= asString
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-  registerUser OwnDomain tid email
+  registerInvitedUser OwnDomain tid email
 
   -- Verify that updating a user with an empty emails does not change the email
   bindResponse (updateScimUser OwnDomain tok userId scimUser) $ \resp -> do
@@ -278,17 +277,6 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
     u <- res.json >>= asList >>= assertOne
     u %. "email" `shouldMatch` newEmail
     u %. "sso_id.scim_external_id" `shouldMatch` extId
-
-registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
-registerUser domain tid email = do
-  BrigInternal.getInvitationByEmail domain email
-    >>= getJSON 200
-    >>= BrigInternal.getInvitationCodeForTeam domain tid
-    >>= getJSON 200
-    >>= (%. "code")
-    >>= asString
-    >>= Brig.registerUser domain email
-    >>= assertSuccess
 
 checkSparGetUserAndFindByExtId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> (Value -> App ()) -> App ()
 checkSparGetUserAndFindByExtId domain tok extId uid k = do
