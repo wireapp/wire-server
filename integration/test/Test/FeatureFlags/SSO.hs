@@ -6,8 +6,8 @@ import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testSSODisabledByDefault :: (HasCallStack) => App ()
-testSSODisabledByDefault = do
+testSSODisabledByDefault :: (HasCallStack) => FeatureTable -> App ()
+testSSODisabledByDefault table = do
   let put uid tid = Internal.setTeamFeatureConfig uid tid "sso" (object ["status" .= "enabled"]) >>= assertSuccess
   let patch uid tid = Internal.setTeamFeatureStatus uid tid "sso" "enabled" >>= assertSuccess
   forM_ [put, patch] $ \enableFeature -> do
@@ -15,6 +15,7 @@ testSSODisabledByDefault = do
       def {galleyCfg = setField "settings.featureFlags.sso" "disabled-by-default"}
       $ \domain -> do
         (owner, tid, m : _) <- createTeam domain 2
+        updateMigrationState domain tid table
         nonMember <- randomUser domain def
         assertForbidden =<< Public.getTeamFeature nonMember tid "sso"
         -- Test default
@@ -23,12 +24,13 @@ testSSODisabledByDefault = do
         enableFeature owner tid
         checkFeature "sso" owner tid enabled
 
-testSSOEnabledByDefault :: (HasCallStack) => App ()
-testSSOEnabledByDefault = do
+testSSOEnabledByDefault :: (HasCallStack) => FeatureTable -> App ()
+testSSOEnabledByDefault table = do
   withModifiedBackend
     def {galleyCfg = setField "settings.featureFlags.sso" "enabled-by-default"}
     $ \domain -> do
       (owner, tid, _m : _) <- createTeam domain 2
+      updateMigrationState domain tid table
       nonMember <- randomUser domain def
       assertForbidden =<< Public.getTeamFeature nonMember tid "sso"
       checkFeature "sso" owner tid enabled

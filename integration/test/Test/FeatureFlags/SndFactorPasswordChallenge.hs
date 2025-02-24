@@ -3,14 +3,15 @@ module Test.FeatureFlags.SndFactorPasswordChallenge where
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testPatchSndFactorPasswordChallenge :: (HasCallStack) => App ()
-testPatchSndFactorPasswordChallenge =
-  checkPatch OwnDomain "sndFactorPasswordChallenge" enabled
+testPatchSndFactorPasswordChallenge :: (HasCallStack) => FeatureTable -> App ()
+testPatchSndFactorPasswordChallenge table =
+  checkPatchWithTable table OwnDomain "sndFactorPasswordChallenge" enabled
 
-testSndFactorPasswordChallenge :: (HasCallStack) => APIAccess -> App ()
-testSndFactorPasswordChallenge access =
+testSndFactorPasswordChallenge :: (HasCallStack) => FeatureTable -> APIAccess -> App ()
+testSndFactorPasswordChallenge table access =
   do
     mkFeatureTests "sndFactorPasswordChallenge"
     & addUpdate enabled
     & addUpdate disabled
+    & setTable table
     & runFeatureTests OwnDomain access

@@ -24,3 +24,15 @@ testConferenceCalling access = do
     & addUpdate (confCalling def {sft = toJSON True})
     & addUpdate (confCalling def {sft = toJSON False})
     & addInvalidUpdate (confCalling def {sft = toJSON (0 :: Int)})
+
+testPatchConferenceCallingReadOnly :: (HasCallStack) => App ()
+testPatchConferenceCallingReadOnly = do
+  checkPatchReadOnly OwnDomain "conferenceCalling"
+    $ object ["lockStatus" .= "locked"]
+
+testConferenceCallingReadOnlyDuringMigration :: (HasCallStack) => APIAccess -> App ()
+testConferenceCallingReadOnlyDuringMigration access = do
+  runFeatureTestsReadOnly OwnDomain access
+    $ mkFeatureTests "conferenceCalling"
+    & addUpdate (confCalling def {sft = toJSON True})
+    & addUpdate (confCalling def {sft = toJSON False})

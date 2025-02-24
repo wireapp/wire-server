@@ -5,12 +5,13 @@ import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testPatchDomainRegistration :: (HasCallStack) => App ()
-testPatchDomainRegistration = checkPatch OwnDomain "domainRegistration" enabled
+testPatchDomainRegistration :: (HasCallStack) => FeatureTable -> App ()
+testPatchDomainRegistration table = checkPatchWithTable table OwnDomain "domainRegistration" enabled
 
-testDomainRegistrationInternal :: (HasCallStack) => App ()
-testDomainRegistrationInternal = do
+testDomainRegistrationInternal :: (HasCallStack) => FeatureTable -> App ()
+testDomainRegistrationInternal table = do
   (alice, tid, _) <- createTeam OwnDomain 0
+  updateMigrationState OwnDomain tid table
   Internal.setTeamFeatureLockStatus alice tid "domainRegistration" "unlocked"
   withWebSocket alice $ \ws -> do
     setFlag InternalAPI ws tid "domainRegistration" enabled

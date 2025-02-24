@@ -157,7 +157,7 @@ ciField ::
 ciField name sch = mkSchema s r w
   where
     s :: doc'
-    s = mkDocF @doc' @Identity (mkField (CI.original name) (schemaDoc sch)) & desc
+    s = mkField (CI.original name) (schemaDoc sch) & desc
       where
         desc = S.description ?~ ("json field with case-insensitive keys." :: Text)
 
@@ -177,7 +177,7 @@ ciOptField ::
 ciOptField name sch = mkSchema s r w
   where
     s :: doc
-    s = mkDocF @doc @Identity (mkField (CI.original name) (schemaDoc sch)) & desc
+    s = mkField (CI.original name) (schemaDoc sch) & desc
       where
         desc = S.description ?~ ("optional json field with case-insensitive keys." :: Text)
 

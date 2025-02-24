@@ -10,6 +10,7 @@
 , asn1-encoding
 , async
 , attoparsec
+, barbies
 , base
 , base64-bytestring
 , binary
@@ -23,6 +24,7 @@
 , cereal
 , comonad
 , conduit
+, constraints
 , containers
 , cookie
 , crypton
@@ -68,6 +70,7 @@
 , pem
 , polysemy
 , process
+, profunctors
 , proto-lens
 , protobuf
 , QuickCheck
@@ -123,6 +126,7 @@ mkDerivation {
     aeson
     asn1-encoding
     attoparsec
+    barbies
     base
     base64-bytestring
     binary
@@ -135,6 +139,7 @@ mkDerivation {
     cereal
     comonad
     conduit
+    constraints
     containers
     cookie
     crypton
@@ -174,6 +179,7 @@ mkDerivation {
     openapi3
     pem
     polysemy
+    profunctors
     proto-lens
     protobuf
     QuickCheck

@@ -20,7 +20,7 @@
 module Galley.DataMigration.Types where
 
 import Cassandra qualified as C
-import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Imports
 import Numeric.Natural (Natural)
 import System.Logger qualified as Logger
@@ -41,9 +41,10 @@ newtype MigrationActionT m a = MigrationActionT {unMigrationAction :: ReaderT En
       Applicative,
       Monad,
       MonadIO,
-      MonadThrow,
       MonadReader Env,
-      MonadUnliftIO
+      MonadUnliftIO,
+      MonadThrow,
+      MonadCatch
     )
 
 instance MonadTrans MigrationActionT where

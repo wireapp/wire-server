@@ -77,7 +77,7 @@ import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
 import Wire.API.Routes.Version
 import Wire.API.Team
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature hiding (timeout)
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Member qualified as Teams

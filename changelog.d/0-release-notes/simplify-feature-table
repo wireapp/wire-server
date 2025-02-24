@@ -1,0 +1,1 @@
+This release introduces a new data storage format for team features and a corresponding migration. While the migration is running, team features are going to operate in read-only mode for the team that is currently being migrated. After migration, the new storage is going to be used. No special action should be required on the part of instance operators.

@@ -1,0 +1,1 @@
+Introduce a new feature table in Cassandra: `team_features_dyn`. This table has a fixed number of fields, as opposed to the ever-growing collection of all the fields of all the features that we were using before.
