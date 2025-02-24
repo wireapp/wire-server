@@ -23,10 +23,33 @@
 -- (for database values).
 module Wire.API.Team.Feature.Profunctor where
 
+import Control.Lens ((%~))
 import Data.Default
 import Data.Profunctor
 import Data.Schema
 import Imports
+
+class (Functor f) => FieldF f where
+  fieldF ::
+    (HasOpt doc', HasField doc doc') =>
+    Text ->
+    ValueSchemaP doc a b ->
+    ObjectSchemaP doc' (f a) (f b)
+
+fieldWithDocModifierF ::
+  forall f doc' doc a b.
+  (FieldF f, HasOpt doc', HasField doc doc') =>
+  Text ->
+  (doc' -> doc') ->
+  ValueSchemaP doc a b ->
+  ObjectSchemaP doc' (f a) (f b)
+fieldWithDocModifierF name f sch = fieldF @f @doc' name sch & doc %~ f
+
+instance FieldF Maybe where
+  fieldF name sch = maybe_ (optField name sch)
+
+instance FieldF Identity where
+  fieldF name sch = Identity <$> runIdentity .= field name sch
 
 -- | Parse an optional field by using its default when @f@ is 'Identity', and
 -- leaving it as 'Nothing' when @f@ is 'Maybe'.
@@ -47,7 +70,8 @@ class NestedMaybe f where
   nestedMaybeField :: Text -> ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (f (Maybe a))
 
 instance NestedMaybe Maybe where
-  nestedMaybeField name sch = maybe_ (optField name (nullable sch))
+  nestedMaybeField name sch =
+    maybe_ (optField' name (nullable sch))
 
 instance NestedMaybe Identity where
   nestedMaybeField name sch = Identity <$> runIdentity .= maybe_ (optField name sch)

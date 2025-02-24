@@ -36,6 +36,7 @@ module Data.Schema
     schemaIn,
     schemaOut,
     HasDoc (..),
+    HasOpt (..),
     doc',
     HasSchemaRef (..),
     HasObject (..),
@@ -52,15 +53,12 @@ module Data.Schema
     objectOver,
     jsonObject,
     jsonValue,
-    FieldFunctor (..),
     field,
     fieldWithDocModifier,
-    fieldOver,
     optField,
+    optField',
     optFieldWithDocModifier,
-    fieldF,
-    fieldOverF,
-    fieldWithDocModifierF,
+    fieldOver,
     array,
     set,
     nonEmptyArray,
@@ -283,21 +281,6 @@ schemaIn (SchemaP _ (SchemaIn i) _) = i
 schemaOut :: SchemaP ss v m a b -> a -> Maybe m
 schemaOut (SchemaP _ _ (SchemaOut o)) = o
 
-class (Functor f) => FieldFunctor doc f where
-  parseFieldF :: (A.Value -> A.Parser a) -> A.Object -> Text -> A.Parser (f a)
-  extractF :: (Monoid w) => SchemaP doc v w a b -> SchemaP doc v w (f a) b
-  mkDocF :: doc -> doc
-
-instance FieldFunctor doc Identity where
-  parseFieldF f obj key = Identity <$> A.explicitParseField f obj (Key.fromText key)
-  extractF = lmap runIdentity
-  mkDocF = id
-
-instance (HasOpt doc) => FieldFunctor doc Maybe where
-  parseFieldF f obj key = A.explicitParseFieldMaybe f obj (Key.fromText key)
-  extractF = maybe_
-  mkDocF = mkOpt
-
 -- | A schema for a one-field JSON object.
 field ::
   forall doc' doc a b.
@@ -305,7 +288,7 @@ field ::
   Text ->
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a b
-field = fieldOver id
+field name = fieldOver id name
 
 -- | A schema for a JSON object with a single optional field.
 optField ::
@@ -314,16 +297,24 @@ optField ::
   Text ->
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a (Maybe b)
-optField = fieldF
+optField =
+  fieldOverF
+    (\f obj key -> A.explicitParseFieldMaybe f obj (Key.fromText key))
+    mkOpt
+    id
 
--- | Generalization of 'optField' with 'FieldFunctor'.
-fieldF ::
-  forall doc' doc f a b.
-  (HasField doc' doc, FieldFunctor doc f) =>
+-- | Same as 'optField', but null values are parsed as normal values rather than 'Nothing'.
+optField' ::
+  forall doc doc' a b.
+  (HasOpt doc, HasField doc' doc) =>
   Text ->
   SchemaP doc' A.Value A.Value a b ->
-  SchemaP doc A.Object [A.Pair] a (f b)
-fieldF = fieldOverF id
+  SchemaP doc A.Object [A.Pair] a (Maybe b)
+optField' =
+  fieldOverF
+    (\f obj key -> A.explicitParseFieldMaybe' f obj (Key.fromText key))
+    mkOpt
+    id
 
 newtype Positive x y a = Positive {runPositive :: (a -> x) -> y}
   deriving (Functor)
@@ -337,15 +328,17 @@ newtype Positive x y a = Positive {runPositive :: (a -> x) -> y}
 -- See 'bind' for use cases.
 fieldOverF ::
   forall f doc' doc v v' a b.
-  (HasField doc' doc, FieldFunctor doc f) =>
+  (HasField doc' doc) =>
+  (forall x. (A.Value -> A.Parser x) -> A.Object -> Text -> A.Parser (f x)) ->
+  (doc -> doc) ->
   Lens v v' A.Object A.Value ->
   Text ->
   SchemaP doc' v' A.Value a b ->
   SchemaP doc v [A.Pair] a (f b)
-fieldOverF l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+fieldOverF pf mkDoc l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
     parseField :: A.Object -> Positive (A.Parser b) (A.Parser (f b)) A.Value
-    parseField obj = Positive $ \k -> parseFieldF @doc k obj name
+    parseField obj = Positive $ \k -> pf k obj name
 
     r :: v -> A.Parser (f b)
     r obj = runPositive (l parseField obj) (schemaIn sch)
@@ -354,7 +347,7 @@ fieldOverF l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
       v <- schemaOut sch x
       pure [Key.fromText name A..= v]
 
-    s = mkDocF @doc @f (mkField name (schemaDoc sch))
+    s = mkDoc (mkField name (schemaDoc sch))
 
 -- | Like 'fieldOverF', but specialised to the identity functor.
 fieldOver ::
@@ -364,7 +357,13 @@ fieldOver ::
   Text ->
   SchemaP doc' v' A.Value a b ->
   SchemaP doc v [A.Pair] a b
-fieldOver l name = fmap runIdentity . fieldOverF l name
+fieldOver l name =
+  fmap runIdentity
+    . fieldOverF
+      (\f obj key -> Identity <$> A.explicitParseField f obj (Key.fromText key))
+      id
+      l
+      name
 
 -- | Like 'field', but apply an arbitrary function to the
 -- documentation of the field.
@@ -387,17 +386,6 @@ optFieldWithDocModifier ::
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a (Maybe b)
 optFieldWithDocModifier name modify sch = optField @doc @doc' name (over doc modify sch)
-
--- | Like 'fieldF', but apply an arbitrary function to the
--- documentation of the field.
-fieldWithDocModifierF ::
-  forall doc' doc f a b.
-  (HasField doc' doc, FieldFunctor doc f) =>
-  Text ->
-  (doc' -> doc') ->
-  SchemaP doc' A.Value A.Value a b ->
-  SchemaP doc A.Object [A.Pair] a (f b)
-fieldWithDocModifierF name modify sch = fieldF @doc' @doc name (over doc modify sch)
 
 -- | Change the input type of a schema.
 (.=) :: (Profunctor p) => (a -> a') -> p a' b -> p a b

@@ -850,6 +850,7 @@ data ClassifiedDomainsConfig = ClassifiedDomainsConfig
 
 instance ParseDbFeature ClassifiedDomainsConfig where
   parseDbConfig _ = fail "ClassifiedDomainsConfig cannot be parsed from the DB"
+  serialiseDbConfig = DbConfig . schemaToJSON
 
 instance Default ClassifiedDomainsConfig where
   def = ClassifiedDomainsConfig []
@@ -903,12 +904,12 @@ deriving via (BarbieFeature AppLockConfigB) instance ToSchema AppLockConfig
 instance Default AppLockConfig where
   def = AppLockConfig (EnforceAppLock False) 60
 
-instance (FieldFunctor SwaggerDoc f) => ToSchema (AppLockConfigB Covered f) where
+instance (FieldF f) => ToSchema (AppLockConfigB Covered f) where
   schema =
     object "AppLockConfig" $
       AppLockConfig
-        <$> (.enforce) .= extractF (fieldF "enforceAppLock" schema)
-        <*> (.timeout) .= extractF (fieldF "inactivityTimeoutSecs" schema)
+        <$> (.enforce) .= fieldF "enforceAppLock" schema
+        <*> (.timeout) .= fieldF "inactivityTimeoutSecs" schema
 
 instance Default (LockableFeature AppLockConfig) where
   def = defUnlockedFeature
@@ -981,11 +982,11 @@ deriving via (BarbieFeature SelfDeletingMessagesConfigB) instance (ToSchema Self
 instance Default SelfDeletingMessagesConfig where
   def = SelfDeletingMessagesConfig 0
 
-instance (FieldFunctor SwaggerDoc f) => ToSchema (SelfDeletingMessagesConfigB Covered f) where
+instance (FieldF f) => ToSchema (SelfDeletingMessagesConfigB Covered f) where
   schema =
     object "SelfDeletingMessagesConfig" $
       SelfDeletingMessagesConfig
-        <$> sdmEnforcedTimeoutSeconds .= extractF (fieldF "enforcedTimeoutSeconds" schema)
+        <$> sdmEnforcedTimeoutSeconds .= fieldF "enforcedTimeoutSeconds" schema
 
 instance Default (LockableFeature SelfDeletingMessagesConfig) where
   def = defUnlockedFeature
@@ -1036,15 +1037,20 @@ instance Default MLSConfig where
       MLS_128_DHKEMP256_AES128GCM_SHA256_P256
       [ProtocolProteusTag, ProtocolMLSTag]
 
-instance (FieldFunctor SwaggerDoc f) => ToSchema (MLSConfigB Covered f) where
+instance (FieldF f) => ToSchema (MLSConfigB Covered f) where
   schema =
     object "MLSConfig" $
       MLSConfig
-        <$> mlsProtocolToggleUsers .= extractF (fieldWithDocModifierF "protocolToggleUsers" (S.description ?~ "allowlist of users that may change protocols") (array schema))
-        <*> mlsDefaultProtocol .= extractF (fieldF "defaultProtocol" schema)
-        <*> mlsAllowedCipherSuites .= extractF (fieldF "allowedCipherSuites" (array schema))
-        <*> mlsDefaultCipherSuite .= extractF (fieldF "defaultCipherSuite" schema)
-        <*> mlsSupportedProtocols .= extractF (fieldF "supportedProtocols" (array schema))
+        <$> mlsProtocolToggleUsers
+          .= ( fieldWithDocModifierF
+                 "protocolToggleUsers"
+                 (S.description ?~ "allowlist of users that may change protocols")
+                 (array schema)
+             )
+        <*> mlsDefaultProtocol .= fieldF "defaultProtocol" schema
+        <*> mlsAllowedCipherSuites .= fieldF "allowedCipherSuites" (array schema)
+        <*> mlsDefaultCipherSuite .= fieldF "defaultCipherSuite" schema
+        <*> mlsSupportedProtocols .= fieldF "supportedProtocols" (array schema)
 
 instance Default (LockableFeature MLSConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
@@ -1150,12 +1156,16 @@ instance Arbitrary MlsE2EIdConfig where
       <*> fmap (Alt . pure) arbitrary
       <*> arbitrary
 
-instance (FieldFunctor SwaggerDoc f) => ToSchema (MlsE2EIdConfigB Covered f) where
+instance (FieldF f) => ToSchema (MlsE2EIdConfigB Covered f) where
   schema =
     object "MlsE2EIdConfig" $
       MlsE2EIdConfig
-        <$> (fmap toSeconds . verificationExpiration)
-          .= extractF (fieldWithDocModifierF "verificationExpiration" veDesc (fromSeconds <$> schema))
+        <$> ( (fmap toSeconds . verificationExpiration)
+                .= fieldWithDocModifierF
+                  "verificationExpiration"
+                  (description ?~ veDesc)
+                  (fromSeconds <$> schema)
+            )
         <*> (getAlt . acmeDiscoveryUrl)
           .= fmap Alt (maybe_ (optField "acmeDiscoveryUrl" schema))
         <*> (getAlt . crlProxy) .= fmap Alt (maybe_ (optField "crlProxy" schema))
@@ -1167,20 +1177,19 @@ instance (FieldFunctor SwaggerDoc f) => ToSchema (MlsE2EIdConfigB Covered f) whe
       toSeconds :: NominalDiffTime -> Int
       toSeconds = truncate
 
-      veDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      veDesc :: Text
       veDesc =
-        description
-          ?~ "When a client first tries to fetch or renew a certificate, \
-             \they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. \
-             \The user may have a grace period during which they can \"snooze\" this login. \
-             \The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, \
-             \which is enforced separately by each client. \
-             \After the grace period has expired, the client will not allow the user to use the application \
-             \until they have logged to refresh the certificate. The default value is 1 day (86400s). \
-             \The client enrolls using the Automatic Certificate Management Environment (ACME) protocol. \
-             \The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for \
-             \this team. It is of the form \"https://acme.{backendDomain}/acme/{provisionerName}/discovery\". For example: \
-             \`https://acme.example.com/acme/provisioner1/discovery`."
+        "When a client first tries to fetch or renew a certificate, \
+        \they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. \
+        \The user may have a grace period during which they can \"snooze\" this login. \
+        \The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, \
+        \which is enforced separately by each client. \
+        \After the grace period has expired, the client will not allow the user to use the application \
+        \until they have logged to refresh the certificate. The default value is 1 day (86400s). \
+        \The client enrolls using the Automatic Certificate Management Environment (ACME) protocol. \
+        \The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for \
+        \this team. It is of the form \"https://acme.{backendDomain}/acme/{provisionerName}/discovery\". For example: \
+        \`https://acme.example.com/acme/provisioner1/discovery`."
 
 instance Default (LockableFeature MlsE2EIdConfig) where
   def = defLockedFeature
@@ -1263,7 +1272,11 @@ type EnforceFileDownloadLocationConfig = EnforceFileDownloadLocationConfigB Bare
 
 deriving instance (Eq EnforceFileDownloadLocationConfig)
 
+deriving instance (Eq (EnforceFileDownloadLocationConfigB Covered Maybe))
+
 deriving instance (Show EnforceFileDownloadLocationConfig)
+
+deriving instance (Show (EnforceFileDownloadLocationConfigB Covered Maybe))
 
 deriving via (RenderableTypeName EnforceFileDownloadLocationConfig) instance (RenderableSymbol EnforceFileDownloadLocationConfig)
 
@@ -1524,11 +1537,13 @@ deriving via (Schema AllTeamFeatures) instance (S.ToSchema AllTeamFeatures)
 
 class ParseDbFeature cfg where
   parseDbConfig :: DbConfig -> A.Parser (cfg -> cfg)
+  serialiseDbConfig :: cfg -> DbConfig
 
 newtype TrivialFeature cfg = TrivialFeature cfg
 
 instance (GSOP.IsProductType cfg '[]) => ParseDbFeature (TrivialFeature cfg) where
   parseDbConfig _ = pure id
+  serialiseDbConfig _ = def
 
 instance (GSOP.IsProductType cfg '[]) => Default (TrivialFeature cfg) where
   def = TrivialFeature (GSOP.productTypeTo Nil)
@@ -1551,6 +1566,12 @@ instance
 
       applyConfig :: b Bare Identity -> b Covered Maybe -> b Bare Identity
       applyConfig cfg1 cfg2 = bstrip $ bzipWith f cfg2 (bcover cfg1)
+  serialiseDbConfig =
+    DbConfig
+      . schemaToJSON
+      . bmap (Just . runIdentity)
+      . bcover
+      . unBarbieFeature
 
 instance (BareB b, ToSchema (b Covered Identity)) => ToSchema (BarbieFeature b) where
   schema = (bcover . unBarbieFeature) .= fmap (BarbieFeature . bstrip) schema
@@ -1573,7 +1594,7 @@ serialiseDbFeature feat =
   LockableFeaturePatch
     { status = Just feat.status,
       lockStatus = Just feat.lockStatus,
-      config = Just . DbConfig . schemaToJSON $ feat.config
+      config = Just $ serialiseDbConfig feat.config
     }
 
 -- | Convert a map indexed by feature name to an NP value.
