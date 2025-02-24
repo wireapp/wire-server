@@ -40,7 +40,6 @@ module Spar.Sem.BrigAccess
     getStatusMaybe,
     setStatus,
     getDefaultUserLocale,
-    getDomainRegistration,
   )
 where
 
@@ -55,7 +54,6 @@ import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
 import Wire.API.Locale
-import Wire.API.Routes.Public.Brig.DomainVerification (DomainRedirectResponse)
 import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo

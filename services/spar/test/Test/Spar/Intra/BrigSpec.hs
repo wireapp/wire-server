@@ -24,16 +24,12 @@ import Data.String.Conversions
 import Data.These
 import Data.These.Combinators
 import Imports
-import Polysemy (EffectRow, Sem, interpret, run)
 import SAML2.WebSSO as SAML
 import Spar.Intra.BrigApp
-import Spar.Sem.BrigAccess (BrigAccess (GetDomainRegistration))
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, laxURIParserOptions, parseURI)
-import Wire.API.EnterpriseLogin
-import Wire.API.Routes.Public.Brig.DomainVerification
-import Wire.API.User.Identity (EmailAddress, UserSSOId (UserSSOId))
+import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.Scim
 
 mkuri :: Text -> URI
