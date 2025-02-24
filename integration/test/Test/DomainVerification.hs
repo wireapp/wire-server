@@ -636,3 +636,41 @@ testScimAndSamlWithRegisteredEmailDomain = do
     user <- res.json >>= asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
+
+testVerificationRequiredIfEmailDomainRedirectNotSso :: (HasCallStack) => App ()
+testVerificationRequiredIfEmailDomainRedirectNotSso = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  emailDomain <- randomDomain
+
+  assertSuccess =<< do
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
+
+  setup <- setupOwnershipToken OwnDomain emailDomain
+  authorizeTeam owner emailDomain setup.ownershipToken >>= assertSuccess
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+
+  updateTeamInvite owner emailDomain (object ["team_invite" .= "team", "team" .= tid]) >>= assertSuccess
+
+  let email = "user@" <> emailDomain
+  (Just uid, _) <- loginWithSaml True tid email (idpId, idpMeta)
+
+  getUsersId OwnDomain [uid] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
+
+  getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json >>= asList >>= shouldBeEmpty
+
+  activateEmail OwnDomain email
+  getUsersId OwnDomain [uid] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` email
