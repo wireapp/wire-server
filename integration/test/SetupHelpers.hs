@@ -570,3 +570,14 @@ activateEmail domain email = do
       <$> (res.json %. "key" >>= asString)
       <*> (res.json %. "code" >>= asString)
   API.Brig.activate domain actkey code >>= assertSuccess
+
+registerInvitedUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
+registerInvitedUser domain tid email = do
+  getInvitationByEmail domain email
+    >>= getJSON 200
+    >>= getInvitationCodeForTeam domain tid
+    >>= getJSON 200
+    >>= (%. "code")
+    >>= asString
+    >>= registerUser domain email
+    >>= assertSuccess

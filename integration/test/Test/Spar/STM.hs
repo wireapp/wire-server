@@ -16,7 +16,6 @@ import API.Spar
 import qualified Data.Map as Map
 import qualified SAML2.WebSSO as SAML
 import SetupHelpers
-import Test.Spar
 import Testlib.JSON
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
@@ -221,18 +220,19 @@ validateStateLoginAllUsers owner tid state = do
     uid <- bindResponse (createScimUser owner (unScimToken tok) scimUser) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "id" >>= asString
-    when (isNothing mIdp) $ do
-      registerUser OwnDomain tid email
-
-    loginEmail <- case mIdp of
-      Nothing -> scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
-      Just _ -> pure email
-    maybe (loginWithPassword 200 loginEmail) (void . loginWithSaml True tid loginEmail) mIdp
-
-    bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
-      resp.status `shouldMatchInt` 204
-
-    maybe (loginWithPassword 403 loginEmail) (void . loginWithSaml False tid loginEmail) mIdp
+    case mIdp of
+      Nothing -> do
+        registerInvitedUser OwnDomain tid email
+        loginWithPassword 200 email
+        bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
+          resp.status `shouldMatchInt` 204
+        loginWithPassword 403 email
+      Just idp -> do
+        loginEmail <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+        void $ loginWithSaml True tid loginEmail idp
+        bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
+          resp.status `shouldMatchInt` 204
+        void $ loginWithSaml False tid loginEmail idp
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do
