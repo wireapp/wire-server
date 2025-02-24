@@ -68,7 +68,6 @@ interpretAuthenticationSubsystem ::
     Member PasswordStore r,
     Member EmailSubsystem r,
     Member UserStore r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   InterpreterFor UserSubsystem r ->
@@ -108,7 +107,6 @@ authenticateEitherImpl ::
   ( Member UserStore r,
     Member HashPassword r,
     Member PasswordStore r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   UserId ->
@@ -144,7 +142,6 @@ reauthenticateEitherImpl ::
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   UserId ->
@@ -288,7 +285,6 @@ resetPasswordImpl ::
     Member HashPassword r,
     Member SessionStore r,
     Member PasswordStore r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   PasswordResetIdentity ->
@@ -348,7 +344,6 @@ verifyProviderPasswordImpl ::
   ( Member PasswordStore r,
     Member (Error AuthenticationSubsystemError) r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   ProviderId ->
@@ -365,7 +360,6 @@ verifyUserPasswordImpl ::
   ( Member PasswordStore r,
     Member (Error AuthenticationSubsystemError) r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   UserId ->
@@ -381,7 +375,6 @@ verifyUserPasswordErrorImpl ::
   ( Member PasswordStore r,
     Member (Error AuthenticationSubsystemError) r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   Local UserId ->

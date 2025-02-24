@@ -6,5 +6,6 @@ import Wire.RateLimit
 
 noRateLimit :: Sem (RateLimit ': r) a -> Sem r a
 noRateLimit =
-  interpret $ \case
-    CheckRateLimit _ -> pure 0
+  interpretH $ \case
+    CheckRateLimit _ -> pureT 0
+    DoRateLimited _ action -> runTSimple action

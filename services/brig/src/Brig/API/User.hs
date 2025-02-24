@@ -105,7 +105,6 @@ import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Error qualified
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
@@ -324,7 +323,6 @@ createUser ::
     Member HashPassword r,
     Member InvitationStore r,
     Member ActivationCodeStore r,
-    Member (Polysemy.Error.Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   RateLimitKey ->
@@ -792,7 +790,6 @@ changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
     Member HashPassword r,
-    Member (Polysemy.Error.Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   UserId ->
@@ -846,7 +843,6 @@ deleteSelfUser ::
     Member UserSubsystem r,
     Member PropertySubsystem r,
     Member HashPassword r,
-    Member (Polysemy.Error.Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   Local UserId ->

@@ -658,7 +658,6 @@ verifyReusableCode ::
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   RateLimitKey ->

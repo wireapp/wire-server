@@ -9,7 +9,6 @@ import Data.Id
 import Data.Misc
 import Imports
 import Polysemy
-import Polysemy.Error
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.Arbitrary
@@ -33,6 +32,7 @@ data RateLimit m a where
   -- wait time in microseconds before the rate limit is lifted. 0 means, no rate
   -- limit.
   CheckRateLimit :: RateLimitKey -> RateLimit m Word64
+  DoRateLimited :: RateLimitKey -> m a -> RateLimit m a
 
 makeSem ''RateLimit
 
@@ -55,8 +55,3 @@ tryRateLimited key action = do
   if retryWait == 0
     then Right <$> action
     else pure $ Left $ RateLimitExceeded retryWait
-
--- Throws 'RateLimitExceeded' when rate limited.
-doRateLimited :: (Member RateLimit r, Member (Error RateLimitExceeded) r) => RateLimitKey -> Sem r a -> Sem r a
-doRateLimited key action =
-  either throw pure =<< tryRateLimited key action

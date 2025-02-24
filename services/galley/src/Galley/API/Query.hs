@@ -645,7 +645,6 @@ getConversationByReusableCode ::
     Member TeamFeatureStore r,
     Member (Input Opts) r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   Local UserId ->

@@ -86,7 +86,6 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
 verifyPasswordPure :: PlainTextPassword' t -> Password -> Bool
 verifyPasswordPure plain hashed =
   run
-    . runErrorUnsafe
     . noRateLimit
     . staticHashPasswordInterpreter
     $ verifyPassword (RateLimitIp (IpAddr "0.0.0.0")) plain hashed

@@ -5,11 +5,15 @@ module Wire.RateLimit.Interpreter where
 import Control.Concurrent.TokenBucket
 import Data.Aeson
 import Data.IP
+import Data.Id
 import Data.LruCache
 import Data.LruCache qualified as LruCache
 import Data.Misc
 import Imports
 import Polysemy
+import Polysemy.Error
+import Polysemy.TinyLog qualified as Log
+import System.Logger.Message qualified as Log
 import Wire.RateLimit
 
 data TokenBucketConfig = TokenBucketConfig
@@ -61,9 +65,47 @@ newRateLimitEnv config = do
   tokenBucketsRef <- newIORef $ LruCache.empty config.maxRateLimitedKeys
   pure $ RateLimitEnv {..}
 
-interpretRateLimit :: forall r a. (Member (Embed IO) r) => RateLimitEnv -> Sem (RateLimit ': r) a -> Sem r a
-interpretRateLimit env = interpret $ \case
-  CheckRateLimit key -> embed $ checkRateLimitImpl env key
+interpretRateLimit ::
+  forall r a.
+  ( Member (Embed IO) r,
+    Member (Error RateLimitExceeded) r,
+    Member Log.TinyLog r
+  ) =>
+  RateLimitEnv ->
+  Sem (RateLimit ': r) a ->
+  Sem r a
+interpretRateLimit env = interpretH $ \case
+  CheckRateLimit key ->
+    pureT =<< embed (checkRateLimitImpl env key)
+  DoRateLimited key action -> doRateLimitedImpl env key action
+
+doRateLimitedImpl ::
+  ( Member (Embed IO) r,
+    Member (Error RateLimitExceeded) r,
+    Member Log.TinyLog r,
+    Functor f
+  ) =>
+  RateLimitEnv ->
+  RateLimitKey ->
+  m a ->
+  Sem (WithTactics e f m r) (f a)
+doRateLimitedImpl env key action = do
+  retryWait <- embed (checkRateLimitImpl env key)
+  if retryWait == 0
+    then runTSimple action
+    else do
+      Log.info $
+        Log.msg (Log.val "Operation rate limited")
+          . logKey
+          . Log.field "wait_time" retryWait
+      throw $ RateLimitExceeded retryWait
+  where
+    logKey :: Log.Msg -> Log.Msg
+    logKey = case key of
+      RateLimitIp ipAddr -> Log.field "ip_address" (show ipAddr)
+      RateLimitUser uid -> Log.field "user" (idToText uid)
+      RateLimitProvider pid -> Log.field "provider" (idToText pid)
+      RateLimitInternal -> Log.field "internal" ("true" :: ByteString)
 
 checkRateLimitImpl :: RateLimitEnv -> RateLimitKey -> IO Word64
 checkRateLimitImpl env origKey = do

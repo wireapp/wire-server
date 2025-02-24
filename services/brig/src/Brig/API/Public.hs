@@ -381,7 +381,6 @@ servantSitemap ::
     Member (Input UserSubsystemConfig) r,
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r,
     Member EnterpriseLoginSubsystem r
   ) =>
@@ -855,7 +854,6 @@ createUser ::
     Member HashPassword r,
     Member EmailSending r,
     Member ActivationCodeStore r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   IpAddr ->
@@ -1090,7 +1088,6 @@ changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   UserId ->
@@ -1367,7 +1364,6 @@ deleteSelfUser ::
     Member PropertySubsystem r,
     Member Events r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   Local UserId ->

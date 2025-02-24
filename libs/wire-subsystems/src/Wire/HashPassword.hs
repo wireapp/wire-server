@@ -3,7 +3,6 @@ module Wire.HashPassword where
 import Data.Misc
 import Imports
 import Polysemy
-import Polysemy.Error
 import Wire.API.Password
 import Wire.RateLimit
 
@@ -18,7 +17,7 @@ data HashPassword m a where
   VerifyPasswordWithStatus :: PlainTextPassword' t -> Password -> HashPassword m (Bool, PasswordStatus)
 
 hashPassword6 ::
-  (Member RateLimit r, Member HashPassword r, Member (Error RateLimitExceeded) r) =>
+  (Member RateLimit r, Member HashPassword r) =>
   RateLimitKey ->
   PlainTextPassword6 ->
   Sem r Password
@@ -34,7 +33,7 @@ tryHashPassword6 key plain =
   tryRateLimited key $ send $ HashPassword6 plain
 
 hashPassword8 ::
-  (Member RateLimit r, Member HashPassword r, Member (Error RateLimitExceeded) r) =>
+  (Member RateLimit r, Member HashPassword r) =>
   RateLimitKey ->
   PlainTextPassword8 ->
   Sem r Password
@@ -50,7 +49,7 @@ tryHashPassword8 key plain =
   tryRateLimited key $ send $ HashPassword8 plain
 
 verifyPasswordWithStatus ::
-  (Member RateLimit r, Member HashPassword r, Member (Error RateLimitExceeded) r) =>
+  (Member RateLimit r, Member HashPassword r) =>
   RateLimitKey ->
   PlainTextPassword' t ->
   Password ->
@@ -61,7 +60,7 @@ verifyPasswordWithStatus key plain hashed =
 -- | Verify a plaintext password from user input against a stretched
 -- password from persistent storage.
 verifyPassword ::
-  (Member HashPassword r, Member (Error RateLimitExceeded) r, Member RateLimit r) =>
+  (Member HashPassword r, Member RateLimit r) =>
   RateLimitKey ->
   PlainTextPassword' t ->
   Password ->

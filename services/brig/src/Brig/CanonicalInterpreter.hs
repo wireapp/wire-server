@@ -129,6 +129,7 @@ type BrigLowerLevelEffects =
      DeleteQueue,
      Wire.Events.Events,
      NotificationSubsystem,
+     RateLimit,
      Error EnterpriseLoginSubsystemError,
      Error UserSubsystemError,
      Error TeamInvitationSubsystemError,
@@ -142,7 +143,6 @@ type BrigLowerLevelEffects =
      DomainVerificationChallengeStore,
      DomainRegistrationStore,
      HashPassword,
-     RateLimit,
      UserKeyStore,
      UserStore,
      IndexedUserStore,
@@ -288,7 +288,6 @@ runBrigToIO e (AppT ma) = do
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
-              . interpretRateLimit e.rateLimitEnv
               . runHashPassword e.settings.passwordHashingOptions
               . interpretDomainRegistrationStoreToCassandra e.casClient
               . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
@@ -302,6 +301,7 @@ runBrigToIO e (AppT ma) = do
               . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
               . mapError enterpriseLoginSubsystemErrorToHttpError
+              . interpretRateLimit e.rateLimitEnv
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents

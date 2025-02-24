@@ -7,15 +7,22 @@ import Data.Id
 import Data.Misc
 import Imports
 import Polysemy
+import Polysemy.Error
+import Polysemy.TinyLog
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Wire.MockInterpreters
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
+import Wire.Sem.Logger
 
 defaultTestConfig :: Int -> TokenBucketConfig -> TokenBucketConfig -> TokenBucketConfig -> RateLimitConfig
 defaultTestConfig maxRateLimitedKeys ipAddrLimit userLimit internalLimit =
   RateLimitConfig {ipv4CidrBlock = 32, ipv6CidrBlock = 128, ipAddressExceptions = [], ..}
+
+runDependencies :: Sem '[Error RateLimitExceeded, TinyLog, Embed IO] a -> IO a
+runDependencies = runM . discardLogs . runErrorUnsafe
 
 spec :: Spec
 spec = do
@@ -23,7 +30,7 @@ spec = do
     prop "returns non-zero when rate limit is exceeded" $ \(key :: RateLimitKey) -> ioProperty $ do
       let tbConfig = TokenBucketConfig {burst = 1, inverseRate = 1_000_000}
       env <- newRateLimitEnv $ defaultTestConfig 1 tbConfig tbConfig tbConfig
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         wait1 <- checkRateLimit key
         wait2 <- checkRateLimit key
         wait3 <- checkRateLimit key
@@ -37,7 +44,7 @@ spec = do
           key1 = RateLimitUser user1
           key2 = RateLimitUser user2
       env <- newRateLimitEnv $ defaultTestConfig 2 tbConfig tbConfig tbConfig
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         user1Wait1 <- checkRateLimit key1
         user1Wait2 <- checkRateLimit key1
         user2Wait1 <- checkRateLimit key2
@@ -51,7 +58,7 @@ spec = do
           key1 = RateLimitIp ip1
           key2 = RateLimitIp ip2
       env <- newRateLimitEnv $ defaultTestConfig 2 tbConfig tbConfig tbConfig
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         ip1Wait1 <- checkRateLimit key1
         ip1Wait2 <- checkRateLimit key1
         ip2Wait1 <- checkRateLimit key2
@@ -68,7 +75,7 @@ spec = do
           ipKey = RateLimitIp ip
           internalKey = RateLimitInternal
       env <- newRateLimitEnv $ defaultTestConfig 2 ipTBConfig userTBConfig internalTBConfig
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         userWait1 <- checkRateLimit userKey
         userWait2 <- checkRateLimit userKey
         userWait3 <- checkRateLimit userKey
@@ -101,7 +108,7 @@ spec = do
     prop "allows bursts" $ \(key :: RateLimitKey) -> ioProperty $ do
       let tbConfig = TokenBucketConfig {burst = 2, inverseRate = 1_000_000}
       env <- newRateLimitEnv $ defaultTestConfig 1 tbConfig tbConfig tbConfig
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         wait1 <- checkRateLimit key
         wait2 <- checkRateLimit key
         wait3 <- checkRateLimit key
@@ -116,7 +123,7 @@ spec = do
       -- check operations.
       let tbConfig = TokenBucketConfig {burst = 2, inverseRate = 10_000}
       env <- newRateLimitEnv $ defaultTestConfig 1 tbConfig tbConfig tbConfig
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         wait1 <- checkRateLimit key
         wait2 <- checkRateLimit key
         wait3 <- checkRateLimit key
@@ -133,7 +140,7 @@ spec = do
     prop "waiting for (inverseRate * burst) should allow bursts again" $ \(key :: RateLimitKey) -> ioProperty $ do
       let tbConfig = TokenBucketConfig {burst = 2, inverseRate = 1000}
       env <- newRateLimitEnv $ defaultTestConfig 1 tbConfig tbConfig tbConfig
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         wait1 <- checkRateLimit key
         wait2 <- checkRateLimit key
         wait3 <- checkRateLimit key
@@ -152,7 +159,7 @@ spec = do
         (key1 /= key2 && key2 /= key3 && key1 /= key3) ==> ioProperty $ do
           let tbConfig = TokenBucketConfig {burst = 1, inverseRate = 1_000_000}
           env <- newRateLimitEnv $ defaultTestConfig 2 tbConfig tbConfig tbConfig
-          runM . interpretRateLimit env $ do
+          runDependencies . interpretRateLimit env $ do
             key1Wait1 <- checkRateLimit key1
             key2Wait1 <- checkRateLimit key2
             key1Wait2 <- checkRateLimit key1
@@ -189,7 +196,7 @@ spec = do
               maxRateLimitedKeys = 2,
               ipAddressExceptions = []
             }
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         range1_ip1_wait <- checkRateLimit range1_ip1
         range1_ip2_wait <- checkRateLimit range1_ip2
         range2_ip1_wait <- checkRateLimit range2_ip1
@@ -215,7 +222,7 @@ spec = do
               maxRateLimitedKeys = 10,
               ipAddressExceptions = []
             }
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         range1_ip1_wait <- checkRateLimit range1_ip1
         range1_ip2_wait <- checkRateLimit range1_ip2
         range2_ip1_wait <- checkRateLimit range2_ip1
@@ -246,7 +253,7 @@ spec = do
               maxRateLimitedKeys = 10,
               ipAddressExceptions = [exceptionRange]
             }
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         limitedIpWait1 <- checkRateLimit limitedIp
         limitedIpWait2 <- checkRateLimit limitedIp
         excIp1Wait1 <- checkRateLimit excIp1
@@ -263,7 +270,7 @@ spec = do
     prop "executes an operation only when allowed by rate limit" $ \(key :: RateLimitKey) -> ioProperty $ do
       let tbConfig = TokenBucketConfig {burst = 1, inverseRate = 1_000_000}
       env <- newRateLimitEnv $ defaultTestConfig 1 tbConfig tbConfig tbConfig
-      runM . interpretRateLimit env $ do
+      runDependencies . interpretRateLimit env $ do
         try1 <- tryRateLimited key $ pure @_ @String "try 1"
         try2 <- tryRateLimited key $ pure @_ @String "try 2"
         pure $

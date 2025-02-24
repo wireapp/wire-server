@@ -501,7 +501,6 @@ addCodeUnqualifiedWithReqBody ::
     Member HashPassword r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   UserId ->
@@ -527,7 +526,6 @@ addCodeUnqualified ::
     Member (Input Opts) r,
     Member HashPassword r,
     Member TeamFeatureStore r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   Maybe CreateConversationCodeRequest ->
@@ -555,7 +553,6 @@ addCode ::
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   Local UserId ->
@@ -676,7 +673,6 @@ checkReusableCode ::
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (Input Opts) r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   IpAddr ->
@@ -762,7 +758,6 @@ joinConversationByReusableCode ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   Local UserId ->

@@ -189,7 +189,6 @@ providerAPI ::
     Member EmailSending r,
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   ServerT ProviderAPI (Handler r)
@@ -223,7 +222,6 @@ newAccount ::
     Member EmailSending r,
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   IpAddr ->
@@ -346,7 +344,6 @@ completePasswordReset ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   Public.CompletePasswordReset ->
@@ -409,7 +406,6 @@ updateAccountPassword ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member HashPassword r,
-    Member (Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   ProviderId ->

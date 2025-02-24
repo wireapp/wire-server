@@ -163,7 +163,6 @@ servantSitemap ::
     Member EnterpriseLoginSubsystem r,
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
-    Member (Polysemy.Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
@@ -224,7 +223,6 @@ accountAPI ::
     Member (Input UserSubsystemConfig) r,
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
-    Member (Polysemy.Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -526,7 +524,6 @@ createUserNoVerify ::
     Member HashPassword r,
     Member PasswordResetCodeStore r,
     Member ActivationCodeStore r,
-    Member (Polysemy.Error RateLimitExceeded) r,
     Member RateLimit r
   ) =>
   NewUser PlainTextPassword8 ->
