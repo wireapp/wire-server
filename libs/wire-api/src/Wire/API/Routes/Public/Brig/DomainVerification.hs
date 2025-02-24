@@ -21,6 +21,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZLocalUser)
 import Wire.API.User.Identity (EmailAddress)
+import Wire.Arbitrary
 
 data DomainRedirectConfig
   = DomainRedirectConfigRemove
@@ -155,6 +156,8 @@ data DomainRedirectResponse = DomainRedirectResponse
   { userExists :: Bool,
     redirect :: DomainRedirect
   }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform DomainRedirectResponse
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainRedirectResponse)
 
 instance ToSchema DomainRedirectResponse where
