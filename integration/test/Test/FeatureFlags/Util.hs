@@ -325,6 +325,7 @@ runFeatureTests domain access ft = do
     Just owner -> do
       tid <- owner %. "team" & asString
       pure (owner, tid)
+  updateMigrationState domain tid ft.table
   checkFeature ft.name owner tid defFeature
 
   -- lock the feature
