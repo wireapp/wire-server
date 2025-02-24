@@ -2,7 +2,7 @@
 
 Features can be enabled or disabled on a team level or server wide. Here we will only cover the server wide configuration.
 
-When a feature's lock status is `unlocked` it means that its settings can be overridden on a team level by team admins. This can be done via the team management app or via the team feature API and is not covered here.
+When a feature’s lock status is `unlocked` it means that its settings can be overridden on a team level by team admins. This can be done via the team management app or via the team feature API and is not covered here.
 
 ## 2nd factor password challenge
 
@@ -92,7 +92,7 @@ The MLS end-to-end identity team feature adds an extra level of security and pra
 
 When a client first tries to fetch or renew a certificate, they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. The user may have a grace period during which they can “snooze” this login. The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, which is enforced separately by each client. After the grace period has expired, the client will not allow the user to use the application until they have logged to refresh the certificate. The default value is 1 day (86400s).
 
-The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.example.com/acme/provisioner1/discovery`.
+The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form “https://acme.{backendDomain}/acme/{provisionerName}/discovery”. For example: `https://acme.example.com/acme/provisioner1/discovery`.
 
 `useProxyOnMobile` is an optional field. If `true`, mobile clients should use the CRL proxy. If missing, null or false, mobile clients should not use the CRL proxy.
 
@@ -126,20 +126,17 @@ when a conversation is finally migrated to MLS.
 
 The settings are the following:
 
- - `startTime`: migration start timestamp. Once this time arrives, clients will
-   initialise the migration process (no migration-related action will take
-   place before that time).  If the migration feature is enabled, but
-   `startTime` value is not set (or is set to `null`), migration is never
-   started.
-
- - `finaliseRegardlessAfter`: timestamp of the date by which the migration must
-   be finalised.
-
- - `usersThreshold`: percentage of migrated users needed for migration to
-   finalise (0-100).
-
- - `clientsThreshold`: percentage of migrated clients needed for migration to
-   finalise (0-100).
+- `startTime`: migration start timestamp. Once this time arrives, clients will
+  initialise the migration process (no migration-related action will take
+  place before that time).  If the migration feature is enabled, but
+  `startTime` value is not set (or is set to `null`), migration is never
+  started.
+- `finaliseRegardlessAfter`: timestamp of the date by which the migration must
+  be finalised.
+- `usersThreshold`: percentage of migrated users needed for migration to
+  finalise (0-100).
+- `clientsThreshold`: percentage of migrated clients needed for migration to
+  finalise (0-100).
 
 All of the migration finalisation values are technically optional, but at least
 one of them must be specified for the configuration to be valid. If
@@ -153,7 +150,7 @@ threshold criteria are dropped, and finalisation is allowed in any case.
 
 An example configuration follows:
 
-```
+```default
 galley:
   # ...
   config:

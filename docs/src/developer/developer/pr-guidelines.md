@@ -18,35 +18,35 @@ See `docs/legacy/developer/changelog.md` for more information.
 
 ## Schema migrations
 
-Don't delete columns that are still used by versions that are deployed. If you delete columns then the old version will fail in the deployment process. Rather than deleting keep the unused columns around and comment them as being discontinued in the schema migration code.
+Don’t delete columns that are still used by versions that are deployed. If you delete columns then the old version will fail in the deployment process. Rather than deleting keep the unused columns around and comment them as being discontinued in the schema migration code.
 
 If a cassandra schema migration has been added then add this to the checklist:
 
- - [ ] Run **`make git-add-cassandra-schema`** to update the cassandra schema documentation
+- [ ] Run **`make git-add-cassandra-schema`** to update the cassandra schema documentation
 
 ### Incompatible schema migrations and data migrations
 
 If the PR contains a cassandra *schema* migration which is backwards incompatible, a changelog entry should be added to the release notes. See [notes on Cassandra](https://github.com/wireapp/wire-server/blob/develop/docs/developer/cassandra-interaction.md#cassandra-schema-migrations) for more details on how to implement such schema changes. A similar entry should be added if the PR contains a *data* migration.
 
- - [ ] Add a changelog entry in `0-release-notes` detailing measures to be taken by instance operators
+- [ ] Add a changelog entry in `0-release-notes` detailing measures to be taken by instance operators
 
 ## Adding new public endpoints
 
 When adding new endpoints in the Haskell code in wire-server, correct routing needs to be applied at the nginz level.
 
-NB: The nginz paths are interpreted as *prefixes*.  If you add a new end-point that is identical to an existing one except for the path of the latter being a proper prefix of the former, and if the nginz configuration of the two paths should be the same, nothing needs to be done.  Exception: if you see a path like `/self$`, you know it doesn't match `/self/sub/what`.
+NB: The nginz paths are interpreted as *prefixes*.  If you add a new end-point that is identical to an existing one except for the path of the latter being a proper prefix of the former, and if the nginz configuration of the two paths should be the same, nothing needs to be done.  Exception: if you see a path like `/self$`, you know it doesn’t match `/self/sub/what`.
 
 The following needs to be done, as part of a PR adding endpoints or changing endpoint paths.
 
- - [ ] Update nginz config in helm: `charts/nginz/values.yaml`
- - [ ] Update nginz config for the local integration tests: `services/nginz/integration-test/conf/nginz/nginx.conf`
- - [ ] Update the API change documentation on Confluece for the correct version, e.g., [v5 -> v6](https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1035632650/API+changes+v5+v6)
+- [ ] Update nginz config in helm: `charts/nginz/values.yaml`
+- [ ] Update nginz config for the local integration tests: `services/nginz/integration-test/conf/nginz/nginx.conf`
+- [ ] Update the API change documentation on Confluece for the correct version, e.g., [v5 -> v6](https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1035632650/API+changes+v5+v6)
 
 ### Helm configuration
 
 For internal endpoints for QA access on staging environments, copy a block with `/i/` containing
 
-```
+```default
   - path: /some/path
     envs:
     - staging
@@ -64,7 +64,7 @@ New entris should include `common_response_no_zauth.conf;` for public endpoints 
 
 If the following endpoints are added to galley:
 
-```
+```default
 GET /new/endpoint
 POST /turtles
 PUT /turtles/<turtleId>/name
@@ -72,7 +72,7 @@ PUT /turtles/<turtleId>/name
 
 Add to `charts/nginz/values.yaml`, under the `galley` section:
 
-```
+```default
 - path: /new/endpoint
 - path: ^/turtles(.*)
 ```
@@ -89,6 +89,7 @@ If a PR adds new configuration options for say brig, the following files need to
 * [ ] The configuration docs: `docs/src/developer/reference/config-options.md`
 
 Additional configuration may also exist for services in the following locations.
+
 * [ ] `charts/$SERVICE/templates/tests/configmap.yaml`
 
 If any new configuration value is required and has no default, then:
@@ -104,9 +105,9 @@ Remove them with the PR from wire-server `./charts` folder, as charts are linked
 
 ### Renaming configuration flags
 
-Avoid doing this, it's usually viable to introduce an at-least-equally-good name and remove the old one, that admins can first add the new options, then uprade the software, then remove the old ones.
+Avoid doing this, it’s usually viable to introduce an at-least-equally-good name and remove the old one, that admins can first add the new options, then uprade the software, then remove the old ones.
 
-If you must, see Removing/adding sections above. But please note that all people who have an installation of wire also may have overridden any of the configuration option you may wish to change the name of. As this is not type checked, it's very error prone and people may find themselves with default configuration values being used instead of their intended configuration settings. Guideline: only rename for good reasons, not for aesthetics; or be prepared to spend a significant amount on documenting and communication about this change.
+If you must, see Removing/adding sections above. But please note that all people who have an installation of wire also may have overridden any of the configuration option you may wish to change the name of. As this is not type checked, it’s very error prone and people may find themselves with default configuration values being used instead of their intended configuration settings. Guideline: only rename for good reasons, not for aesthetics; or be prepared to spend a significant amount on documenting and communication about this change.
 
 ## Changes to developer workflow
 

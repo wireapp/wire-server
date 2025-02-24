@@ -1,4 +1,4 @@
-(swagger-api-docs)=
+<a id="swagger-api-docs"></a>
 
 # Swagger / OpenAPI documentation
 
@@ -16,10 +16,10 @@ There are several ways to interpret this documentation:
 
 To find the source code of end-points mentioned in the API, a *route
 internal ID* (field `operationId` in openapi) is provided for every
-end-point.  See {ref}`named-and-internal-route-ids` for details and
+end-point.  See [Named, and internal route IDs in swagger](../../developer/developer/servant.md#named-and-internal-route-ids) for details and
 usage.
 
-If you find anything you don't like or understand, please let us know!
+If you find anything you don’t like or understand, please let us know!
 
 ## Example
 
