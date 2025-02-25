@@ -1020,7 +1020,7 @@ deriving instance Eq MLSConfig
 
 deriving instance Show MLSConfig
 
-deriving via (RenderableTypeName GuestLinksConfig) instance (RenderableSymbol MLSConfig)
+deriving via (RenderableTypeName MLSConfig) instance (RenderableSymbol MLSConfig)
 
 deriving via (GenericUniform MLSConfig) instance (Arbitrary MLSConfig)
 
