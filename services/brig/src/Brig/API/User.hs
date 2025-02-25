@@ -50,7 +50,6 @@ module Brig.API.User
     activate,
     activateNoVerifyEmailDomain,
     Brig.API.User.lookupActivationCode,
-    updateEmailNoVerify,
 
     -- * Password Management
     changePassword,
@@ -725,15 +724,11 @@ onActivated (AccountActivated account) = liftSem $ do
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing $ UserActivated account
   pure (uid, userIdentity account, True)
-onActivated (EmailActivated uid email) =
-  updateEmailNoVerify uid email
-    $> (uid, Just (EmailIdentity email), False)
-
-updateEmailNoVerify :: (Member UserSubsystem r, Member Events r) => UserId -> EmailAddress -> AppT r ()
-updateEmailNoVerify uid email = do
+onActivated (EmailActivated uid email) = do
   liftSem $ User.internalUpdateSearchIndex uid
   liftSem $ Events.generateUserEvent uid Nothing (emailUpdated uid email)
   wrapHttpClient $ Data.deleteEmailUnvalidated uid
+  pure (uid, Just (EmailIdentity email), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode ::
