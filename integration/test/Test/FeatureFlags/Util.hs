@@ -367,7 +367,8 @@ data FeatureTable = FeatureTableLegacy | FeatureTableDyn
 
 updateMigrationState :: (HasCallStack, MakesValue domain) => domain -> String -> FeatureTable -> App ()
 updateMigrationState domain tid ft = case ft of
-  FeatureTableLegacy -> pure ()
+  FeatureTableLegacy ->
+    Internal.setTeamFeatureMigrationState domain tid "not_started" >>= assertSuccess
   FeatureTableDyn -> do
     Internal.setTeamFeatureMigrationState domain tid "completed" >>= assertSuccess
 
@@ -389,6 +390,7 @@ runFeatureTestsReadOnly domain access ft = do
       feat `shouldMatch` expected
 
   (owner, tid, _) <- createTeam domain 0
+  updateMigrationState domain tid FeatureTableLegacy
 
   checkFeature ft.name owner tid defFeature
 

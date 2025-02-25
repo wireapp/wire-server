@@ -16,6 +16,7 @@ testMlsMigration table access = do
   mkFeatureTests "mlsMigration"
     & addUpdate mlsMigrationConfig1
     & addUpdate mlsMigrationConfig2
+    & setTable table
     & setOwner owner
       >>= runFeatureTests OwnDomain access
 
