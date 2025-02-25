@@ -114,7 +114,6 @@ import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Password
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Member (legalHoldStatus)
@@ -143,6 +142,7 @@ import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.PropertySubsystem as PropertySubsystem
+import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra
 import Wire.UserKeyStore
@@ -191,7 +191,6 @@ createUserSpar ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member HashPassword r,
     Member Events r
   ) =>
   NewUserSpar ->
@@ -323,11 +322,13 @@ createUser ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member InvitationStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member RateLimit r
   ) =>
-  NewUser ->
+  RateLimitKey ->
+  NewUser PlainTextPassword8 ->
   ExceptT RegisterError (AppT r) CreateUserResult
-createUser new = do
+createUser rateLimitKey new = do
   email <- fetchAndValidateEmail new
 
   -- get invitation and existing account
@@ -378,7 +379,9 @@ createUser new = do
 
   -- Create account
   account <- lift $ do
-    (account, pw) <- newAccount new' mbInv tid mbHandle
+    mHashedPassword <- traverse (liftSem . HashPassword.hashPassword8 rateLimitKey) new'.newUserPassword
+    let newWithHashedPassword = new' {newUserPassword = mHashedPassword}
+    (account, pw) <- newAccount newWithHashedPassword mbInv tid mbHandle
 
     let uid = userId account
     liftSem $ do
@@ -430,7 +433,7 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    fetchAndValidateEmail :: NewUser -> ExceptT RegisterError (AppT r) (Maybe EmailAddress)
+    fetchAndValidateEmail :: NewUser password -> ExceptT RegisterError (AppT r) (Maybe EmailAddress)
     fetchAndValidateEmail newUser = do
       let email = newUserEmail newUser
       for_ (mkEmailKey <$> email) $ \k ->
@@ -547,7 +550,7 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
   pure account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
-checkRestrictedUserCreation :: NewUser -> ExceptT RegisterError (AppT r) ()
+checkRestrictedUserCreation :: NewUser password -> ExceptT RegisterError (AppT r) ()
 checkRestrictedUserCreation new = do
   restrictPlease <- fromMaybe False <$> asks (.settings.restrictUserCreation)
   when
@@ -786,7 +789,8 @@ mkActivationKey (ActivateEmail e) =
 changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   UserId ->
   PasswordChange ->
@@ -797,15 +801,16 @@ changePassword uid cp = do
     throwE ChangePasswordNoIdentity
   currpw <- lift $ liftSem $ lookupHashedPassword uid
   let newpw = cp.newPassword
-  hashedNewPw <- lift . liftSem $ HashPassword.hashPassword8 newpw
+      rateLimitKey = RateLimitUser uid
+  hashedNewPw <- lift . liftSem $ HashPassword.hashPassword8 rateLimitKey newpw
   case (currpw, cp.oldPassword) of
     (Nothing, _) -> lift . liftSem $ upsertHashedPassword uid hashedNewPw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do
       -- We are updating the pwd here anyway, so we don't care about the pwd status
-      unless (verifyPassword pw' pw) $
+      unlessM (lift . liftSem $ HashPassword.verifyPassword rateLimitKey pw' pw) $
         throwE InvalidCurrentPassword
-      when (verifyPassword newpw pw) $
+      whenM (lift . liftSem $ HashPassword.verifyPassword rateLimitKey newpw pw) $
         throwE ChangePasswordMustDiffer
       lift $ liftSem (upsertHashedPassword uid hashedNewPw) >> wrapClient (Auth.revokeAllCookies uid)
 
@@ -836,7 +841,9 @@ deleteSelfUser ::
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -874,7 +881,7 @@ deleteSelfUser luid@(tUnqualified -> uid) pwd = do
         Nothing -> throwE DeleteUserInvalidPassword
         Just p -> do
           -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
-          unless (verifyPassword pw p) $
+          unlessM (lift . liftSem $ HashPassword.verifyPassword (RateLimitUser (tUnqualified luid)) pw p) $
             throwE DeleteUserInvalidPassword
           lift . liftSem $ deleteAccount a >> pure Nothing
     sendCode a target = do

@@ -306,22 +306,33 @@ setupProvider ::
   user ->
   NewProvider ->
   App Value
-setupProvider u np@(NewProvider {..}) = do
+setupProvider u (NewProvider {..}) = do
   dom <- objDomain u
-  provider <- newProvider u np
+  providerEmail <- randomEmail
+  newProviderResponse <-
+    newProvider u $
+      object
+        [ "name" .= newProviderName,
+          "description" .= newProviderDesc,
+          "email" .= providerEmail,
+          "password" .= newProviderPassword,
+          "url" .= newProviderUrl
+        ]
   pass <- case newProviderPassword of
-    Nothing -> provider %. "password" & asString
+    Nothing -> newProviderResponse %. "password" & asString
     Just pass -> pure pass
   (key, code) <- do
     pair <-
-      getProviderActivationCodeInternal dom newProviderEmail `bindResponse` \resp -> do
+      getProviderActivationCodeInternal dom providerEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json
     k <- pair %. "key" & asString
     c <- pair %. "code" & asString
     pure (k, c)
   activateProvider dom key code
-  loginProvider dom newProviderEmail pass $> provider
+  loginProvider dom providerEmail pass >>= assertSuccess
+  pid <- asString $ newProviderResponse %. "id"
+  getProvider dom pid >>= getJSON 200
 
 lhDeviceIdOf :: (MakesValue user) => user -> App String
 lhDeviceIdOf bob = do

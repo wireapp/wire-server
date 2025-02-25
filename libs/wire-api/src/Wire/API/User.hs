@@ -200,6 +200,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Locale
+import Wire.API.Password
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team
@@ -732,7 +733,7 @@ mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
 --
 --   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
 --     SCIM-managed user)
-newtype NewUserPublic = NewUserPublic NewUser
+newtype NewUserPublic = NewUserPublic (NewUser PlainTextPassword8)
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserPublic)
 
@@ -742,7 +743,7 @@ instance ToSchema NewUserPublic where
     where
       unwrap (NewUserPublic nu) = nu
 
-validateNewUserPublic :: NewUser -> Either String NewUserPublic
+validateNewUserPublic :: NewUser PlainTextPassword8 -> Either String NewUserPublic
 validateNewUserPublic nu
   | isJust (newUserSSOId nu) =
       Left "SSO-managed users are not allowed here."
@@ -756,7 +757,7 @@ validateNewUserPublic nu
 -- | A user is Ephemeral if she has neither email, phone, nor sso credentials and is not
 -- created via scim.  Ephemeral users can be deleted after expires_in or sessionTokenTimeout
 -- (whichever comes earlier).
-isNewUserEphemeral :: NewUser -> Bool
+isNewUserEphemeral :: NewUser p -> Bool
 isNewUserEphemeral u = noId && noScim
   where
     noId = isNothing $ newUserIdentity u
@@ -765,7 +766,7 @@ isNewUserEphemeral u = noId && noScim
       Just ManagedByWire -> True
       Just ManagedByScim -> False
 
-isNewUserTeamMember :: NewUser -> Bool
+isNewUserTeamMember :: NewUser p -> Bool
 isNewUserTeamMember u = case newUserTeam u of
   Just (NewTeamMember _) -> True
   Just (NewTeamMemberSSO _) -> True
@@ -969,7 +970,7 @@ instance ToSchema NewUserSpar where
         <*> newUserSparRole
           .= field "newUserSparRole" schema
 
-newUserFromSpar :: NewUserSpar -> NewUser
+newUserFromSpar :: NewUserSpar -> NewUser Password
 newUserFromSpar new =
   NewUser
     { newUserDisplayName = newUserSparDisplayName new,
@@ -988,7 +989,7 @@ newUserFromSpar new =
       newUserSupportedProtocols = Nothing
     }
 
-data NewUser = NewUser
+data NewUser password = NewUser
   { newUserDisplayName :: Name,
     -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
     newUserUUID :: Maybe UUID,
@@ -1001,15 +1002,20 @@ data NewUser = NewUser
     newUserOrigin :: Maybe NewUserOrigin,
     newUserLabel :: Maybe CookieLabel,
     newUserLocale :: Maybe Locale,
-    newUserPassword :: Maybe PlainTextPassword8,
+    newUserPassword :: Maybe password,
     newUserExpiresIn :: Maybe ExpiresIn,
     newUserManagedBy :: Maybe ManagedBy,
     newUserSupportedProtocols :: Maybe (Set BaseProtocolTag)
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUser)
 
-emptyNewUser :: Name -> NewUser
+deriving via (Schema (NewUser PlainTextPassword8)) instance ToJSON (NewUser PlainTextPassword8)
+
+deriving via (Schema (NewUser PlainTextPassword8)) instance FromJSON (NewUser PlainTextPassword8)
+
+deriving via (Schema (NewUser PlainTextPassword8)) instance S.ToSchema (NewUser PlainTextPassword8)
+
+emptyNewUser :: Name -> NewUser password
 emptyNewUser name =
   NewUser
     { newUserDisplayName = name,
@@ -1094,11 +1100,11 @@ newUserRawObjectSchema =
     <*> newUserRawSupportedProtocols
       .= maybe_ (optField "supported_protocols" (set schema))
 
-instance ToSchema NewUser where
+instance ToSchema (NewUser PlainTextPassword8) where
   schema =
     object "NewUser" $ newUserToRaw .= withParser newUserRawObjectSchema newUserFromRaw
 
-newUserToRaw :: NewUser -> NewUserRaw
+newUserToRaw :: NewUser PlainTextPassword8 -> NewUserRaw
 newUserToRaw NewUser {..} =
   let maybeOriginNTU = newUserOriginNewTeamUser =<< newUserOrigin
    in NewUserRaw
@@ -1122,7 +1128,7 @@ newUserToRaw NewUser {..} =
           newUserRawSupportedProtocols = newUserSupportedProtocols
         }
 
-newUserFromRaw :: NewUserRaw -> A.Parser NewUser
+newUserFromRaw :: NewUserRaw -> A.Parser (NewUser PlainTextPassword8)
 newUserFromRaw NewUserRaw {..} = do
   origin <-
     either fail pure $
@@ -1156,7 +1162,7 @@ newUserFromRaw NewUserRaw {..} = do
       }
 
 -- FUTUREWORK: align more with FromJSON instance?
-instance Arbitrary NewUser where
+instance Arbitrary (NewUser PlainTextPassword8) where
   arbitrary = do
     newUserIdentity <- arbitrary
     newUserOrigin <- genUserOrigin newUserIdentity
@@ -1196,15 +1202,15 @@ instance Arbitrary NewUser where
       genUserExpiresIn newUserIdentity =
         if isJust newUserIdentity then pure Nothing else arbitrary
 
-newUserTeam :: NewUser -> Maybe NewTeamUser
+newUserTeam :: NewUser p -> Maybe NewTeamUser
 newUserTeam nu = case newUserOrigin nu of
   Just (NewUserOriginTeamUser tu) -> Just tu
   _ -> Nothing
 
-newUserEmail :: NewUser -> Maybe EmailAddress
+newUserEmail :: NewUser p -> Maybe EmailAddress
 newUserEmail = emailIdentity <=< newUserIdentity
 
-newUserSSOId :: NewUser -> Maybe UserSSOId
+newUserSSOId :: NewUser p -> Maybe UserSSOId
 newUserSSOId = ssoIdentity <=< newUserIdentity
 
 --------------------------------------------------------------------------------

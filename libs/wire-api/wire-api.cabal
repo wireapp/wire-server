@@ -140,6 +140,8 @@ library
     Wire.API.Notification
     Wire.API.OAuth
     Wire.API.Password
+    Wire.API.Password.Argon2id
+    Wire.API.Password.Scrypt
     Wire.API.Presence
     Wire.API.Properties
     Wire.API.Provider
@@ -667,7 +669,6 @@ test-suite wire-api-tests
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
     Test.Wire.API.OAuth
-    Test.Wire.API.Password
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString

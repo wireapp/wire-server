@@ -1,34 +1,68 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module Wire.HashPassword where
 
 import Data.Misc
 import Imports
 import Polysemy
-import Util.Options
 import Wire.API.Password
-import Wire.API.Password qualified as Password
+import Wire.RateLimit
+
+data PasswordStatus
+  = PasswordStatusOk
+  | PasswordStatusNeedsUpdate
+  deriving (Show, Eq)
 
 data HashPassword m a where
   HashPassword6 :: PlainTextPassword6 -> HashPassword m Password
   HashPassword8 :: PlainTextPassword8 -> HashPassword m Password
+  VerifyPasswordWithStatus :: PlainTextPassword' t -> Password -> HashPassword m (Bool, PasswordStatus)
 
-makeSem ''HashPassword
+hashPassword6 ::
+  (Member RateLimit r, Member HashPassword r) =>
+  RateLimitKey ->
+  PlainTextPassword6 ->
+  Sem r Password
+hashPassword6 key plain =
+  doRateLimited key $ send $ HashPassword6 plain
 
-runHashPassword ::
-  forall r.
-  ( Member (Embed IO) r
-  ) =>
-  PasswordHashingOptions ->
-  InterpreterFor HashPassword r
-runHashPassword opts =
-  interpret $
-    \case
-      HashPassword6 pw6 -> hashFunction pw6
-      HashPassword8 pw8 -> hashFunction pw8
-  where
-    hashFunction :: PlainTextPassword' t -> Sem r Password
-    hashFunction = case opts of
-      PasswordHashingArgon2id o -> Password.mkSafePassword (argon2OptsFromHashingOpts o)
-      PasswordHashingScrypt -> Password.mkSafePasswordScrypt
+tryHashPassword6 ::
+  (Member RateLimit r, Member HashPassword r) =>
+  RateLimitKey ->
+  PlainTextPassword6 ->
+  Sem r (Either RateLimitExceeded Password)
+tryHashPassword6 key plain =
+  tryRateLimited key $ send $ HashPassword6 plain
+
+hashPassword8 ::
+  (Member RateLimit r, Member HashPassword r) =>
+  RateLimitKey ->
+  PlainTextPassword8 ->
+  Sem r Password
+hashPassword8 key plain =
+  doRateLimited key $ send $ HashPassword8 plain
+
+tryHashPassword8 ::
+  (Member RateLimit r, Member HashPassword r) =>
+  RateLimitKey ->
+  PlainTextPassword8 ->
+  Sem r (Either RateLimitExceeded Password)
+tryHashPassword8 key plain =
+  tryRateLimited key $ send $ HashPassword8 plain
+
+verifyPasswordWithStatus ::
+  (Member RateLimit r, Member HashPassword r) =>
+  RateLimitKey ->
+  PlainTextPassword' t ->
+  Password ->
+  Sem r (Bool, PasswordStatus)
+verifyPasswordWithStatus key plain hashed =
+  doRateLimited key $ send $ VerifyPasswordWithStatus plain hashed
+
+-- | Verify a plaintext password from user input against a stretched
+-- password from persistent storage.
+verifyPassword ::
+  (Member HashPassword r, Member RateLimit r) =>
+  RateLimitKey ->
+  PlainTextPassword' t ->
+  Password ->
+  Sem r Bool
+verifyPassword rateLimitKey plain pwd = fst <$> verifyPasswordWithStatus rateLimitKey plain pwd

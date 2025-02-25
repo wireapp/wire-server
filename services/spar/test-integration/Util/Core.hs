@@ -413,6 +413,7 @@ inviteAndRegisterUser brig u tid inviteeEmail = do
     post
       ( brig
           . path "/register"
+          . header "X-Forwarded-For" "127.0.0.42"
           . contentJson
           . body (accept' inviteeEmail inviteeCode)
       )

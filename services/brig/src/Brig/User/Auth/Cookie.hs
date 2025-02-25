@@ -77,7 +77,7 @@ newCookie ::
   Maybe CookieLabel ->
   m (Cookie (ZAuth.Token u))
 newCookie uid cid typ label = do
-  now <- liftIO =<< asks (.currentTime)
+  now <- liftIO $ getCurrentTime
   tok <-
     if typ == PersistentCookie
       then ZAuth.newUserToken uid cid
@@ -117,7 +117,7 @@ nextCookie c mNewCid = runMaybeT $ do
   let mcid = mOldCid <|> mNewCid
 
   s <- asks (.settings)
-  now <- liftIO =<< asks (.currentTime)
+  now <- liftIO $ getCurrentTime
   let created = cookieCreated c
   let renewAge = fromInteger s.userCookieRenewAge
   -- Renew the cookie if the client ID has changed, regardless of age.
@@ -247,7 +247,7 @@ newCookieLimited ::
   m (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u c typ label = do
   cs <- filter ((typ ==) . cookieType) <$> adhocSessionStoreInterpreter (Store.listCookies u)
-  now <- liftIO =<< asks (.currentTime)
+  now <- liftIO $ getCurrentTime
   lim <- CookieLimit <$> asks (.settings.userCookieLimit)
   thr <- asks (.settings.userCookieThrottle)
   let evict = map cookieId (limitCookies lim now cs)

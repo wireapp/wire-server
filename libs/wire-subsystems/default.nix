@@ -33,6 +33,7 @@
 , extended
 , extra
 , gitignoreSource
+, hashable
 , HaskellNet
 , HaskellNet-SSL
 , hex
@@ -44,9 +45,11 @@
 , http-types
 , http2-manager
 , imports
+, iproute
 , iso639
 , lens
 , lib
+, lrucaching
 , memory
 , mime
 , mime-mail
@@ -80,6 +83,7 @@
 , time-out
 , time-units
 , tinylog
+, token-bucket
 , transformers
 , types-common
 , unliftio
@@ -126,6 +130,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    hashable
     HaskellNet
     HaskellNet-SSL
     hex
@@ -136,8 +141,10 @@ mkDerivation {
     http-types
     http2-manager
     imports
+    iproute
     iso639
     lens
+    lrucaching
     memory
     mime
     mime-mail
@@ -164,6 +171,7 @@ mkDerivation {
     time-out
     time-units
     tinylog
+    token-bucket
     transformers
     types-common
     unliftio
@@ -190,6 +198,7 @@ mkDerivation {
     extended
     hspec
     imports
+    iproute
     iso639
     lens
     mime-mail

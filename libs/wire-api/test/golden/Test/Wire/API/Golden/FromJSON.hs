@@ -17,6 +17,7 @@
 
 module Test.Wire.API.Golden.FromJSON where
 
+import Data.Misc
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -69,15 +70,15 @@ tests =
         testFromJSONFailure @OtherMemberUpdate "testObject_OtherMemberUpdate_user_2.json",
       testGroup "NewUser: failure" $
         [ testCase "testObject_NewUser_user_3-2.json" $
-            testFromJSONFailureWithMsg @NewUser
+            testFromJSONFailureWithMsg @(NewUser PlainTextPassword8)
               (Just "Only users without an identity can expire")
               "testObject_NewUser_user_3-2.json",
           testCase "testObject_NewUser_user_5-2.json" $
-            testFromJSONFailureWithMsg @NewUser
+            testFromJSONFailureWithMsg @(NewUser PlainTextPassword8)
               (Just "all team users must set a password on creation")
               "testObject_NewUser_user_5-2.json",
           testCase "testObject_NewUser_user_6-3.json" $
-            testFromJSONFailureWithMsg @NewUser
+            testFromJSONFailureWithMsg @(NewUser PlainTextPassword8)
               (Just "sso_id, team_id must be either both present or both absent.")
               "testObject_NewUser_user_6-3.json"
         ],

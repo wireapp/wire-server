@@ -13,8 +13,8 @@ import Wire.API.User.Activation
 import Wire.ActivationCodeStore (ActivationCodeStore (..))
 import Wire.UserKeyStore
 
-code :: EmailKey -> ActivationCode
-code =
+emailKeyToCode :: EmailKey -> ActivationCode
+emailKeyToCode =
   ActivationCode
     . Ascii.unsafeFromText
     . pack
@@ -35,5 +35,5 @@ inMemoryActivationCodeStoreInterpreter = interpret \case
             . T.encodeUtf8
             . emailKeyUniq
             $ ek
-        c = code ek
+        c = emailKeyToCode ek
     modify (insert ek (uid, c)) $> Activation key c

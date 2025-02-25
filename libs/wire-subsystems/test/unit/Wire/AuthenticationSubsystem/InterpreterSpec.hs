@@ -4,7 +4,7 @@ module Wire.AuthenticationSubsystem.InterpreterSpec (spec) where
 
 import Data.Domain
 import Data.Id
-import Data.Misc (PlainTextPassword8)
+import Data.Misc
 import Data.Qualified
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time
@@ -30,6 +30,7 @@ import Wire.HashPassword
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
+import Wire.RateLimit
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
 import Wire.SessionStore
@@ -40,6 +41,8 @@ import Wire.UserStore
 type AllEffects =
   [ AuthenticationSubsystem,
     Error AuthenticationSubsystemError,
+    Error RateLimitExceeded,
+    RateLimit,
     HashPassword,
     Now,
     State UTCTime,
@@ -75,8 +78,17 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
     . evalState defaultTime
     . interpretNowAsState
     . staticHashPasswordInterpreter
+    . noRateLimit
+    . runErrorUnsafe
     . runError
     . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
+
+verifyPasswordPure :: PlainTextPassword' t -> Password -> Bool
+verifyPasswordPure plain hashed =
+  run
+    . noRateLimit
+    . staticHashPasswordInterpreter
+    $ verifyPassword (RateLimitIp (IpAddr "0.0.0.0")) plain hashed
 
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do
@@ -102,7 +114,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
                 (,) <$> lookupHashedPassword uid <*> listCookies uid
          in mPreviousPassword /= Just newPassword ==>
-              (fmap (Password.verifyPassword newPassword) newPasswordHash === Just True)
+              (fmap (verifyPasswordPure newPassword) newPasswordHash === Just True)
                 .&&. (cookiesAfterReset === [])
 
     prop "password reset should work with the returned password reset key" $
@@ -126,7 +138,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
                 (,) <$> lookupHashedPassword uid <*> listCookies uid
          in mPreviousPassword /= Just newPassword ==>
-              (fmap (Password.verifyPassword newPassword) newPasswordHash === Just True)
+              (fmap (verifyPasswordPure newPassword) newPasswordHash === Just True)
                 .&&. (cookiesAfterReset === [])
 
     prop "reset code is not generated when email is not in allow list" $
@@ -197,7 +209,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
 
                 (,mCaughtExc) <$> lookupHashedPassword uid
-         in (fmap (Password.verifyPassword newPassword) newPasswordHash === Just True)
+         in (fmap (verifyPasswordPure newPassword) newPasswordHash === Just True)
               .&&. (mCaughtException === Nothing)
 
     prop "reset code is not accepted after expiry" $
@@ -324,7 +336,7 @@ instance Arbitrary Upto4 where
 verifyPasswordProp :: PlainTextPassword8 -> Maybe Password -> Property
 verifyPasswordProp plainTextPassword passwordHash =
   counterexample ("Password doesn't match, plainText=" <> show plainTextPassword <> ", passwordHash=" <> show passwordHash) $
-    fmap (Password.verifyPassword plainTextPassword) passwordHash == Just True
+    fmap (verifyPasswordPure plainTextPassword) passwordHash == Just True
 
 hashAndUpsertPassword :: (Member PasswordStore r) => UserId -> PlainTextPassword8 -> Sem r ()
 hashAndUpsertPassword uid password =
