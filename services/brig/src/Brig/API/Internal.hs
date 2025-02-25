@@ -224,7 +224,6 @@ accountAPI ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member DomainRegistrationStore r,
-    Member SparAPIAccess r,
     Member RateLimit r,
     Member SparAPIAccess r,
     Member EnterpriseLoginSubsystem r
