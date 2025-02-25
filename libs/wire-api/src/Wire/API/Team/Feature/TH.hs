@@ -14,27 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE TemplateHaskell #-}
 
-module Run where
+module Wire.API.Team.Feature.TH where
 
-import Galley.DataMigration
-import Imports
-import Options.Applicative
-import System.Logger.Extended qualified as Log
-import V1_BackfillBillingTeamMembers qualified
-import V3_BackfillTeamAdmins qualified
-import V4_MigrateToDynamicFeatures qualified
+import Data.Constraint
+import Data.Singletons.Base.TH
+import Wire.API.Team.Feature
 
-main :: IO ()
-main = do
-  o <- execParser (info (helper <*> cassandraSettingsParser) desc)
-  l <- Log.mkLogger Log.Debug Nothing Nothing
-  migrate
-    l
-    o
-    [ V1_BackfillBillingTeamMembers.migration,
-      V3_BackfillTeamAdmins.migration,
-      V4_MigrateToDynamicFeatures.migration
-    ]
-  where
-    desc = header "Galley Cassandra Data Migrations" <> fullDesc
+featureSingIsFeature :: forall cfg. FeatureSingleton cfg -> Dict (IsFeatureConfig cfg)
+featureSingIsFeature s = $(cases ''FeatureSingleton [|s|] [|Dict|])

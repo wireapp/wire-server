@@ -218,8 +218,19 @@ checkPatch ::
   String ->
   Value ->
   App ()
-checkPatch domain featureName patch = do
+checkPatch = checkPatchWithTable FeatureTableLegacy
+
+checkPatchWithTable ::
+  (HasCallStack, MakesValue domain) =>
+  FeatureTable ->
+  domain ->
+  String ->
+  Value ->
+  App ()
+checkPatchWithTable table domain featureName patch = do
   (owner, tid, _) <- createTeam domain 0
+  updateMigrationState domain tid table
+
   defFeature <- defAllFeatures %. featureName
 
   let valueOrDefault :: String -> App Value
@@ -267,11 +278,12 @@ data FeatureTests = FeatureTests
     -- payload)
     updates :: [Value],
     invalidUpdates :: [Value],
-    owner :: Maybe Value
+    owner :: Maybe Value,
+    table :: FeatureTable
   }
 
 mkFeatureTests :: String -> FeatureTests
-mkFeatureTests name = FeatureTests name [] [] Nothing
+mkFeatureTests name = FeatureTests name [] [] Nothing FeatureTableLegacy
 
 addUpdate :: Value -> FeatureTests -> FeatureTests
 addUpdate up ft = ft {updates = ft.updates <> [up]}
@@ -283,6 +295,9 @@ setOwner :: (MakesValue user) => user -> FeatureTests -> App FeatureTests
 setOwner owner ft = do
   x <- make owner
   pure ft {owner = Just x}
+
+setTable :: FeatureTable -> FeatureTests -> FeatureTests
+setTable table ft = ft {table = table}
 
 runFeatureTests ::
   (HasCallStack, MakesValue domain) =>
@@ -310,6 +325,7 @@ runFeatureTests domain access ft = do
     Just owner -> do
       tid <- owner %. "team" & asString
       pure (owner, tid)
+  updateMigrationState domain tid ft.table
   checkFeature ft.name owner tid defFeature
 
   -- lock the feature
@@ -345,3 +361,74 @@ runFeatureTests domain access ft = do
       setField "ttl" "unlimited"
         =<< setField "lockStatus" "unlocked" update
     checkFeature ft.name owner tid expected
+
+data FeatureTable = FeatureTableLegacy | FeatureTableDyn
+  deriving (Show, Eq, Generic)
+
+updateMigrationState :: (HasCallStack, MakesValue domain) => domain -> String -> FeatureTable -> App ()
+updateMigrationState domain tid ft = case ft of
+  FeatureTableLegacy ->
+    Internal.setTeamFeatureMigrationState domain tid "not_started" >>= assertSuccess
+  FeatureTableDyn -> do
+    Internal.setTeamFeatureMigrationState domain tid "completed" >>= assertSuccess
+
+runFeatureTestsReadOnly ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  APIAccess ->
+  FeatureTests ->
+  App ()
+runFeatureTestsReadOnly domain access ft = do
+  defFeature <- defAllFeatures %. ft.name
+  do
+    user <- randomUser domain def
+    bindResponse (Public.getFeatureConfigs user) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      feat <- resp.json %. ft.name
+      lockStatus <- feat %. "lockStatus"
+      expected <- setField "lockStatus" lockStatus defFeature
+      feat `shouldMatch` expected
+
+  (owner, tid, _) <- createTeam domain 0
+  updateMigrationState domain tid FeatureTableLegacy
+
+  checkFeature ft.name owner tid defFeature
+
+  -- unlock the feature
+  Internal.setTeamFeatureLockStatus owner tid ft.name "unlocked"
+
+  -- set migration state to in progress
+  void $ Internal.setTeamFeatureMigrationState domain tid "in_progress"
+  featureStatus <- Internal.getTeamFeature domain tid ft.name >>= getJSON 200
+
+  -- locking the feature should not work
+  Internal.setTeamFeatureLockStatusResponse owner tid ft.name "locked" `bindResponse` assertMigrationInProgress
+
+  -- updates do not work
+  for_ ft.updates $ \u -> do
+    setFeature access owner tid ft.name u `bindResponse` assertMigrationInProgress
+
+  checkFeature ft.name owner tid featureStatus
+
+assertMigrationInProgress :: (HasCallStack) => Response -> App ()
+assertMigrationInProgress res = do
+  res.status `shouldMatchInt` 500
+  res.json %. "label" `shouldMatch` "internal-error"
+  res.json %. "message" `shouldMatch` "migration in progress"
+
+checkPatchReadOnly ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  Value ->
+  App ()
+checkPatchReadOnly domain featureName patch = do
+  (owner, tid, _) <- createTeam domain 0
+  void $ Internal.setTeamFeatureMigrationState domain tid "in_progress"
+  defFeature <- defAllFeatures %. featureName
+
+  checkFeature featureName owner tid defFeature
+  Internal.patchTeamFeature domain tid featureName patch
+    `bindResponse` assertMigrationInProgress
+
+  checkFeature featureName owner tid defFeature

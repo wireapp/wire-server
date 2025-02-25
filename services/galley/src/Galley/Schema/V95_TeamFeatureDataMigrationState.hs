@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -14,27 +14,31 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+module Galley.Schema.V95_TeamFeatureDataMigrationState
+  ( migration,
+  )
+where
 
-module Run where
-
-import Galley.DataMigration
+import Cassandra.Schema
 import Imports
-import Options.Applicative
-import System.Logger.Extended qualified as Log
-import V1_BackfillBillingTeamMembers qualified
-import V3_BackfillTeamAdmins qualified
-import V4_MigrateToDynamicFeatures qualified
+import Text.RawString.QQ
 
-main :: IO ()
-main = do
-  o <- execParser (info (helper <*> cassandraSettingsParser) desc)
-  l <- Log.mkLogger Log.Debug Nothing Nothing
-  migrate
-    l
-    o
-    [ V1_BackfillBillingTeamMembers.migration,
-      V3_BackfillTeamAdmins.migration,
-      V4_MigrateToDynamicFeatures.migration
-    ]
-  where
-    desc = header "Galley Cassandra Data Migrations" <> fullDesc
+migration :: Migration
+migration =
+  Migration 95 "temporary column to track the state of the team feature migration, new feature table" $ do
+    schema'
+      [r| ALTER TABLE team_features ADD (
+            migration_state int
+        )
+     |]
+
+    schema'
+      [r| CREATE TABLE team_features_dyn (
+            team   uuid,
+            feature text,
+            status int,
+            lock_status int,
+            config text,
+            PRIMARY KEY (team, feature)
+        ) WITH compaction = {'class': 'LeveledCompactionStrategy'};
+     |]

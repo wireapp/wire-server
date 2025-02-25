@@ -11,6 +11,7 @@
 , asn1-encoding
 , asn1-types
 , async
+, barbies
 , base
 , base64-bytestring
 , bilge
@@ -24,6 +25,7 @@
 , cereal
 , comonad
 , conduit
+, constraints
 , containers
 , cookie
 , crypton
@@ -78,6 +80,7 @@
 , resourcet
 , retry
 , safe-exceptions
+, schema-profunctor
 , servant
 , servant-client
 , servant-client-core
@@ -148,6 +151,7 @@ mkDerivation {
     cassandra-util
     cassava
     comonad
+    constraints
     containers
     crypton
     crypton-x509
@@ -221,6 +225,7 @@ mkDerivation {
     aeson
     aeson-qq
     async
+    barbies
     base
     base64-bytestring
     bilge
@@ -268,6 +273,7 @@ mkDerivation {
     quickcheck-instances
     random
     retry
+    schema-profunctor
     servant-client
     servant-client-core
     servant-server

@@ -220,6 +220,8 @@ library
     Wire.API.Team.Conversation
     Wire.API.Team.Export
     Wire.API.Team.Feature
+    Wire.API.Team.Feature.Profunctor
+    Wire.API.Team.Feature.TH
     Wire.API.Team.HardTruncationLimit
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold
@@ -264,6 +266,7 @@ library
     , aeson                      >=2.0.1.0
     , asn1-encoding
     , attoparsec                 >=0.10
+    , barbies
     , base                       >=4       && <5
     , base64-bytestring          >=1.0
     , binary
@@ -276,6 +279,7 @@ library
     , cereal
     , comonad
     , conduit
+    , constraints
     , containers                 >=0.5
     , cookie
     , crypton
@@ -315,6 +319,7 @@ library
     , openapi3
     , pem                        >=0.2
     , polysemy
+    , profunctors
     , proto-lens
     , protobuf                   >=0.2
     , QuickCheck                 >=2.14

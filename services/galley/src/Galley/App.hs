@@ -275,13 +275,13 @@ evalGalley e =
     . interpretConversationListToCassandra
     . interpretTeamMemberStoreToCassandraWithPaging lh
     . interpretTeamMemberStoreToCassandra lh
+    . interpretTeamFeatureStoreToCassandra
     . interpretTeamStoreToCassandra lh
     . interpretTeamNotificationStoreToCassandra
     . interpretServiceStoreToCassandra
     . interpretSearchVisibilityStoreToCassandra
     . interpretMemberStoreToCassandra
     . interpretLegalHoldStoreToCassandra lh
-    . interpretTeamFeatureStoreToCassandra
     . interpretCustomBackendStoreToCassandra
     . randomToIO
     . runHashPassword e._options._settings._passwordHashingOptions

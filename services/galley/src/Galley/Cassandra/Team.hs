@@ -46,6 +46,7 @@ import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.ListItems
+import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Env
@@ -69,6 +70,7 @@ interpretTeamStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input Env) r,
     Member (Input ClientState) r,
+    Member TeamFeatureStore r,
     Member TinyLog r
   ) =>
   FeatureDefaults LegalholdConfig ->
@@ -83,7 +85,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
     embedClient (updateTeamMember perm0 tid uid perm1)
   CreateTeam t uid n i k b -> do
     logEffect "TeamStore.CreateTeam"
-    embedClient (createTeam t uid n i k b)
+    createTeam t uid n i k b
   DeleteTeamMember tid uid -> do
     logEffect "TeamStore.DeleteTeamMember"
     embedClient (removeTeamMember tid uid)
@@ -224,16 +226,24 @@ interpretTeamMemberStoreToCassandraWithPaging lh = interpret $ \case
     embedClient $ teamMembersPageFrom lh tid mps lim
 
 createTeam ::
+  ( Member (Input ClientState) r,
+    Member TeamFeatureStore r,
+    Member (Embed IO) r
+  ) =>
   Maybe TeamId ->
   UserId ->
   Range 1 256 Text ->
   Icon ->
   Maybe (Range 1 256 Text) ->
   TeamBinding ->
-  Client Team
+  Sem r Team
 createTeam t uid (fromRange -> n) i k b = do
-  tid <- maybe (Id <$> liftIO nextRandom) pure t
-  retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
+  tid <- embed @IO $ maybe (Id <$> liftIO nextRandom) pure t
+
+  -- new teams can immediately use team_features_dyn with no need to migrate
+  setMigrationState tid MigrationCompleted
+
+  embedClient $ retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
   pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
   where
     initialStatus Binding = PendingActive -- Team becomes Active after User account activation
