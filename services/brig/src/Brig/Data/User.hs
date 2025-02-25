@@ -97,7 +97,6 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  -- passwd <- maybe (pure Nothing) (fmap Just . liftSem . hashPassword8 (RateLimitIp ipAddr)) pass
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
