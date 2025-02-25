@@ -122,6 +122,7 @@ import Data.SOP
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
 import Data.Semigroup hiding (All)
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
@@ -140,6 +141,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Named hiding (unnamed)
 import Wire.API.Team.Feature.Profunctor
+import Wire.API.Team.Role
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
@@ -234,6 +236,7 @@ data FeatureSingleton cfg where
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
+  FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
 
 type family DeprecatedFeatureName cfg :: Symbol
 
@@ -1048,6 +1051,93 @@ instance Default (LockableFeature MLSConfig) where
 instance IsFeatureConfig MLSConfig where
   type FeatureSymbol MLSConfig = "mls"
   featureSingleton = FeatureSingletonMLSConfig
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
+-- ChannelsConfig
+
+data ChannelsConfigB t f = ChannelsConfig
+  { allowedToCreateChannels :: Wear t f (Set Role),
+    allowedToOpenChannels :: Wear t f (Set Role)
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (ChannelsConfigB Covered)
+
+deriving instance ApplicativeB (ChannelsConfigB Covered)
+
+deriving instance TraversableB (ChannelsConfigB Covered)
+
+type ChannelsConfig = ChannelsConfigB Bare Identity
+
+deriving instance Eq ChannelsConfig
+
+deriving instance Show ChannelsConfig
+
+deriving via (RenderableTypeName ChannelsConfig) instance (RenderableSymbol ChannelsConfig)
+
+deriving via (GenericUniform ChannelsConfig) instance (Arbitrary ChannelsConfig)
+
+deriving via (BarbieFeature ChannelsConfigB) instance (ParseDbFeature ChannelsConfig)
+
+deriving via (BarbieFeature ChannelsConfigB) instance (ToSchema ChannelsConfig)
+
+instance Default ChannelsConfig where
+  def = ChannelsConfig (Set.fromList [RoleAdmin, RoleOwner]) (Set.fromList [RoleAdmin, RoleOwner])
+
+data ChannelPermissions = TeamMembers | EveryOne | Admins
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ChannelPermissions
+
+instance ToSchema ChannelPermissions where
+  schema =
+    enum @Text "ChannelPermissions" $
+      mconcat
+        [ element "team-members" TeamMembers,
+          element "everyone" EveryOne,
+          element "admins" Admins
+        ]
+
+everyOne = teamMembers & Set.insert RoleExternalPartner
+
+teamMembers = admins & Set.insert RoleMember
+
+admins = Set.fromList [RoleOwner, RoleAdmin]
+
+toChannelPermissions :: Set.Set Role -> Maybe ChannelPermissions
+toChannelPermissions roles
+  | roles `Set.isSubsetOf` everyOne = Just EveryOne
+  | roles `Set.isSubsetOf` teamMembers = Just TeamMembers
+  | roles `Set.isSubsetOf` admins = Just Admins
+  | otherwise = Nothing
+
+toRoles :: ChannelPermissions -> Set.Set Role
+toRoles TeamMembers = teamMembers
+toRoles EveryOne = everyOne
+toRoles Admins = admins
+
+instance (FieldF f) => ToSchema (ChannelsConfigB Covered f) where
+  schema =
+    object "ChannelsConfig" $
+      ChannelsConfig
+        -- TODO: `head` is only used to mute this while fixing other issues. Replace it.
+        <$> (\(a :: ChannelsConfigB Covered f) -> toChannelPermissions (allowedToCreateChannels a)) -- (fromMaybe Admins . toChannelPermissions . head . toList . allowedToCreateChannels)
+          .= (fieldF "allowed_to_create_channels" (channelPermissionsSchema))
+        <*> undefined
+
+channelPermissionsSchema :: ValueSchemaP SwaggerDoc ChannelPermissions (Set.Set Role)
+channelPermissionsSchema = toRoles .= unnamed schema
+
+-- one2OneCallsSchema :: ValueSchema SwaggerDoc One2OneCalls
+-- one2OneCallsSchema = one2OneCallsFromUseSftFlag <$> (== One2OneCallsSft) .= unnamed schema
+
+-- <*> allowedToOpenChannels .= fieldF "allowed_to_open_channels" schema
+
+instance Default (LockableFeature ChannelsConfig) where
+  def = defUnlockedFeature {status = FeatureStatusDisabled}
+
+instance IsFeatureConfig ChannelsConfig where
+  type FeatureSymbol ChannelsConfig = "channels"
+  featureSingleton = FeatureSingletonChannelsConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
