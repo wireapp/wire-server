@@ -1,9 +1,7 @@
 cabal-version: 1.12
 name:          migrate-features
 version:       1.0.0
-synopsis:
-  Migrate team features to team_feature_dyn table
-
+synopsis:      Migrate team features to team_feature_dyn table
 category:      Network
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
@@ -30,6 +28,7 @@ executable migrate-features
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     DuplicateRecordFields
     EmptyCase
     FlexibleContexts
@@ -59,7 +58,6 @@ executable migrate-features
     TypeOperators
     UndecidableInstances
     ViewPatterns
-    DuplicateRecordFields
 
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
@@ -68,19 +66,19 @@ executable migrate-features
     -Wredundant-constraints
 
   build-depends:
-      base
+      barbies
+    , base
     , cassandra-util
     , conduit
+    , data-default
+    , exceptions
     , imports
     , lens
     , optparse-applicative
+    , schema-profunctor
+    , time
     , tinylog
     , types-common
     , wire-api
-    , barbies
-    , exceptions
-    , data-default
-    , schema-profunctor
-    , time
 
   default-language:   GHC2021
