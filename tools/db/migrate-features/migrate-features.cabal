@@ -1,0 +1,86 @@
+cabal-version: 1.12
+name:          migrate-features
+version:       1.0.0
+synopsis:
+  Migrate team features to team_feature_dyn table
+
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2025 Wire Swiss GmbH
+license:       AGPL-3
+build-type:    Simple
+
+executable migrate-features
+  main-is:            Main.hs
+  other-modules:
+    Options
+    Work
+
+  hs-source-dirs:     src
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+    DuplicateRecordFields
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
+    -Wredundant-constraints
+
+  build-depends:
+      base
+    , cassandra-util
+    , conduit
+    , imports
+    , lens
+    , optparse-applicative
+    , tinylog
+    , types-common
+    , wire-api
+    , barbies
+    , exceptions
+    , data-default
+    , schema-profunctor
+    , time
+
+  default-language:   GHC2021

@@ -47,6 +47,7 @@ packages:
   , tools/db/find-undead/
   , tools/db/inconsistencies/
   , tools/db/migrate-sso-feature-flag/
+  , tools/db/migrate-features/
   , tools/db/move-team/
   , tools/db/phone-users/
   , tools/db/repair-handles/
