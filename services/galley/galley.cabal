@@ -573,7 +573,6 @@ executable galley-migrate-data
   build-depends:
     , barbies
     , base
-    , bytestring-conversion
     , cassandra-util
     , conduit
     , containers
