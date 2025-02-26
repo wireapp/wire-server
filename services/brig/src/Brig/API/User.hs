@@ -48,6 +48,7 @@ module Brig.API.User
     sendActivationCode,
     preverify,
     activate,
+    activateNoVerifyEmailDomain,
     Brig.API.User.lookupActivationCode,
 
     -- * Password Management
@@ -507,7 +508,7 @@ createUser rateLimitKey new = do
         Just c -> do
           ak <- liftIO $ Data.mkActivationKey ek
           void $
-            activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
+            activateWithCurrency True (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
               !>> activationErrorToRegisterError
           pure Nothing
 
@@ -644,9 +645,9 @@ activate ::
   -- | The user for whom to activate the key.
   Maybe UserId ->
   ExceptT ActivationError (AppT r) ActivationResult
-activate tgt code usr = activateWithCurrency tgt code usr Nothing
+activate tgt code usr = activateWithCurrency True tgt code usr Nothing
 
-activateWithCurrency ::
+activateNoVerifyEmailDomain ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member Events r,
@@ -657,15 +658,33 @@ activateWithCurrency ::
   ActivationCode ->
   -- | The user for whom to activate the key.
   Maybe UserId ->
+  ExceptT ActivationError (AppT r) ActivationResult
+activateNoVerifyEmailDomain tgt code usr = activateWithCurrency False tgt code usr Nothing
+
+activateWithCurrency ::
+  ( Member GalleyAPIAccess r,
+    Member TinyLog r,
+    Member Events r,
+    Member PasswordResetCodeStore r,
+    Member UserSubsystem r
+  ) =>
+  Bool ->
+  ActivationTarget ->
+  ActivationCode ->
+  -- | The user for whom to activate the key.
+  Maybe UserId ->
   -- | Potential currency update.
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppT r) ActivationResult
-activateWithCurrency tgt code usr cur = do
+activateWithCurrency verifyEmailDomain tgt code usr cur = do
   key <- wrapClientE $ mkActivationKey tgt
   lift . liftSem . Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
+  when verifyEmailDomain $ do
+    (emailKey, _) <- wrapClientE (Data.verifyCode key code)
+    lift $ liftSem $ guardRegisterActivateUserEmailDomain (emailKeyOrig emailKey)
   event <- Data.activateKey key code usr
   case event of
     Nothing -> pure ActivationPass

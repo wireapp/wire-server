@@ -200,7 +200,8 @@ type AccountAPI =
                     'PUT
                     '[Servant.JSON]
                     '[ Respond 202 "Update accepted and pending activation of the new email" (),
-                       Respond 204 "No update, current and new email address are the same" ()
+                       Respond 204 "No update, current and new email address are the same" (),
+                       Respond 204 "Email address activated" ()
                      ]
                     ChangeEmailResponse
            )

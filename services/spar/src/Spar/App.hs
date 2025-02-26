@@ -231,7 +231,7 @@ autoprovisionSamlUser idp buid suid = do
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists ::
+validateSamlEmailIfExists ::
   forall r.
   ( Member GalleyAccess r,
     Member BrigAccess r
@@ -239,7 +239,7 @@ validateEmailIfExists ::
   UserId ->
   SAML.UserRef ->
   Sem r ()
-validateEmailIfExists uid = \case
+validateSamlEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> do
     mbTid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
     validateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
@@ -429,7 +429,7 @@ verdictHandlerResultCore idp = \case
             Nothing -> do
               buid <- Id <$> Random.uuid
               autoprovisionSamlUser idp buid uref
-              validateEmailIfExists buid uref
+              validateSamlEmailIfExists buid uref
               pure buid
 
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
