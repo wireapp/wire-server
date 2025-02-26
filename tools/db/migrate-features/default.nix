@@ -3,18 +3,21 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation
+, barbies
 , base
 , cassandra-util
 , conduit
-, galley
+, data-default
+, exceptions
 , gitignoreSource
 , imports
 , lens
 , lib
 , optparse-applicative
+, schema-profunctor
+, time
 , tinylog
 , types-common
-, unliftio
 , wire-api
 }:
 mkDerivation {
@@ -24,16 +27,19 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [
+    barbies
     base
     cassandra-util
     conduit
-    galley
+    data-default
+    exceptions
     imports
     lens
     optparse-applicative
+    schema-profunctor
+    time
     tinylog
     types-common
-    unliftio
     wire-api
   ];
   description = "Migrate team features to team_feature_dyn table";
