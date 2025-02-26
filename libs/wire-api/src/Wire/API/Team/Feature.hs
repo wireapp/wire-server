@@ -1083,7 +1083,7 @@ deriving via (BarbieFeature ChannelsConfigB) instance (ParseDbFeature ChannelsCo
 deriving via (BarbieFeature ChannelsConfigB) instance (ToSchema ChannelsConfig)
 
 instance Default ChannelsConfig where
-  def = ChannelsConfig Admins Admins
+  def = ChannelsConfig TeamMembers TeamMembers
 
 data ChannelPermissions = TeamMembers | EveryOne | Admins
   deriving (Show, Eq, Generic)
