@@ -1126,7 +1126,7 @@ instance (FieldF f) => ToSchema (ChannelsConfigB Covered f) where
         <*> allowedToOpenChannels .= fieldF "allowed_to_open_channels" schema
 
 instance Default (LockableFeature ChannelsConfig) where
-  def = defUnlockedFeature {status = FeatureStatusDisabled}
+  def = defLockedFeature
 
 instance IsFeatureConfig ChannelsConfig where
   type FeatureSymbol ChannelsConfig = "channels"
