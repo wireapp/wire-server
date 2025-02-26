@@ -130,6 +130,7 @@ library
     Test.ExternalPartner
     Test.FeatureFlags
     Test.FeatureFlags.AppLock
+    Test.FeatureFlags.Channels
     Test.FeatureFlags.ClassifiedDomains
     Test.FeatureFlags.ConferenceCalling
     Test.FeatureFlags.DigitalSignatures
