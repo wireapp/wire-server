@@ -1099,25 +1099,6 @@ instance ToSchema ChannelPermissions where
           element "admins" Admins
         ]
 
--- TODO: Use or delete this
--- everyOne = teamMembers & Set.insert RoleExternalPartner
---
--- teamMembers = admins & Set.insert RoleMember
---
--- admins = Set.fromList [RoleOwner, RoleAdmin]
---
--- toChannelPermissions :: Set.Set Role -> Maybe ChannelPermissions
--- toChannelPermissions roles
---   | roles `Set.isSubsetOf` everyOne = Just EveryOne
---   | roles `Set.isSubsetOf` teamMembers = Just TeamMembers
---   | roles `Set.isSubsetOf` admins = Just Admins
---   | otherwise = Nothing
---
--- toRoles :: ChannelPermissions -> Set.Set Role
--- toRoles TeamMembers = teamMembers
--- toRoles EveryOne = everyOne
--- toRoles Admins = admins
-
 instance (FieldF f) => ToSchema (ChannelsConfigB Covered f) where
   schema =
     object "ChannelsConfig" $
