@@ -47,6 +47,14 @@ randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
   resp.status `shouldMatchInt` 201
   resp.json
 
+ephemeralUser :: (HasCallStack, MakesValue domain) => domain -> App Value
+ephemeralUser domain = do
+  name <- randomName
+  req <- baseRequest domain Brig Versioned "/register"
+  bindResponse (submit "POST" $ req & addJSONObject ["name" .= name] & addHeader "X-Forwarded-For" "127.0.0.42") $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json
+
 deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
 deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
   resp.status `shouldMatchInt` 200
