@@ -371,6 +371,8 @@ instance GetFeatureConfig SearchVisibilityInboundConfig
 
 instance GetFeatureConfig MLSConfig
 
+instance GetFeatureConfig ChannelsConfig
+
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type
     ComputeFeatureConstraints ExposeInvitationURLsToTeamAdminConfig r =

@@ -410,6 +410,8 @@ instance SetFeatureConfig MLSConfig where
       $ throw MLSProtocolMismatch
     pure feat
 
+instance SetFeatureConfig ChannelsConfig
+
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 
 instance SetFeatureConfig OutlookCalIntegrationConfig

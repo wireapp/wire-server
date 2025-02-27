@@ -41,7 +41,6 @@
 , federator
 , filepath
 , galley-types
-, generics-sop
 , gitignoreSource
 , hex
 , hs-opentelemetry-instrumentation-wai
@@ -86,7 +85,6 @@
 , servant-client-core
 , servant-server
 , singletons
-, singletons-base
 , sop-core
 , split
 , ssl-util
@@ -99,7 +97,6 @@
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
-, template-haskell
 , temporary
 , text
 , time
@@ -164,7 +161,6 @@ mkDerivation {
     extended
     extra
     galley-types
-    generics-sop
     hex
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -193,13 +189,11 @@ mkDerivation {
     servant-client
     servant-server
     singletons
-    singletons-base
     sop-core
     split
     ssl-util
     stm
     tagged
-    template-haskell
     text
     time
     tinylog

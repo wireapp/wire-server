@@ -270,6 +270,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -288,6 +289,7 @@ featureAPI =
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
     <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
+    <@> mkNamedAPI @'("ilock", ChannelsConfig) (updateLockStatus @ChannelsConfig)
 
 rmUser ::
   forall p1 p2 r.
