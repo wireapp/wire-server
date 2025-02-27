@@ -26,6 +26,7 @@ import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive
 import Data.String.Conversions
 import Data.Text.Encoding
@@ -111,18 +112,25 @@ testSimpleRoundtrip = do
 testUploadWrongContentLength :: (HasCallStack) => App ()
 testUploadWrongContentLength = do
   uid <- randomUser OwnDomain def
-  let size = 1024 * 1024
-  bs :: LazyByteString <- BS.fromStrict <$> (liftIO . getRandomBytes) size
-  let -- size + 17 would be sufficient, though I cannot really explain this
-      -- number (16 + 1, probably.) The control sequence would be only 4 bytes,
-      -- leaving 12 bytes to be explained. Adding some overhead for future
-      -- stability.
-      contentLengthDelta = size + 1024
+  let payloadBytes = 1024 * 1024
+  payload :: LazyByteString <- BS.fromStrict <$> (liftIO . getRandomBytes) payloadBytes
+  let controlBytes =
+        fromIntegral
+          . LBS.length
+          . toLazyByteString
+          $ ( byteString
+                ( cs
+                    "\r\n\
+                    \\r\n"
+                )
+                <> endMultipartBody'
+            )
+      tooBigContentLength = payloadBytes + controlBytes + 1
       settings = object ["public" .= False, "retention" .= "volatile"]
       body =
         toLazyByteString
-          $ beginMultipartBody settings applicationOctetStream' (fromIntegral contentLengthDelta)
-          <> lazyByteString bs
+          $ beginMultipartBody settings applicationOctetStream' (fromIntegral tooBigContentLength)
+          <> lazyByteString payload
           <> endMultipartBody'
 
   uploadRaw uid body >>= \resp -> do
