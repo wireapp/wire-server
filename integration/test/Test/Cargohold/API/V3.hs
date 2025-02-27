@@ -29,6 +29,7 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive
 import Data.String.Conversions
+import Data.Text
 import Data.Text.Encoding
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
@@ -37,6 +38,7 @@ import Network.HTTP.Client
 import SetupHelpers
 import Test.Cargohold.API.Util
 import Testlib.Prelude
+import Text.Read (readMaybe)
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
@@ -123,8 +125,16 @@ testUploadWrongContentLength = do
     resp.jsonBody %. "label" `shouldMatch` "incomplete-body"
 
   -- Sanity check
-  uploadRaw uid (body payloadBytes payload) >>= \resp -> do
-    resp.status `shouldMatchInt` 201
+  key <-
+    uploadRaw uid (body payloadBytes payload) >>= \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "key"
+
+  bindResponse (downloadAsset uid uid key "nginz-https.example.com" id) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    let contentLength = (readMaybe . unpack . decodeUtf8) . snd =<< contentLengthHeader resp
+    assertBool "Content-Length matches" $ contentLength == (Just payloadBytes)
+    assertBool "Body" $ resp.body == (LBS.toStrict payload)
   where
     body :: Int -> LBS.ByteString -> LBS.ByteString
     body contentLength payload =
