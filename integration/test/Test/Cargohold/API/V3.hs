@@ -116,9 +116,9 @@ testUploadWrongContentLength = do
   uid <- randomUser OwnDomain def
   let payloadBytes = 2 * 1024
   payload <- BS.fromStrict <$> (liftIO . getRandomBytes) payloadBytes
-  let -- payloadBytes + 16 is taken as correct `Content-Length` for the body,
-      -- as is payloadBytes. payloadBytes + 17 fails, though. I cannot really
-      -- explain it. Using a bigger value to prevent any test flakiness.
+  let -- A too small offset (<= 16) to the correct payloadBytes may lead to
+      -- having the delimiter `--frontier--` being interpreted as content. So,
+      -- we add a big offset here.
       tooBigContentLength = payloadBytes + 1024
   uploadRaw uid (body tooBigContentLength payload) >>= \resp -> do
     resp.status `shouldMatchInt` 400
