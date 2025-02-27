@@ -88,6 +88,7 @@ let
     test-stats = [ "test-stats" ];
     team-info = [ "team-info" ];
     wire-server-enterprise = [ "wire-server-enterprise" ];
+    migrate-features = [ "migrate-features" ];
   };
 
   inherit (lib) attrsets;

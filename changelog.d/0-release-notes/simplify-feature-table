@@ -1,1 +1,30 @@
-This release introduces a new data storage format for team features and a corresponding migration. While the migration is running, team features are going to operate in read-only mode for the team that is currently being migrated. After migration, the new storage is going to be used. No special action should be required on the part of instance operators.
+This release introduces a new data storage format for team features and a corresponding migration. To migrate to the new format, a new tool called `migrate-features` has been added. This tool needs to be run after deployment of this release, and before deploying the next release.
+
+While the migration tool is running, team features are going to operate in read-only mode for the team that is currently being migrated. After migration, the new storage is going to be used. No other action should be required on the part of instance operators besides running the migration tool.
+
+This tool can be run in kubernetes using a job like this:
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-features
+  namespace: <namespace>
+spec:
+  template:
+    spec:
+      containers:
+        - name: migrate-features
+          image: quay.io/wire/migrate-features:5.12.0
+          args:
+            [
+              --cassandra-host-galley,
+              <galley-host>,
+              --cassandra-port-galley,
+              "9042",
+              --cassandra-keyspace-galley,
+              galley,
+            ]
+      restartPolicy: Never
+  backoffLimit: 4
+```

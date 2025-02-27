@@ -23,7 +23,6 @@ import Options.Applicative
 import System.Logger.Extended qualified as Log
 import V1_BackfillBillingTeamMembers qualified
 import V3_BackfillTeamAdmins qualified
-import V4_MigrateToDynamicFeatures qualified
 
 main :: IO ()
 main = do
@@ -33,8 +32,8 @@ main = do
     l
     o
     [ V1_BackfillBillingTeamMembers.migration,
-      V3_BackfillTeamAdmins.migration,
-      V4_MigrateToDynamicFeatures.migration
+      V3_BackfillTeamAdmins.migration
+      -- V4 was deleted but it must've run in some environments. The next migration should be V5.
     ]
   where
     desc = header "Galley Cassandra Data Migrations" <> fullDesc

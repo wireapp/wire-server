@@ -47,6 +47,7 @@
   auto-whitelist = hself.callPackage ../tools/db/auto-whitelist/default.nix { inherit gitignoreSource; };
   find-undead = hself.callPackage ../tools/db/find-undead/default.nix { inherit gitignoreSource; };
   inconsistencies = hself.callPackage ../tools/db/inconsistencies/default.nix { inherit gitignoreSource; };
+  migrate-features = hself.callPackage ../tools/db/migrate-features/default.nix { inherit gitignoreSource; };
   migrate-sso-feature-flag = hself.callPackage ../tools/db/migrate-sso-feature-flag/default.nix { inherit gitignoreSource; };
   move-team = hself.callPackage ../tools/db/move-team/default.nix { inherit gitignoreSource; };
   phone-users = hself.callPackage ../tools/db/phone-users/default.nix { inherit gitignoreSource; };

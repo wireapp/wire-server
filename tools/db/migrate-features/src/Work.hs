@@ -1,7 +1,23 @@
-{-# OPTIONS -Wno-ambiguous-fields #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS -Wno-ambiguous-fields -Wno-orphans #-}
 
-module V4_MigrateToDynamicFeatures where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module Work where
 
 import Barbies
 import Barbies.Bare
@@ -9,7 +25,6 @@ import Cassandra
 import Cassandra qualified as C
 import Conduit
 import Control.Monad.Catch
-import Data.ByteString.Conversion
 import Data.Conduit.List qualified as C
 import Data.Default
 import Data.Id
@@ -17,20 +32,14 @@ import Data.Misc
 import Data.Schema
 import Data.Time.Clock
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
-import Galley.DataMigration.Types
 import Imports
-import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature
 
-migration :: Migration
-migration =
-  Migration
-    { version = MigrationVersion 4,
-      text = "Migrate to dynamic features",
-      action = runConduit $ getFeatures .| C.concat .| C.mapM_ writeFeatures
-    }
+runCommand :: ClientState -> IO ()
+runCommand cs =
+  runClient cs $ runConduit $ getFeatures .| C.concat .| C.mapM_ writeFeatures
 
 pageSize :: Int32
 pageSize = 1000
@@ -145,10 +154,7 @@ rowQuery =
   \ validate_saml_emails \
   \ from team_features"
 
-writeFeatures ::
-  (MonadClient m, Log.MonadLogger m, MonadCatch m) =>
-  FeatureRow ->
-  m ()
+writeFeatures :: (MonadClient m, MonadCatch m) => FeatureRow -> m ()
 writeFeatures
   ( team_id,
     app_lock_enforce,
@@ -204,147 +210,151 @@ writeFeatures
           -- set team features to read-only
           setMigrationState team_id MigrationInProgress
 
-          writeFeatureB team_id $
-            (def :: LockableFeaturePatch AppLockConfig)
-              { status = app_lock_status,
-                config = Just $ AppLockConfig @Covered app_lock_enforce app_lock_inactivity_timeout_secs
-              }
-          writeFeatureB team_id $
-            LockableFeaturePatch
-              { status = conference_calling_status,
-                lockStatus = conference_calling,
-                config =
-                  Just $ ConferenceCallingConfig @Covered conference_calling_one_to_one
-              }
+          retry x5 . batch $ do
+            setConsistency LocalQuorum
+            setType BatchLogged
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch DigitalSignaturesConfig) {status = digital_signatures}
+            writeFeatureB team_id $
+              (def :: LockableFeaturePatch AppLockConfig)
+                { status = app_lock_status,
+                  config = Just $ AppLockConfig @Covered app_lock_enforce app_lock_inactivity_timeout_secs
+                }
+            writeFeatureB team_id $
+              LockableFeaturePatch
+                { status = conference_calling_status,
+                  lockStatus = conference_calling,
+                  config =
+                    Just $ ConferenceCallingConfig @Covered conference_calling_one_to_one
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch DomainRegistrationConfig)
-              { status = domain_registration_status,
-                lockStatus = domain_registration_lock_status
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch DigitalSignaturesConfig) {status = digital_signatures}
 
-          writeFeatureB team_id $
-            LockableFeaturePatch
-              { status = enforce_file_download_location_status,
-                lockStatus = enforce_file_download_location_lock_status,
-                config =
-                  Just $
-                    EnforceFileDownloadLocationConfig @Covered $
-                      case enforce_file_download_location of
-                        Nothing -> Nothing
-                        Just "" -> Just Nothing
-                        Just loc -> Just (Just loc)
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch DomainRegistrationConfig)
+                { status = domain_registration_status,
+                  lockStatus = domain_registration_lock_status
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch ExposeInvitationURLsToTeamAdminConfig)
-              { status = expose_invitation_urls_to_team_admin
-              }
+            writeFeatureB team_id $
+              LockableFeaturePatch
+                { status = enforce_file_download_location_status,
+                  lockStatus = enforce_file_download_location_lock_status,
+                  config =
+                    Just $
+                      EnforceFileDownloadLocationConfig @Covered $
+                        case enforce_file_download_location of
+                          Nothing -> Nothing
+                          Just "" -> Just Nothing
+                          Just loc -> Just (Just loc)
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch FileSharingConfig)
-              { status = file_sharing,
-                lockStatus = file_sharing_lock_status
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch ExposeInvitationURLsToTeamAdminConfig)
+                { status = expose_invitation_urls_to_team_admin
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch GuestLinksConfig)
-              { status = guest_links_status,
-                lockStatus = guest_links_lock_status
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch FileSharingConfig)
+                { status = file_sharing,
+                  lockStatus = file_sharing_lock_status
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch LegalholdConfig)
-              { status = legalhold_status
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch GuestLinksConfig)
+                { status = guest_links_status,
+                  lockStatus = guest_links_lock_status
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch LimitedEventFanoutConfig)
-              { status = limited_event_fanout_status
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch LegalholdConfig)
+                { status = legalhold_status
+                }
 
-          writeFeatureB team_id $
-            LockableFeaturePatch
-              { status = mls_status,
-                lockStatus = mls_lock_status,
-                config =
-                  Just $
-                    ( MLSConfig @Covered
-                        (fmap C.fromSet mls_protocol_toggle_users)
-                        mls_default_protocol
-                        (fmap C.fromSet mls_allowed_ciphersuites)
-                        mls_default_ciphersuite
-                        (fmap C.fromSet mls_supported_protocols)
-                    )
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch LimitedEventFanoutConfig)
+                { status = limited_event_fanout_status
+                }
 
-          writeFeatureB team_id $
-            LockableFeaturePatch
-              { status = mls_e2eid_status,
-                lockStatus = mls_e2eid_lock_status,
-                config =
-                  Just $
-                    ( MlsE2EIdConfig @Covered
-                        (fmap fromIntegral mls_e2eid_grace_period)
-                        (Alt mls_e2eid_acme_discovery_url)
-                        (Alt mls_e2eid_crl_proxy)
-                        (maybe def UseProxyOnMobile mls_e2eid_use_proxy_on_mobile)
-                    )
-              }
+            writeFeatureB team_id $
+              LockableFeaturePatch
+                { status = mls_status,
+                  lockStatus = mls_lock_status,
+                  config =
+                    Just $
+                      ( MLSConfig @Covered
+                          (fmap C.fromSet mls_protocol_toggle_users)
+                          mls_default_protocol
+                          (fmap C.fromSet mls_allowed_ciphersuites)
+                          mls_default_ciphersuite
+                          (fmap C.fromSet mls_supported_protocols)
+                      )
+                }
 
-          writeFeatureB team_id $
-            LockableFeaturePatch
-              { status = mls_migration_status,
-                lockStatus = mls_migration_lock_status,
-                config =
-                  Just $
-                    ( MlsMigrationConfig @Covered
-                        (fmap unOptionalUTCTime mls_migration_start_time)
-                        (fmap unOptionalUTCTime mls_migration_finalise_regardless_after)
-                    )
-              }
+            writeFeatureB team_id $
+              LockableFeaturePatch
+                { status = mls_e2eid_status,
+                  lockStatus = mls_e2eid_lock_status,
+                  config =
+                    Just $
+                      ( MlsE2EIdConfig @Covered
+                          (fmap fromIntegral mls_e2eid_grace_period)
+                          (Alt mls_e2eid_acme_discovery_url)
+                          (Alt mls_e2eid_crl_proxy)
+                          (maybe def UseProxyOnMobile mls_e2eid_use_proxy_on_mobile)
+                      )
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch OutlookCalIntegrationConfig)
-              { status = outlook_cal_integration_status,
-                lockStatus = outlook_cal_integration_lock_status
-              }
+            writeFeatureB team_id $
+              LockableFeaturePatch
+                { status = mls_migration_status,
+                  lockStatus = mls_migration_lock_status,
+                  config =
+                    Just $
+                      ( MlsMigrationConfig @Covered
+                          (fmap unOptionalUTCTime mls_migration_start_time)
+                          (fmap unOptionalUTCTime mls_migration_finalise_regardless_after)
+                      )
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch SearchVisibilityInboundConfig)
-              { status = search_visibility_inbound_status
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch OutlookCalIntegrationConfig)
+                { status = outlook_cal_integration_status,
+                  lockStatus = outlook_cal_integration_lock_status
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch SearchVisibilityAvailableConfig)
-              { status = search_visibility_status
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch SearchVisibilityInboundConfig)
+                { status = search_visibility_inbound_status
+                }
 
-          writeFeatureB team_id $
-            LockableFeaturePatch
-              { status = self_deleting_messages_status,
-                lockStatus = self_deleting_messages_lock_status,
-                config =
-                  Just $
-                    SelfDeletingMessagesConfig @Covered self_deleting_messages_ttl
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch SearchVisibilityAvailableConfig)
+                { status = search_visibility_status
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch SndFactorPasswordChallengeConfig)
-              { status = snd_factor_password_challenge_status,
-                lockStatus = snd_factor_password_challenge_lock_status
-              }
+            writeFeatureB team_id $
+              LockableFeaturePatch
+                { status = self_deleting_messages_status,
+                  lockStatus = self_deleting_messages_lock_status,
+                  config =
+                    Just $
+                      SelfDeletingMessagesConfig @Covered self_deleting_messages_ttl
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch SSOConfig) {status = sso_status}
+            writeFeature team_id $
+              (def :: LockableFeaturePatch SndFactorPasswordChallengeConfig)
+                { status = snd_factor_password_challenge_status,
+                  lockStatus = snd_factor_password_challenge_lock_status
+                }
 
-          writeFeature team_id $
-            (def :: LockableFeaturePatch ValidateSAMLEmailsConfig)
-              { status = validate_saml_emails
-              }
+            writeFeature team_id $
+              (def :: LockableFeaturePatch SSOConfig) {status = sso_status}
+
+            writeFeature team_id $
+              (def :: LockableFeaturePatch ValidateSAMLEmailsConfig)
+                { status = validate_saml_emails
+                }
 
           -- set migration state to completed
           setMigrationState team_id MigrationCompleted
@@ -393,57 +403,40 @@ instance Cql OptionalUTCTime where
     pure . OptionalUTCTime $ guard (utcTimeToPOSIXSeconds t /= 0) $> t
 
 writeFeature ::
-  forall cfg m.
-  (IsFeatureConfig cfg, MonadClient m, Log.MonadLogger m) =>
+  forall cfg.
+  (IsFeatureConfig cfg) =>
   TeamId ->
   LockableFeaturePatch cfg ->
-  m ()
+  BatchM ()
 writeFeature tid feat =
   writeDbFeature @cfg
     tid
     feat {config = fmap (DbConfig . schemaToJSON) feat.config}
 
 writeFeatureB ::
-  forall b cfg m.
+  forall b cfg.
   ( cfg ~ b Bare Identity,
     ToSchema (b Covered Maybe),
     TraversableB (b Covered),
-    IsFeatureConfig cfg,
-    MonadClient m,
-    Log.MonadLogger m
+    IsFeatureConfig cfg
   ) =>
   TeamId ->
   LockableFeaturePatch (b Covered Maybe) ->
-  m ()
+  BatchM ()
 writeFeatureB tid feat = do
   let dbConfig = feat.config >>= serialiseBarbieConfig
   writeDbFeature @cfg tid feat {config = dbConfig}
 
 writeDbFeature ::
-  forall cfg m.
-  (IsFeatureConfig cfg, MonadClient m, Log.MonadLogger m) =>
+  forall cfg.
+  (IsFeatureConfig cfg) =>
   TeamId ->
   LockableFeaturePatch DbConfig ->
-  m ()
-writeDbFeature tid feat = do
-  Log.info $
-    Log.msg ("writing feature" :: ByteString)
-      . Log.field "team" (toByteString' tid)
-      . Log.field "feature" (featureName @cfg)
+  BatchM ()
+writeDbFeature tid feat =
   let q :: PrepQuery W (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig, TeamId, Text) ()
       q = "update team_features_dyn set status = ?, lock_status = ?, config = ? where team = ? and feature = ?"
-  retry x5 $
-    write
-      q
-      ( params
-          LocalQuorum
-          ( feat.status,
-            feat.lockStatus,
-            feat.config,
-            tid,
-            featureName @cfg
-          )
-      )
+   in addPrepQuery q (feat.status, feat.lockStatus, feat.config, tid, featureName @cfg)
 
 serialiseBarbieConfig ::
   ( TraversableB (b Covered),
