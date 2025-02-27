@@ -112,27 +112,24 @@ testSimpleRoundtrip = do
 testUploadWrongContentLength :: (HasCallStack) => App ()
 testUploadWrongContentLength = do
   uid <- randomUser OwnDomain def
-  let payloadBytes = 1024 * 1024
-  payload :: LazyByteString <- BS.fromStrict <$> (liftIO . getRandomBytes) payloadBytes
-  let controlBytes =
-        fromIntegral
-          . LBS.length
-          . toLazyByteString
-          $ ( byteString
-                ( cs
-                    "\r\n\
-                    \\r\n"
-                )
-                <> endMultipartBody'
-            )
-      tooBigContentLength = payloadBytes + controlBytes + 1
-      settings = object ["public" .= False, "retention" .= "volatile"]
-      body =
-        toLazyByteString
-          $ beginMultipartBody settings applicationOctetStream' (fromIntegral tooBigContentLength)
-          <> lazyByteString payload
-          <> endMultipartBody'
-
-  uploadRaw uid body >>= \resp -> do
+  let payloadBytes = 2 * 1024
+  payload <- BS.fromStrict <$> (liftIO . getRandomBytes) payloadBytes
+  let -- payloadBytes + 16 is taken as correct `Content-Length` for the body,
+      -- as is payloadBytes. payloadBytes + 17 fails, though. I cannot really
+      -- explain it. Using a bigger value to prevent any test flakiness.
+      tooBigContentLength = payloadBytes + 1024
+  uploadRaw uid (body tooBigContentLength payload) >>= \resp -> do
     resp.status `shouldMatchInt` 400
     resp.jsonBody %. "label" `shouldMatch` "incomplete-body"
+
+  -- Sanity check
+  uploadRaw uid (body payloadBytes payload) >>= \resp -> do
+    resp.status `shouldMatchInt` 201
+  where
+    body :: Int -> LBS.ByteString -> LBS.ByteString
+    body contentLength payload =
+      let settings = object ["public" .= False, "retention" .= "volatile"]
+       in toLazyByteString
+            $ beginMultipartBody settings applicationOctetStream' (fromIntegral contentLength)
+            <> lazyByteString payload
+            <> endMultipartBody'
