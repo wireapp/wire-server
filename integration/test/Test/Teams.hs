@@ -462,4 +462,4 @@ testUpgradeGuestToTeamShouldFail = do
   guest <- ephemeralUser OwnDomain
 
   upgradePersonalToTeam guest "wonderland" `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 403
+    resp.status `shouldMatchInt` 404
