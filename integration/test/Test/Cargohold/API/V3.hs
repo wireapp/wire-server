@@ -21,11 +21,14 @@ module Test.Cargohold.API.V3 where
 
 import API.Cargohold
 import Codec.MIME.Type (showMIMEType)
+import Crypto.Random
 import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString as BS
+import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.CaseInsensitive
 import Data.String.Conversions
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
 import Data.Time.Format.ISO8601
@@ -103,3 +106,25 @@ testSimpleRoundtrip = do
       let Just date' = C8.unpack <$> lookup (mk $ cs "Date") r4.headers
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       assertBool "bad date" (utc' >= utc)
+
+-- | Simulates an interrupted upload, where the user sends less data than expected.
+testUploadWrongContentLength :: (HasCallStack) => App ()
+testUploadWrongContentLength = do
+  uid <- randomUser OwnDomain def
+  let size = 1024 * 1024
+  bs :: LazyByteString <- BS.fromStrict <$> (liftIO . getRandomBytes) size
+  let -- size + 17 would be sufficient, though I cannot really explain this
+      -- number (16 + 1, probably.) The control sequence would be only 4 bytes,
+      -- leaving 12 bytes to be explained. Adding some overhead for future
+      -- stability.
+      contentLengthDelta = size + 1024
+      settings = object ["public" .= False, "retention" .= "volatile"]
+      body =
+        toLazyByteString
+          $ beginMultipartBody settings applicationOctetStream' (fromIntegral contentLengthDelta)
+          <> lazyByteString bs
+          <> endMultipartBody'
+
+  uploadRaw uid body >>= \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.jsonBody %. "label" `shouldMatch` "incomplete-body"
