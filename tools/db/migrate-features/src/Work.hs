@@ -204,162 +204,164 @@ writeFeatures
     snd_factor_password_challenge_status,
     sso_status,
     validate_saml_emails
-    ) =
-    onException
-      ( do
-          -- set team features to read-only
-          setMigrationState team_id MigrationInProgress
+    ) = do
+    state <- getMigrationState team_id
+    when (state /= MigrationCompleted) $
+      onException
+        ( do
+            -- set team features to read-only
+            setMigrationState team_id MigrationInProgress
 
-          retry x5 . batch $ do
-            setConsistency LocalQuorum
-            setType BatchLogged
+            retry x5 . batch $ do
+              setConsistency LocalQuorum
+              setType BatchLogged
 
-            writeFeatureB team_id $
-              (def :: LockableFeaturePatch AppLockConfig)
-                { status = app_lock_status,
-                  config = Just $ AppLockConfig @Covered app_lock_enforce app_lock_inactivity_timeout_secs
-                }
-            writeFeatureB team_id $
-              LockableFeaturePatch
-                { status = conference_calling_status,
-                  lockStatus = conference_calling,
-                  config =
-                    Just $ ConferenceCallingConfig @Covered conference_calling_one_to_one
-                }
+              writeFeatureB team_id $
+                (def :: LockableFeaturePatch AppLockConfig)
+                  { status = app_lock_status,
+                    config = Just $ AppLockConfig @Covered app_lock_enforce app_lock_inactivity_timeout_secs
+                  }
+              writeFeatureB team_id $
+                LockableFeaturePatch
+                  { status = conference_calling_status,
+                    lockStatus = conference_calling,
+                    config =
+                      Just $ ConferenceCallingConfig @Covered conference_calling_one_to_one
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch DigitalSignaturesConfig) {status = digital_signatures}
+              writeFeature team_id $
+                (def :: LockableFeaturePatch DigitalSignaturesConfig) {status = digital_signatures}
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch DomainRegistrationConfig)
-                { status = domain_registration_status,
-                  lockStatus = domain_registration_lock_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch DomainRegistrationConfig)
+                  { status = domain_registration_status,
+                    lockStatus = domain_registration_lock_status
+                  }
 
-            writeFeatureB team_id $
-              LockableFeaturePatch
-                { status = enforce_file_download_location_status,
-                  lockStatus = enforce_file_download_location_lock_status,
-                  config =
-                    Just $
-                      EnforceFileDownloadLocationConfig @Covered $
-                        case enforce_file_download_location of
-                          Nothing -> Nothing
-                          Just "" -> Just Nothing
-                          Just loc -> Just (Just loc)
-                }
+              writeFeatureB team_id $
+                LockableFeaturePatch
+                  { status = enforce_file_download_location_status,
+                    lockStatus = enforce_file_download_location_lock_status,
+                    config =
+                      Just $
+                        EnforceFileDownloadLocationConfig @Covered $
+                          case enforce_file_download_location of
+                            Nothing -> Nothing
+                            Just "" -> Just Nothing
+                            Just loc -> Just (Just loc)
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch ExposeInvitationURLsToTeamAdminConfig)
-                { status = expose_invitation_urls_to_team_admin
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch ExposeInvitationURLsToTeamAdminConfig)
+                  { status = expose_invitation_urls_to_team_admin
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch FileSharingConfig)
-                { status = file_sharing,
-                  lockStatus = file_sharing_lock_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch FileSharingConfig)
+                  { status = file_sharing,
+                    lockStatus = file_sharing_lock_status
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch GuestLinksConfig)
-                { status = guest_links_status,
-                  lockStatus = guest_links_lock_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch GuestLinksConfig)
+                  { status = guest_links_status,
+                    lockStatus = guest_links_lock_status
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch LegalholdConfig)
-                { status = legalhold_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch LegalholdConfig)
+                  { status = legalhold_status
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch LimitedEventFanoutConfig)
-                { status = limited_event_fanout_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch LimitedEventFanoutConfig)
+                  { status = limited_event_fanout_status
+                  }
 
-            writeFeatureB team_id $
-              LockableFeaturePatch
-                { status = mls_status,
-                  lockStatus = mls_lock_status,
-                  config =
-                    Just $
-                      ( MLSConfig @Covered
-                          (fmap C.fromSet mls_protocol_toggle_users)
-                          mls_default_protocol
-                          (fmap C.fromSet mls_allowed_ciphersuites)
-                          mls_default_ciphersuite
-                          (fmap C.fromSet mls_supported_protocols)
-                      )
-                }
+              writeFeatureB team_id $
+                LockableFeaturePatch
+                  { status = mls_status,
+                    lockStatus = mls_lock_status,
+                    config =
+                      Just $
+                        ( MLSConfig @Covered
+                            (fmap C.fromSet mls_protocol_toggle_users)
+                            mls_default_protocol
+                            (fmap C.fromSet mls_allowed_ciphersuites)
+                            mls_default_ciphersuite
+                            (fmap C.fromSet mls_supported_protocols)
+                        )
+                  }
 
-            writeFeatureB team_id $
-              LockableFeaturePatch
-                { status = mls_e2eid_status,
-                  lockStatus = mls_e2eid_lock_status,
-                  config =
-                    Just $
-                      ( MlsE2EIdConfig @Covered
-                          (fmap fromIntegral mls_e2eid_grace_period)
-                          (Alt mls_e2eid_acme_discovery_url)
-                          (Alt mls_e2eid_crl_proxy)
-                          (maybe def UseProxyOnMobile mls_e2eid_use_proxy_on_mobile)
-                      )
-                }
+              writeFeatureB team_id $
+                LockableFeaturePatch
+                  { status = mls_e2eid_status,
+                    lockStatus = mls_e2eid_lock_status,
+                    config =
+                      Just $
+                        ( MlsE2EIdConfig @Covered
+                            (fmap fromIntegral mls_e2eid_grace_period)
+                            (Alt mls_e2eid_acme_discovery_url)
+                            (Alt mls_e2eid_crl_proxy)
+                            (maybe def UseProxyOnMobile mls_e2eid_use_proxy_on_mobile)
+                        )
+                  }
 
-            writeFeatureB team_id $
-              LockableFeaturePatch
-                { status = mls_migration_status,
-                  lockStatus = mls_migration_lock_status,
-                  config =
-                    Just $
-                      ( MlsMigrationConfig @Covered
-                          (fmap unOptionalUTCTime mls_migration_start_time)
-                          (fmap unOptionalUTCTime mls_migration_finalise_regardless_after)
-                      )
-                }
+              writeFeatureB team_id $
+                LockableFeaturePatch
+                  { status = mls_migration_status,
+                    lockStatus = mls_migration_lock_status,
+                    config =
+                      Just $
+                        ( MlsMigrationConfig @Covered
+                            (fmap unOptionalUTCTime mls_migration_start_time)
+                            (fmap unOptionalUTCTime mls_migration_finalise_regardless_after)
+                        )
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch OutlookCalIntegrationConfig)
-                { status = outlook_cal_integration_status,
-                  lockStatus = outlook_cal_integration_lock_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch OutlookCalIntegrationConfig)
+                  { status = outlook_cal_integration_status,
+                    lockStatus = outlook_cal_integration_lock_status
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch SearchVisibilityInboundConfig)
-                { status = search_visibility_inbound_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch SearchVisibilityInboundConfig)
+                  { status = search_visibility_inbound_status
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch SearchVisibilityAvailableConfig)
-                { status = search_visibility_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch SearchVisibilityAvailableConfig)
+                  { status = search_visibility_status
+                  }
 
-            writeFeatureB team_id $
-              LockableFeaturePatch
-                { status = self_deleting_messages_status,
-                  lockStatus = self_deleting_messages_lock_status,
-                  config =
-                    Just $
-                      SelfDeletingMessagesConfig @Covered self_deleting_messages_ttl
-                }
+              writeFeatureB team_id $
+                LockableFeaturePatch
+                  { status = self_deleting_messages_status,
+                    lockStatus = self_deleting_messages_lock_status,
+                    config =
+                      Just $
+                        SelfDeletingMessagesConfig @Covered self_deleting_messages_ttl
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch SndFactorPasswordChallengeConfig)
-                { status = snd_factor_password_challenge_status,
-                  lockStatus = snd_factor_password_challenge_lock_status
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch SndFactorPasswordChallengeConfig)
+                  { status = snd_factor_password_challenge_status,
+                    lockStatus = snd_factor_password_challenge_lock_status
+                  }
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch SSOConfig) {status = sso_status}
+              writeFeature team_id $
+                (def :: LockableFeaturePatch SSOConfig) {status = sso_status}
 
-            writeFeature team_id $
-              (def :: LockableFeaturePatch ValidateSAMLEmailsConfig)
-                { status = validate_saml_emails
-                }
+              writeFeature team_id $
+                (def :: LockableFeaturePatch ValidateSAMLEmailsConfig)
+                  { status = validate_saml_emails
+                  }
 
-          -- set migration state to completed
-          setMigrationState team_id MigrationCompleted
-      )
-      (setMigrationState team_id MigrationNotStarted)
+            -- set migration state to completed
+            setMigrationState team_id MigrationCompleted
+        )
+        (setMigrationState team_id MigrationNotStarted)
 
 ----------------------------------------------------------------------------
 
@@ -454,3 +456,9 @@ setMigrationState tid state = do
   let q :: PrepQuery W (TeamFeatureMigrationState, TeamId) ()
       q = "update team_features set migration_state = ? where team_id = ?"
   retry x5 $ write q (params LocalQuorum (state, tid))
+
+getMigrationState :: (MonadClient m) => TeamId -> m TeamFeatureMigrationState
+getMigrationState tid = do
+  let q :: PrepQuery R (Identity TeamId) (Identity TeamFeatureMigrationState)
+      q = "select migration_state from team_features where team_id = ?"
+  fmap (fromMaybe def . fmap runIdentity) $ retry x1 $ query1 q (params LocalQuorum (Identity tid))
