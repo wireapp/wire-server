@@ -5,27 +5,43 @@ from subprocess import PIPE
 from itertools import zip_longest
 import re
 
+
 def run_cqlsh(container, expr):
-     p = subprocess.run(["docker", "exec", "-i", container, '/usr/bin/cqlsh', '-e', expr], stdout=PIPE, check=True).stdout.decode('utf8').strip()
-     return p
+    p = (
+        subprocess.run(
+            ["docker", "exec", "-i", container, "/usr/bin/cqlsh", "-e", expr],
+            stdout=PIPE,
+            check=True,
+        )
+        .stdout.decode("utf8")
+        .strip()
+    )
+    return p
+
 
 def transpose(a):
-    return [x for col in zip_longest(*a, fillvalue='') for x in col]
+    return [x for col in zip_longest(*a) for x in col if x is not None]
+
 
 def main():
-    container = subprocess.run(["docker", "ps", "--filter=name=cassandra", "--format={{.ID}}"], stdout=PIPE, check=True).stdout.decode('utf8').rstrip()
-    s = run_cqlsh(container, 'DESCRIBE keyspaces;')
+    container = (
+        subprocess.run(
+            ["docker", "ps", "--filter=name=cassandra", "--format={{.ID}}"],
+            stdout=PIPE,
+            check=True,
+        )
+        .stdout.decode("utf8")
+        .rstrip()
+    )
+    s = run_cqlsh(container, "DESCRIBE keyspaces;")
 
-    ks = []
-    for line in s.splitlines():
-        ks.append(re.split(r'\s+', line))
-
-    keyspaces = transpose(ks)
+    keyspaces = transpose(re.split(r"\s+", line.rstrip()) for line in s.splitlines())
     print("-- automatically generated with `make git-add-cassandra-schema`\n")
     for keyspace in keyspaces:
-        if keyspace.endswith('_test'):
-            s = run_cqlsh(container, f'DESCRIBE keyspace {keyspace}')
+        if keyspace.endswith("_test"):
+            s = run_cqlsh(container, f"DESCRIBE keyspace {keyspace}")
             print(s)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
