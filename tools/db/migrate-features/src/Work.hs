@@ -33,13 +33,30 @@ import Data.Schema
 import Data.Time.Clock
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Imports
+import System.Logger qualified as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature
 
-runCommand :: ClientState -> IO ()
-runCommand cs =
-  runClient cs $ runConduit $ getFeatures .| C.concat .| C.mapM_ writeFeatures
+data MigrationOpts = MigrationOpts
+  { granularity :: Int,
+    logger :: Log.Logger,
+    clientState :: ClientState
+  }
+
+runCommand :: MigrationOpts -> IO ()
+runCommand opts = do
+  countRef <- newIORef 0
+  runClient opts.clientState $
+    runConduit $
+      getFeatures
+        .| C.concat
+        .| C.mapM_ (writeFeatures opts countRef)
+
+  count <- readIORef countRef
+  Log.info opts.logger $
+    Log.msg ("migration complete" :: ByteString)
+      . Log.field "count" count
 
 pageSize :: Int32
 pageSize = 1000
@@ -154,8 +171,10 @@ rowQuery =
   \ validate_saml_emails \
   \ from team_features"
 
-writeFeatures :: (MonadClient m, MonadCatch m) => FeatureRow -> m ()
+writeFeatures :: (MonadClient m, MonadCatch m) => MigrationOpts -> IORef Int -> FeatureRow -> m ()
 writeFeatures
+  opts
+  countRef
   ( team_id,
     app_lock_enforce,
     app_lock_inactivity_timeout_secs,
@@ -206,7 +225,7 @@ writeFeatures
     validate_saml_emails
     ) = do
     state <- getMigrationState team_id
-    when (state /= MigrationCompleted) $
+    when (state /= MigrationCompleted) $ do
       onException
         ( do
             -- set team features to read-only
@@ -362,6 +381,12 @@ writeFeatures
             setMigrationState team_id MigrationCompleted
         )
         (setMigrationState team_id MigrationNotStarted)
+      modifyIORef countRef succ
+      count <- readIORef countRef
+      when (count `mod` opts.granularity == 0) $ do
+        Log.info opts.logger $
+          Log.msg ("migration progress" :: ByteString)
+            . Log.field "count" count
 
 ----------------------------------------------------------------------------
 

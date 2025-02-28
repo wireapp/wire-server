@@ -19,6 +19,7 @@
 
 module Options
   ( setCasGalley,
+    setGranularity,
     cHosts,
     cPort,
     cKeyspace,
@@ -33,7 +34,8 @@ import Imports
 import Options.Applicative
 
 data MigratorSettings = MigratorSettings
-  { _setCasGalley :: !CassandraSettings
+  { _setCasGalley :: !CassandraSettings,
+    _setGranularity :: Int
   }
   deriving (Show)
 
@@ -52,6 +54,14 @@ settingsParser :: Parser MigratorSettings
 settingsParser =
   MigratorSettings
     <$> cassandraSettingsParser "galley"
+    <*> option
+      auto
+      ( long "granularity"
+          <> metavar "INT"
+          <> help "Number of migrated teams for status report"
+          <> value 10000
+          <> showDefault
+      )
 
 cassandraSettingsParser :: String -> Parser CassandraSettings
 cassandraSettingsParser ks =
