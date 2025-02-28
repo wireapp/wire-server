@@ -270,15 +270,7 @@ upgradePersonalToTeam ::
   BindingNewTeamUser ->
   ExceptT UpgradePersonalToTeamError (AppT r) CreateUserTeam
 upgradePersonalToTeam luid bNewTeam = do
-  -- check that the user is not part of a team
-  mSelfProfile <- lift $ liftSem $ getSelfProfile luid
-  user <-
-    maybe
-      (throwE UpgradePersonalToTeamErrorUserNotFound)
-      (pure . selfUser)
-      mSelfProfile
-  when (isJust user.userTeam) $
-    throwE UpgradePersonalToTeamErrorAlreadyInATeam
+  user <- guardUser
 
   lift $ do
     liftSem $
@@ -308,6 +300,18 @@ upgradePersonalToTeam luid bNewTeam = do
         user.userDisplayName
 
     pure $! createUserTeam
+  where
+    isActive :: SelfProfile -> Bool
+    isActive profile = profile.selfUser.userStatus == Active
+
+    guardUser :: ExceptT UpgradePersonalToTeamError (AppT r) User
+    guardUser = do
+      -- user must be active (not suspended, deleted, ephemeral etc.)
+      mSelfProfile <- (find isActive) <$> lift (liftSem $ getSelfProfile luid)
+      user <- maybe (throwE UpgradePersonalToTeamErrorUserNotFound) (pure . selfUser) mSelfProfile
+      -- check that the user is not part of a team
+      when (isJust user.userTeam) $ throwE UpgradePersonalToTeamErrorAlreadyInATeam
+      pure user
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::

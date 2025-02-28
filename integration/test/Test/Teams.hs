@@ -456,3 +456,10 @@ testTeamMemberCsvExport = do
     unquote :: String -> String
     unquote ('\'' : x) = x
     unquote x = x
+
+testUpgradeGuestToTeamShouldFail :: (HasCallStack) => App ()
+testUpgradeGuestToTeamShouldFail = do
+  guest <- ephemeralUser OwnDomain
+
+  upgradePersonalToTeam guest "wonderland" `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
