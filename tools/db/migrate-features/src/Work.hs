@@ -46,17 +46,18 @@ data MigrationOpts = MigrationOpts
 
 runCommand :: MigrationOpts -> IO ()
 runCommand opts = do
-  countRef <- newIORef 0
+  countRef <- newIORef (0, 0)
   runClient opts.clientState $
     runConduit $
       getFeatures
         .| C.concat
         .| C.mapM_ (writeFeatures opts countRef)
 
-  count <- readIORef countRef
+  (migrated, skipped) <- readIORef countRef
   Log.info opts.logger $
     Log.msg ("migration complete" :: ByteString)
-      . Log.field "count" count
+      . Log.field "migrated" migrated
+      . Log.field "skipped" skipped
 
 pageSize :: Int32
 pageSize = 1000
@@ -171,7 +172,7 @@ rowQuery =
   \ validate_saml_emails \
   \ from team_features"
 
-writeFeatures :: (MonadClient m, MonadCatch m) => MigrationOpts -> IORef Int -> FeatureRow -> m ()
+writeFeatures :: (MonadClient m, MonadCatch m) => MigrationOpts -> IORef (Int, Int) -> FeatureRow -> m ()
 writeFeatures
   opts
   countRef
@@ -381,12 +382,17 @@ writeFeatures
             setMigrationState team_id MigrationCompleted
         )
         (setMigrationState team_id MigrationNotStarted)
-      modifyIORef countRef succ
-      count <- readIORef countRef
-      when (count `mod` opts.granularity == 0) $ do
+      modifyIORef countRef $ \(migrated, skipped) ->
+        if state == MigrationNotStarted
+          then (migrated + 1, skipped)
+          else (migrated, skipped + 1)
+
+      (migrated, skipped) <- readIORef countRef
+      when ((migrated + skipped) `mod` opts.granularity == 0) $ do
         Log.info opts.logger $
           Log.msg ("migration progress" :: ByteString)
-            . Log.field "count" count
+            . Log.field "migrated" migrated
+            . Log.field "skipped" skipped
 
 ----------------------------------------------------------------------------
 
