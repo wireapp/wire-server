@@ -4,16 +4,29 @@
 
 ## Background
 
-Previously, Wire group calls were implemented as a mesh, where each participant was connected
-to each other in a peer-to-peer fashion. This meant that a client would have to upload their
-video and audio feeds separately for each participant. This in practice meant that the amount
-of participants was limited by the upload bandwidth of the clients.
+Wire conference calls use a signalling-forwarding unit called
+[SFT](https://github.com/wireapp/wire-avs-service), to which clients upload
+their audio and video streams. The SFT forwards the relevant media streams out
+to the other clients. For audio, the SFT forwards up to 5 audio streams to every
+client. For video, the SFT forwards to each client according to their view, up
+to 9 video streams that client is currently viewing. 
 
-Wire now has a signalling-forwarding unit called [SFT](https://github.com/wireapp/wire-avs-service) which allows clients to upload once and
-then the SFT fans it out to the other clients. Because connections are not end-to-end anymore now, dTLS encryption offered by WebRTC is not enough anymore as the encryption is terminated at the server-side. To avoid Wire from seeing the contents of calls SFT utilises WebRTC InsertibleStreams to encrypt the packets a second time with a group key that is not known to the server.
+```{note}
+Before 2021, Wire group calls were implemented as a mesh, where each
+participant was connected to each other in a peer-to-peer fashion. This meant
+that a client would have to send their audio and video feeds mulitple times,
+separately encrypted for each participant. In practice this meant that the
+number of participants was limited by the upload bandwidth and processing power
+of the clients.
+```
 
-With SFT it is thus possible to have conference calls with many participants
-without compromising end-to-end security.
+While media streams are encrypted between the client and the SFT using
+DTLS/SRTP, this is insufficient to provide end-to-end encryption of the media.
+To prevent the SFT from having access to the contents of media, the clients use
+WebRTC InsertableStreams to encrypt the packets a second time using a group key
+that is only known to the participants of the conference call. Therefore it is
+possible to have conference calls with many participants without foregoing
+end-to-end security.
 
 ```{note}
 We will describe conferencing first in a single domain in this section.
@@ -115,40 +128,34 @@ Alice's client forwards the conference URL and the anchor SFT tuple to the other
 participants in the conversation, end-to-end encrypted.  Bob's client examines the
 conference URL. Realizing this URL is not an SFT in its own domain, Bob's client opens
 a connection to its SFTs as if creating a new connection, but passes an additional
-parameter containing the anchor SFT URL and tuple. SFT B1 establishes a DTLS connection
+parameter containing the anchor SFT URL and tuple. Conceptually, SFT B1 establishes a DTLS connection
 to the anchor SFT using the anchor SFT tuple and provides the SFT URL. (Bob's client
 also sets up media with SFT B1 normally.)  At this point all paths are established
 and the conference call can happen normally.
 
-```{figure} img/multi-sft-noturn.png
-Basic Multi-SFT conference initiated by Alice in domain A, with Bob in domain B
+```{figure} img/multi-sft-concept.png
+Multi-SFT conference conceptually initiated by Alice in domain A, with Bob in domain B
 ```
 
 Because some customers do not wish to expose their SFTs directly to hosts on the public
-Internet, the SFTs can allocate a port on a TURN server. In this way, only the IP
+Internet, the SFTs allocate a port on a Federation TURN server. In this way, only the IP
 addresses and ports of the TURN server are exposed to the Internet. This can be a separate
-set of TURN servers from those used for ordinary client calling. The diagram below shows
-this scenario.  In this configuration, SFT A2 requests an allocation from the federation
+set of TURN servers from those used for ordinary client calling. In fact, SFT A2 requests an allocation from the federation
 TURN server in domain A before responding to Alice. The anchor SFT tuple is the address
 allocated on the federation TURN server in domain A.
 
-```{figure} img/multi-sft-turn.png
-Multi-SFT conference with TURN servers between federated SFTs
+```{figure} img/multi-sft-turn-dtls.png
+Multi-SFT conference with Federation TURN servers (and DTLS multiplexing)
 ```
 
-Finally, for extremely restrictive firewall environments, the TURN servers used for
-federated SFT traffic can be further secured with a TURN to TURN mutually
-authenticated DTLS connection. The SFTs allocate a channel inside this DTLS connection
-per conference.  The channel number is included along with the anchor SFT tuple
+To support extremely restrictive firewall environments, the TURN servers used for
+federated SFT traffic are further encapsulated within a TURN to TURN mutually
+authenticated DTLS connection. The SFTs allocate a channel per conference inside this DTLS connection.
+The channel number is included along with the anchor SFT tuple
 returned to Alice, which Alice shares with the conversation, which Bob sends to SFT B1,
 and which SFT B1 uses when forming its DTLS connection to SFT A2. This DTLS connection
 runs on a dedicated port number which is not used for regular TURN traffic. Under this
 configuration, only that single IP address and port is exposed for each federated TURN
-server with all SFT traffic multiplexed over the connection. The diagram below shows
-this scenario.  Note that this TURN DTLS multiplexing is only used for SFT to SFT
+server with all SFT traffic multiplexed over the connection. Note that this TURN DTLS multiplexing is only used for SFT to SFT
 communication into federated group calls, and does not affect the connectivity requirements for normal one-on-one
 calls.
-
-```{figure} img/multi-sft-turn-dtls.png
-Multi-SFT conference with federated TURN servers with DTLS multiplexing
-```
