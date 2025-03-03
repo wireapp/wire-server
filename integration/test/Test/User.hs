@@ -60,6 +60,21 @@ testCreateUserSupportedProtocols = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "bad-request"
 
+testRemoveMlsSupportShouldFail :: (HasCallStack) => App ()
+testRemoveMlsSupportShouldFail = do
+  alice <- randomUser OwnDomain def {supportedProtocols = Just ["proteus", "mls"]}
+  bindResponse (getUserSupportedProtocols alice alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatchSet` ["proteus", "mls"]
+
+  putUserSupportedProtocols alice ["proteus"] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 409
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"
+
+  bindResponse (getUserSupportedProtocols alice alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatchSet` ["proteus", "mls"]
+
 -- | For now this only tests attempts to update /self/handle in E2EId-enabled teams.  More
 -- tests can be found under `/services/brig/test/integration` (and should be moved here).
 testUpdateHandle :: (HasCallStack) => App ()

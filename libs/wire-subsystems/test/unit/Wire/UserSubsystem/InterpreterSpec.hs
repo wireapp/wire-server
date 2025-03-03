@@ -14,6 +14,7 @@ import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Imports
@@ -252,22 +253,36 @@ spec = describe "UserSubsystem.Interpreter" do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             userBeforeUpdate = mkUserFromStored localDomain config.defaultLocale alice
-            (SelfProfile userAfterUpdate) = fromJust $ runNoFederationStack localBackend Nothing config do
+            result = runNoFederationStackUserSubsystemErrorEither localBackend Nothing config do
               updateUserProfile lusr Nothing UpdateOriginScim update
               getSelfProfile lusr
-         in userAfterUpdate.userQualifiedId === tUntagged lusr
-              .&&. userAfterUpdate.userDisplayName === fromMaybe userBeforeUpdate.userDisplayName update.name
-              .&&. userAfterUpdate.userPict === fromMaybe userBeforeUpdate.userPict update.pict
-              .&&. userAfterUpdate.userAssets === fromMaybe userBeforeUpdate.userAssets update.assets
-              .&&. userAfterUpdate.userAccentId === fromMaybe userBeforeUpdate.userAccentId update.accentId
-              .&&. userAfterUpdate.userLocale === fromMaybe userBeforeUpdate.userLocale update.locale
+            mlsRemoval =
+              BaseProtocolMLSTag `member` (fromMaybe mempty alice.supportedProtocols)
+                && BaseProtocolMLSTag `notMember` (fromMaybe mempty update.supportedProtocols)
+         in case result of
+              Right (Just (SelfProfile userAfterUpdate)) ->
+                userAfterUpdate.userQualifiedId === tUntagged lusr
+                  .&&. userAfterUpdate.userDisplayName === fromMaybe userBeforeUpdate.userDisplayName update.name
+                  .&&. userAfterUpdate.userPict === fromMaybe userBeforeUpdate.userPict update.pict
+                  .&&. userAfterUpdate.userAssets === fromMaybe userBeforeUpdate.userAssets update.assets
+                  .&&. userAfterUpdate.userAccentId === fromMaybe userBeforeUpdate.userAccentId update.accentId
+                  .&&. userAfterUpdate.userLocale === fromMaybe userBeforeUpdate.userLocale update.locale
+              Left UserSubsystemMlsRemovalNotAllowed -> mlsRemoval === True
+              Right Nothing -> property False
+              Left _ -> property False
 
     prop "Update user events" $
       \(NotPendingStoredUser alice) connId localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
+            -- MLS must not be removed from supported protocols, if exists
+            mProtocolUpdates =
+              update.supportedProtocols <&> \protocols ->
+                if BaseProtocolMLSTag `member` (fromMaybe mempty alice.supportedProtocols)
+                  then BaseProtocolMLSTag `insert` protocols
+                  else protocols
             events = runNoFederationStack localBackend Nothing config do
-              updateUserProfile lusr connId UpdateOriginScim update
+              updateUserProfile lusr connId UpdateOriginScim update {supportedProtocols = mProtocolUpdates}
               get @[MiniEvent]
          in events
               === [ MkMiniEvent
@@ -281,7 +296,7 @@ spec = describe "UserSubsystem.Interpreter" do
                               eupAccentId = update.accentId,
                               eupAssets = update.assets,
                               eupLocale = update.locale,
-                              eupSupportedProtocols = update.supportedProtocols
+                              eupSupportedProtocols = mProtocolUpdates
                             }
                       )
                   ]
@@ -594,7 +609,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing}
+                    updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing, supportedProtocols = Nothing}
                     getUserProfile lusr (tUntagged lusr)
            in counterexample (show profileErr) $ isRight profileErr === True
 
@@ -655,7 +670,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     )
                     config
                     do
-                      updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
+                      updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName, supportedProtocols = Nothing})
                       getUserProfile lusr (tUntagged lusr)
            in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
@@ -774,21 +789,24 @@ spec = describe "UserSubsystem.Interpreter" do
               where
                 dom = Domain "localdomain"
 
-            operation :: (Monad m) => Sem (MiniBackendEffects `Append` AllErrors) a -> m a
+            operation :: (Monad m) => Sem (MiniBackendEffects `Append` AllErrors) a -> m (Either UserSubsystemError a)
             operation op = result `seq` pure result
               where
-                result = runNoFederationStack localBackend Nothing config op
+                result = runNoFederationStackUserSubsystemErrorEither localBackend Nothing config op
                 localBackend = def {users = [storedUser]}
 
-            actualSupportedProtocols = runIdentity $ operation do
+            actual = runIdentity $ operation do
               () <- updateUserProfile luid Nothing UpdateOriginWireClient (def {supportedProtocols = Just newSupportedProtocols})
               profileSupportedProtocols . fromJust <$> getUserProfile luid (tUntagged luid)
 
-            expectedSupportedProtocols =
-              if S.null newSupportedProtocols
-                then defSupportedProtocols
-                else newSupportedProtocols
-         in actualSupportedProtocols === expectedSupportedProtocols
+            mlsRemoval =
+              BaseProtocolMLSTag `member` (fromMaybe mempty storedUser.supportedProtocols)
+                && BaseProtocolMLSTag `notMember` newSupportedProtocols
+            expected
+              | S.null newSupportedProtocols = Right defSupportedProtocols
+              | mlsRemoval = Left UserSubsystemMlsRemovalNotAllowed
+              | otherwise = Right newSupportedProtocols
+         in actual === expected
 
   describe "getLocalUserAccountByUserKey" $ do
     prop "gets users iff they are indexed by the UserKeyStore" $
