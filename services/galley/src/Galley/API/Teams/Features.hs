@@ -211,9 +211,8 @@ pushFeatureEvent tid event = do
           . Log.msg @Text "Fanout limit exceeded. Events will not be sent."
     else do
       let recipients = membersToRecipients Nothing (memList ^. teamMembers)
-      pushNotifications $
-        maybeToList $
-          (newPush Nothing (toJSONObject event) recipients)
+      pushNotifications
+        [newPush Nothing (toJSONObject event) recipients False]
 
 guardLockStatus ::
   forall r.
@@ -459,3 +458,5 @@ instance SetFeatureConfig EnforceFileDownloadLocationConfig where
 instance SetFeatureConfig LimitedEventFanoutConfig
 
 instance SetFeatureConfig DomainRegistrationConfig
+
+instance SetFeatureConfig PydioConfig

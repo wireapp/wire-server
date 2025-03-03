@@ -270,6 +270,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -285,9 +286,10 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @MlsE2EIdConfig)
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
+    <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
+    <@> mkNamedAPI @'("ilock", PydioConfig) (updateLockStatus @PydioConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
-    <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
 
 rmUser ::
   forall p1 p2 r.
@@ -390,9 +392,9 @@ rmUser lusr conn = do
                       now
                       (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-              pure $
-                newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)
-                  <&> set pushConn conn
+              pure . Just $
+                newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c) (isPydioEvent $ evtType e)
+                  & set pushConn conn
                     . set pushRoute PushV2.RouteDirect
           | otherwise -> pure Nothing
 

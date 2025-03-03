@@ -9,6 +9,7 @@ import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.PydioState
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Keys
@@ -68,7 +69,8 @@ remoteConversation =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmPydioState = PydioDisabled
           },
       members =
         RemoteConvMembers
@@ -105,7 +107,8 @@ remoteConversationV2 =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmPydioState = PydioPending
           },
       members =
         RemoteConvMembers
