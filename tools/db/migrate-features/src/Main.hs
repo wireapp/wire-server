@@ -35,8 +35,8 @@ main :: IO ()
 main = do
   s <- execParser (info (helper <*> settingsParser) desc)
   lgr <- initLogger
-  gc <- initCas (s ^. setCasGalley) lgr -- Galley's Cassandra
-  runCommand gc
+  cs <- initCas (s ^. setCasGalley) lgr
+  runCommand MigrationOpts {granularity = s ^. setGranularity, logger = lgr, clientState = cs}
   where
     desc =
       header "migrate-features"

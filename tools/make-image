@@ -1,0 +1,49 @@
+#!/usr/bin/env python
+
+import re
+import subprocess
+
+
+def get_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Make an image and optionally push it")
+
+    parser.add_argument("--push", "-p", action="store_true", help="Push image")
+    parser.add_argument("executable")
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = get_args()
+
+    exe = subprocess.run(
+        [
+            "nix-build",
+            "./nix",
+            "--no-out-link",
+            "-A",
+            "wireServer.imagesNoDocs." + args.executable,
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        encoding="utf-8",
+    ).stdout.rstrip()
+
+    archive = subprocess.run([exe], check=True, stdout=subprocess.PIPE).stdout
+    result = (
+        subprocess.run(
+            ["docker", "load"],
+            check=True,
+            input=archive,
+            stdout=subprocess.PIPE,
+        )
+        .stdout.decode("utf-8")
+        .rstrip()
+    )
+
+    m = re.match("Loaded image: (.*)", result)
+    if m is not None and args.push:
+        image = m.group(1)
+        subprocess.run(["docker", "push", image], check=True)
