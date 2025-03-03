@@ -492,6 +492,6 @@ getMigrationState :: (MonadClient m) => TeamId -> m TeamFeatureMigrationState
 getMigrationState tid = do
   let q :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureMigrationState))
       q = "select migration_state from team_features where team_id = ?"
-  fmap (fromMaybe def . join . fmap runIdentity) $
+  fmap (fromMaybe def . (runIdentity =<<)) $
     retry x1 $
       query1 q (params LocalQuorum (Identity tid))
