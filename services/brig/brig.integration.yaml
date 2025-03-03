@@ -138,7 +138,7 @@ zauth:
   publicKeys: test/resources/zauth/pubkeys.txt
   authSettings:
     keyIndex: 1
-    userTokenTimeout: 120
+    userTokenTimeout: 2
     sessionTokenTimeout: 20
     accessTokenTimeout: 30
     providerTokenTimeout: 60
