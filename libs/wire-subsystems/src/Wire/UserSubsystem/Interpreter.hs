@@ -21,6 +21,7 @@ import Data.List.Extra (nubOrd)
 import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl)
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import Imports
@@ -550,12 +551,20 @@ updateUserProfileImpl ::
   Sem r ()
 updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   user <- getUser uid >>= note UserSubsystemProfileNotFound
+  guardMlsSupport user
   guardLockedFields user updateOrigin update
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     updateUser uid (storedUserUpdate update)
   let interestingToUpdateIndex = isJust update.name || isJust update.accentId
   when interestingToUpdateIndex $ syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
+  where
+    guardMlsSupport user = do
+      let supportedProtocols = fromMaybe mempty user.supportedProtocols
+      let updateProtocols = fromMaybe mempty update.supportedProtocols
+      let diff = supportedProtocols `Set.difference` updateProtocols
+      when (BaseProtocolMLSTag `Set.member` diff) $
+        throw UserSubsystemMlsRemovalNotAllowed
 
 storedUserUpdate :: UserProfileUpdate -> StoredUserUpdate
 storedUserUpdate update =
