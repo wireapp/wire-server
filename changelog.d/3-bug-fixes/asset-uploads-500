@@ -1,0 +1,3 @@
+Return HTTP status 400 in case of interrupted file uploads. Previously, the AWS
+S3 error due to the wrong "content length" was interpreted as application error
+(HTTP status 500.) This led to false alerts in monitoring systems.
