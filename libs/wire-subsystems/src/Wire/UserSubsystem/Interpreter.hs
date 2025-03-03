@@ -559,10 +559,9 @@ updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   when interestingToUpdateIndex $ syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
   where
-    guardMlsSupport user = do
-      let supportedProtocols = fromMaybe mempty user.supportedProtocols
-      let updateProtocols = fromMaybe mempty update.supportedProtocols
-      let diff = supportedProtocols `Set.difference` updateProtocols
+    guardMlsSupport user = for_ update.supportedProtocols $ \protocols -> do
+      let currentProtocols = fromMaybe mempty user.supportedProtocols
+      let diff = currentProtocols `Set.difference` protocols
       when (BaseProtocolMLSTag `Set.member` diff) $
         throw UserSubsystemMlsRemovalNotAllowed
 
