@@ -43,6 +43,7 @@ import Data.Set qualified as Set
 import Data.Time
 import Data.UUID.Tagged qualified as U
 import Galley.API.Action
+import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.Mapping
@@ -596,7 +597,7 @@ createConnectConversation lusr conn j = do
             { origin = Just (tUnqualified lusr),
               json = toJSONObject e,
               recipients = map localMemberToRecipient (Data.convLocalMembers c),
-              isCellsEvent = isCellsConversationEvent (evtType e),
+              isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
               route = PushV2.RouteDirect,
               conn
             }
@@ -640,7 +641,7 @@ createConnectConversation lusr conn j = do
                 { origin = Just (tUnqualified lusr),
                   json = toJSONObject e,
                   recipients = map localMemberToRecipient (Data.convLocalMembers conv),
-                  isCellsEvent = isCellsConversationEvent (evtType e),
+                  isCellsEvent = shouldPushToCells conv.convMetadata (evtType e),
                   route = PushV2.RouteDirect,
                   conn
                 }
@@ -745,7 +746,7 @@ notifyCreatedConversation lusr conn c = do
           { origin = Just (tUnqualified lusr),
             json = toJSONObject e,
             recipients = [localMemberToRecipient m],
-            isCellsEvent = isCellsConversationEvent (evtType e),
+            isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
             route,
             conn
           }

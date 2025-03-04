@@ -27,7 +27,6 @@ import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation
-import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
@@ -72,8 +71,7 @@ testObject_ConversationCreated1 =
       messageTimer = Just (Ms 1000),
       receiptMode = Just (ReceiptMode 42),
       protocol = ProtocolProteus,
-      groupConvType = Just GroupConversation,
-      cellsState = Nothing
+      groupConvType = Just GroupConversation
     }
 
 testObject_ConversationCreated2 :: ConversationCreated ConvId
@@ -101,6 +99,5 @@ testObject_ConversationCreated2 =
                   )
               )
           ),
-      groupConvType = Nothing,
-      cellsState = Just CellsPending
+      groupConvType = Nothing
     }

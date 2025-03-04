@@ -872,6 +872,7 @@ notifyConversationAction ::
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap (.convId) lconv
+      conv = tUnqualified lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
       mkUpdate uids =
         ConversationUpdate
@@ -895,7 +896,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
             else pure (Just update)
 
   -- notify local participants and bots
-  pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
+  pushConversationEvent con conv e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
 
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
@@ -982,7 +983,7 @@ updateLocalStateOfRemoteConv rcu con = do
     let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
-    pushConversationEvent con event (qualifyAs loc targets) [] $> event
+    pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
 addLocalUsersToRemoteConv ::
   ( Member BrigAccess r,

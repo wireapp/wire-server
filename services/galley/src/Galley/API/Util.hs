@@ -38,6 +38,7 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
+import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.Data.Conversation qualified as Data
@@ -661,26 +662,28 @@ canDeleteMember deleter deletee
 pushConversationEvent ::
   ( Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Foldable f
+    Foldable f,
+    HasCellsState a
   ) =>
   Maybe ConnId ->
+  a ->
   Event ->
   Local (f UserId) ->
   f BotMember ->
   Sem r ()
-pushConversationEvent conn e lusers bots = do
+pushConversationEvent conn st e lusers bots = do
   pushNotifications
-    [(newConversationEventPush e (fmap toList lusers)) {conn}]
+    [(newConversationEventPush st e (fmap toList lusers)) {conn}]
   deliverAsync (map (,e) (toList bots))
 
-newConversationEventPush :: Event -> Local [UserId] -> Push
-newConversationEventPush e users =
+newConversationEventPush :: (HasCellsState a) => a -> Event -> Local [UserId] -> Push
+newConversationEventPush st e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
    in def
         { origin = musr,
           json = toJSONObject e,
           recipients = map userRecipient (tUnqualified users),
-          isCellsEvent = isCellsConversationEvent (evtType e)
+          isCellsEvent = shouldPushToCells st (evtType e)
         }
 
 verifyReusableCode ::
@@ -779,8 +782,7 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
       protocol = convProtocol,
-      groupConvType = cnvmGroupConvType,
-      cellsState = Just cnvmCellsState
+      groupConvType = cnvmGroupConvType
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -842,7 +844,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmMessageTimer = messageTimer,
             cnvmReceiptMode = receiptMode,
             cnvmGroupConvType = groupConvType,
-            cnvmCellsState = fromMaybe def cellsState
+            cnvmCellsState = def
           }
         (ConvMembers this others)
         ProtocolProteus

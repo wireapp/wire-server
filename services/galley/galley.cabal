@@ -74,6 +74,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Galley.API.Action
+    Galley.API.Cells
     Galley.API.Clients
     Galley.API.Create
     Galley.API.CustomBackend
