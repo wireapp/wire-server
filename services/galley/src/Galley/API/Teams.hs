@@ -115,7 +115,6 @@ import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation (evtType, isCellsConversationEvent)
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
@@ -449,8 +448,7 @@ uncheckedDeleteTeam lusr zcon tid = do
             def
               { origin = Just (tUnqualified lusr),
                 json = toJSONObject e,
-                recipients = map localMemberToRecipient mm,
-                isCellsEvent = isCellsConversationEvent (evtType e)
+                recipients = map localMemberToRecipient mm
               }
       let ee' = map (,e) bots
       let pp' = (p {conn = zcon}) : pp

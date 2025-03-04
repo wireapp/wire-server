@@ -89,6 +89,7 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
+import Galley.API.Cells
 import Galley.API.Query qualified as Query
 import Galley.API.Util
 import Galley.App
@@ -579,7 +580,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
       now <- input
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
       let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
-      pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
+      pushConversationEvent mZcon conv event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     -- In case conversation already has a code this case covers the allowed no-ops
     Just (code, mPw) -> do
@@ -635,7 +636,7 @@ rmCode lusr zcon lcnv = do
   E.deleteCode key ReusableCode
   now <- input
   let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now EdConvCodeDelete
-  pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
+  pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map lmId users)) bots
   pure event
 
 getCode ::
@@ -984,7 +985,7 @@ updateSelfMember lusr zcon qcnv update = do
   E.setSelfMember qcnv lusr update
   now <- input
   let e = Event qcnv Nothing (tUntagged lusr) now (EdMemberUpdate (updateData lusr))
-  pushConversationEvent (Just zcon) e (fmap pure lusr) []
+  pushConversationEvent (Just zcon) () e (fmap pure lusr) []
   where
     checkLocalMembership ::
       (Member MemberStore r) =>
@@ -1586,7 +1587,7 @@ addBot lusr zcon b = do
         { origin = Just (tUnqualified lusr),
           json = toJSONObject e,
           recipients = map localMemberToRecipient users,
-          isCellsEvent = isCellsConversationEvent (evtType e),
+          isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
           conn = Just zcon
         }
     ]
@@ -1646,7 +1647,7 @@ rmBot lusr zcon b = do
               { origin = Just (tUnqualified lusr),
                 json = toJSONObject e,
                 recipients = map localMemberToRecipient users,
-                isCellsEvent = isCellsConversationEvent (evtType e),
+                isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
                 conn = zcon
               }
           ]

@@ -36,7 +36,6 @@ import Servant.API
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Conversation.Typing
@@ -352,8 +351,7 @@ data ConversationCreated conv = ConversationCreated
     messageTimer :: Maybe Milliseconds,
     receiptMode :: Maybe ReceiptMode,
     protocol :: Protocol,
-    groupConvType :: Maybe GroupConvType,
-    cellsState :: Maybe CellsState -- TODO: remove Maybe
+    groupConvType :: Maybe GroupConvType
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))
@@ -364,7 +362,6 @@ instance (Arbitrary a) => Arbitrary (ConversationCreated a) where
   arbitrary =
     ConversationCreated
       <$> arbitrary
-      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
