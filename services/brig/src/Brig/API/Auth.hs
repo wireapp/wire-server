@@ -23,7 +23,6 @@ import Brig.API.Types
 import Brig.App
 import Brig.Options
 import Brig.User.Auth qualified as Auth
-import Brig.ZAuth hiding (Env, settings)
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
 import Data.Id
@@ -32,7 +31,9 @@ import Data.List1 (List1 (..))
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
+import Data.ZAuth.Token (Token)
 import Data.ZAuth.Token qualified as ZAuth
+import Debug.Trace
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
@@ -51,6 +52,7 @@ import Wire.API.User.Auth.Sso
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.ZAuth hiding (Env, settings)
 import Wire.BlockListStore
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
@@ -76,12 +78,15 @@ accessH ::
   Handler r SomeAccess
 accessH mcid ut' mat' = do
   ut <- handleTokenErrors ut'
+  traceShowM ut'
+  traceShowM mat'
   mat <- traverse handleTokenError mat'
   partitionTokens ut mat
     >>= either (uncurry (access mcid)) (uncurry (access mcid))
 
 access ::
   ( TokenPair u a,
+    Show u,
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r
