@@ -1,7 +1,10 @@
 module Test.Auth where
 
 import API.Brig
+import API.BrigInternal
 import API.Common
+import API.GalleyInternal
+import qualified API.Nginz as Nginz
 import qualified Data.ByteString.Char8 as BSChar8
 import SetupHelpers
 import Testlib.Prelude
@@ -19,7 +22,7 @@ import UnliftIO.Concurrent
 -- successfully log in again. Furthermore, the test asserts that another
 -- unrelated user can successfully log-in in parallel to the failed attempts of
 -- the aforementioned user.
-testLimitRetries :: App ()
+testLimitRetries :: (HasCallStack) => App ()
 testLimitRetries = do
   let retryLimit = 5
       timeout = 5
@@ -84,7 +87,7 @@ testLimitRetries = do
 -- persistent and session cookies than the configured maximum.
 -- Creation of new cookies beyond the limit causes deletion of the
 -- oldest cookies.
-testTooManyCookies :: App ()
+testTooManyCookies :: (HasCallStack) => App ()
 testTooManyCookies = do
   let cookieLimit = 5
   withModifiedBackend
@@ -117,5 +120,51 @@ testTooManyCookies = do
                 renewToken alice validCookie `bindResponse` \resp ->
                   resp.status `shouldMatchInt` 200
       concurrently_ (testCookieLimit "persistent") (testCookieLimit "session")
+
+-- @END
+
+-- The testInvalidCookie test conforms to the following testing standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @TSFI.NTP @S2
+--
+-- Test that invalid and expired tokens do not work.
+testInvalidCookie :: (HasCallStack) => App ()
+testInvalidCookie = do
+  let cookieTimeout = 2
+  withModifiedBackend
+    def
+      { brigCfg =
+          setField @_ @Int "zauth.authSettings.userTokenTimeout" cookieTimeout
+            >=> setField @_ @Int "zauth.authSettings.legalHoldUserTokenTimeout" cookieTimeout
+      }
+    $ \domain -> do
+      Nginz.access domain "zuid=xxx" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "client-error"
+        msg <- asString $ resp.json %. "message"
+        msg `shouldContain` "Invalid user token"
+
+      (owner, tid, [alice]) <- createTeam domain 2
+      aliceEmail <- asString $ alice %. "email"
+      aliceId <- asString $ alice %. "qualified_id.id"
+      userCookie <-
+        login domain aliceEmail defPassword `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          pure . fromJust $ getCookie "zuid" resp
+
+      legalholdWhitelistTeam tid owner >>= assertSuccess
+
+      lhCookie <-
+        legalholdLogin domain aliceId defPassword `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          pure . fromJust $ getCookie "zuid" resp
+
+      -- Wait for both cookies to expire
+      threadDelay $ (cookieTimeout + 1) * 1_000_000
+      -- Assert that the cookies are considered expired
+      for_ [userCookie, lhCookie] $ \cookie ->
+        Nginz.access domain ("zuid=" <> cookie) `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 403
+          resp.json %. "label" `shouldMatch` "invalid-credentials"
+          resp.json %. "message" `shouldMatch` "Token expired"
 
 -- @END
