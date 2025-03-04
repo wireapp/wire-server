@@ -552,9 +552,14 @@ createConnectConversation lusr conn j = do
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
       notifyCreatedConversation lusr conn c
       pushNotifications
-        [ newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c) (isPydioEvent $ evtType e)
-            & pushRoute .~ PushV2.RouteDirect
-            & pushConn .~ conn
+        [ def
+            { origin = Just (tUnqualified lusr),
+              json = toJSONObject e,
+              recipients = map localMemberToRecipient (Data.convLocalMembers c),
+              isPydioEvent = isPydioConversationEvent (evtType e),
+              route = PushV2.RouteDirect,
+              conn
+            }
         ]
       conversationCreated lusr c
     update n conv = do
@@ -591,9 +596,14 @@ createConnectConversation lusr conn j = do
           t <- input
           let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t (EdConnect j)
           pushNotifications
-            [ newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers conv) (isPydioEvent $ evtType e)
-                & pushRoute .~ PushV2.RouteDirect
-                & pushConn .~ conn
+            [ def
+                { origin = Just (tUnqualified lusr),
+                  json = toJSONObject e,
+                  recipients = map localMemberToRecipient (Data.convLocalMembers conv),
+                  isPydioEvent = isPydioConversationEvent (evtType e),
+                  route = PushV2.RouteDirect,
+                  conn
+                }
             ]
           pure $ Data.convSetName n' conv
       | otherwise = pure conv
@@ -690,9 +700,14 @@ notifyCreatedConversation lusr conn c = do
       c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr (lmId m))
       let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t (EdConversation c')
       pure $
-        newPushLocal (tUnqualified lusr) (toJSONObject e) [localMemberToRecipient m] (isPydioEvent $ evtType e)
-          & pushConn .~ conn
-          & pushRoute .~ route
+        def
+          { origin = Just (tUnqualified lusr),
+            json = toJSONObject e,
+            recipients = [localMemberToRecipient m],
+            isPydioEvent = isPydioConversationEvent (evtType e),
+            route,
+            conn
+          }
 
 localOne2OneConvId ::
   (Member (Error InvalidInput) r) =>

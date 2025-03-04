@@ -49,6 +49,7 @@ import Control.Arrow ((&&&))
 import Control.Error (headMay)
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.Json.Util
@@ -1100,8 +1101,12 @@ pushTypingIndicatorEvents ::
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
   let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
   pushNotifications
-    [ newPushLocal (qUnqualified qusr) (toJSONObject e) (userRecipient <$> users) False
-        & pushConn .~ mcon
-        & pushRoute .~ PushV2.RouteDirect
-        & pushTransient .~ True
+    [ def
+        { origin = Just (qUnqualified qusr),
+          json = toJSONObject e,
+          recipients = map userRecipient users,
+          conn = mcon,
+          route = PushV2.RouteDirect,
+          transient = True
+        }
     ]
