@@ -28,7 +28,6 @@ import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
-import Wire.API.Conversation.PydioState
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
@@ -71,8 +70,7 @@ testObject_ConversationCreated1 =
           ],
       messageTimer = Just (Ms 1000),
       receiptMode = Just (ReceiptMode 42),
-      protocol = ProtocolProteus,
-      pydioState = Nothing
+      protocol = ProtocolProteus
     }
 
 testObject_ConversationCreated2 :: ConversationCreated ConvId
@@ -99,6 +97,5 @@ testObject_ConversationCreated2 =
                       MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
                   )
               )
-          ),
-      pydioState = Just PydioPending
+          )
     }

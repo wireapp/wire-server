@@ -47,6 +47,7 @@ import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.Mapping
 import Galley.API.One2One
+import Galley.API.Pydio
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Data.Conversation qualified as Data
@@ -556,7 +557,7 @@ createConnectConversation lusr conn j = do
             { origin = Just (tUnqualified lusr),
               json = toJSONObject e,
               recipients = map localMemberToRecipient (Data.convLocalMembers c),
-              isPydioEvent = isPydioConversationEvent (evtType e),
+              isPydioEvent = shouldPushToPydio c.convMetadata (evtType e),
               route = PushV2.RouteDirect,
               conn
             }
@@ -600,7 +601,7 @@ createConnectConversation lusr conn j = do
                 { origin = Just (tUnqualified lusr),
                   json = toJSONObject e,
                   recipients = map localMemberToRecipient (Data.convLocalMembers conv),
-                  isPydioEvent = isPydioConversationEvent (evtType e),
+                  isPydioEvent = shouldPushToPydio conv.convMetadata (evtType e),
                   route = PushV2.RouteDirect,
                   conn
                 }
@@ -704,7 +705,7 @@ notifyCreatedConversation lusr conn c = do
           { origin = Just (tUnqualified lusr),
             json = toJSONObject e,
             recipients = [localMemberToRecipient m],
-            isPydioEvent = isPydioConversationEvent (evtType e),
+            isPydioEvent = shouldPushToPydio c.convMetadata (evtType e),
             route,
             conn
           }

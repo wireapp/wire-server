@@ -40,6 +40,7 @@ import Data.Text qualified as T
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
+import Galley.API.Pydio
 import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import Galley.Data.Types qualified as DataTypes
@@ -642,26 +643,28 @@ canDeleteMember deleter deletee
 pushConversationEvent ::
   ( Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Foldable f
+    Foldable f,
+    HasPydioState a
   ) =>
   Maybe ConnId ->
+  a ->
   Event ->
   Local (f UserId) ->
   f BotMember ->
   Sem r ()
-pushConversationEvent conn e lusers bots = do
+pushConversationEvent conn st e lusers bots = do
   pushNotifications
-    [(newConversationEventPush e (fmap toList lusers)) {conn}]
+    [(newConversationEventPush st e (fmap toList lusers)) {conn}]
   deliverAsync (map (,e) (toList bots))
 
-newConversationEventPush :: Event -> Local [UserId] -> Push
-newConversationEventPush e users =
+newConversationEventPush :: (HasPydioState a) => a -> Event -> Local [UserId] -> Push
+newConversationEventPush st e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
    in def
         { origin = musr,
           json = toJSONObject e,
           recipients = map userRecipient (tUnqualified users),
-          isPydioEvent = isPydioConversationEvent (evtType e)
+          isPydioEvent = shouldPushToPydio st (evtType e)
         }
 
 verifyReusableCode ::
@@ -759,8 +762,7 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       nonCreatorMembers = Set.empty,
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
-      protocol = convProtocol,
-      pydioState = Just cnvmPydioState
+      protocol = convProtocol
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -821,7 +823,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmTeam = Nothing,
             cnvmMessageTimer = messageTimer,
             cnvmReceiptMode = receiptMode,
-            cnvmPydioState = fromMaybe def pydioState
+            -- TODO: pydio state of remote conversations?
+            cnvmPydioState = def
           }
         (ConvMembers this others)
         ProtocolProteus

@@ -199,7 +199,7 @@ onConversationCreated domain rc = do
             (tUntagged (ccRemoteOrigUserId qrcConnected))
             qrcConnected.time
             (EdConversation c)
-    pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
+    pushConversationEvent Nothing () event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 
 getConversationsV1 ::

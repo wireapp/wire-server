@@ -120,6 +120,7 @@ library
     Galley.API.Public.TeamMember
     Galley.API.Public.TeamNotification
     Galley.API.Push
+    Galley.API.Pydio
     Galley.API.Query
     Galley.API.Teams
     Galley.API.Teams.Export
