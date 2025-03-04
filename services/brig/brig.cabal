@@ -201,7 +201,6 @@ library
     Brig.User.Search.SearchIndex
     Brig.User.Template
     Brig.Version
-    Brig.ZAuth
 
   hs-source-dirs:  src
   ghc-options:
@@ -294,7 +293,6 @@ library
     , servant-openapi3
     , servant-server
     , servant-swagger-ui
-    , sodium-crypto-sign                    >=0.1
     , split                                 >=0.2
     , ssl-util
     , statistics                            >=0.13

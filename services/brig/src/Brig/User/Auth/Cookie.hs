@@ -42,17 +42,16 @@ where
 import Brig.App
 import Brig.Options hiding (user)
 import Brig.User.Auth.Cookie.Limit
-import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error
-import Control.Lens (view)
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List qualified as List
-import Data.Proxy
 import Data.RetryAfter
 import Data.Time.Clock
+import Data.ZAuth.Token qualified as ZAuth
+import Data.ZAuth.Validation qualified as ZAuth
 import Imports
 import Prometheus qualified as Prom
 import System.Logger.Class (field, msg, val, (~~))
@@ -60,6 +59,7 @@ import System.Logger.Class qualified as Log
 import Util.Timeout
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.SessionStore qualified as Store
 
 --------------------------------------------------------------------------------
@@ -193,8 +193,8 @@ newAccessToken c mt = do
   t' <- case mt of
     Nothing -> ZAuth.newAccessToken (cookieValue c)
     Just t -> ZAuth.renewAccessToken (ZAuth.userTokenClient (cookieValue c)) t
-  zSettings <- asks ((.zauthEnv) <&> view ZAuth.settings)
-  let ttl = view (ZAuth.settingsTTL (Proxy @a)) zSettings
+  zSettings <- asks (.zauthEnv.settings)
+  let ttl = ZAuth.settingsTTL @a zSettings
   pure $
     bearerToken
       (ZAuth.accessTokenOf t')

@@ -111,8 +111,6 @@ import Brig.Team.Template
 import Brig.Template (Localised, genTemplateBranding)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
-import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import Brig.ZAuth qualified as ZAuth
 import Cassandra (runClient)
 import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
@@ -158,6 +156,8 @@ import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
+import Wire.AuthenticationSubsystem.ZAuth (MonadZAuth (..), runZAuth)
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
 import Wire.RateLimit.Interpreter

@@ -1,91 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
+module Wire.AuthenticationSubsystem.ZAuth where
 
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
-
--- | 'zauth' token signing and verification.
---
--- REFACTOR: should this be moved to @/libs/zauth@?
-module Brig.ZAuth
-  ( -- * Monad
-    ZAuth,
-    MonadZAuth (..),
-    runZAuth,
-
-    -- * Env
-    Env,
-    mkEnv,
-    readKeys,
-
-    -- * Settings
-    settings,
-    Settings (..),
-    defSettings,
-    localSettings,
-    keyIndex,
-    SessionTokenTimeout (..),
-    sessionTokenTimeout,
-    ProviderTokenTimeout (..),
-    providerTokenTimeout,
-
-    -- * timeout settings for access and legalholdaccess
-    settingsTTL,
-    userTTL,
-
-    -- * Token Creation
-    Token,
-    mkUserToken,
-    mkSomeToken,
-    newUserToken,
-    newSessionToken,
-    newAccessToken,
-    newProviderToken,
-    newBotToken,
-    renewAccessToken,
-
-    -- * TODO find a better names?
-    UserTokenLike,
-    AccessTokenLike,
-    TokenPair,
-
-    -- * Token Validation
-    validateToken,
-    ZV.Failure (..),
-
-    -- * Token Inspection
-    accessTokenOf,
-    accessTokenClient,
-    userTokenOf,
-    userTokenClient,
-    legalHoldAccessTokenOf,
-    legalHoldUserTokenOf,
-    userTokenRand,
-    tokenExpires,
-    tokenExpiresUTC,
-    zauthType,
-
-    -- * Re-exports
-    SecretKey,
-    PublicKey,
-  )
-where
-
-import Control.Lens (Lens', makeLenses, over, (.~), (^.))
+import Control.Lens ((.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Bits
@@ -94,7 +9,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Proxy
 import Data.Text.Encoding qualified as T
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
@@ -121,19 +35,19 @@ runZAuth e za = liftIO $ runReaderT (unZAuth za) e
 data Settings = Settings
   { -- | Secret key index to use
     --   for token creation
-    _keyIndex :: !Int,
+    keyIndex :: !Int,
     -- | User token validity timeout
-    _userTokenTimeout :: !UserTokenTimeout,
+    userTokenTimeout :: !UserTokenTimeout,
     -- | Session token validity timeout
-    _sessionTokenTimeout :: !SessionTokenTimeout,
+    sessionTokenTimeout :: !SessionTokenTimeout,
     -- | Access token validity timeout
-    _accessTokenTimeout :: !AccessTokenTimeout,
+    accessTokenTimeout :: !AccessTokenTimeout,
     -- | Proider token validity timeout
-    _providerTokenTimeout :: !ProviderTokenTimeout,
+    providerTokenTimeout :: !ProviderTokenTimeout,
     -- | Legal Hold User token validity timeout
-    _legalHoldUserTokenTimeout :: !LegalHoldUserTokenTimeout,
+    legalHoldUserTokenTimeout :: !LegalHoldUserTokenTimeout,
     -- | Legal Hold Access token validity timeout
-    _legalHoldAccessTokenTimeout :: !LegalHoldAccessTokenTimeout
+    legalHoldAccessTokenTimeout :: !LegalHoldAccessTokenTimeout
   }
   deriving (Show, Generic)
 
@@ -149,13 +63,13 @@ defSettings =
     (LegalHoldAccessTokenTimeout (60 * 15)) -- 15 minutes
 
 data Env = Env
-  { _private :: !ZC.Env,
-    _public :: !ZV.Env,
-    _settings :: !Settings
+  { private :: !ZC.Env,
+    public :: !ZV.Env,
+    settings :: !Settings
   }
 
 newtype UserTokenTimeout = UserTokenTimeout
-  {_userTokenTimeoutSeconds :: Integer}
+  {userTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
 newtype SessionTokenTimeout = SessionTokenTimeout
@@ -163,7 +77,7 @@ newtype SessionTokenTimeout = SessionTokenTimeout
   deriving (Show, Generic)
 
 newtype AccessTokenTimeout = AccessTokenTimeout
-  {_accessTokenTimeoutSeconds :: Integer}
+  {accessTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
 newtype ProviderTokenTimeout = ProviderTokenTimeout
@@ -171,11 +85,11 @@ newtype ProviderTokenTimeout = ProviderTokenTimeout
   deriving (Show, Generic)
 
 newtype LegalHoldUserTokenTimeout = LegalHoldUserTokenTimeout
-  {_legalHoldUserTokenTimeoutSeconds :: Integer}
+  {legalHoldUserTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
 newtype LegalHoldAccessTokenTimeout = LegalHoldAccessTokenTimeout
-  {_legalHoldAccessTokenTimeoutSeconds :: Integer}
+  {legalHoldAccessTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
 instance FromJSON UserTokenTimeout
@@ -201,20 +115,8 @@ instance FromJSON Settings where
       <*> (LegalHoldUserTokenTimeout <$> o .: "legalHoldUserTokenTimeout")
       <*> (LegalHoldAccessTokenTimeout <$> o .: "legalHoldAccessTokenTimeout")
 
-makeLenses ''LegalHoldAccessTokenTimeout
-
-makeLenses ''AccessTokenTimeout
-
-makeLenses ''UserTokenTimeout
-
-makeLenses ''LegalHoldUserTokenTimeout
-
-makeLenses ''Settings
-
-makeLenses ''Env
-
-localSettings :: (Settings -> Settings) -> ZAuth a -> ZAuth a
-localSettings f za = ZAuth (local (over settings f) (unZAuth za))
+-- localSettings :: (Settings -> Settings) -> ZAuth a -> ZAuth a
+-- localSettings f za = ZAuth (local (over settings f) (unZAuth za))
 
 readKeys :: (Read k) => FilePath -> IO (Maybe (NonEmpty k))
 readKeys fp = nonEmpty . map read . filter (not . null) . lines <$> readFile fp
@@ -238,19 +140,19 @@ class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
   accessTokenOf :: Token a -> UserId
   accessTokenClient :: Token a -> Maybe ClientId
   renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token a -> m (Token a)
-  settingsTTL :: Proxy a -> Lens' Settings Integer
+  settingsTTL :: Settings -> Integer
 
 instance AccessTokenLike Access where
   accessTokenOf = accessTokenOf'
   accessTokenClient = accessTokenClient'
   renewAccessToken = renewAccessToken'
-  settingsTTL _ = accessTokenTimeout . accessTokenTimeoutSeconds
+  settingsTTL = (.accessTokenTimeout.accessTokenTimeoutSeconds)
 
 instance AccessTokenLike LegalHoldAccess where
   accessTokenOf = legalHoldAccessTokenOf
   accessTokenClient = legalHoldAccessTokenClient
   renewAccessToken = renewLegalHoldAccessToken
-  settingsTTL _ = legalHoldAccessTokenTimeout . legalHoldAccessTokenTimeoutSeconds
+  settingsTTL = (.legalHoldAccessTokenTimeout.legalHoldAccessTokenTimeoutSeconds)
 
 class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
   userTokenOf :: Token u -> UserId
@@ -260,7 +162,7 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
   userTokenRand :: Token u -> Word32
   newUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token u)
   newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> Maybe ClientId -> m (Token u)
-  userTTL :: Proxy u -> Lens' Settings Integer
+  userTTL :: Settings -> Integer
   zauthType :: Type -- see libs/zauth/src/Token.hs
 
 instance UserTokenLike User where
@@ -271,7 +173,7 @@ instance UserTokenLike User where
   userTokenRand = userTokenRand'
   newUserToken = newUserToken'
   newSessionToken uid = newSessionToken' uid
-  userTTL _ = userTokenTimeout . userTokenTimeoutSeconds
+  userTTL = (.userTokenTimeout.userTokenTimeoutSeconds)
   zauthType = U
 
 instance UserTokenLike LegalHoldUser where
@@ -282,14 +184,14 @@ instance UserTokenLike LegalHoldUser where
   userTokenRand = legalHoldUserTokenRand
   newUserToken = newLegalHoldUserToken
   newSessionToken _ _ = throwM ZV.Unsupported
-  userTTL _ = legalHoldUserTokenTimeout . legalHoldUserTokenTimeoutSeconds
+  userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
   zauthType = LU
 
 mkUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token User)
 mkUserToken' u cid r t = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+    ZC.runCreate z.private z.settings.keyIndex $
       ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) (fmap clientToText cid) r)
 
 newUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token User)
@@ -297,8 +199,8 @@ newUserToken' u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      let UserTokenTimeout ttl = z ^. settings . userTokenTimeout
+    ZC.runCreate z.private z.settings.keyIndex $
+      let UserTokenTimeout ttl = z.settings.userTokenTimeout
        in ZC.userToken ttl (toUUID u) (fmap clientToText c) r
 
 newSessionToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token User)
@@ -306,24 +208,24 @@ newSessionToken' u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      let SessionTokenTimeout ttl = z ^. settings . sessionTokenTimeout
+    ZC.runCreate (z.private) (z.settings.keyIndex) $
+      let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout
        in ZC.sessionToken ttl (toUUID u) (fmap clientToText c) r
 
 newAccessToken' :: (MonadZAuth m) => Token User -> m (Token Access)
 newAccessToken' xt = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
+    ZC.runCreate z.private z.settings.keyIndex $
+      let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
        in ZC.accessToken1 ttl (xt ^. body . user) (xt ^. body . client)
 
 renewAccessToken' :: (MonadZAuth m) => Maybe ClientId -> Token Access -> m (Token Access)
 renewAccessToken' mcid old = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
+    ZC.runCreate (z.private) (z.settings.keyIndex) $
+      let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
        in ZC.renewToken
             ttl
             (old ^. header)
@@ -336,15 +238,15 @@ newBotToken :: (MonadZAuth m) => ProviderId -> BotId -> ConvId -> m (Token Bot)
 newBotToken pid bid cid = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+    ZC.runCreate z.private z.settings.keyIndex $
       ZC.botToken (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
 
 newProviderToken :: (MonadZAuth m) => ProviderId -> m (Token Provider)
 newProviderToken pid = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      let ProviderTokenTimeout ttl = z ^. settings . providerTokenTimeout
+    ZC.runCreate z.private z.settings.keyIndex $
+      let ProviderTokenTimeout ttl = z.settings.providerTokenTimeout
        in ZC.providerToken ttl (toUUID pid)
 
 -- FUTUREWORK: this function is very similar to mkUserToken',
@@ -363,7 +265,7 @@ mkLegalHoldUserToken ::
 mkLegalHoldUserToken u c r t = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+    ZC.runCreate z.private z.settings.keyIndex $
       ZC.newToken
         (utcTimeToPOSIXSeconds t)
         LU
@@ -375,16 +277,16 @@ newLegalHoldUserToken u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      let LegalHoldUserTokenTimeout ttl = z ^. settings . legalHoldUserTokenTimeout
+    ZC.runCreate z.private z.settings.keyIndex $
+      let LegalHoldUserTokenTimeout ttl = z.settings.legalHoldUserTokenTimeout
        in ZC.legalHoldUserToken ttl (toUUID u) (fmap clientToText c) r
 
 newLegalHoldAccessToken :: (MonadZAuth m) => Token LegalHoldUser -> m (Token LegalHoldAccess)
 newLegalHoldAccessToken xt = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      let LegalHoldAccessTokenTimeout ttl = z ^. settings . legalHoldAccessTokenTimeout
+    ZC.runCreate z.private z.settings.keyIndex $
+      let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
        in ZC.legalHoldAccessToken1
             ttl
             (xt ^. body . legalHoldUser . user)
@@ -398,8 +300,8 @@ renewLegalHoldAccessToken ::
 renewLegalHoldAccessToken _mcid old = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      let LegalHoldAccessTokenTimeout ttl = z ^. settings . legalHoldAccessTokenTimeout
+    ZC.runCreate z.private z.settings.keyIndex $
+      let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
        in ZC.renewToken
             ttl
             (old ^. header)
@@ -411,7 +313,7 @@ validateToken ::
   m (Either ZV.Failure ())
 validateToken t = liftZAuth $ do
   z <- ask
-  void <$> ZV.runValidate (z ^. public) (ZV.check t)
+  void <$> ZV.runValidate z.public (ZV.check t)
 
 accessTokenOf' :: Token Access -> UserId
 accessTokenOf' t = Id (t ^. body . userId)

@@ -30,7 +30,6 @@ import Brig.Calling as Calling
 import Brig.Options as Opt
 import Brig.Run qualified as Run
 import Brig.Types.Activation
-import Brig.ZAuth qualified as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens ((^?), (^?!))
@@ -123,6 +122,7 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.VersionInfo
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 
 type Brig = Request -> Request
 

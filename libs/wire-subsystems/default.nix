@@ -95,6 +95,7 @@
 , wire-api-federation
 , wire-otel
 , witherable
+, zauth
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -183,6 +184,7 @@ mkDerivation {
     wire-api-federation
     wire-otel
     witherable
+    zauth
   ];
   testHaskellDepends = [
     aeson
