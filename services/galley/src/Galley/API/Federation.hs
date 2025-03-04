@@ -350,8 +350,8 @@ onMessageSent domain rmUnqualified = do
       msgMetadata =
         MessageMetadata
           { mmNativePush = rm.push,
-            mmTransient = transient rm,
-            mmNativePriority = priority rm,
+            mmTransient = rm.transient,
+            mmNativePriority = rm.priority,
             mmData = _data rm
           }
       recipientMap = userClientMap rm.recipients
