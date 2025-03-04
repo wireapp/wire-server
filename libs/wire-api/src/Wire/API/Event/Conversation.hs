@@ -26,7 +26,7 @@ module Wire.API.Event.Conversation
     EventType (..),
     EventData (..),
     AddCodeResult (..),
-    isCellsEvent,
+    isCellsConversationEvent,
 
     -- * Event lenses
     _EdMembersJoin,
@@ -225,14 +225,14 @@ eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 
-isCellsEvent :: EventType -> Bool
-isCellsEvent MemberJoin = True
-isCellsEvent MemberLeave = True
-isCellsEvent MemberStateUpdate = True
-isCellsEvent ConvRename = True
-isCellsEvent ConvCreate = True
-isCellsEvent ConvDelete = True
-isCellsEvent _ = False
+isCellsConversationEvent :: EventType -> Bool
+isCellsConversationEvent MemberJoin = True
+isCellsConversationEvent MemberLeave = True
+isCellsConversationEvent MemberStateUpdate = True
+isCellsConversationEvent ConvRename = True
+isCellsConversationEvent ConvCreate = True
+isCellsConversationEvent ConvDelete = True
+isCellsConversationEvent _ = False
 
 --------------------------------------------------------------------------------
 -- Event data helpers

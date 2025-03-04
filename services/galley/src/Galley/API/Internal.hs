@@ -28,6 +28,7 @@ where
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Default
 import Data.Id as Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
@@ -395,9 +396,14 @@ rmUser lusr conn = do
                       (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
               pure . Just $
-                newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c) (isCellsEvent $ evtType e)
-                  & set pushConn conn
-                    . set pushRoute PushV2.RouteDirect
+                def
+                  { origin = Just (tUnqualified lusr),
+                    json = toJSONObject e,
+                    recipients = map localMemberToRecipient (Data.convLocalMembers c),
+                    isCellsEvent = isCellsConversationEvent (evtType e),
+                    conn,
+                    route = PushV2.RouteDirect
+                  }
           | otherwise -> pure Nothing
 
       pushNotifications (catMaybes pp)
