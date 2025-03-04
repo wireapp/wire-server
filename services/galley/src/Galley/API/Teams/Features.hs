@@ -36,6 +36,7 @@ where
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Kind
@@ -212,7 +213,7 @@ pushFeatureEvent tid event = do
     else do
       let recipients = membersToRecipients Nothing (memList ^. teamMembers)
       pushNotifications
-        [newPush Nothing (toJSONObject event) recipients False]
+        [def {json = toJSONObject event, recipients}]
 
 guardLockStatus ::
   forall r.

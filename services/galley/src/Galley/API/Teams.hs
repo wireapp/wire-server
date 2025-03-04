@@ -63,6 +63,7 @@ import Control.Lens
 import Data.ByteString.Conversion (List, toByteString)
 import Data.ByteString.Conversion qualified
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold qualified as LH
@@ -114,7 +115,7 @@ import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation (evtType, isCellsEvent)
+import Wire.API.Event.Conversation (evtType, isCellsConversationEvent)
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
@@ -241,7 +242,12 @@ createBindingTeam tid zusr body = do
   now <- input
   let e = newEvent tid now (EdTeamCreate team)
   pushNotifications
-    [newPushLocal zusr (toJSONObject e) [userRecipient zusr] False]
+    [ def
+        { origin = Just zusr,
+          json = toJSONObject e,
+          recipients = [userRecipient zusr]
+        }
+    ]
   pure tid
 
 updateTeamStatus ::
@@ -304,13 +310,13 @@ updateTeamH zusr zcon tid updateData = do
   let e = newEvent tid now (EdTeamUpdate updateData)
   let r = userRecipient zusr : map userRecipient (filter (/= zusr) admins)
   pushNotifications
-    [ newPushLocal
-        zusr
-        (toJSONObject e)
-        r
-        False
-        & pushConn ?~ zcon
-        & pushTransient .~ True
+    [ def
+        { origin = Just zusr,
+          json = toJSONObject e,
+          recipients = r,
+          conn = Just zcon,
+          transient = True
+        }
     ]
 
 deleteTeam ::
@@ -421,7 +427,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       forM_ chunks $ \chunk ->
         -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
         -- push module to never fan this out to more than the limit
-        pushNotifications [newPushLocal (tUnqualified lusr) (toJSONObject e) chunk False & pushConn .~ zcon]
+        pushNotifications [def {origin = Just (tUnqualified lusr), json = toJSONObject e, recipients = chunk, conn = zcon}]
       -- To avoid DoS on gundeck, send conversation deletion events slowly
       pushNotificationsSlowly ue
     createConvDeleteEvents ::
@@ -439,9 +445,15 @@ uncheckedDeleteTeam lusr zcon tid = do
       let mm = nonTeamMembers convMembs teamMembs
       let e = Conv.Event qconvId Nothing (tUntagged lusr) now Conv.EdConvDelete
       -- This event always contains all the required recipients
-      let p = newPushLocal (tUnqualified lusr) (toJSONObject e) (map localMemberToRecipient mm) (isCellsEvent $ evtType e)
+      let p =
+            def
+              { origin = Just (tUnqualified lusr),
+                json = toJSONObject e,
+                recipients = map localMemberToRecipient mm,
+                isCellsEvent = isCellsConversationEvent (evtType e)
+              }
       let ee' = map (,e) bots
-      let pp' = (p & pushConn .~ zcon) : pp
+      let pp' = (p {conn = zcon}) : pp
       pure (pp', ee' ++ ee)
 
 getTeamConversationRoles ::
@@ -668,8 +680,15 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
 
   now <- input
   let event = newEvent tid now (EdMemberUpdate targetId (Just targetPermissions))
-  let pushPriv = newPush mZusr (toJSONObject event) (map userRecipient admins') False
-  pushNotifications [pushPriv & pushConn .~ mZcon & pushTransient .~ True]
+  pushNotifications
+    [ def
+        { origin = mZusr,
+          json = toJSONObject event,
+          recipients = map userRecipient admins',
+          conn = mZcon,
+          transient = True
+        }
+    ]
 
 updateTeamMember ::
   forall r.
@@ -879,11 +898,18 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
     pushMemberLeaveEvent now = do
       let e = newEvent tid now (EdMemberLeave remove)
-      let r =
+      let recipients =
             userRecipient
               <$> (tUnqualified lusr : filter (/= (tUnqualified lusr)) admins)
       pushNotifications
-        [newPushLocal (tUnqualified lusr) (toJSONObject e) r False & pushConn .~ zcon & pushTransient .~ True]
+        [ def
+            { origin = Just (tUnqualified lusr),
+              json = toJSONObject e,
+              recipients,
+              conn = zcon,
+              transient = True
+            }
+        ]
 uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
   now <- input
   pushMemberLeaveEventToAll now
@@ -897,10 +923,16 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
     pushMemberLeaveEventToAll :: UTCTime -> Sem r ()
     pushMemberLeaveEventToAll now = do
       let e = newEvent tid now (EdMemberLeave remove)
-      let r = userRecipient (tUnqualified lusr) : membersToRecipients (Just (tUnqualified lusr)) (mems ^. teamMembers)
+      let recipients = userRecipient (tUnqualified lusr) : membersToRecipients (Just (tUnqualified lusr)) (mems ^. teamMembers)
       when (mems ^. teamMemberListType == ListComplete) $ do
         pushNotifications
-          [newPushLocal (tUnqualified lusr) (toJSONObject e) r False & pushTransient .~ True]
+          [ def
+              { origin = Just (tUnqualified lusr),
+                json = toJSONObject e,
+                recipients,
+                transient = True
+              }
+          ]
 
 removeFromConvsAndPushConvLeaveEvent ::
   forall r.
@@ -1176,13 +1208,17 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   now <- input
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
-  let rs = case origin of
+  let recipients = case origin of
         Just o -> userRecipient <$> o : filter (/= o) ((new ^. userId) : admins')
         Nothing -> userRecipient <$> new ^. userId : admins'
   pushNotifications
-    [ newPushLocal (new ^. userId) (toJSONObject e) rs False
-        & pushConn .~ originConn
-        & pushTransient .~ True
+    [ def
+        { origin = Just (new ^. userId),
+          json = toJSONObject e,
+          recipients,
+          conn = originConn,
+          transient = True
+        }
     ]
 
   APITeamQueue.pushTeamEvent tid e

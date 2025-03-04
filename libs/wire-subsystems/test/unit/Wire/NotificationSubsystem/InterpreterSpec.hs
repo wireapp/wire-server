@@ -3,6 +3,7 @@ module Wire.NotificationSubsystem.InterpreterSpec (spec) where
 import Control.Concurrent.Async (async, wait)
 import Control.Exception (throwIO)
 import Data.Data (Proxy (Proxy))
+import Data.Default
 import Data.Id
 import Data.List1 qualified as List1
 import Data.Range (fromRange, toRange)
@@ -47,35 +48,28 @@ spec = describe "NotificationSubsystem.Interpreter" do
       lotOfRecipients <- generate $ resize 24 arbitrary
       apsData <- generate arbitrary
       let push1 =
-            Push
-              { _pushConn = Nothing,
-                _pushTransient = True,
-                _pushRoute = V2.RouteDirect,
-                _pushNativePriority = Nothing,
-                pushOrigin = Nothing,
-                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
-                pushJson = payload1,
-                _pushApsData = Nothing,
-                pushIsCellsEvent = False
+            def
+              { transient = True,
+                route = V2.RouteDirect,
+                recipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
+                json = payload1
               }
           push2 =
-            Push
-              { _pushConn = Just connId2,
-                _pushTransient = True,
-                _pushRoute = V2.RouteAny,
-                _pushNativePriority = Just V2.LowPriority,
-                pushOrigin = Just origin2,
-                _pushRecipients =
+            def
+              { conn = Just connId2,
+                transient = True,
+                nativePriority = Just V2.LowPriority,
+                origin = Just origin2,
+                recipients =
                   [ Recipient user21 V2.RecipientClientsAll,
                     Recipient user22 V2.RecipientClientsAll
                   ],
-                pushJson = payload2,
-                _pushApsData = Just apsData,
-                pushIsCellsEvent = False
+                json = payload2,
+                apsData = Just apsData
               }
           duplicatePush = push2
-          duplicatePushWithPush1Recipients = push2 {_pushRecipients = _pushRecipients push1}
-          largePush = push2 {_pushRecipients = lotOfRecipients}
+          duplicatePushWithPush1Recipients = push2 {recipients = push1.recipients}
+          largePush = push2 {recipients = lotOfRecipients}
           pushes :: [Push] =
             [ push1,
               push2,
@@ -110,31 +104,24 @@ spec = describe "NotificationSubsystem.Interpreter" do
       lotOfRecipients <- replicateM 31 (generate arbitrary)
       apsData <- generate arbitrary
       let pushBiggerThanFanoutLimit =
-            Push
-              { _pushConn = Nothing,
-                _pushTransient = True,
-                _pushRoute = V2.RouteDirect,
-                _pushNativePriority = Nothing,
-                pushOrigin = Nothing,
-                _pushRecipients = lotOfRecipients,
-                pushJson = payload1,
-                _pushApsData = Nothing,
-                pushIsCellsEvent = False
+            def
+              { transient = True,
+                route = V2.RouteDirect,
+                recipients = lotOfRecipients,
+                json = payload1
               }
           pushSmallerThanFanoutLimit =
-            Push
-              { _pushConn = Just connId2,
-                _pushTransient = True,
-                _pushRoute = V2.RouteAny,
-                _pushNativePriority = Just V2.LowPriority,
-                pushOrigin = Just origin2,
-                _pushRecipients =
+            def
+              { conn = Just connId2,
+                transient = True,
+                nativePriority = Just V2.LowPriority,
+                origin = Just origin2,
+                recipients =
                   [ Recipient user21 V2.RecipientClientsAll,
                     Recipient user22 V2.RecipientClientsAll
                   ],
-                pushJson = payload2,
-                _pushApsData = Just apsData,
-                pushIsCellsEvent = False
+                json = payload2,
+                apsData = Just apsData
               }
           pushes =
             [ pushBiggerThanFanoutLimit,
@@ -167,31 +154,23 @@ spec = describe "NotificationSubsystem.Interpreter" do
       (payload1, payload2) <- generate $ resize 1 arbitrary
       clients1 <- generate $ resize 3 arbitrary
       let push1 =
-            Push
-              { _pushConn = Nothing,
-                _pushTransient = True,
-                _pushRoute = V2.RouteDirect,
-                _pushNativePriority = Nothing,
-                pushOrigin = Nothing,
-                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
-                pushJson = payload1,
-                _pushApsData = Nothing,
-                pushIsCellsEvent = False
+            def
+              { transient = True,
+                route = V2.RouteDirect,
+                recipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
+                json = payload1
               }
           push2 =
-            Push
-              { _pushConn = Just connId2,
-                _pushTransient = True,
-                _pushRoute = V2.RouteAny,
-                _pushNativePriority = Just V2.LowPriority,
-                pushOrigin = Just origin2,
-                _pushRecipients =
+            def
+              { conn = Just connId2,
+                transient = True,
+                nativePriority = Just V2.LowPriority,
+                origin = Just origin2,
+                recipients =
                   [ Recipient user21 V2.RecipientClientsAll,
                     Recipient user22 V2.RecipientClientsAll
                   ],
-                pushJson = payload2,
-                _pushApsData = Nothing,
-                pushIsCellsEvent = False
+                json = payload2
               }
           pushes = [push1, push2]
 
@@ -226,16 +205,11 @@ spec = describe "NotificationSubsystem.Interpreter" do
       payload1 <- generate $ resize 1 arbitrary
       clients1 <- generate $ resize 3 arbitrary
       let push1 =
-            Push
-              { _pushConn = Nothing,
-                _pushTransient = True,
-                _pushRoute = V2.RouteDirect,
-                _pushNativePriority = Nothing,
-                pushOrigin = Nothing,
-                _pushRecipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
-                pushJson = payload1,
-                _pushApsData = Nothing,
-                pushIsCellsEvent = False
+            def
+              { transient = True,
+                route = V2.RouteDirect,
+                recipients = [Recipient user1 (V2.RecipientClientsSome clients1)],
+                json = payload1
               }
       (_, attemptedPushes, logs) <- runMiniStackAsync mockConfig $ do
         thread <- pushAsyncImpl push1
@@ -254,14 +228,14 @@ spec = describe "NotificationSubsystem.Interpreter" do
             .&&. v2Push._pushNativeEncrypt === True
             .&&. v2Push._pushNativeAps === Nothing
             -- derived from pushToUser
-            .&&. v2Push._pushOrigin === pushToUser.pushOrigin
-            .&&. v2Push._pushOriginConnection === pushToUser._pushConn
-            .&&. v2Push._pushTransient === pushToUser._pushTransient
-            .&&. v2Push._pushNativePriority === fromMaybe V2.HighPriority pushToUser._pushNativePriority
-            .&&. v2Push._pushPayload === List1.singleton (pushJson pushToUser)
-            .&&. Set.map V2._recipientRoute (fromRange v2Push._pushRecipients) === Set.singleton pushToUser._pushRoute
+            .&&. v2Push._pushOrigin === pushToUser.origin
+            .&&. v2Push._pushOriginConnection === pushToUser.conn
+            .&&. v2Push._pushTransient === pushToUser.transient
+            .&&. v2Push._pushNativePriority === fromMaybe V2.HighPriority pushToUser.nativePriority
+            .&&. v2Push._pushPayload === List1.singleton pushToUser.json
+            .&&. Set.map V2._recipientRoute (fromRange v2Push._pushRecipients) === Set.singleton pushToUser.route
             .&&. Set.map (\r -> Recipient r._recipientId r._recipientClients) (fromRange v2Push._pushRecipients)
-              === Set.fromList (toList pushToUser._pushRecipients)
+              === Set.fromList (toList pushToUser.recipients)
 
   describe "chunkPushes" do
     it "allows empty push" $ property \limit ->
@@ -363,8 +337,8 @@ waitUntilPushes pushesRef n = do
 normalisePush :: Push -> [Push]
 normalisePush p =
   map
-    (\r -> p {_pushRecipients = [r]})
-    (toList (_pushRecipients p))
+    (\r -> p {recipients = [r]})
+    (toList p.recipients)
 
 sizeOfChunks :: [Push] -> Natural
-sizeOfChunks = fromIntegral . sum . map (length . _pushRecipients)
+sizeOfChunks = fromIntegral . sum . map (length . (.recipients))

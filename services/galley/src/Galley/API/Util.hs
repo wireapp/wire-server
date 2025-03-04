@@ -19,7 +19,7 @@
 
 module Galley.API.Util where
 
-import Control.Lens (set, to, view, (.~), (^.))
+import Control.Lens (to, view, (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.Code qualified as Code
@@ -344,8 +344,13 @@ acceptOne2One lusr conv conn = do
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
-            p = newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems') False
-        pushNotifications [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
+            p =
+              def
+                { origin = Just (tUnqualified lusr),
+                  json = toJSONObject e,
+                  recipients = localMemberToRecipient <$> mems'
+                }
+        pushNotifications [p {conn, route = PushV2.RouteDirect}]
         pure conv' {Data.convLocalMembers = mems'}
     _ -> throwS @'InvalidOperation
   where
@@ -665,15 +670,18 @@ pushConversationEvent ::
   Sem r ()
 pushConversationEvent conn e lusers bots = do
   pushNotifications
-    [ newConversationEventPush e (fmap toList lusers)
-        & set pushConn conn
-    ]
+    [(newConversationEventPush e (fmap toList lusers)) {conn}]
   deliverAsync (map (,e) (toList bots))
 
 newConversationEventPush :: Event -> Local [UserId] -> Push
 newConversationEventPush e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
-   in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users)) (isCellsEvent $ evtType e)
+   in def
+        { origin = musr,
+          json = toJSONObject e,
+          recipients = map userRecipient (tUnqualified users),
+          isCellsEvent = isCellsConversationEvent (evtType e)
+        }
 
 verifyReusableCode ::
   ( Member CodeStore r,

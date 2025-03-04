@@ -62,13 +62,14 @@ import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
 import Control.Error (ExceptT, runExceptT)
-import Control.Lens (view, (.~), (?~), (^.), (^?))
+import Control.Lens (view, (?~), (^.), (^?))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (throwE)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
@@ -184,9 +185,13 @@ onClientEvent orig conn e = do
   let event = ClientEvent e
   let rcpt = Recipient orig V2.RecipientClientsAll
   pushNotifications
-    [ newPush (Just orig) (toJSONObject event) [rcpt] False
-        & pushConn .~ conn
-        & pushApsData .~ toApsData event
+    [ def
+        { origin = Just orig,
+          json = toJSONObject event,
+          recipients = [rcpt],
+          conn,
+          apsData = toApsData event
+        }
     ]
 
 journalEvent :: (MonadReader Env m, MonadIO m) => UserId -> UserEvent -> m ()
@@ -356,10 +361,14 @@ notify ::
 notify event orig route conn recipients = do
   rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
   let push =
-        newPush (Just orig) (toJSONObject event) (toList rs) False
-          & pushConn .~ conn
-          & pushRoute .~ route
-          & pushApsData .~ toApsData event
+        def
+          { origin = Just orig,
+            json = toJSONObject event,
+            recipients = toList rs,
+            conn,
+            route,
+            apsData = toApsData event
+          }
   void $ pushNotificationAsync push
 
 notifySelf ::

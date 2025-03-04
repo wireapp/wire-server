@@ -75,6 +75,7 @@ where
 import Control.Error.Util (hush)
 import Control.Lens
 import Data.Code
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.List1
@@ -1600,12 +1601,13 @@ addBot lusr zcon b = do
               )
           )
   pushNotifications
-    [ newPushLocal
-        (tUnqualified lusr)
-        (toJSONObject e)
-        (localMemberToRecipient <$> users)
-        (isCellsEvent $ evtType e)
-        & pushConn ?~ zcon
+    [ def
+        { origin = Just (tUnqualified lusr),
+          json = toJSONObject e,
+          recipients = map localMemberToRecipient users,
+          isCellsEvent = isCellsConversationEvent (evtType e),
+          conn = Just zcon
+        }
     ]
   E.deliverAsync (map (,e) (bm : bots))
   pure e
@@ -1662,12 +1664,13 @@ rmBot lusr zcon b = do
         let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t evd
         pushNotifications
-          [ newPushLocal
-              (tUnqualified lusr)
-              (toJSONObject e)
-              (localMemberToRecipient <$> users)
-              (isCellsEvent (evtType e))
-              & pushConn .~ zcon
+          [ def
+              { origin = Just (tUnqualified lusr),
+                json = toJSONObject e,
+                recipients = map localMemberToRecipient users,
+                isCellsEvent = isCellsConversationEvent (evtType e),
+                conn = zcon
+              }
           ]
         E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
         E.deleteClients (botUserId (b ^. rmBotId))

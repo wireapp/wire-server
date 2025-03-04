@@ -29,7 +29,7 @@ module Galley.API.Push
   )
 where
 
-import Control.Lens (set)
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.List1 qualified as List1
@@ -95,9 +95,11 @@ runMessagePush loc mqcnv mp@(MessagePush _ _ _ botMembers event) = do
 
 toPush :: MessagePush -> Push
 toPush (MessagePush mconn mm rs _ event) =
-  let usr = qUnqualified (evtFrom event)
-   in newPush (Just usr) (toJSONObject event) rs False
-        & set pushConn mconn
-          . set pushNativePriority (mmNativePriority mm)
-          . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
-          . set pushTransient (mmTransient mm)
+  def
+    { origin = Just (qUnqualified (evtFrom event)),
+      conn = mconn,
+      json = toJSONObject event,
+      recipients = rs,
+      route = bool RouteDirect RouteAny (mmNativePush mm),
+      transient = mmTransient mm
+    }

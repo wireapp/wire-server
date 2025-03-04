@@ -3,8 +3,8 @@
 module Wire.NotificationSubsystem where
 
 import Control.Concurrent.Async (Async)
-import Control.Lens (makeLenses)
 import Data.Aeson
+import Data.Default
 import Data.Id
 import Imports
 import Polysemy
@@ -19,20 +19,18 @@ data Recipient = Recipient
   deriving (Arbitrary) via GenericUniform Recipient
 
 data Push = Push
-  { _pushConn :: Maybe ConnId,
-    _pushTransient :: Bool,
-    _pushRoute :: Route,
-    _pushNativePriority :: Maybe Priority,
-    pushOrigin :: Maybe UserId,
-    _pushRecipients :: [Recipient],
-    pushJson :: Object,
-    _pushApsData :: Maybe ApsData,
-    pushIsCellsEvent :: Bool
+  { conn :: Maybe ConnId,
+    transient :: Bool,
+    route :: Route,
+    nativePriority :: Maybe Priority,
+    origin :: Maybe UserId,
+    recipients :: [Recipient],
+    json :: Object,
+    apsData :: Maybe ApsData,
+    isCellsEvent :: Bool
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform Push
-
-makeLenses ''Push
 
 -- | This subsystem governs mechanisms to send notifications to users.
 data NotificationSubsystem m a where
@@ -53,19 +51,19 @@ data NotificationSubsystem m a where
 
 makeSem ''NotificationSubsystem
 
-newPush :: Maybe UserId -> Object -> [Recipient] -> Bool -> Push
-newPush from e rr isCellsEvent =
-  Push
-    { _pushConn = Nothing,
-      _pushTransient = False,
-      _pushRoute = RouteAny,
-      _pushNativePriority = Nothing,
-      _pushApsData = Nothing,
-      pushJson = e,
-      pushOrigin = from,
-      _pushRecipients = rr,
-      pushIsCellsEvent = isCellsEvent
-    }
+instance Default Push where
+  def =
+    Push
+      { conn = Nothing,
+        transient = False,
+        route = RouteAny,
+        nativePriority = Nothing,
+        apsData = Nothing,
+        json = mempty,
+        origin = Nothing,
+        recipients = [],
+        isCellsEvent = False
+      }
 
-newPushLocal :: UserId -> Object -> [Recipient] -> Bool -> Push
-newPushLocal uid = newPush (Just uid)
+newPushLocal :: UserId -> Push
+newPushLocal uid = def {origin = Just uid}
