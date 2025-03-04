@@ -45,6 +45,7 @@ import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
 import Galley.API.One2One
 import Galley.API.Public.Servant
+import Galley.API.Pydio
 import Galley.API.Query qualified as Query
 import Galley.API.Teams
 import Galley.API.Teams qualified as Teams
@@ -398,7 +399,7 @@ rmUser lusr conn = do
                   { origin = Just (tUnqualified lusr),
                     json = toJSONObject e,
                     recipients = map localMemberToRecipient (Data.convLocalMembers c),
-                    isPydioEvent = isPydioConversationEvent (evtType e),
+                    isPydioEvent = shouldPushToPydio c.convMetadata (evtType e),
                     conn,
                     route = PushV2.RouteDirect
                   }

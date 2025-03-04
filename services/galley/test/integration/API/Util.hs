@@ -1501,8 +1501,7 @@ registerRemoteConv convId originUser name othMembers = do
           nonCreatorMembers = othMembers,
           messageTimer = Nothing,
           receiptMode = Nothing,
-          protocol = ProtocolProteus,
-          pydioState = Nothing
+          protocol = ProtocolProteus
         }
 
 -------------------------------------------------------------------------------
