@@ -420,6 +420,7 @@ type SelfAPI =
            "change-supported-protocols"
            ( Summary "Change your supported protocols"
                :> From 'V5
+               :> CanThrow 'MlsRemovalNotAllowed
                :> ZLocalUser
                :> ZConn
                :> "self"
