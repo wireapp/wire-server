@@ -29,8 +29,6 @@ import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
 import Brig.Options qualified as Opts
-import Brig.ZAuth (ZAuth, runZAuth)
-import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Value)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
@@ -69,6 +67,8 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.AuthenticationSubsystem.ZAuth (ZAuth, runZAuth)
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.HashPassword.Interpreter
 import Wire.Sem.Random.IO
 
