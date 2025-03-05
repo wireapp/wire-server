@@ -65,6 +65,7 @@ featureAPI =
     <@> deprecatedFeatureConfigAPI
     <@> deprecatedFeatureAPI
     <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature
+    <@> mkNamedAPI @'("get", PydioConfig) getFeature
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
