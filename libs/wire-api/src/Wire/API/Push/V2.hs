@@ -63,7 +63,6 @@ import Data.Json.Util
 import Data.List1
 import Data.List1 qualified as List1
 import Data.OpenApi qualified as S
-import Data.Range
 import Data.Schema
 import Data.Set qualified as Set
 import Imports
@@ -227,7 +226,7 @@ data Push = Push
     -- assumption that no 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but
     -- not in any contract.  (Changing this may require a new version module, since we need to
     -- support both the old and the new data type simultaneously during upgrade.)
-    _pushRecipients :: Range 0 1024 (Set Recipient),
+    _pushRecipients :: Set Recipient,
     -- | Originating user
     --
     -- 'Nothing' here means that the originating user is on another backend.
@@ -262,7 +261,7 @@ data Push = Push
   deriving (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
 
-newPush :: Maybe UserId -> Range 0 1024 (Set Recipient) -> List1 Object -> Push
+newPush :: Maybe UserId -> Set Recipient -> List1 Object -> Push
 newPush from to pload =
   Push
     { _pushRecipients = to,
@@ -285,7 +284,7 @@ instance ToSchema Push where
   schema =
     object "Push" $
       Push
-        <$> (fromRange . _pushRecipients) .= field "recipients" (rangedSchema (set schema))
+        <$> _pushRecipients .= field "recipients" (set schema)
         <*> _pushOrigin .= maybe_ (optField "origin" schema)
         <*> (ifNot Set.null . _pushConnections)
           .= maybe_ (fmap (fromMaybe mempty) (optField "connections" (set schema)))
