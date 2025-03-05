@@ -136,7 +136,18 @@ defAllFeatures =
                 ]
           ],
       "limitedEventFanout" .= disabled,
-      "domainRegistration" .= disabledLocked
+      "domainRegistration" .= disabledLocked,
+      "channels"
+        .= object
+          [ "lockStatus" .= "locked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "allowed_to_create_channels" .= "team-members",
+                  "allowed_to_open_channels" .= "team-members"
+                ]
+          ]
     ]
 
 hasExplicitLockStatus :: String -> Bool

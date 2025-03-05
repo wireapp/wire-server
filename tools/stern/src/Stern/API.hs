@@ -191,6 +191,9 @@ sitemap' =
     :<|> Named @"domain-registration-get" (mkFeatureGetRoute @DomainRegistrationConfig)
     :<|> Named @"domain-registration-put" (mkFeaturePutRouteTrivialConfigNoTTL @DomainRegistrationConfig)
     :<|> Named @"domain-registration-lock" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @DomainRegistrationConfig)
+    :<|> Named @"channels-get" (mkFeatureGetRoute @ChannelsConfig)
+    :<|> Named @"channels-put" (mkFeaturePutRoute @ChannelsConfig)
+    :<|> Named @"channels-lock" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @ChannelsConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =

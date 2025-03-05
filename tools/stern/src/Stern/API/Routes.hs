@@ -443,6 +443,9 @@ type SternAPI =
     :<|> Named "domain-registration-get" (MkFeatureGetRoute DomainRegistrationConfig)
     :<|> Named "domain-registration-put" (MkFeaturePutRouteNoTTL DomainRegistrationConfig)
     :<|> Named "domain-registration-lock" (MkFeatureLockUnlockRouteNoTTL DomainRegistrationConfig)
+    :<|> Named "channels-get" (MkFeatureGetRoute ChannelsConfig)
+    :<|> Named "channels-put" (MkFeaturePutRoute ChannelsConfig)
+    :<|> Named "channels-lock" (MkFeatureLockUnlockRouteNoTTL ChannelsConfig)
 
 -------------------------------------------------------------------------------
 -- Swagger
