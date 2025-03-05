@@ -268,8 +268,9 @@ authreq ::
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
+  Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid = do
+authreq authreqttl msucc merr idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid

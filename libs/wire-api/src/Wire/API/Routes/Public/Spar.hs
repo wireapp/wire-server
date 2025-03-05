@@ -92,6 +92,7 @@ type APIAuthReq =
         :> QueryParam "error_redirect" URI.URI
         -- (SAML.APIAuthReq from here on, except for the cookies)
         :> Capture "idp" SAML.IdPId
+        :> ZHostOpt
         :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
     )
 
