@@ -803,8 +803,8 @@ spec = describe "UserSubsystem.Interpreter" do
               BaseProtocolMLSTag `member` (fromMaybe mempty storedUser.supportedProtocols)
                 && BaseProtocolMLSTag `notMember` newSupportedProtocols
             expected
-              | S.null newSupportedProtocols = Right defSupportedProtocols
               | mlsRemoval = Left UserSubsystemMlsRemovalNotAllowed
+              | S.null newSupportedProtocols = Right defSupportedProtocols
               | otherwise = Right newSupportedProtocols
          in actual === expected
 
