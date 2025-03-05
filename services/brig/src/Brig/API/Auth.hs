@@ -85,11 +85,12 @@ accessH mcid ut' mat' = do
     >>= either (uncurry (access mcid)) (uncurry (access mcid))
 
 access ::
-  ( TokenPair u a,
-    Show u,
+  ( Show u,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    UserTokenLike u,
+    AccessTokenLike a
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -134,7 +135,7 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (TokenPair u a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (UserTokenLike u, AccessTokenLike a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
@@ -166,7 +167,7 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (TokenPair u a) =>
+  (UserTokenLike u, AccessTokenLike a) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
