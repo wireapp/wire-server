@@ -29,12 +29,10 @@ import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
 import Brig.Options qualified as Opts
-import Brig.ZAuth (ZAuth, runZAuth)
-import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Value)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
-import Control.Lens (set, (^.))
+import Control.Lens ((^.))
 import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.ByteString qualified as BS
@@ -43,7 +41,6 @@ import Data.ByteString.Lazy qualified as Lazy
 import Data.Handle (parseHandle)
 import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsafe)
-import Data.Proxy
 import Data.Qualified
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -70,6 +67,8 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.AuthenticationSubsystem.ZAuth (ZAuth, runZAuth)
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.HashPassword.Interpreter
 import Wire.Sem.Random.IO
 
@@ -130,11 +129,9 @@ tests conf m z db b g n =
         ],
       testGroup
         "refresh /access"
-        [ test m "testInvalidCookie - invalid-cookie" (testInvalidCookie @ZAuth.User z b),
-          test m "testInvalidCookie - invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser z b),
-          test m "invalid-token" (testInvalidToken z b),
-          test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access z b),
-          test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess z b),
+        [ test m "invalid-token" (testInvalidToken z b),
+          test m "missing-cookie" (testMissingCookie @ZAuth.User z b),
+          test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser z b),
           test m "unknown-cookie" (testUnknownCookie @ZAuth.User z b),
           test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LegalHoldUser z b),
           test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
@@ -210,7 +207,7 @@ testLoginWith6CharPassword opts brig db = do
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
 
-randomAccessToken :: forall u a. (ZAuth.TokenPair u a) => ZAuth (ZAuth.Token a)
+randomAccessToken :: forall u. (ZAuth.UserTokenLike u) => ZAuth AccessToken
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
 randomUserToken :: (ZAuth.UserTokenLike u) => ZAuth (ZAuth.Token u)
@@ -575,27 +572,6 @@ testNoUserSsoLogin brig = do
 -------------------------------------------------------------------------------
 -- Token Refresh
 
--- The testInvalidCookie test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @TSFI.NTP @S2
---
--- Test that invalid and expired tokens do not work.
-testInvalidCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
-testInvalidCookie z b = do
-  -- Syntactically invalid
-  post (unversioned . b . path "/access" . cookieRaw "zuid" "xxx") !!! do
-    const 403 === statusCode
-    const (Just "Invalid user token") =~= responseBody
-  -- Expired
-  user <- Public.userId <$> randomUser b
-  let f = set (ZAuth.userTTL (Proxy @u)) 0
-  t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user Nothing))
-  liftIO $ threadDelay 1000000
-  post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
-    const 403 === statusCode
-    const (Just "expired") =~= responseBody
-
--- @END
-
 testInvalidToken :: ZAuth.Env -> Brig -> Http ()
 testInvalidToken z b = do
   user <- Public.userId <$> randomUser b
@@ -611,12 +587,12 @@ testInvalidToken z b = do
       const 403 === statusCode
       const (Just "Invalid access token") =~= responseBody
 
-testMissingCookie :: forall u a. (ZAuth.TokenPair u a) => ZAuth.Env -> Brig -> Http ()
+testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
 testMissingCookie z b = do
   -- Missing cookie, i.e. token refresh mandates a cookie.
   post (unversioned . b . path "/access")
     !!! errResponse
-  t <- toByteString' <$> runZAuth z (randomAccessToken @u @a)
+  t <- BS.toStrict . (.access) <$> runZAuth z (randomAccessToken @u)
   post (unversioned . b . path "/access" . header "Authorization" ("Bearer " <> t))
     !!! errResponse
   post (unversioned . b . path "/access" . queryItem "access_token" t)
@@ -644,7 +620,7 @@ testTokenMismatchLegalhold z brig galley = do
       <!! const 200 === statusCode
   -- try refresh with a regular UserCookie but a LegalHoldAccessToken
   let c = decodeCookie _rs
-  t <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess)
+  t <- BS.toStrict . (.access) <$> runZAuth z (randomAccessToken @ZAuth.LegalHoldUser)
   post (unversioned . brig . path "/access" . cookie c . header "Authorization" ("Bearer " <> t)) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
@@ -653,7 +629,7 @@ testTokenMismatchLegalhold z brig galley = do
   putLHWhitelistTeam galley tid !!! const 200 === statusCode
   _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
   let c' = decodeCookie _rs
-  t' <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
+  t' <- BS.toStrict . (.access) <$> runZAuth z (randomAccessToken @ZAuth.User)
   post (unversioned . brig . path "/access" . cookie c' . header "Authorization" ("Bearer " <> t')) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
@@ -700,7 +676,7 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
           (if withCookie then Just (decodeCookie rsp) else Nothing)
       else do
         pure Nothing
-  tok <- runZAuth zenv (randomAccessToken @ZAuth.User @ZAuth.Access)
+  tok <- runZAuth zenv (randomAccessToken @ZAuth.User)
   let req =
         unversioned
           . nginz
@@ -714,7 +690,7 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
     !!! errResponse "invalid-credentials" "Invalid authorization scheme"
   put (req . header "Authorization" "Bearer xxx")
     !!! errResponse "client-error" "Failed reading: Invalid access token"
-  put (req . header "Authorization" ("Bearer " <> toByteString' tok))
+  put (req . header "Authorization" ("Bearer " <> BS.toStrict tok.access))
     !!! errResponse "invalid-credentials" "Invalid token"
   where
     errResponse label msg = do

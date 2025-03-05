@@ -30,17 +30,23 @@ import Data.ZAuth.Creation as C
 import Data.ZAuth.Token
 import Data.ZAuth.Validation as V
 import Imports
+import Polysemy
 import Sodium.Crypto.Sign
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+
+runCreate :: C.Env -> Sem '[ZAuthCreation, Embed IO] a -> IO a
+runCreate env = runM . C.interpretZAuthCreation env
 
 tests :: IO TestTree
 tests = do
   (p1, s1) <- newKeyPair
   (p2, s2) <- newKeyPair
   (p3, s3) <- newKeyPair
-  z <- C.mkEnv s1 [s2, s3]
+  z1 <- C.mkEnv 1 s1 [s2, s3]
+  z2 <- C.mkEnv 2 s1 [s2, s3]
+  z3 <- C.mkEnv 3 s1 [s2, s3]
   let v = V.mkEnv p1 [p2, p3]
   pure $
     testGroup
@@ -56,13 +62,13 @@ tests = do
           ],
         testGroup
           "Signing and Verifying"
-          [ testCase "expired" (runCreate z 1 $ testExpired v),
-            testCase "not expired" (runCreate z 2 $ testNotExpired v),
-            testCase "signed access-token is valid" (runCreate z 3 $ testSignAndVerify v)
+          [ testCase "expired" (runCreate z1 $ testExpired v),
+            testCase "not expired" (runCreate z2 $ testNotExpired v),
+            testCase "signed access-token is valid" (runCreate z3 $ testSignAndVerify v)
           ],
         testGroup
           "Various"
-          [testCase "random device ids" (runCreate z 1 testRandDevIds)]
+          [testCase "random device ids" (runCreate z1 testRandDevIds)]
       ]
 
 defDuration :: Integer
@@ -86,7 +92,7 @@ testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) == Just t
 testDecEncLegalHoldAccessToken :: Token LegalHoldAccess -> Bool
 testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) == Just t
 
-testNotExpired :: V.Env -> Create ()
+testNotExpired :: (Member (Embed IO) r, Member ZAuthCreation r) => V.Env -> Sem r ()
 testNotExpired p = do
   u <- liftIO nextRandom
   t <- userToken defDuration u Nothing 100
@@ -97,7 +103,7 @@ testNotExpired p = do
 -- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2 @S3
 --
 -- Using an expired access token should fail
-testExpired :: V.Env -> Create ()
+testExpired :: (Member (Embed IO) r, Member ZAuthCreation r) => V.Env -> Sem r ()
 testExpired p = do
   u <- liftIO nextRandom
   t <- userToken 0 u Nothing 100
@@ -107,14 +113,14 @@ testExpired p = do
 
 -- @END
 
-testSignAndVerify :: V.Env -> Create ()
+testSignAndVerify :: (Member (Embed IO) r, Member ZAuthCreation r) => V.Env -> Sem r ()
 testSignAndVerify p = do
   u <- liftIO nextRandom
   t <- userToken defDuration u Nothing 100
   x <- liftIO $ runValidate p $ check t
   liftIO $ assertBool "testSignAndVerify: validation failed" (isRight x)
 
-testRandDevIds :: Create ()
+testRandDevIds :: (Member (Embed IO) r, Member ZAuthCreation r) => Sem r ()
 testRandDevIds = do
   u <- liftIO nextRandom
   t1 <- view body <$> accessToken1 defDuration u Nothing

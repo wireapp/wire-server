@@ -74,6 +74,7 @@ library
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
+    Wire.AuthenticationSubsystem.ZAuth
     Wire.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
@@ -222,6 +223,7 @@ library
     , schema-profunctor
     , servant
     , servant-client-core
+    , sodium-crypto-sign
     , stomp-queue
     , template
     , text
@@ -242,6 +244,7 @@ library
     , wire-api-federation
     , wire-otel
     , witherable
+    , zauth
 
   default-language: GHC2021
 

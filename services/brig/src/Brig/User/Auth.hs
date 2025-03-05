@@ -42,7 +42,6 @@ import Brig.Data.Client
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
-import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
 import Data.ByteString.Conversion (toByteString)
@@ -56,6 +55,8 @@ import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.ZAuth.Token qualified as ZAuth
+import Data.ZAuth.Validation qualified as ZAuth
+import Debug.Trace
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
@@ -74,6 +75,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -192,7 +194,7 @@ withRetryLimit action uid = do
     action bkey budget
 
 logout ::
-  (ZAuth.TokenPair u a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   List1 (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
@@ -202,10 +204,12 @@ logout uts at = do
 
 renewAccess ::
   forall r u a.
-  ( ZAuth.TokenPair u a,
-    Member TinyLog r,
+  ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Show u,
+    ZAuth.UserTokenLike u,
+    ZAuth.AccessTokenLike a
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -213,6 +217,8 @@ renewAccess ::
   ExceptT ZAuth.Failure (AppT r) (Access u)
 renewAccess uts at mcid = do
   (uid, ck) <- validateTokens uts at
+  traceShowM uid
+  traceShowM ck
   wrapClientE $ traverse_ (checkClientId uid) mcid
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
@@ -269,10 +275,11 @@ catchSuspendInactiveUser uid errval = do
 
 newAccess ::
   forall u a r.
-  ( ZAuth.TokenPair u a,
-    Member TinyLog r,
+  ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    ZAuth.UserTokenLike u,
+    ZAuth.AccessTokenLike a
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -352,7 +359,7 @@ isPendingActivation ident = case ident of
 --   given, we perform the usual checks.
 --   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
-  (ZAuth.TokenPair u a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -371,7 +378,7 @@ validateTokens uts at = do
       _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::
-  (ZAuth.TokenPair u a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   ZAuth.Token u ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
