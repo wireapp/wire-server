@@ -52,6 +52,7 @@ testLHPreventAddingNonConsentingUsers :: (HasCallStack) => LhApiVersion -> App (
 testLHPreventAddingNonConsentingUsers v = do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
     (owner, tid, [alice, alex]) <- createTeam OwnDomain 3
+    for_ [owner, alice, alex] getSelfConversation
 
     legalholdWhitelistTeam tid owner >>= assertSuccess
     legalholdIsTeamInWhitelist tid owner >>= assertSuccess
@@ -61,6 +62,7 @@ testLHPreventAddingNonConsentingUsers v = do
     georgeQId <- objQidObject george
     hannes <- randomUser OwnDomain def
     hannesQId <- objQidObject hannes
+    for_ [george, hannes] getSelfConversation
 
     connectUsers [alice, george, hannes]
     connectUsers [alex, george, hannes]
@@ -111,7 +113,10 @@ testLHGetAndUpdateSettings :: (HasCallStack) => Consent -> LhApiVersion -> App (
 testLHGetAndUpdateSettings consent v = ensureLHFeatureConfigForServer consent $ \dom -> do
   withMockServer def (lhMockAppV v) $ \lhDomAndPort _chan -> do
     (owner, tid, [alice]) <- createTeam dom 2
+    for_ [owner, alice] getSelfConversation
+
     stranger <- randomUser dom def
+    void $ getSelfConversation stranger
 
     let getSettingsWorks :: (HasCallStack) => Value -> String -> App ()
         getSettingsWorks target status = bindResponse (getLegalHoldSettings tid target) $ \resp -> do
@@ -160,6 +165,7 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
   -- Related: https://github.com/wireapp/wire-server/pull/4056
   withMockServer def lhMockApp $ \lhDomAndPort _chan -> do
     (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
+    for_ [owner, mem1, mem2] getSelfConversation
 
     let clientSettings :: Bool -> AddClient
         clientSettings allnew =
@@ -235,6 +241,7 @@ testLHClaimKeys approvedOrPending testmode = do
   withMockServer def lhMockApp $ \lhDomAndPort _chan -> do
     (lowner, ltid, [lmem]) <- createTeam OwnDomain 2
     (powner, ptid, [pmem]) <- createTeam OwnDomain 2
+    for_ [lowner, lmem, powner, pmem] getSelfConversation
 
     legalholdWhitelistTeam ltid lowner >>= assertSuccess
     legalholdIsTeamInWhitelist ltid lowner >>= assertSuccess
@@ -300,6 +307,8 @@ testLHClaimKeys approvedOrPending testmode = do
 testLHAddClientManually :: App ()
 testLHAddClientManually = do
   (_owner, _tid, [mem1]) <- createTeam OwnDomain 2
+  for_ [_owner, mem1] getSelfConversation
+
   bindResponse (addClient mem1 def {ctype = "legalhold"}) $ \resp -> do
     assertLabel 400 "client-error" resp
     -- we usually don't test the human-readable "message", but in this case it is important to
@@ -310,6 +319,8 @@ testLHAddClientManually = do
 testLHDeleteClientManually :: App ()
 testLHDeleteClientManually = do
   (_owner, _tid, [mem1]) <- createTeam OwnDomain 2
+  for_ [_owner, mem1] getSelfConversation
+
   cid <- bindResponse (BrigI.addClient mem1 def {ctype = "legalhold"}) $ \resp -> do
     resp.status `shouldMatchInt` 201
     asString =<< resp.json %. "id"
@@ -324,6 +335,8 @@ testLHDeleteClientManually = do
 testLHRequestDevice :: Consent -> LhApiVersion -> App ()
 testLHRequestDevice consent v = ensureLHFeatureConfigForServer consent $ \dom -> do
   (alice, tid, [bob]) <- createTeam dom 2
+  for_ [alice, bob] getSelfConversation
+
   let reqNotEnabled requester requestee =
         requestLegalHoldDevice tid requester requestee
           >>= assertLabel 403 "legalhold-not-enabled"
@@ -391,6 +404,7 @@ testLHApproveDevice consent = ensureLHFeatureConfigForServer consent $ \dom -> d
   -- team users
   -- alice (boss) and bob and charlie (member)
   (alice, tid, [bob, charlie]) <- createTeam dom 3
+  for_ [alice, bob, charlie] getSelfConversation
 
   -- ollie the outsider
   ollie <- do
@@ -400,6 +414,7 @@ testLHApproveDevice consent = ensureLHFeatureConfigForServer consent $ \dom -> d
 
   -- sandy the stranger
   sandy <- randomUser dom def
+  for_ [ollie, sandy] getSelfConversation
 
   whitelistOrEnableLHForTeam consent dom tid alice
   approveLegalHoldDevice tid (bob %. "qualified_id") defPassword
@@ -479,6 +494,8 @@ testLHGetDeviceStatus consent v = ensureLHFeatureConfigForServer consent $ \dom 
   -- team users
   -- alice (team owner) and bob (member)
   (alice, tid, [bob]) <- createTeam dom 2
+  for_ [alice, bob] getSelfConversation
+
   for_ [alice, bob] \user -> do
     legalholdUserStatus tid alice user `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
@@ -539,6 +556,7 @@ setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
 testLHDisableForUser :: (HasCallStack) => Consent -> App ()
 testLHDisableForUser consent = ensureLHFeatureConfigForServer consent $ \dom -> do
   (alice, tid, [bob]) <- createTeam dom 2
+  for_ [alice, bob] getSelfConversation
 
   withMockServer def lhMockApp \lhDomAndPort chan -> do
     setUpLHDevice consent dom tid alice bob lhDomAndPort
@@ -584,6 +602,8 @@ testLHEnablePerTeam consent v = ensureLHFeatureConfigForServer consent $ \dom ->
   -- team users
   -- alice (team owner) and bob (member)
   (alice, tid, [bob]) <- createTeam dom 2
+  for_ [alice, bob] getSelfConversation
+
   legalholdIsEnabled tid alice `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "lockStatus" `shouldMatch` "unlocked"
@@ -613,6 +633,7 @@ testLHGetMembersIncludesStatus v = do
   -- team users
   -- alice (team owner) and bob (member)
   (alice, tid, [bob]) <- createTeam OwnDomain 2
+  for_ [alice, bob] getSelfConversation
 
   let statusShouldBe :: String -> App ()
       statusShouldBe status = do
@@ -656,6 +677,7 @@ testLHConnectionsWithNonConsentingUsers v = do
   bob <- randomUser OwnDomain def
   carl <- randomUser OwnDomain def
   dee <- randomUser OwnDomain def
+  for_ [alice, bob, carl, dee] getSelfConversation
 
   legalholdWhitelistTeam tid alice
     >>= assertStatus 200
@@ -715,6 +737,7 @@ testLHConnectionsWithConsentingUsers :: LhApiVersion -> App ()
 testLHConnectionsWithConsentingUsers v = do
   (alice, teamA, []) <- createTeam OwnDomain 1
   (bob, teamB, [barbara]) <- createTeam OwnDomain 2
+  for_ [alice, bob, barbara] getSelfConversation
 
   legalholdWhitelistTeam teamA alice
     >>= assertStatus 200
@@ -759,6 +782,8 @@ testLHNoConsentRemoveFromGroup :: LHApprovedOrPending -> GroupConvAdmin -> App (
 testLHNoConsentRemoveFromGroup approvedOrPending admin = do
   (alice, tidAlice, []) <- createTeam OwnDomain 1
   (bob, tidBob, []) <- createTeam OwnDomain 1
+  for_ [alice, bob] getSelfConversation
+
   legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
   withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
@@ -824,6 +849,7 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
 testLHHappyFlow :: (HasCallStack) => Consent -> LhApiVersion -> App ()
 testLHHappyFlow consent v = ensureLHFeatureConfigForServer consent $ \dom -> do
   (alice, tid, [bob]) <- createTeam dom 2
+  for_ [alice, bob] getSelfConversation
 
   let statusShouldBe :: (HasCallStack) => String -> App ()
       statusShouldBe status =
@@ -889,7 +915,10 @@ testLHGetStatus :: LhApiVersion -> App ()
 testLHGetStatus v = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   (charlie, _tidCharlie, [debora]) <- createTeam OwnDomain 2
+
   emil <- randomUser OwnDomain def
+
+  for_ [alice, bob, charlie, debora, emil] getSelfConversation
 
   let check :: (HasCallStack) => (MakesValue getter, MakesValue target) => getter -> target -> String -> App ()
       check getter target status = do
@@ -914,6 +943,8 @@ testLHCannotCreateGroupWithUsersInConflict :: LhApiVersion -> App ()
 testLHCannotCreateGroupWithUsersInConflict v = do
   (alice, tidAlice, [bob]) <- createTeam OwnDomain 2
   (charlie, _tidCharlie, [debora]) <- createTeam OwnDomain 2
+  for_ [alice, bob, charlie, debora] getSelfConversation
+
   legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
   connectTwoUsers bob charlie
   connectTwoUsers bob debora
@@ -935,10 +966,12 @@ testLHNoConsentCannotBeInvited :: (HasCallStack) => LhApiVersion -> App ()
 testLHNoConsentCannotBeInvited v = do
   -- team that is legalhold whitelisted
   (legalholder, tidLH, userLHNotActivated : _) <- createTeam OwnDomain 2
+  for_ [legalholder, userLHNotActivated] getSelfConversation
   legalholdWhitelistTeam tidLH legalholder >>= assertStatus 200
 
   -- team without legalhold
   (peer, _tidPeer, [peer2, peer3]) <- createTeam OwnDomain 3
+  for_ [peer, peer2, peer3] getSelfConversation
 
   connectUsers [peer, userLHNotActivated]
   connectUsers [peer2, userLHNotActivated]
@@ -966,6 +999,8 @@ testLHNoConsentCannotBeInvited v = do
 testLHDisableBeforeApproval :: (HasCallStack) => LhApiVersion -> App ()
 testLHDisableBeforeApproval v = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
+  for_ [alice, bob] getSelfConversation
+
   legalholdWhitelistTeam tid alice >>= assertStatus 200
 
   withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do
@@ -989,6 +1024,7 @@ testBlockLHForMLSUsers = do
   -- scenario 1:
   -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
   (charlie, tid, []) <- createTeam OwnDomain 1
+  void $ getSelfConversation charlie
   [charlie1] <- traverse (createMLSClient def def) [charlie]
   convId <- createNewGroup def charlie1
   void $ createAddCommit charlie1 convId [charlie] >>= sendAndConsumeCommitBundle
@@ -1009,6 +1045,7 @@ testBlockLHForMLSUsers = do
 testBlockClaimingKeyPackageForLHUsers :: (HasCallStack) => App ()
 testBlockClaimingKeyPackageForLHUsers = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
+  for_ [alice, charlie] getSelfConversation
   [alice1, charlie1] <- traverse (createMLSClient def def) [alice, charlie]
   _ <- uploadNewKeyPackage def charlie1
   _ <- createNewGroup def alice1
@@ -1032,6 +1069,7 @@ testBlockClaimingKeyPackageForLHUsers = do
 testBlockCreateMLSConvForLHUsers :: (HasCallStack) => LhApiVersion -> App ()
 testBlockCreateMLSConvForLHUsers v = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
+  for_ [alice, charlie] getSelfConversation
   [alice1, charlie1] <- traverse (createMLSClient def def) [alice, charlie]
   _ <- uploadNewKeyPackage def alice1
   legalholdWhitelistTeam tid alice >>= assertStatus 200
@@ -1070,6 +1108,7 @@ testBlockCreateMLSConvForLHUsers v = do
 testLHApiV1 :: App ()
 testLHApiV1 = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
+  for_ [alice, bob] getSelfConversation
 
   legalholdWhitelistTeam tid alice >>= assertSuccess
 
@@ -1126,6 +1165,7 @@ testLHApiV1 = do
 testNoCommonVersion :: App ()
 testNoCommonVersion = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
+  for_ [alice, bob] getSelfConversation
 
   legalholdWhitelistTeam tid alice >>= assertSuccess
 
