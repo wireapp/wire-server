@@ -99,6 +99,14 @@ createIdp user metadata = do
     & addXML (fromLT $ SAML.encode metadata)
     & addHeader "Content-Type" "application/xml"
 
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-update
+updateIdp :: (HasCallStack, MakesValue user) => user -> String -> SAML.IdPMetadata -> App Response
+updateIdp user idpId metadata = do
+  req <- baseRequest user Spar Versioned $ joinHttpPath ["identity-providers", idpId]
+  submit "PUT" $ req
+    & addXML (fromLT $ SAML.encode metadata)
+    & addHeader "Content-Type" "application/xml"
+
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-get-all
 getIdps :: (HasCallStack, MakesValue user) => user -> App Response
 getIdps user = do

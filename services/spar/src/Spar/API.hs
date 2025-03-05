@@ -721,12 +721,21 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
                 )
         if idpIssuerInUse
           then throwSparSem SparIdPIssuerInUse
-          else pure $ previousIdP ^. SAML.idpExtraInfo & oldIssuers %~ nub . (previousIssuer :)
+          else
+            pure $
+              previousIdP ^. SAML.idpExtraInfo
+                & oldIssuers
+                  %~ (filterNotNewIssuer newIssuer) . nub . (previousIssuer :)
 
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
   pure (teamId, SAML.IdPConfig {..})
   where
+    -- If the new issuer was previously used, it has to be removed from the list of old issuers,
+    -- to prevent it from getting deleted in a later step
+    filterNotNewIssuer :: SAML.Issuer -> [SAML.Issuer] -> [SAML.Issuer]
+    filterNotNewIssuer newIssuer = filter (/= newIssuer)
+
     errUnknownIdP = SAML.UnknownIdP $ enc uri
       where
         enc =
