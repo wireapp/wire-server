@@ -436,6 +436,11 @@ registerTestIdPWithMetaWithPrivateCreds owner = do
   SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
   (,(idpmeta, pCreds)) <$> createIdp owner idpmeta
 
+updateTestIdpWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> String -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
+updateTestIdpWithMetaWithPrivateCreds owner idpId = do
+  SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
+  (,(idpmeta, pCreds)) <$> updateIdp owner idpId idpmeta
+
 -- | Given a team configured with saml sso, attempt a login with valid credentials.  This
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.

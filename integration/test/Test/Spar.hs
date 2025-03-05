@@ -414,3 +414,43 @@ testSsoLoginNoSamlEmailValidation = do
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     res.json >>= asList >>= shouldBeEmpty
+
+testIdpUpdate :: (HasCallStack) => App ()
+testIdpUpdate = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+  print tid
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  -- register an IdP
+  idp@(idpId, (idpmeta, pCreds)) <- do
+    (resp, meta) <- registerTestIdPWithMetaWithPrivateCreds owner
+    (,meta) <$> asString (resp.json %. "id")
+  -- create a SCIM token
+  tok <-
+    createScimToken owner (def {idp = Just idpId}) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "token" >>= asString
+  -- create SCIM users
+  uids <- replicateM 3 $ do
+    scimUser <- randomScimUser
+    email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+    uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+    void $ loginWithSaml True tid email idp
+    activateEmail OwnDomain email
+    getScimUser OwnDomain tok uid `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      res.json %. "id" `shouldMatch` uid
+    pure (uid, email)
+  -- update the IdP
+  idp2 <- do
+    (resp, meta) <- updateTestIdpWithMetaWithPrivateCreds owner idpId
+    (,meta) <$> asString (resp.json %. "id")
+  -- the SCIM users can login
+  for_ uids $ \(_, email) -> do
+    void $ loginWithSaml True tid email idp2
+  -- update the IdP again and use the original metadata
+  idp3 <- do
+    resp <- updateIdp owner idpId idpmeta
+    (,(idpmeta, pCreds)) <$> asString (resp.json %. "id")
+  -- the SCIM users can still login
+  for_ uids $ \(_, email) -> do
+    void $ loginWithSaml True tid email idp3
