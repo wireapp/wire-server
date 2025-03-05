@@ -17,6 +17,8 @@
 , mtl
 , mwc-random
 , optparse-applicative
+, polysemy
+, polysemy-plugin
 , sodium-crypto-sign
 , tasty
 , tasty-hunit
@@ -44,6 +46,8 @@ mkDerivation {
     lens
     mtl
     mwc-random
+    polysemy
+    polysemy-plugin
     sodium-crypto-sign
     time
     uuid

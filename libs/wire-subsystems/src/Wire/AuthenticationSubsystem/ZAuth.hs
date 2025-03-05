@@ -17,6 +17,7 @@ import Data.ZAuth.Token
 import Data.ZAuth.Validation qualified as ZV
 import Imports
 import OpenSSL.Random
+import Polysemy
 import Sodium.Crypto.Sign
 import Wire.API.User.Auth qualified as Auth
 
@@ -115,15 +116,12 @@ instance FromJSON Settings where
       <*> (LegalHoldUserTokenTimeout <$> o .: "legalHoldUserTokenTimeout")
       <*> (LegalHoldAccessTokenTimeout <$> o .: "legalHoldAccessTokenTimeout")
 
--- localSettings :: (Settings -> Settings) -> ZAuth a -> ZAuth a
--- localSettings f za = ZAuth (local (over settings f) (unZAuth za))
-
 readKeys :: (Read k) => FilePath -> IO (Maybe (NonEmpty k))
 readKeys fp = nonEmpty . map read . filter (not . null) . lines <$> readFile fp
 
 mkEnv :: NonEmpty SecretKey -> NonEmpty PublicKey -> Settings -> IO Env
 mkEnv sk pk sets = do
-  zc <- ZC.mkEnv (NonEmpty.head sk) (NonEmpty.tail sk)
+  zc <- ZC.mkEnv sets.keyIndex (NonEmpty.head sk) (NonEmpty.tail sk)
   let zv = ZV.mkEnv (NonEmpty.head pk) (NonEmpty.tail pk)
   pure $! Env zc zv sets
 
@@ -187,11 +185,14 @@ instance UserTokenLike LegalHoldUser where
   userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
   zauthType = LU
 
+runCreate :: ZC.Env -> Sem '[ZC.ZAuthCreation, Embed IO] a -> IO a
+runCreate env = runM . ZC.interpretZAuthCreation env
+
 mkUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token User)
 mkUserToken' u cid r t = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) (fmap clientToText cid) r)
 
 newUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token User)
@@ -199,7 +200,7 @@ newUserToken' u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       let UserTokenTimeout ttl = z.settings.userTokenTimeout
        in ZC.userToken ttl (toUUID u) (fmap clientToText c) r
 
@@ -208,7 +209,7 @@ newSessionToken' u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
   liftIO $
-    ZC.runCreate (z.private) (z.settings.keyIndex) $
+    runCreate z.private $
       let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout
        in ZC.sessionToken ttl (toUUID u) (fmap clientToText c) r
 
@@ -216,7 +217,7 @@ newAccessToken' :: (MonadZAuth m) => Token User -> m (Token Access)
 newAccessToken' xt = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
        in ZC.accessToken1 ttl (xt ^. body . user) (xt ^. body . client)
 
@@ -224,7 +225,7 @@ renewAccessToken' :: (MonadZAuth m) => Maybe ClientId -> Token Access -> m (Toke
 renewAccessToken' mcid old = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate (z.private) (z.settings.keyIndex) $
+    runCreate z.private $
       let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
        in ZC.renewToken
             ttl
@@ -238,14 +239,14 @@ newBotToken :: (MonadZAuth m) => ProviderId -> BotId -> ConvId -> m (Token Bot)
 newBotToken pid bid cid = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       ZC.botToken (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
 
 newProviderToken :: (MonadZAuth m) => ProviderId -> m (Token Provider)
 newProviderToken pid = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       let ProviderTokenTimeout ttl = z.settings.providerTokenTimeout
        in ZC.providerToken ttl (toUUID pid)
 
@@ -265,7 +266,7 @@ mkLegalHoldUserToken ::
 mkLegalHoldUserToken u c r t = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       ZC.newToken
         (utcTimeToPOSIXSeconds t)
         LU
@@ -277,7 +278,7 @@ newLegalHoldUserToken u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       let LegalHoldUserTokenTimeout ttl = z.settings.legalHoldUserTokenTimeout
        in ZC.legalHoldUserToken ttl (toUUID u) (fmap clientToText c) r
 
@@ -285,7 +286,7 @@ newLegalHoldAccessToken :: (MonadZAuth m) => Token LegalHoldUser -> m (Token Leg
 newLegalHoldAccessToken xt = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
        in ZC.legalHoldAccessToken1
             ttl
@@ -300,7 +301,7 @@ renewLegalHoldAccessToken ::
 renewLegalHoldAccessToken _mcid old = liftZAuth $ do
   z <- ask
   liftIO $
-    ZC.runCreate z.private z.settings.keyIndex $
+    runCreate z.private $
       let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
        in ZC.renewToken
             ttl
