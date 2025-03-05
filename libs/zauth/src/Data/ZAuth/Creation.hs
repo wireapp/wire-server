@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,12 +21,13 @@
 
 module Data.ZAuth.Creation
   ( -- * Types
-    Create,
+    ZAuthCreation,
     Env,
 
     -- * Initialisation
     mkEnv,
-    runCreate,
+    interpretZAuthCreation,
+    -- runCreate,
 
     -- * Specific
     accessToken,
@@ -45,127 +47,160 @@ module Data.ZAuth.Creation
 where
 
 import Control.Lens
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Data.ByteString qualified as Strict
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Time.Clock.POSIX
 import Data.UUID
-import Data.Vector (Vector, (!))
-import Data.Vector qualified as Vec
 import Data.ZAuth.Token hiding (signature)
 import Imports
+import Polysemy
+import Polysemy.Input
 import Sodium.Crypto.Sign
 import System.Random.MWC
 
+data ZAuthCreation m a where
+  NewToken :: (ToByteString b) => POSIXTime -> Type -> Maybe Tag -> b -> ZAuthCreation m (Token b)
+  RenewToken :: (ToByteString a) => Integer -> Header -> a -> ZAuthCreation m (Token a)
+  UserToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token User)
+  SessionToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token User)
+  AccessToken :: Integer -> UUID -> Maybe Text -> Word64 -> ZAuthCreation m (Token Access)
+  AccessToken1 :: Integer -> UUID -> Maybe Text -> ZAuthCreation m (Token Access)
+  LegalHoldUserToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token LegalHoldUser)
+  LegalHoldAccessToken :: Integer -> UUID -> Maybe Text -> Word64 -> ZAuthCreation m (Token LegalHoldAccess)
+  LegalHoldAccessToken1 :: Integer -> UUID -> Maybe Text -> ZAuthCreation m (Token LegalHoldAccess)
+  BotToken :: UUID -> UUID -> UUID -> ZAuthCreation m (Token Bot)
+  ProviderToken :: Integer -> UUID -> ZAuthCreation m (Token Provider)
+
+makeSem ''ZAuthCreation
+
 data Env = Env
   { keyIdx :: Int,
-    zSign :: Vector (Strict.ByteString -> IO Signature),
+    key :: SecretKey,
     randGen :: GenIO
   }
-
-newtype Create a = Create
-  { zauth :: ReaderT Env IO a
-  }
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch
-    )
 
 tokenVersion :: Int
 tokenVersion = 1
 
-mkEnv :: SecretKey -> [SecretKey] -> IO Env
-mkEnv k kk = Env 1 (Vec.fromList $ map signature (k : kk)) <$> liftIO createSystemRandom
+mkEnv :: Int -> SecretKey -> [SecretKey] -> IO Env
+mkEnv i k kk = do
+  let keys = k : kk
+      signingKey =
+        if i > 0 && i <= length keys
+          then keys !! (i - 1)
+          else error "keyIndex out of range"
+  Env i signingKey <$> liftIO createSystemRandom
 
-runCreate :: Env -> Int -> Create a -> IO a
-runCreate z k m = do
-  when (k < 1 || k > Vec.length (zSign z)) $
-    error "runCreate: Key index out of range."
-  runReaderT (zauth m) (z {keyIdx = k})
+interpretZAuthCreation :: (Member (Embed IO) r) => Env -> InterpreterFor ZAuthCreation r
+interpretZAuthCreation env =
+  runInputConst env . interpretZAuthCreationInput . raiseUnder
 
-userToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
-userToken dur usr cli rnd = do
+interpretZAuthCreationInput :: (Member (Embed IO) r, Member (Input Env) r) => InterpreterFor ZAuthCreation r
+interpretZAuthCreationInput = interpret $ \case
+  NewToken tokenTime tokenTyp mTag a ->
+    newTokenImpl tokenTime tokenTyp mTag a
+  RenewToken dur hdr bdy ->
+    renewTokenImpl dur hdr bdy
+  UserToken dur usr cli rnd ->
+    userTokenImpl dur usr cli rnd
+  SessionToken dur usr cli rnd ->
+    sessionTokenImpl dur usr cli rnd
+  AccessToken dur usr cid con ->
+    accessTokenImpl dur usr cid con
+  AccessToken1 dur usr cid ->
+    accessToken1Impl dur usr cid
+  LegalHoldUserToken dur usr cli rnd ->
+    legalHoldUserTokenImpl dur usr cli rnd
+  LegalHoldAccessToken dur usr cid con ->
+    legalHoldAccessTokenImpl dur usr cid con
+  LegalHoldAccessToken1 dur usr cid ->
+    legalHoldAccessToken1Impl dur usr cid
+  BotToken pid bid cnv ->
+    botTokenImpl pid bid cnv
+  ProviderToken dur pid ->
+    providerTokenImpl dur pid
+
+userTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token User)
+userTokenImpl dur usr cli rnd = do
   d <- expiry dur
-  newToken d U Nothing (mkUser usr cli rnd)
+  newTokenImpl d U Nothing (mkUser usr cli rnd)
 
-sessionToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
-sessionToken dur usr cli rnd = do
+sessionTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token User)
+sessionTokenImpl dur usr cli rnd = do
   d <- expiry dur
-  newToken d U (Just S) (mkUser usr cli rnd)
+  newTokenImpl d U (Just S) (mkUser usr cli rnd)
+
+newConnId :: (Member (Input Env) r, Member (Embed IO) r) => Sem r Word64
+newConnId = do
+  env <- input
+  embed $ asGenIO (uniform :: GenIO -> IO Word64) env.randGen
 
 -- | Create an access token taking a duration, userId, clientId and a (random)
 -- number that can be used as connection identifier
-accessToken :: Integer -> UUID -> Maybe Text -> Word64 -> Create (Token Access)
-accessToken dur usr cid con = do
+accessTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word64 -> Sem r (Token Access)
+accessTokenImpl dur usr cid con = do
   d <- expiry dur
-  newToken d A Nothing (mkAccess usr cid con)
+  newTokenImpl d A Nothing (mkAccess usr cid con)
 
 -- | Create an access token taking a duration, userId and clientId.
 -- Similar to 'accessToken', except that the connection identifier is randomly
 -- generated.
-accessToken1 :: Integer -> UUID -> Maybe Text -> Create (Token Access)
-accessToken1 dur usr cid = do
-  g <- Create $ asks randGen
-  d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
-  accessToken dur usr cid d
+accessToken1Impl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Sem r (Token Access)
+accessToken1Impl dur usr cid = do
+  d <- newConnId
+  accessTokenImpl dur usr cid d
 
-legalHoldUserToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token LegalHoldUser)
-legalHoldUserToken dur usr cli rnd = do
+legalHoldUserTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token LegalHoldUser)
+legalHoldUserTokenImpl dur usr cli rnd = do
   d <- expiry dur
-  newToken d LU Nothing (mkLegalHoldUser usr cli rnd)
+  newTokenImpl d LU Nothing (mkLegalHoldUser usr cli rnd)
 
 -- | Create a legal hold access token taking a duration, userId, clientId and a
 -- (random) number that can be used as connection identifier
-legalHoldAccessToken ::
+legalHoldAccessTokenImpl ::
+  (Member (Input Env) r, Member (Embed IO) r) =>
   Integer ->
   UUID ->
   Maybe Text ->
   Word64 ->
-  Create (Token LegalHoldAccess)
-legalHoldAccessToken dur usr cid con = do
+  Sem r (Token LegalHoldAccess)
+legalHoldAccessTokenImpl dur usr cid con = do
   d <- expiry dur
-  newToken d LA Nothing (mkLegalHoldAccess usr cid con)
+  newTokenImpl d LA Nothing (mkLegalHoldAccess usr cid con)
 
 -- | Create a legal hold access token taking a duration, userId. Similar to 'legalHoldAccessToken', except that the connection identifier is randomly generated.
-legalHoldAccessToken1 :: Integer -> UUID -> Maybe Text -> Create (Token LegalHoldAccess)
-legalHoldAccessToken1 dur usr cid = do
-  g <- Create $ asks randGen
-  d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
-  legalHoldAccessToken dur usr cid d
+legalHoldAccessToken1Impl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Sem r (Token LegalHoldAccess)
+legalHoldAccessToken1Impl dur usr cid = do
+  d <- newConnId
+  legalHoldAccessTokenImpl dur usr cid d
 
-botToken :: UUID -> UUID -> UUID -> Create (Token Bot)
-botToken pid bid cnv = newToken (-1) B Nothing (mkBot pid bid cnv)
+botTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => UUID -> UUID -> UUID -> Sem r (Token Bot)
+botTokenImpl pid bid cnv = newTokenImpl (-1) B Nothing (mkBot pid bid cnv)
 
-providerToken :: Integer -> UUID -> Create (Token Provider)
-providerToken dur pid = do
+providerTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Sem r (Token Provider)
+providerTokenImpl dur pid = do
   d <- expiry dur
-  newToken d P Nothing (mkProvider pid)
+  newTokenImpl d P Nothing (mkProvider pid)
 
-renewToken :: (ToByteString a) => Integer -> Header -> a -> Create (Token a)
-renewToken dur hdr bdy = do
-  d <- expiry dur
-  newToken d (hdr ^. typ) (hdr ^. tag) bdy
-
-newToken :: (ToByteString a) => POSIXTime -> Type -> Maybe Tag -> a -> Create (Token a)
-newToken ti ty ta a = do
-  k <- Create $ asks keyIdx
-  let h = mkHeader tokenVersion k (floor ti) ty ta
-  s <- signToken h a
+newTokenImpl :: (ToByteString a, Member (Embed IO) r, Member (Input Env) r) => POSIXTime -> Type -> Maybe Tag -> a -> Sem r (Token a)
+newTokenImpl tokenTime tokenTyp mTag a = do
+  env <- input
+  let h = mkHeader tokenVersion env.keyIdx (floor tokenTime) tokenTyp mTag
+  s <- embed $ signToken env h a
   pure $ mkToken s h a
+
+renewTokenImpl :: (ToByteString a, Member (Input Env) r, Member (Embed IO) r) => Integer -> Header -> a -> Sem r (Token a)
+renewTokenImpl dur hdr bdy = do
+  d <- expiry dur
+  newTokenImpl d (hdr ^. typ) (hdr ^. tag) bdy
 
 -----------------------------------------------------------------------------
 -- Internal
 
-signToken :: (ToByteString a) => Header -> a -> Create Signature
-signToken h a = Create $ do
-  f <- (! (h ^. key - 1)) <$> asks zSign
-  liftIO . f . toStrict . toLazyByteString $ writeData h a
+signToken :: (ToByteString a) => Env -> Header -> a -> IO Signature
+signToken e h a = do
+  liftIO . signature e.key . toStrict . toLazyByteString $ writeData h a
 
 expiry :: (MonadIO m) => Integer -> m POSIXTime
 expiry d = (fromInteger d +) <$> liftIO getPOSIXTime

@@ -67,6 +67,7 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
+    -fplugin=Polysemy.Plugin
 
   build-depends:
       attoparsec             >=0.11
@@ -75,11 +76,12 @@ library
     , bytestring             >=0.10.2
     , bytestring-conversion  >=0.1.1
     , errors                 >=2.0
-    , exceptions             >=0.4
     , imports
     , lens                   >=4.4
     , mtl                    >=2.2
     , mwc-random             >=0.12
+    , polysemy
+    , polysemy-plugin
     , sodium-crypto-sign     >=0.1
     , time                   >=1.4
     , uuid                   >=1.3
@@ -140,16 +142,9 @@ executable zauth
 
   build-depends:
       base
-    , base64-bytestring
-    , bytestring
-    , bytestring-conversion
-    , errors
     , imports
-    , lens
-    , optparse-applicative   >=0.11
+    , optparse-applicative  >=0.11
     , sodium-crypto-sign
-    , uuid
-    , zauth
 
   default-language:   GHC2021
 
@@ -214,6 +209,7 @@ test-suite zauth-unit
     , bytestring-conversion
     , imports
     , lens
+    , polysemy
     , sodium-crypto-sign
     , tasty                  >=0.9
     , tasty-hunit            >=0.9
