@@ -117,7 +117,7 @@ mkPushes chunkSize = map (map toV2Push) . chunkPushes chunkSize
 {-# INLINE [1] toV2Push #-}
 toV2Push :: Push -> V2.Push
 toV2Push p =
-  (V2.newPush p.origin (unsafeRange (Set.fromList recipients)) pload)
+  (V2.newPush p.origin (Set.fromList recipients) pload)
     & V2.pushOriginConnection .~ p.conn
     & V2.pushTransient .~ p.transient
     & maybe id (set V2.pushNativePriority) p.nativePriority
