@@ -185,21 +185,14 @@ mustSuspendInactiveUser uid =
 
 newAccessToken ::
   forall u a m.
-  (ZAuth.TokenPair u a, MonadReader Env m, ZAuth.MonadZAuth m) =>
+  (ZAuth.MonadZAuth m, ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   Cookie (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   m AccessToken
 newAccessToken c mt = do
-  t' <- case mt of
-    Nothing -> ZAuth.newAccessToken (cookieValue c)
-    Just t -> ZAuth.renewAccessToken (ZAuth.userTokenClient (cookieValue c)) t
-  zSettings <- asks (.zauthEnv.settings)
-  let ttl = ZAuth.settingsTTL @a zSettings
-  pure $
-    bearerToken
-      (ZAuth.accessTokenOf t')
-      (toByteString t')
-      ttl
+  case mt of
+    Nothing -> ZAuth.newAccessToken @u (cookieValue c)
+    Just t -> ZAuth.renewAccessToken @a (ZAuth.userTokenClient (cookieValue c)) t
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
