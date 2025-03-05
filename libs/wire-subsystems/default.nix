@@ -73,6 +73,7 @@
 , scientific
 , servant
 , servant-client-core
+, sodium-crypto-sign
 , stomp-queue
 , streaming-commons
 , string-conversions
@@ -164,6 +165,7 @@ mkDerivation {
     schema-profunctor
     servant
     servant-client-core
+    sodium-crypto-sign
     stomp-queue
     template
     text
