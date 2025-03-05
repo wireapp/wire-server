@@ -56,7 +56,6 @@ import Data.List.NonEmpty qualified as NE
 import Data.List1
 import Data.Map qualified as Map
 import Data.Misc (Milliseconds (Ms))
-import Data.Range
 import Data.Scientific qualified as Scientific
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -317,10 +316,10 @@ genPush :: (HasCallStack) => MockEnv -> Gen Push
 genPush env = do
   let alluids = allUsers env
   sender <- QC.elements alluids
-  rcps :: Range 0 1024 (Set Recipient) <- do
+  rcps :: Set Recipient <- do
     numrcp <- choose (1, min 1024 (length alluids))
     rcps <- genRecipients numrcp env
-    unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
+    Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
   inclorigin <- arbitrary
   transient <- arbitrary
@@ -335,7 +334,7 @@ genPush env = do
   originConnection <- do
     -- if one of the recipients is the sender, we may 'Just' pick one of the devices of that
     -- recipient here, or 'Nothing'.
-    let genOriginConnId = case mconcat . fmap extract . toList . fromRange $ rcps of
+    let genOriginConnId = case mconcat . fmap extract . toList $ rcps of
           [] -> pure Nothing
           conns@(_ : _) -> Just <$> QC.elements conns
           where
@@ -377,8 +376,8 @@ shrinkPushes = shrinkList shrinkPush
   where
     shrinkPush :: Push -> [Push]
     shrinkPush psh = (\rcps -> psh & pushRecipients .~ rcps) <$> shrinkRecipients (psh ^. pushRecipients)
-    shrinkRecipients :: Range 0 1024 (Set Recipient) -> [Range 0 1024 (Set Recipient)]
-    shrinkRecipients = fmap unsafeRange . map Set.fromList . filter (not . null) . shrinkList shrinkRecipient . Set.toList . fromRange
+    shrinkRecipients :: Set Recipient -> [Set Recipient]
+    shrinkRecipients = map Set.fromList . filter (not . null) . shrinkList shrinkRecipient . Set.toList
     shrinkRecipient :: Recipient -> [Recipient]
     shrinkRecipient _ = []
 
@@ -477,7 +476,7 @@ handlePushWS ::
   m ()
 handlePushWS Push {..} = do
   env <- ask
-  forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
+  forM_ _pushRecipients $ \(Recipient uid _ cids) -> do
     let cids' = case cids of
           RecipientClientsAll -> clientIdsOfUser env uid
           RecipientClientsSome cc -> toList cc
@@ -503,7 +502,7 @@ handlePushNative Push {..}
   | _pushTransient = pure ()
 handlePushNative Push {..} = do
   env <- ask
-  forM_ (fromRange _pushRecipients) $ \(Recipient uid route cids) -> do
+  forM_ _pushRecipients $ \(Recipient uid route cids) -> do
     let cids' = case cids of
           RecipientClientsAll -> clientIdsOfUser env uid
           RecipientClientsSome cc -> toList cc
@@ -534,7 +533,7 @@ handlePushCass Push {..}
   -- Condition 1: transient pushes are not put into Cassandra.
   | _pushTransient = pure ()
 handlePushCass Push {..} = do
-  forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
+  forM_ _pushRecipients $ \(Recipient uid _ cids) -> do
     let cids' = case cids of
           RecipientClientsAll -> [ClientId 0]
           -- clients are stored in cassandra as a list with a notification.  empty list is

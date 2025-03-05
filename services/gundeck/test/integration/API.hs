@@ -45,7 +45,6 @@ import Data.Id
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (List1)
 import Data.List1 qualified as List1
-import Data.Range
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
@@ -403,7 +402,7 @@ targetClientPush = do
     rcpt u c =
       recipient u RouteAny
         & recipientClients .~ RecipientClientsSome (List1.singleton c)
-    push u c = newPush (Just u) (unsafeRange (Set.singleton (rcpt u c))) (pload c)
+    push u c = newPush (Just u) (Set.singleton (rcpt u c)) (pload c)
 
 storeNotificationsEvenWhenRedisIsDown :: TestM ()
 storeNotificationsEvenWhenRedisIsDown = do
@@ -1108,7 +1107,7 @@ buildPush ::
   Push
 buildPush sdr rcps pload =
   let rcps' = Set.fromList (map (uncurry rcpt) rcps)
-   in newPush (Just sdr) (unsafeRange rcps') pload
+   in newPush (Just sdr) rcps' pload
   where
     rcpt u c = recipient u RouteAny & recipientClients .~ c
 
@@ -1166,8 +1165,8 @@ randomUser = do
       uid <- nextRandom
       pure $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
-toRecipients :: [UserId] -> Range 0 1024 (Set Recipient)
-toRecipients = unsafeRange . Set.fromList . map (`recipient` RouteAny)
+toRecipients :: [UserId] -> Set Recipient
+toRecipients = Set.fromList . map (`recipient` RouteAny)
 
 randomConnId :: (MonadIO m) => m ConnId
 randomConnId =
