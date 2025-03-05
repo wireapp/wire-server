@@ -136,7 +136,8 @@ defAllFeatures =
                 ]
           ],
       "limitedEventFanout" .= disabled,
-      "domainRegistration" .= disabledLocked
+      "domainRegistration" .= disabledLocked,
+      "pydio" .= disabledLocked
     ]
 
 hasExplicitLockStatus :: String -> Bool

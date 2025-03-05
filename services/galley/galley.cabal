@@ -120,6 +120,7 @@ library
     Galley.API.Public.TeamMember
     Galley.API.Public.TeamNotification
     Galley.API.Push
+    Galley.API.Pydio
     Galley.API.Query
     Galley.API.Teams
     Galley.API.Teams.Export
@@ -277,6 +278,7 @@ library
     Galley.Schema.V93_ConferenceCallingSftForOneToOne
     Galley.Schema.V94_DomainRegistrationConfig
     Galley.Schema.V95_TeamFeatureDataMigrationState
+    Galley.Schema.V96_PydioConversation
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList

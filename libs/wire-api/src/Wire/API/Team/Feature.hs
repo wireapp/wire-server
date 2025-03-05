@@ -82,6 +82,7 @@ module Wire.API.Team.Feature
     EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
+    PydioConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -234,6 +235,7 @@ data FeatureSingleton cfg where
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
+  FeatureSingletonPydioConfig :: FeatureSingleton PydioConfig
 
 type family DeprecatedFeatureName cfg :: Symbol
 
@@ -1340,6 +1342,27 @@ instance IsFeatureConfig DomainRegistrationConfig where
   featureSingleton = FeatureSingletonDomainRegistrationConfig
   objectSchema = pure DomainRegistrationConfig
 
+--------------------------------------------------------------------------------
+-- Pydio feature
+
+-- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+data PydioConfig = PydioConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform PydioConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName PydioConfig)
+  deriving (Default, ParseDbFeature) via (TrivialFeature PydioConfig)
+
+instance ToSchema PydioConfig where
+  schema = object "PydioConfig" objectSchema
+
+instance Default (LockableFeature PydioConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig PydioConfig where
+  type FeatureSymbol PydioConfig = "pydio"
+  featureSingleton = FeatureSingletonPydioConfig
+  objectSchema = pure PydioConfig
+
 ----------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1423,7 +1446,8 @@ type Features =
     MlsMigrationConfig,
     EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig,
-    DomainRegistrationConfig
+    DomainRegistrationConfig,
+    PydioConfig
   ]
 
 -- | list of available features as a record
