@@ -418,7 +418,6 @@ testSsoLoginNoSamlEmailValidation = do
 testIdpUpdate :: (HasCallStack) => App ()
 testIdpUpdate = do
   (owner, tid, []) <- createTeam OwnDomain 1
-  print tid
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   -- register an IdP
   idp@(idpId, (idpmeta, pCreds)) <- do
