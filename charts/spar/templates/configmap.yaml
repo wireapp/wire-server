@@ -38,6 +38,11 @@ data:
 
     disabledAPIVersions: {{ toJson .disabledAPIVersions }}
 
+    {{- if .multiIngress }}
+    multiIngress:
+      {{- toYaml .multiIngress | nindent 8 }}m{{- end }}
+
+
     saml:
       version:     SAML2.0
       logLevel:    {{ .logLevel }}

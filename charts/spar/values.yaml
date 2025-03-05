@@ -32,6 +32,11 @@ config:
   maxttlAuthreq: 7200
   maxttlAuthresp: 7200
   proxy: {}
+  # Multi-ingress configuration:
+  # multiIngress:
+  #   - nginz-https.red.example.com: red.example.com
+  #   - nginz-https.green.example.com: green.example.com
+
   # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: [ development ]
