@@ -24,10 +24,6 @@ module Data.ZAuth.Validation
     runValidate,
     Failure (..),
     validate,
-    validateUser,
-    validateAccess,
-    validateBot,
-    validateProvider,
     check,
   )
 where
@@ -76,18 +72,6 @@ mkEnv k kk = Env $ Vec.fromList (map verifyWith (k : kk))
 runValidate :: (MonadIO m) => Env -> Validate a -> m (Either Failure a)
 runValidate v m = liftIO $ runReaderT (runExceptT (valid m)) v
 
-validateUser :: (FromByteString (Token (User t))) => ByteString -> Validate (Token (User t))
-validateUser t = maybe (throwError Invalid) check (fromByteString t)
-
-validateAccess :: (FromByteString (Token (Access t))) => ByteString -> Validate (Token (Access t))
-validateAccess t = maybe (throwError Invalid) check (fromByteString t)
-
-validateBot :: ByteString -> Validate (Token Bot)
-validateBot t = maybe (throwError Invalid) check (fromByteString t)
-
-validateProvider :: ByteString -> Validate (Token Provider)
-validateProvider t = maybe (throwError Invalid) check (fromByteString t)
-
 -----------------------------------------------------------------------------
 -- User & Access Validation
 --
@@ -115,6 +99,9 @@ validate (Just c) (Just t) = do
   unless (u ^. body . user == a ^. body . userId) $
     throwError Invalid
   pure a
+
+validateAccess :: (FromByteString (Token (Access t))) => ByteString -> Validate (Token (Access t))
+validateAccess t = maybe (throwError Invalid) check (fromByteString t)
 
 check :: (ToByteString a) => Token a -> Validate (Token a)
 check t = do
