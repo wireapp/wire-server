@@ -99,8 +99,11 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Team.Feature
+import Wire.Error
 import Wire.GundeckAPIAccess
+import Wire.HashPassword
 import Wire.NotificationSubsystem
+import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
@@ -122,15 +125,17 @@ type GalleyEffects1 =
      ProposalStore,
      ConversationStore,
      SubConversationStore,
+     RateLimit,
+     HashPassword,
      Random,
      CustomBackendStore,
-     TeamFeatureStore,
      LegalHoldStore,
      MemberStore,
      SearchVisibilityStore,
      ServiceStore,
      TeamNotificationStore,
      TeamStore,
+     TeamFeatureStore,
      TeamMemberStore InternalPaging,
      TeamMemberStore CassandraPaging,
      ListItems CassandraPaging ConvId,
@@ -145,5 +150,7 @@ type GalleyEffects1 =
      Input UTCTime,
      Queue DeleteItem,
      TinyLog,
-     Error DynError
+     Error DynError,
+     Error RateLimitExceeded,
+     Error HttpError
    ]

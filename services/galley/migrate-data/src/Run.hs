@@ -33,6 +33,7 @@ main = do
     o
     [ V1_BackfillBillingTeamMembers.migration,
       V3_BackfillTeamAdmins.migration
+      -- V4 was deleted but it must've run in some environments. The next migration should be V5.
     ]
   where
     desc = header "Galley Cassandra Data Migrations" <> fullDesc

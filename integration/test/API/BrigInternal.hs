@@ -59,6 +59,11 @@ getUsersId domain ids = do
   req <- baseRequest domain Brig Unversioned "/i/users"
   submit "GET" $ req & addQueryParams [("ids", intercalate "," ids)]
 
+getUsersByEmail :: (HasCallStack, MakesValue domain) => domain -> [String] -> App Response
+getUsersByEmail domain emails = do
+  req <- baseRequest domain Brig Unversioned "/i/users"
+  submit "GET" $ req & addQueryParams [("email", intercalate "," emails)]
+
 data FedConn = FedConn
   { domain :: String,
     searchStrategy :: String,
@@ -216,6 +221,18 @@ getProviderActivationCodeInternal dom email = do
   req <-
     rawBaseRequest d Brig Unversioned $
       joinHttpPath ["i", "provider", "activation-code"]
+  submit "GET" (addQueryParams [("email", email)] req)
+
+getProviderPasswordResetCodeInternal ::
+  (HasCallStack, MakesValue dom) =>
+  dom ->
+  String ->
+  App Response
+getProviderPasswordResetCodeInternal dom email = do
+  d <- make dom
+  req <-
+    rawBaseRequest d Brig Unversioned $
+      joinHttpPath ["i", "provider", "password-reset-code"]
   submit "GET" (addQueryParams [("email", email)] req)
 
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_

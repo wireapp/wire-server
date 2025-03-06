@@ -4,8 +4,8 @@ import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testMls :: (HasCallStack) => APIAccess -> App ()
-testMls access =
+testMls :: (HasCallStack) => FeatureTable -> APIAccess -> App ()
+testMls table access =
   do
     user <- randomUser OwnDomain def
     uid <- asString $ user %. "id"
@@ -13,10 +13,11 @@ testMls access =
       & addUpdate (mls1 uid)
       & addUpdate mls2
       & addInvalidUpdate mlsInvalidConfig
+      & setTable table
       & runFeatureTests OwnDomain access
 
-testMlsPatch :: (HasCallStack) => App ()
-testMlsPatch = do
+testMlsPatch :: (HasCallStack) => FeatureTable -> App ()
+testMlsPatch table = do
   mlsMigrationDefaultConfig <- defAllFeatures %. "mlsMigration.config"
   withModifiedBackend
     def
@@ -31,11 +32,11 @@ testMlsPatch = do
             )
       }
     $ \domain -> do
-      checkPatch domain "mls" $ object ["lockStatus" .= "locked"]
-      checkPatch domain "mls" $ object ["status" .= "enabled"]
-      checkPatch domain "mls"
+      checkPatchWithTable table domain "mls" $ object ["lockStatus" .= "locked"]
+      checkPatchWithTable table domain "mls" $ object ["status" .= "enabled"]
+      checkPatchWithTable table domain "mls"
         $ object ["lockStatus" .= "locked", "status" .= "enabled"]
-      checkPatch domain "mls"
+      checkPatchWithTable table domain "mls"
         $ object
           [ "status" .= "enabled",
             "config"
@@ -47,7 +48,7 @@ testMlsPatch = do
                   "defaultCipherSuite" .= toJSON (1 :: Int)
                 ]
           ]
-      checkPatch domain "mls"
+      checkPatchWithTable table domain "mls"
         $ object
           [ "config"
               .= object
@@ -58,6 +59,15 @@ testMlsPatch = do
                   "defaultCipherSuite" .= toJSON (1 :: Int)
                 ]
           ]
+
+testMlsReadOnly :: (HasCallStack) => APIAccess -> App ()
+testMlsReadOnly access =
+  runFeatureTestsReadOnly OwnDomain access
+    $ mkFeatureTests "mls"
+    & addUpdate mls2
+
+testPatchMlsReadOnly :: (HasCallStack) => App ()
+testPatchMlsReadOnly = checkPatchReadOnly OwnDomain "mls" mls2
 
 mls1 :: String -> Value
 mls1 uid =

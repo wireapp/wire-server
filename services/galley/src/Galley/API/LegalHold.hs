@@ -67,7 +67,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
-import Wire.API.Conversation (ConvType (..))
+import Wire.API.Conversation (ConvType (..), ConversationMetadata (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -401,7 +401,7 @@ requestDevice lzusr tid uid = do
     disallowIfMLSUser :: Local UserId -> Sem r ()
     disallowIfMLSUser luid = do
       void $ iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
-        when (any (\c -> c.convProtocol /= ProtocolProteus) convs) $ do
+        when (any (\c -> c.convMetadata.cnvmType /= SelfConv && c.convProtocol /= ProtocolProteus) convs) $ do
           throwS @'MLSLegalholdIncompatible
 
     -- Wire's LH service that galley is usually calling here is idempotent in device creation,

@@ -542,21 +542,23 @@ updateDomainRedirectImpl ::
 updateDomainRedirectImpl token domain config = do
   mDomainReg <- lookup domain
   domainReg <- checkDomainOwnership mDomainReg token
-  update <-
-    note EnterpriseLoginSubsystemOperationForbidden $
-      computeUpdate domainReg
-  updateDomainRegistrationImpl domain update
+  unless (isAllowed domainReg.domainRedirect) $
+    throw EnterpriseLoginSubsystemOperationForbidden
+  updateDomainRegistrationImpl domain $ computeUpdate domainReg
   where
-    computeUpdate reg = case (config, reg.domainRedirect) of
-      (DomainRedirectConfigRemove, NoRegistration) ->
-        Just $ DomainRegistrationUpdate PreAuthorized reg.teamInvite
-      (DomainRedirectConfigRemove, Backend _) ->
-        Just $ DomainRegistrationUpdate PreAuthorized reg.teamInvite
-      (DomainRedirectConfigBackend url, PreAuthorized) ->
-        Just $ DomainRegistrationUpdate (Backend url) NotAllowed
-      (DomainRedirectConfigNoRegistration, PreAuthorized) ->
-        Just $ DomainRegistrationUpdate NoRegistration reg.teamInvite
-      _ -> Nothing
+    computeUpdate reg = case config of
+      DomainRedirectConfigRemove ->
+        DomainRegistrationUpdate PreAuthorized reg.teamInvite
+      DomainRedirectConfigBackend url ->
+        DomainRegistrationUpdate (Backend url) NotAllowed
+      DomainRedirectConfigNoRegistration ->
+        DomainRegistrationUpdate NoRegistration reg.teamInvite
+
+    isAllowed = \case
+      PreAuthorized -> True
+      Backend _ -> True
+      NoRegistration -> True
+      _ -> False
 
 updateTeamInviteImpl ::
   forall r.

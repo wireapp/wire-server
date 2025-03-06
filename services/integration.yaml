@@ -273,3 +273,5 @@ federation-v1:
     port: 22079
 
 integrationTestHostName: "localhost"
+
+additionalElasticSearch: https://localhost:9201

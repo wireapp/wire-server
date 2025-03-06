@@ -4,7 +4,6 @@ import API.BrigCommon
 import API.Common
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
-import qualified Data.CaseInsensitive as CI
 import Data.Foldable
 import Data.Function
 import qualified Data.Text as T
@@ -17,16 +16,16 @@ data AddUser = AddUser
   { name :: Maybe String,
     email :: Maybe String,
     teamCode :: Maybe String,
-    password :: Maybe String
+    password :: Maybe String,
+    newTeamName :: Maybe String
   }
 
 instance Default AddUser where
-  def = AddUser Nothing Nothing Nothing Nothing
+  def = AddUser Nothing Nothing Nothing Nothing Nothing
 
 data NewProvider = NewProvider
   { newProviderName :: String,
     newProviderDesc :: String,
-    newProviderEmail :: String,
     newProviderPassword :: Maybe String,
     newProviderUrl :: String
   }
@@ -36,19 +35,8 @@ instance Default NewProvider where
     NewProvider
       "New Provider"
       "Just a provider"
-      "provider@example.com"
       Nothing
       "https://example.com"
-
-instance ToJSON NewProvider where
-  toJSON NewProvider {..} =
-    Aeson.object
-      [ "name" .= newProviderName,
-        "description" .= newProviderDesc,
-        "email" .= newProviderEmail,
-        "password" .= newProviderPassword,
-        "url" .= newProviderUrl
-      ]
 
 data NewService = NewService
   { newServiceName :: String,
@@ -103,12 +91,15 @@ addUser dom opts = do
   name <- maybe randomName pure opts.name
   submit "POST" $
     req
+      & addClientIP
       & addJSONObject
-        [ "name" .= name,
-          "email" .= opts.email,
-          "team_code" .= opts.teamCode,
-          "password" .= fromMaybe defPassword opts.password
-        ]
+        ( [ "name" .= name,
+            "email" .= opts.email,
+            "team_code" .= opts.teamCode,
+            "password" .= fromMaybe defPassword opts.password
+          ]
+            <> ["team" .= object ["name" .= n, "icon" .= "default"] | n <- toList opts.newTeamName]
+        )
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_users__uid_domain___uid_
 getUser ::
@@ -451,6 +442,16 @@ putHandle user handle = do
   submit "PUT" $
     req & addJSONObject ["handle" .= handle]
 
+putPassword :: (MakesValue user) => user -> String -> String -> App Response
+putPassword user oldPassword newPassword = do
+  req <- baseRequest user Brig Versioned "/self/password"
+  submit "PUT" $
+    req
+      & addJSONObject
+        [ "old_password" .= oldPassword,
+          "new_password" .= newPassword
+        ]
+
 getUserSupportedProtocols ::
   (HasCallStack, MakesValue user, MakesValue target) =>
   user ->
@@ -551,9 +552,21 @@ newProvider user provider = do
   req <-
     baseRequest user Brig Versioned $
       joinHttpPath ["provider", "register"]
-  submit "POST" (addJSON p req) `bindResponse` \resp -> do
+  submit "POST" (req & addJSON p & addClientIP) `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json
+
+getProvider ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  App Response
+getProvider domain pid = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider"]
+  submit "GET" $
+    req
+      & zType "provider"
+      & zProvider pid
 
 activateProvider ::
   ( HasCallStack,
@@ -587,17 +600,47 @@ loginProvider ::
   dom ->
   String ->
   String ->
-  App ByteString
+  App Response
 loginProvider dom email pass = do
   d <- asString dom
   req <-
     rawBaseRequest d Brig Versioned $
       joinHttpPath ["provider", "login"]
-  submit "POST" (addJSONObject ["email" .= email, "password" .= pass] req) `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    let hs = headers resp
-        setCookieHeader = CI.mk (T.encodeUtf8 . T.pack $ "Set-Cookie")
-    pure . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
+  submit "POST" (addJSONObject ["email" .= email, "password" .= pass] req)
+
+requestProviderPasswordResetCode ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  App Response
+requestProviderPasswordResetCode domain email = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider", "password-reset"]
+  submit "POST" $ req & addJSONObject ["email" .= email]
+
+completeProviderPasswordReset ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  Value ->
+  String ->
+  App Response
+completeProviderPasswordReset domain resetCode newPassword = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider", "password-reset", "complete"]
+  body <- make (setField "password" newPassword resetCode)
+  submit "POST" $ req & addJSON body
+
+requestProviderEmailUpdateCode ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  String ->
+  App Response
+requestProviderEmailUpdateCode domain pid newEmail = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["provider", "email"]
+  submit "PUT" $
+    req
+      & zType "provider"
+      & zProvider pid
+      & addJSONObject ["email" .= newEmail]
 
 newService ::
   ( HasCallStack,
@@ -619,6 +662,14 @@ newService dom providerId service = do
   submit "POST" (addJSON s . addHdrs $ req) `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json
+
+getService :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+getService domain pid sid = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["provider", "services", sid]
+  submit "GET" $
+    req
+      & addHeader "Z-Type" "provider"
+      & addHeader "Z-Provider" pid
 
 updateService ::
   ( HasCallStack,
@@ -647,7 +698,11 @@ updateService dom providerId serviceId mAcceptHeader newName = do
     $ req
 
 updateServiceConn ::
-  (MakesValue conn) =>
+  ( HasCallStack,
+    MakesValue domain,
+    MakesValue conn
+  ) =>
+  domain ->
   -- | providerId
   String ->
   -- | serviceId
@@ -655,8 +710,8 @@ updateServiceConn ::
   -- | connection update as a Json object, with an obligatory "password" field
   conn ->
   App Response
-updateServiceConn providerId serviceId connectionUpdate = do
-  req <- baseRequest OwnDomain Brig Versioned do
+updateServiceConn domain providerId serviceId connectionUpdate = do
+  req <- baseRequest domain Brig Versioned do
     joinHttpPath ["provider", "services", serviceId, "connection"]
   upd <- make connectionUpdate
   submit "PUT"
@@ -812,6 +867,7 @@ registerUser domain email inviteeCode = do
   req <- baseRequest domain Brig Versioned "register"
   submit "POST" $
     req
+      & addClientIP
       & addJSONObject
         [ "name" .= "Alice",
           "email" .= email,
@@ -857,6 +913,11 @@ login :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App 
 login domain email password = do
   req <- baseRequest domain Brig Versioned "login"
   submit "POST" $ req & addJSONObject ["email" .= email, "password" .= password] & addQueryParams [("persist", "true")]
+
+loginWithSessionCookie :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+loginWithSessionCookie domain email password = do
+  req <- baseRequest domain Brig Versioned "login"
+  submit "POST" $ req & addJSONObject ["email" .= email, "password" .= password]
 
 updateEmail :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
 updateEmail user email cookie token = do
@@ -946,3 +1007,16 @@ deleteRegisteredTeamDomain :: (HasCallStack, MakesValue user) => user -> String 
 deleteRegisteredTeamDomain user tid registeredDomain = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "registered-domains", registeredDomain]
   submit "DELETE" req
+
+listTeamServiceProfilesByPrefix :: (MakesValue user) => user -> String -> Maybe String -> Bool -> Int -> App Response
+listTeamServiceProfilesByPrefix user tid mPrefix filterDisabled size = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "services", "whitelisted"]
+  submit "GET" $
+    req
+      & addQueryParams
+        ( catMaybes
+            [ ("prefix",) <$> mPrefix,
+              if filterDisabled then Nothing else Just ("filter_disabled", "false"),
+              Just ("size", show size)
+            ]
+        )

@@ -48,6 +48,7 @@ module Brig.API.User
     sendActivationCode,
     preverify,
     activate,
+    activateNoVerifyEmailDomain,
     Brig.API.User.lookupActivationCode,
 
     -- * Password Management
@@ -114,7 +115,6 @@ import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Password
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Member (legalHoldStatus)
@@ -143,6 +143,7 @@ import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.PropertySubsystem as PropertySubsystem
+import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra
 import Wire.UserKeyStore
@@ -191,7 +192,6 @@ createUserSpar ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member HashPassword r,
     Member Events r
   ) =>
   NewUserSpar ->
@@ -270,17 +270,11 @@ upgradePersonalToTeam ::
   BindingNewTeamUser ->
   ExceptT UpgradePersonalToTeamError (AppT r) CreateUserTeam
 upgradePersonalToTeam luid bNewTeam = do
-  -- check that the user is not part of a team
-  mSelfProfile <- lift $ liftSem $ getSelfProfile luid
-  user <-
-    maybe
-      (throwE UpgradePersonalToTeamErrorUserNotFound)
-      (pure . selfUser)
-      mSelfProfile
-  when (isJust user.userTeam) $
-    throwE UpgradePersonalToTeamErrorAlreadyInATeam
+  user <- guardUser
 
   lift $ do
+    liftSem $
+      for_ (userEmail user) guardUpgradePersonalUserToTeamEmailDomain
     -- generate team ID
     tid <- randomId
 
@@ -306,6 +300,18 @@ upgradePersonalToTeam luid bNewTeam = do
         user.userDisplayName
 
     pure $! createUserTeam
+  where
+    isActive :: SelfProfile -> Bool
+    isActive profile = profile.selfUser.userStatus == Active
+
+    guardUser :: ExceptT UpgradePersonalToTeamError (AppT r) User
+    guardUser = do
+      -- user must be active (not suspended, deleted, ephemeral etc.)
+      mSelfProfile <- (find isActive) <$> lift (liftSem $ getSelfProfile luid)
+      user <- maybe (throwE UpgradePersonalToTeamErrorUserNotFound) (pure . selfUser) mSelfProfile
+      -- check that the user is not part of a team
+      when (isJust user.userTeam) $ throwE UpgradePersonalToTeamErrorAlreadyInATeam
+      pure user
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
@@ -321,11 +327,13 @@ createUser ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member InvitationStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member RateLimit r
   ) =>
-  NewUser ->
+  RateLimitKey ->
+  NewUser PlainTextPassword8 ->
   ExceptT RegisterError (AppT r) CreateUserResult
-createUser new = do
+createUser rateLimitKey new = do
   email <- fetchAndValidateEmail new
 
   -- get invitation and existing account
@@ -335,10 +343,12 @@ createUser new = do
         inv <- lift $ liftSem $ internalFindTeamInvitation (mkEmailKey <$> email) i
         pure (Nothing, Just inv, Just inv.teamId)
       Just (NewTeamCreator t) -> do
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterActivateUserEmailDomain)
         (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
-      Nothing ->
+      Nothing -> do
+        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterActivateUserEmailDomain)
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) <$> teamInvitation
   mbExistingAccount <-
@@ -374,7 +384,9 @@ createUser new = do
 
   -- Create account
   account <- lift $ do
-    (account, pw) <- newAccount new' mbInv tid mbHandle
+    mHashedPassword <- traverse (liftSem . HashPassword.hashPassword8 rateLimitKey) new'.newUserPassword
+    let newWithHashedPassword = new' {newUserPassword = mHashedPassword}
+    (account, pw) <- newAccount newWithHashedPassword mbInv tid mbHandle
 
     let uid = userId account
     liftSem $ do
@@ -426,7 +438,7 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    fetchAndValidateEmail :: NewUser -> ExceptT RegisterError (AppT r) (Maybe EmailAddress)
+    fetchAndValidateEmail :: NewUser password -> ExceptT RegisterError (AppT r) (Maybe EmailAddress)
     fetchAndValidateEmail newUser = do
       let email = newUserEmail newUser
       for_ (mkEmailKey <$> email) $ \k ->
@@ -500,7 +512,7 @@ createUser new = do
         Just c -> do
           ak <- liftIO $ Data.mkActivationKey ek
           void $
-            activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
+            activateWithCurrency True (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
               !>> activationErrorToRegisterError
           pure Nothing
 
@@ -543,7 +555,7 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
   pure account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
-checkRestrictedUserCreation :: NewUser -> ExceptT RegisterError (AppT r) ()
+checkRestrictedUserCreation :: NewUser password -> ExceptT RegisterError (AppT r) ()
 checkRestrictedUserCreation new = do
   restrictPlease <- fromMaybe False <$> asks (.settings.restrictUserCreation)
   when
@@ -637,9 +649,9 @@ activate ::
   -- | The user for whom to activate the key.
   Maybe UserId ->
   ExceptT ActivationError (AppT r) ActivationResult
-activate tgt code usr = activateWithCurrency tgt code usr Nothing
+activate tgt code usr = activateWithCurrency True tgt code usr Nothing
 
-activateWithCurrency ::
+activateNoVerifyEmailDomain ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member Events r,
@@ -650,15 +662,33 @@ activateWithCurrency ::
   ActivationCode ->
   -- | The user for whom to activate the key.
   Maybe UserId ->
+  ExceptT ActivationError (AppT r) ActivationResult
+activateNoVerifyEmailDomain tgt code usr = activateWithCurrency False tgt code usr Nothing
+
+activateWithCurrency ::
+  ( Member GalleyAPIAccess r,
+    Member TinyLog r,
+    Member Events r,
+    Member PasswordResetCodeStore r,
+    Member UserSubsystem r
+  ) =>
+  Bool ->
+  ActivationTarget ->
+  ActivationCode ->
+  -- | The user for whom to activate the key.
+  Maybe UserId ->
   -- | Potential currency update.
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppT r) ActivationResult
-activateWithCurrency tgt code usr cur = do
+activateWithCurrency verifyEmailDomain tgt code usr cur = do
   key <- wrapClientE $ mkActivationKey tgt
   lift . liftSem . Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
+  when verifyEmailDomain $ do
+    (emailKey, _) <- wrapClientE (Data.verifyCode key code)
+    lift $ liftSem $ guardRegisterActivateUserEmailDomain (emailKeyOrig emailKey)
   event <- Data.activateKey key code usr
   case event of
     Nothing -> pure ActivationPass
@@ -679,10 +709,10 @@ preverify ::
   ) =>
   ActivationTarget ->
   ActivationCode ->
-  ExceptT ActivationError m ()
+  ExceptT ActivationError m (EmailKey, Maybe UserId)
 preverify tgt code = do
   key <- mkActivationKey tgt
-  void $ Data.verifyCode key code
+  Data.verifyCode key code
 
 onActivated ::
   ( Member TinyLog r,
@@ -782,7 +812,8 @@ mkActivationKey (ActivateEmail e) =
 changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   UserId ->
   PasswordChange ->
@@ -793,15 +824,16 @@ changePassword uid cp = do
     throwE ChangePasswordNoIdentity
   currpw <- lift $ liftSem $ lookupHashedPassword uid
   let newpw = cp.newPassword
-  hashedNewPw <- lift . liftSem $ HashPassword.hashPassword8 newpw
+      rateLimitKey = RateLimitUser uid
+  hashedNewPw <- lift . liftSem $ HashPassword.hashPassword8 rateLimitKey newpw
   case (currpw, cp.oldPassword) of
     (Nothing, _) -> lift . liftSem $ upsertHashedPassword uid hashedNewPw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do
       -- We are updating the pwd here anyway, so we don't care about the pwd status
-      unless (verifyPassword pw' pw) $
+      unlessM (lift . liftSem $ HashPassword.verifyPassword rateLimitKey pw' pw) $
         throwE InvalidCurrentPassword
-      when (verifyPassword newpw pw) $
+      whenM (lift . liftSem $ HashPassword.verifyPassword rateLimitKey newpw pw) $
         throwE ChangePasswordMustDiffer
       lift $ liftSem (upsertHashedPassword uid hashedNewPw) >> wrapClient (Auth.revokeAllCookies uid)
 
@@ -832,7 +864,9 @@ deleteSelfUser ::
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -870,7 +904,7 @@ deleteSelfUser luid@(tUnqualified -> uid) pwd = do
         Nothing -> throwE DeleteUserInvalidPassword
         Just p -> do
           -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
-          unless (verifyPassword pw p) $
+          unlessM (lift . liftSem $ HashPassword.verifyPassword (RateLimitUser (tUnqualified luid)) pw p) $
             throwE DeleteUserInvalidPassword
           lift . liftSem $ deleteAccount a >> pure Nothing
     sendCode a target = do

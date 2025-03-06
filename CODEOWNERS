@@ -1,0 +1,3 @@
+*	@wireapp/backend
+/charts/	@wireapp/backend @wireapp/platform-engineering
+/changelog.d/	@wireapp/backend @wireapp/platform-engineering

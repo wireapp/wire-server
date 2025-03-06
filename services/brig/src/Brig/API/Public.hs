@@ -77,6 +77,7 @@ import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
+import Data.Misc
 import Data.Nonce (Nonce, randomNonce)
 import Data.OpenApi qualified as S
 import Data.Qualified
@@ -144,7 +145,6 @@ import Wire.API.User.Client qualified as Public
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
-import Wire.API.User.Identity
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
@@ -154,6 +154,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
+import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
@@ -171,10 +172,12 @@ import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
+import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
@@ -182,7 +185,6 @@ import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem hiding (checkHandle, checkHandles, requestEmailChange)
 import Wire.UserSubsystem qualified as User
-import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
@@ -377,6 +379,9 @@ servantSitemap ::
     Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
     Member (Input UserSubsystemConfig) r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r,
+    Member RateLimit r,
     Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
@@ -848,20 +853,18 @@ createUser ::
     Member PasswordResetCodeStore r,
     Member HashPassword r,
     Member EmailSending r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member RateLimit r
   ) =>
+  IpAddr ->
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
-createUser (Public.NewUserPublic new) = lift . runExceptT $ do
+createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
-  -- TODO: we need an integration test for this, but it'd be easier to write that in a
-  -- different PR where we have https://github.com/wireapp/wire-server/pull/4389.
-  (lift . liftSem . UserSubsystem.guardRegisterUser)
-    `mapM_` (emailIdentity =<< new.newUserIdentity)
 
-  result <- API.createUser new
+  result <- API.createUser (RateLimitIp ip) new
   let acc = createdAccount result
 
   let eac = createdEmailActivation result
@@ -1084,7 +1087,8 @@ checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
 changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
-    Member HashPassword r
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   UserId ->
   Public.PasswordChange ->
@@ -1358,7 +1362,9 @@ deleteSelfUser ::
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
-    Member Events r
+    Member Events r,
+    Member HashPassword r,
+    Member RateLimit r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
@@ -1391,7 +1397,10 @@ updateUserEmail ::
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member DomainRegistrationStore r,
+    Member TinyLog r,
+    Member SparAPIAccess r
   ) =>
   UserId ->
   UserId ->
@@ -1447,7 +1456,8 @@ activateKey ::
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
-      wrapClientE (API.preverify tgt code) !>> actError
+      (emailKey, _) <- wrapClientE (API.preverify tgt code) !>> actError
+      lift $ liftSem $ guardRegisterActivateUserEmailDomain (emailKeyOrig emailKey)
       pure ActivationRespDryRun
   | otherwise = do
       result <- API.activate tgt code Nothing !>> actError

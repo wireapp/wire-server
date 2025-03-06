@@ -27,6 +27,7 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
+import Data.Misc
 import Data.Nonce (Nonce)
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
 import Data.OpenApi qualified as S
@@ -419,6 +420,7 @@ type SelfAPI =
            "change-supported-protocols"
            ( Summary "Change your supported protocols"
                :> From 'V5
+               :> CanThrow 'MlsRemovalNotAllowed
                :> ZLocalUser
                :> ZConn
                :> "self"
@@ -514,6 +516,7 @@ type AccountAPI =
                \place is private and a registered email address \
                \is not whitelisted, a 403 error is returned."
           :> "register"
+          :> Header' '[Required, Strict] "X-Forwarded-For" IpAddr
           :> ReqBody '[JSON] NewUserPublic
           :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
       )
@@ -1663,7 +1666,8 @@ type AuthAPI =
                     'PUT
                     '[JSON]
                     '[ Respond 202 "Update accepted and pending activation of the new email" (),
-                       Respond 204 "No update, current and new email address are the same" ()
+                       Respond 204 "No update, current and new email address are the same" (),
+                       Respond 204 "Email address activated" ()
                      ]
                     ChangeEmailResponse
            )

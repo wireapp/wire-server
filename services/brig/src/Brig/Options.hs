@@ -57,6 +57,7 @@ import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.EmailSending.SMTP (SMTPConnType (..))
+import Wire.RateLimit.Interpreter
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
@@ -591,6 +592,7 @@ data Settings = Settings
     oAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
     -- | Options to override the default Argon2id settings for specific operators.
     passwordHashingOptions :: !(PasswordHashingOptions),
+    passwordHashingRateLimit :: !RateLimitConfig,
     -- | Optional recipient email address for email domain registration audit logs
     auditLogEmailRecipient :: !(Maybe EmailAddress),
     -- | Time-to-live for new domain verification challenges, in seconds

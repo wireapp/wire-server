@@ -3,7 +3,7 @@
 module Test.User where
 
 import API.Brig
-import API.BrigInternal
+import API.BrigInternal as I
 import API.Common
 import API.GalleyInternal
 import qualified API.Spar as Spar
@@ -59,6 +59,21 @@ testCreateUserSupportedProtocols = do
   bindResponse (createUser OwnDomain def {supportedProtocols = Just ["proteus", "mixed"]}) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "bad-request"
+
+testRemoveMlsSupportShouldFail :: (HasCallStack) => App ()
+testRemoveMlsSupportShouldFail = do
+  alice <- randomUser OwnDomain def {supportedProtocols = Just ["proteus", "mls"]}
+  bindResponse (getUserSupportedProtocols alice alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatchSet` ["proteus", "mls"]
+
+  putUserSupportedProtocols alice ["proteus"] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 409
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"
+
+  bindResponse (getUserSupportedProtocols alice alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatchSet` ["proteus", "mls"]
 
 -- | For now this only tests attempts to update /self/handle in E2EId-enabled teams.  More
 -- tests can be found under `/services/brig/test/integration` (and should be moved here).
@@ -229,3 +244,134 @@ testMigratingPasswordHashingAlgorithm = do
     runCodensity (startDynamicBackend testBackend cfgScrypt) $ \_ -> do
       login domain email1 password1 >>= assertSuccess
       login domain email2 password2 >>= assertSuccess
+
+testUpdateEmailForEmailDomainForAnotherBackend :: (HasCallStack) => App ()
+testUpdateEmailForEmailDomainForAnotherBackend = do
+  domain <- randomDomain
+  user <- randomUser OwnDomain def
+  email <- user %. "email" & asString
+  (cookie, token) <- bindResponse (login user email defPassword) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    token <- resp.json %. "access_token" & asString
+    let cookie = fromJust $ getCookie "zuid" resp
+    pure ("zuid=" <> cookie, token)
+
+  setup <- setupOwnershipToken OwnDomain domain
+  I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  updateDomainRedirect
+    OwnDomain
+    domain
+    (Just setup.ownershipToken)
+    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    >>= assertStatus 200
+
+  let newEmail = "galadriel@" <> domain
+  updateEmail user newEmail cookie token `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "condition-failed"
+
+  bindResponse (getActivationCode user newEmail) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "not-found"
+
+  bindResponse (getSelf user) $ \resp -> do
+    resp.json %. "email" `shouldMatch` email
+
+testActivateEmailForEmailDomainForAnotherBackend :: (HasCallStack) => App ()
+testActivateEmailForEmailDomainForAnotherBackend = do
+  tid <- randomId
+  sso <- randomId
+  object
+    [ "domain_redirect" .= "backend",
+      "backend_url" .= "https://example.com",
+      "team_invite" .= "not-allowed"
+    ]
+    & testActivateEmailShouldBeAllowed False
+  object
+    [ "domain_redirect" .= "none",
+      "team_invite" .= "allowed"
+    ]
+    & testActivateEmailShouldBeAllowed True
+  object
+    [ "domain_redirect" .= "no-registration",
+      "team_invite" .= "team",
+      "team" .= tid
+    ]
+    & testActivateEmailShouldBeAllowed False
+  object
+    [ "domain_redirect" .= "no-registration",
+      "team_invite" .= "not-allowed"
+    ]
+    & testActivateEmailShouldBeAllowed False
+  object
+    [ "domain_redirect" .= "sso",
+      "sso_code" .= sso,
+      "team_invite" .= "not-allowed"
+    ]
+    & testActivateEmailShouldBeAllowed False
+  object
+    [ "domain_redirect" .= "sso",
+      "sso_code" .= sso,
+      "team_invite" .= "team",
+      "team" .= tid
+    ]
+    & testActivateEmailShouldBeAllowed False
+  where
+    testActivateEmailShouldBeAllowed :: (HasCallStack) => Bool -> Value -> App ()
+    testActivateEmailShouldBeAllowed activateAllowed update = do
+      registrationDomain <- randomDomain
+      user <- randomUser OwnDomain def
+      email <- user %. "email" & asString
+      (cookie, token) <- bindResponse (login user email defPassword) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        token <- resp.json %. "access_token" & asString
+        let cookie = fromJust $ getCookie "zuid" resp
+        pure ("zuid=" <> cookie, token)
+
+      let newEmail = "galadriel@" <> registrationDomain
+      updateEmail user newEmail cookie token >>= assertSuccess
+
+      (key, code) <- bindResponse (getActivationCode user newEmail) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        (,)
+          <$> (resp.json %. "key" & asString)
+          <*> (resp.json %. "code" & asString)
+
+      I.updateDomainRegistration OwnDomain registrationDomain update >>= assertSuccess
+
+      if activateAllowed
+        then do
+          API.Brig.activate user key code >>= assertSuccess
+          getSelf user `bindResponse` \resp -> do
+            resp.json %. "email" `shouldMatch` newEmail
+        else do
+          API.Brig.activate user key code `bindResponse` \resp -> do
+            resp.status `shouldMatchInt` 403
+            resp.json %. "label" `shouldMatch` "condition-failed"
+
+          getSelf user `bindResponse` \resp -> do
+            resp.json %. "email" `shouldMatch` email
+
+testPasswordChange :: (HasCallStack) => App ()
+testPasswordChange =
+  withModifiedBackend
+    def
+      { brigCfg =
+          -- Disable password hashing rate limiting, so we can create enable services quickly
+          setField @_ @Int "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" 0
+      }
+    $ \domain -> do
+      user <- randomUser domain def
+      email <- asString $ user %. "email"
+      newPassword <- randomString 20
+
+      putPassword user defPassword defPassword `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.json %. "label" `shouldMatch` "password-must-differ"
+
+      putPassword user defPassword newPassword >>= assertSuccess
+
+      login domain email defPassword `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "invalid-credentials"
+      login domain email newPassword >>= assertSuccess

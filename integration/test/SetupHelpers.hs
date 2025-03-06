@@ -32,9 +32,11 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
+import Test.DNSMock
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.Printing (indent)
+import Text.Regex.TDFA ((=~))
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
@@ -44,6 +46,14 @@ randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App V
 randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
   resp.status `shouldMatchInt` 201
   resp.json
+
+ephemeralUser :: (HasCallStack, MakesValue domain) => domain -> App Value
+ephemeralUser domain = do
+  name <- randomName
+  req <- baseRequest domain Brig Versioned "/register"
+  bindResponse (submit "POST" $ req & addJSONObject ["name" .= name] & addHeader "X-Forwarded-For" "127.0.0.42") $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json
 
 deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
 deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
@@ -84,7 +94,7 @@ createTeamMember inviter args = do
       %. "code"
       & asString
   let body =
-        AddUser
+        def
           { name = Just newUserEmail,
             email = Just newUserEmail,
             password = Just defPassword,
@@ -305,22 +315,33 @@ setupProvider ::
   user ->
   NewProvider ->
   App Value
-setupProvider u np@(NewProvider {..}) = do
+setupProvider u (NewProvider {..}) = do
   dom <- objDomain u
-  provider <- newProvider u np
+  providerEmail <- randomEmail
+  newProviderResponse <-
+    newProvider u $
+      object
+        [ "name" .= newProviderName,
+          "description" .= newProviderDesc,
+          "email" .= providerEmail,
+          "password" .= newProviderPassword,
+          "url" .= newProviderUrl
+        ]
   pass <- case newProviderPassword of
-    Nothing -> provider %. "password" & asString
+    Nothing -> newProviderResponse %. "password" & asString
     Just pass -> pure pass
   (key, code) <- do
     pair <-
-      getProviderActivationCodeInternal dom newProviderEmail `bindResponse` \resp -> do
+      getProviderActivationCodeInternal dom providerEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json
     k <- pair %. "key" & asString
     c <- pair %. "code" & asString
     pure (k, c)
   activateProvider dom key code
-  loginProvider dom newProviderEmail pass $> provider
+  loginProvider dom providerEmail pass >>= assertSuccess
+  pid <- asString $ newProviderResponse %. "id"
+  getProvider dom pid >>= getJSON 200
 
 lhDeviceIdOf :: (MakesValue user) => user -> App String
 lhDeviceIdOf bob = do
@@ -415,24 +436,28 @@ registerTestIdPWithMetaWithPrivateCreds owner = do
   SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
   (,(idpmeta, pCreds)) <$> createIdp owner idpmeta
 
+updateTestIdpWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> String -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
+updateTestIdpWithMetaWithPrivateCreds owner idpId = do
+  SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
+  (,(idpmeta, pCreds)) <$> updateIdp owner idpId idpmeta
+
 -- | Given a team configured with saml sso, attempt a login with valid credentials.  This
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.
-loginWithSaml :: (HasCallStack) => Bool -> String -> Value -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App ()
-loginWithSaml expectSuccess tid scimUser (iid, (meta, privcreds)) = do
+loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App (Maybe String, SAML.SignedAuthnResponse)
+loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
   spmeta <- getSPMetadata OwnDomain tid
   authnreq <- initiateSamlLogin OwnDomain iid
-  email <- scimUser %. "externalId" >>= asString
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
   authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  loginResp <- finalizeSamlLogin OwnDomain tid authnResp
-  validateLoginResp loginResp
+  mUid <- finalizeSamlLogin OwnDomain tid authnResp `bindResponse` validateLoginResp
+  pure (mUid, authnResp)
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
 
-    validateLoginResp :: (HasCallStack) => Response -> App ()
+    validateLoginResp :: (HasCallStack) => Response -> App (Maybe String)
     validateLoginResp resp =
       if expectSuccess
         then do
@@ -457,12 +482,23 @@ loginWithSaml expectSuccess tid scimUser (iid, (meta, privcreds)) = do
           bdy `shouldContain` "}, receiverOrigin)"
           hasPersistentCookieHeader resp
 
-    hasPersistentCookieHeader :: Response -> App ()
+    hasPersistentCookieHeader :: Response -> App (Maybe String)
     hasPersistentCookieHeader rsp = do
-      let cookie = getCookie "zuid" rsp
-      case cookie of
-        Nothing -> expectSuccess `shouldMatch` False
-        Just _ -> expectSuccess `shouldMatch` True
+      let mCookie = getCookie "zuid" rsp
+      case mCookie of
+        Nothing -> do
+          expectSuccess `shouldMatch` False
+          pure Nothing
+        Just cookie -> do
+          expectSuccess `shouldMatch` True
+          pure $ getUserIdFromCookie cookie
+
+    getUserIdFromCookie :: String -> Maybe String
+    getUserIdFromCookie cookie = do
+      let regex = "u=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+      case cookie =~ regex :: [[String]] of
+        [[_, uuid]] -> Just uuid
+        _ -> Nothing
 
     runSimpleSP :: SAML.SimpleSP a -> App a
     runSimpleSP action = liftIO $ do
@@ -492,3 +528,69 @@ loginWithSaml expectSuccess tid scimUser (iid, (meta, privcreds)) = do
             & cs
             & SAML.decodeElem
             & fromRight (error "")
+
+-- helpers
+
+data ChallengeSetup = ChallengeSetup
+  { dnsToken :: String,
+    challengeId :: String,
+    challengeToken :: String,
+    technitiumToken :: String
+  }
+
+setupChallenge :: (MakesValue domain, HasCallStack) => domain -> String -> App ChallengeSetup
+setupChallenge domain registrationDomain = do
+  challenge <- getDomainVerificationChallenge domain registrationDomain >>= getJSON 200
+  dnsToken <- challenge %. "dns_verification_token" & asString
+  challengeId <- challenge %. "id" & asString
+  challengeToken <- challenge %. "token" & asString
+
+  technitiumToken <- getTechnitiumApiKey
+  registerTechnitiumZone technitiumToken registrationDomain
+
+  pure $
+    ChallengeSetup
+      { dnsToken,
+        challengeId,
+        challengeToken,
+        technitiumToken
+      }
+
+data DomainRegistrationSetup = DomainRegistrationSetup
+  { dnsToken :: String,
+    technitiumToken :: String,
+    ownershipToken :: String
+  }
+
+setupOwnershipToken :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
+setupOwnershipToken domain registrationDomain = do
+  challenge <- setupChallenge domain registrationDomain
+
+  -- register TXT DNS record
+  registerTechnitiumRecord challenge.technitiumToken registrationDomain ("wire-domain." <> registrationDomain) "TXT" challenge.dnsToken
+
+  -- verify domain
+  ownershipToken <- bindResponse (verifyDomain OwnDomain registrationDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_ownership_token" & asString
+
+  pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken
+
+activateEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
+activateEmail domain email = do
+  (actkey, code) <- bindResponse (getActivationCode domain email) $ \res -> do
+    (,)
+      <$> (res.json %. "key" >>= asString)
+      <*> (res.json %. "code" >>= asString)
+  API.Brig.activate domain actkey code >>= assertSuccess
+
+registerInvitedUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
+registerInvitedUser domain tid email = do
+  getInvitationByEmail domain email
+    >>= getJSON 200
+    >>= getInvitationCodeForTeam domain tid
+    >>= getJSON 200
+    >>= (%. "code")
+    >>= asString
+    >>= registerUser domain email
+    >>= assertSuccess

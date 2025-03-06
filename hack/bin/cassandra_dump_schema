@@ -18,7 +18,7 @@ def main():
 
     ks = []
     for line in s.splitlines():
-        ks.append(re.split('\s+', line))
+        ks.append(re.split(r'\s+', line))
 
     keyspaces = transpose(ks)
     print("-- automatically generated with `make git-add-cassandra-schema`\n")

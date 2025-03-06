@@ -1,7 +1,9 @@
 module API.GalleyInternal where
 
+import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
 import Data.String.Conversions (cs)
+import qualified Data.Text as T
 import qualified Data.Vector as Vector
 import GHC.Stack
 import Testlib.Prelude
@@ -45,10 +47,14 @@ setTeamFeatureStatus domain team featureName status = do
 
 setTeamFeatureLockStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
 setTeamFeatureLockStatus domain team featureName status = do
+  bindResponse (setTeamFeatureLockStatusResponse domain team featureName status) $ \res ->
+    res.status `shouldMatchInt` 200
+
+setTeamFeatureLockStatusResponse :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App Response
+setTeamFeatureLockStatusResponse domain team featureName status = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName, status]
-  bindResponse (submit "PUT" $ req) $ \res ->
-    res.status `shouldMatchInt` 200
+  submit "PUT" $ req
 
 getFederationStatus ::
   ( HasCallStack,
@@ -136,3 +142,8 @@ getTeam :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 getTeam domain tid = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid]
   submit "GET" $ req
+
+setTeamFeatureMigrationState :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+setTeamFeatureMigrationState domain tid state = do
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "feature-migration-state"]
+  submit "PUT" $ req & addJSON (A.String (T.pack state))

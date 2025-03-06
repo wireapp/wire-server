@@ -7,6 +7,7 @@ module Wire.UserSubsystem
   )
 where
 
+import Control.Lens ((^.))
 import Data.Default
 import Data.Domain
 import Data.Handle (Handle)
@@ -19,7 +20,10 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
+import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
+import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
@@ -27,19 +31,25 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.IdentityProvider hiding (team)
 import Wire.API.User.Search
 import Wire.ActivationCodeStore
 import Wire.Arbitrary
 import Wire.BlockListStore
 import Wire.BlockListStore qualified as BlockListStore
+import Wire.DomainRegistrationStore (DomainRegistrationStore)
+import Wire.DomainRegistrationStore qualified as DomainRegistrationStore
 import Wire.EmailSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationStore
+import Wire.SparAPIAccess (SparAPIAccess, getIdentityProviders)
+import Wire.StoredUser qualified as SU
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore
-import Wire.UserSubsystem.Error (UserSubsystemError (..))
+import Wire.UserStore qualified as UserStore
+import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
 
 -- | Who is performing this update operation / who is allowed to?  (Single source of truth:
@@ -139,7 +149,8 @@ data UserSubsystem m a where
   -- | Throw error if registered domain forbids user account creation under this email
   -- address.  (This may become internal to the interpreter once migration to wire-subsystems
   -- has progressed enough.)
-  GuardRegisterUser :: EmailAddress -> UserSubsystem m ()
+  GuardRegisterActivateUserEmailDomain :: EmailAddress -> UserSubsystem m ()
+  GuardUpgradePersonalUserToTeamEmailDomain :: EmailAddress -> UserSubsystem m ()
   -- | Check if an email is blocked.
   IsBlocked :: EmailAddress -> UserSubsystem m Bool
   -- | Remove an email from the block list.
@@ -210,6 +221,7 @@ getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
 -- | Call 'createEmailChangeToken' and process result: if email changes to
 -- itself, succeed, if not, send validation email.
 requestEmailChange ::
+  forall r.
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
@@ -217,7 +229,10 @@ requestEmailChange ::
     Member UserStore r,
     Member (Error UserSubsystemError) r,
     Member ActivationCodeStore r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   Local UserId ->
   EmailAddress ->
@@ -225,6 +240,8 @@ requestEmailChange ::
   Sem r ChangeEmailResponse
 requestEmailChange lusr email allowScim = do
   let u = tUnqualified lusr
+  team <- (>>= SU.teamId) <$> UserStore.getUser u
+  guardRegisteredEmailDomain team
   createEmailChangeToken lusr email allowScim >>= \case
     ChangeEmailIdempotent ->
       pure ChangeEmailResponseIdempotent
@@ -234,6 +251,30 @@ requestEmailChange lusr email allowScim = do
       internalUpdateSearchIndex u
       pure ChangeEmailResponseNeedsActivation
   where
+    guardRegisteredEmailDomain ::
+      Maybe TeamId ->
+      Sem r ()
+    guardRegisteredEmailDomain mTeam = do
+      let throwGuardFailed = throw . UserSubsystemGuardFailed
+      mReg <-
+        emailDomain email
+          -- The error is impossible as long as we use the same parser for both `EmailAddress` and
+          -- `Domain`.
+          & either (throwGuardFailed . InvalidDomain) DomainRegistrationStore.lookup
+      for_ mReg $ \reg -> do
+        case (reg.domainRedirect, reg.teamInvite) of
+          (NoRegistration, _) -> throwGuardFailed DomRedirSetToNoRegistration
+          (Backend {}, _) -> throwGuardFailed DomRedirSetToBackend
+          (SSO idpId, _) -> do
+            case mTeam of
+              Nothing -> throwGuardFailed DomRedirSetToSSO
+              Just tid -> do
+                identityProviders <- getIdentityProviders tid
+                unless (idpId `elem` ((^. SAML.idpId) <$> identityProviders.providers)) $
+                  throwGuardFailed DomRedirSetToSSO
+          (_, NotAllowed) -> throwGuardFailed TeamInviteSetToNotAllowed
+          (_, Team tid) | mTeam /= Just tid -> throwGuardFailed TeamInviteRestrictedToOtherTeam
+          _ -> pure ()
     sendOutEmail usr adata en = do
       (maybe sendActivationMail (const sendEmailAddressUpdateMail) usr.userIdentity)
         en
@@ -269,6 +310,8 @@ createEmailChangeToken lusr email updateOrigin = do
     -- The user already has an email address and the new one is exactly the same
     Just current | current == email -> pure ChangeEmailIdempotent
     _ -> do
+      -- if the user is managed by SCIM, the email change must be initiated by SCIM
+      -- they are not allowed to change their email address themselves in that case
       unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
         throw UserSubsystemEmailManagedByScim
       actTimeout <- inputs (.activationCodeTimeout)

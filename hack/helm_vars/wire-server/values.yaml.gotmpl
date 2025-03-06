@@ -28,10 +28,10 @@ elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     scheme: https
-    host: elasticsearch-ephemeral
+    host: {{ .Values.elasticsearch.host }}
     index: directory_test
     tlsCaSecretRef:
-      name: "elasticsearch-ephemeral-certificate"
+      name: {{ .Values.elasticsearch.caSecretName }}
       key: "ca.crt"
   cassandra:
     host: {{ .Values.cassandraHost }}
@@ -68,13 +68,13 @@ brig:
     {{- end }}
     elasticsearch:
       scheme: https
-      host: elasticsearch-ephemeral
+      host: {{ .Values.elasticsearch.host }}
       index: directory_test
       tlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"
       additionalTlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"
     rabbitmq:
       port: 5671
@@ -135,6 +135,7 @@ brig:
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
+
       # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
       setPasswordHashingOptions:
@@ -142,6 +143,10 @@ brig:
         iterations: 1
         parallelism: 4
         memory: 32 # This needs to be at least 8 * parallelism.
+      setPasswordHashingRateLimit:
+        ipAddressExceptions:
+        - 127.0.0.1/8
+
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
@@ -153,6 +158,9 @@ brig:
       general:
         emailSender: backend-integrationk8s@wire.com
         smsSender: dummy
+  test:
+    elasticsearch:
+      additionalHost: {{ .Values.elasticsearch.additionalHost }}
   secrets:
     # these secrets are only used during integration tests and should therefore be safe to include unencrypted in git.
     # Normally these would live in a separately-encrypted secrets.yaml file and incorporated using the helm secrets plugin (wrapper around mozilla sops)
@@ -289,6 +297,9 @@ galley:
         iterations: 1
         parallelism: 4
         memory: 32 # This needs to be at least 8 * parallelism.
+      passwordHashingRateLimit:
+        ipAddressExceptions:
+        - 127.0.0.1/8
 
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
@@ -403,7 +414,7 @@ gundeck:
         name: "rabbitmq-certificate"
         key: "ca.crt"
     redis:
-      host: redis-ephemeral-master
+      host: databases-ephemeral-redis-ephemeral-master
       connectionMode: master
       enableTls: true
       tlsCaSecretRef:
@@ -585,8 +596,9 @@ integration:
         key: ca.crt
       {{- end }}
     elasticsearch:
+      host: {{ .Values.elasticsearch.host }}
       tlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: {{ .Values.elasticsearch.caSecretName }}
         key: "ca.crt"
     redis:
       tlsCaSecretRef:

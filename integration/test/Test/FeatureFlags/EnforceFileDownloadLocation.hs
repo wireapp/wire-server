@@ -5,21 +5,22 @@ import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testPatchEnforceFileDownloadLocation :: (HasCallStack) => App ()
-testPatchEnforceFileDownloadLocation = do
-  checkPatch OwnDomain "enforceFileDownloadLocation"
+testPatchEnforceFileDownloadLocation :: (HasCallStack) => FeatureTable -> App ()
+testPatchEnforceFileDownloadLocation table = do
+  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "unlocked"]
-  checkPatch OwnDomain "enforceFileDownloadLocation"
+  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
     $ object ["status" .= "enabled"]
-  checkPatch OwnDomain "enforceFileDownloadLocation"
+  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "unlocked", "status" .= "enabled"]
-  checkPatch OwnDomain "enforceFileDownloadLocation"
+  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "locked", "config" .= object []]
-  checkPatch OwnDomain "enforceFileDownloadLocation"
+  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
     $ object ["config" .= object ["enforcedDownloadLocation" .= "/tmp"]]
 
   do
     (user, tid, _) <- createTeam OwnDomain 0
+    updateMigrationState OwnDomain tid table
     bindResponse
       ( Internal.patchTeamFeature
           user
@@ -31,8 +32,8 @@ testPatchEnforceFileDownloadLocation = do
         resp.status `shouldMatchInt` 400
         resp.json %. "label" `shouldMatch` "empty-download-location"
 
-testEnforceDownloadLocation :: (HasCallStack) => APIAccess -> App ()
-testEnforceDownloadLocation access = do
+testEnforceDownloadLocation :: (HasCallStack) => FeatureTable -> APIAccess -> App ()
+testEnforceDownloadLocation table access = do
   mkFeatureTests
     "enforceFileDownloadLocation"
     & addUpdate
@@ -52,4 +53,5 @@ testEnforceDownloadLocation access = do
                 ]
           ]
       )
+    & setTable table
     & runFeatureTests OwnDomain access

@@ -159,6 +159,7 @@ addUserToTeamWithRole' role inviter tid = do
       ( brig
           . path "/register"
           . contentJson
+          . header "X-Forwarded-For" "127.0.0.42"
           . body (acceptInviteBody email inviteeCode)
       )
   pure (inv, r)

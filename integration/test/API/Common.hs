@@ -23,7 +23,7 @@ randomEmail = do
 randomDomain :: App String
 randomDomain = do
   u <- randomName
-  pure $ (fmap toLower u) <> ".com"
+  pure $ (fmap toLower u) <> ".example"
 
 randomExternalId :: App String
 randomExternalId = liftIO $ do

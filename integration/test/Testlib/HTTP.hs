@@ -22,7 +22,7 @@ import Data.Tuple.Extra
 import GHC.Generics
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
-import Network.HTTP.Types (hLocation)
+import Network.HTTP.Types (hContentLength, hLocation)
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.URI (parseQuery)
 import Network.URI (URI (..), URIAuth (..), parseURI)
@@ -47,6 +47,9 @@ addJSON obj = addBody (HTTP.RequestBodyLBS (Aeson.encode obj)) "application/json
 
 addXML :: ByteString -> HTTP.Request -> HTTP.Request
 addXML xml = addBody (HTTP.RequestBodyBS xml) "application/xml"
+
+addClientIP :: HTTP.Request -> HTTP.Request
+addClientIP = addHeader "X-Forwarded-For" "127.0.0.42"
 
 addUrlEncodedForm :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addUrlEncodedForm form req =
@@ -230,6 +233,9 @@ locationHeaderHost resp =
 
 locationHeader :: Response -> Maybe (HTTP.HeaderName, ByteString)
 locationHeader = findHeader hLocation
+
+contentLengthHeader :: Response -> Maybe (HTTP.HeaderName, ByteString)
+contentLengthHeader = findHeader hContentLength
 
 findHeader :: HTTP.HeaderName -> Response -> Maybe (HTTP.HeaderName, ByteString)
 findHeader name resp = find (\(name', _) -> name == name') resp.headers

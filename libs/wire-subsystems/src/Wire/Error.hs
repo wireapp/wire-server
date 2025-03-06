@@ -8,6 +8,7 @@ import Data.Text.Encoding qualified as Text
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.JSONResponse
 
 -- | Error thrown to the user
 data HttpError where
@@ -29,3 +30,12 @@ instance ToJSON HttpError where
   toJSON (RichError e x _) = case (toJSON e, toJSON x) of
     (Object o1, Object o2) -> Object (KeyMap.union o1 o2)
     (j, _) -> j
+
+httpErrorToJSONResponse :: HttpError -> JSONResponse
+httpErrorToJSONResponse (StdError werr) = waiErrorToJSONResponse werr
+httpErrorToJSONResponse e@(RichError werr _ headers) =
+  JSONResponse
+    { status = werr.code,
+      value = toJSON e,
+      headers = headers
+    }

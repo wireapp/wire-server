@@ -3,6 +3,7 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
+import Control.Lens ((.~))
 import Control.Lens.At ()
 import Data.Bifunctor (first)
 import Data.Coerce
@@ -13,6 +14,7 @@ import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Imports
@@ -20,7 +22,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Internal
 import Polysemy.State
-import Polysemy.TinyLog
+import SAML2.WebSSO qualified as SAML
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -30,19 +32,20 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem.Error
 import Wire.DomainRegistrationStore qualified as DRS
-import Wire.InvitationStore (StoredInvitation)
+import Wire.InvitationStore (InsertInvitation, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
-import Wire.MockInterpreters
+import Wire.RateLimit
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
-import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..), guardRegisterUserImpl)
+import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -96,6 +99,7 @@ spec = describe "UserSubsystem.Interpreter" do
               run
                 . runErrorUnsafe @UserSubsystemError
                 . runErrorUnsafe @AuthenticationSubsystemError
+                . runErrorUnsafe @RateLimitExceeded
                 . runError @FederationError
                 . interpretFederationStack localBackend online Nothing config
                 $ getUserProfiles
@@ -249,22 +253,36 @@ spec = describe "UserSubsystem.Interpreter" do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             userBeforeUpdate = mkUserFromStored localDomain config.defaultLocale alice
-            (SelfProfile userAfterUpdate) = fromJust $ runNoFederationStack localBackend Nothing config do
+            result = runNoFederationStackUserSubsystemErrorEither localBackend Nothing config do
               updateUserProfile lusr Nothing UpdateOriginScim update
               getSelfProfile lusr
-         in userAfterUpdate.userQualifiedId === tUntagged lusr
-              .&&. userAfterUpdate.userDisplayName === fromMaybe userBeforeUpdate.userDisplayName update.name
-              .&&. userAfterUpdate.userPict === fromMaybe userBeforeUpdate.userPict update.pict
-              .&&. userAfterUpdate.userAssets === fromMaybe userBeforeUpdate.userAssets update.assets
-              .&&. userAfterUpdate.userAccentId === fromMaybe userBeforeUpdate.userAccentId update.accentId
-              .&&. userAfterUpdate.userLocale === fromMaybe userBeforeUpdate.userLocale update.locale
+            mlsRemoval =
+              BaseProtocolMLSTag `member` (fromMaybe mempty alice.supportedProtocols)
+                && BaseProtocolMLSTag `notMember` (fromMaybe mempty update.supportedProtocols)
+         in case result of
+              Right (Just (SelfProfile userAfterUpdate)) ->
+                userAfterUpdate.userQualifiedId === tUntagged lusr
+                  .&&. userAfterUpdate.userDisplayName === fromMaybe userBeforeUpdate.userDisplayName update.name
+                  .&&. userAfterUpdate.userPict === fromMaybe userBeforeUpdate.userPict update.pict
+                  .&&. userAfterUpdate.userAssets === fromMaybe userBeforeUpdate.userAssets update.assets
+                  .&&. userAfterUpdate.userAccentId === fromMaybe userBeforeUpdate.userAccentId update.accentId
+                  .&&. userAfterUpdate.userLocale === fromMaybe userBeforeUpdate.userLocale update.locale
+              Left UserSubsystemMlsRemovalNotAllowed -> mlsRemoval === True
+              Right Nothing -> property False
+              Left _ -> property False
 
     prop "Update user events" $
       \(NotPendingStoredUser alice) connId localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
+            -- MLS must not be removed from supported protocols, if exists
+            mProtocolUpdates =
+              update.supportedProtocols <&> \protocols ->
+                if BaseProtocolMLSTag `member` (fromMaybe mempty alice.supportedProtocols)
+                  then BaseProtocolMLSTag `insert` protocols
+                  else protocols
             events = runNoFederationStack localBackend Nothing config do
-              updateUserProfile lusr connId UpdateOriginScim update
+              updateUserProfile lusr connId UpdateOriginScim update {supportedProtocols = mProtocolUpdates}
               get @[MiniEvent]
          in events
               === [ MkMiniEvent
@@ -278,7 +296,7 @@ spec = describe "UserSubsystem.Interpreter" do
                               eupAccentId = update.accentId,
                               eupAssets = update.assets,
                               eupLocale = update.locale,
-                              eupSupportedProtocols = update.supportedProtocols
+                              eupSupportedProtocols = mProtocolUpdates
                             }
                       )
                   ]
@@ -588,9 +606,10 @@ spec = describe "UserSubsystem.Interpreter" do
                 run
                   . runErrorUnsafe
                   . runErrorUnsafe @AuthenticationSubsystemError
+                  . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing}
+                    updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing, supportedProtocols = Nothing}
                     getUserProfile lusr (tUntagged lusr)
            in counterexample (show profileErr) $ isRight profileErr === True
 
@@ -603,6 +622,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   run
                     . runErrorUnsafe
                     . runErrorUnsafe @AuthenticationSubsystemError
+                    . runErrorUnsafe @RateLimitExceeded
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
@@ -618,6 +638,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   run
                     . runErrorUnsafe
                     . runErrorUnsafe @AuthenticationSubsystemError
+                    . runErrorUnsafe @RateLimitExceeded
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
@@ -634,6 +655,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 run
                   . runErrorUnsafe
                   . runErrorUnsafe @AuthenticationSubsystemError
+                  . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack
                     localBackend
@@ -648,7 +670,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     )
                     config
                     do
-                      updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
+                      updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName, supportedProtocols = Nothing})
                       getUserProfile lusr (tUntagged lusr)
            in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
@@ -697,6 +719,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 res = run
                   . runErrorUnsafe
                   . runErrorUnsafe @AuthenticationSubsystemError
+                  . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
@@ -711,6 +734,7 @@ spec = describe "UserSubsystem.Interpreter" do
             let res :: Either UserSubsystemError () = run
                   . runErrorUnsafe
                   . runErrorUnsafe @AuthenticationSubsystemError
+                  . runErrorUnsafe @RateLimitExceeded
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
@@ -734,6 +758,7 @@ spec = describe "UserSubsystem.Interpreter" do
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runErrorUnsafe @AuthenticationSubsystemError
+                . runErrorUnsafe @RateLimitExceeded
                 . runError
                 $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
@@ -748,6 +773,7 @@ spec = describe "UserSubsystem.Interpreter" do
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runErrorUnsafe @AuthenticationSubsystemError
+                . runErrorUnsafe @RateLimitExceeded
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
@@ -763,21 +789,24 @@ spec = describe "UserSubsystem.Interpreter" do
               where
                 dom = Domain "localdomain"
 
-            operation :: (Monad m) => Sem (MiniBackendEffects `Append` AllErrors) a -> m a
+            operation :: (Monad m) => Sem (MiniBackendEffects `Append` AllErrors) a -> m (Either UserSubsystemError a)
             operation op = result `seq` pure result
               where
-                result = runNoFederationStack localBackend Nothing config op
+                result = runNoFederationStackUserSubsystemErrorEither localBackend Nothing config op
                 localBackend = def {users = [storedUser]}
 
-            actualSupportedProtocols = runIdentity $ operation do
+            actual = runIdentity $ operation do
               () <- updateUserProfile luid Nothing UpdateOriginWireClient (def {supportedProtocols = Just newSupportedProtocols})
               profileSupportedProtocols . fromJust <$> getUserProfile luid (tUntagged luid)
 
-            expectedSupportedProtocols =
-              if S.null newSupportedProtocols
-                then defSupportedProtocols
-                else newSupportedProtocols
-         in actualSupportedProtocols === expectedSupportedProtocols
+            mlsRemoval =
+              BaseProtocolMLSTag `member` (fromMaybe mempty storedUser.supportedProtocols)
+                && BaseProtocolMLSTag `notMember` newSupportedProtocols
+            expected
+              | mlsRemoval = Left UserSubsystemMlsRemovalNotAllowed
+              | S.null newSupportedProtocols = Right defSupportedProtocols
+              | otherwise = Right newSupportedProtocols
+         in actual === expected
 
   describe "getLocalUserAccountByUserKey" $ do
     prop "gets users iff they are indexed by the UserKeyStore" $
@@ -883,30 +912,77 @@ spec = describe "UserSubsystem.Interpreter" do
               === ( ChangeEmailResponseNeedsActivation,
                     [user {emailUnvalidated = Just updatedEmail}]
                   )
+    prop "Email change is not allowed if the email domain is taken by another backend or team" $
+      \(preDomreg :: DomainRegistration) (locx :: Local ()) (NotPendingStoredUser user') (preEmail :: EmailAddress) (domainTakenBySameTeam :: Bool) preIdp config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText domreg.domain
+            user = user' {managedBy = Nothing}
+            lusr = qualifyAs locx user.id
+            localBackend =
+              def
+                { users = [user],
+                  teamIdps = case (preDomreg.domainRedirect, user.teamId, domainTakenBySameTeam) of
+                    (SSO ssoId, Just tid, True) ->
+                      Map.singleton tid $
+                        IdPList
+                          [ preIdp
+                              & SAML.idpId .~ ssoId
+                              & SAML.idpExtraInfo . team .~ tid
+                          ]
+                    (SSO _, Just tid, False) ->
+                      Map.singleton tid $ IdPList [preIdp & SAML.idpExtraInfo . team .~ tid]
+                    _ -> mempty
+                }
+            domreg =
+              if domainTakenBySameTeam
+                then
+                  preDomreg
+                    { teamInvite = case (preDomreg.teamInvite, user.teamId) of
+                        (Team _, Just tid) -> Team tid
+                        (x, _) -> x
+                    } ::
+                    DomainRegistration
+                else preDomreg
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runErrorUnsafe @RateLimitExceeded
+              . runError
+              $ interpretNoFederationStack localBackend Nothing def config do
+                DRS.upsert domreg
+                void $ requestEmailChange lusr email UpdateOriginWireClient
 
-  describe "GuardRegisterUser" $
+            expected = case (domreg.domainRedirect, domreg.teamInvite) of
+              (NoRegistration, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
+              (Backend {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              (SSO {}, _) | domainTakenBySameTeam && isJust user.teamId -> Right ()
+              (SSO {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
+              (_, NotAllowed) -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              (_, Team _) | not domainTakenBySameTeam && isJust user.teamId -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              (_, Team _) | isNothing user.teamId -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              _ -> Right ()
+         in outcome === expected
+
+  describe "GuardRegisterActivateUserEmailDomain" $ do
     prop "throws the appropriate errors" $
-      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) ->
+      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) config ->
         let email :: EmailAddress
             email = unsafeEmailAddress l (cs d)
               where
                 l :: ByteString = localPart preEmail
                 d :: Text = domainText domreg.domain
 
-            interp ::
-              Sem
-                '[ DRS.DomainRegistrationStore,
-                   State [DRS.StoredDomainRegistration],
-                   TinyLog,
-                   Error UserSubsystemError
-                 ]
-                () ->
-              Either UserSubsystemError ()
-            interp = run . runError . noopLogger . evalState [] . inMemoryDomainRegistrationStoreInterpreter
-
-            outcome = interp do
-              DRS.upsert domreg
-              guardRegisterUserImpl email
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runErrorUnsafe @RateLimitExceeded
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                DRS.upsert domreg
+                guardRegisterActivateUserEmailDomain email
 
             expected = case domreg.domainRedirect of
               None -> Right ()
@@ -915,4 +991,71 @@ spec = describe "UserSubsystem.Interpreter" do
               Backend _ -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
               NoRegistration -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
               PreAuthorized -> Right ()
+         in outcome === expected
+
+  describe "GuardUpgradePersonalUserEmailDomain" $ do
+    prop "throws the appropriate errors" $
+      \(domreg :: DomainRegistration) (preEmail :: EmailAddress) config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText domreg.domain
+
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runErrorUnsafe @RateLimitExceeded
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                DRS.upsert domreg
+                guardUpgradePersonalUserToTeamEmailDomain email
+
+            expected = case (domreg.domainRedirect, domreg.teamInvite) of
+              (NoRegistration, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
+              (Backend {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              (SSO {}, _) -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
+              (_, NotAllowed) -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              (_, Team _) -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
+              _ -> Right ()
+         in outcome === expected
+
+  describe "InternalFindTeamInvitation" $ do
+    prop "throws error if email" $
+      \(preDomreg :: DomainRegistration) (preEmail :: EmailAddress) (preInv :: InsertInvitation) (invIntoSameTeamAsDomain :: Bool) timeout config ->
+        let email :: EmailAddress
+            email = unsafeEmailAddress l (cs d)
+              where
+                l :: ByteString = localPart preEmail
+                d :: Text = domainText preDomreg.domain
+
+            inv :: InsertInvitation = preInv {InvitationStore.inviteeEmail = email}
+            domreg =
+              if invIntoSameTeamAsDomain
+                then
+                  preDomreg
+                    { teamInvite = case preDomreg.teamInvite of
+                        Team _ -> Team inv.teamId
+                        x -> x
+                    } ::
+                    DomainRegistration
+                else preDomreg
+
+            storedInv = InvitationStore.insertInvToStoredInv inv
+
+            outcome = run
+              . runErrorUnsafe
+              . runErrorUnsafe @AuthenticationSubsystemError
+              . runErrorUnsafe @RateLimitExceeded
+              . runError
+              $ interpretNoFederationStack def Nothing def config {maxTeamSize = 100} do
+                void $ InvitationStore.insertInvitation inv timeout
+                DRS.upsert domreg
+                internalFindTeamInvitation (Just $ mkEmailKey email) storedInv.code
+
+            expected = case domreg.teamInvite of
+              NotAllowed -> Left $ UserSubsystemGuardFailed TeamInviteSetToNotAllowed
+              Allowed -> Right storedInv
+              Team tid | tid == storedInv.teamId -> Right storedInv
+              Team _ -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
          in outcome === expected

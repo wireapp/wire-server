@@ -44,7 +44,7 @@ import Wire.API.User.Password
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore qualified as Password
 import Wire.UserKeyStore
-import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as User
 
 data ActivationError
@@ -77,7 +77,9 @@ activateKey ::
   ActivationCode ->
   Maybe UserId ->
   ExceptT ActivationError (AppT r) (Maybe ActivationEvent)
-activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
+activateKey k c u = do
+  (emailKey, mUser) <- wrapClientE (verifyCode k c)
+  pickUser (emailKey, mUser) >>= activate
   where
     pickUser :: (t, Maybe UserId) -> ExceptT ActivationError (AppT r) (t, UserId)
     pickUser (uk, u') = maybe (throwE invalidUser) (pure . (uk,)) (u <|> u')

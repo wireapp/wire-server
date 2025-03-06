@@ -2,15 +2,19 @@
 
 module Test.Spar where
 
-import qualified API.Brig as Brig
 import API.BrigInternal as BrigInternal
-import API.Common (randomEmail, randomExternalId, randomHandle)
+import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
+import Control.Lens (to, (^.))
+import qualified Data.CaseInsensitive as CI
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
+import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import qualified SAML2.WebSSO.XML as SAMLXML
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
@@ -143,7 +147,7 @@ testSparExternalIdDifferentFromEmail = do
     res.status `shouldMatchInt` 200
     res.json >>= asList >>= shouldBeEmpty
 
-  registerUser OwnDomain tid email
+  registerInvitedUser OwnDomain tid email
 
   checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
     u %. "externalId" `shouldMatch` extId
@@ -233,7 +237,7 @@ testSparExternalIdUpdateToANonEmail = do
     resp.status `shouldMatchInt` 201
     (resp.json %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString) `shouldMatch` email
     resp.json %. "id" >>= asString
-  registerUser OwnDomain tid email
+  registerInvitedUser OwnDomain tid email
 
   let extId = "notanemailaddress"
   updatedScimUser <- setField "externalId" extId scimUser
@@ -246,7 +250,7 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
   scimUser <- randomScimUser >>= removeField "emails"
   email <- scimUser %. "externalId" >>= asString
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-  registerUser OwnDomain tid email
+  registerInvitedUser OwnDomain tid email
 
   -- Verify that updating a user with an empty emails does not change the email
   bindResponse (updateScimUser OwnDomain tok userId scimUser) $ \resp -> do
@@ -274,25 +278,6 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
     u %. "email" `shouldMatch` newEmail
     u %. "sso_id.scim_external_id" `shouldMatch` extId
 
-registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
-registerUser domain tid email = do
-  BrigInternal.getInvitationByEmail domain email
-    >>= getJSON 200
-    >>= BrigInternal.getInvitationCodeForTeam domain tid
-    >>= getJSON 200
-    >>= (%. "code")
-    >>= asString
-    >>= Brig.registerUser domain email
-    >>= assertSuccess
-
-activateEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
-activateEmail domain email = do
-  (actkey, code) <- bindResponse (BrigInternal.getActivationCode domain email) $ \res -> do
-    (,)
-      <$> (res.json %. "key" >>= asString)
-      <*> (res.json %. "code" >>= asString)
-  Brig.activate domain actkey code >>= assertSuccess
-
 checkSparGetUserAndFindByExtId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> (Value -> App ()) -> App ()
 checkSparGetUserAndFindByExtId domain tok extId uid k = do
   usersByExtIdResp <- findUsersByExternalId domain tok extId
@@ -306,6 +291,20 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
   k userByUid
 
   userByUid `shouldMatch` userByIdExtId
+
+testSparScimTokenLimit :: (HasCallStack) => App ()
+testSparScimTokenLimit = withModifiedBackend
+  def
+    { brigCfg =
+        -- Disable password hashing rate limiting, so we can create enable services quickly
+        setField @_ @Int "optSettings.setPasswordHashingRateLimit.userLimit.inverseRate" 0
+    }
+  $ \domain -> do
+    (owner, _tid, _) <- createTeam domain 1
+    replicateM_ 8 $ createScimToken owner def >>= assertSuccess
+    createScimToken owner def `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "token-limit-reached"
 
 testSparCreateScimTokenNoName :: (HasCallStack) => App ()
 testSparCreateScimTokenNoName = do
@@ -365,3 +364,92 @@ testSparCreateTwoScimTokensForOneIdp = do
   createScimTokenV6 owner def >>= assertStatus 400
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
   length tokens `shouldMatchInt` 0
+
+testSsoLoginAndEmailVerification :: (HasCallStack) => App ()
+testSsoLoginAndEmailVerification = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  emailDomain <- randomDomain
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+
+  let email = "user@" <> emailDomain
+  void $ loginWithSaml True tid email (idpId, idpMeta)
+  activateEmail OwnDomain email
+  getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` email
+
+testSsoLoginNoSamlEmailValidation :: (HasCallStack) => App ()
+testSsoLoginNoSamlEmailValidation = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  emailDomain <- randomDomain
+
+  assertSuccess =<< do
+    setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+
+  let email = "user@" <> emailDomain
+  (Just uid, authnResp) <- loginWithSaml True tid email (idpId, idpMeta)
+  let parsed :: SAML.AuthnResponse =
+        fromRight (error "invalid authnResponse")
+          . SAMLXML.parseFromDocument
+          . SAML.fromSignedAuthnResponse
+          $ authnResp
+      uref = fromRight (error "invalid userRef") $ SAML.getUserRef parsed
+      eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
+  eid `shouldMatch` email
+  getUsersId OwnDomain [uid] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
+
+  getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json >>= asList >>= shouldBeEmpty
+
+testIdpUpdate :: (HasCallStack) => App ()
+testIdpUpdate = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  -- register an IdP
+  idp@(idpId, (idpmeta, pCreds)) <- do
+    (resp, meta) <- registerTestIdPWithMetaWithPrivateCreds owner
+    (,meta) <$> asString (resp.json %. "id")
+  -- create a SCIM token
+  tok <-
+    createScimToken owner (def {idp = Just idpId}) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "token" >>= asString
+  -- create SCIM users
+  uids <- replicateM 3 $ do
+    scimUser <- randomScimUser
+    email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+    uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+    void $ loginWithSaml True tid email idp
+    activateEmail OwnDomain email
+    getScimUser OwnDomain tok uid `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      res.json %. "id" `shouldMatch` uid
+    pure (uid, email)
+  -- update the IdP
+  idp2 <- do
+    (resp, meta) <- updateTestIdpWithMetaWithPrivateCreds owner idpId
+    (,meta) <$> asString (resp.json %. "id")
+  -- the SCIM users can login
+  for_ uids $ \(_, email) -> do
+    void $ loginWithSaml True tid email idp2
+  -- update the IdP again and use the original metadata
+  idp3 <- do
+    resp <- updateIdp owner idpId idpmeta
+    (,(idpmeta, pCreds)) <$> asString (resp.json %. "id")
+  -- the SCIM users can still login
+  for_ uids $ \(_, email) -> do
+    void $ loginWithSaml True tid email idp3

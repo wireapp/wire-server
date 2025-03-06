@@ -436,6 +436,7 @@ addUserToTeamWithRole' role inviter tid = do
       ( brig
           . path "/register"
           . contentJson
+          . header "X-Forwarded-For" "127.0.0.42"
           . body (acceptInviteBody inviteeEmail inviteeCode)
       )
   pure (inv, r)
@@ -1408,6 +1409,7 @@ postConvCodeCheck code = do
   post $
     g
       . path "/conversations/code-check"
+      . header "X-Forwarded-For" "127.0.0.42"
       . json code
 
 getConvCode :: UserId -> ConvId -> TestM ResponseLBS
@@ -2013,7 +2015,7 @@ ephemeralUser = do
   b <- viewBrig
   name <- UUID.toText <$> liftIO nextRandom
   let p = object ["name" .= name]
-  r <- post (b . path "/register" . json p) <!! const 201 === statusCode
+  r <- post (b . path "/register" . header "X-Forwarded-For" "127.0.0.42" . json p) <!! const 201 === statusCode
   user <- responseJsonError r
   pure $ User.userId user
 

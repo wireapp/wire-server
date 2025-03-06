@@ -176,6 +176,7 @@ testUpdateEvents brig cannon = do
           . path "/register"
           . contentJson
           . body (accept inviteeEmail inviteeCode)
+          . header "X-Forwarded-For" "127.0.0.42"
       )
       <!! const 201 === statusCode
   let Just bob = userId <$> responseJsonMaybe rsp2
@@ -388,6 +389,7 @@ registerInvite brig tid inv invemail = do
           . path "/register"
           . contentJson
           . body (accept invemail inviteeCode)
+          . header "X-Forwarded-For" "127.0.0.42"
       )
       <!! const 201 === statusCode
   let Just invitee = userId <$> responseJsonMaybe rsp
@@ -495,6 +497,7 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
                 . path "/register"
                 . contentJson
                 . body (acceptFn inviteeCode)
+                . header "X-Forwarded-For" "127.0.0.42"
             )
             <!! const 201 === statusCode
         let Just (invitee, Just email2) = (userId &&& userEmail) <$> responseJsonMaybe rsp2
@@ -591,6 +594,7 @@ testTeamNoPassword brig = do
                   "team" .= newTeam
                 ]
           )
+        . header "X-Forwarded-For" "127.0.0.42"
     )
     !!! const 400 === statusCode
   -- And so do any other binding team members
@@ -607,6 +611,7 @@ testTeamNoPassword brig = do
                   "team_code" .= code
                 ]
           )
+        . header "X-Forwarded-For" "127.0.0.42"
     )
     !!! const 400 === statusCode
 
@@ -617,36 +622,77 @@ testInvitationCodeExists brig = do
   email <- randomEmail
   inv :: Invitation <- responseJsonError =<< postInvitation brig tid uid (invite email) <!! const 201 === statusCode
   Just invCode <- getInvitationCode brig tid inv.invitationId
-  post (brig . path "/register" . contentJson . body (accept email invCode))
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (accept email invCode)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 201 === statusCode
-  post (brig . path "/register" . contentJson . body (accept email invCode)) !!! do
-    const 409 === statusCode
-    const (Just "key-exists") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (accept email invCode)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 409 === statusCode
+      const (Just "key-exists") === fmap Error.label . responseJsonMaybe
   email2 <- randomEmail
-  post (brig . path "/register" . contentJson . body (accept email2 invCode)) !!! do
-    const 400 === statusCode
-    const (Just "invalid-invitation-code") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (accept email2 invCode)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 400 === statusCode
+      const (Just "invalid-invitation-code") === fmap Error.label . responseJsonMaybe
 
 testInvitationInvalidCode :: Brig -> Http ()
 testInvitationInvalidCode brig = do
   email <- randomEmail
   -- Syntactically invalid
   let code1 = InvitationCode (Ascii.unsafeFromText "8z6JVcO1o4o¿9kFeb4Y3N-BmhIjH6b33")
-  post (brig . path "/register" . contentJson . body (accept email code1)) !!! do
-    const 400 === statusCode
-    const (Just "bad-request") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (accept email code1)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 400 === statusCode
+      const (Just "bad-request") === fmap Error.label . responseJsonMaybe
   -- Syntactically valid but semantically invalid
   code2 <- liftIO $ InvitationCode . Ascii.encodeBase64Url <$> randomBytes 24
-  post (brig . path "/register" . contentJson . body (accept email code2)) !!! do
-    const 400 === statusCode
-    const (Just "invalid-invitation-code") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (accept email code2)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 400 === statusCode
+      const (Just "invalid-invitation-code") === fmap Error.label . responseJsonMaybe
 
 testInvitationCodeNoIdentity :: Brig -> Http ()
 testInvitationCodeNoIdentity brig = do
   uid <- liftIO $ Id <$> UUID.nextRandom
-  post (brig . path "/register" . contentJson . body (payload uid)) !!! do
-    const 403 === statusCode
-    const (Just "missing-identity") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (payload uid)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 403 === statusCode
+      const (Just "missing-identity") === fmap Error.label . responseJsonMaybe
   where
     payload u =
       RequestBodyLBS . encode $
@@ -687,6 +733,7 @@ testInvitationMutuallyExclusive brig = do
                       "invitation_code" .= i
                     ]
               )
+            . header "X-Forwarded-For" "127.0.0.42"
         )
 
 testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
@@ -704,6 +751,7 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
         . path "/register"
         . contentJson
         . body (accept email inviteeCode)
+        . header "X-Forwarded-For" "127.0.0.42"
     )
     !!! do
       const 403 === statusCode
@@ -810,6 +858,7 @@ testSuspendTeam brig = do
           . path "/register"
           . contentJson
           . body (accept inviteeEmail inviteeCode)
+          . header "X-Forwarded-For" "127.0.0.42"
       )
       <!! const 201 === statusCode
   let Just (invitee, Just email) = (userId &&& userEmail) <$> responseJsonMaybe rsp2

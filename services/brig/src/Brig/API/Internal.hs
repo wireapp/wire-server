@@ -49,6 +49,7 @@ import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, _Just)
+import Control.Lens.Extras (is)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -58,6 +59,7 @@ import Data.Handle
 import Data.HavePendingInvitations
 import Data.Id as Id
 import Data.Map.Strict qualified as Map
+import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -73,7 +75,7 @@ import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Connection
-import Wire.API.EnterpriseLogin (DomainRegistrationResponse)
+import Wire.API.EnterpriseLogin hiding (domain)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error (FederationError (..))
@@ -86,6 +88,7 @@ import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.Activation qualified as Public
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
@@ -93,6 +96,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
+import Wire.DomainRegistrationStore hiding (domain)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EnterpriseLoginSubsystem
 import Wire.EnterpriseLoginSubsystem.Error (EnterpriseLoginSubsystemError (EnterpriseLoginSubsystemErrorNotFound))
@@ -112,8 +116,10 @@ import Wire.InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
+import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Concurrency
+import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
@@ -155,8 +161,11 @@ servantSitemap ::
     Member (Embed IO) r,
     Member ActivationCodeStore r,
     Member (Input UserSubsystemConfig) r,
+    Member (Polysemy.Error EnterpriseLoginSubsystemError) r,
     Member EnterpriseLoginSubsystem r,
-    Member (Polysemy.Error EnterpriseLoginSubsystemError) r
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r,
+    Member RateLimit r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -213,7 +222,11 @@ accountAPI ::
     Member (Embed IO) r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member DomainRegistrationStore r,
+    Member RateLimit r,
+    Member SparAPIAccess r,
+    Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -513,12 +526,13 @@ createUserNoVerify ::
     Member (Input (Local ())) r,
     Member HashPassword r,
     Member PasswordResetCodeStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member RateLimit r
   ) =>
-  NewUser ->
+  NewUser PlainTextPassword8 ->
   (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
-  result <- API.createUser uData
+  result <- API.createUser RateLimitInternal uData
   let acc = createdAccount result
   let uid = userId acc
   let eac = createdEmailActivation result
@@ -533,7 +547,6 @@ createUserNoVerifySpar ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member HashPassword r,
     Member PasswordResetCodeStore r
   ) =>
   NewUserSpar ->
@@ -578,15 +591,42 @@ changeSelfEmailMaybeSendH ::
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r,
+    Member EnterpriseLoginSubsystem r,
+    Member Events r,
+    Member GalleyAPIAccess r,
+    Member PasswordResetCodeStore r
   ) =>
   UserId ->
   EmailUpdate ->
   Maybe Bool ->
   (Handler r) ChangeEmailResponse
-changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
+changeSelfEmailMaybeSendH uid body (fromMaybe False -> validate) = do
   let email = euEmail body
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
+  luid <- qualifyLocal uid
+  needsActivation <-
+    isNothing <$> runMaybeT do
+      domain <- hoistMaybe . hush $ emailDomain email
+      domReg <- MaybeT . lift . liftSem $ getDomainRegistration domain
+      profile <- MaybeT . lift . liftSem $ getSelfProfile luid
+      tid <- hoistMaybe . userTeam $ selfUser profile
+      guard (domReg.authorizedTeam == Just tid)
+      guard (domReg.domainRedirect & is _SSO)
+
+  -- `UpdateOriginType` is hard coded to `UpdateOriginScim` here, so we implicitly assume that the endpoint of this handler is only used by SCIM.
+  if needsActivation
+    then do
+      changeSelfEmailMaybeSend uid (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
+    else do
+      token <- lift $ liftSem $ createEmailChangeToken luid email UpdateOriginScim
+      case token of
+        ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+        ChangeEmailNeedsActivation (_, Activation k c, _) -> do
+          let activate = Public.Activate (Public.ActivateKey k) c False
+          API.activateNoVerifyEmailDomain activate.activateTarget c (Just uid) !>> actError $> ChangeEmailResponseActivated
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
@@ -598,7 +638,10 @@ changeSelfEmailMaybeSend ::
     Member UserStore r,
     Member ActivationCodeStore r,
     Member (Polysemy.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member SparAPIAccess r
   ) =>
   UserId ->
   MaybeSendEmail ->

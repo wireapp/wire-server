@@ -27,6 +27,7 @@ import Data.Aeson qualified as A
 import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
+import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import Network.Wai
 import Network.Wai.Utilities.Error qualified as Wai
@@ -41,7 +42,8 @@ import Network.Wai.Utilities.Response
 -- for the clients.
 data JSONResponse = JSONResponse
   { status :: Status,
-    value :: A.Value
+    value :: A.Value,
+    headers :: [Header]
   }
   deriving (Eq, Ord, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema JSONResponse
@@ -52,6 +54,7 @@ instance ToSchema JSONResponse where
       JSONResponse
         <$> status .= field "status" (toEnum <$> (fromEnum .= schema))
         <*> value .= field "value" jsonValue
+        <*> headers .= pure []
 
 instance Exception JSONResponse
 
@@ -59,8 +62,9 @@ waiErrorToJSONResponse :: Wai.Error -> JSONResponse
 waiErrorToJSONResponse e =
   JSONResponse
     { status = Wai.code e,
-      value = toJSON e
+      value = toJSON e,
+      headers = []
     }
 
 jsonResponseToWai :: JSONResponse -> Response
-jsonResponseToWai r = responseLBS r.status [jsonContent] (A.encode r.value)
+jsonResponseToWai r = responseLBS r.status (jsonContent : r.headers) (A.encode r.value)

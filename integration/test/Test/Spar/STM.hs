@@ -16,7 +16,6 @@ import API.Spar
 import qualified Data.Map as Map
 import qualified SAML2.WebSSO as SAML
 import SetupHelpers
-import Test.Spar
 import Testlib.JSON
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
@@ -221,15 +220,18 @@ validateStateLoginAllUsers owner tid state = do
     uid <- bindResponse (createScimUser owner (unScimToken tok) scimUser) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "id" >>= asString
-    when (isNothing mIdp) $ do
-      registerUser OwnDomain tid email
-
-    maybe (loginWithPassword 200 scimUser) (loginWithSaml True tid scimUser) mIdp
-
-    bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
-      resp.status `shouldMatchInt` 204
-
-    maybe (loginWithPassword 403 scimUser) (loginWithSaml False tid scimUser) mIdp
+    case mIdp of
+      Nothing -> do
+        registerInvitedUser OwnDomain tid email
+        loginWithPassword 200 email
+        bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
+          resp.status `shouldMatchInt` 204
+        loginWithPassword 403 email
+      Just idp -> do
+        void $ loginWithSaml True tid email idp
+        bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
+          resp.status `shouldMatchInt` 204
+        void $ loginWithSaml False tid email idp
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do
@@ -238,8 +240,7 @@ validateError resp errStatus errLabel = do
     resp.json %. "code" `shouldMatchInt` errStatus
     resp.json %. "label" `shouldMatch` errLabel
 
-loginWithPassword :: (HasCallStack) => Int -> Value -> App ()
-loginWithPassword expectedStatus scimUser = do
-  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+loginWithPassword :: (HasCallStack) => Int -> String -> App ()
+loginWithPassword expectedStatus email = do
   bindResponse (login OwnDomain email defPassword) $ \resp -> do
     resp.status `shouldMatchInt` expectedStatus

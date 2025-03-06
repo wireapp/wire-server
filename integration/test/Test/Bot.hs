@@ -99,8 +99,8 @@ withBotWithSettings settings k = do
   alice <- randomUser OwnDomain def
 
   withMockServer settings mkBotService \(host, port) _chan -> do
-    email <- randomEmail
-    provider <- setupProvider alice def {newProviderEmail = email, newProviderPassword = Just defPassword}
+    password <- randomString 20
+    provider <- setupProvider alice def {newProviderPassword = Just password}
     providerId <- provider %. "id" & asString
     service <-
       newService OwnDomain providerId
@@ -108,8 +108,8 @@ withBotWithSettings settings k = do
     serviceId <- asString $ service %. "id"
     conv <- getJSON 201 =<< postConversation alice defProteus
     convId <- conv %. "id" & asString
-    assertStatus 200 =<< updateServiceConn providerId serviceId do
-      object ["enabled" .= True, "password" .= defPassword]
+    assertStatus 200 =<< updateServiceConn OwnDomain providerId serviceId do
+      object ["enabled" .= True, "password" .= password]
     addBot alice providerId serviceId convId >>= k
 
 data BotEvent

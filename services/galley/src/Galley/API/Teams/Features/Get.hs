@@ -109,7 +109,7 @@ class
     Sem r (LockableFeature cfg)
   computeFeature _tid defFeature dbFeature =
     pure $
-      genericComputeFeature @cfg defFeature dbFeature
+      resolveDbFeature @cfg defFeature dbFeature
 
 getFeature ::
   forall cfg r.
@@ -381,7 +381,7 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
     allowList <- input <&> view (settings . exposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     let teamAllowed = tid `elem` allowList
         lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
-    pure $ genericComputeFeature defFeature (dbFeatureLockStatus lockStatus <> dbFeature)
+    pure $ resolveDbFeature defFeature (dbFeatureLockStatus lockStatus <> dbFeature)
 
 instance GetFeatureConfig OutlookCalIntegrationConfig
 

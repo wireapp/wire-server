@@ -21,11 +21,16 @@ module Test.Cargohold.API.V3 where
 
 import API.Cargohold
 import Codec.MIME.Type (showMIMEType)
+import Crypto.Random
 import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString as BS
+import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as LBS
 import Data.CaseInsensitive
 import Data.String.Conversions
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text
+import Data.Text.Encoding
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
 import Data.Time.Format.ISO8601
@@ -33,6 +38,7 @@ import Network.HTTP.Client
 import SetupHelpers
 import Test.Cargohold.API.Util
 import Testlib.Prelude
+import Text.Read (readMaybe)
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
@@ -103,3 +109,37 @@ testSimpleRoundtrip = do
       let Just date' = C8.unpack <$> lookup (mk $ cs "Date") r4.headers
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       assertBool "bad date" (utc' >= utc)
+
+-- | Simulates an interrupted upload, where the user sends less data than expected.
+testUploadWrongContentLength :: (HasCallStack) => App ()
+testUploadWrongContentLength = do
+  uid <- randomUser OwnDomain def
+  let payloadBytes = 2 * 1024
+  payload <- BS.fromStrict <$> (liftIO . getRandomBytes) payloadBytes
+  let -- A too small offset (<= 16) to the correct payloadBytes may lead to
+      -- having the delimiter `--frontier--` being interpreted as content. So,
+      -- we add a big offset here.
+      tooBigContentLength = payloadBytes + 1024
+  uploadRaw uid (body tooBigContentLength payload) >>= \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.jsonBody %. "label" `shouldMatch` "incomplete-body"
+
+  -- Sanity check
+  key <-
+    uploadRaw uid (body payloadBytes payload) >>= \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "key"
+
+  bindResponse (downloadAsset uid uid key "nginz-https.example.com" id) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    let contentLength = (readMaybe . unpack . decodeUtf8) . snd =<< contentLengthHeader resp
+    assertBool "Content-Length matches" $ contentLength == (Just payloadBytes)
+    assertBool "Body" $ resp.body == (LBS.toStrict payload)
+  where
+    body :: Int -> LBS.ByteString -> LBS.ByteString
+    body contentLength payload =
+      let settings = object ["public" .= False, "retention" .= "volatile"]
+       in toLazyByteString
+            $ beginMultipartBody settings applicationOctetStream' (fromIntegral contentLength)
+            <> lazyByteString payload
+            <> endMultipartBody'

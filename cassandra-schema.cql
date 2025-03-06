@@ -1207,6 +1207,7 @@ CREATE TABLE galley_test.team_features (
     guest_links_status int,
     legalhold_status int,
     limited_event_fanout_status int,
+    migration_state int,
     mls_allowed_ciphersuites set<int>,
     mls_default_ciphersuite int,
     mls_default_protocol int,
@@ -1502,6 +1503,29 @@ CREATE TABLE galley_test.legalhold_service (
     fingerprint blob,
     pubkey pubkey
 ) WITH bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.team_features_dyn (
+    team uuid,
+    feature text,
+    config text,
+    lock_status int,
+    status int,
+    PRIMARY KEY (team, feature)
+) WITH CLUSTERING ORDER BY (feature ASC)
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}

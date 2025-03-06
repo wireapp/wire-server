@@ -141,6 +141,7 @@ type BaseAPIv3 (tag :: PrincipalTag) =
     ( Summary "Upload an asset"
         :> CanThrow 'AssetTooLarge
         :> CanThrow 'InvalidLength
+        :> CanThrow 'IncompleteBody
         :> tag
         :> AssetBody
         :> MultiVerb
@@ -292,6 +293,7 @@ type MainAPI =
                :> From 'V2
                :> CanThrow 'AssetTooLarge
                :> CanThrow 'InvalidLength
+               :> CanThrow 'IncompleteBody
                :> ZLocalUser
                :> "assets"
                :> AssetBody

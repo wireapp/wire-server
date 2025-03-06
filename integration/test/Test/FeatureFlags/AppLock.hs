@@ -4,15 +4,15 @@ import qualified Data.Aeson as A
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testPatchAppLock :: (HasCallStack) => App ()
-testPatchAppLock = do
-  checkPatch OwnDomain "appLock"
+testPatchAppLock :: (HasCallStack) => FeatureTable -> App ()
+testPatchAppLock table = do
+  checkPatchWithTable table OwnDomain "appLock"
     $ object ["lockStatus" .= "locked"]
-  checkPatch OwnDomain "appLock"
+  checkPatchWithTable table OwnDomain "appLock"
     $ object ["status" .= "disabled"]
-  checkPatch OwnDomain "appLock"
+  checkPatchWithTable table OwnDomain "appLock"
     $ object ["lockStatus" .= "locked", "status" .= "disabled"]
-  checkPatch OwnDomain "appLock"
+  checkPatchWithTable table OwnDomain "appLock"
     $ object
       [ "lockStatus" .= "unlocked",
         "config"
@@ -21,7 +21,7 @@ testPatchAppLock = do
               "inactivityTimeoutSecs" .= A.Number 120
             ]
       ]
-  checkPatch OwnDomain "appLock"
+  checkPatchWithTable table OwnDomain "appLock"
     $ object
       [ "config"
           .= object
@@ -29,3 +29,8 @@ testPatchAppLock = do
               "inactivityTimeoutSecs" .= A.Number 240
             ]
       ]
+
+testPatchAppLockReadOnly :: (HasCallStack) => App ()
+testPatchAppLockReadOnly = do
+  checkPatchReadOnly OwnDomain "appLock"
+    $ object ["lockStatus" .= "locked"]

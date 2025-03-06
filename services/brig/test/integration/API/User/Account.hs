@@ -129,7 +129,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
       test p "head /self/password - 200/404" $ testPasswordSet b,
       test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
-      test p "put /self/password - 200" $ testPasswordChange b,
+      test p "put /self/password - 403 (anon user)" $ testPasswordChangeAnonUser b,
       test p "put /self/locale - 200" $ testUserLocaleUpdate b userJournalWatcher,
       test p "post /activate/send - 200" $ testSendActivationCode opts b,
       test p "post /activate/send - 400 invalid input" $ testSendActivationCodeInvalidEmailOrPhone b,
@@ -298,7 +298,13 @@ testCreateUserEmptyName brig = do
         RequestBodyLBS . encode $
           object
             ["name" .= ("" :: Text)]
-  post (brig . path "/register" . contentJson . body p)
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
 
 -- @END
@@ -314,7 +320,13 @@ testCreateUserLongName brig = do
         RequestBodyLBS . encode $
           object
             ["name" .= (nameTooLong :: Text)]
-  post (brig . path "/register" . contentJson . body p)
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
 
 -- @END
@@ -326,7 +338,13 @@ testCreateUserAnon brig galley = do
           object
             ["name" .= ("Mr. Pink" :: Text)]
   rs <-
-    post (brig . path "/register" . contentJson . body p)
+    post
+      ( brig
+          . path "/register"
+          . contentJson
+          . body p
+          . header "X-Forwarded-For" "127.0.0.42"
+      )
       <!! const 201 === statusCode
   -- Every registered user gets a cookie.
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rs
@@ -352,7 +370,13 @@ testCreateUserPending _ brig = do
               "password" .= defPassword
             ]
   rs <-
-    post (brig . path "/register" . contentJson . body p)
+    post
+      ( brig
+          . path "/register"
+          . contentJson
+          . body p
+          . header "X-Forwarded-For" "127.0.0.42"
+      )
       <!! const 201 === statusCode
   -- Even though activation is pending, the user gets an access cookie,
   -- i.e. every user starts out as a "Wireless" user.
@@ -391,9 +415,16 @@ testCreateUserConflict _ brig = do
               "email" .= (fromEmail <$> userEmail u), -- dup. email
               "password" .= defPassword
             ]
-  post (brig . path "/register" . contentJson . body p) !!! do
-    const 409 === statusCode
-    const (Just "key-exists") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 409 === statusCode
+      const (Just "key-exists") === fmap Error.label . responseJsonMaybe
   -- untrusted email domains
   u2 <- createUserUntrustedEmail "conflict" brig
   let Just email = userEmail u2
@@ -406,9 +437,16 @@ testCreateUserConflict _ brig = do
               "email" .= (T.takeWhile (/= '+') loc <> "@" <> dom), -- dup. email
               "password" .= defPassword
             ]
-  post (brig . path "/register" . contentJson . body p2) !!! do
-    const 409 === statusCode
-    const (Just "key-exists") === fmap Error.label . responseJsonMaybe
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body p2
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
+    !!! do
+      const 409 === statusCode
+      const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
 -- @END
 
@@ -426,7 +464,13 @@ testCreateUserInvalidEmail _ brig = do
               "email" .= ("invalid@" :: Text),
               "password" .= defPassword
             ]
-  post (brig . path "/register" . contentJson . body reqPhone)
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body reqPhone
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
 
 -- @END
@@ -439,15 +483,29 @@ testCreateUserBlacklist _ brig aws =
     ensureBlacklist typ = do
       e <- randomEmail
       flip finally (removeBlacklist brig e) $ do
-        post (brig . path "/register" . contentJson . body (p e)) !!! const 201 === statusCode
+        post
+          ( brig
+              . path "/register"
+              . contentJson
+              . body (p e)
+              . header "X-Forwarded-For" "127.0.0.42"
+          )
+          !!! const 201 === statusCode
         -- If we are using a local env, we need to fake this bounce
         unless (Util.isRealSESEnv aws) $
           forceBlacklist typ e
         -- Typically bounce/complaint messages arrive instantaneously
         awaitBlacklist 30 e
-        post (brig . path "/register" . contentJson . body (p e)) !!! do
-          const 403 === statusCode
-          const (Just "blacklisted-email") === fmap Error.label . responseJsonMaybe
+        post
+          ( brig
+              . path "/register"
+              . contentJson
+              . body (p e)
+              . header "X-Forwarded-For" "127.0.0.42"
+          )
+          !!! do
+            const 403 === statusCode
+            const (Just "blacklisted-email") === fmap Error.label . responseJsonMaybe
     p email =
       RequestBodyLBS . encode $
         object
@@ -483,11 +541,29 @@ testCreateUserExternalSSO brig = do
           ["name" .= ("foo" :: Text)]
             <> ["sso_id" .= Just ssoid | withsso]
             <> ["team_id" .= Just teamid | withteam]
-  post (brig . path "/register" . contentJson . body (p False True))
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (p False True)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
-  post (brig . path "/register" . contentJson . body (p True False))
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (p True False)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
-  post (brig . path "/register" . contentJson . body (p True True))
+  post
+    ( brig
+        . path "/register"
+        . contentJson
+        . body (p True True)
+        . header "X-Forwarded-For" "127.0.0.42"
+    )
     !!! const 400 === statusCode
 
 testActivateWithExpiry :: Opt.Opts -> Brig -> Timeout -> Http ()
@@ -899,8 +975,7 @@ testEmailUpdate brig userJournalWatcher = do
   -- this test fails since there can be only one user with "test+...@example.com"
   ensureNoOtherUserWithEmail (unsafeEmailAddress "test" "example.com")
   -- we want to use a non-trusted domain in order to verify profile changes
-  flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
-  flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+  initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
 
   -- adding a clean-up step seems to avoid the subsequent failures.
   -- If subsequent runs start failing, it's possible that the aggressive setting
@@ -916,8 +991,8 @@ testEmailUpdate brig userJournalWatcher = do
         deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
         Util.assertDeleteJournaled userJournalWatcher (Auth.user t) "user deletion"
 
-    initiateUpdateAndActivate :: EmailAddress -> UserId -> Http ()
-    initiateUpdateAndActivate eml uid = do
+    initiateUpdateAndActivate :: UserId -> EmailAddress -> Http ()
+    initiateUpdateAndActivate uid eml = do
       initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
       activateEmail brig eml
       checkEmail brig uid eml
@@ -1047,38 +1122,13 @@ testPasswordSetInvalidPasswordLength brig = do
           [ "new_password" .= ("secret" :: Text)
           ]
 
-testPasswordChange :: Brig -> Http ()
-testPasswordChange brig = do
-  (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
-  put (brig . path "/self/password" . contentJson . zUser uid . body pwChange)
-    !!! const 200 === statusCode
-  -- login with new password
-  login
-    brig
-    (MkLogin (LoginByEmail email) newPass Nothing Nothing)
-    PersistentCookie
-    !!! const 200 === statusCode
-  -- try to change the password to itself should fail
-  put (brig . path "/self/password" . contentJson . zUser uid . body pwChange')
-    !!! const 409 === statusCode
-  -- Setting a password for an anonymous / unverified user should fail
+testPasswordChangeAnonUser :: Brig -> Http ()
+testPasswordChangeAnonUser brig = do
   uid2 <- userId <$> createAnonUser "foo2" brig
   put (brig . path "/self/password" . contentJson . zUser uid2 . body pwSet)
     !!! (const 403 === statusCode)
   where
     newPass = plainTextPassword6Unsafe "topsecret"
-    pwChange =
-      RequestBodyLBS . encode $
-        object
-          [ "old_password" .= defPassword,
-            "new_password" .= newPass
-          ]
-    pwChange' =
-      RequestBodyLBS . encode $
-        object
-          [ "old_password" .= newPass,
-            "new_password" .= newPass
-          ]
     pwSet =
       RequestBodyLBS . encode $
         object
@@ -1405,6 +1455,7 @@ testTooManyMembersForLegalhold opts brig = do
           . path "/register"
           . contentJson
           . body (accept inviteeEmail inviteeCode)
+          . header "X-Forwarded-For" "127.0.0.42"
       )
       !!! do
         const 403 === statusCode

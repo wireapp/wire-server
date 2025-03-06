@@ -107,9 +107,12 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
+import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
-import Wire.HashPassword
+import Wire.HashPassword.Interpreter
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
+import Wire.RateLimit
+import Wire.RateLimit.Interpreter
 import Wire.Rpc
 import Wire.Sem.Delay
 import Wire.Sem.Logger qualified
@@ -119,7 +122,6 @@ import Wire.Sem.Random.IO
 type GalleyEffects0 =
   '[ Input ClientState,
      Input Env,
-     HashPassword,
      Error InvalidInput,
      Error InternalError,
      -- federation errors can be thrown by almost every endpoint, so we avoid
@@ -176,6 +178,7 @@ createEnv o l = do
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
     <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
     <*> pure codeURIcfg
+    <*> newRateLimitEnv (o ^. settings . passwordHashingRateLimit)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l =
@@ -253,9 +256,10 @@ evalGalley e =
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
-    . runHashPassword e._options._settings._passwordHashingOptions
     . runInputConst e
     . runInputConst (e ^. cstate)
+    . mapError httpErrorToJSONResponse
+    . mapError rateLimitExceededToHttpError
     . mapError toResponse -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
@@ -271,15 +275,17 @@ evalGalley e =
     . interpretConversationListToCassandra
     . interpretTeamMemberStoreToCassandraWithPaging lh
     . interpretTeamMemberStoreToCassandra lh
+    . interpretTeamFeatureStoreToCassandra
     . interpretTeamStoreToCassandra lh
     . interpretTeamNotificationStoreToCassandra
     . interpretServiceStoreToCassandra
     . interpretSearchVisibilityStoreToCassandra
     . interpretMemberStoreToCassandra
     . interpretLegalHoldStoreToCassandra lh
-    . interpretTeamFeatureStoreToCassandra
     . interpretCustomBackendStoreToCassandra
     . randomToIO
+    . runHashPassword e._options._settings._passwordHashingOptions
+    . interpretRateLimit e._passwordHashingRateLimitEnv
     . interpretSubConversationStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretProposalStoreToCassandra

@@ -27,12 +27,13 @@ where
 import API.Team.Util qualified as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
+import Brig.Options qualified as Opts
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout (threadDelay, timeout)
-import Control.Lens ((^.))
+import Control.Lens (over, (^.))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.ByteString qualified as BS
@@ -100,12 +101,13 @@ import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Auth (CookieType (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.RateLimit.Interpreter
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeStore.Cassandra qualified as VerificationCodeStore
 
-tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
-tests dom conf p db b c g n = do
+tests :: Domain -> Opts.Opts -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
+tests dom brigOpts conf p db b c g n = do
   pure $
     testGroup
       "provider"
@@ -115,10 +117,7 @@ tests dom conf p db b c g n = do
             test p "register + activate internal" $ testRegisterProviderInternal b,
             test p "login" $ testLoginProvider db b,
             test p "update" $ testUpdateProvider db b,
-            test p "delete" $ testDeleteProvider db b,
-            test p "password-reset" $ testPasswordResetProvider db b,
-            test p "email/password update with password reset" $
-              testPasswordResetAfterEmailUpdateProvider db b
+            test p "delete" $ testDeleteProvider db b
           ],
         testGroup
           "service"
@@ -126,7 +125,7 @@ tests dom conf p db b c g n = do
             test p "add-get" $ testAddGetService conf db b,
             test p "update" $ testUpdateService conf db b,
             test p "update-conn" $ testUpdateServiceConn conf db b,
-            test p "search (tag/prefix)" $ testListServices conf db b,
+            test p "search (tag/prefix)" $ testListServices brigOpts conf db b,
             test p "delete" $ testDeleteService conf db b g c
           ],
         testGroup
@@ -135,7 +134,6 @@ tests dom conf p db b c g n = do
               testWhitelistSearchPermissions conf db b g,
             test p "basic functionality" $
               testWhitelistBasic conf db b g,
-            test p "search" $ testSearchWhitelist conf db b g,
             test p "search honors enabling and whitelisting" $
               testSearchWhitelistHonorUpdates conf db b,
             test p "de-whitelisted bots are removed" $
@@ -245,74 +243,6 @@ testDeleteProvider db brig = do
   let new = defNewProvider (providerEmail prv)
   response <- retryWhileN 10 ((==) 429 . statusCode) $ registerProvider brig new
   liftIO $ statusCode response @?= 201
-
-testPasswordResetProvider :: DB.ClientState -> Brig -> Http ()
-testPasswordResetProvider db brig = do
-  prv <- randomProvider db brig
-  let email = providerEmail prv
-  let newPw = plainTextPassword6Unsafe "newsupersecret"
-  initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
-  -- password reset with same password fails.
-  resetPw defProviderPassword email !!! const 409 === statusCode
-  -- password reset with different password works.
-  resetPw newPw email !!! const 200 === statusCode
-  loginProvider brig email defProviderPassword
-    !!! const 403 === statusCode
-  loginProvider brig email newPw
-    !!! const 200 === statusCode
-  where
-    resetPw :: PlainTextPassword6 -> EmailAddress -> Http ResponseLBS
-    resetPw newPw email = do
-      -- Get the code directly from the DB
-      let gen = mkVerificationCodeGen email
-      Just vcode <- lookupCode db gen Code.PasswordReset
-      let passwordResetData =
-            CompletePasswordReset
-              (Code.codeKey vcode)
-              (Code.codeValue vcode)
-              newPw
-      completePasswordResetProvider brig passwordResetData
-
-testPasswordResetAfterEmailUpdateProvider :: DB.ClientState -> Brig -> Http ()
-testPasswordResetAfterEmailUpdateProvider db brig = do
-  newEmail <- randomEmail
-  prv <- randomProvider db brig
-  let pid = providerId prv
-  let origEmail = providerEmail prv
-  initiateEmailUpdateProvider brig pid (EmailUpdate newEmail) !!! const 202 === statusCode
-  initiatePasswordResetProvider brig (PasswordReset origEmail) !!! const 201 === statusCode
-  -- Get password reset code directly from the DB
-  let genOrig = mkVerificationCodeGen origEmail
-  Just vcodePw <- lookupCode db genOrig Code.PasswordReset
-  let passwordResetData =
-        CompletePasswordReset
-          (Code.codeKey vcodePw)
-          (Code.codeValue vcodePw)
-          (plainTextPassword6Unsafe "doesnotmatter")
-  -- Activate the new email
-  let genNew = mkVerificationCodeGen newEmail
-  Just vcodeEm <- lookupCode db genNew Code.IdentityVerification
-  activateProvider brig (Code.codeKey vcodeEm) (Code.codeValue vcodeEm)
-    !!! const 200 === statusCode
-  p <- responseJsonError =<< (getProvider brig pid <!! const 200 === statusCode)
-  liftIO $ assertEqual "email" newEmail (providerEmail p)
-  -- attempting to complete password reset should fail
-  completePasswordResetProvider brig passwordResetData !!! const 403 === statusCode
-  -- ensure you can login with the new email address and not with the old one
-  loginProvider brig origEmail defProviderPassword !!! const 403 === statusCode
-  loginProvider brig newEmail defProviderPassword !!! const 200 === statusCode
-  -- exercise the password change endpoint
-  let newPass = plainTextPassword6Unsafe "newpass"
-  let pwChangeFail = PasswordChange (plainTextPassword6Unsafe "notcorrect") newPass
-  updateProviderPassword brig pid pwChangeFail !!! const 403 === statusCode
-  let pwChange = PasswordChange defProviderPassword newPass
-  updateProviderPassword brig pid pwChange !!! const 200 === statusCode
-  -- put /provider/password gives 409 if new password is the same.
-  let pwChange' = PasswordChange newPass newPass
-  updateProviderPassword brig pid pwChange' !!! const 409 === statusCode
-  -- Check the login process again
-  loginProvider brig newEmail defProviderPassword !!! const 403 === statusCode
-  loginProvider brig newEmail newPass !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Provider Services
@@ -437,8 +367,8 @@ testUpdateServiceConn config db brig = do
     assertEqual "token" newTokens (serviceTokens _svc)
     assertBool "enabled" (serviceEnabled _svc)
 
-testListServices :: Config -> DB.ClientState -> Brig -> Http ()
-testListServices config db brig = do
+testListServices :: Opts.Opts -> Config -> DB.ClientState -> Brig -> Http ()
+testListServices brigOpts config db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
   uid <- randomId
@@ -459,8 +389,11 @@ testListServices config db brig = do
   uniq <- UUID.toText . toUUID <$> randomId
   new <- defNewService config
   let mkName n = Name (uniq <> "|" <> n)
-  svcs <- mapM (addGetService brig pid . mkNew new) (taggedServiceNames uniq)
-  mapM_ (enableService brig pid . serviceId) svcs
+      noRateLimitOpts = brigOpts & over (Opts.settingsLens . Opts.passwordHashingRateLimitLens) (\cfg -> cfg {userLimit = TokenBucketConfig 10 0})
+  svcs <- withSettingsOverrides noRateLimitOpts $ do
+    svcs <- mapM (addGetService brig pid . mkNew new) (taggedServiceNames uniq)
+    mapM_ (enableService brig pid . serviceId) svcs
+    pure svcs
   let services :: [(ServiceId, Name)]
       services = map (serviceId &&& serviceName) svcs
   -- This is how we're going to call our /services endpoint. Every time we
@@ -877,83 +810,6 @@ testWhitelistSearchPermissions _config _db brig galley = do
   listTeamServiceProfilesByPrefix brig member tid Nothing True 20
     !!! const 200 === statusCode
 
-testSearchWhitelist :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
-testSearchWhitelist config db brig galley = do
-  -- Create a team, a team owner, and a team member with no permissions
-  (owner, tid) <- Team.createUserWithTeam brig
-  uid <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
-  -- Create services and add them all to the whitelist
-  pid <- providerId <$> randomProvider db brig
-  uniq <- UUID.toText . toUUID <$> randomId
-  new <- defNewService config
-  svcs <- mapM (addGetService brig pid . mkNew new) (taggedServiceNames uniq)
-  forM_ svcs $ \svc -> do
-    let sid = serviceId svc
-    enableService brig pid sid
-    whitelistService brig owner tid pid sid
-  let mkName n = Name (uniq <> "|" <> n)
-  let services :: [(ServiceId, Name)]
-      services = map (serviceId &&& serviceName) svcs
-  -- This is how we're going to call our .../services/whitelisted
-  -- endpoint. Every time we call it twice (with filter_disabled=false and
-  -- without) and assert that results match – which should always be the
-  -- case since in this test we won't have any disabled services.
-  let search :: (HasCallStack) => Maybe Text -> Http ServiceProfilePage
-      search mbName = do
-        r1 <- searchServiceWhitelist brig 20 uid tid mbName
-        r2 <- searchServiceWhitelistAll brig 20 uid tid mbName
-        liftIO $
-          assertEqual
-            ("search for " <> show mbName <> " with and without filtering")
-            r1
-            r2
-        pure r1
-  -- Check that search finds all services that we created
-  search (Just uniq)
-    >>= assertServiceDetails ("all with prefix " <> show uniq) services
-  -- Check that search works without a prefix
-  do
-    -- with the zeroes around, this service should be the first on the
-    -- resulting search results list
-    uniq2 <- mappend "0000000000|" . UUID.toText . toUUID <$> randomId
-    let name = Name (uniq2 <> "|Extra")
-    sid <- serviceId <$> addGetService brig pid (mkNew new (name, [PollTag]))
-    enableService brig pid sid
-    whitelistService brig owner tid pid sid
-    page <- search Nothing
-    assertServiceDetails "without prefix" ((sid, name) : take 19 services) page
-    liftIO $ assertEqual "has more" True (serviceProfilePageHasMore page)
-  -- This function searches for a prefix and check that the results match
-  -- our known list of services
-  let searchAndCheck :: (HasCallStack) => Name -> Http [ServiceProfile]
-      searchAndCheck (Name name) = do
-        result <- search (Just name)
-        assertServiceDetails ("name " <> show name) (select name services) result
-        pure (serviceProfilePageResults result)
-  -- Search by exact name and check that only one service is found
-  forM_ (take 3 services) $ \(sid, Name name) ->
-    search (Just name) >>= assertServiceDetails ("name " <> show name) [(sid, Name name)]
-  -- Check some chosen prefixes.
-  -- # Bjø -> Bjørn
-  _found <- map serviceProfileName <$> searchAndCheck (mkName "Bjø")
-  liftIO $ assertEqual "Bjø" [mkName "Bjørn"] _found
-  -- # Bj -> bjorn, Bjørn
-  _found <- map serviceProfileName <$> searchAndCheck (mkName "Bj")
-  liftIO $ assertEqual "Bj" [mkName "bjorn", mkName "Bjørn"] _found
-  -- # chris -> CHRISTMAS
-  _found <- map serviceProfileName <$> searchAndCheck (mkName "chris")
-  liftIO $ assertEqual "chris" [mkName "CHRISTMAS"] _found
-  -- Ensure name changes are also indexed properly
-  forM_ (take 3 services) $ \(sid, _) ->
-    searchAndAssertNameChange brig pid sid uid uniq (search . Just . fromName)
-  where
-    mkNew new (n, t) =
-      new
-        { newServiceName = n,
-          newServiceTags = unsafeRange (Set.fromList t)
-        }
-    select prefix = filter (Text.isPrefixOf (Text.toLower prefix) . Text.toLower . fromName . snd)
-
 testSearchWhitelistHonorUpdates :: Config -> DB.ClientState -> Brig -> Http ()
 testSearchWhitelistHonorUpdates config db brig = do
   -- Create a team with an owner
@@ -1078,6 +934,7 @@ registerProvider brig new =
       . path "/provider/register"
       . contentJson
       . body (RequestBodyLBS (encode new))
+      . header "X-Forwarded-For" "127.0.0.42"
 
 getProviderActivationCodeInternal ::
   Brig ->
@@ -1127,56 +984,6 @@ updateProvider brig pid upd =
       . contentJson
       . body (RequestBodyLBS (encode upd))
 
-updateProviderPassword ::
-  Brig ->
-  ProviderId ->
-  PasswordChange ->
-  Http ResponseLBS
-updateProviderPassword brig pid upd =
-  put $
-    brig
-      . path "/provider/password"
-      . header "Z-Type" "provider"
-      . header "Z-Provider" (toByteString' pid)
-      . contentJson
-      . body (RequestBodyLBS (encode upd))
-
-initiateEmailUpdateProvider ::
-  Brig ->
-  ProviderId ->
-  EmailUpdate ->
-  Http ResponseLBS
-initiateEmailUpdateProvider brig pid upd =
-  put $
-    brig
-      . path "/provider/email"
-      . header "Z-Type" "provider"
-      . header "Z-Provider" (toByteString' pid)
-      . contentJson
-      . body (RequestBodyLBS (encode upd))
-
-initiatePasswordResetProvider ::
-  Brig ->
-  PasswordReset ->
-  Http ResponseLBS
-initiatePasswordResetProvider brig npr =
-  post $
-    brig
-      . path "/provider/password-reset"
-      . contentJson
-      . body (RequestBodyLBS (encode npr))
-
-completePasswordResetProvider ::
-  Brig ->
-  CompletePasswordReset ->
-  Http ResponseLBS
-completePasswordResetProvider brig e =
-  post $
-    brig
-      . path "/provider/password-reset/complete"
-      . contentJson
-      . body (RequestBodyLBS (encode e))
-
 deleteProvider ::
   Brig ->
   ProviderId ->
@@ -1215,10 +1022,11 @@ getProviderProfile brig pid uid =
       . header "Z-User" (toByteString' uid)
 
 addService ::
+  (MonadHttp m) =>
   Brig ->
   ProviderId ->
   NewService ->
-  Http ResponseLBS
+  m ResponseLBS
 addService brig pid new =
   post $
     brig
@@ -1229,10 +1037,11 @@ addService brig pid new =
       . body (RequestBodyLBS (encode new))
 
 getService ::
+  (MonadHttp m) =>
   Brig ->
   ProviderId ->
   ServiceId ->
-  Http ResponseLBS
+  m ResponseLBS
 getService brig pid sid =
   get $
     brig
@@ -1285,11 +1094,12 @@ updateService brig pid sid upd =
       . body (RequestBodyLBS (encode upd))
 
 updateServiceConn ::
+  (MonadHttp m) =>
   Brig ->
   ProviderId ->
   ServiceId ->
   UpdateServiceConn ->
-  Http ResponseLBS
+  m ResponseLBS
 updateServiceConn brig pid sid upd =
   put $
     brig
@@ -1704,7 +1514,7 @@ randomProvider db brig = do
   let Just prv = responseJsonMaybe _rs
   pure prv
 
-addGetService :: (HasCallStack) => Brig -> ProviderId -> NewService -> Http Service
+addGetService :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Brig -> ProviderId -> NewService -> m Service
 addGetService brig pid new = do
   _rs <- addService brig pid new <!! const 201 === statusCode
   let Just srs = responseJsonMaybe _rs
@@ -1713,7 +1523,7 @@ addGetService brig pid new = do
   let Just svc = responseJsonMaybe _rs
   pure svc
 
-enableService :: (HasCallStack) => Brig -> ProviderId -> ServiceId -> Http ()
+enableService :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Brig -> ProviderId -> ServiceId -> m ()
 enableService brig pid sid = do
   let upd =
         (mkUpdateServiceConn defProviderPassword)

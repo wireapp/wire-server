@@ -55,6 +55,7 @@ module Galley.Options
     guestLinkTTLSeconds,
     defGuestLinkTTLSeconds,
     passwordHashingOptions,
+    passwordHashingRateLimit,
     GuestLinkTTLSeconds (..),
   )
 where
@@ -76,6 +77,7 @@ import Util.Options.Common
 import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
+import Wire.RateLimit.Interpreter (RateLimitConfig)
 
 newtype GuestLinkTTLSeconds = GuestLinkTTLSeconds
   { unGuestLinkTTLSeconds :: Int
@@ -146,7 +148,9 @@ data Settings = Settings
     -- | The lifetime of a conversation guest link in seconds with the maximum of 1 year (31536000 seconds).
     -- If not set use the default `defGuestLinkTTLSeconds`
     _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
-    _passwordHashingOptions :: !(PasswordHashingOptions)
+    _passwordHashingOptions :: !(PasswordHashingOptions),
+    -- | Rate limiting options for hashing passwords (used for conversation codes)
+    _passwordHashingRateLimit :: RateLimitConfig
   }
   deriving (Show, Generic)
 

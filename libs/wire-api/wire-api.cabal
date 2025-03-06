@@ -140,6 +140,8 @@ library
     Wire.API.Notification
     Wire.API.OAuth
     Wire.API.Password
+    Wire.API.Password.Argon2id
+    Wire.API.Password.Scrypt
     Wire.API.Presence
     Wire.API.Properties
     Wire.API.Provider
@@ -218,6 +220,8 @@ library
     Wire.API.Team.Conversation
     Wire.API.Team.Export
     Wire.API.Team.Feature
+    Wire.API.Team.Feature.Profunctor
+    Wire.API.Team.Feature.TH
     Wire.API.Team.HardTruncationLimit
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold
@@ -262,6 +266,7 @@ library
     , aeson                      >=2.0.1.0
     , asn1-encoding
     , attoparsec                 >=0.10
+    , barbies
     , base                       >=4       && <5
     , base64-bytestring          >=1.0
     , binary
@@ -274,6 +279,7 @@ library
     , cereal
     , comonad
     , conduit
+    , constraints
     , containers                 >=0.5
     , cookie
     , crypton
@@ -313,6 +319,7 @@ library
     , openapi3
     , pem                        >=0.2
     , polysemy
+    , profunctors
     , proto-lens
     , protobuf                   >=0.2
     , QuickCheck                 >=2.14
@@ -667,7 +674,6 @@ test-suite wire-api-tests
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
     Test.Wire.API.OAuth
-    Test.Wire.API.Password
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString

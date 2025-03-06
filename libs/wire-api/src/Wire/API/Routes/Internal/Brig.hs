@@ -49,6 +49,7 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
+import Data.Misc (PlainTextPassword8)
 import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
@@ -174,7 +175,7 @@ type AccountAPI =
            -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
            -- - UserIdentityUpdated event to created user, if email or phone get activated
            ( "users"
-               :> ReqBody '[Servant.JSON] NewUser
+               :> ReqBody '[Servant.JSON] (NewUser PlainTextPassword8)
                :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
            )
     :<|> Named
@@ -199,7 +200,8 @@ type AccountAPI =
                     'PUT
                     '[Servant.JSON]
                     '[ Respond 202 "Update accepted and pending activation of the new email" (),
-                       Respond 204 "No update, current and new email address are the same" ()
+                       Respond 204 "No update, current and new email address are the same" (),
+                       Respond 204 "Email address activated" ()
                      ]
                     ChangeEmailResponse
            )
@@ -743,15 +745,22 @@ type FederationRemotesAPI =
            )
 
 type ProviderAPI =
-  ( Named
-      "get-provider-activation-code"
-      ( Summary "Retrieve activation code via api instead of email (for testing only)"
-          :> "provider"
-          :> "activation-code"
-          :> QueryParam' '[Required, Strict] "email" EmailAddress
-          :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
-      )
-  )
+  Named
+    "get-provider-activation-code"
+    ( Summary "Retrieve activation code via api instead of email (for testing only)"
+        :> "provider"
+        :> "activation-code"
+        :> QueryParam' '[Required, Strict] "email" EmailAddress
+        :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+    )
+    :<|> Named
+           "get-provider-password-reset-code"
+           ( Summary "Retrieve password-reset code via api instead of email (for testing only)"
+               :> "provider"
+               :> "password-reset-code"
+               :> QueryParam' '[Required, Strict] "email" EmailAddress
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+           )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
