@@ -1,1 +1,0 @@
-Use ElasticSearch 6.8.23 in our local dev setups (`docker-compose`.) This is the version we use on CI, staging and prod.

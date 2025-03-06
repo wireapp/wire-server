@@ -1,1 +1,0 @@
-Update redis-ephemeral helm chart to use the latest 6.2.X (6.2.7) image of redis. Note that this changes the default hostname of the redis kubernetes service from `redis-ephemeral-master` to `databases-ephemeral-redis-ephemeral-master` (if installing through the databases-ephemeral chart).
