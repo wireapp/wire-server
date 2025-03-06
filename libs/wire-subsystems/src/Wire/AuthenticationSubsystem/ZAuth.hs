@@ -128,17 +128,14 @@ mkEnv sk pk sets = do
 
 class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
   accessTokenOf :: Token a -> UserId
-  accessTokenClient :: Token a -> Maybe ClientId
   renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token a -> m Auth.AccessToken
 
 instance AccessTokenLike Access where
   accessTokenOf = accessTokenOf'
-  accessTokenClient = accessTokenClient'
   renewAccessToken = renewAccessToken'
 
 instance AccessTokenLike LegalHoldAccess where
   accessTokenOf = legalHoldAccessTokenOf
-  accessTokenClient = legalHoldAccessTokenClient
   renewAccessToken = renewLegalHoldAccessToken
 
 class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
@@ -329,9 +326,6 @@ validateToken t = liftZAuth $ do
 accessTokenOf' :: Token Access -> UserId
 accessTokenOf' t = Id (t ^. body . userId)
 
-accessTokenClient' :: Token Access -> Maybe ClientId
-accessTokenClient' t = fromByteString . T.encodeUtf8 =<< t ^. body . clientId
-
 userTokenOf' :: Token User -> UserId
 userTokenOf' t = Id (t ^. body . user)
 
@@ -340,9 +334,6 @@ userTokenClient' t = fromByteString . T.encodeUtf8 =<< t ^. body . client
 
 legalHoldAccessTokenOf :: Token LegalHoldAccess -> UserId
 legalHoldAccessTokenOf t = Id (t ^. body . legalHoldAccess . userId)
-
-legalHoldAccessTokenClient :: Token LegalHoldAccess -> Maybe ClientId
-legalHoldAccessTokenClient t = fromByteString . T.encodeUtf8 =<< t ^. body . legalHoldAccess . clientId
 
 legalHoldUserTokenOf :: Token LegalHoldUser -> UserId
 legalHoldUserTokenOf t = Id (t ^. body . legalHoldUser . user)
