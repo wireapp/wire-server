@@ -142,7 +142,6 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
   newAccessToken :: (MonadZAuth m) => Token u -> m Auth.AccessToken
   newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> Maybe ClientId -> m (Token u)
   userTTL :: Settings -> Integer
-  zauthType :: Type -- see libs/zauth/src/Token.hs
 
 instance UserTokenLike (User ActualUser) where
   mkUserToken = mkUserToken'
@@ -151,7 +150,6 @@ instance UserTokenLike (User ActualUser) where
   newUserToken = newUserToken'
   newSessionToken uid = newSessionToken' uid
   userTTL = (.userTokenTimeout.userTokenTimeoutSeconds)
-  zauthType = U
 
 instance UserTokenLike (User LHUser) where
   mkUserToken = mkLegalHoldUserToken
@@ -160,7 +158,6 @@ instance UserTokenLike (User LHUser) where
   newAccessToken = newLegalHoldAccessToken
   newSessionToken _ _ = throwM ZV.Unsupported
   userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
-  zauthType = LU
 
 runCreate :: ZC.Env -> Sem '[ZC.ZAuthCreation, Embed IO] a -> IO a
 runCreate env = runM . ZC.interpretZAuthCreation env
@@ -196,7 +193,7 @@ newAccessToken' xt = liftZAuth $ do
   liftIO $
     runCreate z.private $ do
       let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
-      accessToken <- ZC.accessToken1 ttl (xt ^. body . user) (xt ^. body . client)
+      accessToken :: (Token (Access ActualUser)) <- ZC.accessToken1 ttl (xt ^. body . user) (xt ^. body . client)
       pure $
         bearerToken
           (accessToken ^. body . userId . to Id)
@@ -267,7 +264,7 @@ newLegalHoldUserToken u c = liftZAuth $ do
   liftIO $
     runCreate z.private $
       let LegalHoldUserTokenTimeout ttl = z.settings.legalHoldUserTokenTimeout
-       in ZC.legalHoldUserToken ttl (toUUID u) (fmap clientToText c) r
+       in ZC.userToken ttl (toUUID u) (fmap clientToText c) r
 
 newLegalHoldAccessToken :: (MonadZAuth m) => Token (User LHUser) -> m Auth.AccessToken
 newLegalHoldAccessToken xt = liftZAuth $ do
@@ -275,8 +272,8 @@ newLegalHoldAccessToken xt = liftZAuth $ do
   liftIO $
     runCreate z.private $ do
       let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
-      new <-
-        ZC.legalHoldAccessToken1
+      new :: (Token (Access LHUser)) <-
+        ZC.accessToken1
           ttl
           (xt ^. body . user)
           (xt ^. body . client)

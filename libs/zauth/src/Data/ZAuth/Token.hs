@@ -57,6 +57,9 @@ module Data.ZAuth.Token
 
     -- * UserTokenType
     UserTokenType (..),
+    accessTokenType,
+    userTokenType,
+    KnownUserTokenType (..),
 
     -- * Bot body
     Bot,
@@ -129,6 +132,23 @@ data Header = Header
 -- TODO: These names are a bit silly, perhaps we should find better ones.
 data UserTokenType = ActualUser | LHUser
 
+class KnownUserTokenType (k :: UserTokenType) where
+  userTokenTypeVal :: UserTokenType
+
+instance KnownUserTokenType 'ActualUser where
+  userTokenTypeVal = ActualUser
+
+instance KnownUserTokenType 'LHUser where
+  userTokenTypeVal = LHUser
+
+accessTokenType :: UserTokenType -> Type
+accessTokenType ActualUser = A
+accessTokenType LHUser = LA
+
+userTokenType :: UserTokenType -> Type
+userTokenType ActualUser = U
+userTokenType LHUser = LU
+
 data Access (t :: UserTokenType) = Access
   { _userId :: !UUID,
     _clientId :: Maybe Text,
@@ -177,17 +197,17 @@ makeLenses ''Bot
 
 makeLenses ''Provider
 
-instance FromByteString (Token (Access ActualUser)) where
+instance (KnownUserTokenType t) => FromByteString (Token (Access t)) where
   parser =
     takeLazyByteString >>= \b ->
-      case readToken A readAccessBody b of
+      case readToken (accessTokenType $ userTokenTypeVal @t) readAccessBody b of
         Nothing -> fail "Invalid access token"
         Just t -> pure t
 
-instance FromByteString (Token (User ActualUser)) where
+instance (KnownUserTokenType t) => FromByteString (Token (User t)) where
   parser =
     takeLazyByteString >>= \b ->
-      case readToken U readUserBody b of
+      case readToken (userTokenType $ userTokenTypeVal @t) readUserBody b of
         Nothing -> fail "Invalid user token"
         Just t -> pure t
 
@@ -203,20 +223,6 @@ instance FromByteString (Token Provider) where
     takeLazyByteString >>= \b ->
       case readToken P readProviderBody b of
         Nothing -> fail "Invalid provider token"
-        Just t -> pure t
-
-instance FromByteString (Token (Access LHUser)) where
-  parser =
-    takeLazyByteString >>= \b ->
-      case readToken LA readAccessBody b of
-        Nothing -> fail "Invalid access token"
-        Just t -> pure t
-
-instance FromByteString (Token (User LHUser)) where
-  parser =
-    takeLazyByteString >>= \b ->
-      case readToken LU readUserBody b of
-        Nothing -> fail "Invalid user token"
         Just t -> pure t
 
 instance (ToByteString a) => ToByteString (Token a) where
