@@ -350,10 +350,24 @@ http {
     {{- end -}}
   {{- end }}
 
+    {{- $defaultDomain := index (keys .Values.nginx_conf.deeplink) 0 }}
     {{- if hasKey .Values.nginx_conf "deeplink" }}
     location ~* ^/deeplink.(json|html)$ {
         zauth off;
-        root /etc/wire/nginz/conf/;
+
+        # Extract domain from host by removing 'nginz-https.' prefix
+        set $domain_file "";
+        set $file_ext $1;
+        if ($http_host ~ ^nginz-https\.(.+)$) {
+            set $domain_file "$1-deeplink.$file_ext";
+        }
+        
+        # Fallback to a default domain if parsing fails
+        if ($domain_file = "") {
+            set $domain_file "{{ $defaultDomain }}-deeplink.$file_ext";
+        }
+        
+        alias /etc/wire/nginz/conf/$domain_file;
         types {
             application/json  json;
             text/html         html;
