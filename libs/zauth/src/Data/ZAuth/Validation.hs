@@ -76,10 +76,10 @@ mkEnv k kk = Env $ Vec.fromList (map verifyWith (k : kk))
 runValidate :: (MonadIO m) => Env -> Validate a -> m (Either Failure a)
 runValidate v m = liftIO $ runReaderT (runExceptT (valid m)) v
 
-validateUser :: ByteString -> Validate (Token User)
+validateUser :: (FromByteString (Token (User t))) => ByteString -> Validate (Token (User t))
 validateUser t = maybe (throwError Invalid) check (fromByteString t)
 
-validateAccess :: ByteString -> Validate (Token Access)
+validateAccess :: (FromByteString (Token (Access t))) => ByteString -> Validate (Token (Access t))
 validateAccess t = maybe (throwError Invalid) check (fromByteString t)
 
 validateBot :: ByteString -> Validate (Token Bot)
@@ -95,16 +95,20 @@ validateProvider t = maybe (throwError Invalid) check (fromByteString t)
 -- validation purposes.
 
 validate ::
+  forall t.
+  ( FromByteString (Token (User t)),
+    FromByteString (Token (Access t))
+  ) =>
   -- | assumed to be a 'Token User'
   Maybe ByteString ->
   -- | assumed to be a 'Token Access'
   Maybe ByteString ->
-  Validate (Token Access)
+  Validate (Token (Access t))
 validate Nothing Nothing = throwError Invalid
 validate (Just _) Nothing = throwError Invalid
 validate Nothing (Just t) = validateAccess t
 validate (Just c) (Just t) = do
-  u <- maybe (throwError Invalid) pure (fromByteString c)
+  u <- maybe (throwError Invalid) pure (fromByteString @(Token (User t)) c)
   a <- maybe (throwError Invalid) pure (fromByteString t)
   void $ check u
   void $ check a

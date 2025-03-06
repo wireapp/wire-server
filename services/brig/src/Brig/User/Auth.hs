@@ -103,7 +103,7 @@ login ::
   ) =>
   Login ->
   CookieType ->
-  ExceptT LoginError (AppT r) (Access ZAuth.User)
+  ExceptT LoginError (AppT r) (Access (ZAuth.User ZAuth.ActualUser))
 login (MkLogin li pw label code) typ = do
   uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
@@ -118,7 +118,7 @@ login (MkLogin li pw label code) typ = do
       AuthEphemeral -> throwE LoginEphemeral
       AuthPendingInvitation -> throwE LoginPendingActivation
   verifyLoginCode code uid
-  newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
+  newAccess @(ZAuth.User ZAuth.ActualUser) @(ZAuth.Access ZAuth.ActualUser) uid Nothing typ label
   where
     verifyLoginCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppT r) ()
     verifyLoginCode mbCode uid = do
@@ -194,7 +194,7 @@ withRetryLimit action uid = do
     action bkey budget
 
 logout ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
+  (u ~ ZAuth.User t, a ~ ZAuth.Access t, ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   List1 (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
@@ -203,8 +203,10 @@ logout uts at = do
   lift $ wrapClient $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
-  forall r u a.
-  ( Member TinyLog r,
+  forall r u a t.
+  ( u ~ ZAuth.User t,
+    a ~ ZAuth.Access t,
+    Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
     Show u,
@@ -274,8 +276,9 @@ catchSuspendInactiveUser uid errval = do
       Right () -> pure ()
 
 newAccess ::
-  forall u a r.
-  ( Member TinyLog r,
+  forall u a r t.
+  ( u ~ ZAuth.User t,
+    Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
     ZAuth.UserTokenLike u,
@@ -359,7 +362,7 @@ isPendingActivation ident = case ident of
 --   given, we perform the usual checks.
 --   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
+  (u ~ ZAuth.User t, a ~ ZAuth.Access t, ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -378,7 +381,7 @@ validateTokens uts at = do
       _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
+  (u ~ ZAuth.User t, a ~ ZAuth.Access t, ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   ZAuth.Token u ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -402,7 +405,7 @@ ssoLogin ::
   ) =>
   SsoLogin ->
   CookieType ->
-  ExceptT LoginError (AppT r) (Access ZAuth.User)
+  ExceptT LoginError (AppT r) (Access (ZAuth.User ZAuth.ActualUser))
 ssoLogin (SsoLogin uid label) typ = do
   lift
     (liftSem $ Authentication.reauthenticateEither uid Nothing)
@@ -423,7 +426,7 @@ ssoLogin (SsoLogin uid label) typ = do
           AuthSuspended -> throwE LoginSuspended
           AuthEphemeral -> throwE LoginEphemeral
           AuthPendingInvitation -> throwE LoginPendingActivation
-  newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
+  newAccess @(ZAuth.User ZAuth.ActualUser) @(ZAuth.Access ZAuth.ActualUser) uid Nothing typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
@@ -435,7 +438,7 @@ legalHoldLogin ::
   ) =>
   LegalHoldLogin ->
   CookieType ->
-  ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)
+  ExceptT LegalHoldLoginError (AppT r) (Access (ZAuth.User ZAuth.LHUser))
 legalHoldLogin (LegalHoldLogin uid pw label) typ = do
   (lift . liftSem $ Authentication.reauthenticateEither uid pw)
     >>= either (throwE . LegalHoldReAuthError) (const $ pure ())
@@ -447,7 +450,7 @@ legalHoldLogin (LegalHoldLogin uid pw label) typ = do
     Nothing -> throwE LegalHoldLoginNoBindingTeam
     Just tid -> assertLegalHoldEnabled tid
   -- create access token and cookie
-  newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid Nothing typ label
+  newAccess @(ZAuth.User ZAuth.LHUser) @(ZAuth.Access ZAuth.LHUser) uid Nothing typ label
     !>> LegalHoldLoginError
 
 assertLegalHoldEnabled ::

@@ -62,13 +62,13 @@ import System.Random.MWC
 data ZAuthCreation m a where
   NewToken :: (ToByteString b) => POSIXTime -> Type -> Maybe Tag -> b -> ZAuthCreation m (Token b)
   RenewToken :: (ToByteString a) => Integer -> Header -> a -> ZAuthCreation m (Token a)
-  UserToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token User)
-  SessionToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token User)
-  AccessToken :: Integer -> UUID -> Maybe Text -> Word64 -> ZAuthCreation m (Token Access)
-  AccessToken1 :: Integer -> UUID -> Maybe Text -> ZAuthCreation m (Token Access)
-  LegalHoldUserToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token LegalHoldUser)
-  LegalHoldAccessToken :: Integer -> UUID -> Maybe Text -> Word64 -> ZAuthCreation m (Token LegalHoldAccess)
-  LegalHoldAccessToken1 :: Integer -> UUID -> Maybe Text -> ZAuthCreation m (Token LegalHoldAccess)
+  UserToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token (User ActualUser))
+  SessionToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token (User ActualUser))
+  AccessToken :: Integer -> UUID -> Maybe Text -> Word64 -> ZAuthCreation m (Token (Access ActualUser))
+  AccessToken1 :: Integer -> UUID -> Maybe Text -> ZAuthCreation m (Token (Access ActualUser))
+  LegalHoldUserToken :: Integer -> UUID -> Maybe Text -> Word32 -> ZAuthCreation m (Token (User LHUser))
+  LegalHoldAccessToken :: Integer -> UUID -> Maybe Text -> Word64 -> ZAuthCreation m (Token (Access LHUser))
+  LegalHoldAccessToken1 :: Integer -> UUID -> Maybe Text -> ZAuthCreation m (Token (Access LHUser))
   BotToken :: UUID -> UUID -> UUID -> ZAuthCreation m (Token Bot)
   ProviderToken :: Integer -> UUID -> ZAuthCreation m (Token Provider)
 
@@ -121,12 +121,12 @@ interpretZAuthCreationInput = interpret $ \case
   ProviderToken dur pid ->
     providerTokenImpl dur pid
 
-userTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token User)
+userTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token (User ActualUser))
 userTokenImpl dur usr cli rnd = do
   d <- expiry dur
   newTokenImpl d U Nothing (mkUser usr cli rnd)
 
-sessionTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token User)
+sessionTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token (User ActualUser))
 sessionTokenImpl dur usr cli rnd = do
   d <- expiry dur
   newTokenImpl d U (Just S) (mkUser usr cli rnd)
@@ -138,7 +138,7 @@ newConnId = do
 
 -- | Create an access token taking a duration, userId, clientId and a (random)
 -- number that can be used as connection identifier
-accessTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word64 -> Sem r (Token Access)
+accessTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word64 -> Sem r (Token (Access ActualUser))
 accessTokenImpl dur usr cid con = do
   d <- expiry dur
   newTokenImpl d A Nothing (mkAccess usr cid con)
@@ -146,15 +146,15 @@ accessTokenImpl dur usr cid con = do
 -- | Create an access token taking a duration, userId and clientId.
 -- Similar to 'accessToken', except that the connection identifier is randomly
 -- generated.
-accessToken1Impl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Sem r (Token Access)
+accessToken1Impl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Sem r (Token (Access ActualUser))
 accessToken1Impl dur usr cid = do
   d <- newConnId
   accessTokenImpl dur usr cid d
 
-legalHoldUserTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token LegalHoldUser)
+legalHoldUserTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token (User LHUser))
 legalHoldUserTokenImpl dur usr cli rnd = do
   d <- expiry dur
-  newTokenImpl d LU Nothing (mkLegalHoldUser usr cli rnd)
+  newTokenImpl d LU Nothing (mkUser usr cli rnd)
 
 -- | Create a legal hold access token taking a duration, userId, clientId and a
 -- (random) number that can be used as connection identifier
@@ -164,13 +164,13 @@ legalHoldAccessTokenImpl ::
   UUID ->
   Maybe Text ->
   Word64 ->
-  Sem r (Token LegalHoldAccess)
+  Sem r (Token (Access LHUser))
 legalHoldAccessTokenImpl dur usr cid con = do
   d <- expiry dur
-  newTokenImpl d LA Nothing (mkLegalHoldAccess usr cid con)
+  newTokenImpl d LA Nothing (mkAccess usr cid con)
 
 -- | Create a legal hold access token taking a duration, userId. Similar to 'legalHoldAccessToken', except that the connection identifier is randomly generated.
-legalHoldAccessToken1Impl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Sem r (Token LegalHoldAccess)
+legalHoldAccessToken1Impl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Sem r (Token (Access LHUser))
 legalHoldAccessToken1Impl dur usr cid = do
   d <- newConnId
   legalHoldAccessTokenImpl dur usr cid d
