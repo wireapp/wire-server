@@ -222,6 +222,7 @@ pushAll pushes = do
   (rabbitmqPushes, legacyPushes) <- splitPushes pushes
   pushAllLegacy legacyPushes
   pushAllViaRabbitMq rabbitmqPushes
+  pushAllToPydio pushes
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
@@ -304,6 +305,9 @@ pushViaRabbitMq p = do
                     : map (clientRoutingKey r._recipientId) cs
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq routingKey qMsg
+
+pushAllToPydio :: (MonadPushAll m) => [Push] -> m ()
+pushAllToPydio _pushes = pure ()
 
 -- | A new notification to be stored in C* and pushed over websockets
 data NewNotification = NewNotification
