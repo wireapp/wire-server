@@ -42,7 +42,7 @@ changeEmailBrigCreds ::
   (MonadHttp m, HasCallStack) =>
   BrigReq ->
   Cookie ->
-  ZAuth.Token ZAuth.Access ->
+  ZAuth.Token (ZAuth.Access ZAuth.ActualUser) ->
   EmailAddress ->
   m ResponseLBS
 changeEmailBrigCreds brig cky tok newEmail = do

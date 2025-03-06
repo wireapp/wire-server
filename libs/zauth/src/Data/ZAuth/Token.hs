@@ -55,6 +55,9 @@ module Data.ZAuth.Token
     rand,
     mkUser,
 
+    -- * UserTokenType
+    UserTokenType (..),
+
     -- * Bot body
     Bot,
     prov,
@@ -67,13 +70,7 @@ module Data.ZAuth.Token
     provider,
     mkProvider,
 
-    -- * LegalHold body
-    LegalHoldUser,
-    legalHoldUser,
-    mkLegalHoldUser,
-    LegalHoldAccess,
-    legalHoldAccess,
-    mkLegalHoldAccess,
+    -- * Serialization
     writeData,
   )
 where
@@ -129,7 +126,10 @@ data Header = Header
   }
   deriving (Eq, Show)
 
-data Access = Access
+-- TODO: These names are a bit silly, perhaps we should find better ones.
+data UserTokenType = ActualUser | LHUser
+
+data Access (t :: UserTokenType) = Access
   { _userId :: !UUID,
     _clientId :: Maybe Text,
     -- | 'ConnId' is derived from this.
@@ -137,7 +137,7 @@ data Access = Access
   }
   deriving (Eq, Show)
 
-data User = User
+data User (t :: UserTokenType) = User
   { _user :: !UUID,
     _client :: Maybe Text,
     _rand :: !Word32
@@ -153,16 +153,6 @@ data Bot = Bot
 
 newtype Provider = Provider
   { _provider :: UUID
-  }
-  deriving (Eq, Show)
-
-newtype LegalHoldUser = LegalHoldUser
-  { _legalHoldUser :: User
-  }
-  deriving (Eq, Show)
-
-newtype LegalHoldAccess = LegalHoldAccess
-  { _legalHoldAccess :: Access
   }
   deriving (Eq, Show)
 
@@ -187,18 +177,14 @@ makeLenses ''Bot
 
 makeLenses ''Provider
 
-makeLenses ''LegalHoldUser
-
-makeLenses ''LegalHoldAccess
-
-instance FromByteString (Token Access) where
+instance FromByteString (Token (Access ActualUser)) where
   parser =
     takeLazyByteString >>= \b ->
       case readToken A readAccessBody b of
         Nothing -> fail "Invalid access token"
         Just t -> pure t
 
-instance FromByteString (Token User) where
+instance FromByteString (Token (User ActualUser)) where
   parser =
     takeLazyByteString >>= \b ->
       case readToken U readUserBody b of
@@ -219,17 +205,17 @@ instance FromByteString (Token Provider) where
         Nothing -> fail "Invalid provider token"
         Just t -> pure t
 
-instance FromByteString (Token LegalHoldAccess) where
+instance FromByteString (Token (Access LHUser)) where
   parser =
     takeLazyByteString >>= \b ->
-      case readToken LA readLegalHoldAccessBody b of
+      case readToken LA readAccessBody b of
         Nothing -> fail "Invalid access token"
         Just t -> pure t
 
-instance FromByteString (Token LegalHoldUser) where
+instance FromByteString (Token (User LHUser)) where
   parser =
     takeLazyByteString >>= \b ->
-      case readToken LU readLegalHoldUserBody b of
+      case readToken LU readUserBody b of
         Nothing -> fail "Invalid user token"
         Just t -> pure t
 
@@ -245,10 +231,10 @@ mkToken = Token
 mkHeader :: Int -> Int -> Integer -> Type -> Maybe Tag -> Header
 mkHeader = Header
 
-mkAccess :: UUID -> Maybe Text -> Word64 -> Access
+mkAccess :: UUID -> Maybe Text -> Word64 -> (Access t)
 mkAccess = Access
 
-mkUser :: UUID -> Maybe Text -> Word32 -> User
+mkUser :: UUID -> Maybe Text -> Word32 -> (User t)
 mkUser = User
 
 mkBot :: UUID -> UUID -> UUID -> Bot
@@ -256,12 +242,6 @@ mkBot = Bot
 
 mkProvider :: UUID -> Provider
 mkProvider = Provider
-
-mkLegalHoldAccess :: UUID -> Maybe Text -> Word64 -> LegalHoldAccess
-mkLegalHoldAccess uid clt con = LegalHoldAccess $ Access uid clt con
-
-mkLegalHoldUser :: UUID -> Maybe Text -> Word32 -> LegalHoldUser
-mkLegalHoldUser uid cid r = LegalHoldUser $ User uid cid r
 
 -----------------------------------------------------------------------------
 -- Reading
@@ -298,14 +278,14 @@ readHeader t p =
     readTag "s" = Just S
     readTag _ = Nothing
 
-readAccessBody :: Properties -> Maybe Access
+readAccessBody :: Properties -> Maybe (Access t)
 readAccessBody t =
   Access
     <$> (lookup "u" t >>= fromLazyASCIIBytes)
     <*> pure (lookup "i" t >>= fromByteString')
     <*> (lookup "c" t >>= fromByteString')
 
-readUserBody :: Properties -> Maybe User
+readUserBody :: Properties -> Maybe (User t)
 readUserBody t =
   User
     <$> (lookup "u" t >>= fromLazyASCIIBytes)
@@ -321,12 +301,6 @@ readBotBody t =
 
 readProviderBody :: Properties -> Maybe Provider
 readProviderBody t = Provider <$> (lookup "p" t >>= fromLazyASCIIBytes)
-
-readLegalHoldAccessBody :: Properties -> Maybe LegalHoldAccess
-readLegalHoldAccessBody t = LegalHoldAccess <$> readAccessBody t
-
-readLegalHoldUserBody :: Properties -> Maybe LegalHoldUser
-readLegalHoldUserBody t = LegalHoldUser <$> readUserBody t
 
 -----------------------------------------------------------------------------
 -- Writing
@@ -352,14 +326,14 @@ writeHeader t =
     <> dot
     <> field "l" (foldMap builder (t ^. tag))
 
-instance ToByteString Access where
+instance ToByteString (Access t) where
   builder t =
     field "u" (toLazyASCIIBytes $ t ^. userId)
       <> foldMap (\c -> dot <> field "i" c) (t ^. clientId)
       <> dot
       <> field "c" (t ^. connection)
 
-instance ToByteString User where
+instance ToByteString (User t) where
   builder t =
     field "u" (toLazyASCIIBytes $ t ^. user)
       <> dot
@@ -376,20 +350,6 @@ instance ToByteString Bot where
 
 instance ToByteString Provider where
   builder t = field "p" (toLazyASCIIBytes $ t ^. provider)
-
-instance ToByteString LegalHoldAccess where
-  builder t =
-    field "u" (toLazyASCIIBytes $ t ^. legalHoldAccess . userId)
-      <> foldMap (\c -> dot <> field "i" c) (t ^. legalHoldAccess . clientId)
-      <> dot
-      <> field "c" (t ^. legalHoldAccess . connection)
-
-instance ToByteString LegalHoldUser where
-  builder t =
-    field "u" (toLazyASCIIBytes $ t ^. legalHoldUser . user)
-      <> dot
-      <> field "r" (Hex (t ^. legalHoldUser . rand))
-      <> foldMap (\c -> dot <> field "i" c) (t ^. legalHoldUser . client)
 
 instance ToByteString Type where
   builder A = char8 'a'

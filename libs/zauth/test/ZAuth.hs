@@ -74,23 +74,23 @@ tests = do
 defDuration :: Integer
 defDuration = 1
 
-testUserIsNotLegalHoldUser :: Token LegalHoldUser -> Bool
-testUserIsNotLegalHoldUser t = isNothing (fromByteString @(Token User) (toByteString' t))
+testUserIsNotLegalHoldUser :: Token (User LHUser) -> Property
+testUserIsNotLegalHoldUser t = fromByteString @(Token (User ActualUser)) (toByteString' t) === Nothing
 
-testUserIsNotLegalHoldUser' :: Token User -> Bool
-testUserIsNotLegalHoldUser' t = isNothing (fromByteString @(Token LegalHoldUser) (toByteString' t))
+testUserIsNotLegalHoldUser' :: Token (User ActualUser) -> Property
+testUserIsNotLegalHoldUser' t = fromByteString @(Token (User LHUser)) (toByteString' t) === Nothing
 
-testDecEncAccessToken :: Token Access -> Bool
-testDecEncAccessToken t = fromByteString (toByteString' t) == Just t
+testDecEncAccessToken :: Token (Access ActualUser) -> Property
+testDecEncAccessToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncUserToken :: Token User -> Bool
-testDecEncUserToken t = fromByteString (toByteString' t) == Just t
+testDecEncUserToken :: Token (User ActualUser) -> Property
+testDecEncUserToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncLegalHoldUserToken :: Token LegalHoldUser -> Bool
-testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) == Just t
+testDecEncLegalHoldUserToken :: Token (User LHUser) -> Property
+testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncLegalHoldAccessToken :: Token LegalHoldAccess -> Bool
-testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) == Just t
+testDecEncLegalHoldAccessToken :: Token (Access LHUser) -> Property
+testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) === Just t
 
 testNotExpired :: (Member (Embed IO) r, Member ZAuthCreation r) => V.Env -> Sem r ()
 testNotExpired p = do
