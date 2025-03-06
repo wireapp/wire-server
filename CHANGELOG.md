@@ -7,7 +7,7 @@
   as a migration release to switch to the newer OpenSearch 1.3 index search.
   Later releases may drop support of ElasticSearch 6.8. (#4444)
 
-* This release introduces a new data storage format for team features and a corresponding migration. To migrate to the new format, a new tool called `migrate-features` has been added. This tool needs to be run after deployment of this release, and before deploying the next release.
+* This release introduces a new data storage format for team features and a corresponding migration. To migrate to the new format, a new tool called `migrate-features` has been added. This tool needs to be run after deployment of this release, and before deploying the next release. (#4459)
 
   While the migration tool is running, team features are going to operate in read-only mode for the team that is currently being migrated. After migration, the new storage is going to be used. No other action should be required on the part of instance operators besides running the migration tool.
 
@@ -36,7 +36,7 @@
               ]
         restartPolicy: Never
     backoffLimit: 4
-  ``` (#4459)
+  ```
 
 
 ## Features
