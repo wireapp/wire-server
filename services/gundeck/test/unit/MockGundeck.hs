@@ -418,6 +418,7 @@ instance MonadThrow MockGundeck where
 
 instance MonadPushAll MockGundeck where
   mpaNotificationTTL = pure $ NotificationTTL 300 -- (longer than we want any test to take.)
+  mpaCellsEventQueue = pure Nothing
   mpaMkNotificationId = mockMkNotificationId
   mpaListAllPresences = mockListAllPresences
   mpaBulkPush = mockBulkPush
@@ -428,7 +429,7 @@ instance MonadPushAll MockGundeck where
 
   mpaRunWithBudget _ _ = id -- no throttling needed as long as we don't overdo it in the tests...
   mpaGetClients _ = pure mempty
-  mpaPublishToRabbitMq _ _ = pure ()
+  mpaPublishToRabbitMq _ _ _ = pure ()
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
