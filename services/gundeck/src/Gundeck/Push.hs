@@ -89,6 +89,7 @@ push ps = do
 -- | Abstract over all effects in 'pushAll' (for unit testing).
 class (MonadThrow m) => MonadPushAll m where
   mpaNotificationTTL :: m NotificationTTL
+  mpaPydioEventQueue :: m (Maybe Text)
   mpaMkNotificationId :: m NotificationId
   mpaListAllPresences :: [UserId] -> m [[Presence]]
   mpaBulkPush :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
@@ -97,10 +98,11 @@ class (MonadThrow m) => MonadPushAll m where
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
   mpaGetClients :: Set UserId -> m UserClientsFull
-  mpaPublishToRabbitMq :: Text -> Q.Message -> m ()
+  mpaPublishToRabbitMq :: Text -> Text -> Q.Message -> m ()
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . settings . notificationTTL)
+  mpaPydioEventQueue = view (options . settings . pydioEventQueue)
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
@@ -111,10 +113,10 @@ instance MonadPushAll Gundeck where
   mpaGetClients = getClients
   mpaPublishToRabbitMq = publishToRabbitMq
 
-publishToRabbitMq :: Text -> Q.Message -> Gundeck ()
-publishToRabbitMq routingKey qMsg = do
+publishToRabbitMq :: Text -> Text -> Q.Message -> Gundeck ()
+publishToRabbitMq exchangeName routingKey qMsg = do
   chan <- getRabbitMqChan
-  void $ liftIO $ Q.publishMsg chan userNotificationExchangeName routingKey qMsg
+  void $ liftIO $ Q.publishMsg chan exchangeName routingKey qMsg
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
@@ -260,40 +262,8 @@ pushAllViaRabbitMq pushes =
 
 pushViaRabbitMq :: (MonadPushAll m) => Push -> m ()
 pushViaRabbitMq p = do
-  notifId <- mpaMkNotificationId
-  NotificationTTL ttl <- mpaNotificationTTL
-  let qMsg =
-        Q.newMsg
-          { msgBody =
-              Aeson.encode
-                . queuedNotification notifId
-                $ toNonEmpty p._pushPayload,
-            msgContentType = Just "application/json",
-            msgDeliveryMode =
-              -- Non-persistent messages never hit the disk and so do not
-              -- survive RabbitMQ node restarts, this is great for transient
-              -- notifications.
-              Just
-                ( if p._pushTransient
-                    then Q.NonPersistent
-                    else Q.Persistent
-                ),
-            msgExpiration =
-              Just
-                ( if p._pushTransient
-                    then
-                      ( -- Means that if there is no active consumer, this
-                        -- message will never be delivered to anyone. It can
-                        -- still take some time before RabbitMQ forgets about
-                        -- this message because the expiration is only
-                        -- considered for messages which are at the head of a
-                        -- queue. See docs: https://www.rabbitmq.com/docs/ttl
-                        "0"
-                      )
-                    else showT $ fromIntegral ttl # Second #> MilliSecond
-                )
-          }
-      routingKeys =
+  qMsg <- mkMessage p
+  let routingKeys =
         Set.unions $
           flip Set.map p._pushRecipients \r ->
             case r._recipientClients of
@@ -304,10 +274,53 @@ pushViaRabbitMq p = do
                   temporaryRoutingKey r._recipientId
                     : map (clientRoutingKey r._recipientId) cs
   for_ routingKeys $ \routingKey ->
-    mpaPublishToRabbitMq routingKey qMsg
+    mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
 
 pushAllToPydio :: (MonadPushAll m) => [Push] -> m ()
-pushAllToPydio _pushes = pure ()
+pushAllToPydio ps = do
+  mQueue <- mpaPydioEventQueue
+  for_ mQueue $ \queue -> for_ ps (pushToPydio queue)
+
+pushToPydio :: (MonadPushAll m) => Text -> Push -> m ()
+pushToPydio queue p = when p._pushIsPydioEvent $ do
+  qMsg <- mkMessage p
+  mpaPublishToRabbitMq "" queue qMsg
+
+mkMessage :: (MonadPushAll m) => Push -> m Message
+mkMessage p = do
+  notifId <- mpaMkNotificationId
+  NotificationTTL ttl <- mpaNotificationTTL
+  pure $
+    Q.newMsg
+      { msgBody =
+          Aeson.encode
+            . queuedNotification notifId
+            $ toNonEmpty p._pushPayload,
+        msgContentType = Just "application/json",
+        msgDeliveryMode =
+          -- Non-persistent messages never hit the disk and so do not
+          -- survive RabbitMQ node restarts, this is great for transient
+          -- notifications.
+          Just
+            ( if p._pushTransient
+                then Q.NonPersistent
+                else Q.Persistent
+            ),
+        msgExpiration =
+          Just
+            ( if p._pushTransient
+                then
+                  ( -- Means that if there is no active consumer, this
+                    -- message will never be delivered to anyone. It can
+                    -- still take some time before RabbitMQ forgets about
+                    -- this message because the expiration is only
+                    -- considered for messages which are at the head of a
+                    -- queue. See docs: https://www.rabbitmq.com/docs/ttl
+                    "0"
+                  )
+                else showT $ fromIntegral ttl # Second #> MilliSecond
+            )
+      }
 
 -- | A new notification to be stored in C* and pushed over websockets
 data NewNotification = NewNotification
