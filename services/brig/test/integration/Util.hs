@@ -538,7 +538,7 @@ legalHoldLogin b l t =
 decodeCookie :: (HasCallStack) => Response a -> Bilge.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: (HasCallStack) => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
+decodeToken :: (HasCallStack) => Response (Maybe LByteString) -> ZAuth.Token (ZAuth.Access ZAuth.ActualUser)
 decodeToken = decodeToken'
 
 decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a

@@ -1307,7 +1307,7 @@ specScimAndSAML = do
       maybe (error "no access token") pure $ val ^? key "access_token" . _String
     -- token should contain the expected userid
     userid'' <- do
-      parsed :: ZAuth.Token ZAuth.Access <-
+      parsed :: ZAuth.Token (ZAuth.Access ZAuth.ActualUser) <-
         maybe (error "bad access token") pure . fromByteString . cs $ token
       pure $ Id (parsed ^. ZAuth.body . ZAuth.userId)
     liftIO $ userid'' `shouldBe` userid

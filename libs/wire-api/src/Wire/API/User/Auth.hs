@@ -471,8 +471,8 @@ instance AsHeaders '[Maybe UserTokenCookie] AccessToken SomeAccess where
 -- Token sum types
 
 data SomeUserToken
-  = PlainUserToken (ZAuth.Token ZAuth.User)
-  | LHUserToken (ZAuth.Token ZAuth.LegalHoldUser)
+  = PlainUserToken (ZAuth.Token (ZAuth.User ZAuth.ActualUser))
+  | LHUserToken (ZAuth.Token (ZAuth.User ZAuth.LHUser))
   deriving (Show)
 
 instance FromHttpApiData SomeUserToken where
@@ -492,8 +492,8 @@ instance ToByteString SomeUserToken where
   builder (LHUserToken t) = builder t
 
 data SomeAccessToken
-  = PlainAccessToken (ZAuth.Token ZAuth.Access)
-  | LHAccessToken (ZAuth.Token ZAuth.LegalHoldAccess)
+  = PlainAccessToken (ZAuth.Token (ZAuth.Access ZAuth.ActualUser))
+  | LHAccessToken (ZAuth.Token (ZAuth.Access ZAuth.LHUser))
   deriving (Show)
 
 instance FromHttpApiData SomeAccessToken where

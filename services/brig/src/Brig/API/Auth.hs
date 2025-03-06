@@ -85,7 +85,9 @@ accessH mcid ut' mat' = do
     >>= either (uncurry (access mcid)) (uncurry (access mcid))
 
 access ::
-  ( Show u,
+  ( u ~ ZAuth.User t,
+    a ~ ZAuth.Access t,
+    Show u,
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
@@ -135,7 +137,7 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (UserTokenLike u, AccessTokenLike a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (u ~ ZAuth.User t, a ~ ZAuth.Access t, UserTokenLike u, AccessTokenLike a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
@@ -167,7 +169,7 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (UserTokenLike u, AccessTokenLike a) =>
+  (u ~ ZAuth.User t, a ~ ZAuth.Access t, UserTokenLike u, AccessTokenLike a) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
@@ -267,8 +269,8 @@ partitionTokens ::
   Handler
     r
     ( Either
-        (NonEmpty (ZAuth.Token ZAuth.User), Maybe (ZAuth.Token ZAuth.Access))
-        (NonEmpty (ZAuth.Token ZAuth.LegalHoldUser), Maybe (ZAuth.Token ZAuth.LegalHoldAccess))
+        (NonEmpty (ZAuth.Token (ZAuth.User ZAuth.ActualUser)), Maybe (ZAuth.Token (ZAuth.Access ZAuth.ActualUser)))
+        (NonEmpty (ZAuth.Token (ZAuth.User ZAuth.LHUser)), Maybe (ZAuth.Token (ZAuth.Access ZAuth.LHUser)))
     )
 partitionTokens tokens mat =
   case (partitionEithers (map toEither (toList tokens)), mat) of
@@ -286,7 +288,7 @@ partitionTokens tokens mat =
     -- mixed PlainUserToken and LHUserToken
     ((_ats, _lts), _) -> throwStd authTokenMismatch
   where
-    toEither :: SomeUserToken -> Either (ZAuth.Token ZAuth.User) (ZAuth.Token ZAuth.LegalHoldUser)
+    toEither :: SomeUserToken -> Either (ZAuth.Token (ZAuth.User ZAuth.ActualUser)) (ZAuth.Token (ZAuth.User ZAuth.LHUser))
     toEither (PlainUserToken ut) = Left ut
     toEither (LHUserToken lt) = Right lt
 

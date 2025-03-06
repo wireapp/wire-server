@@ -31,10 +31,10 @@ import Imports
 import Sodium.Crypto.Sign
 import Test.Tasty.QuickCheck
 
-instance Arbitrary (Token Access) where
+instance Arbitrary (Token (Access ActualUser)) where
   arbitrary = mkToken <$> arbitrary <*> ((typ .~ A) <$> arbitrary) <*> arbitrary
 
-instance Arbitrary (Token User) where
+instance Arbitrary (Token (User ActualUser)) where
   arbitrary = mkToken <$> arbitrary <*> ((typ .~ U) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token Bot) where
@@ -43,10 +43,10 @@ instance Arbitrary (Token Bot) where
 instance Arbitrary (Token Provider) where
   arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary (Token LegalHoldAccess) where
+instance Arbitrary (Token (Access LHUser)) where
   arbitrary = mkToken <$> arbitrary <*> ((typ .~ LA) <$> arbitrary) <*> arbitrary
 
-instance Arbitrary (Token LegalHoldUser) where
+instance Arbitrary (Token (User LHUser)) where
   arbitrary = mkToken <$> arbitrary <*> ((typ .~ LU) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary Header where
@@ -65,10 +65,10 @@ arbitraryClientId =
     toClientId :: Word64 -> Text
     toClientId = LT.toStrict . LT.toLazyText . LT.hexadecimal
 
-instance Arbitrary Access where
+instance Arbitrary (Access t) where
   arbitrary = mkAccess <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
-instance Arbitrary User where
+instance Arbitrary (User t) where
   arbitrary = mkUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary Bot where
@@ -76,12 +76,6 @@ instance Arbitrary Bot where
 
 instance Arbitrary Provider where
   arbitrary = mkProvider <$> arbitrary
-
-instance Arbitrary LegalHoldAccess where
-  arbitrary = mkLegalHoldAccess <$> arbitrary <*> arbitraryClientId <*> arbitrary
-
-instance Arbitrary LegalHoldUser where
-  arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary ByteString where
   arbitrary = fromString <$> arbitrary `suchThat` notElem '.'

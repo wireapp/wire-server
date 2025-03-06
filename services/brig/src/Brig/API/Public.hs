@@ -899,10 +899,10 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
     Auth.toWebCookie =<< case userStatus acc of
       Public.Ephemeral ->
         lift . wrapHttpClient $
-          Auth.newCookie @ZAuth.User userId Nothing Public.SessionCookie newUserLabel
+          Auth.newCookie @(ZAuth.User ZAuth.ActualUser) userId Nothing Public.SessionCookie newUserLabel
       _ ->
         lift . wrapHttpClient $
-          Auth.newCookie @ZAuth.User userId Nothing Public.PersistentCookie newUserLabel
+          Auth.newCookie @(ZAuth.User ZAuth.ActualUser) userId Nothing Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
   where
