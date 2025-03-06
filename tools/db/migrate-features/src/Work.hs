@@ -382,17 +382,18 @@ writeFeatures
             setMigrationState team_id MigrationCompleted
         )
         (setMigrationState team_id MigrationNotStarted)
-      modifyIORef countRef $ \(migrated, skipped) ->
-        if state == MigrationNotStarted
-          then (migrated + 1, skipped)
-          else (migrated, skipped + 1)
 
-      (migrated, skipped) <- readIORef countRef
-      when ((migrated + skipped) `mod` opts.granularity == 0) $ do
-        Log.info opts.logger $
-          Log.msg ("migration progress" :: ByteString)
-            . Log.field "migrated" migrated
-            . Log.field "skipped" skipped
+    modifyIORef countRef $ \(migrated, skipped) ->
+      if state == MigrationNotStarted
+        then (migrated + 1, skipped)
+        else (migrated, skipped + 1)
+
+    (migrated, skipped) <- readIORef countRef
+    when ((migrated + skipped) `mod` opts.granularity == 0) $ do
+      Log.info opts.logger $
+        Log.msg ("migration progress" :: ByteString)
+          . Log.field "migrated" migrated
+          . Log.field "skipped" skipped
 
 ----------------------------------------------------------------------------
 
