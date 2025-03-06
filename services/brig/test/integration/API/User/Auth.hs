@@ -348,7 +348,7 @@ testEmailLogin brig = do
     login brig (defEmailLogin email) PersistentCookie
       <!! const 200 === statusCode
   liftIO $ do
-    assertSanePersistentCookie @(ZAuth.User ZAuth.ActualUser) (decodeCookie rs)
+    assertSanePersistentCookie @(ZAuth.ActualUser) (decodeCookie rs)
     assertSaneAccessToken now (userId u) (decodeToken rs)
   -- Login again, but with capitalised email address
   let loc = localPart email
@@ -453,7 +453,7 @@ testTeamUserLegalHoldLogin brig galley = do
       <!! const 200 === statusCode
   -- check for the correct (legalhold) token and cookie
   liftIO $ do
-    assertSanePersistentCookie @(ZAuth.User ZAuth.LHUser) (decodeCookie _rs)
+    assertSanePersistentCookie @(ZAuth.LHUser) (decodeCookie _rs)
     assertSaneAccessToken now alice (decodeToken' @(ZAuth.Access ZAuth.LHUser) _rs)
 
 testLegalHoldSessionCookie :: Brig -> Galley -> Http ()
@@ -464,7 +464,7 @@ testLegalHoldSessionCookie brig galley = do
     legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) SessionCookie
       <!! const 200 === statusCode
   -- ensure server always returns a refreshable PersistentCookie irrespective of argument passed
-  liftIO $ assertSanePersistentCookie @(ZAuth.User ZAuth.LHUser) (decodeCookie rs)
+  liftIO $ assertSanePersistentCookie @(ZAuth.LHUser) (decodeCookie rs)
 
 -- | Check that @/i/legalhold-login/@ can not be used to login as a suspended
 -- user.
@@ -534,7 +534,7 @@ testEmailSsoLogin brig = do
     ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
       <!! const 200 === statusCode
   liftIO $ do
-    assertSanePersistentCookie @(ZAuth.User ZAuth.ActualUser) (decodeCookie rs)
+    assertSanePersistentCookie @(ZAuth.ActualUser) (decodeCookie rs)
     assertSaneAccessToken now uid (decodeToken rs)
 
 testEmailSsoLoginNonSsoUser :: Brig -> Http ()
@@ -794,7 +794,7 @@ testAccessWithClientId brig = do
     let ck = decodeCookie r
         Just token = fromByteString @(ZAuth.Token (ZAuth.Access ZAuth.ActualUser)) (cookie_value ck)
         atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
-    assertSanePersistentCookie @(ZAuth.User ZAuth.ActualUser) ck
+    assertSanePersistentCookie @(ZAuth.ActualUser) ck
     token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
     assertSaneAccessToken now (userId u) (decodeToken' @(ZAuth.Access ZAuth.ActualUser) r)
     atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
@@ -846,7 +846,7 @@ testAccessWithClientIdAndOldToken brig = do
     let ck = decodeCookie r
         Just token = fromByteString @(ZAuth.Token (ZAuth.Access ZAuth.ActualUser)) (cookie_value ck)
         atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
-    assertSanePersistentCookie @(ZAuth.User ZAuth.ActualUser) ck
+    assertSanePersistentCookie @(ZAuth.ActualUser) ck
     token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
     assertSaneAccessToken now (userId u) atoken
     atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
@@ -929,7 +929,7 @@ testAccessWithExistingClientId brig = do
       let ck = decodeCookie r
           Just token = fromByteString @(ZAuth.Token (ZAuth.Access ZAuth.ActualUser)) (cookie_value ck)
           atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
-      assertSanePersistentCookie @(ZAuth.User ZAuth.ActualUser) ck
+      assertSanePersistentCookie @(ZAuth.ActualUser) ck
       token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
       assertSaneAccessToken now (userId u) (decodeToken' @(ZAuth.Access ZAuth.ActualUser) r)
       atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
@@ -1147,15 +1147,15 @@ listCookiesWithLabel b u l = do
 -- | Check that the cookie returned after login is sane.
 --
 -- Doesn't check everything, just some basic properties.
-assertSanePersistentCookie :: forall u. (ZAuth.UserTokenLike u) => Http.Cookie -> Assertion
+assertSanePersistentCookie :: forall t. (ZAuth.KnownUserTokenType t) => Http.Cookie -> Assertion
 assertSanePersistentCookie ck = do
   assertBool "type" (cookie_persistent ck)
   assertBool "http-only" (cookie_http_only ck)
   assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
   assertBool "domain" (cookie_domain ck /= "")
   assertBool "path" (cookie_path ck /= "")
-  let Just (token :: ZAuth.Token u) = fromByteString (cookie_value ck)
-      tokentype = ZAuth.zauthType @u
+  let Just (token :: ZAuth.Token (ZAuth.User t)) = fromByteString (cookie_value ck)
+      tokentype = ZAuth.userTokenType $ ZAuth.userTokenTypeVal @t
   assertBool "type field (t=)" $ token ^. ZAuth.header . ZAuth.typ == tokentype
 
 -- | Check that the access token returned after login is sane.
