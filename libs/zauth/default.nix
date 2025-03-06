@@ -9,7 +9,6 @@
 , bytestring
 , bytestring-conversion
 , errors
-, exceptions
 , gitignoreSource
 , imports
 , lens
@@ -41,7 +40,6 @@ mkDerivation {
     bytestring
     bytestring-conversion
     errors
-    exceptions
     imports
     lens
     mtl
@@ -55,21 +53,16 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     base
-    base64-bytestring
-    bytestring
-    bytestring-conversion
-    errors
     imports
-    lens
     optparse-applicative
     sodium-crypto-sign
-    uuid
   ];
   testHaskellDepends = [
     base
     bytestring-conversion
     imports
     lens
+    polysemy
     sodium-crypto-sign
     tasty
     tasty-hunit
