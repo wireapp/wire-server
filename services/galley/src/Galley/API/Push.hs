@@ -29,7 +29,7 @@ module Galley.API.Push
   )
 where
 
-import Control.Lens (set)
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.List1 qualified as List1
@@ -86,18 +86,20 @@ runMessagePush ::
   MessagePush ->
   Sem r ()
 runMessagePush loc mqcnv mp@(MessagePush _ _ _ botMembers event) = do
-  pushNotifications $ maybeToList $ toPush mp
+  pushNotifications [toPush mp]
   for_ mqcnv $ \qcnv ->
     if tDomain loc /= qDomain qcnv
       then unless (null botMembers) $ do
         warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show qcnv)
       else deliverAndDeleteAsync (qUnqualified qcnv) (map (,event) botMembers)
 
-toPush :: MessagePush -> Maybe Push
+toPush :: MessagePush -> Push
 toPush (MessagePush mconn mm rs _ event) =
-  let usr = qUnqualified (evtFrom event)
-   in newPush (Just usr) (toJSONObject event) rs
-        <&> set pushConn mconn
-        . set pushNativePriority (mmNativePriority mm)
-        . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
-        . set pushTransient (mmTransient mm)
+  def
+    { origin = Just (qUnqualified (evtFrom event)),
+      conn = mconn,
+      json = toJSONObject event,
+      recipients = rs,
+      route = bool RouteDirect RouteAny (mmNativePush mm),
+      transient = mmTransient mm
+    }
