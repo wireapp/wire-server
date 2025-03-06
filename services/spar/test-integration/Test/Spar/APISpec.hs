@@ -717,7 +717,8 @@ specCRUDIdentityProvider = do
         -- update the name a few times, ending up with the original one.
         change idpmeta1' [idpmeta1]
         change idpmeta1'' [idpmeta1, idpmeta1']
-        change idpmeta1 [idpmeta1, idpmeta1', idpmeta1'']
+        -- change it back to the original one. in this case the original issuer should be removed from old issuers
+        change idpmeta1 [idpmeta1', idpmeta1'']
 
     describe "issuer changed to one that is new" $ do
       it "updates old idp, updating both issuer and old_issuers" $ do
