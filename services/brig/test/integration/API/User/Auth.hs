@@ -795,9 +795,9 @@ testAccessWithClientId brig = do
         Just token = fromByteString (cookie_value ck)
         atoken = decodeToken' @ZAuth.Access r
     assertSanePersistentCookie @ZAuth.User ck
-    ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+    token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
     assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
-    ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+    atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
 
 -- here a fresh client gets a token without client_id first, then allocates a
 -- new client ID and finally calls access again with the new client_id
@@ -847,9 +847,9 @@ testAccessWithClientIdAndOldToken brig = do
         Just token = fromByteString (cookie_value ck)
         atoken = decodeToken' @ZAuth.Access r
     assertSanePersistentCookie @ZAuth.User ck
-    ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+    token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
     assertSaneAccessToken now (userId u) atoken
-    ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+    atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
 
 testAccessWithIncorrectClientId :: Brig -> Http ()
 testAccessWithIncorrectClientId brig = do
@@ -930,9 +930,9 @@ testAccessWithExistingClientId brig = do
           Just token = fromByteString (cookie_value ck)
           atoken = decodeToken' @ZAuth.Access r
       assertSanePersistentCookie @ZAuth.User ck
-      ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+      token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
       assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
-      ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+      atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
     pure (decodeCookie r)
 
   -- now access with a different client ID
