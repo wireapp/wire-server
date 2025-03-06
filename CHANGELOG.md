@@ -1,3 +1,102 @@
+# [2025-03-06] (Chart Release 5.12.0)
+
+## Release notes
+
+
+* This release is compatible to ElasticSearch 6.8 and OpenSearch 1.3. It is meant
+  as a migration release to switch to the newer OpenSearch 1.3 index search.
+  Later releases may drop support of ElasticSearch 6.8. (#4444)
+
+* This release introduces a new data storage format for team features and a corresponding migration. To migrate to the new format, a new tool called `migrate-features` has been added. This tool needs to be run after deployment of this release, and before deploying the next release.
+
+  While the migration tool is running, team features are going to operate in read-only mode for the team that is currently being migrated. After migration, the new storage is going to be used. No other action should be required on the part of instance operators besides running the migration tool.
+
+  This tool can be run in kubernetes using a job like this:
+
+  ```yaml
+  apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: migrate-features
+    namespace: <namespace>
+  spec:
+    template:
+      spec:
+        containers:
+          - name: migrate-features
+            image: quay.io/wire/migrate-features:5.12.0
+            args:
+              [
+                --cassandra-host-galley,
+                <galley-host>,
+                --cassandra-port-galley,
+                "9042",
+                --cassandra-keyspace-galley,
+                galley,
+              ]
+        restartPolicy: Never
+    backoffLimit: 4
+  ``` (#4459)
+
+
+## Features
+
+
+* Enforce no activation for email domains that are registered for another team or backend (#4455)
+
+* For SAML authenticated users: Do not require email verification for registered email domains. (#4466)
+
+* Enforce that users cannot use emails from domains which are registered for a particular team or another backend (#4452)
+
+* Rate limit password hashing operations (#4353)
+
+
+## Bug fixes and other updates
+
+
+* Allow transition of the domain redirect value to and from `no-registration` and `backend`. (#4465)
+
+* Fixed CVEs in sftd_disco image (#4416)
+
+* Ignore MLS self conversation while requesting LH device (#4480)
+
+* Prevent removal of MLS protocol support (#4478)
+
+* Prevent guest users from migrating to teams (#4477)
+
+* Prevent SAML issuer from being deleted on IdP update (#4481)
+
+* Return HTTP status 400 in case of interrupted file uploads. Previously, the AWS
+  S3 error due to the wrong "content length" was interpreted as application error
+  (HTTP status 500.) This led to false alerts in monitoring systems. (#4458)
+
+
+## Internal changes
+
+
+* Alpine version bump to v3.21.3 for cassandra-migrations and cannon helm charts (#4457)
+
+* Avoid rehashing Scrypt hashed passwords if the backend config is to keep passwords as Scrypt hashed. (#4353)
+
+* Use ElasticSearch 6.8.23 in our local dev setups (`docker-compose`.) This is the version we use on CI, staging and prod. (#4446)
+
+* Fix issue with cleanup of resources after integration tests, namely fix 'helmfile destroy' (#4450)
+
+* For internal CI: Cleanup nginx ingress class objects after running integration tests. (#4449)
+
+* OpenSearch 1.3 has been added to the local and CI integration test setup. (#4444)
+
+* Introduce a new feature table in Cassandra: `team_features_dyn`. This table has a fixed number of fields, as opposed to the ever-growing collection of all the fields of all the features that we were using before. (#4459)
+
+* update fake-aws-sqs chart / elasticmq-native from v1.5.2 to v1.6.11 (#4463)
+
+* reaper helm chart: bump bitnami/kubectl docker image from 1.24.12 to 1.32.2 (#4462)
+
+* Update redis-ephemeral helm chart to use the latest 6.2.X (6.2.7) image of redis. Note that this changes the default hostname of the redis kubernetes service from `redis-ephemeral-master` to `databases-ephemeral-redis-ephemeral-master` (if installing through the databases-ephemeral chart). (#4440)
+
+* Use Nix flake (tom-bombadil) to create and upload SBOM files in CI. (#4448)
+
+
 # [2025-02-07] (Chart Release 5.11.0)
 
 ## API changes
