@@ -32,15 +32,28 @@ nginx_conf:
   worker_processes: auto
   worker_rlimit_nofile: 131072
   worker_connections: 65536
+  
+  # To enable multi deeplinks for each ingress in a multi-ingress setup, add a deeplink section for each ingress.
   # deeplink:
-  #   endpoints:
-  #     backendURL: "https://prod-nginz-https.wire.com"
-  #     backendWSURL: "https://prod-nginz-ssl.wire.com"
-  #     blackListURL: "https://clientblacklist.wire.com/prod"
-  #     teamsURL: "https://teams.wire.com"
-  #     accountsURL: "https://accounts.wire.com"
-  #     websiteURL: "https://wire.com"
-  #   title: "Production"
+  #   wire.com:
+  #     endpoints:
+  #       backendURL: "https://prod-nginz-https.wire.com"
+  #       backendWSURL: "https://prod-nginz-ssl.wire.com"
+  #       blackListURL: "https://clientblacklist.wire.com/prod"
+  #       teamsURL: "https://teams.wire.com"
+  #       accountsURL: "https://accounts.wire.com"
+  #       websiteURL: "https://wire.com"
+  #     title: "Production"
+  #   secondingress.com:
+  #     endpoints:
+  #       backendURL: "https://prod-nginz-https.secondingress.com"
+  #       backendWSURL: "https://prod-nginz-ssl.secondingress.com"
+  #       blackListURL: "https://clientblacklist.secondingress.com/prod"
+  #       teamsURL: "https://teams.secondingress.com"
+  #       accountsURL: "https://accounts.secondingress.com"
+  #       websiteURL: "https://secondingress.com"
+  #     title: "Production secondingress"    
+
   disabled_paths:
   - /conversations/last-events
   - /conversations/([^/]*)/knock
