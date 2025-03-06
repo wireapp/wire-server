@@ -117,6 +117,7 @@ internalAPI =
       <@> federationAPI
       <@> conversationAPI
       <@> iEJPDAPI
+      <@> cellsAPI
 
 iEJPDAPI :: API IEJPDAPI GalleyEffects
 iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
@@ -294,6 +295,9 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", CellsConfig) (updateLockStatus @CellsConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
+
+cellsAPI :: API ICellsAPI GalleyEffects
+cellsAPI = mkNamedAPI @"set-cells-state" Update.updateCellsState
 
 rmUser ::
   forall p1 p2 r.

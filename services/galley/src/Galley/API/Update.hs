@@ -43,6 +43,7 @@ module Galley.API.Update
     updateRemoteConversation,
     updateConversationProtocolWithLocalUser,
     updateLocalStateOfRemoteConv,
+    updateCellsState,
 
     -- * Managing Members
     addMembersUnqualified,
@@ -118,6 +119,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol qualified as P
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -1677,6 +1679,15 @@ rmBot lusr zcon b = do
         E.deleteClients (botUserId (b ^. rmBotId))
         E.deliverAsync (map (,e) bots)
         pure $ Updated e
+
+updateCellsState ::
+  (Member ConversationStore r) =>
+  ConvId ->
+  CellsState ->
+  Sem r ()
+updateCellsState cnv state = do
+  -- TODO declare event queue when cells is first activated
+  E.setConversationCellsState cnv state
 
 -------------------------------------------------------------------------------
 -- Helpers
