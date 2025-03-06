@@ -95,7 +95,7 @@ testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) === Just t
 testNotExpired :: (Member (Embed IO) r, Member ZAuthCreation r) => V.Env -> Sem r ()
 testNotExpired p = do
   u <- liftIO nextRandom
-  t <- userToken defDuration u Nothing 100
+  t <- userToken @_ @ActualUser defDuration u Nothing 100
   x <- liftIO $ runValidate p $ check t
   liftIO $ assertBool "testNotExpired: validation failed" (isRight x)
 
@@ -106,7 +106,7 @@ testNotExpired p = do
 testExpired :: (Member (Embed IO) r, Member ZAuthCreation r) => V.Env -> Sem r ()
 testExpired p = do
   u <- liftIO nextRandom
-  t <- userToken 0 u Nothing 100
+  t <- userToken @_ @ActualUser 0 u Nothing 100
   waitSeconds 1
   x <- liftIO $ runValidate p $ check t
   liftIO $ Left Expired @=? x
@@ -116,15 +116,15 @@ testExpired p = do
 testSignAndVerify :: (Member (Embed IO) r, Member ZAuthCreation r) => V.Env -> Sem r ()
 testSignAndVerify p = do
   u <- liftIO nextRandom
-  t <- userToken defDuration u Nothing 100
+  t <- userToken @_ @ActualUser defDuration u Nothing 100
   x <- liftIO $ runValidate p $ check t
   liftIO $ assertBool "testSignAndVerify: validation failed" (isRight x)
 
 testRandDevIds :: (Member (Embed IO) r, Member ZAuthCreation r) => Sem r ()
 testRandDevIds = do
   u <- liftIO nextRandom
-  t1 <- view body <$> accessToken1 defDuration u Nothing
-  t2 <- view body <$> accessToken1 defDuration u Nothing
+  t1 <- view body <$> accessToken1 @_ @ActualUser defDuration u Nothing
+  t2 <- view body <$> accessToken1 @_ @ActualUser defDuration u Nothing
   liftIO $ assertBool "unexpected: Same device ID." (t1 ^. connection /= t2 ^. connection)
 
 -- Helpers:
