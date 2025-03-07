@@ -300,7 +300,7 @@ instance ToSchema Push where
         <*> (ifNot (== HighPriority) . _pushNativePriority)
           .= maybe_ (fromMaybe HighPriority <$> optField "native_priority" schema)
         <*> _pushPayload .= field "payload" schema
-        <*> _pushIsCellsEvent .= field "is_cells_event" schema
+        <*> _pushIsCellsEvent .= fmap (fromMaybe False) (optField "is_cells_event" schema)
     where
       ifNot f a = if f a then Nothing else Just a
 
