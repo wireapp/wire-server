@@ -370,6 +370,11 @@ http {
         }
         {{- end }}
 
+        # Check if domain matches the external_env_domain
+        if ($domain = "{{ .Values.nginx_conf.external_env_domain }}") {
+            set $domain_allowed 1;
+        }
+
         # Set domain_file based on whether domain is allowed
         if ($domain_allowed = 1) {
             set $domain_file "$domain-deeplink.$file_ext";
