@@ -1615,6 +1615,7 @@ CREATE TABLE galley_test.conversation (
     creator uuid,
     deleted boolean,
     epoch bigint,
+    group_conv_type int,
     group_id blob,
     message_timer bigint,
     name text,
