@@ -46,7 +46,6 @@ import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.ListItems
-import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Env
@@ -70,7 +69,6 @@ interpretTeamStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input Env) r,
     Member (Input ClientState) r,
-    Member TeamFeatureStore r,
     Member TinyLog r
   ) =>
   FeatureDefaults LegalholdConfig ->
@@ -227,7 +225,6 @@ interpretTeamMemberStoreToCassandraWithPaging lh = interpret $ \case
 
 createTeam ::
   ( Member (Input ClientState) r,
-    Member TeamFeatureStore r,
     Member (Embed IO) r
   ) =>
   Maybe TeamId ->
@@ -239,9 +236,6 @@ createTeam ::
   Sem r Team
 createTeam t uid (fromRange -> n) i k b = do
   tid <- embed @IO $ maybe (Id <$> liftIO nextRandom) pure t
-
-  -- new teams can immediately use team_features_dyn with no need to migrate
-  setMigrationState tid MigrationCompleted
 
   embedClient $ retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
   pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
