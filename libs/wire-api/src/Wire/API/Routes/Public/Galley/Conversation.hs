@@ -618,7 +618,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> VersionedReqBody 'V2 '[JSON] NewConv
+               :> ReqBody '[JSON] NewOne2OneConv
                :> ConversationVerb 'V2 Conversation
            )
     :<|> Named
@@ -640,7 +640,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> ReqBody '[JSON] NewConv
+               :> ReqBody '[JSON] NewOne2OneConv
                :> ConversationVerb 'V3 Conversation
            )
     :<|> Named
@@ -660,7 +660,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "one2one-conversations"
-               :> ReqBody '[JSON] NewConv
+               :> ReqBody '[JSON] NewOne2OneConv
                :> ConversationVerb 'V3 Conversation
            )
     :<|> Named
