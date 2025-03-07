@@ -201,8 +201,7 @@ createGroupConversationGeneric ::
   Sem r Conversation
 createGroupConversationGeneric lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
-  let tinfo = newConvTeam newConv
-  checkCreateConvPermissions lusr newConv tinfo allUsers
+  checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
 
   when (newConvProtocol newConv == BaseProtocolMLSTag) $ do
@@ -210,13 +209,11 @@ createGroupConversationGeneric lusr conn newConv = do
     assertMLSEnabled
 
   lcnv <- traverse (const E.createConversationId) lusr
-  do
-    conv <- E.createConversation lcnv nc
-
-    -- NOTE: We only send (conversation) events to members of the conversation
-    notifyCreatedConversation lusr conn conv
-    E.getConversation (tUnqualified lcnv)
-      >>= note (BadConvState (tUnqualified lcnv))
+  conv <- E.createConversation lcnv nc
+  -- NOTE: We only send (conversation) events to members of the conversation
+  notifyCreatedConversation lusr conn conv
+  E.getConversation (tUnqualified lcnv)
+    >>= note (BadConvState (tUnqualified lcnv))
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -333,15 +330,15 @@ createOne2OneConversation ::
   ) =>
   Local UserId ->
   ConnId ->
-  NewConv ->
+  NewOne2OneConv ->
   Sem r (ConversationResponse Public.Conversation)
 createOne2OneConversation lusr zcon j =
   mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
-    let allUsers = newConvMembers lusr j
+    let allUsers = newOne2OneConvMembers lusr j
     other <- ensureOne (ulAll lusr allUsers)
     when (tUntagged lusr == other) $
       throwS @'InvalidOperation
-    mtid <- case newConvTeam j of
+    mtid <- case j.team of
       Just ti -> do
         foldQualified
           lusr
@@ -351,8 +348,8 @@ createOne2OneConversation lusr zcon j =
       Nothing -> ensureConnected lusr allUsers $> Nothing
     foldQualified
       lusr
-      (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
-      (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
+      (createLegacyOne2OneConversationUnchecked lusr zcon j.name mtid)
+      (createOne2OneConversationUnchecked lusr zcon j.name mtid . tUntagged)
       other
   where
     verifyMembership ::
@@ -631,7 +628,8 @@ newRegularConversation lusr newConv = do
                   cnvmName = fmap fromRange (newConvName newConv),
                   cnvmMessageTimer = newConvMessageTimer newConv,
                   cnvmReceiptMode = newConvReceiptMode newConv,
-                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
+                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
+                  cnvmGroupConvType = Just newConv.newConvGroupConvType
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv
@@ -726,6 +724,11 @@ newConvMembers :: Local x -> NewConv -> UserList UserId
 newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)
+
+newOne2OneConvMembers :: Local x -> NewOne2OneConv -> UserList UserId
+newOne2OneConvMembers loc body =
+  UserList body.users []
+    <> toUserList loc body.qualifiedUsers
 
 ensureOne :: (Member (Error InvalidInput) r) => [a] -> Sem r a
 ensureOne [x] = pure x

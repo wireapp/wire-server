@@ -350,7 +350,8 @@ data ConversationCreated conv = ConversationCreated
     nonCreatorMembers :: Set OtherMember,
     messageTimer :: Maybe Milliseconds,
     receiptMode :: Maybe ReceiptMode,
-    protocol :: Protocol
+    protocol :: Protocol,
+    groupConvType :: Maybe GroupConvType
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))

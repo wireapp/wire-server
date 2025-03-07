@@ -68,7 +68,8 @@ remoteConversation =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmGroupConvType = Nothing
           },
       members =
         RemoteConvMembers
@@ -105,7 +106,8 @@ remoteConversationV2 =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmGroupConvType = Nothing
           },
       members =
         RemoteConvMembers
