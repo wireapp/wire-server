@@ -201,8 +201,7 @@ createGroupConversationGeneric ::
   Sem r Conversation
 createGroupConversationGeneric lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
-  let tinfo = newConvTeam newConv
-  checkCreateConvPermissions lusr newConv tinfo allUsers
+  checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
 
   when (newConvProtocol newConv == BaseProtocolMLSTag) $ do
@@ -210,13 +209,11 @@ createGroupConversationGeneric lusr conn newConv = do
     assertMLSEnabled
 
   lcnv <- traverse (const E.createConversationId) lusr
-  do
-    conv <- E.createConversation lcnv nc
-
-    -- NOTE: We only send (conversation) events to members of the conversation
-    notifyCreatedConversation lusr conn conv
-    E.getConversation (tUnqualified lcnv)
-      >>= note (BadConvState (tUnqualified lcnv))
+  conv <- E.createConversation lcnv nc
+  -- NOTE: We only send (conversation) events to members of the conversation
+  notifyCreatedConversation lusr conn conv
+  E.getConversation (tUnqualified lcnv)
+    >>= note (BadConvState (tUnqualified lcnv))
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -631,7 +628,8 @@ newRegularConversation lusr newConv = do
                   cnvmName = fmap fromRange (newConvName newConv),
                   cnvmMessageTimer = newConvMessageTimer newConv,
                   cnvmReceiptMode = newConvReceiptMode newConv,
-                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
+                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
+                  cnvmGroupConvType = Just newConv.newConvGroupConvType
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv

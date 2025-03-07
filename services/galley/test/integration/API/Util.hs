@@ -1560,7 +1560,8 @@ registerRemoteConv convId originUser name othMembers = do
           nonCreatorMembers = othMembers,
           messageTimer = Nothing,
           receiptMode = Nothing,
-          protocol = ProtocolProteus
+          protocol = ProtocolProteus,
+          groupConvType = Nothing
         }
 
 -------------------------------------------------------------------------------
@@ -2357,6 +2358,7 @@ mkProteusConv cnvId creator selfRole otherMembers =
         Nothing
         Nothing
         Nothing
+        (Just GroupConversation)
     )
     (RemoteConvMembers selfRole otherMembers)
     ProtocolProteus
