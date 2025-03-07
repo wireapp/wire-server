@@ -22,6 +22,7 @@
     "creator": "00000000-0000-0000-0000-000200000001",
     "epoch": 0,
     "epoch_timestamp": null,
+    "group_conv_type": null,
     "group_id": "dGVzdF9ncm91cA==",
     "id": "00000000-0000-0000-0000-000000000002",
     "last_event": "0.0",

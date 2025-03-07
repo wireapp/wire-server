@@ -70,7 +70,8 @@ testObject_ConversationCreated1 =
           ],
       messageTimer = Just (Ms 1000),
       receiptMode = Just (ReceiptMode 42),
-      protocol = ProtocolProteus
+      protocol = ProtocolProteus,
+      groupConvType = Just GroupConversation
     }
 
 testObject_ConversationCreated2 :: ConversationCreated ConvId
@@ -97,5 +98,6 @@ testObject_ConversationCreated2 =
                       MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
                   )
               )
-          )
+          ),
+      groupConvType = Nothing
     }

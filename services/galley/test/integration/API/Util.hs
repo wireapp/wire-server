@@ -2357,6 +2357,7 @@ mkProteusConv cnvId creator selfRole otherMembers =
         Nothing
         Nothing
         Nothing
+        (Just GroupConversation)
     )
     (RemoteConvMembers selfRole otherMembers)
     ProtocolProteus

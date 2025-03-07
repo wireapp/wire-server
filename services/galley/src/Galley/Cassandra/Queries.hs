@@ -230,15 +230,16 @@ selectConv ::
       Maybe GroupId,
       Maybe Epoch,
       Maybe (Writetime Epoch),
-      Maybe CipherSuiteTag
+      Maybe CipherSuiteTag,
+      Maybe GroupConvType
     )
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId) ()
-insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe GroupConvType) ()
+insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, group_conv_type) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertMLSSelfConv ::
   PrepQuery

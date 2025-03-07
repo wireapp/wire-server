@@ -138,7 +138,8 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode
+    cnvmReceiptMode :: Maybe ReceiptMode,
+    cnvmGroupConvType :: Maybe GroupConvType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -154,7 +155,8 @@ defConversationMetadata mCreator =
       cnvmName = Nothing,
       cnvmTeam = Nothing,
       cnvmMessageTimer = Nothing,
-      cnvmReceiptMode = Nothing
+      cnvmReceiptMode = Nothing,
+      cnvmGroupConvType = Just GroupConversation
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -214,6 +216,7 @@ conversationMetadataObjectSchema sch =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+    <*> cnvmGroupConvType .= optField "group_conv_type" (maybeWithDefault A.Null schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
@@ -660,7 +663,7 @@ instance ToSchema ReceiptMode where
 -- create
 
 data GroupConvType = GroupConversation | Channel
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Enum)
   deriving (Arbitrary) via (GenericUniform GroupConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema GroupConvType
 
