@@ -64,6 +64,7 @@ module Wire.API.Conversation
 
     -- * create
     NewConv (..),
+    NewOne2OneConv (..),
     ConvTeamInfo (..),
 
     -- * invite
@@ -780,6 +781,56 @@ instance ToSchema ConvTeamInfo where
     where
       c :: (ToJSON a) => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
+
+data NewOne2OneConv = NewOne2OneConv
+  { users :: [UserId],
+    -- | A list of qualified users, which can include some local qualified users
+    -- too.
+    qualifiedUsers :: [Qualified UserId],
+    name :: Maybe (Range 1 256 Text),
+    team :: Maybe ConvTeamInfo
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewOne2OneConv)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewOne2OneConv)
+
+instance ToSchema NewOne2OneConv where
+  schema =
+    objectWithDocModifier
+      "NewOne2OneConv"
+      (description ?~ "JSON object to create a new 1:1 conversation. When using 'qualified_users' (preferred), you can omit 'users'")
+      $ NewOne2OneConv
+        <$> users
+          .= ( fieldWithDocModifier
+                 "users"
+                 ( (S.deprecated ?~ True)
+                     . (description ?~ usersDesc)
+                 )
+                 (array schema)
+                 <|> pure []
+             )
+        <*> (.qualifiedUsers)
+          .= ( fieldWithDocModifier
+                 "qualified_users"
+                 (description ?~ qualifiedUsersDesc)
+                 (array schema)
+                 <|> pure []
+             )
+        <*> name .= maybe_ (optField "name" schema)
+        <*> team
+          .= maybe_
+            ( optFieldWithDocModifier
+                "team"
+                (description ?~ "Team information of this conversation")
+                schema
+            )
+    where
+      usersDesc =
+        "List of user IDs (excluding the requestor) to be \
+        \part of this conversation (deprecated)"
+      qualifiedUsersDesc =
+        "List of qualified user IDs (excluding the requestor) \
+        \to be part of this conversation"
 
 --------------------------------------------------------------------------------
 -- invite
