@@ -350,10 +350,42 @@ http {
     {{- end -}}
   {{- end }}
 
-    {{- if hasKey .Values.nginx_conf "deeplink" }}
+    {{- if or (hasKey .Values.nginx_conf "deeplink") (hasKey .Values.nginx_conf "multi_ingress_deeplink") }}
     location ~* ^/deeplink.(json|html)$ {
         zauth off;
-        root /etc/wire/nginz/conf/;
+
+        set $domain "";
+        set $domain_file "";
+        set $file_ext $1;
+
+        if ($http_host ~ ^nginz-https\.(.+)$) {
+            set $domain $1;
+        }
+
+        # Check if domain is in the allowed list
+        set $domain_allowed 0;
+        {{- range .Values.nginx_conf.additional_external_env_domains }}
+        if ($domain = "{{ . }}") {
+            set $domain_allowed 1;
+        }
+        {{- end }}
+
+        # Check if domain matches the external_env_domain
+        if ($domain = "{{ .Values.nginx_conf.external_env_domain }}") {
+            set $domain_allowed 1;
+        }
+
+        # Set domain_file based on whether domain is allowed
+        if ($domain_allowed = 1) {
+            set $domain_file "$domain-deeplink.$file_ext";
+        }
+
+        # Fallback to generic deeplink file if domain is not in allowed list
+        if ($domain_allowed = 0) {
+            set $domain_file "deeplink.$file_ext";
+        }
+        
+        alias /etc/wire/nginz/conf/$domain_file;
         types {
             application/json  json;
             text/html         html;
