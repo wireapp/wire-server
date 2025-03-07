@@ -64,6 +64,7 @@ module Wire.API.Conversation
 
     -- * create
     NewConv (..),
+    GroupConvType (..),
     NewOne2OneConv (..),
     ConvTeamInfo (..),
 
@@ -658,6 +659,19 @@ instance ToSchema ReceiptMode where
 --------------------------------------------------------------------------------
 -- create
 
+data GroupConvType = GroupConversation | Channel
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GroupConvType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GroupConvType
+
+instance ToSchema GroupConvType where
+  schema =
+    enum @Text "GroupConvType" $
+      mconcat
+        [ element "group_conversation" GroupConversation,
+          element "channel" Channel
+        ]
+
 data NewConv = NewConv
   { newConvUsers :: [UserId],
     -- | A list of qualified users, which can include some local qualified users
@@ -672,7 +686,8 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: BaseProtocolTag
+    newConvProtocol :: BaseProtocolTag,
+    newConvGroupConvType :: GroupConvType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -738,6 +753,7 @@ newConvSchema v sch =
         .= fmap
           (fromMaybe BaseProtocolProteusTag)
           (optField "protocol" schema)
+      <*> newConvGroupConvType .= (fromMaybe GroupConversation <$> optField "group_conv_type" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \

@@ -1918,7 +1918,19 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
+  let conv =
+        NewConv
+          []
+          newUsers
+          (checked "gossip")
+          (Set.fromList [])
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          BaseProtocolProteusTag
+          GroupConversation
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -1946,7 +1958,19 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- viewGalley
   alice <- randomUser
-  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
+  let inv =
+        NewConv
+          [alice]
+          []
+          Nothing
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          BaseProtocolProteusTag
+          GroupConversation
   post (g . path "one2one-conversations" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe

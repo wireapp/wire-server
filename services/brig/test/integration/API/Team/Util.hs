@@ -221,6 +221,7 @@ createTeamConvWithRole role g tid u us mtimer = do
           Nothing
           role
           BaseProtocolProteusTag
+          GroupConversation
   r <-
     post
       ( g
