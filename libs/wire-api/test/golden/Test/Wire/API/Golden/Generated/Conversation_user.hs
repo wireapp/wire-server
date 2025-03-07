@@ -57,7 +57,8 @@ testObject_Conversation_user_1 =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmGroupConvType = Nothing
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
@@ -104,7 +105,8 @@ testObject_Conversation_user_2 =
             cnvmName = Just "",
             cnvmTeam = Nothing,
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
-            cnvmReceiptMode = Nothing
+            cnvmReceiptMode = Nothing,
+            cnvmGroupConvType = Nothing
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
@@ -170,7 +172,8 @@ testObject_Conversation_user_3 =
             cnvmName = Just "",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
+            cnvmGroupConvType = Nothing
           },
       cnvMembers =
         ConvMembers
@@ -232,7 +235,8 @@ testObject_Conversation_user_4 =
             cnvmName = Just "",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
+            cnvmGroupConvType = Nothing
           },
       cnvMembers =
         ConvMembers
@@ -272,7 +276,8 @@ testObject_Conversation_user_5 =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmGroupConvType = Nothing
           },
       cnvMembers =
         ConvMembers

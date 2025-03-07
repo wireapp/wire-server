@@ -2221,6 +2221,7 @@ accessConvMeta = do
           Nothing
           Nothing
           Nothing
+          (Just GroupConversation)
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode
     const (Just meta) === (decode <=< responseBody)

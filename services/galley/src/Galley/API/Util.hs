@@ -748,7 +748,8 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       nonCreatorMembers = Set.empty,
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
-      protocol = convProtocol
+      protocol = convProtocol,
+      groupConvType = cnvmGroupConvType
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -808,7 +809,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             -- domain.
             cnvmTeam = Nothing,
             cnvmMessageTimer = messageTimer,
-            cnvmReceiptMode = receiptMode
+            cnvmReceiptMode = receiptMode,
+            cnvmGroupConvType = groupConvType
           }
         (ConvMembers this others)
         ProtocolProteus
