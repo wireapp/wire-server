@@ -350,21 +350,34 @@ http {
     {{- end -}}
   {{- end }}
 
-    {{- $defaultDomain := index (keys .Values.nginx_conf.deeplink) 0 }}
-    {{- if hasKey .Values.nginx_conf "deeplink" }}
+    {{- if or (hasKey .Values.nginx_conf "deeplink") (hasKey .Values.nginx_conf "multi_ingress_deeplink") }}
     location ~* ^/deeplink.(json|html)$ {
         zauth off;
 
-        # Extract domain from host by removing 'nginz-https.' prefix
+        set $domain "";
         set $domain_file "";
         set $file_ext $1;
+
         if ($http_host ~ ^nginz-https\.(.+)$) {
-            set $domain_file "$1-deeplink.$file_ext";
+            set $domain $1;
         }
-        
-        # Fallback to a default domain if parsing fails
-        if ($domain_file = "") {
-            set $domain_file "{{ $defaultDomain }}-deeplink.$file_ext";
+
+        # Check if domain is in the allowed list
+        set $domain_allowed 0;
+        {{- range .Values.nginx_conf.additional_external_env_domains }}
+        if ($domain = "{{ . }}") {
+            set $domain_allowed 1;
+        }
+        {{- end }}
+
+        # Set domain_file based on whether domain is allowed
+        if ($domain_allowed = 1) {
+            set $domain_file "$domain-deeplink.$file_ext";
+        }
+
+        # Fallback to generic deeplink file if domain is not in allowed list
+        if ($domain_allowed = 0) {
+            set $domain_file "deeplink.$file_ext";
         }
         
         alias /etc/wire/nginz/conf/$domain_file;

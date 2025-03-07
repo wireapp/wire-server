@@ -7,8 +7,16 @@ data:
   nginx.conf: |2
     {{- include "nginz_nginx.conf" . | indent 4 }}
   upstreams.txt: "{{- include "nginz_upstreams.txt" . | trim }}"
+  {{- if or (hasKey .Values.nginx_conf "deeplink") }}
+  deeplink.json: |2
+{{- include "nginz_deeplink.json" . | indent 4 }}
+  deeplink.html: |2
+{{- include "nginz_deeplink.html" . | indent 4 }}
+  {{- end }}
+
   {{ printf "\n" }}
-  {{- range $domain, $config := .Values.nginx_conf.deeplink }}
+
+  {{- range $domain, $config := .Values.nginx_conf.multi_ingress_deeplink }}
   {{- $deeplink_json := printf "%s-deeplink.json" $domain }}
   {{- $deeplink_html := printf "%s-deeplink.html" $domain }}
   {{ $deeplink_json }}: |2
