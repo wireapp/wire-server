@@ -333,15 +333,15 @@ createOne2OneConversation ::
   ) =>
   Local UserId ->
   ConnId ->
-  NewConv ->
+  NewOne2OneConv ->
   Sem r (ConversationResponse Public.Conversation)
 createOne2OneConversation lusr zcon j =
   mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
-    let allUsers = newConvMembers lusr j
+    let allUsers = newOne2OneConvMembers lusr j
     other <- ensureOne (ulAll lusr allUsers)
     when (tUntagged lusr == other) $
       throwS @'InvalidOperation
-    mtid <- case newConvTeam j of
+    mtid <- case j.team of
       Just ti -> do
         foldQualified
           lusr
@@ -351,8 +351,8 @@ createOne2OneConversation lusr zcon j =
       Nothing -> ensureConnected lusr allUsers $> Nothing
     foldQualified
       lusr
-      (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
-      (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
+      (createLegacyOne2OneConversationUnchecked lusr zcon j.name mtid)
+      (createOne2OneConversationUnchecked lusr zcon j.name mtid . tUntagged)
       other
   where
     verifyMembership ::
@@ -726,6 +726,11 @@ newConvMembers :: Local x -> NewConv -> UserList UserId
 newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)
+
+newOne2OneConvMembers :: Local x -> NewOne2OneConv -> UserList UserId
+newOne2OneConvMembers loc body =
+  UserList body.users []
+    <> toUserList loc body.qualifiedUsers
 
 ensureOne :: (Member (Error InvalidInput) r) => [a] -> Sem r a
 ensureOne [x] = pure x
