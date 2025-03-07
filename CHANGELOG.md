@@ -1,3 +1,11 @@
+# [2025-03-07] (Chart Release 5.13.0)
+
+## Release notes
+
+
+* Fix logging of skipped entries in feature migration tool (#4485)
+
+
 # [2025-03-06] (Chart Release 5.12.0)
 
 ## Release notes
