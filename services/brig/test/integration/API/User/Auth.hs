@@ -792,10 +792,10 @@ testAccessWithClientId brig = do
   now <- liftIO getCurrentTime
   liftIO $ do
     let ck = decodeCookie r
-        Just token = fromByteString @(ZAuth.Token (ZAuth.Access ZAuth.ActualUser)) (cookie_value ck)
+    let Just token = fromByteString @(ZAuth.Token (ZAuth.User ZAuth.ActualUser)) (cookie_value ck)
         atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
     assertSanePersistentCookie @(ZAuth.ActualUser) ck
-    token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
+    token ^. ZAuth.body . ZAuth.client @?= Just (clientToText (clientId cl))
     assertSaneAccessToken now (userId u) (decodeToken' @(ZAuth.Access ZAuth.ActualUser) r)
     atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
 
@@ -844,10 +844,10 @@ testAccessWithClientIdAndOldToken brig = do
   now <- liftIO getCurrentTime
   liftIO $ do
     let ck = decodeCookie r
-        Just token = fromByteString @(ZAuth.Token (ZAuth.Access ZAuth.ActualUser)) (cookie_value ck)
+        Just token = fromByteString @(ZAuth.Token (ZAuth.User ZAuth.ActualUser)) (cookie_value ck)
         atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
     assertSanePersistentCookie @(ZAuth.ActualUser) ck
-    token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
+    token ^. ZAuth.body . ZAuth.client @?= Just (clientToText (clientId cl))
     assertSaneAccessToken now (userId u) atoken
     atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
 
@@ -927,10 +927,10 @@ testAccessWithExistingClientId brig = do
         <!! const 200 === statusCode
     liftIO $ do
       let ck = decodeCookie r
-          Just token = fromByteString @(ZAuth.Token (ZAuth.Access ZAuth.ActualUser)) (cookie_value ck)
+          Just token = fromByteString @(ZAuth.Token (ZAuth.User ZAuth.ActualUser)) (cookie_value ck)
           atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
       assertSanePersistentCookie @(ZAuth.ActualUser) ck
-      token ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
+      token ^. ZAuth.body . ZAuth.client @?= Just (clientToText (clientId cl))
       assertSaneAccessToken now (userId u) (decodeToken' @(ZAuth.Access ZAuth.ActualUser) r)
       atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
     pure (decodeCookie r)
