@@ -117,6 +117,7 @@ library
     Test.Cargohold.API.Util
     Test.Cargohold.API.V3
     Test.Cargohold.Metrics
+    Test.Channels
     Test.Client
     Test.Connection
     Test.Conversation
