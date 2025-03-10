@@ -42,7 +42,6 @@ module Data.ZAuth.Creation
   )
 where
 
-import Control.Lens
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
@@ -111,12 +110,12 @@ interpretZAuthCreationInput = interpret $ \case
 userTokenImpl :: forall t r. (Member (Input Env) r, Member (Embed IO) r, KnownUserTokenType t) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token (User t))
 userTokenImpl dur usr cli rnd = do
   d <- expiry dur
-  newTokenImpl d (userTokenType $ userTokenTypeVal @t) Nothing (mkUser usr cli rnd)
+  newTokenImpl d (userTokenType $ userTokenTypeVal @t) Nothing (User usr cli rnd)
 
 sessionTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Maybe Text -> Word32 -> Sem r (Token (User ActualUser))
 sessionTokenImpl dur usr cli rnd = do
   d <- expiry dur
-  newTokenImpl d U (Just S) (mkUser usr cli rnd)
+  newTokenImpl d U (Just S) (User usr cli rnd)
 
 newConnId :: (Member (Input Env) r, Member (Embed IO) r) => Sem r Word64
 newConnId = do
@@ -128,7 +127,7 @@ newConnId = do
 accessTokenImpl :: forall t r. (Member (Input Env) r, Member (Embed IO) r, KnownUserTokenType t) => Integer -> UUID -> Maybe Text -> Word64 -> Sem r (Token (Access t))
 accessTokenImpl dur usr cid con = do
   d <- expiry dur
-  newTokenImpl d (accessTokenType $ userTokenTypeVal @t) Nothing (mkAccess usr cid con)
+  newTokenImpl d (accessTokenType $ userTokenTypeVal @t) Nothing (Access usr cid con)
 
 -- | Create an access token taking a duration, userId and clientId.
 -- Similar to 'accessToken', except that the connection identifier is randomly
@@ -139,24 +138,24 @@ accessToken1Impl dur usr cid = do
   accessTokenImpl dur usr cid d
 
 botTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => UUID -> UUID -> UUID -> Sem r (Token Bot)
-botTokenImpl pid bid cnv = newTokenImpl (-1) B Nothing (mkBot pid bid cnv)
+botTokenImpl pid bid cnv = newTokenImpl (-1) B Nothing (Bot pid bid cnv)
 
 providerTokenImpl :: (Member (Input Env) r, Member (Embed IO) r) => Integer -> UUID -> Sem r (Token Provider)
 providerTokenImpl dur pid = do
   d <- expiry dur
-  newTokenImpl d P Nothing (mkProvider pid)
+  newTokenImpl d P Nothing (Provider pid)
 
 newTokenImpl :: (ToByteString a, Member (Embed IO) r, Member (Input Env) r) => POSIXTime -> Type -> Maybe Tag -> a -> Sem r (Token a)
 newTokenImpl tokenTime tokenTyp mTag a = do
   env <- input
-  let h = mkHeader tokenVersion env.keyIdx (floor tokenTime) tokenTyp mTag
+  let h = Header tokenVersion env.keyIdx (floor tokenTime) tokenTyp mTag
   s <- embed $ signToken env h a
-  pure $ mkToken s h a
+  pure $ Token s h a
 
 renewTokenImpl :: (ToByteString a, Member (Input Env) r, Member (Embed IO) r) => Integer -> Header -> a -> Sem r (Token a)
 renewTokenImpl dur hdr bdy = do
   d <- expiry dur
-  newTokenImpl d (hdr ^. typ) (hdr ^. tag) bdy
+  newTokenImpl d (hdr.typ) (hdr.tag) bdy
 
 -----------------------------------------------------------------------------
 -- Internal

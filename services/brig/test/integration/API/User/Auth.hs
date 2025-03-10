@@ -32,7 +32,6 @@ import Brig.Options qualified as Opts
 import Cassandra hiding (Value)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
-import Control.Lens ((^.))
 import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.ByteString qualified as BS
@@ -795,9 +794,9 @@ testAccessWithClientId brig = do
     let Just token = fromByteString @(ZAuth.Token (ZAuth.User ZAuth.ActualUser)) (cookie_value ck)
         atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
     assertSanePersistentCookie @(ZAuth.ActualUser) ck
-    token ^. ZAuth.body . ZAuth.client @?= Just (clientToText (clientId cl))
+    token.body.client @?= Just (clientToText (clientId cl))
     assertSaneAccessToken now (userId u) (decodeToken' @(ZAuth.Access ZAuth.ActualUser) r)
-    atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
+    atoken.body.clientId @?= Just (clientToText (clientId cl))
 
 -- here a fresh client gets a token without client_id first, then allocates a
 -- new client ID and finally calls access again with the new client_id
@@ -847,9 +846,9 @@ testAccessWithClientIdAndOldToken brig = do
         Just token = fromByteString @(ZAuth.Token (ZAuth.User ZAuth.ActualUser)) (cookie_value ck)
         atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
     assertSanePersistentCookie @(ZAuth.ActualUser) ck
-    token ^. ZAuth.body . ZAuth.client @?= Just (clientToText (clientId cl))
+    token.body.client @?= Just (clientToText (clientId cl))
     assertSaneAccessToken now (userId u) atoken
-    atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
+    atoken.body.clientId @?= Just (clientToText (clientId cl))
 
 testAccessWithIncorrectClientId :: Brig -> Http ()
 testAccessWithIncorrectClientId brig = do
@@ -930,9 +929,9 @@ testAccessWithExistingClientId brig = do
           Just token = fromByteString @(ZAuth.Token (ZAuth.User ZAuth.ActualUser)) (cookie_value ck)
           atoken = decodeToken' @(ZAuth.Access ZAuth.ActualUser) r
       assertSanePersistentCookie @(ZAuth.ActualUser) ck
-      token ^. ZAuth.body . ZAuth.client @?= Just (clientToText (clientId cl))
+      token.body.client @?= Just (clientToText (clientId cl))
       assertSaneAccessToken now (userId u) (decodeToken' @(ZAuth.Access ZAuth.ActualUser) r)
-      atoken ^. ZAuth.body . ZAuth.clientId @?= Just (clientToText (clientId cl))
+      atoken.body.clientId @?= Just (clientToText (clientId cl))
     pure (decodeCookie r)
 
   -- now access with a different client ID
@@ -1156,7 +1155,7 @@ assertSanePersistentCookie ck = do
   assertBool "path" (cookie_path ck /= "")
   let Just (token :: ZAuth.Token (ZAuth.User t)) = fromByteString (cookie_value ck)
       tokentype = ZAuth.userTokenType $ ZAuth.userTokenTypeVal @t
-  assertBool "type field (t=)" $ token ^. ZAuth.header . ZAuth.typ == tokentype
+  assertBool "type field (t=)" $ token.header.typ == tokentype
 
 -- | Check that the access token returned after login is sane.
 assertSaneAccessToken ::

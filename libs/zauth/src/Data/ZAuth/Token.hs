@@ -1,9 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
--- Disabling for this module, as Getters have a functor
--- constraint that GHC is complaining about.
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -24,36 +20,18 @@
 
 module Data.ZAuth.Token
   ( -- * Token
-    Token,
-    signature,
-    header,
-    body,
-    mkToken,
+    Token (..),
 
     -- * Header
-    Header,
-    version,
-    key,
-    time,
-    typ,
-    tag,
-    mkHeader,
+    Header (..),
     Type (..),
     Tag (..),
 
     -- * Access body
-    Access,
-    userId,
-    clientId,
-    connection,
-    mkAccess,
+    Access (..),
 
     -- * User body
-    User,
-    user,
-    client,
-    rand,
-    mkUser,
+    User (..),
 
     -- * UserTokenType
     UserTokenType (..),
@@ -62,16 +40,10 @@ module Data.ZAuth.Token
     KnownUserTokenType (..),
 
     -- * Bot body
-    Bot,
-    prov,
-    bot,
-    conv,
-    mkBot,
+    Bot (..),
 
     -- * Provider body
-    Provider,
-    provider,
-    mkProvider,
+    Provider (..),
 
     -- * Serialization
     writeData,
@@ -79,7 +51,6 @@ module Data.ZAuth.Token
 where
 
 import Control.Error
-import Control.Lens
 import Data.Attoparsec.ByteString (takeLazyByteString)
 import Data.ByteString.Base64.URL
 import Data.ByteString.Builder (Builder, byteString, char8)
@@ -111,9 +82,9 @@ data Type
 data Tag = S deriving (Eq, Show)
 
 data Token a = Token
-  { _signature :: !Signature,
-    _header :: !Header,
-    _body :: !a
+  { signature :: !Signature,
+    header :: !Header,
+    body :: !a
   }
   deriving (Eq, Show)
 
@@ -121,11 +92,11 @@ data Token a = Token
 -- data Header (t :: Type) =
 --      Header { ... everything except _typ ...} ?
 data Header = Header
-  { _version :: !Int,
-    _key :: !Int,
-    _time :: !Integer,
-    _typ :: !Type,
-    _tag :: Maybe Tag
+  { version :: !Int,
+    key :: !Int,
+    time :: !Integer,
+    typ :: !Type,
+    tag :: Maybe Tag
   }
   deriving (Eq, Show)
 
@@ -150,52 +121,33 @@ userTokenType ActualUser = U
 userTokenType LHUser = LU
 
 data Access (t :: UserTokenType) = Access
-  { _userId :: !UUID,
-    _clientId :: Maybe Text,
+  { userId :: !UUID,
+    clientId :: Maybe Text,
     -- | 'ConnId' is derived from this.
-    _connection :: !Word64
+    connection :: !Word64
   }
   deriving (Eq, Show)
 
 data User (t :: UserTokenType) = User
-  { _user :: !UUID,
-    _client :: Maybe Text,
-    _rand :: !Word32
+  { user :: !UUID,
+    client :: Maybe Text,
+    rand :: !Word32
   }
   deriving (Eq, Show)
 
 data Bot = Bot
-  { _prov :: !UUID,
-    _bot :: !UUID,
-    _conv :: !UUID
+  { prov :: !UUID,
+    bot :: !UUID,
+    conv :: !UUID
   }
   deriving (Eq, Show)
 
 newtype Provider = Provider
-  { _provider :: UUID
+  { provider :: UUID
   }
   deriving (Eq, Show)
 
 type Properties = [(LByteString, LByteString)]
-
-signature :: Getter (Token a) Signature
-signature = to _signature
-
-header :: Getter (Token a) Header
-header = to _header
-
-body :: Getter (Token a) a
-body = to _body
-
-makeLenses ''Header
-
-makeLenses ''Access
-
-makeLenses ''User
-
-makeLenses ''Bot
-
-makeLenses ''Provider
 
 instance (KnownUserTokenType t) => FromByteString (Token (Access t)) where
   parser =
@@ -227,27 +179,6 @@ instance FromByteString (Token Provider) where
 
 instance (ToByteString a) => ToByteString (Token a) where
   builder = writeToken
-
------------------------------------------------------------------------------
--- Constructing
-
-mkToken :: Signature -> Header -> a -> Token a
-mkToken = Token
-
-mkHeader :: Int -> Int -> Integer -> Type -> Maybe Tag -> Header
-mkHeader = Header
-
-mkAccess :: UUID -> Maybe Text -> Word64 -> (Access t)
-mkAccess = Access
-
-mkUser :: UUID -> Maybe Text -> Word32 -> (User t)
-mkUser = User
-
-mkBot :: UUID -> UUID -> UUID -> Bot
-mkBot = Bot
-
-mkProvider :: UUID -> Provider
-mkProvider = Provider
 
 -----------------------------------------------------------------------------
 -- Reading
@@ -313,49 +244,49 @@ readProviderBody t = Provider <$> (lookup "p" t >>= fromLazyASCIIBytes)
 
 writeToken :: (ToByteString a) => Token a -> Builder
 writeToken t =
-  byteString (encode (sigBytes (t ^. signature)))
+  byteString (encode (sigBytes (t.signature)))
     <> dot
-    <> writeData (t ^. header) (t ^. body)
+    <> writeData (t.header) (t.body)
 
 writeData :: (ToByteString a) => Header -> a -> Builder
 writeData h a = writeHeader h <> dot <> builder a
 
 writeHeader :: Header -> Builder
 writeHeader t =
-  field "v" (t ^. version)
+  field "v" (t.version)
     <> dot
-    <> field "k" (t ^. key)
+    <> field "k" (t.key)
     <> dot
-    <> field "d" (t ^. time)
+    <> field "d" (t.time)
     <> dot
-    <> field "t" (t ^. typ)
+    <> field "t" (t.typ)
     <> dot
-    <> field "l" (foldMap builder (t ^. tag))
+    <> field "l" (foldMap builder (t.tag))
 
 instance ToByteString (Access t) where
   builder t =
-    field "u" (toLazyASCIIBytes $ t ^. userId)
-      <> foldMap (\c -> dot <> field "i" c) (t ^. clientId)
+    field "u" (toLazyASCIIBytes $ t.userId)
+      <> foldMap (\c -> dot <> field "i" c) (t.clientId)
       <> dot
-      <> field "c" (t ^. connection)
+      <> field "c" (t.connection)
 
 instance ToByteString (User t) where
   builder t =
-    field "u" (toLazyASCIIBytes $ t ^. user)
+    field "u" (toLazyASCIIBytes $ t.user)
       <> dot
-      <> field "r" (Hex (t ^. rand))
-      <> foldMap (\c -> dot <> field "i" c) (t ^. client)
+      <> field "r" (Hex (t.rand))
+      <> foldMap (\c -> dot <> field "i" c) (t.client)
 
 instance ToByteString Bot where
   builder t =
-    field "p" (toLazyASCIIBytes $ t ^. prov)
+    field "p" (toLazyASCIIBytes $ t.prov)
       <> dot
-      <> field "b" (toLazyASCIIBytes $ t ^. bot)
+      <> field "b" (toLazyASCIIBytes $ t.bot)
       <> dot
-      <> field "c" (toLazyASCIIBytes $ t ^. conv)
+      <> field "c" (toLazyASCIIBytes $ t.conv)
 
 instance ToByteString Provider where
-  builder t = field "p" (toLazyASCIIBytes $ t ^. provider)
+  builder t = field "p" (toLazyASCIIBytes $ t.provider)
 
 instance ToByteString Type where
   builder A = char8 'a'
