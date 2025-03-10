@@ -26,6 +26,10 @@ import SetupHelpers (createTeam)
 import Testlib.JSON
 import Testlib.Prelude
 
+-- TODO: user must be member or external member of a team
+-- TODO: user must have permission to create a channel
+-- TODO: feature flag must be enabled
+-- TODO: must be MLS conversation
 testCreateChannel :: (HasCallStack) => App ()
 testCreateChannel = do
   (owner, _tid, mems) <- createTeam OwnDomain 3
