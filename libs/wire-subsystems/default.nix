@@ -73,6 +73,7 @@
 , scientific
 , servant
 , servant-client-core
+, sodium-crypto-sign
 , stomp-queue
 , streaming-commons
 , string-conversions
@@ -90,11 +91,13 @@
 , unordered-containers
 , uri-bytestring
 , uuid
+, vector
 , wai-utilities
 , wire-api
 , wire-api-federation
 , wire-otel
 , witherable
+, zauth
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -163,6 +166,7 @@ mkDerivation {
     schema-profunctor
     servant
     servant-client-core
+    sodium-crypto-sign
     stomp-queue
     template
     text
@@ -178,11 +182,13 @@ mkDerivation {
     unordered-containers
     uri-bytestring
     uuid
+    vector
     wai-utilities
     wire-api
     wire-api-federation
     wire-otel
     witherable
+    zauth
   ];
   testHaskellDepends = [
     aeson

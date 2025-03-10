@@ -23,25 +23,40 @@ module ZAuth
 where
 
 import Arbitraries ()
-import Control.Lens
 import Data.ByteString.Conversion
 import Data.UUID.V4
+import Data.Vector (Vector)
+import Data.Vector qualified as Vector
 import Data.ZAuth.Creation as C
 import Data.ZAuth.Token
 import Data.ZAuth.Validation as V
 import Imports
+import Polysemy
+import Polysemy.Error
 import Sodium.Crypto.Sign
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+
+runCreate :: C.Env -> Sem '[ZAuthCreation, Embed IO] a -> IO a
+runCreate env = runM . C.interpretZAuthCreation env
+
+runCreateAndValidate :: C.Env -> Vector PublicKey -> Sem '[ZAuthCreation, ZAuthValidation, Error Failure, Embed IO] a -> IO (Either Failure a)
+runCreateAndValidate env pubKeys =
+  runM
+    . runError
+    . V.interpretZAuthValidation pubKeys
+    . C.interpretZAuthCreation env
 
 tests :: IO TestTree
 tests = do
   (p1, s1) <- newKeyPair
   (p2, s2) <- newKeyPair
   (p3, s3) <- newKeyPair
-  z <- C.mkEnv s1 [s2, s3]
-  let v = V.mkEnv p1 [p2, p3]
+  z1 <- C.mkEnv 1 s1 [s2, s3]
+  z2 <- C.mkEnv 2 s1 [s2, s3]
+  z3 <- C.mkEnv 3 s1 [s2, s3]
+  let pubKeys = Vector.fromList [p1, p2, p3]
   pure $
     testGroup
       "ZAuth"
@@ -56,70 +71,73 @@ tests = do
           ],
         testGroup
           "Signing and Verifying"
-          [ testCase "expired" (runCreate z 1 $ testExpired v),
-            testCase "not expired" (runCreate z 2 $ testNotExpired v),
-            testCase "signed access-token is valid" (runCreate z 3 $ testSignAndVerify v)
+          [ testCase "expired" (testExpired z1 pubKeys),
+            testCase "not expired" (testNotExpired z2 pubKeys),
+            testCase "signed access-token is valid" (testSignAndVerify z3 pubKeys)
           ],
         testGroup
           "Various"
-          [testCase "random device ids" (runCreate z 1 testRandDevIds)]
+          [testCase "random device ids" (runCreate z1 testRandDevIds)]
       ]
 
 defDuration :: Integer
 defDuration = 1
 
-testUserIsNotLegalHoldUser :: Token LegalHoldUser -> Bool
-testUserIsNotLegalHoldUser t = isNothing (fromByteString @(Token User) (toByteString' t))
+testUserIsNotLegalHoldUser :: Token (User LHUser) -> Property
+testUserIsNotLegalHoldUser t = fromByteString @(Token (User ActualUser)) (toByteString' t) === Nothing
 
-testUserIsNotLegalHoldUser' :: Token User -> Bool
-testUserIsNotLegalHoldUser' t = isNothing (fromByteString @(Token LegalHoldUser) (toByteString' t))
+testUserIsNotLegalHoldUser' :: Token (User ActualUser) -> Property
+testUserIsNotLegalHoldUser' t = fromByteString @(Token (User LHUser)) (toByteString' t) === Nothing
 
-testDecEncAccessToken :: Token Access -> Bool
-testDecEncAccessToken t = fromByteString (toByteString' t) == Just t
+testDecEncAccessToken :: Token (Access ActualUser) -> Property
+testDecEncAccessToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncUserToken :: Token User -> Bool
-testDecEncUserToken t = fromByteString (toByteString' t) == Just t
+testDecEncUserToken :: Token (User ActualUser) -> Property
+testDecEncUserToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncLegalHoldUserToken :: Token LegalHoldUser -> Bool
-testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) == Just t
+testDecEncLegalHoldUserToken :: Token (User LHUser) -> Property
+testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncLegalHoldAccessToken :: Token LegalHoldAccess -> Bool
-testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) == Just t
+testDecEncLegalHoldAccessToken :: Token (Access LHUser) -> Property
+testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) === Just t
 
-testNotExpired :: V.Env -> Create ()
-testNotExpired p = do
-  u <- liftIO nextRandom
-  t <- userToken defDuration u Nothing 100
-  x <- liftIO $ runValidate p $ check t
-  liftIO $ assertBool "testNotExpired: validation failed" (isRight x)
+testNotExpired :: C.Env -> Vector PublicKey -> IO ()
+testNotExpired env pubKeys = do
+  x <- runCreateAndValidate env pubKeys $ do
+    u <- liftIO nextRandom
+    t <- userToken @_ @ActualUser defDuration u Nothing 100
+    check t
+  Right () @=? x
 
 -- The testExpired test conforms to the following testing standards:
 -- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2 @S3
 --
 -- Using an expired access token should fail
-testExpired :: V.Env -> Create ()
-testExpired p = do
-  u <- liftIO nextRandom
-  t <- userToken 0 u Nothing 100
-  waitSeconds 1
-  x <- liftIO $ runValidate p $ check t
-  liftIO $ Left Expired @=? x
+testExpired :: C.Env -> Vector PublicKey -> IO ()
+testExpired env pubKeys = do
+  x <- runCreateAndValidate env pubKeys $ do
+    u <- liftIO nextRandom
+    t <- userToken @_ @ActualUser 0 u Nothing 100
+    waitSeconds 1
+    check t
+  Left Expired @=? x
 
 -- @END
 
-testSignAndVerify :: V.Env -> Create ()
-testSignAndVerify p = do
-  u <- liftIO nextRandom
-  t <- userToken defDuration u Nothing 100
-  x <- liftIO $ runValidate p $ check t
-  liftIO $ assertBool "testSignAndVerify: validation failed" (isRight x)
+testSignAndVerify :: C.Env -> Vector PublicKey -> IO ()
+testSignAndVerify env pubKeys = do
+  x <- runCreateAndValidate env pubKeys $ do
+    u <- liftIO nextRandom
+    t <- userToken @_ @ActualUser defDuration u Nothing 100
+    check t
+  Right () @=? x
 
-testRandDevIds :: Create ()
+testRandDevIds :: (Member (Embed IO) r, Member ZAuthCreation r) => Sem r ()
 testRandDevIds = do
   u <- liftIO nextRandom
-  t1 <- view body <$> accessToken1 defDuration u Nothing
-  t2 <- view body <$> accessToken1 defDuration u Nothing
-  liftIO $ assertBool "unexpected: Same device ID." (t1 ^. connection /= t2 ^. connection)
+  t1 <- accessToken1 @_ @ActualUser defDuration u Nothing
+  t2 <- accessToken1 @_ @ActualUser defDuration u Nothing
+  liftIO $ assertBool "unexpected: Same device ID." (t1.body.connection /= t2.body.connection)
 
 -- Helpers:
 

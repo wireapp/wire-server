@@ -30,13 +30,17 @@ import Wire.HashPassword
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
-  AuthenticateEither :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem m (Either AuthError ())
-  ReauthenticateEither :: UserId -> Maybe PlainTextPassword6 -> AuthenticationSubsystem m (Either ReAuthError ())
+  -- Password Management
   CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
+  -- Password Verification
+  AuthenticateEither :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem m (Either AuthError ())
+  ReauthenticateEither :: UserId -> Maybe PlainTextPassword6 -> AuthenticationSubsystem m (Either ReAuthError ())
   VerifyUserPassword :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
   VerifyUserPasswordError :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
   VerifyProviderPassword :: ProviderId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
+  -- Cookie Management
+  -- NewCookie :: UserId -> Maybe ClientId -> CookieType -> Maybe CookieLabel -> AuthenticationSubsystem m (Cookie (ZAuth.Token a))
   -- For testing
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 

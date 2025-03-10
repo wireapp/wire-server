@@ -111,7 +111,6 @@
 , servant-openapi3
 , servant-server
 , servant-swagger-ui
-, sodium-crypto-sign
 , spar
 , split
 , ssl-util
@@ -248,7 +247,6 @@ mkDerivation {
     servant-openapi3
     servant-server
     servant-swagger-ui
-    sodium-crypto-sign
     split
     ssl-util
     statistics
