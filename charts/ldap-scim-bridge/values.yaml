@@ -1,6 +1,6 @@
 image:
   repository: quay.io/wire/ldap-scim-bridge
-  tag: 0.4
+  tag: 0.10.4
 resources:
   requests:
     memory: "256Mi"
