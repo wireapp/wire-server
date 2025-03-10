@@ -33,7 +33,6 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.ZAuth.Token (Token)
 import Data.ZAuth.Token qualified as ZAuth
-import Debug.Trace
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
@@ -78,8 +77,6 @@ accessH ::
   Handler r SomeAccess
 accessH mcid ut' mat' = do
   ut <- handleTokenErrors ut'
-  traceShowM ut'
-  traceShowM mat'
   mat <- traverse handleTokenError mat'
   partitionTokens ut mat
     >>= either (uncurry (access mcid)) (uncurry (access mcid))
@@ -87,7 +84,6 @@ accessH mcid ut' mat' = do
 access ::
   ( u ~ ZAuth.User t,
     a ~ ZAuth.Access t,
-    Show u,
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
