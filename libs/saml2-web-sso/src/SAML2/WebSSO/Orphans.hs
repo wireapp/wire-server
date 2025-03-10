@@ -15,7 +15,7 @@ import Text.XML.DSig
 import URI.ByteString
 
 instance FromJSON URI where
-  parseJSON = (>>= either unerror (pure . normURI) . parseURI') . parseJSON
+  parseJSON = (either unerror (pure . normURI) . parseURI') <=< parseJSON
     where
       unerror = fail . ("could not parse config: " <>) . show
 

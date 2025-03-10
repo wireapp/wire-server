@@ -107,23 +107,25 @@ specJudgeT = do
   describe "judge" $ do
     let -- request issued at timeNow; response issued at timeIn5seconds; judge executed at timeIn10seconds
 
-        grants :: HasCallStack => (Ctx -> Ctx) -> AuthnResponse -> Spec
+        grants :: (HasCallStack) => (Ctx -> Ctx) -> AuthnResponse -> Spec
         grants updctx aresp = do
           it "grants" $ do
             ctxv <- mkTestCtxSimple
             modifyMVar_ ctxv $ \ctx ->
               pure $
-                ctx & ctxNow .~ timeIn10seconds
+                ctx
+                  & ctxNow .~ timeIn10seconds
                   & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
                   & updctx
             (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge aresp jctx)
-        denies :: HasCallStack => (Ctx -> Ctx) -> AuthnResponse -> Spec
+        denies :: (HasCallStack) => (Ctx -> Ctx) -> AuthnResponse -> Spec
         denies updctx aresp = do
           it "denies" $ do
             ctxv <- mkTestCtxSimple
             modifyMVar_ ctxv $ \ctx ->
               pure $
-                ctx & ctxNow .~ timeIn10seconds
+                ctx
+                  & ctxNow .~ timeIn10seconds
                   & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
                   & updctx
             (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge aresp jctx)
@@ -217,10 +219,10 @@ specJudgeT = do
           good =
             [ rspDestination .~ Nothing,
               conditionsL . condAudienceRestriction
-                .~ [ [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]] -- (inner "or" succeeding)
+                .~ [ {- (inner "or" succeeding) -} ([uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]])
                    ],
               conditionsL . condAudienceRestriction
-                .~ [ [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]], -- (outer "and" succeeding)
+                .~ [ {- (outer "and" succeeding) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
                      [uri|https://sp.net/sso/authnresp|] :| []
                    ]
             ]
@@ -233,10 +235,10 @@ specJudgeT = do
               -- "The resulting assertion(s) MUST contain a <saml:AudienceRestriction> element
               -- referencing the requester as an acceptable relying party." [1/3.4.1.4]
               conditionsL . condAudienceRestriction
-                .~ [ [uri|https://other.io/sso|] :| [[uri|https://yetanother.net/stillwrong|]] -- (inner "or" failing)
+                .~ [ {- (inner "or" failing) -} [uri|https://other.io/sso|] :| [[uri|https://yetanother.net/stillwrong|]]
                    ],
               conditionsL . condAudienceRestriction
-                .~ [ [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]], -- (outer "and" failing)
+                .~ [ {- (outer "and" failing) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
                      [uri|https://yetanother.net/stillwrong|] :| []
                    ]
             ]

@@ -134,7 +134,7 @@ parseKeyInfo doVerify (cs @LT @LBS -> lbs) = case HS.xmlToSAML @HS.KeyInfo =<< s
       throwError $ "data with more than one child: " <> show (toList bad)
 
 -- | Call 'stripWhitespaceDoc' on a rendered bytestring.
-stripWhitespaceLBS :: m ~ Either String => LBS -> m LBS
+stripWhitespaceLBS :: (m ~ Either String) => LBS -> m LBS
 stripWhitespaceLBS lbs = renderLBS def . stripWhitespace <$> fmapL show (parseLBS def lbs)
 
 renderKeyInfo :: (HasCallStack) => X509.SignedCertificate -> LT
@@ -341,18 +341,18 @@ addRootIDIfMissing (XML.Document prol (Element tag attrs nodes) epil) = do
     keepID :: ST -> m (Bool, ST)
     keepID = pure . (False,)
 
-randomUUID :: Crypto.MonadRandom m => m UUID.UUID
+randomUUID :: (Crypto.MonadRandom m) => m UUID.UUID
 randomUUID = fst . random . mkStdGen . fromIntegral <$> randomInteger
 
 -- | (uses 64 bits of entropy)
-randomInteger :: Crypto.MonadRandom m => m Integer
+randomInteger :: (Crypto.MonadRandom m) => m Integer
 randomInteger =
-  Crypto.getRandomBytes 8
-    <&> ByteArray.unpack @ByteArray.Bytes
-    <&> fmap fromIntegral
-    <&> foldl' (*) 1
+  ( Crypto.getRandomBytes 8
+      <&> ByteArray.unpack @ByteArray.Bytes
+  )
+    <&> foldl' (*) 1 . fmap fromIntegral
 
-injectSignedInfoAtRoot :: MonadError String m => Int -> HS.Signature -> XML.Document -> m XML.Document
+injectSignedInfoAtRoot :: (MonadError String m) => Int -> HS.Signature -> XML.Document -> m XML.Document
 injectSignedInfoAtRoot sigPos signedInfo (XML.Document prol (Element tag attrs nodes) epil) = do
   when (sigPos > Prelude.length nodes) $ do
     throwError ("child list too short: is " <> show (Prelude.length nodes) <> ", need " <> show sigPos)

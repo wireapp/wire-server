@@ -34,10 +34,10 @@ data XML
 instance Accept XML where
   contentType Proxy = "application" // "xml"
 
-instance {-# OVERLAPPABLE #-} HasXMLRoot a => MimeRender XML a where
+instance {-# OVERLAPPABLE #-} (HasXMLRoot a) => MimeRender XML a where
   mimeRender Proxy = cs . encode
 
-instance {-# OVERLAPPABLE #-} HasXMLRoot a => MimeUnrender XML a where
+instance {-# OVERLAPPABLE #-} (HasXMLRoot a) => MimeUnrender XML a where
   mimeUnrender Proxy = fmapL show . decode . cs
 
 data HTML

@@ -4,9 +4,9 @@ module SAML2.WebSSO.SP where
 
 import Control.Lens hiding (Level)
 import Control.Monad
-import Control.Monad.IO.Class
 import Control.Monad.Except
 import Control.Monad.Extra (ifM)
+import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.Writer
 import Data.Foldable (toList)
@@ -40,12 +40,12 @@ class HasLogger m where
 
 class HasCreateUUID m where
   createUUID :: m UUID
-  default createUUID :: MonadIO m => m UUID
+  default createUUID :: (MonadIO m) => m UUID
   createUUID = createUUIDIO
 
 class HasNow m where
   getNow :: m Time
-  default getNow :: MonadIO m => m Time
+  default getNow :: (MonadIO m) => m Time
   getNow = getNowIO
 
 type SPStore m = (SP m, SPStoreID AuthnRequest m, SPStoreID Assertion m)
@@ -90,16 +90,14 @@ loggerConfIO level msg = do
   cfgsays <- (^. cfgLogLevel) <$> getConfig
   loggerIO cfgsays level msg
 
-loggerIO :: MonadIO m => Level -> Level -> String -> m ()
+loggerIO :: (MonadIO m) => Level -> Level -> String -> m ()
 loggerIO cfgsays level msg =
-  if level >= cfgsays
-    then liftIO $ putStrLn msg
-    else pure ()
+  when (level >= cfgsays) $ liftIO $ putStrLn msg
 
-createUUIDIO :: MonadIO m => m UUID
+createUUIDIO :: (MonadIO m) => m UUID
 createUUIDIO = liftIO UUID.nextRandom
 
-getNowIO :: MonadIO m => m Time
+getNowIO :: (MonadIO m) => m Time
 getNowIO = Time <$> liftIO getCurrentTime
 
 -- | (Microsoft Active Directory likes IDs to be of the form @id<32 hex digits>@: @ID . cs . ("id"
@@ -319,7 +317,7 @@ checkAssertions missuer (toList -> assertions) uref@(UserRef issuer _) = do
   forM_ assertions $ \ass -> do
     checkIsInPast DeniedAssertionIssueInstantNotInPast (ass ^. assIssueInstant)
     storeAssertion (ass ^. assID) (ass ^. assEndOfLife)
-  checkConditions `mapM_` catMaybes ((^. assConditions) <$> assertions)
+  checkConditions `mapM_` mapMaybe (^. assConditions) assertions
   unless (maybe True (issuer ==) missuer) . deny $ DeniedIssuerMismatch missuer issuer
   checkSubjectConfirmations assertions
   let statements :: [Statement]
@@ -370,7 +368,7 @@ checkSubjectConfirmation ass conf = do
           then HasBearerConfirmation
           else NoBearerConfirmation
   when (bearer == HasBearerConfirmation) $ do
-    unless (any (not . null . (^. condAudienceRestriction)) (ass ^. assConditions)) $
+    when (all (null . (^. condAudienceRestriction)) (ass ^. assConditions)) $
       deny DeniedBearerConfAssertionsWithoutAudienceRestriction
   -- (the actual validation of the audience restrictions happens in 'checkConditions'.)
 
@@ -404,6 +402,6 @@ checkConditions (Conditions lowlimit uplimit _onetimeuse audiences) = do
   Issuer us <- (^. judgeCtxAudience) <$> getJudgeCtx
   let checkAudience :: NonEmpty URI -> m ()
       checkAudience aus =
-        when (us `notElem` aus) . deny $
+        unless (us `elem` aus) . deny $
           DeniedAudienceMismatch us aus
   checkAudience `mapM_` audiences

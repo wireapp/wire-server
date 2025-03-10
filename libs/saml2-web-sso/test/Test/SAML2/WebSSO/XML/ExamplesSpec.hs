@@ -75,7 +75,7 @@ spec = describe "XML serialization" $ do
     -- deletes all 'SubjectConfirmation' children, but that is irrelevant for what we're testing
     -- here.
 
-    let check :: HasCallStack => String -> [Node] -> Maybe ST -> Spec
+    let check :: (HasCallStack) => String -> [Node] -> Maybe ST -> Spec
         check msg nameId expectedsubj = it msg $ do
           ctx :: CtxV <- mkTestCtxSimple
           spmeta :: SPMetadata <- ioFromTestSP ctx mkTestSPMetadata

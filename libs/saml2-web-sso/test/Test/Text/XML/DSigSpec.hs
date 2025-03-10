@@ -36,7 +36,7 @@ spec = describe "xml:dsig" $ do
       verifySelfSignature cert `shouldBe` Right ()
       certToCreds cert `shouldBe` Right creds
   describe "parseKeyInfo / renderKeyInfo roundtrip" $ do
-    let check :: HasCallStack => Int -> Expectation
+    let check :: (HasCallStack) => Int -> Expectation
         check size = do
           (_, _, x :: X509.SignedCertificate) <- mkSignCredsWithCert Nothing size
           let y :: LT = renderKeyInfo x
@@ -62,7 +62,7 @@ spec = describe "xml:dsig" $ do
       raw <- cs <$> readSampleIO "microsoft-meta-2.xml"
       verifyRoot (keyinfo :| []) raw `shouldBe` Right ()
   describe "verifyRoot vs. signRoot" $ do
-    let check :: HasCallStack => Bool -> Bool -> (Either String () -> Bool) -> Spec
+    let check :: (HasCallStack) => Bool -> Bool -> (Either String () -> Bool) -> Spec
         check withMatchingCreds withID expected =
           it (show (withMatchingCreds, withID)) $ do
             (privCreds, pubCreds) <- mkcrds withMatchingCreds

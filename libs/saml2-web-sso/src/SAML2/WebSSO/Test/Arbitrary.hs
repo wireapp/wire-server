@@ -5,6 +5,7 @@ module SAML2.WebSSO.Test.Arbitrary where
 
 import Control.Lens
 import qualified Data.CaseInsensitive as CI
+import Data.Fixed
 import Data.List.NonEmpty as NL
 import qualified Data.Map as Map
 import Data.Proxy
@@ -29,7 +30,6 @@ import Text.XML
 import qualified Text.XML.DSig as DSig
 import URI.ByteString
 import Web.Cookie
-import Data.Fixed
 
 genHttps :: Gen URI
 genHttps = genHttps' Nothing
@@ -214,7 +214,7 @@ genEmailURI = do
   loc <- genNiceWord
   pure . unsafeParseURI $ "email:" <> loc <> "@example.com"
 
-genEmail :: HasCallStack => Gen (CI.CI Email.Email)
+genEmail :: (HasCallStack) => Gen (CI.CI Email.Email)
 genEmail = do
   loc <- genNiceWord
   either (error . ("genEmail: " <>)) pure . Email.validate $ loc <> "@example.com"
@@ -435,7 +435,7 @@ genXMLAttr = (,) <$> genXMLName <*> genNiceWord
 genXMLInstruction :: Gen Instruction
 genXMLInstruction = Instruction <$> genNiceWord <*> genNiceWord
 
-genUUID :: HasCallStack => Gen UUID.UUID
+genUUID :: (HasCallStack) => Gen UUID.UUID
 genUUID = THQ.quickcheck arbitrary
 
 genIdPId :: Gen IdPId
@@ -459,7 +459,7 @@ genIdPConfig genExtra = do
 genFormRedirect :: Gen a -> Gen (FormRedirect a)
 genFormRedirect genBody = FormRedirect <$> genHttps <*> genBody
 
-genSimpleSetCookie :: forall (name :: Symbol). KnownSymbol name => Gen (SimpleSetCookie name)
+genSimpleSetCookie :: forall (name :: Symbol). (KnownSymbol name) => Gen (SimpleSetCookie name)
 genSimpleSetCookie = do
   val <- cs <$> genNiceWord
   path <-
@@ -537,7 +537,7 @@ instance Arbitrary Locality where
 instance Arbitrary NameID where
   arbitrary = TQH.hedgehog genNameID
 
-instance Arbitrary payload => Arbitrary (Response payload) where
+instance (Arbitrary payload) => Arbitrary (Response payload) where
   arbitrary = TQH.hedgehog (genResponse $ THQ.quickcheck arbitrary)
 
 instance Arbitrary SubjectConfirmationData where
@@ -561,10 +561,10 @@ instance Arbitrary IdPId where
 instance Arbitrary X509.SignedCertificate where
   arbitrary = TQH.hedgehog genSignedCertificate
 
-instance Arbitrary a => Arbitrary (IdPConfig a) where
+instance (Arbitrary a) => Arbitrary (IdPConfig a) where
   arbitrary = TQH.hedgehog (genIdPConfig (THQ.quickcheck arbitrary))
 
-instance Arbitrary a => Arbitrary (FormRedirect a) where
+instance (Arbitrary a) => Arbitrary (FormRedirect a) where
   arbitrary = TQH.hedgehog (genFormRedirect (THQ.quickcheck arbitrary))
 
 instance Arbitrary Document where
@@ -599,7 +599,7 @@ shrinkNode (NodeContent _) = [NodeContent ""]
 shrinkNode (NodeComment "") = []
 shrinkNode (NodeComment _) = [NodeComment ""]
 
-shallowShrinkList :: Eq a => [a] -> [[a]]
+shallowShrinkList :: (Eq a) => [a] -> [[a]]
 shallowShrinkList [] = []
 shallowShrinkList [_] = []
 shallowShrinkList xs@(_ : _ : _) = [] : ((: []) <$> xs)

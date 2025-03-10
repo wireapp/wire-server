@@ -142,7 +142,7 @@ simpleGetIdPConfigBy getIdps mkkey idpname = do
     crash' = throwError (UnknownIdP . cs . show $ idpname)
     mkmap = Map.fromList . fmap (mkkey &&& id)
 
-class SPStoreIdP err m => GetAllIdPs err m where
+class (SPStoreIdP err m) => GetAllIdPs err m where
   getAllIdPs :: m [IdPConfig (IdPConfigExtra m)]
 
 instance GetAllIdPs SimpleError SimpleSP where
@@ -195,7 +195,7 @@ mkLoginOption :: (Monad m, SP m) => IdPConfig a -> m (ST, ST)
 mkLoginOption icfg = (renderURI $ icfg ^. idpMetadata . edIssuer . fromIssuer,) <$> getPath' (SsoPathAuthnReq (icfg ^. idpId))
 
 -- | only logout on this SP.
-localLogout :: SPHandler SimpleError m => m (WithCookieAndLocation ST)
+localLogout :: (SPHandler SimpleError m) => m (WithCookieAndLocation ST)
 localLogout = do
   uri <- getPath SpPathHome
   cky <- toggleCookie "/" Nothing

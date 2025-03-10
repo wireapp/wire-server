@@ -64,6 +64,7 @@
 , uuid
 , wai
 , wai-extra
+, wai-utilities
 , warp
 , word8
 , xml-conduit
@@ -202,6 +203,7 @@ mkDerivation {
     uuid
     wai
     wai-extra
+    wai-utilities
     warp
     word8
     xml-conduit

@@ -27,7 +27,7 @@ import Test.Hspec.Wai
 import Text.Show.Pretty (ppShow)
 import URI.ByteString as URI
 
-testAuthRespApp :: HasCallStack => URI.URI -> SpecWith (CtxV, Application) -> Spec
+testAuthRespApp :: (HasCallStack) => URI.URI -> SpecWith (CtxV, Application) -> Spec
 testAuthRespApp ssoURI =
   withapp
     (Proxy @("sso" :> APIAuthResp'))
@@ -37,14 +37,14 @@ testAuthRespApp ssoURI =
     spissuer = Issuer <$> respuri
     respuri = pure ssoURI
 
-vendorParseAuthResponse :: HasCallStack => FilePath -> URI.URI -> Spec
+vendorParseAuthResponse :: (HasCallStack) => FilePath -> URI.URI -> Spec
 vendorParseAuthResponse filePath ssoURI = testAuthRespApp ssoURI $ do
   it filePath . runtest $ \_ctx -> do
     authnrespRaw :: LT <- readSampleIO ("vendors/" <> filePath <> "-authnresp.xml")
     _authnresp :: AuthnResponse <- either (error . show) pure $ decode authnrespRaw
     pure ()
 
-vendorCompatibility :: HasCallStack => FilePath -> URI.URI -> Spec
+vendorCompatibility :: (HasCallStack) => FilePath -> URI.URI -> Spec
 vendorCompatibility filePath ssoURI = testAuthRespApp ssoURI $ do
   let filePathMeta = "vendors/" <> filePath <> "-metadata.xml"
       filePathResp = "vendors/" <> filePath <> "-authnresp.xml"

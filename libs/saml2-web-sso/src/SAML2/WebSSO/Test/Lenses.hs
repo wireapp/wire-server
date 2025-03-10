@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | WARNING: these optics make assumptions about the shape of the AuthnResponse that are not valid
 -- in general.  e.g., we assume that there is exactly one 'SubjectConfirmation', but 'Subject'
 -- contains a list of them that could have length 0 or 5.  similarly, we only take the first of a

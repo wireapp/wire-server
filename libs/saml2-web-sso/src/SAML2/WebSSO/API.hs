@@ -30,7 +30,7 @@ import Data.Either (isRight)
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as ST
@@ -76,7 +76,7 @@ type API =
     :<|> APIAuthReq'
     :<|> APIAuthResp'
 
-api :: forall err m. SPHandler (Error err) m => ST -> HandleVerdict m -> ServerT API m
+api :: forall err m. (SPHandler (Error err) m) => ST -> HandleVerdict m -> ServerT API m
 api appName handleVerdict =
   meta appName defSPIssuer defResponseURI
     :<|> authreq' defSPIssuer
@@ -149,7 +149,7 @@ instance FromMultipart Mem AuthnResponseBody where
             lookupInput "SAMLResponse" resp
         parseAuthnResponseBody mbSPId base64
 
-issuerToCreds :: forall m err. SPStoreIdP (Error err) m => Maybe Issuer -> Maybe (IdPConfigSPId m) -> m (NonEmpty SignCreds)
+issuerToCreds :: forall m err. (SPStoreIdP (Error err) m) => Maybe Issuer -> Maybe (IdPConfigSPId m) -> m (NonEmpty SignCreds)
 issuerToCreds Nothing _ = throwError BadSamlResponseIssuerMissing
 issuerToCreds (Just issuer) mbSPId = idpToCreds issuer =<< getIdPConfigByIssuerOptionalSPId issuer mbSPId
 
@@ -167,7 +167,7 @@ idpToCreds issuer idp = do
 -- | Pull assertions sub-forest and pass unparsed xml input to 'verify' with a reference to
 -- each assertion individually.  The input must be a valid 'AuthnResponse'.  All assertions
 -- need to be signed by the issuer given in the arguments using the same key.
-simpleVerifyAuthnResponse :: forall m err. MonadError (Error err) m => NonEmpty SignCreds -> LBS -> m ()
+simpleVerifyAuthnResponse :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> m ()
 simpleVerifyAuthnResponse creds raw = do
   doc :: Cursor <- do
     let err = throwError . BadSamlResponseSamlError . cs . show
@@ -175,9 +175,7 @@ simpleVerifyAuthnResponse creds raw = do
   assertions :: [Element] <- do
     let elemOnly (NodeElement el) = Just el
         elemOnly _ = Nothing
-    case catMaybes $
-      elemOnly . node
-        <$> (doc $/ element "{urn:oasis:names:tc:SAML:2.0:assertion}Assertion") of
+    case mapMaybe (elemOnly . node) (doc $/ element "{urn:oasis:names:tc:SAML:2.0:assertion}Assertion") of
       [] -> throwError BadSamlResponseNoAssertions
       some@(_ : _) -> pure some
   nodeids :: [String] <- do
@@ -190,7 +188,7 @@ simpleVerifyAuthnResponse creds raw = do
 
 -- | Call verify and, if that fails, any work-arounds we have.  Discard all errors from
 -- work-arounds, and throw the error from the regular verification.
-allVerifies :: forall m err. MonadError (Error err) m => NonEmpty SignCreds -> LBS -> [String] -> m ()
+allVerifies :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> [String] -> m ()
 allVerifies creds raw nodeids = do
   let workArounds :: [Either String ()]
       workArounds =
@@ -206,7 +204,7 @@ allVerifies creds raw nodeids = do
 -- | ADFS illegally breaks whitespace after signing documents; here we try to fix that.
 -- https://github.com/wireapp/wire-server/issues/656
 -- (This may also have been a copy&paste issue in customer support, but let's just leave it in just in case.)
-verifyADFS :: MonadError String m => NonEmpty SignCreds -> LBS -> [String] -> m ()
+verifyADFS :: (MonadError String m) => NonEmpty SignCreds -> LBS -> [String] -> m ()
 verifyADFS creds raw nodeids = verify creds raw' `mapM_` nodeids
   where
     raw' = go raw
@@ -224,13 +222,13 @@ verifyADFS creds raw nodeids = verify creds raw' `mapM_` nodeids
 data FormRedirect xml = FormRedirect URI xml
   deriving (Eq, Show, Generic)
 
-class HasXML xml => HasFormRedirect xml where
+class (HasXML xml) => HasFormRedirect xml where
   formRedirectFieldName :: xml -> ST
 
 instance HasFormRedirect AuthnRequest where
   formRedirectFieldName _ = "SAMLRequest"
 
-instance HasXMLRoot xml => MimeRender HTML (FormRedirect xml) where
+instance (HasXMLRoot xml) => MimeRender HTML (FormRedirect xml) where
   mimeRender
     (Proxy :: Proxy HTML)
     (FormRedirect (cs . serializeURIRef' -> uri) (cs . EL.encode . cs . encode -> value)) =
@@ -248,7 +246,7 @@ instance HasXMLRoot xml => MimeRender HTML (FormRedirect xml) where
                        <input type="submit" value="Continue">
              |]
 
-instance HasXMLRoot xml => Servant.MimeUnrender HTML (FormRedirect xml) where
+instance (HasXMLRoot xml) => Servant.MimeUnrender HTML (FormRedirect xml) where
   mimeUnrender Proxy lbs = do
     cursor <- fmapL show $ fromDocument <$> parseLBS def lbs
     let formAction :: [ST] = cursor $// element "{http://www.w3.org/1999/xhtml}form" >=> attribute "action"
@@ -392,7 +390,7 @@ simpleHandleVerdict onsuccess = \case
 crash :: (SP m, MonadError (Error err) m) => String -> m a
 crash msg = logger Fatal msg >> throwError UnknownError
 
-enterH :: SP m => String -> m ()
+enterH :: (SP m) => String -> m ()
 enterH msg =
   logger Debug $ "entering handler: " <> msg
 

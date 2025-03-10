@@ -434,7 +434,7 @@ data NameID = NameID
   }
   deriving (Eq, Ord, Show, Generic)
 
-mkNameID :: MonadError String m => UnqualifiedNameID -> Maybe ST -> Maybe ST -> Maybe ST -> m NameID
+mkNameID :: (MonadError String m) => UnqualifiedNameID -> Maybe ST -> Maybe ST -> Maybe ST -> m NameID
 mkNameID nid@(UNameIDEntity uri) m1 m2 m3 = do
   mapM_ throwError $
     [ "mkNameID: nameIDNameQ, nameIDSPNameQ, nameIDSPProvidedID MUST be omitted for entity NameIDs."
@@ -460,7 +460,7 @@ mkNameID nid m1 m2 m3 = do
 unspecifiedNameID :: ST -> NameID
 unspecifiedNameID raw = NameID (mkUNameIDUnspecified raw) Nothing Nothing Nothing
 
-emailNameID :: MonadError String m => ST -> m NameID
+emailNameID :: (MonadError String m) => ST -> m NameID
 emailNameID raw = do
   email <- mkUNameIDEmail raw
   pure $ NameID email Nothing Nothing Nothing
@@ -499,7 +499,7 @@ data UnqualifiedNameID
 mkUNameIDUnspecified :: ST -> UnqualifiedNameID
 mkUNameIDUnspecified = UNameIDUnspecified . mkXmlText
 
-mkUNameIDEmail :: MonadError String m => ST -> m UnqualifiedNameID
+mkUNameIDEmail :: (MonadError String m) => ST -> m UnqualifiedNameID
 mkUNameIDEmail = either throwError (pure . UNameIDEmail) . Email.validate
 
 mkUNameIDX509 :: ST -> UnqualifiedNameID
@@ -520,7 +520,7 @@ mkUNameIDPersistent = UNameIDPersistent . mkXmlText
 mkUNameIDTransient :: ST -> UnqualifiedNameID
 mkUNameIDTransient = UNameIDTransient . mkXmlText
 
-nameIDFormat :: HasCallStack => NameIDFormat -> String
+nameIDFormat :: (HasCallStack) => NameIDFormat -> String
 nameIDFormat = \case
   NameIDFUnspecified -> "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
   NameIDFEmail -> "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
@@ -531,7 +531,7 @@ nameIDFormat = \case
   NameIDFPersistent -> "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
   NameIDFTransient -> "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 
-unameIDFormat :: HasCallStack => UnqualifiedNameID -> String
+unameIDFormat :: (HasCallStack) => UnqualifiedNameID -> String
 unameIDFormat = \case
   UNameIDUnspecified _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
   UNameIDEmail _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
@@ -649,7 +649,7 @@ data IP
   | IPv6 IPv6.IPv6
   deriving (Eq, Show, Generic)
 
-mkIP :: MonadError String m => ST -> m IP
+mkIP :: (MonadError String m) => ST -> m IP
 mkIP raw = do
   let mv4 = IP.parseOnly IPv4.ipv4Parser (cs @_ @String raw)
       mv6 = IP.parseOnly IPv6.ipv6Parser (cs @_ @String raw)
@@ -831,16 +831,16 @@ assEndOfLife = lens gt st
 
 -- | [3/4.1.4.2] SubjectConfirmation [...] If the containing message is in response to an
 -- AuthnRequest, then the InResponseTo attribute MUST match the request's ID.
-rspInResponseTo :: MonadError String m => AuthnResponse -> m (ID AuthnRequest)
+rspInResponseTo :: (MonadError String m) => AuthnResponse -> m (ID AuthnRequest)
 rspInResponseTo aresp = case (inResp, inSubjectConf) of
   (_, []) ->
     throwError "not found" -- the inSubjectConf is required!
   (Nothing, js@(_ : _))
     | L.length (L.nub js) /= 1 ->
-      throwError $ "mismatching inResponseTo attributes in subject confirmation data: " <> show js
+        throwError $ "mismatching inResponseTo attributes in subject confirmation data: " <> show js
   (Just i, js@(_ : _))
     | L.length (L.nub (i : js)) /= 1 ->
-      throwError $ "mismatching inResponseTo attributes in response header, subject confirmation data: " <> show (i, js)
+        throwError $ "mismatching inResponseTo attributes in response header, subject confirmation data: " <> show (i, js)
   (_, (j : _)) ->
     pure j
   where

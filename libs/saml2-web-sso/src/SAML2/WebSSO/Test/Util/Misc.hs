@@ -70,7 +70,7 @@ haskellCodeFromXML Proxy ifilepath_ = do
       g :: a -> String
       g = (<> mconcat aft) . (mconcat bef <>) . show
         where
-          bef = ["\n\n", fnm, " :: ", show (typeOf (undefined :: a)), "\n", fnm, " = "]
+          bef = ["\n\n", fnm, " :: ", show (typeRep (Proxy :: Proxy a)), "\n", fnm, " = "]
           aft = ["\n\n"]
           fnm = takeWhile (/= '.') $ fmap (\case '-' -> '_'; c -> c) ifilepath_
   typ <- f =<< Prelude.readFile ifilepath
@@ -78,12 +78,12 @@ haskellCodeFromXML Proxy ifilepath_ = do
   putStrLn . cs . encode $ typ
   Prelude.appendFile ofilepath $ g typ
 
-readSampleIO :: MonadIO m => FilePath -> m LT
+readSampleIO :: (MonadIO m) => FilePath -> m LT
 readSampleIO fpath = liftIO $ do
   root <- getEnv "SAML2_WEB_SSO_ROOT"
   LT.readFile $ root </> "test/samples" </> fpath
 
-doesSampleExistIO :: MonadIO m => FilePath -> m Bool
+doesSampleExistIO :: (MonadIO m) => FilePath -> m Bool
 doesSampleExistIO fpath = liftIO $ do
   root <- getEnv "SAML2_WEB_SSO_ROOT"
   doesFileExist $ root </> "test/samples" </> fpath
@@ -100,7 +100,7 @@ roundtrip serial mkrendered parsed = describe ("roundtrip-" <> show serial) $ do
 
 -- | If we get two XML structures that differ, compute the diff.
 assertXmlRoundtrip ::
-  HasCallStack =>
+  (HasCallStack) =>
   Either String Document ->
   Either String Document ->
   Expectation
@@ -110,7 +110,7 @@ assertXmlRoundtrip x y =
   x `shouldBe` y
 
 assertXmlRoundtripFailWithDiff ::
-  HasCallStack =>
+  (HasCallStack) =>
   Document ->
   Document ->
   Expectation
@@ -131,7 +131,7 @@ assertXmlRoundtripFailWithDiff x y = unless (x == y)
 -- * render and parse back to normalize the locations where namespaces are declared
 -- * sort all children and remove digital signatures
 -- * remove all namespace prefices
-normalizeDocument :: HasCallStack => Document -> Document
+normalizeDocument :: (HasCallStack) => Document -> Document
 normalizeDocument =
   renderAndParse
     . transformBis
@@ -139,7 +139,7 @@ normalizeDocument =
         [transformer $ \(Element nm attrs nodes) -> Element nm attrs (sort . filter (not . isSignature) $ nodes)]
       ]
 
-renderAndParse :: HasCallStack => Document -> Document
+renderAndParse :: (HasCallStack) => Document -> Document
 renderAndParse doc = case parseText def $ renderText def {rsPretty = True} doc of
   Right doc' -> doc'
   bad@(Left _) -> error $ "impossible: " <> show bad
@@ -151,7 +151,7 @@ isSignature _ = False
 ----------------------------------------------------------------------
 -- helpers
 
-passes :: MonadIO m => m ()
+passes :: (MonadIO m) => m ()
 passes = liftIO $ True `shouldBe` True
 
 newtype SomeSAMLRequest = SomeSAMLRequest {fromSomeSAMLRequest :: XML.Document}
@@ -167,7 +167,7 @@ instance HasXML SomeSAMLRequest where
 instance HasXMLRoot SomeSAMLRequest where
   renderRoot (SomeSAMLRequest doc) = renderRoot doc
 
-base64ours, base64theirs :: HasCallStack => SBS -> IO SBS
+base64ours, base64theirs :: (HasCallStack) => SBS -> IO SBS
 base64ours = pure . cs . EL.encode . cs
 base64theirs sbs = shelly . silently $ cs <$> (setStdin (cs sbs) >> run "/usr/bin/env" ["base64", "--wrap", "0"])
 

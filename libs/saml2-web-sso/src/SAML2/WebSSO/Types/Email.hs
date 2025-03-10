@@ -1,5 +1,4 @@
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 
@@ -37,7 +36,7 @@ instance CI.FoldCase Email where
 render :: (CI.FoldCase s, ConvertibleStrings BS.ByteString s) => Email -> s
 render = cs . Email.toByteString . fromEmail
 
-validate :: forall s. ConvertibleStrings s BS.ByteString => s -> Either String (CI.CI Email)
+validate :: forall s. (ConvertibleStrings s BS.ByteString) => s -> Either String (CI.CI Email)
 validate = fmap (CI.mk . Email) . Email.validate . cs
 
 instance FromJSON (CI.CI Email) where

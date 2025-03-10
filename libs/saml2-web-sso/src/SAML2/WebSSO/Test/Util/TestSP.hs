@@ -130,23 +130,22 @@ withapp proxy handler mkctx = withState (mkctx <&> \ctx -> (ctx, app ctx))
   where
     app ctx = serve proxy (hoistServer (Proxy @api) (nt @SimpleError @TestSP ctx) handler :: Server api)
 
-capture' :: HasCallStack => IO a -> IO a
+capture' :: (HasCallStack) => IO a -> IO a
 capture' action =
   hCapture [stdout, stderr] action >>= \case
     ("", out) -> pure out
     (noise, _) -> error $ show noise
 
-captureApplication :: HasCallStack => Application -> Application
+captureApplication :: (HasCallStack) => Application -> Application
 captureApplication app req cont = capture' (app req cont)
 
 runtest :: (CtxV -> WaiSession () a) -> (CtxV, Application) -> IO a
 runtest test (ctx, app) = runWaiSession (test ctx) app
 
-
 runtest' :: WaiSession () a -> ((CtxV, Application) -> IO a)
-runtest' action = runtest (\_ctx -> action)
+runtest' action = runtest (const action)
 
-mkTestCtxSimple :: MonadIO m => m CtxV
+mkTestCtxSimple :: (MonadIO m) => m CtxV
 mkTestCtxSimple = liftIO $ do
   let _ctxNow = timeNow -- constant time value, see below
       _ctxConfig = fallbackConfig & cfgLogLevel .~ Fatal
@@ -155,7 +154,7 @@ mkTestCtxSimple = liftIO $ do
       _ctxRequestStore = mempty
   newMVar Ctx {..}
 
-mkTestCtxWithIdP :: MonadIO m => m CtxV
+mkTestCtxWithIdP :: (MonadIO m) => m CtxV
 mkTestCtxWithIdP = liftIO $ do
   ctxmv <- mkTestCtxSimple
   testcfg <- makeTestIdPConfig
@@ -174,7 +173,7 @@ makeTestIdPConfig = do
       _idpExtraInfo = ()
   pure (IdPConfig {..}, sampleIdP)
 
-makeSampleIdPMetadata :: HasCallStack => (MonadIO m, MonadRandom m) => m SampleIdP
+makeSampleIdPMetadata :: (HasCallStack) => (MonadIO m, MonadRandom m) => m SampleIdP
 makeSampleIdPMetadata = do
   issuer <- makeIssuer
   requri <- do
@@ -183,7 +182,7 @@ makeSampleIdPMetadata = do
   (privcreds, creds, cert) <- SAML.mkSignCredsWithCert Nothing 96
   pure $ SampleIdP (IdPMetadata issuer requri (cert :| [])) privcreds creds cert
 
-makeIssuer :: MonadIO m => m Issuer
+makeIssuer :: (MonadIO m) => m Issuer
 makeIssuer = do
   uuid <- liftIO UUID.nextRandom
   either
@@ -242,5 +241,5 @@ timeTravel distance action = do
   let mv dist_ = modifyCtx_ (ctxNow %~ (dist_ `addTime`))
   mv distance
   result <- action
-  mv (- distance)
+  mv (-distance)
   pure result

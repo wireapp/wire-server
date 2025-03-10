@@ -109,8 +109,7 @@ spec = describe "API" $ do
                         if goodkey
                           then "microsoft-idp-config.yaml"
                           else "microsoft-idp-config-badkey.yaml"
-                  either (error . show) (pure . Just . (,SampleIdP undefined undefined undefined undefined))
-                    =<< (Yaml.decodeEither' . cs <$> readSampleIO cfgfile)
+                  either (error . show) (pure . Just . (,SampleIdP undefined undefined undefined undefined)) . Yaml.decodeEither' . cs =<< readSampleIO cfgfile
             let run :: TestSP a -> IO a
                 run action = do
                   ctx <- mkTestCtxSimple
@@ -175,7 +174,7 @@ spec = describe "API" $ do
     let -- Create an AuthnRequest in the SP, then call 'mkAuthnResponse' to make an 'AuthnResponse'
         -- in the IdP, then post the 'AuthnResponse' to the appropriate SP end-point.  @spmeta@ is
         -- needed for making the 'AuthnResponse'.
-        postTestAuthnResp :: HasCallStack => CtxV -> Bool -> Bool -> WaiSession st SResponse
+        postTestAuthnResp :: (HasCallStack) => CtxV -> Bool -> Bool -> WaiSession st SResponse
         postTestAuthnResp ctxv badIdP badTimeStamp = do
           aresp <- liftIO . ioFromTestSP ctxv $ do
             (testIdPConfig, SampleIdP _ privkey _ _) <- do
@@ -186,9 +185,7 @@ spec = describe "API" $ do
             spmeta :: SPMetadata <- mkTestSPMetadata
             authnreq :: AuthnRequest <- createAuthnRequest 3600 defSPIssuer
             fromSignedAuthnResponse
-              <$> ( (if badTimeStamp then timeTravel 1800 else id) $
-                      mkAuthnResponse privkey testIdPConfig spmeta authnreq True
-                  )
+              <$> (if badTimeStamp then timeTravel 1800 else id) (mkAuthnResponse privkey testIdPConfig spmeta authnreq True)
           postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
 
     let testAuthRespApp :: IO CtxV -> SpecWith (CtxV, Application) -> Spec

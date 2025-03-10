@@ -77,7 +77,7 @@ defNameSpaces =
 ----------------------------------------------------------------------
 -- HasXML class
 
-encode :: forall a. HasXMLRoot a => a -> LT
+encode :: forall a. (HasXMLRoot a) => a -> LT
 encode = Text.XML.renderText settings . renderToDocument
   where
     settings = def {rsNamespaces = nameSpaces (Proxy @a), rsXMLDeclaration = False}
@@ -85,7 +85,7 @@ encode = Text.XML.renderText settings . renderToDocument
 decode :: forall m a. (HasXMLRoot a, MonadError String m) => LT -> m a
 decode = either (throwError . show @SomeException) parseFromDocument . parseText def
 
-encodeElem :: forall a. HasXML a => a -> LT
+encodeElem :: forall a. (HasXML a) => a -> LT
 encodeElem = Text.XML.renderText settings . mkDocument' . render
   where
     settings = def {rsNamespaces = nameSpaces (Proxy @a), rsXMLDeclaration = False}
@@ -95,7 +95,7 @@ encodeElem = Text.XML.renderText settings . mkDocument' . render
 decodeElem :: forall a m. (HasXML a, MonadError String m) => LT -> m a
 decodeElem = either (throwError . show @SomeException) parseFromDocument . parseText def
 
-renderToDocument :: HasXMLRoot a => a -> Document
+renderToDocument :: (HasXMLRoot a) => a -> Document
 renderToDocument = mkDocument . renderRoot
 
 parseFromDocument :: (HasXML a, MonadError String m) => Document -> m a
@@ -109,12 +109,12 @@ class HasXML a where
   nameSpaces Proxy = defNameSpaces
 
   render :: a -> [Node]
-  default render :: HasXMLRoot a => a -> [Node]
+  default render :: (HasXMLRoot a) => a -> [Node]
   render = (: []) . NodeElement . renderRoot
 
-  parse :: MonadError String m => [Node] -> m a
+  parse :: (MonadError String m) => [Node] -> m a
 
-class HasXML a => HasXMLRoot a where
+class (HasXML a) => HasXMLRoot a where
   renderRoot :: a -> Element
 
 instance HasXML Document where
@@ -132,7 +132,7 @@ attributeIsNot :: Name -> ST.Text -> Axis
 attributeIsNot key val cur = [cur | null $ attributeIs key val cur]
 
 -- | Do not use this in production!  It works, but it's slow and failures are a bit violent.
-unsafeReadTime :: HasCallStack => String -> Time
+unsafeReadTime :: (HasCallStack) => String -> Time
 unsafeReadTime s = either (error ("decodeTime: " <> show s)) id $ decodeTime s
 
 decodeTime :: (MonadError String m, ConvertibleStrings s String) => s -> m Time
@@ -190,15 +190,18 @@ explainDeniedReason = \case
   DeniedBadInResponseTos msg -> "bad InResponseTo attribute(s): " <> cs msg
   DeniedIssueInstantNotInPast ts now ->
     cs $
-      "IssueInstant in Header must be older than " <> renderTime now
+      "IssueInstant in Header must be older than "
+        <> renderTime now
         <> ", but is "
         <> renderTime ts
   DeniedAssertionIssueInstantNotInPast ts now ->
-    "IssueInstant in Assertion must be older than " <> renderTime now
+    "IssueInstant in Assertion must be older than "
+      <> renderTime now
       <> ", but is "
       <> renderTime ts
   DeniedAuthnStatementIssueInstantNotInPast ts now ->
-    "IssueInstant in AuthnStatement must be older than " <> renderTime now
+    "IssueInstant in AuthnStatement must be older than "
+      <> renderTime now
       <> ", but is "
       <> renderTime ts
   DeniedBadDestination weare theywant -> cs $ "bad Destination: we are " <> weare <> ", they expected " <> theywant
@@ -219,16 +222,17 @@ explainDeniedReason = \case
   DeniedNotOnOrAfterCondition eol -> "Condition expired at " <> renderTime eol
   DeniedNotBeforeCondition bol -> "Condition only valid starting " <> renderTime bol
   DeniedAudienceMismatch we they ->
-    "Audience mismatch: we are " <> renderURI we
+    "Audience mismatch: we are "
+      <> renderURI we
       <> ", they expect one of ["
-      <> (ST.intercalate ", " $ renderURI <$> toList they)
+      <> ST.intercalate ", " (renderURI <$> toList they)
       <> "]"
 
 ----------------------------------------------------------------------
 -- hack: use hsaml2 parsers and convert from SAMLProtocol instances
 
 class HasXMLImport us them where
-  importXml :: MonadError String m => them -> m us
+  importXml :: (MonadError String m) => them -> m us
   exportXml :: us -> them
 
 wrapParse ::
@@ -269,7 +273,7 @@ wrapRenderRoot exprt = parseElement . HS.samlToXML . exprt
 ----------------------------------------------------------------------
 -- map individual types from hsaml2 to saml2-web-sso
 
-importAuthnRequest :: MonadError String m => HS.AuthnRequest -> m AuthnRequest
+importAuthnRequest :: (MonadError String m) => HS.AuthnRequest -> m AuthnRequest
 importAuthnRequest req = do
   let proto = HS.requestProtocol $ HS.authnRequest req
   () <- importVersion $ HS.protocolVersion proto
@@ -302,7 +306,7 @@ importNameIDPolicy nip = do
       _nidAllowCreate = HS.nameIDPolicyAllowCreate nip
   pure $ NameIdPolicy _nidFormat _nidSpNameQualifier _nidAllowCreate
 
-exportNameIDPolicy :: HasCallStack => NameIdPolicy -> HS.NameIDPolicy
+exportNameIDPolicy :: (HasCallStack) => NameIdPolicy -> HS.NameIDPolicy
 exportNameIDPolicy nip =
   HS.NameIDPolicy
     { HS.nameIDPolicyFormat = exportNameIDFormat $ nip ^. nidFormat,
@@ -351,7 +355,7 @@ importAuthnResponse rsp = do
 
   pure Response {..}
 
-exportAuthnResponse :: HasCallStack => AuthnResponse -> HS.Response
+exportAuthnResponse :: (HasCallStack) => AuthnResponse -> HS.Response
 exportAuthnResponse rsp =
   HS.Response
     { HS.response =
@@ -394,7 +398,7 @@ importAssertion (HS.NotEncrypted ass) = do
     die (Proxy @Assertion) (HS.assertionAdvice ass)
   pure Assertion {..}
 
-exportAssertion :: HasCallStack => Assertion -> HS.PossiblyEncrypted HS.Assertion
+exportAssertion :: (HasCallStack) => Assertion -> HS.PossiblyEncrypted HS.Assertion
 exportAssertion ass =
   HS.NotEncrypted
     HS.Assertion
@@ -432,10 +436,10 @@ importSubjectConfirmation = go
   where
     go _ (HS.SubjectConfirmation meth _ _)
       | meth /= HS.Identified HS.ConfirmationMethodBearer =
-        die (Proxy @SubjectConfirmation) ("unsupported confirmation method: " <> show meth)
+          die (Proxy @SubjectConfirmation) ("unsupported confirmation method: " <> show meth)
     go uid (HS.SubjectConfirmation _ (Just (HS.NotEncrypted (HS.IdentifierName uid'))) _)
       | Right uid /= fmapL (const ()) (importNameID uid') =
-        die (Proxy @SubjectConfirmation) ("uid mismatch: " <> show (uid, uid'))
+          die (Proxy @SubjectConfirmation) ("uid mismatch: " <> show (uid, uid'))
     go _ (HS.SubjectConfirmation _ (Just bad) _) =
       die (Proxy @SubjectConfirmation) ("unsupported identifier: " <> show bad)
     go _ (HS.SubjectConfirmation _ _ confdata) =
@@ -537,10 +541,10 @@ exportStatement stm =
 importLocality :: (HasCallStack, MonadError String m) => HS.SubjectLocality -> m Locality
 importLocality loc =
   Locality
-    <$> (traverse importIP $ HS.subjectLocalityAddress loc)
-    <*> (pure $ (mkDNSName . cs) <$> HS.subjectLocalityDNSName loc)
+    <$> traverse importIP (HS.subjectLocalityAddress loc)
+    <*> pure ((mkDNSName . cs) <$> HS.subjectLocalityDNSName loc)
 
-exportLocality :: HasCallStack => Locality -> HS.SubjectLocality
+exportLocality :: (HasCallStack) => Locality -> HS.SubjectLocality
 exportLocality loc =
   HS.SubjectLocality
     { HS.subjectLocalityAddress = exportIP <$> loc ^. localityAddress,
@@ -550,17 +554,17 @@ exportLocality loc =
 importID :: (HasCallStack, MonadError String m) => HS.ID -> m (ID a)
 importID = pure . mkID . cs
 
-exportID :: HasCallStack => ID a -> HS.ID
+exportID :: (HasCallStack) => ID a -> HS.ID
 exportID = cs . escapeXmlText . fromID
 
 importNameID :: (HasCallStack, MonadError String m) => HS.NameID -> m NameID
-importNameID bad@(HS.NameID (HS.BaseID _ _ _) (HS.Unidentified _) _) =
+importNameID bad@(HS.NameID (HS.BaseID {}) (HS.Unidentified _) _) =
   die (Proxy @NameID) (show bad)
 importNameID (HS.NameID (HS.BaseID m1 m2 nid) (HS.Identified hsNameIDFormat) m3) =
   either (die (Proxy @NameID)) pure $
     form hsNameIDFormat (cs nid) >>= \nid' -> mkNameID nid' (cs <$> m1) (cs <$> m2) (cs <$> m3)
   where
-    form :: MonadError String m => HS.NameIDFormat -> ST -> m UnqualifiedNameID
+    form :: (MonadError String m) => HS.NameIDFormat -> ST -> m UnqualifiedNameID
     form HS.NameIDFormatUnspecified = pure . UNameIDUnspecified . mkXmlText
     form HS.NameIDFormatEmail = mkUNameIDEmail
     form HS.NameIDFormatX509 = pure . UNameIDX509 . mkXmlText
@@ -604,19 +608,19 @@ importVersion :: (HasCallStack, MonadError String m) => HS.SAMLVersion -> m ()
 importVersion HS.SAML20 = pure ()
 importVersion bad = die (Proxy @HS.SAMLVersion) bad
 
-exportVersion :: HasCallStack => HS.SAMLVersion
+exportVersion :: (HasCallStack) => HS.SAMLVersion
 exportVersion = HS.SAML20
 
 importTime :: (HasCallStack, MonadError String m) => HS.DateTime -> m Time
 importTime = pure . Time
 
-exportTime :: HasCallStack => Time -> HS.DateTime
+exportTime :: (HasCallStack) => Time -> HS.DateTime
 exportTime = fromTime
 
 importURI :: (HasCallStack, MonadError String m) => HS.URI -> m URI
 importURI uri = parseURI' . cs $ HS.uriToString id uri mempty
 
-exportURI :: HasCallStack => URI -> HS.URI
+exportURI :: (HasCallStack) => URI -> HS.URI
 exportURI uri = fromMaybe err . HS.parseURIReference . cs . renderURI $ uri
   where
     err = error $ "internal error: " <> show uri
@@ -628,7 +632,7 @@ importStatus =
     HS.Status (HS.StatusCode HS.StatusSuccess _) _ _ -> StatusSuccess
     _ -> StatusFailure
 
-exportStatus :: HasCallStack => Status -> HS.Status
+exportStatus :: (HasCallStack) => Status -> HS.Status
 exportStatus = \case
   StatusSuccess -> HS.Status (HS.StatusCode HS.StatusSuccess []) Nothing Nothing
   StatusFailure -> HS.Status (HS.StatusCode HS.StatusRequester []) Nothing Nothing
@@ -641,16 +645,16 @@ importIssuer = fmap Issuer . (nameIDToURI <=< importNameID) . HS.issuer
             && isNothing (nameid ^. nameIDSPNameQ)
             && isNothing (nameid ^. nameIDSPProvidedID)
         ) =
-        pure uri
+          pure uri
     nameIDToURI bad = die (Proxy @Issuer) bad
 
-exportIssuer :: HasCallStack => Issuer -> HS.Issuer
+exportIssuer :: (HasCallStack) => Issuer -> HS.Issuer
 exportIssuer = HS.Issuer . exportNameID . entityNameID . _fromIssuer
 
 importRequiredIssuer :: (HasCallStack, MonadError String m) => Maybe HS.Issuer -> m Issuer
 importRequiredIssuer = maybe (die (Proxy @AuthnRequest) ("no issuer id" :: String)) importIssuer
 
-exportRequiredIssuer :: HasCallStack => Issuer -> Maybe HS.Issuer
+exportRequiredIssuer :: (HasCallStack) => Issuer -> Maybe HS.Issuer
 exportRequiredIssuer = Just . exportIssuer
 
 ----------------------------------------------------------------------
@@ -713,13 +717,16 @@ importSPMetadata (NL.head . HS.descriptors . HS.entityDescriptors -> desc) = do
           Just (HS.Localized "EN" u :| []) -> importURI u
           bad -> throwError $ "bad or no organizationURL" <> show bad
   _spResponseURL <-
-    importURI . HS.endpointLocation . HS.indexedEndpoint . NL.head
+    importURI
+      . HS.endpointLocation
+      . HS.indexedEndpoint
+      . NL.head
       . HS.descriptorAssertionConsumerService
       $ desc
   _spContacts <- mapM importContactPerson . HS.roleDescriptorContactPerson . HS.descriptorRole $ desc
   pure SPMetadata {..}
 
-exportSPMetadata :: HasCallStack => SPMetadata -> HS.Metadata
+exportSPMetadata :: (HasCallStack) => SPMetadata -> HS.Metadata
 exportSPMetadata spdesc =
   HS.EntityDescriptor
     { HS.entityID = exportURI (spdesc ^. spOrgURL) :: HS.EntityID,
@@ -736,7 +743,7 @@ exportSPMetadata spdesc =
     }
 
 -- | [4/2.6], [4/2]
-exportSPMetadata' :: HasCallStack => SPMetadata -> HS.Descriptor
+exportSPMetadata' :: (HasCallStack) => SPMetadata -> HS.Descriptor
 exportSPMetadata' spdesc =
   HS.SPSSODescriptor
     { HS.descriptorRole =
@@ -803,7 +810,7 @@ exportContactPerson contact =
       HS.contactTelephoneNumber = maybeToList $ cs . escapeXmlText <$> contact ^. cntPhone
     }
 
-importContactPerson :: MonadError String m => HS.Contact -> m ContactPerson
+importContactPerson :: (MonadError String m) => HS.Contact -> m ContactPerson
 importContactPerson contact = do
   let _cntType = importContactType $ HS.contactType contact
       _cntCompany = mkXmlText . cs <$> HS.contactCompany contact
@@ -840,7 +847,7 @@ parseIdPMetadata el@(Element tag _ _) = case tag of
 
 -- | Some IdPs send a list with one element in it.  In that case, we return the child so we
 -- can call 'parseIdPMetadataHead' on it.
-parseIdPMetadataList :: MonadError String m => Element -> m Element
+parseIdPMetadataList :: (MonadError String m) => Element -> m Element
 parseIdPMetadataList (Element tag _ chs) = do
   unless (tag == "{urn:oasis:names:tc:SAML:2.0:metadata}EntitiesDescriptor") $
     throwError "expected <EntitiesDescriptor>"
@@ -853,13 +860,13 @@ parseIdPMetadataList (Element tag _ chs) = do
       let msg = "expected <EntitiesDescriptor> with exactly one child element"
        in throwError $ msg <> "; found " <> show (length bad)
 
-findSome :: MonadError String m => String -> (Cursor -> [a]) -> [Cursor] -> m [a]
+findSome :: (MonadError String m) => String -> (Cursor -> [a]) -> [Cursor] -> m [a]
 findSome descr axis cursors =
   case concatMap axis cursors of
     [] -> throwError ("Couldnt find any matches for: " <> descr)
     xs -> pure xs
 
-getSingleton :: MonadError String m => String -> [a] -> m a
+getSingleton :: (MonadError String m) => String -> [a] -> m a
 getSingleton _ [x] = pure x
 getSingleton descr [] = throwError ("Couldnt find any matches for: " <> descr)
 getSingleton descr _ = throwError ("Expected only one but found multiple matches for: " <> descr)
@@ -885,7 +892,7 @@ attributeIsCI name attValue = checkNode $ \case
   _ -> False
 
 -- | This is the sane case: since we only want one element, just send that.
-parseIdPMetadataHead :: MonadError String m => Element -> m IdPMetadata
+parseIdPMetadataHead :: (MonadError String m) => Element -> m IdPMetadata
 parseIdPMetadataHead el@(Element tag attrs _) = do
   unless (tag == "{urn:oasis:names:tc:SAML:2.0:metadata}EntityDescriptor") $
     throwError "expected <EntityDescriptor>"
@@ -900,13 +907,14 @@ parseIdPMetadataHead el@(Element tag attrs _) = do
                   >=> findSome "SingleSignOnService element" (child >=> element "{urn:oasis:names:tc:SAML:2.0:metadata}SingleSignOnService")
                   >=> findSome bindingDescr (attributeIsCI "Binding" "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST")
                   >=> getSingleton bindingDescr
-                  >=> attribute "Location" >>> getSingleton "\"Location\""
+                  >=> attribute "Location"
+                  >>> getSingleton "\"Location\""
               )
     case parseURI' target of
       Right uri -> pure uri
       Left msg -> throwError $ "bad request uri: " <> msg
 
-  let cursorToKeyInfo :: MonadError String m => Cursor -> m X509.SignedCertificate
+  let cursorToKeyInfo :: (MonadError String m) => Cursor -> m X509.SignedCertificate
       cursorToKeyInfo = \case
         (node -> NodeElement key) -> parseKeyInfo False . renderText def . mkDocument $ key
         bad -> throwError $ "unexpected: could not parse x509 cert: " <> show bad
@@ -916,7 +924,8 @@ parseIdPMetadataHead el@(Element tag attrs _) = do
     let cur = fromNode $ NodeElement el
         target :: [Cursor]
         target =
-          cur $// element "{urn:oasis:names:tc:SAML:2.0:metadata}IDPSSODescriptor"
+          cur
+            $// element "{urn:oasis:names:tc:SAML:2.0:metadata}IDPSSODescriptor"
             &/ element "{urn:oasis:names:tc:SAML:2.0:metadata}KeyDescriptor"
             >=> attributeIsNot "use" "encryption" -- [4/2.4.1.1]
             &/ element "{http://www.w3.org/2000/09/xmldsig#}KeyInfo"
@@ -925,7 +934,7 @@ parseIdPMetadataHead el@(Element tag attrs _) = do
       (x : xs) -> pure $ x :| xs
   pure IdPMetadata {..}
 
-renderIdPMetadata :: HasCallStack => IdPMetadata -> Element
+renderIdPMetadata :: (HasCallStack) => IdPMetadata -> Element
 renderIdPMetadata (IdPMetadata issuer requri (NL.toList -> certs)) = nodesToElem $ repairNamespaces nodes
   where
     nodes =
@@ -944,8 +953,7 @@ renderIdPMetadata (IdPMetadata issuer requri (NL.toList -> certs)) = nodesToElem
     authnUrl = renderURI $ requri
     certNodes = mconcat $ mkCertNode <$> certs
     mkCertNode =
-      either (error . show) id
-        . fmap docToNodes
+      either (error . show) (docToNodes)
         . parseLBS def
         . cs
         . renderKeyInfo
@@ -1027,7 +1035,7 @@ instance HasXML NameID where
 
 instance HasXMLImport () HS.SAMLVersion where
   importXml = importVersion
-  exportXml = \() -> exportVersion
+  exportXml () = exportVersion
 
 instance HasXMLImport Time HS.DateTime where
   importXml = importTime

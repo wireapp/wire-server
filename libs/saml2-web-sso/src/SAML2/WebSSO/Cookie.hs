@@ -31,22 +31,24 @@ import Web.Cookie
 newtype SimpleSetCookie name = SimpleSetCookie {fromSimpleSetCookie :: SetCookie}
   deriving (Eq, Show)
 
-instance KnownSymbol name => ToHttpApiData (SimpleSetCookie name) where
+instance (KnownSymbol name) => ToHttpApiData (SimpleSetCookie name) where
   toUrlPiece = cs . SBSBuilder.toLazyByteString . renderSetCookie . fromSimpleSetCookie
 
-instance KnownSymbol name => FromHttpApiData (SimpleSetCookie name) where
+instance (KnownSymbol name) => FromHttpApiData (SimpleSetCookie name) where
   parseUrlPiece = headerValueToCookie
 
 cookieToHeader :: SimpleSetCookie name -> HttpTypes.Header
 cookieToHeader =
-  ("set-cookie",) . cs . toLazyByteString
+  ("set-cookie",)
+    . cs
+    . toLazyByteString
     . renderSetCookie
     . fromSimpleSetCookie
 
-cookieName :: forall (proxy :: Symbol -> Type) (name :: Symbol). KnownSymbol name => proxy name -> SBS
+cookieName :: forall (proxy :: Symbol -> Type) (name :: Symbol). (KnownSymbol name) => proxy name -> SBS
 cookieName _ = cs $ symbolVal (Proxy @name)
 
-headerValueToCookie :: forall name. KnownSymbol name => ST -> Either ST (SimpleSetCookie name)
+headerValueToCookie :: forall name. (KnownSymbol name) => ST -> Either ST (SimpleSetCookie name)
 headerValueToCookie txt = do
   let cookie = parseSetCookie $ cs txt
   case ["missing cookie name" | setCookieName cookie == ""]
