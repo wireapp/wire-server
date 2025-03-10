@@ -12,7 +12,6 @@
 , gitignoreSource
 , imports
 , lib
-, mwc-random
 , optparse-applicative
 , polysemy
 , polysemy-plugin
@@ -39,7 +38,6 @@ mkDerivation {
     bytestring-conversion
     errors
     imports
-    mwc-random
     polysemy
     polysemy-plugin
     sodium-crypto-sign

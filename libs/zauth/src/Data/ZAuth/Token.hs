@@ -36,12 +36,11 @@ module Data.ZAuth.Token
 
     -- * User body
     User (..),
-
-    -- * UserTokenType
-    UserTokenType (..),
-    accessTokenType,
-    userTokenType,
-    KnownUserTokenType (..),
+    -- -- * UserTokenType
+    -- UserTokenType (..),
+    -- accessTokenType,
+    -- userTokenType,
+    -- KnownUserTokenType (..),
 
     -- * Bot body
     Bot (..),
@@ -126,34 +125,34 @@ data Header (t :: Type) = Header
   deriving (Eq, Show)
 
 type family Body (t :: Type) where
-  Body A = Access ActualUser
-  Body U = User ActualUser
+  Body A = Access
+  Body U = User
   Body B = Bot
   Body P = Provider
-  Body LA = Access LHUser
-  Body LU = User LHUser
+  Body LA = Access
+  Body LU = User
 
--- TODO: These names are a bit silly, perhaps we should find better ones.
-data UserTokenType = ActualUser | LHUser
+-- -- TODO: These names are a bit silly, perhaps we should find better ones.
+-- data UserTokenType = ActualUser | LHUser
 
-class KnownUserTokenType (k :: UserTokenType) where
-  userTokenTypeVal :: UserTokenType
+-- class KnownUserTokenType (k :: UserTokenType) where
+--   userTokenTypeVal :: UserTokenType
 
-instance KnownUserTokenType 'ActualUser where
-  userTokenTypeVal = ActualUser
+-- instance KnownUserTokenType 'ActualUser where
+--   userTokenTypeVal = ActualUser
 
-instance KnownUserTokenType 'LHUser where
-  userTokenTypeVal = LHUser
+-- instance KnownUserTokenType 'LHUser where
+--   userTokenTypeVal = LHUser
 
-accessTokenType :: UserTokenType -> Type
-accessTokenType ActualUser = A
-accessTokenType LHUser = LA
+-- accessTokenType :: UserTokenType -> Type
+-- accessTokenType ActualUser = A
+-- accessTokenType LHUser = LA
 
-userTokenType :: UserTokenType -> Type
-userTokenType ActualUser = U
-userTokenType LHUser = LU
+-- userTokenType :: UserTokenType -> Type
+-- userTokenType ActualUser = U
+-- userTokenType LHUser = LU
 
-data Access (t :: UserTokenType) = Access
+data Access = Access
   { userId :: !UUID,
     clientId :: Maybe Text,
     -- | 'ConnId' is derived from this.
@@ -161,7 +160,7 @@ data Access (t :: UserTokenType) = Access
   }
   deriving (Eq, Show)
 
-data User (t :: UserTokenType) = User
+data User = User
   { user :: !UUID,
     client :: Maybe Text,
     rand :: !Word32
@@ -230,14 +229,14 @@ instance (KnownType t) => ReadProperties (Header t) where
       readTag "s" = Just S
       readTag _ = Nothing
 
-instance ReadProperties (Access t) where
+instance ReadProperties Access where
   readProperties t =
     Access
       <$> (lookup "u" t >>= fromLazyASCIIBytes)
       <*> pure (lookup "i" t >>= fromByteString')
       <*> (lookup "c" t >>= fromByteString')
 
-instance ReadProperties (User t) where
+instance ReadProperties User where
   readProperties t =
     User
       <$> (lookup "u" t >>= fromLazyASCIIBytes)
@@ -278,14 +277,14 @@ writeHeader h =
     <> dot
     <> field "l" (foldMap builder (h.tag))
 
-instance ToByteString (Access t) where
+instance ToByteString Access where
   builder t =
     field "u" (toLazyASCIIBytes $ t.userId)
       <> foldMap (\c -> dot <> field "i" c) (t.clientId)
       <> dot
       <> field "c" (t.connection)
 
-instance ToByteString (User t) where
+instance ToByteString User where
   builder t =
     field "u" (toLazyASCIIBytes $ t.user)
       <> dot
