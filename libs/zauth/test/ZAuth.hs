@@ -38,9 +38,6 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
-runCreate :: C.Env -> Sem '[ZAuthCreation, Embed IO] a -> IO a
-runCreate env = runM . C.interpretZAuthCreation env
-
 runCreateAndValidate :: C.Env -> Vector PublicKey -> Sem '[ZAuthCreation, ZAuthValidation, Error Failure, Embed IO] a -> IO (Either Failure a)
 runCreateAndValidate env pubKeys =
   runM
@@ -74,38 +71,35 @@ tests = do
           [ testCase "expired" (testExpired z1 pubKeys),
             testCase "not expired" (testNotExpired z2 pubKeys),
             testCase "signed access-token is valid" (testSignAndVerify z3 pubKeys)
-          ],
-        testGroup
-          "Various"
-          [testCase "random device ids" (runCreate z1 testRandDevIds)]
+          ]
       ]
 
 defDuration :: Integer
 defDuration = 1
 
-testUserIsNotLegalHoldUser :: Token (User LHUser) -> Property
-testUserIsNotLegalHoldUser t = fromByteString @(Token (User ActualUser)) (toByteString' t) === Nothing
+testUserIsNotLegalHoldUser :: Token LU -> Property
+testUserIsNotLegalHoldUser t = fromByteString @(Token U) (toByteString' t) === Nothing
 
-testUserIsNotLegalHoldUser' :: Token (User ActualUser) -> Property
-testUserIsNotLegalHoldUser' t = fromByteString @(Token (User LHUser)) (toByteString' t) === Nothing
+testUserIsNotLegalHoldUser' :: Token U -> Property
+testUserIsNotLegalHoldUser' t = fromByteString @(Token LU) (toByteString' t) === Nothing
 
-testDecEncAccessToken :: Token (Access ActualUser) -> Property
+testDecEncAccessToken :: Token A -> Property
 testDecEncAccessToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncUserToken :: Token (User ActualUser) -> Property
+testDecEncUserToken :: Token U -> Property
 testDecEncUserToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncLegalHoldUserToken :: Token (User LHUser) -> Property
+testDecEncLegalHoldUserToken :: Token LU -> Property
 testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncLegalHoldAccessToken :: Token (Access LHUser) -> Property
+testDecEncLegalHoldAccessToken :: Token LA -> Property
 testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) === Just t
 
 testNotExpired :: C.Env -> Vector PublicKey -> IO ()
 testNotExpired env pubKeys = do
   x <- runCreateAndValidate env pubKeys $ do
     u <- liftIO nextRandom
-    t <- userToken @_ @ActualUser defDuration u Nothing 100
+    t <- newToken @_ @U (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
     check t
   Right () @=? x
 
@@ -117,7 +111,7 @@ testExpired :: C.Env -> Vector PublicKey -> IO ()
 testExpired env pubKeys = do
   x <- runCreateAndValidate env pubKeys $ do
     u <- liftIO nextRandom
-    t <- userToken @_ @ActualUser 0 u Nothing 100
+    t <- newToken @_ @U (TokenExpiresAfter 0) Nothing $ User u Nothing 100
     waitSeconds 1
     check t
   Left Expired @=? x
@@ -128,16 +122,9 @@ testSignAndVerify :: C.Env -> Vector PublicKey -> IO ()
 testSignAndVerify env pubKeys = do
   x <- runCreateAndValidate env pubKeys $ do
     u <- liftIO nextRandom
-    t <- userToken @_ @ActualUser defDuration u Nothing 100
+    t <- newToken @_ @U (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
     check t
   Right () @=? x
-
-testRandDevIds :: (Member (Embed IO) r, Member ZAuthCreation r) => Sem r ()
-testRandDevIds = do
-  u <- liftIO nextRandom
-  t1 <- accessToken1 @_ @ActualUser defDuration u Nothing
-  t2 <- accessToken1 @_ @ActualUser defDuration u Nothing
-  liftIO $ assertBool "unexpected: Same device ID." (t1.body.connection /= t2.body.connection)
 
 -- Helpers:
 

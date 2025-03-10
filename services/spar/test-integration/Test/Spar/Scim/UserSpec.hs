@@ -2382,7 +2382,7 @@ specSCIMManaged = do
       let Right nameid = SAML.emailNameID $ fromEmail oldEmail
       (_, cky) <- loginCreatedSsoUser nameid idp privCreds
       sessiontok <- do
-        let decodeToken :: (HasCallStack) => ResponseLBS -> ZAuth.Token (ZAuth.Access ZAuth.ActualUser)
+        let decodeToken :: (HasCallStack) => ResponseLBS -> ZAuth.Token ZAuth.A
             decodeToken r = fromMaybe (error "invalid access_token") $ do
               x <- responseBody r
               t <- x ^? key "access_token" . _String

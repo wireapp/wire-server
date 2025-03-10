@@ -82,13 +82,13 @@ accessH mcid ut' mat' = do
     >>= either (uncurry (access mcid)) (uncurry (access mcid))
 
 access ::
-  ( u ~ ZAuth.User t,
-    a ~ ZAuth.Access t,
-    Member TinyLog r,
+  ( Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
     UserTokenLike u,
-    AccessTokenLike a
+    AccessTokenLike a,
+    ZAuth.KnownType u,
+    ZAuth.KnownType a
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -133,7 +133,7 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (u ~ ZAuth.User t, a ~ ZAuth.Access t, UserTokenLike u, AccessTokenLike a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (UserTokenLike u, AccessTokenLike a, ZAuth.KnownType u, ZAuth.KnownType a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
@@ -165,7 +165,7 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (u ~ ZAuth.User t, a ~ ZAuth.Access t, UserTokenLike u, AccessTokenLike a) =>
+  (UserTokenLike u, AccessTokenLike a, ZAuth.KnownType u, ZAuth.KnownType a) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
@@ -265,8 +265,8 @@ partitionTokens ::
   Handler
     r
     ( Either
-        (NonEmpty (ZAuth.Token (ZAuth.User ZAuth.ActualUser)), Maybe (ZAuth.Token (ZAuth.Access ZAuth.ActualUser)))
-        (NonEmpty (ZAuth.Token (ZAuth.User ZAuth.LHUser)), Maybe (ZAuth.Token (ZAuth.Access ZAuth.LHUser)))
+        (NonEmpty (ZAuth.Token ZAuth.U), Maybe (ZAuth.Token ZAuth.A))
+        (NonEmpty (ZAuth.Token ZAuth.LU), Maybe (ZAuth.Token ZAuth.LA))
     )
 partitionTokens tokens mat =
   case (partitionEithers (map toEither (toList tokens)), mat) of
@@ -284,7 +284,7 @@ partitionTokens tokens mat =
     -- mixed PlainUserToken and LHUserToken
     ((_ats, _lts), _) -> throwStd authTokenMismatch
   where
-    toEither :: SomeUserToken -> Either (ZAuth.Token (ZAuth.User ZAuth.ActualUser)) (ZAuth.Token (ZAuth.User ZAuth.LHUser))
+    toEither :: SomeUserToken -> Either (ZAuth.Token ZAuth.U) (ZAuth.Token ZAuth.LU)
     toEither (PlainUserToken ut) = Left ut
     toEither (LHUserToken lt) = Right lt
 

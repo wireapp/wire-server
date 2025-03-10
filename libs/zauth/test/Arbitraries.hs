@@ -30,29 +30,13 @@ import Imports
 import Sodium.Crypto.Sign
 import Test.Tasty.QuickCheck
 
-instance Arbitrary (Token (Access ActualUser)) where
-  arbitrary = Token <$> arbitrary <*> ((\h -> h {typ = A}) <$> arbitrary) <*> arbitrary
-
-instance Arbitrary (Token (User ActualUser)) where
-  arbitrary = Token <$> arbitrary <*> ((\h -> h {typ = U}) <$> arbitrary) <*> arbitrary
-
-instance Arbitrary (Token Bot) where
+instance (Arbitrary (Body t)) => Arbitrary (Token t) where
   arbitrary = Token <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary (Token Provider) where
-  arbitrary = Token <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary (Token (Access LHUser)) where
-  arbitrary = Token <$> arbitrary <*> ((\h -> h {typ = LA}) <$> arbitrary) <*> arbitrary
-
-instance Arbitrary (Token (User LHUser)) where
-  arbitrary = Token <$> arbitrary <*> ((\h -> h {typ = LU}) <$> arbitrary) <*> arbitrary
-
-instance Arbitrary Header where
+instance Arbitrary (Header t) where
   arbitrary =
     Header
       <$> arbitrary
-      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
@@ -64,10 +48,10 @@ arbitraryClientId =
     toClientId :: Word64 -> Text
     toClientId = LT.toStrict . LT.toLazyText . LT.hexadecimal
 
-instance Arbitrary (Access t) where
+instance Arbitrary Access where
   arbitrary = Access <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
-instance Arbitrary (User t) where
+instance Arbitrary User where
   arbitrary = User <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary Bot where

@@ -25,19 +25,22 @@ module Data.ZAuth.Token
     -- * Header
     Header (..),
     Type (..),
+    KnownType (..),
     Tag (..),
+
+    -- * Body
+    Body,
 
     -- * Access body
     Access (..),
 
     -- * User body
     User (..),
-
-    -- * UserTokenType
-    UserTokenType (..),
-    accessTokenType,
-    userTokenType,
-    KnownUserTokenType (..),
+    -- -- * UserTokenType
+    -- UserTokenType (..),
+    -- accessTokenType,
+    -- userTokenType,
+    -- KnownUserTokenType (..),
 
     -- * Bot body
     Bot (..),
@@ -76,51 +79,60 @@ data Type
     LU
   deriving (Eq, Show)
 
+class KnownType (t :: Type) where
+  typeVal :: Type
+
+-- TODO: use singletons?
+instance KnownType A where
+  typeVal = A
+
+instance KnownType U where
+  typeVal = U
+
+instance KnownType B where
+  typeVal = B
+
+instance KnownType P where
+  typeVal = P
+
+instance KnownType LA where
+  typeVal = LA
+
+instance KnownType LU where
+  typeVal = LU
+
 -- | Tag: Tokens for Users with no tag are refreshable themselves and called "UserToken"
 -- Tokens for Users with the tag 'S' are non-refreshable themselves and called "SessionToken"
 -- FUTUREWORK: rename 'S' to 'SessionTag' for clarity
 data Tag = S deriving (Eq, Show)
 
-data Token a = Token
+data Token (t :: Type) = Token
   { signature :: !Signature,
-    header :: !Header,
-    body :: !a
+    header :: !(Header t),
+    body :: !(Body t)
   }
-  deriving (Eq, Show)
 
--- FUTUREWORK: maybe refactor to
--- data Header (t :: Type) =
---      Header { ... everything except _typ ...} ?
-data Header = Header
+deriving instance (Eq (Body t)) => Eq (Token t)
+
+deriving instance (Show (Body t)) => Show (Token t)
+
+data Header (t :: Type) = Header
   { version :: !Int,
     key :: !Int,
     time :: !Integer,
-    typ :: !Type,
     tag :: Maybe Tag
   }
   deriving (Eq, Show)
 
--- TODO: These names are a bit silly, perhaps we should find better ones.
-data UserTokenType = ActualUser | LHUser
+type family Body (t :: Type) where
+  Body A = Access
+  Body U = User
+  Body B = Bot
+  Body P = Provider
+  Body LA = Access
+  Body LU = User
 
-class KnownUserTokenType (k :: UserTokenType) where
-  userTokenTypeVal :: UserTokenType
-
-instance KnownUserTokenType 'ActualUser where
-  userTokenTypeVal = ActualUser
-
-instance KnownUserTokenType 'LHUser where
-  userTokenTypeVal = LHUser
-
-accessTokenType :: UserTokenType -> Type
-accessTokenType ActualUser = A
-accessTokenType LHUser = LA
-
-userTokenType :: UserTokenType -> Type
-userTokenType ActualUser = U
-userTokenType LHUser = LU
-
-data Access (t :: UserTokenType) = Access
+data Access = Access
   { userId :: !UUID,
     clientId :: Maybe Text,
     -- | 'ConnId' is derived from this.
@@ -128,7 +140,7 @@ data Access (t :: UserTokenType) = Access
   }
   deriving (Eq, Show)
 
-data User (t :: UserTokenType) = User
+data User = User
   { user :: !UUID,
     client :: Maybe Text,
     rand :: !Word32
@@ -149,128 +161,110 @@ newtype Provider = Provider
 
 type Properties = [(LByteString, LByteString)]
 
-instance (KnownUserTokenType t) => FromByteString (Token (Access t)) where
+instance (KnownType t, ReadProperties (Body t)) => FromByteString (Token t) where
   parser =
-    takeLazyByteString >>= \b ->
-      case readToken (accessTokenType $ userTokenTypeVal @t) readAccessBody b of
-        Nothing -> fail "Invalid access token"
+    takeLazyByteString >>= \bs ->
+      case readToken bs of
+        Nothing -> fail "Invalid token"
         Just t -> pure t
 
-instance (KnownUserTokenType t) => FromByteString (Token (User t)) where
-  parser =
-    takeLazyByteString >>= \b ->
-      case readToken (userTokenType $ userTokenTypeVal @t) readUserBody b of
-        Nothing -> fail "Invalid user token"
-        Just t -> pure t
-
-instance FromByteString (Token Bot) where
-  parser =
-    takeLazyByteString >>= \b ->
-      case readToken B readBotBody b of
-        Nothing -> fail "Invalid bot token"
-        Just t -> pure t
-
-instance FromByteString (Token Provider) where
-  parser =
-    takeLazyByteString >>= \b ->
-      case readToken P readProviderBody b of
-        Nothing -> fail "Invalid provider token"
-        Just t -> pure t
-
-instance (ToByteString a) => ToByteString (Token a) where
+instance (ToByteString (Body t), KnownType t) => ToByteString (Token t) where
   builder = writeToken
 
 -----------------------------------------------------------------------------
 -- Reading
 
-readToken :: Type -> (Properties -> Maybe a) -> LByteString -> Maybe (Token a)
-readToken t f b = case split '.' b of
+readToken :: (KnownType t, ReadProperties (Body t)) => LByteString -> Maybe (Token t)
+readToken b = case split '.' b of
   (s : rest) ->
     let p = map pairwise rest
      in Token
           <$> hush (Signature <$> decode (toStrict s))
-          <*> readHeader t p
-          <*> f p
+          <*> readProperties p
+          <*> readProperties p
   _ -> Nothing
   where
     pairwise :: LByteString -> (LByteString, LByteString)
     pairwise x = let (k, v) = break (== '=') x in (k, drop 1 v)
 
-readHeader :: Type -> Properties -> Maybe Header
-readHeader t p =
-  Header
-    <$> (lookup "v" p >>= fromByteString')
-    <*> (lookup "k" p >>= fromByteString')
-    <*> (lookup "d" p >>= fromByteString')
-    <*> (lookup "t" p >>= readType t)
-    <*> (readTag <$> lookup "l" p)
-  where
-    readType A "a" = Just A
-    readType U "u" = Just U
-    readType B "b" = Just B
-    readType P "p" = Just P
-    readType LA "la" = Just LA
-    readType LU "lu" = Just LU
-    readType _ _ = Nothing
-    readTag "s" = Just S
-    readTag _ = Nothing
+class ReadProperties a where
+  readProperties :: Properties -> Maybe a
 
-readAccessBody :: Properties -> Maybe (Access t)
-readAccessBody t =
-  Access
-    <$> (lookup "u" t >>= fromLazyASCIIBytes)
-    <*> pure (lookup "i" t >>= fromByteString')
-    <*> (lookup "c" t >>= fromByteString')
+instance (KnownType t) => ReadProperties (Header t) where
+  readProperties p = do
+    void $ lookup "t" p >>= readType (typeVal @t)
+    Header
+      <$> (lookup "v" p >>= fromByteString')
+      <*> (lookup "k" p >>= fromByteString')
+      <*> (lookup "d" p >>= fromByteString')
+      <*> (readTag <$> lookup "l" p)
+    where
+      readType A "a" = Just A
+      readType U "u" = Just U
+      readType B "b" = Just B
+      readType P "p" = Just P
+      readType LA "la" = Just LA
+      readType LU "lu" = Just LU
+      readType _ _ = Nothing
+      readTag "s" = Just S
+      readTag _ = Nothing
 
-readUserBody :: Properties -> Maybe (User t)
-readUserBody t =
-  User
-    <$> (lookup "u" t >>= fromLazyASCIIBytes)
-    <*> pure (lookup "i" t >>= fromByteString')
-    <*> (lookup "r" t >>= fmap fromHex . fromByteString')
+instance ReadProperties Access where
+  readProperties t =
+    Access
+      <$> (lookup "u" t >>= fromLazyASCIIBytes)
+      <*> pure (lookup "i" t >>= fromByteString')
+      <*> (lookup "c" t >>= fromByteString')
 
-readBotBody :: Properties -> Maybe Bot
-readBotBody t =
-  Bot
-    <$> (lookup "p" t >>= fromLazyASCIIBytes)
-    <*> (lookup "b" t >>= fromLazyASCIIBytes)
-    <*> (lookup "c" t >>= fromLazyASCIIBytes)
+instance ReadProperties User where
+  readProperties t =
+    User
+      <$> (lookup "u" t >>= fromLazyASCIIBytes)
+      <*> pure (lookup "i" t >>= fromByteString')
+      <*> (lookup "r" t >>= fmap fromHex . fromByteString')
 
-readProviderBody :: Properties -> Maybe Provider
-readProviderBody t = Provider <$> (lookup "p" t >>= fromLazyASCIIBytes)
+instance ReadProperties Bot where
+  readProperties t =
+    Bot
+      <$> (lookup "p" t >>= fromLazyASCIIBytes)
+      <*> (lookup "b" t >>= fromLazyASCIIBytes)
+      <*> (lookup "c" t >>= fromLazyASCIIBytes)
+
+instance ReadProperties Provider where
+  readProperties t = Provider <$> (lookup "p" t >>= fromLazyASCIIBytes)
 
 -----------------------------------------------------------------------------
 -- Writing
 
-writeToken :: (ToByteString a) => Token a -> Builder
+writeToken :: (ToByteString (Body t), KnownType t) => Token t -> Builder
 writeToken t =
   byteString (encode (sigBytes (t.signature)))
     <> dot
     <> writeData (t.header) (t.body)
 
-writeData :: (ToByteString a) => Header -> a -> Builder
+writeData :: (ToByteString (Body t), KnownType t) => Header t -> Body t -> Builder
 writeData h a = writeHeader h <> dot <> builder a
 
-writeHeader :: Header -> Builder
-writeHeader t =
-  field "v" (t.version)
+writeHeader :: forall t. (KnownType t) => Header t -> Builder
+writeHeader h =
+  field "v" h.version
     <> dot
-    <> field "k" (t.key)
+    <> field "k" h.key
     <> dot
-    <> field "d" (t.time)
+    <> field "d" h.time
     <> dot
-    <> field "t" (t.typ)
+    <> field "t" (typeVal @t)
     <> dot
-    <> field "l" (foldMap builder (t.tag))
+    <> field "l" (foldMap builder (h.tag))
 
-instance ToByteString (Access t) where
+instance ToByteString Access where
   builder t =
     field "u" (toLazyASCIIBytes $ t.userId)
       <> foldMap (\c -> dot <> field "i" c) (t.clientId)
       <> dot
       <> field "c" (t.connection)
 
-instance ToByteString (User t) where
+instance ToByteString User where
   builder t =
     field "u" (toLazyASCIIBytes $ t.user)
       <> dot

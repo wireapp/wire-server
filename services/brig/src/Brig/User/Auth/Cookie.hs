@@ -66,8 +66,7 @@ import Wire.SessionStore qualified as Store
 -- Basic Cookie Management
 
 newCookie ::
-  ( u ~ ZAuth.User t,
-    ZAuth.UserTokenLike u,
+  ( ZAuth.UserTokenLike u,
     MonadReader Env m,
     ZAuth.MonadZAuth m,
     MonadClient m
@@ -85,7 +84,7 @@ newCookie uid cid typ label = do
       else ZAuth.newSessionToken uid cid
   let c =
         Cookie
-          { cookieId = CookieId (ZAuth.userTokenRand tok),
+          { cookieId = CookieId tok.body.rand,
             cookieCreated = now,
             cookieExpires = ZAuth.tokenExpiresUTC tok,
             cookieLabel = label,
@@ -99,8 +98,7 @@ newCookie uid cid typ label = do
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
 nextCookie ::
-  ( u ~ ZAuth.User t,
-    ZAuth.UserTokenLike u,
+  ( ZAuth.UserTokenLike u,
     MonadReader Env m,
     Log.MonadLogger m,
     ZAuth.MonadZAuth m,
@@ -111,7 +109,7 @@ nextCookie ::
   Maybe ClientId ->
   ExceptT ZAuth.Failure m (Maybe (Cookie (ZAuth.Token u)))
 nextCookie c mNewCid = runMaybeT $ do
-  let mOldCid = ZAuth.userTokenClient (cookieValue c)
+  let mOldCid = ZAuth.userTokenClient c.cookieValue.body
   -- If both old and new client IDs are present, they must be equal
   when (((/=) <$> mOldCid <*> mNewCid) == Just True) $
     throwError ZAuth.Invalid
@@ -131,7 +129,7 @@ nextCookie c mNewCid = runMaybeT $ do
   lift . lift $ do
     c' <- runMaybeT $ do
       ck <- hoistMaybe $ cookieSucc c
-      let uid = ZAuth.userTokenOf (cookieValue c)
+      let uid = Id c.cookieValue.body.user
       lift $ trackSuperseded uid (cookieId c)
       cs <- lift $ adhocSessionStoreInterpreter $ Store.listCookies uid
       c' <-
@@ -143,8 +141,7 @@ nextCookie c mNewCid = runMaybeT $ do
 
 -- | Renew the given cookie with a fresh token.
 renewCookie ::
-  ( u ~ ZAuth.User t,
-    ZAuth.UserTokenLike u,
+  ( ZAuth.UserTokenLike u,
     MonadReader Env m,
     ZAuth.MonadZAuth m,
     MonadClient m
@@ -154,7 +151,7 @@ renewCookie ::
   m (Cookie (ZAuth.Token u))
 renewCookie old mcid = do
   let t = cookieValue old
-  let uid = ZAuth.userTokenOf t
+  let uid = Id t.body.user
   -- Insert new cookie
   new <- newCookie uid mcid (cookieType old) (cookieLabel old)
   -- Link the old cookie to the new (successor), keeping it
@@ -187,22 +184,22 @@ mustSuspendInactiveUser uid =
       pure mustSuspend
 
 newAccessToken ::
-  forall u a m t.
-  (u ~ ZAuth.User t, ZAuth.MonadZAuth m, ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
+  forall u a m.
+  (ZAuth.MonadZAuth m, ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   Cookie (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   m AccessToken
 newAccessToken c mt = do
   case mt of
     Nothing -> ZAuth.newAccessToken @u (cookieValue c)
-    Just t -> ZAuth.renewAccessToken @a (ZAuth.userTokenClient (cookieValue c)) t
+    Just t -> ZAuth.renewAccessToken @a (ZAuth.userTokenClient c.cookieValue.body) t
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
-lookupCookie :: (u ~ ZAuth.User t, MonadClient m, MonadReader Env m) => ZAuth.Token u -> m (Maybe (Cookie (ZAuth.Token u)))
+lookupCookie :: (ZAuth.Body u ~ ZAuth.User, MonadClient m, MonadReader Env m) => ZAuth.Token u -> m (Maybe (Cookie (ZAuth.Token u)))
 lookupCookie t = do
-  let user = ZAuth.userTokenOf t
-  let rand = ZAuth.userTokenRand t
+  let user = Id t.body.user
+  let rand = t.body.rand
   let expi = ZAuth.tokenExpiresUTC t
   adhocSessionStoreInterpreter $ fmap setToken <$> Store.lookupCookie user expi (CookieId rand)
   where
@@ -231,7 +228,7 @@ revokeCookies u ids labels = do
 -- Limited Cookies
 
 newCookieLimited ::
-  ( ZAuth.UserTokenLike (ZAuth.User t),
+  ( ZAuth.UserTokenLike t,
     MonadReader Env m,
     MonadClient m,
     ZAuth.MonadZAuth m
@@ -240,7 +237,7 @@ newCookieLimited ::
   Maybe ClientId ->
   CookieType ->
   Maybe CookieLabel ->
-  m (Either RetryAfter (Cookie (ZAuth.Token (ZAuth.User t))))
+  m (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u c typ label = do
   cs <- filter ((typ ==) . cookieType) <$> adhocSessionStoreInterpreter (Store.listCookies u)
   now <- liftIO $ getCurrentTime
@@ -258,7 +255,7 @@ newCookieLimited u c typ label = do
 --------------------------------------------------------------------------------
 -- HTTP
 
-toWebCookie :: (MonadReader Env m, ZAuth.UserTokenLike u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
+toWebCookie :: (MonadReader Env m, ZAuth.UserTokenLike u, ZAuth.KnownType u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
 toWebCookie c = do
   s <- asks (.settings)
   pure $

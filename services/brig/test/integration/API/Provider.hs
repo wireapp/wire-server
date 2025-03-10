@@ -208,7 +208,7 @@ testLoginProvider db brig = do
     assertEqual "cookie name" "zprovider" (setCookieName cok)
     assertEqual "cookie http-only" True (setCookieHttpOnly cok)
     assertBool "cookie timeout" (ttl > Just 0)
-  let Just (tok :: ZAuth.Token ZAuth.Provider) = fromByteString (setCookieValue cok)
+  let Just (tok :: ZAuth.Token ZAuth.P) = fromByteString (setCookieValue cok)
   liftIO $ assertEqual "principal" pid (Id tok.body.provider)
 
 testUpdateProvider :: DB.ClientState -> Brig -> Http ()
@@ -2009,7 +2009,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
   let bid = rsAddBotId rs
       buid = botUserId bid
       -- Check that the bot token grants access to the right user and conversation
-      Just (tok :: ZAuth.Token ZAuth.Bot) = fromByteString (Text.encodeUtf8 (testBotToken bot))
+      Just (tok :: ZAuth.Token ZAuth.B) = fromByteString (Text.encodeUtf8 (testBotToken bot))
   liftIO $ do
     assertEqual "principal" bid (BotId (Id tok.body.bot))
     assertEqual "conversation" cid (Id tok.body.conv)
