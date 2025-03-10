@@ -77,7 +77,6 @@ library
     , bytestring-conversion  >=0.1.1
     , errors                 >=2.0
     , imports
-    , lens                   >=4.4
     , mwc-random             >=0.12
     , polysemy
     , polysemy-plugin
@@ -207,7 +206,6 @@ test-suite zauth-unit
       base
     , bytestring-conversion
     , imports
-    , lens
     , polysemy
     , sodium-crypto-sign
     , tasty                  >=0.9

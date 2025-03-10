@@ -21,7 +21,6 @@
 
 module Arbitraries where
 
-import Control.Lens ((.~))
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
 import Data.Text.Lazy.Builder.Int qualified as LT
@@ -32,26 +31,26 @@ import Sodium.Crypto.Sign
 import Test.Tasty.QuickCheck
 
 instance Arbitrary (Token (Access ActualUser)) where
-  arbitrary = mkToken <$> arbitrary <*> ((typ .~ A) <$> arbitrary) <*> arbitrary
+  arbitrary = Token <$> arbitrary <*> ((\h -> h {typ = A}) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token (User ActualUser)) where
-  arbitrary = mkToken <$> arbitrary <*> ((typ .~ U) <$> arbitrary) <*> arbitrary
+  arbitrary = Token <$> arbitrary <*> ((\h -> h {typ = U}) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token Bot) where
-  arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Token <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary (Token Provider) where
-  arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Token <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary (Token (Access LHUser)) where
-  arbitrary = mkToken <$> arbitrary <*> ((typ .~ LA) <$> arbitrary) <*> arbitrary
+  arbitrary = Token <$> arbitrary <*> ((\h -> h {typ = LA}) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary (Token (User LHUser)) where
-  arbitrary = mkToken <$> arbitrary <*> ((typ .~ LU) <$> arbitrary) <*> arbitrary
+  arbitrary = Token <$> arbitrary <*> ((\h -> h {typ = LU}) <$> arbitrary) <*> arbitrary
 
 instance Arbitrary Header where
   arbitrary =
-    mkHeader
+    Header
       <$> arbitrary
       <*> arbitrary
       <*> arbitrary
@@ -66,16 +65,16 @@ arbitraryClientId =
     toClientId = LT.toStrict . LT.toLazyText . LT.hexadecimal
 
 instance Arbitrary (Access t) where
-  arbitrary = mkAccess <$> arbitrary <*> arbitraryClientId <*> arbitrary
+  arbitrary = Access <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary (User t) where
-  arbitrary = mkUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
+  arbitrary = User <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary Bot where
-  arbitrary = mkBot <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Bot <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Provider where
-  arbitrary = mkProvider <$> arbitrary
+  arbitrary = Provider <$> arbitrary
 
 instance Arbitrary ByteString where
   arbitrary = fromString <$> arbitrary `suchThat` notElem '.'

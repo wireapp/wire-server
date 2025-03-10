@@ -26,7 +26,6 @@ module Data.ZAuth.Validation
   )
 where
 
-import Control.Lens
 import Data.ByteString.Conversion
 import Data.Time.Clock.POSIX
 import Data.Vector (Vector, (!))
@@ -61,17 +60,17 @@ interpretZAuthValidation pubKeys = interpret $ \case
 
 checkImpl :: (ToByteString a, Member (Error Failure) r, Member (Embed IO) r) => Vector PublicKey -> Token a -> Sem r ()
 checkImpl pubKeys t = do
-  let dat = toByteString' $ writeData (t ^. header) (t ^. body)
-  let k = t ^. header . key
+  let dat = toByteString' $ writeData t.header t.body
+  let k = t.header.key
   when (k < 1 || k > Vec.length pubKeys) $
     throw Invalid
-  ok <- liftIO $ verifyWith (pubKeys ! (k - 1)) (t ^. signature) dat
+  ok <- liftIO $ verifyWith (pubKeys ! (k - 1)) t.signature dat
   unless ok $
     throw Falsified
   isExpired <-
-    if t ^. header . time == -1
+    if t.header.time == -1
       then pure False
-      else (t ^. header . time <) <$> now
+      else (t.header.time <) <$> now
   when isExpired $
     throw Expired
 

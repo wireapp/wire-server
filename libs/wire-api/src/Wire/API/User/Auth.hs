@@ -58,7 +58,7 @@ where
 
 import Cassandra
 import Control.Applicative
-import Control.Lens ((?~), (^.))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor
@@ -597,7 +597,7 @@ ptcToSetCookie c =
     providerToken (ProviderToken t) = t
 
     tokenExpiresUTC :: ZAuth.Token a -> UTCTime
-    tokenExpiresUTC t = posixSecondsToUTCTime (fromIntegral (t ^. header . time))
+    tokenExpiresUTC t = posixSecondsToUTCTime (fromIntegral (t.header.time))
 
 instance S.ToParamSchema ProviderTokenCookie where
   toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString

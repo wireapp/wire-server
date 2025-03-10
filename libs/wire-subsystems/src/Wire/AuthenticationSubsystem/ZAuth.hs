@@ -1,6 +1,5 @@
 module Wire.AuthenticationSubsystem.ZAuth where
 
-import Control.Lens (to, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Bits
@@ -170,7 +169,7 @@ mkUserToken' u cid r t = liftZAuth $ do
   z <- ask
   liftIO $
     runCreate z.private $
-      ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) (fmap clientToText cid) r)
+      ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (User (toUUID u) (fmap clientToText cid) r)
 
 newUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token (User ActualUser))
 newUserToken' u c = liftZAuth $ do
@@ -196,10 +195,10 @@ newAccessToken' xt = liftZAuth $ do
   liftIO $
     runCreate z.private $ do
       let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
-      accessToken :: (Token (Access ActualUser)) <- ZC.accessToken1 ttl (xt ^. body . user) (xt ^. body . client)
+      accessToken :: (Token (Access ActualUser)) <- ZC.accessToken1 ttl (xt.body.user) (xt.body.client)
       pure $
         bearerToken
-          (accessToken ^. body . userId . to Id)
+          (Id accessToken.body.userId)
           (toByteString accessToken)
           ttl
 
@@ -212,13 +211,11 @@ renewAccessToken' mcid old = liftZAuth $ do
       new <-
         ZC.renewToken
           ttl
-          (old ^. header)
-          ( (old ^. body)
-              & clientId .~ fmap clientToText mcid
-          )
+          (old.header)
+          (old.body {clientId = fmap clientToText mcid})
       pure $
         bearerToken
-          (new ^. body . userId . to Id)
+          (Id new.body.userId)
           (toByteString new)
           ttl
 
@@ -258,7 +255,7 @@ mkLegalHoldUserToken u c r t = liftZAuth $ do
         (utcTimeToPOSIXSeconds t)
         LU
         Nothing
-        (mkUser (toUUID u) (fmap clientToText c) r)
+        (User (toUUID u) (fmap clientToText c) r)
 
 newLegalHoldUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token (User LHUser))
 newLegalHoldUserToken u c = liftZAuth $ do
@@ -278,11 +275,11 @@ newLegalHoldAccessToken xt = liftZAuth $ do
       new :: (Token (Access LHUser)) <-
         ZC.accessToken1
           ttl
-          (xt ^. body . user)
-          (xt ^. body . client)
+          (xt.body.user)
+          (xt.body.client)
       pure $
         bearerToken
-          (new ^. body . userId . to Id)
+          (Id new.body.userId)
           (toByteString new)
           ttl
 
@@ -296,10 +293,10 @@ renewLegalHoldAccessToken _mcid old = liftZAuth $ do
   liftIO $
     runCreate z.private $ do
       let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
-      new <- ZC.renewToken ttl (old ^. header) (old ^. body)
+      new <- ZC.renewToken ttl (old.header) (old.body)
       pure $
         bearerToken
-          (new ^. body . userId . to Id)
+          (Id new.body.userId)
           (toByteString new)
           ttl
 
@@ -316,19 +313,19 @@ validateToken t = liftZAuth $ do
     $ ZV.check t
 
 accessTokenOf :: Token (Access t) -> UserId
-accessTokenOf t = Id (t ^. body . userId)
+accessTokenOf t = Id (t.body.userId)
 
 userTokenOf :: Token (User t) -> UserId
-userTokenOf t = Id (t ^. body . user)
+userTokenOf t = Id (t.body.user)
 
 userTokenClient :: Token (User t) -> Maybe ClientId
-userTokenClient t = fromByteString . T.encodeUtf8 =<< t ^. body . client
+userTokenClient t = fromByteString . T.encodeUtf8 =<< t.body.client
 
 userTokenRand :: Token (User t) -> Word32
-userTokenRand t = t ^. body . rand
+userTokenRand t = t.body.rand
 
 tokenExpires :: Token a -> POSIXTime
-tokenExpires t = fromIntegral (t ^. header . time)
+tokenExpires t = fromIntegral (t.header.time)
 
 tokenExpiresUTC :: Token a -> UTCTime
 tokenExpiresUTC = posixSecondsToUTCTime . tokenExpires

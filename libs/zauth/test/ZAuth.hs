@@ -23,7 +23,6 @@ module ZAuth
 where
 
 import Arbitraries ()
-import Control.Lens
 import Data.ByteString.Conversion
 import Data.UUID.V4
 import Data.Vector (Vector)
@@ -136,9 +135,9 @@ testSignAndVerify env pubKeys = do
 testRandDevIds :: (Member (Embed IO) r, Member ZAuthCreation r) => Sem r ()
 testRandDevIds = do
   u <- liftIO nextRandom
-  t1 <- view body <$> accessToken1 @_ @ActualUser defDuration u Nothing
-  t2 <- view body <$> accessToken1 @_ @ActualUser defDuration u Nothing
-  liftIO $ assertBool "unexpected: Same device ID." (t1 ^. connection /= t2 ^. connection)
+  t1 <- accessToken1 @_ @ActualUser defDuration u Nothing
+  t2 <- accessToken1 @_ @ActualUser defDuration u Nothing
+  liftIO $ assertBool "unexpected: Same device ID." (t1.body.connection /= t2.body.connection)
 
 -- Helpers:
 
