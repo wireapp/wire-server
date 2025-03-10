@@ -203,7 +203,7 @@ localLogout = do
 
 -- | as in [3/4.4]
 singleLogout :: (HasCallStack, SP m) => m (WithCookieAndLocation ST)
-singleLogout = error "not implemented."
+singleLogout = error "not implemented: singleLogout"
 
 data LoginStatus
   = NotLoggedIn [(ST {- issuer -}, ST {- authreq path -})]
