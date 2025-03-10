@@ -1,0 +1,14 @@
+logLevel:   Debug
+
+spHost:    me.wire.com
+spPort:    443
+spAppUri:  https://me.wire.com/sp
+spSsoUri:  https://me.wire.com/sso
+
+contacts:
+  - type: ContactSupport
+    company: evil corp.
+    givenName: Dr.
+    surname: Girlfriend
+    email: email:president@evil.corp
+    phone: '+314159265'

@@ -1,0 +1,21 @@
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://www.okta.com/exkh52ytxrJeMH5140h7">
+<md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+<md:KeyDescriptor use="signing">
+<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+<ds:X509Data>
+<ds:X509Certificate>
+MIIDpDCCAoygAwIBAgIGAWbOqDoFMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG A1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU MBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi0xNDk4MjcxHDAaBgkqhkiG9w0BCQEW DWluZm9Ab2t0YS5jb20wHhcNMTgxMTAxMDk0MjQzWhcNMjgxMTAxMDk0MzQzWjCBkjELMAkGA1UE BhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV BAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtMTQ5ODI3MRwwGgYJ KoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA ifk8CbHDo9Uw+Gsk3S/EEqTaVO4qjMvBOOf3Ea6olGTV/XxmkTDcLzA652vubY+kRmof0HbnSviD jF/Q4OvubCOx2iriInehDzK3ZrOTqHi4P9I9RUNw+d5MuI0tI424gEy78jMUonGLn+GQDSaTdGmC KzXegv7EjsnWj/37vf3n7bhykXZ3HcUx0npF8jO7m33ifzn/8sMs4Y3HpqrtH+e2H/sUP2jj3w+O Bd2kudaQozEz2yo3O8kQ4KtQHPBx+NAUx3QWyrTm+fZhaB1KsY9G2p4sCxMfuzb2MqK528ZBDPOe ohT2tkDCmMFDQfaEiVb+gFVitFJ66FeML/dJgQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBvSJNI Lwq/uUX4eYjbgDUwH4h5MKx++jGwaQe45+KOSMxQjI8lSM6+QTPieEYTbtyjhRg0EhHlJW4MQ72X XudMO1HMB3JaEc7W0buXMFD4elu057JkLnMQofXh+A51laAqDoq345l8IuYWe0V2tympIe9TINfb ns7RkR1KZiex16I3kWACE3AIyYaESl6oa3Di/CJWvUowV7AC7paD4huMe4cncj5UArBNFCZJtm0J hy2pookAGUCLA+YwI915zlCUdQJTETMaFc/VAYxVrehXh0PtBnJuhtwLaV7411c9GKkzQzlWhU3V XoV6Nvfyyf/dAgQKul2kHE8PjSigmXjC
+</ds:X509Certificate>
+</ds:X509Data>
+</ds:KeyInfo>
+</md:KeyDescriptor>
+<md:NameIDFormat>
+urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified
+</md:NameIDFormat>
+<md:NameIDFormat>
+urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+</md:NameIDFormat>
+<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://dev-149827.oktapreview.com/app/wirecomdev149827_wirestaging_1/exkh52ytxrJeMH5140h7/sso/saml"/>
+<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://dev-149827.oktapreview.com/app/wirecomdev149827_wirestaging_1/exkh52ytxrJeMH5140h7/sso/saml"/>
+</md:IDPSSODescriptor>
+</md:EntityDescriptor>

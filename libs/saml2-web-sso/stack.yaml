@@ -1,0 +1,21 @@
+resolver: lts-18.18
+
+packages:
+- .
+
+extra-deps:
+- git: https://github.com/dylex/hsaml2
+  commit: 95d9dc7502c2533f7927de00cbc2bd20ad989ace
+- git: https://github.com/wireapp/hspec-wai
+  commit: 08176f07fa893922e2e78dcaf996c33d79d23ce2 # https://github.com/hspec/hspec-wai/pull/49
+- invertible-hxt-0.1  # for hsaml2
+- crypton-x509-1.7.6
+- crypton-0.33
+
+- ormolu-0.1.4.1
+- ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751  # for ormolu
+nix:
+  packages:
+  - zlib
+  - pkgconfig
+  - libxml2
