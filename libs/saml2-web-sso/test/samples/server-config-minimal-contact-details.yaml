@@ -1,0 +1,10 @@
+logLevel:  Debug
+
+spHost:    me.wire.com
+spPort:    443
+spAppUri:  https://me.wire.com/sp
+spSsoUri:  https://me.wire.com/sso
+
+contacts:
+  - type: ContactAdministrative
+    email: email:president@evil.corp

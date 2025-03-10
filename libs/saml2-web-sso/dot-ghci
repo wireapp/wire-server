@@ -1,0 +1,33 @@
+:set -i../src/ -i../test
+
+:set -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wtabs
+
+:set -hide-package cryptohash
+
+:set -XNoOverloadedStrings
+
+:set -XConstraintKinds
+:set -XDataKinds
+:set -XDefaultSignatures
+:set -XDeriveGeneric
+:set -XFlexibleContexts
+:set -XFlexibleInstances
+:set -XGADTs
+:set -XInstanceSigs
+:set -XKindSignatures
+:set -XLambdaCase
+:set -XMultiParamTypeClasses
+:set -XNoMonomorphismRestriction
+:set -XPolyKinds
+:set -XQuasiQuotes
+:set -XRankNTypes
+:set -XRecordWildCards
+:set -XScopedTypeVariables
+:set -XStandaloneDeriving
+:set -XTemplateHaskell
+:set -XTupleSections
+:set -XTypeApplications
+:set -XTypeFamilies
+:set -XTypeOperators
+:set -XTypeSynonymInstances
+:set -XViewPatterns
