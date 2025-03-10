@@ -128,7 +128,7 @@ mkEnv sk pk sets = do
   let pubKeys = Vector.fromList $ NonEmpty.toList pk
   pure $! Env zc pubKeys sets
 
-class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
+class (FromByteString (Token t), ToByteString (Body t)) => AccessTokenLike t where
   renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token a -> m Auth.AccessToken
 
 instance AccessTokenLike (Access ActualUser) where
