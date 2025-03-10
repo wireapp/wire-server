@@ -201,9 +201,13 @@ localLogout = do
   cky <- toggleCookie "/" Nothing
   pure . addHeader cky . addHeader uri $ "Logged out locally, redirecting to " <> renderURI uri
 
--- | as in [3/4.4]
-singleLogout :: (HasCallStack, SP m) => m (WithCookieAndLocation ST)
-singleLogout = error "not implemented."
+-- | acts weird (handles /sso/meta path)
+singleLogout :: (HasCallStack, SP m, Applicative m) => m (WithCookieAndLocation ST)
+singleLogout =
+  -- if we just say "error" instead of "pure . error" here, the routing algorithm in servant
+  -- will construct the handler and crash, even if the route for the handler does not match
+  -- the path in the request.
+  pure $ error "not implemented: singleLogout"
 
 data LoginStatus
   = NotLoggedIn [(ST {- issuer -}, ST {- authreq path -})]
