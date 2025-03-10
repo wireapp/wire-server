@@ -382,8 +382,8 @@ More information:
 
 - [FAQ](../single-sign-on/trouble-shooting.md#trouble-shooting-faq)
 - [setup howtos for various IdP vendors](https://docs.wire.com/how-to/single-sign-on/index.html)
-- [a few fragments that may help admins](https://github.com/wireapp/wire-server/blob/develop/docs/reference/spar-braindump.md)
+- [a few fragments that may help admins](https://github.com/wireapp/wire-docs/blob/main/src/developer/reference/spar-braindump.md)
 
 ### LegalHold
 
-Users that are part of a team, for which a team admin has configured “LegalHold”, can add a so-called “LegalHold” device. The endpoints in use to authenticate for a “LegalHold” Device are the same as for regular users, but the access tokens they get can only use a restricted set of API endpoints. See also [legalhold documentation on wire-server](https://github.com/wireapp/wire-server/blob/develop/docs/reference/team/legalhold.md)
+Users that are part of a team, for which a team admin has configured “LegalHold”, can add a so-called “LegalHold” device. The endpoints in use to authenticate for a “LegalHold” Device are the same as for regular users, but the access tokens they get can only use a restricted set of API endpoints. See also [legalhold documentation on wire-server](https://github.com/wireapp/wire-docs/blob/main/src/developer/reference/team/legalhold.md)
