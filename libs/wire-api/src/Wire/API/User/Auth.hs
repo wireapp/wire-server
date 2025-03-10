@@ -471,8 +471,8 @@ instance AsHeaders '[Maybe UserTokenCookie] AccessToken SomeAccess where
 -- Token sum types
 
 data SomeUserToken
-  = PlainUserToken (ZAuth.Token (ZAuth.User ZAuth.ActualUser))
-  | LHUserToken (ZAuth.Token (ZAuth.User ZAuth.LHUser))
+  = PlainUserToken (ZAuth.Token ZAuth.U)
+  | LHUserToken (ZAuth.Token ZAuth.LU)
   deriving (Show)
 
 instance FromHttpApiData SomeUserToken where
@@ -492,8 +492,8 @@ instance ToByteString SomeUserToken where
   builder (LHUserToken t) = builder t
 
 data SomeAccessToken
-  = PlainAccessToken (ZAuth.Token (ZAuth.Access ZAuth.ActualUser))
-  | LHAccessToken (ZAuth.Token (ZAuth.Access ZAuth.LHUser))
+  = PlainAccessToken (ZAuth.Token ZAuth.A)
+  | LHAccessToken (ZAuth.Token ZAuth.LA)
   deriving (Show)
 
 instance FromHttpApiData SomeAccessToken where
@@ -550,7 +550,7 @@ instance ToHttpApiData UserTokenCookie where
 --------------------------------------------------------------------------------
 -- Provider
 
-data ProviderToken = ProviderToken (ZAuth.Token ZAuth.Provider)
+data ProviderToken = ProviderToken (ZAuth.Token ZAuth.P)
   deriving (Show)
 
 instance FromByteString ProviderToken where
@@ -593,7 +593,7 @@ ptcToSetCookie c =
       setCookieHttpOnly = True
     }
   where
-    providerToken :: ProviderToken -> ZAuth.Token ZAuth.Provider
+    providerToken :: ProviderToken -> ZAuth.Token ZAuth.P
     providerToken (ProviderToken t) = t
 
     tokenExpiresUTC :: ZAuth.Token a -> UTCTime

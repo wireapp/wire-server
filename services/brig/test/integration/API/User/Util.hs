@@ -156,7 +156,7 @@ initiateEmailUpdateLogin brig email loginCreds uid = do
     pure (decodeCookie rsp, decodeToken rsp)
   initiateEmailUpdateCreds brig email (cky, tok) uid
 
-initiateEmailUpdateCreds :: Brig -> EmailAddress -> (Bilge.Cookie, ZAuth.Token (ZAuth.Access ZAuth.ActualUser)) -> UserId -> (MonadHttp m) => m ResponseLBS
+initiateEmailUpdateCreds :: Brig -> EmailAddress -> (Bilge.Cookie, ZAuth.Token ZAuth.A) -> UserId -> (MonadHttp m) => m ResponseLBS
 initiateEmailUpdateCreds brig email (cky, tok) uid = do
   put $
     unversioned
@@ -456,7 +456,7 @@ nonce m brig uid cid =
 headNonceNginz ::
   (MonadHttp m) =>
   Nginz ->
-  ZAuth.Token (ZAuth.Access ZAuth.ActualUser) ->
+  ZAuth.Token ZAuth.A ->
   ClientId ->
   m ResponseLBS
 headNonceNginz nginz t cid =
@@ -475,7 +475,7 @@ createAccessToken brig uid h cid mProof =
       . header "Z-Host" (cs h)
       . maybe id (header "DPoP" . toByteString') mProof
 
-createAccessTokenNginz :: (MonadHttp m, HasCallStack) => Nginz -> ZAuth.Token (ZAuth.Access ZAuth.ActualUser) -> ClientId -> Maybe Proof -> m ResponseLBS
+createAccessTokenNginz :: (MonadHttp m, HasCallStack) => Nginz -> ZAuth.Token ZAuth.A -> ClientId -> Maybe Proof -> m ResponseLBS
 createAccessTokenNginz n t cid mProof =
   post $
     unversioned

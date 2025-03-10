@@ -77,7 +77,6 @@ library
     , bytestring-conversion  >=0.1.1
     , errors                 >=2.0
     , imports
-    , mwc-random             >=0.12
     , polysemy
     , polysemy-plugin
     , sodium-crypto-sign     >=0.1

@@ -50,7 +50,7 @@ data Failure
 instance Exception Failure
 
 data ZAuthValidation m a where
-  Check :: (ToByteString x) => Token x -> ZAuthValidation m ()
+  Check :: (KnownType t, ToByteString (Body t)) => Token t -> ZAuthValidation m ()
 
 makeSem ''ZAuthValidation
 
@@ -58,7 +58,7 @@ interpretZAuthValidation :: (Member (Error Failure) r, Member (Embed IO) r) => V
 interpretZAuthValidation pubKeys = interpret $ \case
   Check tok -> checkImpl pubKeys tok
 
-checkImpl :: (ToByteString a, Member (Error Failure) r, Member (Embed IO) r) => Vector PublicKey -> Token a -> Sem r ()
+checkImpl :: (KnownType t, ToByteString (Body t), Member (Error Failure) r, Member (Embed IO) r) => Vector PublicKey -> Token t -> Sem r ()
 checkImpl pubKeys t = do
   let dat = toByteString' $ writeData t.header t.body
   let k = t.header.key
