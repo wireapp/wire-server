@@ -154,35 +154,25 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 1. Create a new type in this module for the feature configuration, called
 -- @DummyConfig@. If your feature doesn't have a config besides being 'status'
 -- and 'lockStatus', then the config should be a unit type, e.g. @data
--- DummyConfig = DummyConfig@. Derive 'Eq', 'Show', 'Generic', 'Arbitrary',
--- 'RenderableSymbol', 'FromJSON', 'ToJSON' and 'S.ToSchema'. Implement a
--- 'ToSchema' instance. Add a singleton. Add the config type to 'Features'.
+-- DummyConfig = DummyConfig@. Otherwise, make a "bare barbie" record. Derive
+-- 'Eq', 'Show', 'Generic', 'Arbitrary', 'RenderableSymbol' and
+-- 'ParseDbFeature'. Implement a 'ToSchema' instance for the 'Covered' version
+-- of the config type. Add a singleton. Add the config type to 'Features'.
 --
--- 2. Create a schema migration in galley, adding a column for each
--- configurable value of the feature. The new columns must contain all the
--- information needed to reconstruct a value of type 'LockableFeature
--- DummyConfig'.
---
--- 3. In 'Galley.Cassandra.MakeFeature', implement the 'MakeFeature' type
--- class: set 'FeatureRow' to the list of types of the rows added by the
--- migration. If the lock status is configurable (it should be in most cases),
--- it must be the first in the list. Set 'featureColumns' to the names of the
--- columns, in the same order. Implement `rowToFeature` and `featureToRow`.
---
--- 4. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
+-- 2. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
 -- 'Galley.API.Teams.Features'. Empty instances will work fine unless this
 -- feature requires custom logic.
 --
--- 5. Add a public route to 'Wire.API.Routes.Public.Galley.Feature' and the
+-- 3. Add a public route to 'Wire.API.Routes.Public.Galley.Feature' and the
 -- corresponding implementation in 'Galley.API.Public.Feature'.
 --
--- 6. Add an internal route in 'Wire.API.Routes.Internal.Galley' and the
+-- 4. Add an internal route in 'Wire.API.Routes.Internal.Galley' and the
 -- corresponding implementation in 'Galley.API.Internal'.
 --
--- 7. If the feature should be configurable via Stern add routes to Stern.API.
+-- 5. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay and works.
 --
--- 8. In 'Galley.Types.Team', add a new data instance @DummyDefaults@ to
+-- 6. In 'Galley.Types.Team', add a new data instance @DummyDefaults@ to
 -- represent the server-wide feature defaults read from the configuration file.
 -- In most cases, this should be a newtype over 'LockableFeature DummyConfig'.
 -- Then derive all the instances like for the other features in that module.
@@ -190,17 +180,17 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- or 'RequiredField', depending on whether the feature configuration should be
 -- optional or required.
 --
--- 9. If necessary, add configuration for the feature in
+-- 7. If necessary, add configuration for the feature in
 -- 'galley.integration.yaml', update the config map in
 -- 'charts/galley/templates/configmap.yaml' and set defaults in
 -- 'charts/galley/values.yaml'. Make sure that the configuration for CI matches
 -- the local one, or adjust 'hack/helm_vars/wire-server/values.yaml'
 -- accordingly.
 --
--- 10. Add the default values of this feature in 'testAllFeatures'
+-- 8. Add the default values of this feature in 'testAllFeatures'
 -- ('Test.FeatureFlags'). Add feature-specific integration tests.
 --
--- 11. Add a section to the documentation at an appropriate place
+-- 9. Add a section to the documentation at an appropriate place
 -- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
 -- 'docs/src/understand/team-feature-settings.md')
 class
