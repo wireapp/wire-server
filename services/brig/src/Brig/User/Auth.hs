@@ -56,7 +56,6 @@ import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.ZAuth.Token qualified as ZAuth
 import Data.ZAuth.Validation qualified as ZAuth
-import Debug.Trace
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
@@ -209,7 +208,6 @@ renewAccess ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Show u,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a
   ) =>
@@ -219,8 +217,6 @@ renewAccess ::
   ExceptT ZAuth.Failure (AppT r) (Access u)
 renewAccess uts at mcid = do
   (uid, ck) <- validateTokens uts at
-  traceShowM uid
-  traceShowM ck
   wrapClientE $ traverse_ (checkClientId uid) mcid
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
