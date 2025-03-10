@@ -184,8 +184,8 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  Named @"sso-metadata" (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
-    :<|> Named @"sso-team-metadata" (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
+  Named @"sso-metadata" (getMetadata Nothing)
+    :<|> Named @"sso-team-metadata" (getMetadata . Just)
     :<|> Named @"auth-req-precheck" authreqPrecheck
     :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
@@ -239,6 +239,85 @@ appName = "spar"
 ----------------------------------------------------------------------------
 -- SSO API
 
+-- | NB: not providing a team id here (route `Named "sso-metadata"`) is deprecated.  Some IdPs
+-- do not allow setting different IdP issuer urls for different SPs, but only support one
+-- global issuer url.  Adding the team id here allows us to scope this global issuer url
+-- inside the team, ie. use it once per team, not once per instance.
+getMetadata ::
+  ( Member SAML2 r,
+    Member SamlProtocolSettings r
+  ) =>
+  Maybe TeamId ->
+  Sem r SAML.SPMetadata
+getMetadata mbTid = SAML2.meta appNameMultiIngress (spIssuerMultiIngress mbTid) (responseURIMultiIngress mbTid)
+  where
+    appNameMultiIngress = appName
+    spIssuerMultiIngress = SamlProtocolSettings.spIssuer
+    responseURIMultiIngress = SamlProtocolSettings.responseURI
+
+{- TODO:
+
+problem:
+
+where in the Options do we put the mapping?  here's the config from saml2-web-sso:
+
+```
+data Config = Config
+  { _cfgLogLevel :: Level,
+    _cfgSPHost :: String,
+    _cfgSPPort :: Int,
+    _cfgSPAppURI :: URI,
+    _cfgSPSsoURI :: URI,
+    _cfgContacts :: [ContactPerson]
+  }
+  deriving (Eq, Show, Generic)
+```
+
+- spAppURI, spSsoURI, Contacts change depending on virtual domain
+- level may or may not have a reason to change
+- host, port (the spar tcp listener) *should* not change between virtual domains
+
+it would also be nice if we didn't have to touch saml2-web-sso
+
+proposal:
+
+- change spar such that `saml` takes a mapping from domain to saml config, and parse the saml
+  config under each domain using saml2-web-sso.
+- throw parse error if level, host, port do not match between domains.
+- provide getters (or something) that make code changes smaller.
+
+alternatives 1:
+
+- mv saml2-web-sso into wire-server, stop pretending it can be used anywhere else, and do something like this:
+
+```
+data Config = Config
+  { _cfgLogLevel :: Level,
+    _cfgSPHost :: String,
+    _cfgSPPort :: Int,
+    _cfgDomainConfigs ::
+       -- if you don't use the multi-ingress feature, you only ever need one of these, so
+       -- you'll use the `Left` case.
+       Either MultiIngressDomainConfig (Map Domain DomainConfig)
+  }
+  deriving (Eq, Show, Generic)
+
+-- |
+data MultiIngressDomainConfig = MultiIngressDomainConfig
+  { _cfgSPAppURI :: URI,
+    _cfgSPSsoURI :: URI,
+    _cfgContacts :: [ContactPerson]
+  }
+```
+
+alternative 2:
+
+like alternative 1, but more light-weight: copy parser from library and keep the rest of the
+library intact.  not sure how messy this will get, though, as we'd have to make sure calls
+into the library will always carry the correct DomainConfig.
+
+-}
+
 authreqPrecheck ::
   ( Member IdPConfigStore r,
     Member (Error SparError) r
@@ -268,8 +347,9 @@ authreq ::
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
+  Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid = do
+authreq authreqttl msucc merr idpid _mbHost = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid

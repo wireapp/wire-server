@@ -71,15 +71,6 @@ let
       };
     };
 
-    # FIXME(mangoiv): should be merged https://github.com/wireapp/saml2-web-sso/pull/86
-    saml2-web-sso = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/saml2-web-sso";
-        rev = "9474485e6ed45930b75524f97633f7e036fc0273";
-        hash = "sha256-TkULURVk7lDHXpbXREwowxFoiUp2VSVZWjr9KF48170=";
-      };
-    };
-
     # --------------------
     # END maintained by us
     # --------------------

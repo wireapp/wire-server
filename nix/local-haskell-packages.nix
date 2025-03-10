@@ -19,6 +19,7 @@
   metrics-core = hself.callPackage ../libs/metrics-core/default.nix { inherit gitignoreSource; };
   metrics-wai = hself.callPackage ../libs/metrics-wai/default.nix { inherit gitignoreSource; };
   polysemy-wire-zoo = hself.callPackage ../libs/polysemy-wire-zoo/default.nix { inherit gitignoreSource; };
+  saml2-web-sso = hself.callPackage ../libs/saml2-web-sso/default.nix { inherit gitignoreSource; };
   schema-profunctor = hself.callPackage ../libs/schema-profunctor/default.nix { inherit gitignoreSource; };
   sodium-crypto-sign = hself.callPackage ../libs/sodium-crypto-sign/default.nix { inherit gitignoreSource; };
   ssl-util = hself.callPackage ../libs/ssl-util/default.nix { inherit gitignoreSource; };
