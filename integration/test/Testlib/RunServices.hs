@@ -2,9 +2,6 @@ module Testlib.RunServices (main) where
 
 import Control.Concurrent
 import Control.Monad.Codensity
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Map as Map
 import Options.Applicative
 import System.Directory
 import System.Exit
@@ -79,23 +76,13 @@ main = do
         _modifyEnv <-
           traverseConcurrentlyCodensity
             ( \r -> do
-                (_, configs) <-
-                  startDynamicBackend
+                void
+                  $ startDynamicBackend
                     r
                     ( if opts.withManualTestingOverrides
                         then manualTestingOverrides
                         else mempty
                     )
-
-                -- ensure config directory exists
-                let configDir = projectRoot </> ".configs" </> backendNameToString r.berName
-                liftIO $ createDirectoryIfMissing True configDir
-
-                -- store configuration files for this backend
-                liftIO $ for_ (Map.assocs configs) $ \(service, config) ->
-                  BL.writeFile
-                    (configDir </> (serviceName service <> ".json"))
-                    (A.encode config)
             )
             [backendA, backendB]
         liftIO run

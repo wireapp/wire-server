@@ -18,7 +18,9 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import qualified Data.Aeson as A
 import qualified Data.Attoparsec.Text as Parser
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Char as Char
 import Data.Default
 import Data.Foldable
@@ -163,6 +165,18 @@ startDynamicBackend resource beOverrides = do
             beOverrides
           ]
   configs <- startBackend resource overrides
+
+  -- ensure config directory exists
+  base <- lift integrationConfigsDir
+  let configDir = base </> backendNameToString resource.berName
+  liftIO $ createDirectoryIfMissing True configDir
+
+  -- store configuration files for this backend
+  liftIO $ for_ (Map.assocs configs) $ \(service, config) ->
+    BL.writeFile
+      (configDir </> (serviceName service <> ".json"))
+      (A.encode config)
+
   pure (resource.berDomain, configs)
   where
     setAwsConfigs :: ServiceOverrides
@@ -655,3 +669,10 @@ startNginz domain conf workingDir = do
   void $ forkIO $ logToConsole colorize prefix stderrHdl
 
   pure ph
+
+integrationConfigsDir :: App FilePath
+integrationConfigsDir = do
+  env <- ask
+  pure $ case env.projectRoot of
+    Nothing -> "/tmp/configs"
+    Just root -> root </> ".configs"
