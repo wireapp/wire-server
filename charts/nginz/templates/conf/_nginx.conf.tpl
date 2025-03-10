@@ -379,11 +379,6 @@ http {
         if ($domain_allowed = 1) {
             set $domain_file "$domain-deeplink.$file_ext";
         }
-
-        # Fallback to generic deeplink file if domain is not in allowed list
-        if ($domain_allowed = 0) {
-            set $domain_file "deeplink.$file_ext";
-        }
         
         alias /etc/wire/nginz/conf/$domain_file;
         types {
