@@ -91,6 +91,7 @@
 , unordered-containers
 , uri-bytestring
 , uuid
+, vector
 , wai-utilities
 , wire-api
 , wire-api-federation
@@ -181,6 +182,7 @@ mkDerivation {
     unordered-containers
     uri-bytestring
     uuid
+    vector
     wai-utilities
     wire-api
     wire-api-federation
