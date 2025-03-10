@@ -20,6 +20,7 @@
 module Test.Channels where
 
 import API.Galley
+import API.GalleyInternal hiding (setTeamFeatureConfig)
 import GHC.Stack
 import MLS.Util (createMLSClient, uploadNewKeyPackage)
 import SetupHelpers
@@ -34,7 +35,8 @@ testCreateChannelEveryone = do
   memClient <- createMLSClient def def mem
   partnerClient <- createMLSClient def def partner
   for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
-  todo "enabled team feature and permissions"
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
   assertCreateChannelSuccess ownerClient tid
   assertCreateChannelSuccess memClient tid
   assertCreateChannelSuccess partnerClient tid
@@ -47,7 +49,8 @@ testCreateChannelMembersOnly = do
   memClient <- createMLSClient def def mem
   partnerClient <- createMLSClient def def partner
   for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
-  todo "enabled team feature and permissions"
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "team-members")
   assertCreateChannelSuccess ownerClient tid
   assertCreateChannelSuccess memClient tid
   assertCreateChannelFailure partnerClient tid
@@ -60,7 +63,8 @@ testCreateChannelAdminsOnly = do
   memClient <- createMLSClient def def mem
   partnerClient <- createMLSClient def def partner
   for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
-  todo "enabled team feature and permissions"
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "admins")
   assertCreateChannelSuccess ownerClient tid
   assertCreateChannelFailure memClient tid
   assertCreateChannelFailure partnerClient tid
@@ -74,10 +78,11 @@ testCreateChannelFeatureDisabled = do
 
 testCreateChannelNonTeamConvNotAllowed :: (HasCallStack) => App ()
 testCreateChannelNonTeamConvNotAllowed = do
-  (owner, _, _) <- createTeam OwnDomain 1
+  (owner, tid, _) <- createTeam OwnDomain 1
   ownerClient <- createMLSClient def def owner
   void $ uploadNewKeyPackage def ownerClient
-  todo "enabled team feature and permissions"
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
   postConversation ownerClient defMLS {groupConvType = Just "channel"} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
@@ -100,5 +105,13 @@ assertCreateChannelFailure client tid = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
 
-todo :: String -> App ()
-todo _ = pure ()
+config :: String -> Value
+config perms =
+  object
+    [ "status" .= "enabled",
+      "config"
+        .= object
+          [ "allowed_to_create_channels" .= perms,
+            "allowed_to_open_channels" .= perms
+          ]
+    ]
