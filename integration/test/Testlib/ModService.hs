@@ -6,6 +6,7 @@ module Testlib.ModService
     startDynamicBackends,
     startDynamicBackendsReturnResources,
     traverseConcurrentlyCodensity,
+    getServiceConfig,
   )
 where
 
@@ -676,3 +677,15 @@ integrationConfigsDir = do
   pure $ case env.projectRoot of
     Nothing -> "/tmp/configs"
     Just root -> root </> ".configs"
+
+getServiceConfig :: BackendResource -> Service -> App Value
+getServiceConfig resource service = do
+  configDir <- integrationConfigsDir
+  config <-
+    liftIO . BL.readFile $
+      configDir
+        </> backendNameToString (resource.berName)
+        </> (serviceName service <> ".json")
+  case A.eitherDecode config of
+    Left err -> failApp err
+    Right x -> pure x
