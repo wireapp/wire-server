@@ -242,7 +242,8 @@ checkCreateConvPermissions ::
   Maybe ConvTeamInfo ->
   UserList UserId ->
   Sem r ()
-checkCreateConvPermissions lusr _newConv Nothing allUsers = do
+checkCreateConvPermissions lusr newConv Nothing allUsers = do
+  when (newConv.newConvGroupConvType == Channel) $ throwS @OperationDenied
   activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
   void $ noteS @OperationDenied activated
   -- an external partner is not allowed to create group conversations (except 1:1 team conversations that are handled below)
@@ -254,6 +255,8 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
   zusrMembership <- getTeamMember (tUnqualified lusr) (Just convTeam)
   void $ permissionCheck CreateConversation zusrMembership
+  when (newConv.newConvGroupConvType == Channel && newConv.newConvProtocol /= BaseProtocolMLSTag) $
+    throwS @OperationDenied
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
   -- In teams we don't have 1:1 conversations, only regular conversations. We want

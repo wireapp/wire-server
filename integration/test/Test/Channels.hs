@@ -19,21 +19,86 @@
 
 module Test.Channels where
 
-import API.Galley (CreateConv (groupConvType), defMLS, postConversation)
+import API.Galley
 import GHC.Stack
 import MLS.Util (createMLSClient, uploadNewKeyPackage)
-import SetupHelpers (createTeam)
+import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
 
--- TODO: user must be member or external member of a team
--- TODO: user must have permission to create a channel
--- TODO: feature flag must be enabled
--- TODO: must be MLS conversation
-testCreateChannel :: (HasCallStack) => App ()
-testCreateChannel = do
-  (owner, _tid, mems) <- createTeam OwnDomain 3
-  mlsClients@(ownerClient : _) <- traverse (createMLSClient def def) (owner : mems)
-  for_ mlsClients (uploadNewKeyPackage def)
-  conv <- postConversation ownerClient defMLS {groupConvType = Just "channel"} >>= getJSON 201
+testCreateChannelEveryone :: (HasCallStack) => App ()
+testCreateChannelEveryone = do
+  (owner, tid, mem : _) <- createTeam OwnDomain 2
+  partner <- createTeamMember owner def {role = "partner"}
+  ownerClient <- createMLSClient def def owner
+  memClient <- createMLSClient def def mem
+  partnerClient <- createMLSClient def def partner
+  for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
+  todo "enabled team feature and permissions"
+  assertCreateChannelSuccess ownerClient tid
+  assertCreateChannelSuccess memClient tid
+  assertCreateChannelSuccess partnerClient tid
+
+testCreateChannelMembersOnly :: (HasCallStack) => App ()
+testCreateChannelMembersOnly = do
+  (owner, tid, mem : _) <- createTeam OwnDomain 2
+  partner <- createTeamMember owner def {role = "partner"}
+  ownerClient <- createMLSClient def def owner
+  memClient <- createMLSClient def def mem
+  partnerClient <- createMLSClient def def partner
+  for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
+  todo "enabled team feature and permissions"
+  assertCreateChannelSuccess ownerClient tid
+  assertCreateChannelSuccess memClient tid
+  assertCreateChannelFailure partnerClient tid
+
+testCreateChannelAdminsOnly :: (HasCallStack) => App ()
+testCreateChannelAdminsOnly = do
+  (owner, tid, mem : _) <- createTeam OwnDomain 2
+  partner <- createTeamMember owner def {role = "partner"}
+  ownerClient <- createMLSClient def def owner
+  memClient <- createMLSClient def def mem
+  partnerClient <- createMLSClient def def partner
+  for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
+  todo "enabled team feature and permissions"
+  assertCreateChannelSuccess ownerClient tid
+  assertCreateChannelFailure memClient tid
+  assertCreateChannelFailure partnerClient tid
+
+testCreateChannelFeatureDisabled :: (HasCallStack) => App ()
+testCreateChannelFeatureDisabled = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  ownerClient <- createMLSClient def def owner
+  void $ uploadNewKeyPackage def ownerClient
+  assertCreateChannelFailure ownerClient tid
+
+testCreateChannelNonTeamConvNotAllowed :: (HasCallStack) => App ()
+testCreateChannelNonTeamConvNotAllowed = do
+  (owner, _, _) <- createTeam OwnDomain 1
+  ownerClient <- createMLSClient def def owner
+  void $ uploadNewKeyPackage def ownerClient
+  todo "enabled team feature and permissions"
+  postConversation ownerClient defMLS {groupConvType = Just "channel"} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-denied"
+
+testCreateChannelProteusNotAllowed :: (HasCallStack) => App ()
+testCreateChannelProteusNotAllowed = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  postConversation owner defProteus {groupConvType = Just "channel", team = Just tid} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-denied"
+
+assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> App ()
+assertCreateChannelSuccess client tid = do
+  conv <- postConversation client defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
   conv %. "group_conv_type" `shouldMatch` "channel"
+
+assertCreateChannelFailure :: (HasCallStack) => ClientIdentity -> String -> App ()
+assertCreateChannelFailure client tid = do
+  postConversation client defMLS {groupConvType = Just "channel", team = Just tid} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-denied"
+
+todo :: String -> App ()
+todo _ = pure ()
