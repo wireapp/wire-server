@@ -35,7 +35,7 @@ testMLSInitialisation = do
 
     (alice, aliceTeam) <- lift $ lowerCodensity do
       -- start a dynamic backend with default configuration
-      domain <- startDynamicBackend resource def
+      (domain, _) <- startDynamicBackend resource def
 
       -- create a team
       lift do
@@ -47,7 +47,7 @@ testMLSInitialisation = do
     lift $ lowerCodensity do
       -- now start the backend again, this time with an initial mls
       -- configuration set
-      domain <- startDynamicBackend resource override
+      (domain, _) <- startDynamicBackend resource override
 
       -- a pre-existing team should get the default configuration
       lift do

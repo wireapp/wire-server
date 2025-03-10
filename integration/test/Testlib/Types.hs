@@ -582,6 +582,11 @@ data BackendName
     DynamicBackend Int
   deriving (Show, Eq, Ord)
 
+backendNameToString :: BackendName -> String
+backendNameToString BackendA = "a"
+backendNameToString BackendB = "b"
+backendNameToString (DynamicBackend i) = "dyn" <> show i
+
 allServices :: [Service]
 allServices = [minBound .. maxBound]
 

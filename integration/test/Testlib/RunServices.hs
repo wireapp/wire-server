@@ -2,6 +2,9 @@ module Testlib.RunServices (main) where
 
 import Control.Concurrent
 import Control.Monad.Codensity
+import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Map as Map
 import Options.Applicative
 import System.Directory
 import System.Exit
@@ -57,10 +60,8 @@ main = do
   cwd <- getWorkingDirectory
   mbProjectRoot <- findProjectRoot cwd
   opts <- execParser (info (optsParser <**> helper) fullDesc)
-  cfg <- case mbProjectRoot of
-    Nothing -> error "Could not find project root. Please make sure you call run-services from somewhere in wire-server."
-    Just projectRoot ->
-      pure $ joinPath [projectRoot, "services/integration.yaml"]
+  let projectRoot = fromMaybe (error "Could not find project root. Please make sure you call run-services from somewhere in wire-server.") mbProjectRoot
+  let cfg = joinPath [projectRoot, "services/integration.yaml"]
 
   let run = case opts.runSubprocess of
         [] -> do
@@ -77,11 +78,24 @@ main = do
       $ do
         _modifyEnv <-
           traverseConcurrentlyCodensity
-            ( \r ->
-                void
-                  $ if opts.withManualTestingOverrides
-                    then startDynamicBackend r manualTestingOverrides
-                    else startDynamicBackend r mempty
+            ( \r -> do
+                (_, configs) <-
+                  startDynamicBackend
+                    r
+                    ( if opts.withManualTestingOverrides
+                        then manualTestingOverrides
+                        else mempty
+                    )
+
+                -- ensure config directory exists
+                let configDir = projectRoot </> ".configs" </> backendNameToString r.berName
+                liftIO $ createDirectoryIfMissing True configDir
+
+                -- store configuration files for this backend
+                liftIO $ for_ (Map.assocs configs) $ \(service, config) ->
+                  BL.writeFile
+                    (configDir </> (serviceName service <> ".json"))
+                    (A.encode config)
             )
             [backendA, backendB]
         liftIO run

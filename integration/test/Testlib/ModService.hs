@@ -25,6 +25,8 @@ import Data.Foldable
 import Data.Function
 import Data.Functor
 import qualified Data.List as List
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -144,7 +146,11 @@ startDynamicBackendsReturnResources beOverrides k = do
         pure resources
   runCodensity startDynamicBackendsCodensity k
 
-startDynamicBackend :: (HasCallStack) => BackendResource -> ServiceOverrides -> Codensity App String
+startDynamicBackend ::
+  (HasCallStack) =>
+  BackendResource ->
+  ServiceOverrides ->
+  Codensity App (String, Map Service Value)
 startDynamicBackend resource beOverrides = do
   let overrides =
         mconcat
@@ -156,8 +162,8 @@ startDynamicBackend resource beOverrides = do
             setLogLevel,
             beOverrides
           ]
-  startBackend resource overrides
-  pure resource.berDomain
+  configs <- startBackend resource overrides
+  pure (resource.berDomain, configs)
   where
     setAwsConfigs :: ServiceOverrides
     setAwsConfigs =
@@ -278,11 +284,26 @@ startBackend ::
   (HasCallStack) =>
   BackendResource ->
   ServiceOverrides ->
-  Codensity App ()
+  Codensity App (Map Service Value)
 startBackend resource overrides = do
   lift $ waitForPortsToBeFree resource
-  traverseConcurrentlyCodensity (withProcess resource overrides) allServices
+  configs <- lift $ computeServiceConfigs resource overrides
+  traverseConcurrentlyCodensity (withProcess resource) (Map.assocs configs)
   lift $ ensureBackendReachable resource.berDomain
+  pure configs
+
+computeServiceConfigs :: BackendResource -> ServiceOverrides -> App (Map Service Value)
+computeServiceConfigs resource overrides = fmap Map.fromList $
+  for allServices $ \service -> do
+    config <- computeServiceConfig resource overrides service
+    pure (service, config)
+
+computeServiceConfig :: BackendResource -> ServiceOverrides -> Service -> App Value
+computeServiceConfig _ _ Nginz = pure (object [])
+computeServiceConfig resource overrides service =
+  readServiceConfig service
+    >>= updateServiceMapInConfig resource service
+    >>= lookupConfigOverride overrides service
 
 waitForPortsToBeFree :: (HasCallStack) => BackendResource -> App ()
 waitForPortsToBeFree backend = do
@@ -439,16 +460,11 @@ checkServiceIsUp domain srv = do
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
-withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service -> Codensity App ()
-withProcess resource overrides service = do
+withProcess :: (HasCallStack) => BackendResource -> (Service, Value) -> Codensity App ()
+withProcess resource (service, config) = do
   let domain = berDomain resource
   sm <- lift $ getServiceMap domain
   env <- lift ask
-  getConfig <-
-    lift . appToIO $
-      readServiceConfig service
-        >>= updateServiceMapInConfig resource service
-        >>= lookupConfigOverride overrides service
   let execName = configName service
   let (cwd, exe) = case env.servicesCwdBase of
         Nothing -> (Nothing, execName)
@@ -462,7 +478,6 @@ withProcess resource overrides service = do
         (Nginz, Nothing) -> startNginzK8s domain sm
         (Nginz, Just _) -> startNginzLocalIO
         _ -> do
-          config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
           let colorize = fromMaybe id (lookup execName processColors)
