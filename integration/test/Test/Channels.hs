@@ -80,14 +80,14 @@ testCreateChannelNonTeamConvNotAllowed = do
   todo "enabled team feature and permissions"
   postConversation ownerClient defMLS {groupConvType = Just "channel"} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
-    resp.json %. "error" `shouldMatch` "operation-denied"
+    resp.json %. "label" `shouldMatch` "operation-denied"
 
 testCreateChannelProteusNotAllowed :: (HasCallStack) => App ()
 testCreateChannelProteusNotAllowed = do
   (owner, tid, _) <- createTeam OwnDomain 1
   postConversation owner defProteus {groupConvType = Just "channel", team = Just tid} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
-    resp.json %. "error" `shouldMatch` "operation-denied"
+    resp.json %. "label" `shouldMatch` "operation-denied"
 
 assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> App ()
 assertCreateChannelSuccess client tid = do
@@ -98,7 +98,7 @@ assertCreateChannelFailure :: (HasCallStack) => ClientIdentity -> String -> App 
 assertCreateChannelFailure client tid = do
   postConversation client defMLS {groupConvType = Just "channel", team = Just tid} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
-    resp.json %. "error" `shouldMatch` "operation-denied"
+    resp.json %. "label" `shouldMatch` "operation-denied"
 
 todo :: String -> App ()
 todo _ = pure ()
