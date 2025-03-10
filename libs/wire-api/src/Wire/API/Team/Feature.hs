@@ -72,6 +72,8 @@ module Wire.API.Team.Feature
     FileSharingConfig (..),
     MLSConfigB (..),
     MLSConfig,
+    ChannelsConfig,
+    ChannelsConfigB,
     OutlookCalIntegrationConfig (..),
     UseProxyOnMobile (..),
     MlsE2EIdConfigB (..),
@@ -234,6 +236,7 @@ data FeatureSingleton cfg where
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
+  FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
 
 type family DeprecatedFeatureName cfg :: Symbol
 
@@ -1051,6 +1054,67 @@ instance IsFeatureConfig MLSConfig where
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
+-- ChannelsConfig
+
+data ChannelsConfigB t f = ChannelsConfig
+  { allowedToCreateChannels :: Wear t f ChannelPermissions,
+    allowedToOpenChannels :: Wear t f ChannelPermissions
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (ChannelsConfigB Covered)
+
+deriving instance ApplicativeB (ChannelsConfigB Covered)
+
+deriving instance TraversableB (ChannelsConfigB Covered)
+
+type ChannelsConfig = ChannelsConfigB Bare Identity
+
+deriving instance Eq ChannelsConfig
+
+deriving instance Show ChannelsConfig
+
+deriving via (RenderableTypeName ChannelsConfig) instance (RenderableSymbol ChannelsConfig)
+
+deriving via (GenericUniform ChannelsConfig) instance (Arbitrary ChannelsConfig)
+
+deriving via (BarbieFeature ChannelsConfigB) instance (ParseDbFeature ChannelsConfig)
+
+deriving via (BarbieFeature ChannelsConfigB) instance (ToSchema ChannelsConfig)
+
+instance Default ChannelsConfig where
+  def = ChannelsConfig TeamMembers TeamMembers
+
+data ChannelPermissions = TeamMembers | EveryOne | Admins
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ChannelPermissions
+  deriving (Arbitrary) via (GenericUniform ChannelPermissions)
+
+instance ToSchema ChannelPermissions where
+  schema =
+    enum @Text "ChannelPermissions" $
+      mconcat
+        [ element "team-members" TeamMembers,
+          element "everyone" EveryOne,
+          element "admins" Admins
+        ]
+
+instance (FieldF f) => ToSchema (ChannelsConfigB Covered f) where
+  schema =
+    object "ChannelsConfig" $
+      ChannelsConfig
+        <$> allowedToCreateChannels .= fieldF "allowed_to_create_channels" schema
+        <*> allowedToOpenChannels .= fieldF "allowed_to_open_channels" schema
+
+instance Default (LockableFeature ChannelsConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig ChannelsConfig where
+  type FeatureSymbol ChannelsConfig = "channels"
+  featureSingleton = FeatureSingletonChannelsConfig
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
 -- ExposeInvitationURLsToTeamAdminConfig
 
 data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConfig
@@ -1423,7 +1487,8 @@ type Features =
     MlsMigrationConfig,
     EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig,
-    DomainRegistrationConfig
+    DomainRegistrationConfig,
+    ChannelsConfig
   ]
 
 -- | list of available features as a record

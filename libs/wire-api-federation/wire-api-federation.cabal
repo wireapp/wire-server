@@ -129,6 +129,8 @@ test-suite spec
   other-modules:
     Main
     Test.Wire.API.Federation.API.BrigSpec
+    Test.Wire.API.Federation.API.GalleySpec
+    Test.Wire.API.Federation.API.Util
     Test.Wire.API.Federation.Golden.ConversationCreated
     Test.Wire.API.Federation.Golden.ConversationUpdate
     Test.Wire.API.Federation.Golden.GetOne2OneConversationResponse
@@ -201,6 +203,7 @@ test-suite spec
     , HUnit
     , imports
     , QuickCheck           >=2.13
+    , raw-strings-qq
     , singletons
     , time
     , types-common

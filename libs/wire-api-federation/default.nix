@@ -30,6 +30,7 @@
 , mtl
 , openapi3
 , QuickCheck
+, raw-strings-qq
 , schema-profunctor
 , servant
 , servant-client
@@ -96,6 +97,7 @@ mkDerivation {
     HUnit
     imports
     QuickCheck
+    raw-strings-qq
     singletons
     time
     types-common
