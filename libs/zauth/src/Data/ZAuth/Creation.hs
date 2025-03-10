@@ -27,7 +27,6 @@ module Data.ZAuth.Creation
     -- * Initialisation
     mkEnv,
     interpretZAuthCreation,
-    -- runCreate,
 
     -- * Specific
     accessToken,

@@ -12,12 +12,15 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text.Encoding qualified as T
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import Data.Vector (Vector)
+import Data.Vector qualified as Vector
 import Data.ZAuth.Creation qualified as ZC
 import Data.ZAuth.Token
 import Data.ZAuth.Validation qualified as ZV
 import Imports
 import OpenSSL.Random
 import Polysemy
+import Polysemy.Error
 import Sodium.Crypto.Sign
 import Wire.API.User.Auth (bearerToken)
 import Wire.API.User.Auth qualified as Auth
@@ -66,7 +69,7 @@ defSettings =
 
 data Env = Env
   { private :: !ZC.Env,
-    public :: !ZV.Env,
+    publicKeys :: !(Vector PublicKey),
     settings :: !Settings
   }
 
@@ -123,8 +126,8 @@ readKeys fp = nonEmpty . map read . filter (not . null) . lines <$> readFile fp
 mkEnv :: NonEmpty SecretKey -> NonEmpty PublicKey -> Settings -> IO Env
 mkEnv sk pk sets = do
   zc <- ZC.mkEnv sets.keyIndex (NonEmpty.head sk) (NonEmpty.tail sk)
-  let zv = ZV.mkEnv (NonEmpty.head pk) (NonEmpty.tail pk)
-  pure $! Env zc zv sets
+  let pubKeys = Vector.fromList $ NonEmpty.toList pk
+  pure $! Env zc pubKeys sets
 
 class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
   renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token a -> m Auth.AccessToken
@@ -306,7 +309,11 @@ validateToken ::
   m (Either ZV.Failure ())
 validateToken t = liftZAuth $ do
   z <- ask
-  void <$> ZV.runValidate z.public (ZV.check t)
+  liftIO
+    . runM
+    . runError
+    . ZV.interpretZAuthValidation z.publicKeys
+    $ ZV.check t
 
 accessTokenOf :: Token (Access t) -> UserId
 accessTokenOf t = Id (t ^. body . userId)

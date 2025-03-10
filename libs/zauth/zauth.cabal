@@ -78,7 +78,6 @@ library
     , errors                 >=2.0
     , imports
     , lens                   >=4.4
-    , mtl                    >=2.2
     , mwc-random             >=0.12
     , polysemy
     , polysemy-plugin
@@ -216,6 +215,7 @@ test-suite zauth-unit
     , tasty-quickcheck       >=0.8
     , text
     , uuid
+    , vector
     , zauth
 
   default-language:   GHC2021

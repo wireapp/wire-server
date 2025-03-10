@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,26 +19,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Data.ZAuth.Validation
-  ( Env,
-    Validate,
-    mkEnv,
-    runValidate,
+  ( ZAuthValidation,
+    interpretZAuthValidation,
     Failure (..),
-    validate,
     check,
   )
 where
 
 import Control.Lens
-import Control.Monad.Except
-import Data.ByteString qualified as Strict
 import Data.ByteString.Conversion
 import Data.Time.Clock.POSIX
 import Data.Vector (Vector, (!))
 import Data.Vector qualified as Vec
 import Data.ZAuth.Token
 import Imports
-import Sodium.Crypto.Sign (PublicKey, Signature, verifyWith)
+import Polysemy
+import Polysemy.Error
+import Sodium.Crypto.Sign (PublicKey, verifyWith)
 
 data Failure
   = -- | The token signature is incorrect.
@@ -52,74 +50,30 @@ data Failure
 
 instance Exception Failure
 
-newtype Env = Env
-  {verifyFns :: Vector (Signature -> Strict.ByteString -> IO Bool)}
+data ZAuthValidation m a where
+  Check :: (ToByteString x) => Token x -> ZAuthValidation m ()
 
-newtype Validate a = Validate
-  { valid :: ExceptT Failure (ReaderT Env IO) a
-  }
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadError Failure
-    )
+makeSem ''ZAuthValidation
 
-mkEnv :: PublicKey -> [PublicKey] -> Env
-mkEnv k kk = Env $ Vec.fromList (map verifyWith (k : kk))
+interpretZAuthValidation :: (Member (Error Failure) r, Member (Embed IO) r) => Vector PublicKey -> InterpreterFor ZAuthValidation r
+interpretZAuthValidation pubKeys = interpret $ \case
+  Check tok -> checkImpl pubKeys tok
 
-runValidate :: (MonadIO m) => Env -> Validate a -> m (Either Failure a)
-runValidate v m = liftIO $ runReaderT (runExceptT (valid m)) v
-
------------------------------------------------------------------------------
--- User & Access Validation
---
--- It is not allowed to only have a user, but no access token for
--- validation purposes.
-
-validate ::
-  forall t.
-  ( FromByteString (Token (User t)),
-    FromByteString (Token (Access t))
-  ) =>
-  -- | assumed to be a 'Token User'
-  Maybe ByteString ->
-  -- | assumed to be a 'Token Access'
-  Maybe ByteString ->
-  Validate (Token (Access t))
-validate Nothing Nothing = throwError Invalid
-validate (Just _) Nothing = throwError Invalid
-validate Nothing (Just t) = validateAccess t
-validate (Just c) (Just t) = do
-  u <- maybe (throwError Invalid) pure (fromByteString @(Token (User t)) c)
-  a <- maybe (throwError Invalid) pure (fromByteString t)
-  void $ check u
-  void $ check a
-  unless (u ^. body . user == a ^. body . userId) $
-    throwError Invalid
-  pure a
-
-validateAccess :: (FromByteString (Token (Access t))) => ByteString -> Validate (Token (Access t))
-validateAccess t = maybe (throwError Invalid) check (fromByteString t)
-
-check :: (ToByteString a) => Token a -> Validate (Token a)
-check t = do
-  ff <- Validate $ lift $ asks verifyFns
+checkImpl :: (ToByteString a, Member (Error Failure) r, Member (Embed IO) r) => Vector PublicKey -> Token a -> Sem r ()
+checkImpl pubKeys t = do
   let dat = toByteString' $ writeData (t ^. header) (t ^. body)
   let k = t ^. header . key
-  when (k < 1 || k > Vec.length ff) $
-    throwError Invalid
-  ok <- liftIO $ (ff ! (k - 1)) (t ^. signature) dat
+  when (k < 1 || k > Vec.length pubKeys) $
+    throw Invalid
+  ok <- liftIO $ verifyWith (pubKeys ! (k - 1)) (t ^. signature) dat
   unless ok $
-    throwError Falsified
+    throw Falsified
   isExpired <-
     if t ^. header . time == -1
       then pure False
       else (t ^. header . time <) <$> now
   when isExpired $
-    throwError Expired
-  pure t
+    throw Expired
 
 now :: (MonadIO m) => m Integer
 now = floor <$> liftIO getPOSIXTime

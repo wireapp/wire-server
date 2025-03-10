@@ -13,7 +13,6 @@
 , imports
 , lens
 , lib
-, mtl
 , mwc-random
 , optparse-applicative
 , polysemy
@@ -42,7 +41,6 @@ mkDerivation {
     errors
     imports
     lens
-    mtl
     mwc-random
     polysemy
     polysemy-plugin
@@ -69,6 +67,7 @@ mkDerivation {
     tasty-quickcheck
     text
     uuid
+    vector
   ];
   description = "Creation and validation of signed tokens";
   license = lib.licenses.agpl3Only;
