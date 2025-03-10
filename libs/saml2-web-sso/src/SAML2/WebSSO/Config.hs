@@ -93,7 +93,7 @@ configIO :: IO Config
 configIO = readConfig =<< configFilePath
 
 configFilePath :: IO FilePath
-configFilePath = (</> "server.yaml") <$> getEnv "SAML2_WEB_SSO_ROOT"
+configFilePath = (</> "server.yaml") <$> getEnv "SAML2_WEB_SSO_ROOT" -- TODO(fisx): this doesn't work any more. think of something nicer instead of fixing it!
 
 readConfig :: FilePath -> IO Config
 readConfig filepath =
