@@ -118,7 +118,8 @@ instance FromJSON DNSMockServerConfig
 
 -- | Initialised once per testsuite.
 data GlobalEnv = GlobalEnv
-  { gServiceMap :: Map String ServiceMap,
+  { gProjectRoot :: Maybe FilePath,
+    gServiceMap :: Map String ServiceMap,
     gDomain1 :: String,
     gDomain2 :: String,
     gIntegrationTestHostName :: String,
@@ -127,7 +128,6 @@ data GlobalEnv = GlobalEnv
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
-    gServicesCwdBase :: Maybe FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
     gRabbitMQConfigV0 :: RabbitMQConfig,
@@ -226,7 +226,8 @@ instance FromJSON CassandraConfig where
 
 -- | Initialised once per test.
 data Env = Env
-  { serviceMap :: Map String ServiceMap,
+  { projectRoot :: Maybe FilePath,
+    serviceMap :: Map String ServiceMap,
     domain1 :: String,
     domain2 :: String,
     integrationTestHostName :: String,
@@ -236,7 +237,6 @@ data Env = Env
     defaultAPIVersion :: Int,
     apiVersionByDomain :: Map String Int,
     manager :: HTTP.Manager,
-    servicesCwdBase :: Maybe FilePath,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,

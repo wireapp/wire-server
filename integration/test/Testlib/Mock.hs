@@ -11,6 +11,7 @@ import qualified Network.Socket as Socket
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
+import System.FilePath
 import Testlib.Prelude
 
 codensityApp :: (Wai.Request -> Codensity IO Wai.Response) -> Wai.Application
@@ -31,14 +32,14 @@ spawnTLSServer :: Warp.Settings -> Socket.Socket -> Wai.Application -> App ()
 spawnTLSServer wsettings sock app = do
   (cert, key) <-
     asks do
-      servicesCwdBase >>> \case
+      projectRoot >>> \case
         Nothing ->
           ( "/etc/wire/federator/secrets/tls.crt",
             "/etc/wire/federator/secrets/tls.key"
           )
         Just base ->
-          ( base <> "/federator/test/resources/integration-leaf.pem",
-            base <> "/federator/test/resources/integration-leaf-key.pem"
+          ( base </> "services/federator/test/resources/integration-leaf.pem",
+            base </> "services/federator/test/resources/integration-leaf-key.pem"
           )
   liftIO $ Warp.runTLSSocket (Warp.tlsSettings cert key) wsettings sock app
 

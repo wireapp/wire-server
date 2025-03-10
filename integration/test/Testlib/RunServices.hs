@@ -61,7 +61,6 @@ main = do
   mbProjectRoot <- findProjectRoot cwd
   opts <- execParser (info (optsParser <**> helper) fullDesc)
   let projectRoot = fromMaybe (error "Could not find project root. Please make sure you call run-services from somewhere in wire-server.") mbProjectRoot
-  let cfg = joinPath [projectRoot, "services/integration.yaml"]
 
   let run = case opts.runSubprocess of
         [] -> do
@@ -72,7 +71,8 @@ main = do
           (_, _, _, ph) <- createProcess cp
           exitWith =<< waitForProcess ph
 
-  runCodensity (mkGlobalEnv cfg >>= mkEnv Nothing) $ \env ->
+  let cfgFile = projectRoot </> "services" </> "integration.yaml"
+  runCodensity (mkGlobalEnv (Just projectRoot) cfgFile >>= mkEnv Nothing) $ \env ->
     runAppWithEnv env
       $ lowerCodensity
       $ do

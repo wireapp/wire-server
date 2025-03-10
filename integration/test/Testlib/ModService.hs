@@ -466,17 +466,16 @@ withProcess resource (service, config) = do
   sm <- lift $ getServiceMap domain
   env <- lift ask
   let execName = configName service
-  let (cwd, exe) = case env.servicesCwdBase of
-        Nothing -> (Nothing, execName)
-        Just dir ->
-          (Just (dir </> execName), "../../dist" </> execName)
-
-  startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
+  (cwd, exe, initNginz) <- case env.projectRoot of
+    Nothing -> pure (Nothing, execName, startNginzK8s domain sm)
+    Just dir -> do
+      let basedir = dir </> "services"
+      startNginzLocalIO <- lift $ appToIO $ startNginzLocal basedir resource
+      pure (Just (basedir </> execName), "../../dist" </> execName, startNginzLocalIO)
 
   let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
-  let initProcess = case (service, cwd) of
-        (Nginz, Nothing) -> startNginzK8s domain sm
-        (Nginz, Just _) -> startNginzLocalIO
+  let initProcess = case service of
+        Nginz -> initNginz
         _ -> do
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
@@ -536,8 +535,8 @@ startNginzK8s domain sm = do
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 
-startNginzLocal :: BackendResource -> App ServiceInstance
-startNginzLocal resource = do
+startNginzLocal :: FilePath -> BackendResource -> App ServiceInstance
+startNginzLocal basedir resource = do
   let domain = berDomain resource
       http2Port = berNginzHttp2Port resource
       sslPort = berNginzSslPort resource
@@ -547,8 +546,6 @@ startNginzLocal resource = do
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
   tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
-  mBaseDir <- asks (.servicesCwdBase)
-  basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
 
   -- copy all config files into the tmp dir
   liftIO $ do

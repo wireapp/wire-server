@@ -117,7 +117,12 @@ runTests tests mXMLOutput cfg = do
           Nothing -> pure ()
   let writeOutput = writeChan output . Just
 
-  runCodensity (mkGlobalEnv cfg) $ \genv ->
+  let mProjectRoot = do
+        let base = takeDirectory cfg
+        guard $ takeFileName base == "services"
+        pure (takeDirectory base)
+
+  runCodensity (mkGlobalEnv mProjectRoot cfg) $ \genv ->
     withAsync displayOutput $ \displayThread -> do
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
