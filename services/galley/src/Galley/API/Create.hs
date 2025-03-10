@@ -47,6 +47,7 @@ import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.Mapping
 import Galley.API.One2One
+import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Data.Conversation qualified as Data
@@ -79,6 +80,7 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
+import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
@@ -112,7 +114,8 @@ createGroupConversationUpToV3 ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -152,7 +155,8 @@ createGroupConversation ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -193,7 +197,8 @@ createGroupConversationGeneric ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -235,7 +240,9 @@ checkCreateConvPermissions ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   NewConv ->
@@ -254,30 +261,53 @@ checkCreateConvPermissions lusr newConv Nothing allUsers = do
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
   zusrMembership <- getTeamMember (tUnqualified lusr) (Just convTeam)
-  void $ permissionCheck CreateConversation zusrMembership
-  when (newConv.newConvGroupConvType == Channel && newConv.newConvProtocol /= BaseProtocolMLSTag) $
-    throwS @OperationDenied
+  case newConv.newConvGroupConvType of
+    Channel -> do
+      ensureCreateChannelPermissions zusrMembership
+    GroupConversation -> do
+      void $ permissionCheck CreateConversation zusrMembership
+      -- In teams we don't have 1:1 conversations, only regular conversations. We want
+      -- users without the 'AddRemoveConvMember' permission to still be able to create
+      -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
+      -- there are going to be more than two users in the conversation.
+      -- FUTUREWORK: We keep this permission around because not doing so will break backwards
+      -- compatibility in the sense that the team role 'partners' would be able to create group
+      -- conversations (which they should not be able to).
+      -- Not sure at the moment how to best solve this but it is unlikely
+      -- we can ever get rid of the team permission model anyway - the only thing I can
+      -- think of is that 'partners' can create convs but not be admins...
+      -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
+      -- so we don't allow an external partner to create an MLS group conversation at all
+      when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
+        void $ permissionCheck AddRemoveConvMember zusrMembership
+
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
-  -- In teams we don't have 1:1 conversations, only regular conversations. We want
-  -- users without the 'AddRemoveConvMember' permission to still be able to create
-  -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
-  -- there are going to be more than two users in the conversation.
-  -- FUTUREWORK: We keep this permission around because not doing so will break backwards
-  -- compatibility in the sense that the team role 'partners' would be able to create group
-  -- conversations (which they should not be able to).
-  -- Not sure at the moment how to best solve this but it is unlikely
-  -- we can ever get rid of the team permission model anyway - the only thing I can
-  -- think of is that 'partners' can create convs but not be admins...
-  -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
-  -- so we don't allow an external partner to create an MLS group conversation at all
-  when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
-    void $ permissionCheck AddRemoveConvMember zusrMembership
-
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
   ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
+  where
+    ensureCreateChannelPermissions ::
+      forall r.
+      ( Member (ErrorS OperationDenied) r,
+        Member (Input Opts) r,
+        Member TeamFeatureStore r,
+        Member (ErrorS NotATeamMember) r
+      ) =>
+      Maybe TeamMember ->
+      Sem r ()
+    ensureCreateChannelPermissions (Just tm) = do
+      tid <- noteS @OperationDenied (cnvTeamId <$> newConv.newConvTeam)
+      channelsConf <- getFeatureForTeam @ChannelsConfig tid
+      when (channelsConf.status == FeatureStatusDisabled) $ throwS @OperationDenied
+      when (newConv.newConvProtocol /= BaseProtocolMLSTag) $ throwS @OperationDenied
+      case channelsConf.config.allowedToCreateChannels of
+        Everyone -> pure ()
+        TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
+        Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
+    ensureCreateChannelPermissions Nothing = do
+      throwS @OperationDenied
 
 getTeamMember :: (Member TeamStore r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
 getTeamMember uid (Just tid) = E.getTeamMember tid uid

@@ -73,7 +73,8 @@ module Wire.API.Team.Feature
     MLSConfigB (..),
     MLSConfig,
     ChannelsConfig,
-    ChannelsConfigB,
+    ChannelsConfigB (..),
+    ChannelPermissions (..),
     OutlookCalIntegrationConfig (..),
     UseProxyOnMobile (..),
     MlsE2EIdConfigB (..),
@@ -1085,7 +1086,7 @@ deriving via (BarbieFeature ChannelsConfigB) instance (ToSchema ChannelsConfig)
 instance Default ChannelsConfig where
   def = ChannelsConfig TeamMembers TeamMembers
 
-data ChannelPermissions = TeamMembers | EveryOne | Admins
+data ChannelPermissions = TeamMembers | Everyone | Admins
   deriving (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema ChannelPermissions
   deriving (Arbitrary) via (GenericUniform ChannelPermissions)
@@ -1095,7 +1096,7 @@ instance ToSchema ChannelPermissions where
     enum @Text "ChannelPermissions" $
       mconcat
         [ element "team-members" TeamMembers,
-          element "everyone" EveryOne,
+          element "everyone" Everyone,
           element "admins" Admins
         ]
 
