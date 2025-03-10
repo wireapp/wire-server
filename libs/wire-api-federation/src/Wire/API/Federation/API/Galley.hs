@@ -54,7 +54,7 @@ import Wire.API.Routes.Version qualified as ClientAPI
 import Wire.API.Routes.Versioned qualified as ClientAPI
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.API.VersionInfo
-import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
@@ -357,6 +357,22 @@ data ConversationCreated conv = ConversationCreated
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))
 
 instance (ToSchema a) => ToSchema (ConversationCreated a)
+
+instance (Arbitrary a) => Arbitrary (ConversationCreated a) where
+  arbitrary =
+    ConversationCreated
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
 
 ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
 ccRemoteOrigUserId cc = qualifyAs cc.cnvId cc.origUserId
