@@ -1,8 +1,3 @@
-# Status
-
-- incomplete (some parts of the standard are not supported yet)
-- ready (we are using this in production)
-
 # Introduction
 
 This is a library plus toy-sp app for the role of the service provider
@@ -18,9 +13,8 @@ The library gives you:
 - configuration file handling
 
 We are making heavy use of the more complete but also experimental
-[hsaml2](https://hackage.haskell.org/package/hsaml2/).  We are hoping
-to stick with a smaller, robust subset of the standard and phase out
-that dependency in the future.
+[hsaml2](https://hackage.haskell.org/package/hsaml2/), but we aim for
+a smaller subset of the standard.
 
 # Configuration
 
@@ -86,8 +80,7 @@ Now run:
 
 ```
 export SAML2_WEB_SSO_ROOT=`pwd`
-stack test --fast
-stack exec toy-sp
+cabal exec toy-sp
 ```
 
 This should start the `toy-sp` app.  Now you can connect to
@@ -95,9 +88,3 @@ This should start the `toy-sp` app.  Now you can connect to
 
 `<your-idp>` has to be the path value of one of the IdPs registered in
 `server.yaml`.
-
-# Contributing
-
-Before submitting a PR, make sure to install [ormolu](https://github.com/tweag/ormolu)
-by doing `stack install ormolu` (we pin the version in our `stack.yaml` file)
-and run `make format`.
