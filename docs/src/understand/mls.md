@@ -1,4 +1,4 @@
-(mls-message-layer-security)=
+<a id="mls-message-layer-security"></a>
 
 # Messaging Layer Security (MLS)
 
@@ -11,11 +11,11 @@ conversations or delete their clients.
 The removal key is configured at path
 `galley.secrets.mlsPrivateKeys.removal` in the wire-server helm chart.
 You need to provide a variant for each supported ciphersuite:
+
 - `ed25519`
 - `ecdsa_secp256r1_sha256`
 - `ecdsa_secp384r1_sha384`
 - `ecdsa_secp521r1_sha512`
-
 
 For example:
 
@@ -48,7 +48,7 @@ openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-384
 openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-521
 ```
 
-This is a sensitive configuration value. Consider using Helm/Helmfile's support
+This is a sensitive configuration value. Consider using Helm/Helmfile’s support
 for managing secrets instead of putting this value in plaintext in a
 `values.yaml` file.
 
