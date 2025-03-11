@@ -43,3 +43,43 @@ spec = describe "Config" $ do
           have' = have & cfgContacts .~ [pers]
       over _Left show (Yaml.decodeEither' (cs want))
         `shouldBe` Right have'
+    it "multi-ingress" $ do
+      let simpleIn =
+            "version: SAML2.0\n"
+              ++ "logLevel: Warn\n"
+              ++ "spHost: 0.0.0.0\n"
+              ++ "spPort: 8088\n"
+              ++ "spAppUri: http://localhost:8088\n/"
+              ++ "spSsoUri: http://localhost:8088/sso\n"
+              ++ "contacts\n:"
+              ++ "  - email: email:president@evil.corp\n"
+
+          simpleOut =
+            "default\n:"
+              ++ "  version: SAML2.0\n"
+              ++ "  logLevel: Warn\n"
+              ++ "  spHost: 0.0.0.0\n"
+              ++ "  spPort: 8088\n"
+              ++ "  spAppUri: http://localhost:8088\n/"
+              ++ "  spSsoUri: http://localhost:8088/sso\n"
+              ++ "  contacts\n:"
+              ++ "    - email: email:president@evil.corp\n"
+
+          multi =
+            "version: SAML2.0\n"
+              ++ "logLevel: Debug\n"
+              ++ "spHost: 0.0.0.1\n"
+              ++ "spPort: 1\n"
+              ++ "domainConfigs:\n"
+              ++ "  domainone.io\n:"
+              ++ "    spAppUri: http://arg\n/"
+              ++ "    spSsoUri: http://arg/sso\n"
+              ++ "    contacts\n:"
+              ++ "      - email: email:yes@no.io\n"
+              ++ "  domaintwo.io\n:"
+              ++ "    spAppUri: http://localhost:8088\n/"
+              ++ "    spSsoUri: http://localhost:8088/sso\n"
+              ++ "    contacts\n:"
+              ++ "      - email: email:president@evil.corp\n"
+      in
+         _
