@@ -19,7 +19,6 @@ hself: hsuper: {
   # the PR has been merged, but has not arrived in nixpkgs
   hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
   quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
-  saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
   # these are okay, the only issue is that the compiler underlines
   # errors differently than before
   singletons-base = hlib.markUnbroken (hlib.dontCheck hsuper.singletons-base);
