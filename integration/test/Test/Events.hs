@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Test.Events where
 
 import API.Brig
@@ -768,17 +770,6 @@ getCannonConnections rabbitmqAdminClient vhost = do
 
 mkRabbitMqAdminClientForResource :: BackendResource -> App (AdminAPI (Servant.AsClientT App))
 mkRabbitMqAdminClientForResource backend = do
-  rc <- asks (.rabbitMQConfig)
-  let opts =
-        RabbitMqAdminOpts
-          { host = rc.host,
-            port = 0,
-            adminPort = fromIntegral rc.adminPort,
-            vHost = Text.pack backend.berVHost,
-            tls =
-              if rc.tls
-                then Just $ RabbitMqTlsOpts Nothing True
-                else Nothing
-          }
-  servantClient <- liftIO $ mkRabbitMqAdminClientEnv opts
+  opts <- asks (.rabbitMQConfig)
+  servantClient <- liftIO $ mkRabbitMqAdminClientEnv opts {vHost = Text.pack backend.berVHost}
   pure . fromServant $ Servant.hoistClient (Proxy @(ToServant AdminAPI AsApi)) (liftIO @App) (toServant servantClient)

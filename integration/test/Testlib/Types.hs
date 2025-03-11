@@ -36,6 +36,7 @@ import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
+import Network.AMQP.Extended
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import Network.URI
@@ -90,23 +91,6 @@ data DynamicBackendConfig = DynamicBackendConfig
 
 instance FromJSON DynamicBackendConfig
 
-data RabbitMQConfig = RabbitMQConfig
-  { host :: String,
-    adminPort :: Word16,
-    tls :: Bool,
-    vHost :: String
-  }
-  deriving (Show)
-
-instance FromJSON RabbitMQConfig where
-  parseJSON =
-    withObject "RabbitMQConfig" $ \ob ->
-      RabbitMQConfig
-        <$> ob .: fromString "host"
-        <*> ob .: fromString "adminPort"
-        <*> ob .: fromString "tls"
-        <*> ob .: fromString "vHost"
-
 data DNSMockServerConfig = DNSMockServerConfig
   { host :: !String,
     apiPort :: !Word16,
@@ -129,9 +113,9 @@ data GlobalEnv = GlobalEnv
     gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
-    gRabbitMQConfig :: RabbitMQConfig,
-    gRabbitMQConfigV0 :: RabbitMQConfig,
-    gRabbitMQConfigV1 :: RabbitMQConfig,
+    gRabbitMQConfig :: RabbitMqAdminOpts,
+    gRabbitMQConfigV0 :: RabbitMqAdminOpts,
+    gRabbitMQConfigV1 :: RabbitMqAdminOpts,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
     gDNSMockServerConfig :: DNSMockServerConfig
@@ -144,9 +128,9 @@ data IntegrationConfig = IntegrationConfig
     federationV1 :: BackendConfig,
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
-    rabbitmq :: RabbitMQConfig,
-    rabbitmqV0 :: RabbitMQConfig,
-    rabbitmqV1 :: RabbitMQConfig,
+    rabbitmq :: RabbitMqAdminOpts,
+    rabbitmqV0 :: RabbitMqAdminOpts,
+    rabbitmqV1 :: RabbitMqAdminOpts,
     cassandra :: CassandraConfig,
     dnsMockServer :: DNSMockServerConfig
   }
@@ -241,7 +225,7 @@ data Env = Env
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
-    rabbitMQConfig :: RabbitMQConfig,
+    rabbitMQConfig :: RabbitMqAdminOpts,
     timeOutSeconds :: Int,
     currentTestName :: Maybe String,
     dnsMockServerConfig :: DNSMockServerConfig
