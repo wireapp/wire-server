@@ -56,7 +56,8 @@ else
       if [ "$m" = "check" ]; then
         hlint --no-summary "$f"
       else
-        hlint --refactor --refactor-options="--inplace" "$f"
+          hlint --refactor --refactor-options="--inplace" "$f" || \
+              ( echo -e "\n\n*** something went wrong, possibly in apply-refact; please try fixing the issues manually\n\n" && exit 1 )
       fi
     else
       # if we remove files from github, we can't hlint them any more,
