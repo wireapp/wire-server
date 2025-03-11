@@ -184,8 +184,8 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  Named @"sso-metadata" (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
-    :<|> Named @"sso-team-metadata" (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
+  Named @"sso-metadata" (getMetadata Nothing)
+    :<|> Named @"sso-team-metadata" (getMetadata . Just)
     :<|> Named @"auth-req-precheck" authreqPrecheck
     :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
@@ -239,6 +239,22 @@ appName = "spar"
 ----------------------------------------------------------------------------
 -- SSO API
 
+-- | NB: not providing a team id here (route `Named "sso-metadata"`) is deprecated.  Some IdPs
+-- do not allow setting different IdP issuer urls for different SPs, but only support one
+-- global issuer url.  Adding the team id here allows us to scope this global issuer url
+-- inside the team, ie. use it once per team, not once per instance.
+getMetadata ::
+  ( Member SAML2 r,
+    Member SamlProtocolSettings r
+  ) =>
+  Maybe TeamId ->
+  Sem r SAML.SPMetadata
+getMetadata mbTid = SAML2.meta appNameMultiIngress (spIssuerMultiIngress mbTid) (responseURIMultiIngress mbTid)
+  where
+    appNameMultiIngress = appName
+    spIssuerMultiIngress = SamlProtocolSettings.spIssuer
+    responseURIMultiIngress = SamlProtocolSettings.responseURI
+
 authreqPrecheck ::
   ( Member IdPConfigStore r,
     Member (Error SparError) r
@@ -270,7 +286,7 @@ authreq ::
   SAML.IdPId ->
   Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid mbHost = do
+authreq authreqttl msucc merr idpid _mbHost = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
