@@ -118,7 +118,8 @@ data GlobalEnv = GlobalEnv
     gRabbitMQConfigV1 :: RabbitMqAdminOpts,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
-    gDNSMockServerConfig :: DNSMockServerConfig
+    gDNSMockServerConfig :: DNSMockServerConfig,
+    gCellsEventQueue :: String
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -132,7 +133,8 @@ data IntegrationConfig = IntegrationConfig
     rabbitmqV0 :: RabbitMqAdminOpts,
     rabbitmqV1 :: RabbitMqAdminOpts,
     cassandra :: CassandraConfig,
-    dnsMockServer :: DNSMockServerConfig
+    dnsMockServer :: DNSMockServerConfig,
+    cellsEventQueue :: String
   }
   deriving (Show, Generic)
 
@@ -151,6 +153,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "rabbitmq-v1"
         <*> o .: fromString "cassandra"
         <*> o .: fromString "dnsMockServer"
+        <*> o .: fromString "cellsEventQueue"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -228,7 +231,8 @@ data Env = Env
     rabbitMQConfig :: RabbitMqAdminOpts,
     timeOutSeconds :: Int,
     currentTestName :: Maybe String,
-    dnsMockServerConfig :: DNSMockServerConfig
+    dnsMockServerConfig :: DNSMockServerConfig,
+    cellsEventQueue :: String
   }
 
 data Response = Response

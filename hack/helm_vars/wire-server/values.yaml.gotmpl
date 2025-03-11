@@ -349,6 +349,10 @@ galley:
               allowed_to_create_channels: team-members
               allowed_to_open_channels: team-members
             lockStatus: locked
+        cells:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo

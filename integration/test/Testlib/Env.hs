@@ -113,7 +113,8 @@ mkGlobalEnv cfgFile = do
         gRabbitMQConfigV1 = intConfig.rabbitmqV1,
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds,
-        gDNSMockServerConfig = intConfig.dnsMockServer
+        gDNSMockServerConfig = intConfig.dnsMockServer,
+        gCellsEventQueue = intConfig.cellsEventQueue
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -164,7 +165,8 @@ mkEnv currentTestName ge = do
           rabbitMQConfig = ge.gRabbitMQConfig,
           timeOutSeconds = ge.gTimeOutSeconds,
           currentTestName,
-          dnsMockServerConfig = ge.gDNSMockServerConfig
+          dnsMockServerConfig = ge.gDNSMockServerConfig,
+          cellsEventQueue = ge.gCellsEventQueue
         }
 
 allCiphersuites :: [Ciphersuite]
