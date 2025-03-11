@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -27,16 +26,12 @@ where
 import Cassandra
 import Data.Aeson.Types qualified as A
 import Data.Constraint
-import Data.Default
 import Data.Id
 import Data.Map qualified as M
 import Data.Text.Lazy qualified as LT
 import Galley.API.Error
 import Galley.API.Teams.Features.Get
-import Galley.Cassandra.FeatureTH
-import Galley.Cassandra.GetAllTeamFeatures
 import Galley.Cassandra.Instances ()
-import Galley.Cassandra.MakeFeature
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.TeamFeatureStore qualified as TFS
@@ -59,110 +54,16 @@ interpretTeamFeatureStoreToCassandra ::
 interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetDbFeature sing tid -> do
     logEffect "TeamFeatureStore.GetFeatureConfig"
-    getDbFeature sing tid
+    getDbFeatureDyn sing tid
   TFS.SetDbFeature sing tid feat -> do
     logEffect "TeamFeatureStore.SetFeatureConfig"
-    setDbFeature sing tid feat
+    setDbFeatureDyn sing tid feat
   TFS.SetFeatureLockStatus sing tid lock -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
-    setFeatureLockStatus sing tid (Tagged lock)
+    setFeatureLockStatusDyn sing tid (Tagged lock)
   TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
-    getAllDbFeatures tid
-  TFS.SetMigrationState tid state -> do
-    logEffect "TeamFeatureStore.SetMigrationState"
-    setMigrationState tid state
-
-setMigrationState ::
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r
-  ) =>
-  TeamId ->
-  TeamFeatureMigrationState ->
-  Sem r ()
-setMigrationState tid state = embedClient $ do
-  retry x5 $
-    write cql (params LocalQuorum (state, tid))
-  where
-    cql :: PrepQuery W (TeamFeatureMigrationState, TeamId) ()
-    cql = "UPDATE team_features SET migration_state = ? WHERE team_id = ?"
-
-getMigrationState ::
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r
-  ) =>
-  TeamId ->
-  Sem r TeamFeatureMigrationState
-getMigrationState tid = embedClient $ do
-  fromMaybe def . (runIdentity =<<) <$> retry x1 (query1 cql (params LocalQuorum (Identity tid)))
-  where
-    cql :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureMigrationState))
-    cql = "SELECT migration_state FROM team_features WHERE team_id = ?"
-
-getDbFeature ::
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r,
-    Member (Error InternalError) r
-  ) =>
-  FeatureSingleton cfg ->
-  TeamId ->
-  Sem r (DbFeature cfg)
-getDbFeature cfg tid = do
-  migrationState <- getMigrationState tid
-  case migrationState of
-    MigrationCompleted -> getDbFeatureDyn cfg tid
-    _ -> embedClient $ $(featureCases [|fetchFeature|]) cfg tid
-
-setDbFeature ::
-  ( Member (Input ClientState) r,
-    Member (Error InternalError) r,
-    Member (Embed IO) r
-  ) =>
-  FeatureSingleton cfg ->
-  TeamId ->
-  LockableFeature cfg ->
-  Sem r ()
-setDbFeature feature tid cfg = do
-  migrationState <- getMigrationState tid
-  case migrationState of
-    MigrationNotStarted -> embedClient $ $(featureCases [|storeFeature|]) feature tid cfg
-    MigrationInProgress -> readOnlyError
-    MigrationCompleted -> setDbFeatureDyn feature tid cfg
-
-setFeatureLockStatus ::
-  ( Member (Input ClientState) r,
-    Member (Error InternalError) r,
-    Member (Embed IO) r
-  ) =>
-  FeatureSingleton cfg ->
-  TeamId ->
-  Tagged cfg LockStatus ->
-  Sem r ()
-setFeatureLockStatus feature tid ls = do
-  migrationState <- getMigrationState tid
-  case migrationState of
-    MigrationNotStarted -> embedClient $ $(featureCases [|storeFeatureLockStatus|]) feature tid ls
-    MigrationInProgress -> readOnlyError
-    MigrationCompleted -> setFeatureLockStatusDyn feature tid ls
-
-getAllDbFeatures ::
-  ( Member (Input ClientState) r,
-    Member (Error InternalError) r,
-    Member (Embed IO) r
-  ) =>
-  TeamId ->
-  Sem r (AllFeatures DbFeature)
-getAllDbFeatures tid = do
-  migrationState <- getMigrationState tid
-  case migrationState of
-    MigrationCompleted -> getAllDbFeaturesDyn tid
-    _ -> embedClient $ getAllDbFeaturesLegacy tid
-
-readOnlyError :: (Member (Error InternalError) r) => Sem r a
-readOnlyError = throw (InternalErrorWithDescription "migration in progress")
-
---------------------------------------------------------------------------------
--- Dynamic features
+    getAllDbFeaturesDyn tid
 
 getDbFeatureDyn ::
   forall cfg r.

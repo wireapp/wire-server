@@ -5,22 +5,21 @@ import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testPatchEnforceFileDownloadLocation :: (HasCallStack) => FeatureTable -> App ()
-testPatchEnforceFileDownloadLocation table = do
-  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
+testPatchEnforceFileDownloadLocation :: (HasCallStack) => App ()
+testPatchEnforceFileDownloadLocation = do
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "unlocked"]
-  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["status" .= "enabled"]
-  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "unlocked", "status" .= "enabled"]
-  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "locked", "config" .= object []]
-  checkPatchWithTable table OwnDomain "enforceFileDownloadLocation"
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["config" .= object ["enforcedDownloadLocation" .= "/tmp"]]
 
   do
     (user, tid, _) <- createTeam OwnDomain 0
-    updateMigrationState OwnDomain tid table
     bindResponse
       ( Internal.patchTeamFeature
           user
@@ -32,8 +31,8 @@ testPatchEnforceFileDownloadLocation table = do
         resp.status `shouldMatchInt` 400
         resp.json %. "label" `shouldMatch` "empty-download-location"
 
-testEnforceDownloadLocation :: (HasCallStack) => FeatureTable -> APIAccess -> App ()
-testEnforceDownloadLocation table access = do
+testEnforceDownloadLocation :: (HasCallStack) => APIAccess -> App ()
+testEnforceDownloadLocation access = do
   mkFeatureTests
     "enforceFileDownloadLocation"
     & addUpdate
@@ -53,5 +52,4 @@ testEnforceDownloadLocation table access = do
                 ]
           ]
       )
-    & setTable table
     & runFeatureTests OwnDomain access

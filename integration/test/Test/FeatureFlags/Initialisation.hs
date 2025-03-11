@@ -5,12 +5,11 @@ import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
 import SetupHelpers
-import Test.FeatureFlags.Util
 import Testlib.Prelude
 import Testlib.ResourcePool
 
-testMLSInitialisation :: (HasCallStack) => FeatureTable -> App ()
-testMLSInitialisation table = do
+testMLSInitialisation :: (HasCallStack) => App ()
+testMLSInitialisation = do
   let override =
         def
           { galleyCfg =
@@ -43,7 +42,6 @@ testMLSInitialisation table = do
         (alice, tid, _) <- createTeam domain 0
         feat <- getTeamFeature alice tid "mls" >>= getJSON 200
         feat %. "config.defaultProtocol" `shouldMatch` "proteus"
-        updateMigrationState domain tid table
         pure (alice, tid)
 
     lift $ lowerCodensity do
