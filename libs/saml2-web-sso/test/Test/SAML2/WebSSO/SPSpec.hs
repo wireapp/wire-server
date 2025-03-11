@@ -202,10 +202,10 @@ specJudgeT = do
     context "mismatch between global and subject confirmation inResponseTo" $ do
       denies id $
         authnresp
-          & rspInRespTo .~ Just (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
+          & rspInRespTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
       denies id $
         authnresp
-          & scdataL . scdInResponseTo .~ Just (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
+          & scdataL . scdInResponseTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
     context "issue instant in the future" $ do
       let violations :: [AuthnResponse -> AuthnResponse]
           violations =
@@ -228,7 +228,7 @@ specJudgeT = do
             ]
           bad :: [AuthnResponse -> AuthnResponse]
           bad =
-            [ rspDestination .~ Just [uri|https://other.io/sso|],
+            [ rspDestination ?~ [uri|https://other.io/sso|],
               conditionsL . condAudienceRestriction .~ [[uri|https://other.io/sso|] :| []],
               scdataL . scdRecipient .~ [uri|https://other.io/sso|],
               conditionsL . condAudienceRestriction .~ [],
@@ -249,18 +249,18 @@ specJudgeT = do
     context "time constraint violation" $ do
       let violations :: [AuthnResponse -> AuthnResponse]
           violations =
-            [ conditionsL . condNotBefore .~ Just timeInALongTime,
-              conditionsL . condNotOnOrAfter .~ Just timeLongAgo,
-              scdataL . scdNotBefore .~ Just timeInALongTime,
+            [ conditionsL . condNotBefore ?~ timeInALongTime,
+              conditionsL . condNotOnOrAfter ?~ timeLongAgo,
+              scdataL . scdNotBefore ?~ timeInALongTime,
               scdataL . scdNotOnOrAfter .~ timeLongAgo
             ]
       denies id `mapM_` (($ authnresp) <$> violations)
     context "time constraint violation within tolerance" $ do
       let okviolations :: [AuthnResponse -> AuthnResponse]
           okviolations =
-            [ conditionsL . condNotBefore .~ Just (addTime (1 - tolerance) timeNow),
-              conditionsL . condNotOnOrAfter .~ Just (addTime (tolerance - 1) timeNow),
-              scdataL . scdNotBefore .~ Just (addTime (1 - tolerance) timeNow),
+            [ conditionsL . condNotBefore ?~ (addTime (1 - tolerance) timeNow),
+              conditionsL . condNotOnOrAfter ?~ (addTime (tolerance - 1) timeNow),
+              scdataL . scdNotBefore ?~ (addTime (1 - tolerance) timeNow),
               scdataL . scdNotOnOrAfter .~ (addTime (tolerance - 1) timeNow)
             ]
       grants id `mapM_` (($ authnresp) <$> okviolations)
@@ -271,7 +271,7 @@ specJudgeT = do
             ]
           bad :: [AuthnResponse -> AuthnResponse]
           bad =
-            [ rspIssuer .~ Just (Issuer [uri|http://other.io/sso|]),
+            [ rspIssuer ?~ (Issuer [uri|http://other.io/sso|]),
               assertionL . assIssuer .~ Issuer [uri|http://other.io/sso|]
             ]
       grants id `mapM_` (($ authnresp) <$> good)
