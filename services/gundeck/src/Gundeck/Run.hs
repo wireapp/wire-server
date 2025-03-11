@@ -97,6 +97,7 @@ run opts = withTracer \tracer -> do
       MonadLogger.info $ Log.msg (Log.val "setting up RabbitMQ exchanges and queues")
       liftIO $ createUserNotificationsExchange chan
       liftIO $ createDeadUserNotificationsExchange chan
+      liftIO $ createCellsNotificationsQueue chan
 
     createUserNotificationsExchange :: Channel -> IO ()
     createUserNotificationsExchange chan = do
@@ -109,6 +110,12 @@ run opts = withTracer \tracer -> do
       let routingKey = userNotificationDlqName
       void $ declareQueue chan newQueue {queueName = userNotificationDlqName}
       bindQueue chan userNotificationDlqName userNotificationDlxName routingKey
+
+    createCellsNotificationsQueue :: Channel -> IO ()
+    createCellsNotificationsQueue chan = for_
+      (opts ^. settings ^. cellsEventQueue)
+      $ \name ->
+        declareQueue chan newQueue {queueName = name}
 
     middleware :: Env -> IO Middleware
     middleware env = do

@@ -139,6 +139,10 @@ settings:
       defaults:
         status: disabled
         lockStatus: locked
+    cells:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
 
 logLevel: Warn
 logNetStrings: false
