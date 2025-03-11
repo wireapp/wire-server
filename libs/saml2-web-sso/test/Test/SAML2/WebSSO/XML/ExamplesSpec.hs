@@ -47,7 +47,7 @@ spec = describe "XML serialization" $ do
         let bad = "2013-03-18T03:28:54" <> decimals <> "Z"
             good = "2013-03-18T03:28:54" <> List.take 8 decimals <> "Z"
         renderTime (unsafeReadTime good) `shouldBe` renderTime (unsafeReadTime bad)
-    roundtrip 0 (readSampleIO "microsoft-authnrequest-1.xml") Samples.microsoft_authnrequest_1
+    roundtrip 0 (readSampleIO "microsoft-authnrequest-1.xml") Samples.microsoftAuthnRequest1
   -- roundtrip 1 (readSample "microsoft-authnresponse-0.xml") Samples.microsoft_authnresponse_0
   -- roundtrip 2 (readSample "microsoft-authnresponse-1.xml") Samples.microsoft_authnresponse_1
   -- roundtrip 3 (readSample "microsoft-authnresponse-2.xml") Samples.microsoft_authnresponse_2

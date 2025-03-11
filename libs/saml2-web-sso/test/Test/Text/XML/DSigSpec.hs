@@ -25,7 +25,7 @@ spec = describe "xml:dsig" $ do
   describe "parseKeyInfo" $ do
     it "works(1)" $ do
       keyinfo <- readSampleIO "microsoft-idp-keyinfo.xml"
-      let want = Samples.microsoft_idp_keyinfo
+      let want = Samples.microsoftIdpKeyinfo
           Right (SignCreds _ (SignKeyRSA have)) = certToCreds =<< parseKeyInfo True keyinfo
       have `shouldBe` want
     it "works(2)" $ do
