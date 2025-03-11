@@ -23,6 +23,7 @@
 , errors
 , exceptions
 , extra
+, file-path-th
 , filepath
 , foundation
 , ghc-prim
@@ -100,6 +101,7 @@ mkDerivation {
     errors
     exceptions
     extra
+    file-path-th
     filepath
     foundation
     ghc-prim
