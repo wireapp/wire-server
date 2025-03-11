@@ -112,12 +112,12 @@ instance ToSchema URI where
       uriToText :: URI -> T.Text
       uriToText = T.decodeUtf8 . toStrict . toLazyByteString . serializeURIRef
 
-parseSchemaURI :: T.Text -> A.Parser URI
-parseSchemaURI uriText =
-  either
-    (\e -> fail ("Failed to parse URI " ++ T.unpack uriText ++ " Error: " ++ show e))
-    pure
-    $ (parseURI strictURIParserOptions . T.encodeUtf8) uriText
+      parseSchemaURI :: T.Text -> A.Parser URI
+      parseSchemaURI uriText =
+        either
+          (\e -> fail ("Failed to parse URI " ++ T.unpack uriText ++ " Error: " ++ show e))
+          pure
+          $ (parseURI strictURIParserOptions . T.encodeUtf8) uriText
 
 ----------------------------------------------------------------------
 -- default
