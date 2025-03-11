@@ -157,6 +157,7 @@ module SAML2.WebSSO.Types
 where
 
 import Control.Lens
+import Control.Monad ((<=<))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
@@ -769,7 +770,7 @@ deriveJSON deriveJSONOptions ''IdPMetadata
 deriveJSON deriveJSONOptions ''IdPConfig
 
 instance FromJSON IdPId where
-  parseJSON value = (>>= maybe unerror (pure . IdPId) . UUID.fromText) . parseJSON $ value
+  parseJSON value = ((maybe unerror (pure . IdPId) . UUID.fromText) <=< parseJSON) value
     where
       unerror = fail ("could not parse config: " <> (show value))
 
@@ -782,7 +783,7 @@ idPIdToST = UUID.toText . fromIdPId
 instance Servant.FromHttpApiData IdPId where
   parseUrlPiece piece = case UUID.fromText piece of
     Nothing -> Left . cs $ "no valid UUID-piece " ++ show piece
-    Just uid -> return $ IdPId uid
+    Just uid -> pure $ IdPId uid
 
 instance Servant.ToHttpApiData IdPId where
   toUrlPiece = idPIdToST
@@ -827,7 +828,7 @@ assEndOfLife = lens gt st
         . (^? to _assConditions . _Just . to _condNotOnOrAfter . _Just)
         $ ass
     st :: Assertion -> Time -> Assertion
-    st ass tim = ass & assConditions . _Just . condNotOnOrAfter .~ Just tim
+    st ass tim = ass & assConditions . _Just . condNotOnOrAfter ?~ tim
 
 -- | [3/4.1.4.2] SubjectConfirmation [...] If the containing message is in response to an
 -- AuthnRequest, then the InResponseTo attribute MUST match the request's ID.
