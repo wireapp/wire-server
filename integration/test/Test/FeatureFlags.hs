@@ -49,7 +49,7 @@ testAllFeatures = do
   (_, tid, m : _) <- createTeam OwnDomain 2
   bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    defAllFeatures `shouldMatch` resp.json
+    resp.json `shouldMatch` defAllFeatures
 
   -- This block catches potential errors in the logic that reverts to default if there is a distinction made between
   -- 1. there is no row for a team_id in galley.team_features
@@ -58,17 +58,17 @@ testAllFeatures = do
 
   bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    defAllFeatures `shouldMatch` resp.json
+    resp.json `shouldMatch` defAllFeatures
 
   bindResponse (Public.getFeatureConfigs m) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    defAllFeatures `shouldMatch` resp.json
+    resp.json `shouldMatch` defAllFeatures
 
   randomPersonalUser <- randomUser OwnDomain def
 
   bindResponse (Public.getFeatureConfigs randomPersonalUser) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    defAllFeatures `shouldMatch` resp.json
+    resp.json `shouldMatch` defAllFeatures
 
 testFeatureConfigConsistency :: (HasCallStack) => App ()
 testFeatureConfigConsistency = do
