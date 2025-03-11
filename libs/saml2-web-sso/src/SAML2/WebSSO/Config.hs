@@ -43,14 +43,14 @@ makeLenses ''Config
 
 instance ToJSON Config where
   toJSON Config {..} =
-    object
-      $ [ "logLevel" .= _cfgLogLevel,
-          "spHost" .= _cfgSPHost,
-          "spPort" .= _cfgSPPort,
-          "spAppUri" .= _cfgSPAppURI,
-          "spSsoUri" .= _cfgSPSsoURI,
-          "contacts" .= _cfgContacts
-        ]
+    object $
+      [ "logLevel" .= _cfgLogLevel,
+        "spHost" .= _cfgSPHost,
+        "spPort" .= _cfgSPPort,
+        "spAppUri" .= _cfgSPAppURI,
+        "spSsoUri" .= _cfgSPSsoURI,
+        "contacts" .= _cfgContacts
+      ]
 
 instance FromJSON Config where
   parseJSON = withObject "Config" $ \obj -> do
@@ -104,16 +104,16 @@ readConfig filepath =
     info cfg =
       when (cfg ^. cfgLogLevel <= Info)
         $ hPutStrLn stderr
-        . ("\n>>> server config:\n" <>)
-        . cs
-        . Yaml.encode
+          . ("\n>>> server config:\n" <>)
+          . cs
+          . Yaml.encode
         $ cfg
     warn :: Yaml.ParseException -> IO ()
     warn err =
-      hPutStrLn stderr
-        $ "*** could not read config file: "
-        <> show err
-        <> "  using default!  see SAML.WebSSO.Config for details!"
+      hPutStrLn stderr $
+        "*** could not read config file: "
+          <> show err
+          <> "  using default!  see SAML.WebSSO.Config for details!"
 
 -- | Convenience function to write a config file if you don't already have one.  Writes to
 -- `$SAML2_WEB_SSO_ROOT/server.yaml`.  Warns if env does not contain the root.
@@ -135,9 +135,9 @@ readIdPConfig cfg filepath =
     info idps =
       when (cfg ^. cfgLogLevel <= Info)
         $ hPutStrLn stderr
-        . ("\n>>>known idps:\n" <>)
-        . cs
-        . Yaml.encode
+          . ("\n>>>known idps:\n" <>)
+          . cs
+          . Yaml.encode
         $ idps
 
 ----------------------------------------------------------------------
