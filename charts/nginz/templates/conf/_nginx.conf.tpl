@@ -356,31 +356,43 @@ http {
 
         set $domain "";
         set $domain_file "";
+        set $domain_allowed 0;
         set $file_ext $1;
 
         if ($http_host ~ ^nginz-https\.(.+)$) {
             set $domain $1;
         }
 
-        # Check if domain is in the allowed list
-        set $domain_allowed 0;
-        {{- range .Values.nginx_conf.additional_external_env_domains }}
-        if ($domain = "{{ . }}") {
+        # to be able to iterate over nginx_conf inside the range
+        {{- $nginx_conf := .Values.nginx_conf }}
+
+        # Check if domain is in the allowed additional_external_env_domains
+        {{- if (hasKey $nginx_conf "multi_ingress_deeplink") }}
+          {{- range $nginx_conf.additional_external_env_domains }}
+            {{- $ext_domain := . }}
+            {{- if (hasKey $nginx_conf.multi_ingress_deeplink $ext_domain ) }}
+        if ($domain = "{{ $ext_domain }}") {
+            set $domain_file "{{ $ext_domain }}-deeplink.$file_ext";
+            set $domain_allowed 1;
+        }
+            {{- end }}
+          {{- end }}
+        {{- end }}
+
+        # Check if domain matches the external_env_domain
+        {{- if and (hasKey .Values.nginx_conf "deeplink") (hasKey .Values.nginx_conf "external_env_domain") }}
+        if ($domain = "{{ .Values.nginx_conf.external_env_domain }}") {
+            set $domain_file "deeplink.$file_ext";
             set $domain_allowed 1;
         }
         {{- end }}
 
-        # Check if domain matches the external_env_domain
-        if ($domain = "{{ .Values.nginx_conf.external_env_domain }}") {
-            set $domain_allowed 1;
+        # return 404 when domain is not allowed
+        if ($domain_allowed = 0) {
+          return 404;
         }
 
-        # Set domain_file based on whether domain is allowed
-        if ($domain_allowed = 1) {
-            set $domain_file "$domain-deeplink.$file_ext";
-        }
-        
-        alias /etc/wire/nginz/conf/$domain_file;
+        alias /etc/wire/nginz/deeplink/$domain_file;
         types {
             application/json  json;
             text/html         html;
