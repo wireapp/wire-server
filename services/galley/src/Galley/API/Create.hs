@@ -106,6 +106,8 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -147,6 +149,8 @@ createGroupConversation ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -189,6 +193,8 @@ createGroupConversationGeneric ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -240,6 +246,8 @@ checkCreateConvPermissions ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
     Member TeamStore r,
     Member (Input Opts) r,
     Member TeamFeatureStore r
@@ -263,7 +271,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   zusrMembership <- getTeamMember (tUnqualified lusr) (Just convTeam)
   case newConv.newConvGroupConvType of
     Channel -> do
-      ensureCreateChannelPermissions zusrMembership
+      ensureCreateChannelPermissions tinfo.cnvTeamId zusrMembership
     GroupConversation -> do
       void $ permissionCheck CreateConversation zusrMembership
       -- In teams we don't have 1:1 conversations, only regular conversations. We want
@@ -293,21 +301,23 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       ( Member (ErrorS OperationDenied) r,
         Member (Input Opts) r,
         Member TeamFeatureStore r,
-        Member (ErrorS NotATeamMember) r
+        Member (ErrorS NotATeamMember) r,
+        Member (ErrorS ChannelsNotEnabled) r,
+        Member (ErrorS NotAnMlsConversation) r
       ) =>
+      TeamId ->
       Maybe TeamMember ->
       Sem r ()
-    ensureCreateChannelPermissions (Just tm) = do
-      tid <- noteS @OperationDenied (cnvTeamId <$> newConv.newConvTeam)
+    ensureCreateChannelPermissions tid (Just tm) = do
       channelsConf <- getFeatureForTeam @ChannelsConfig tid
-      when (channelsConf.status == FeatureStatusDisabled) $ throwS @OperationDenied
-      when (newConv.newConvProtocol /= BaseProtocolMLSTag) $ throwS @OperationDenied
+      when (channelsConf.status == FeatureStatusDisabled) $ throwS @ChannelsNotEnabled
+      when (newConv.newConvProtocol /= BaseProtocolMLSTag) $ throwS @NotAnMlsConversation
       case channelsConf.config.allowedToCreateChannels of
         Everyone -> pure ()
         TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
         Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
-    ensureCreateChannelPermissions Nothing = do
-      throwS @OperationDenied
+    ensureCreateChannelPermissions _ Nothing = do
+      throwS @NotATeamMember
 
 getTeamMember :: (Member TeamStore r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
 getTeamMember uid (Just tid) = E.getTeamMember tid uid

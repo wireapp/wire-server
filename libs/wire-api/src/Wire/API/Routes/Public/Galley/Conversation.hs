@@ -381,6 +381,8 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow UnreachableBackendsLegacy
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -402,6 +404,8 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow UnreachableBackendsLegacy
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -423,6 +427,8 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -443,6 +449,8 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn

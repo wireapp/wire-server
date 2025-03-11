@@ -53,7 +53,7 @@ testCreateChannelMembersOnly = do
   void $ setTeamFeatureConfig owner tid "channels" (config "team-members")
   assertCreateChannelSuccess ownerClient tid
   assertCreateChannelSuccess memClient tid
-  assertCreateChannelFailure partnerClient tid
+  assertCreateChannelFailure "operation-denied" partnerClient tid
 
 testCreateChannelAdminsOnly :: (HasCallStack) => App ()
 testCreateChannelAdminsOnly = do
@@ -66,44 +66,44 @@ testCreateChannelAdminsOnly = do
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "admins")
   assertCreateChannelSuccess ownerClient tid
-  assertCreateChannelFailure memClient tid
-  assertCreateChannelFailure partnerClient tid
+  assertCreateChannelFailure "operation-denied" memClient tid
+  assertCreateChannelFailure "operation-denied" partnerClient tid
 
 testCreateChannelFeatureDisabled :: (HasCallStack) => App ()
 testCreateChannelFeatureDisabled = do
   (owner, tid, _) <- createTeam OwnDomain 1
   ownerClient <- createMLSClient def def owner
   void $ uploadNewKeyPackage def ownerClient
-  assertCreateChannelFailure ownerClient tid
+  assertCreateChannelFailure "channels-not-enabled" ownerClient tid
 
 testCreateChannelNonTeamConvNotAllowed :: (HasCallStack) => App ()
 testCreateChannelNonTeamConvNotAllowed = do
-  (owner, tid, _) <- createTeam OwnDomain 1
-  ownerClient <- createMLSClient def def owner
-  void $ uploadNewKeyPackage def ownerClient
-  setTeamFeatureLockStatus owner tid "channels" "unlocked"
-  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
-  postConversation ownerClient defMLS {groupConvType = Just "channel"} `bindResponse` \resp -> do
+  user <- randomUser OwnDomain def
+  userClient <- createMLSClient def def user
+  void $ uploadNewKeyPackage def userClient
+  postConversation userClient defMLS {groupConvType = Just "channel"} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
 
 testCreateChannelProteusNotAllowed :: (HasCallStack) => App ()
 testCreateChannelProteusNotAllowed = do
   (owner, tid, _) <- createTeam OwnDomain 1
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
   postConversation owner defProteus {groupConvType = Just "channel", team = Just tid} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "operation-denied"
+    resp.json %. "label" `shouldMatch` "not-mls-conversation"
 
 assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> App ()
 assertCreateChannelSuccess client tid = do
   conv <- postConversation client defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
   conv %. "group_conv_type" `shouldMatch` "channel"
 
-assertCreateChannelFailure :: (HasCallStack) => ClientIdentity -> String -> App ()
-assertCreateChannelFailure client tid = do
+assertCreateChannelFailure :: (HasCallStack) => String -> ClientIdentity -> String -> App ()
+assertCreateChannelFailure label client tid = do
   postConversation client defMLS {groupConvType = Just "channel", team = Just tid} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "operation-denied"
+    resp.json %. "label" `shouldMatch` label
 
 config :: String -> Value
 config perms =
