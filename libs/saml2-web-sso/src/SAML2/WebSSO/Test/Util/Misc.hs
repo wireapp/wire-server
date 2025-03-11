@@ -3,7 +3,6 @@
 
 module SAML2.WebSSO.Test.Util.Misc where
 
-import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.ByteString.Base64.Lazy as EL (encode)
@@ -20,8 +19,8 @@ import SAML2.WebSSO
 import Servant
 import Shelly (run, setStdin, shelly, silently)
 import System.Directory (doesFileExist)
-import System.Environment
 import System.FilePath
+import System.FilePath.TH
 import System.IO.Temp
 import System.Process (system)
 import Test.Hspec
@@ -59,34 +58,17 @@ rerenderFile fp = showFile fp >>= Prelude.writeFile (fp <> "-")
 hedgehog :: IO Bool -> Spec
 hedgehog = it "hedgehog tests" . (`shouldReturn` True)
 
--- | Helper function for generating new tests cases.  This is probably dead code.
-haskellCodeFromXML :: forall a. (Typeable a, Show a, HasXMLRoot a) => Proxy a -> FilePath -> IO ()
-haskellCodeFromXML Proxy ifilepath_ = do
-  root <- getEnv "SAML2_WEB_SSO_ROOT"
-  let ifilepath = root </> "test/xml" </> ifilepath_
-      ofilepath = root </> "test/Samples.hs"
-      f :: String -> IO a
-      f = either (throwIO . ErrorCall) pure . decode . cs
-      g :: a -> String
-      g = (<> mconcat aft) . (mconcat bef <>) . show
-        where
-          bef = ["\n\n", fnm, " :: ", show (typeRep (Proxy :: Proxy a)), "\n", fnm, " = "]
-          aft = ["\n\n"]
-          fnm = takeWhile (/= '.') $ fmap (\case '-' -> '_'; c -> c) ifilepath_
-  typ <- f =<< Prelude.readFile ifilepath
-  print (ifilepath, ofilepath)
-  putStrLn . cs . encode $ typ
-  Prelude.appendFile ofilepath $ g typ
-
 readSampleIO :: (MonadIO m) => FilePath -> m LT
-readSampleIO fpath = liftIO $ do
-  root <- getEnv "SAML2_WEB_SSO_ROOT"
-  LT.readFile $ root </> "test/samples" </> fpath
+readSampleIO fpath =
+  liftIO $
+    LT.readFile $
+      $(fileRelativeToProject "test/samples") </> fpath
 
 doesSampleExistIO :: (MonadIO m) => FilePath -> m Bool
-doesSampleExistIO fpath = liftIO $ do
-  root <- getEnv "SAML2_WEB_SSO_ROOT"
-  doesFileExist $ root </> "test/samples" </> fpath
+doesSampleExistIO fpath =
+  liftIO $
+    doesFileExist $
+      $(fileRelativeToProject "test/samples") </> fpath
 
 roundtrip :: forall a. (Eq a, Show a, HasXMLRoot a) => Int -> IO LT -> a -> Spec
 roundtrip serial mkrendered parsed = describe ("roundtrip-" <> show serial) $ do

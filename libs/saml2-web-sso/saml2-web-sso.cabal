@@ -96,6 +96,7 @@ library
     , errors                >=2.3.0
     , exceptions            >=0.10.3
     , extra                 >=1.6.18
+    , file-path-th
     , filepath              >=1.4.2.1
     , foundation            >=0.0.25
     , ghc-prim              >=0.5.3
