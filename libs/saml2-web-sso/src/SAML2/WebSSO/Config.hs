@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Strict #-}
+-- TODO: Create a dedicated module for orphan instances
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module SAML2.WebSSO.Config where
 
@@ -7,11 +9,15 @@ import Control.Exception
 import Control.Lens hiding (Level, element, enum, (.=))
 import Control.Monad (when)
 import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
+import Data.ByteString (toStrict)
+import Data.ByteString.Builder
 import Data.Domain
 import Data.Map
 import Data.Schema
 import Data.String.Conversions
-import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Yaml qualified as Yaml
 import GHC.Generics
 import SAML2.WebSSO.Types
@@ -64,23 +70,23 @@ data ConfigRaw = ConfigRaw
 
 instance ToSchema ConfigRaw where
   schema =
-    object "ConfigRaw"
-      $ ConfigRaw
-      <$> (_cfgRawLogLevel .= field "logLevel" schema)
-      <*> (_cfgRawSPHost .= field "spHost" schema)
-      <*> (_cfgRawSPPort .= field "spPort" schema)
-      <*> (_cfgRawDomainConfigs .= maybe_ (optField "spDomainConfigs" (map_ schema)))
-      <*> (_cfgRawSPAppURI .= maybe_ (optField "spAppUri" schema))
-      <*> (_cfgRawSPSsoURI .= maybe_ (optField "spSsoUri" schema))
-      <*> (_cfgRawContacts .= maybe_ (optField "contacts" (array schema)))
+    object "ConfigRaw" $
+      ConfigRaw
+        <$> (_cfgRawLogLevel .= field "logLevel" schema)
+        <*> (_cfgRawSPHost .= field "spHost" schema)
+        <*> (_cfgRawSPPort .= field "spPort" schema)
+        <*> (_cfgRawDomainConfigs .= maybe_ (optField "spDomainConfigs" (map_ schema)))
+        <*> (_cfgRawSPAppURI .= maybe_ (optField "spAppUri" schema))
+        <*> (_cfgRawSPSsoURI .= maybe_ (optField "spSsoUri" schema))
+        <*> (_cfgRawContacts .= maybe_ (optField "contacts" (array schema)))
 
 instance ToSchema MultiIngressDomainConfig where
   schema =
-    object "MultiIngressDomainConfig"
-      $ MultiIngressDomainConfig
-      <$> (_cfgSPAppURI .= field "spAppUri" schema)
-      <*> (_cfgSPSsoURI .= field "spSsoUri" schema)
-      <*> (_cfgContacts .= field "contacts" (array schema))
+    object "MultiIngressDomainConfig" $
+      MultiIngressDomainConfig
+        <$> (_cfgSPAppURI .= field "spAppUri" schema)
+        <*> (_cfgSPSsoURI .= field "spSsoUri" schema)
+        <*> (_cfgContacts .= field "contacts" (array schema))
 
 instance ToSchema ContactPerson where
   schema = _ -- TODO: i think the old aeson instances are in another module, find and translate!
@@ -90,8 +96,8 @@ instance ToSchema Config where
 
 instance ToSchema Level where
   schema =
-    enum @Text "Level"
-      $ mconcat
+    enum @T.Text "Level" $
+      mconcat
         [ element "Trace" Trace,
           element "Debug" Debug,
           element "Info" Info,
@@ -101,7 +107,17 @@ instance ToSchema Level where
         ]
 
 instance ToSchema URI where
-  schema = _ -- TODO: use `withParser` on `schema @Text`
+  schema = uriToText .= schema @T.Text `withParser` parseSchemaURI
+    where
+      uriToText :: URI -> T.Text
+      uriToText = T.decodeUtf8 . toStrict . toLazyByteString . serializeURIRef
+
+parseSchemaURI :: T.Text -> A.Parser URI
+parseSchemaURI uriText =
+  either
+    (\e -> fail ("Failed to parse URI " ++ T.unpack uriText ++ " Error: " ++ show e))
+    pure
+    $ (parseURI strictURIParserOptions . T.encodeUtf8) uriText
 
 ----------------------------------------------------------------------
 -- default
