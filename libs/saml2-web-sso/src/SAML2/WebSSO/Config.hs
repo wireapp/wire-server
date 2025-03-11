@@ -88,8 +88,32 @@ instance ToSchema MultiIngressDomainConfig where
         <*> (_cfgSPSsoURI .= field "spSsoUri" schema)
         <*> (_cfgContacts .= field "contacts" (array schema))
 
+-- TODO: Replace old template-haskell'ed ToJSON and FromJSON instances
 instance ToSchema ContactPerson where
-  schema = _ -- TODO: i think the old aeson instances are in another module, find and translate!
+  schema =
+    object "ContactPerson" $
+      ContactPerson
+        <$> (_cntType .= field "type" schema)
+        <*> (_cntCompany .= maybe_ (optField "company" schema))
+        <*> (_cntGivenName .= maybe_ (optField "givenName" schema))
+        <*> (_cntSurname .= maybe_ (optField "surname" schema))
+        <*> (_cntEmail .= maybe_ (optField "email" schema))
+        <*> (_cntPhone .= maybe_ (optField "phone" schema))
+
+instance ToSchema XmlText where
+  schema = _
+
+-- TODO: Replace old template-haskell'ed ToJSON and FromJSON instances
+instance ToSchema ContactType where
+  schema =
+    enum @T.Text "ContactType" $
+      mconcat
+        [ element "ContactTechnical" ContactTechnical,
+          element "ContactSupport" ContactSupport,
+          element "ContactAdministrative" ContactAdministrative,
+          element "ContactBilling" ContactBilling,
+          element "ContactOther" ContactOther
+        ]
 
 instance ToSchema Config where
   schema = _ -- TODO: use `withParser` on `ConfigRaw`

@@ -50,6 +50,7 @@
 , QuickCheck
 , quickcheck-instances
 , random
+, schema-profunctor
 , servant
 , servant-multipart
 , servant-server
@@ -60,6 +61,7 @@
 , text
 , time
 , transformers
+, types-common
 , uniplate
 , uri-bytestring
 , uuid
@@ -124,6 +126,7 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    schema-profunctor
     servant
     servant-multipart
     servant-server
@@ -134,6 +137,7 @@ mkDerivation {
     text
     time
     transformers
+    types-common
     uniplate
     uri-bytestring
     uuid
