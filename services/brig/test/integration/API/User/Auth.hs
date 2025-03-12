@@ -52,6 +52,7 @@ import Imports
 import Network.HTTP.Client (equivCookie)
 import Network.Wai.Utilities.Error qualified as Error
 import Polysemy
+import Polysemy.Input
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Test.Tasty.HUnit qualified as HUnit
@@ -66,7 +67,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import Wire.AuthenticationSubsystem.ZAuth (ZAuth, runZAuth)
+import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.HashPassword.Interpreter
 import Wire.Sem.Random.IO
@@ -90,7 +91,7 @@ onlyIfLhWhitelisted action = do
           \(the 'withLHWhitelist' trick does not work because it does not allow \
           \brig to talk to the dynamically spawned galley)."
 
-tests :: Opts.Opts -> Manager -> ZAuth.Env -> DB.ClientState -> Brig -> Galley -> Nginz -> TestTree
+tests :: Opts.Opts -> Manager -> ZAuthEnv -> DB.ClientState -> Brig -> Galley -> Nginz -> TestTree
 tests conf m z db b g n =
   testGroup
     "auth"
@@ -206,10 +207,10 @@ testLoginWith6CharPassword opts brig db = do
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
 
-randomAccessToken :: forall u. (ZAuth.UserTokenLike u) => ZAuth AccessToken
+randomAccessToken :: forall u r. (ZAuth.UserTokenLike u, Member (Input ZAuthEnv) r, Member (Embed IO) r) => Sem r AccessToken
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
-randomUserToken :: (ZAuth.UserTokenLike u) => ZAuth (ZAuth.Token u)
+randomUserToken :: (ZAuth.UserTokenLike u, Member (Embed IO) r, Member (Input ZAuthEnv) r) => Sem r (ZAuth.Token u)
 randomUserToken = do
   r <- Id <$> liftIO UUID.nextRandom
   ZAuth.newUserToken r Nothing
@@ -571,7 +572,7 @@ testNoUserSsoLogin brig = do
 -------------------------------------------------------------------------------
 -- Token Refresh
 
-testInvalidToken :: ZAuth.Env -> Brig -> Http ()
+testInvalidToken :: ZAuthEnv -> Brig -> Http ()
 testInvalidToken z b = do
   user <- Public.userId <$> randomUser b
   t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.U user Nothing)
@@ -586,7 +587,7 @@ testInvalidToken z b = do
       const 403 === statusCode
       const (Just "Invalid token") =~= responseBody
 
-testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
+testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuthEnv -> Brig -> Http ()
 testMissingCookie z b = do
   -- Missing cookie, i.e. token refresh mandates a cookie.
   post (unversioned . b . path "/access")
@@ -602,7 +603,7 @@ testMissingCookie z b = do
       const (Just "Missing cookie") =~= responseBody
       const (Just "invalid-credentials") =~= responseBody
 
-testUnknownCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
+testUnknownCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuthEnv -> Brig -> Http ()
 testUnknownCookie z b = do
   -- Valid cookie but unknown to the server.
   t <- toByteString' <$> runZAuth z (randomUserToken @u)
@@ -610,7 +611,7 @@ testUnknownCookie z b = do
     const 403 === statusCode
     const (Just "invalid-credentials") =~= responseBody
 
-testTokenMismatchLegalhold :: ZAuth.Env -> Brig -> Galley -> Http ()
+testTokenMismatchLegalhold :: ZAuthEnv -> Brig -> Galley -> Http ()
 testTokenMismatchLegalhold z brig galley = do
   u <- randomUser brig
   let Just email = userEmail u
@@ -661,7 +662,7 @@ testAccessSelfEmailAllowed nginz brig withCookie = do
     !!! const (if withCookie then 204 else 403) === statusCode
 
 -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
-testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Bool -> Http ()
+testAccessSelfEmailDenied :: ZAuthEnv -> Nginz -> Brig -> Bool -> Http ()
 testAccessSelfEmailDenied zenv nginz brig withCookie = do
   usr <- randomUser brig
   let Just email = userEmail usr
@@ -1179,3 +1180,6 @@ remJson p l ids =
       "labels" .= l,
       "ids" .= ids
     ]
+
+runZAuth :: (MonadIO m) => ZAuthEnv -> Sem '[Input ZAuthEnv, Embed IO] a -> m a
+runZAuth zenv = liftIO . runM . runInputConst zenv

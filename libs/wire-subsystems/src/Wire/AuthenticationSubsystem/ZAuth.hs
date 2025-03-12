@@ -1,6 +1,6 @@
 module Wire.AuthenticationSubsystem.ZAuth where
 
-import Control.Monad.Catch
+import Control.Exception (throwIO)
 import Data.Aeson
 import Data.Bits
 import Data.ByteString qualified as BS
@@ -19,21 +19,11 @@ import Data.ZAuth.Token
 import Data.ZAuth.Validation qualified as ZV
 import Imports
 import OpenSSL.Random
+import Polysemy
+import Polysemy.Input
 import Sodium.Crypto.Sign
 import Wire.API.User.Auth (bearerToken)
 import Wire.API.User.Auth qualified as Auth
-
-newtype ZAuth a = ZAuth {unZAuth :: ReaderT Env IO a}
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env)
-
-class (MonadIO m) => MonadZAuth m where
-  liftZAuth :: ZAuth a -> m a
-
-instance MonadZAuth ZAuth where
-  liftZAuth = id
-
-runZAuth :: (MonadIO m) => Env -> ZAuth a -> m a
-runZAuth e za = liftIO $ runReaderT (unZAuth za) e
 
 data Settings = Settings
   { -- | Secret key index to use
@@ -65,7 +55,7 @@ defSettings =
     (LegalHoldUserTokenTimeout (60 * 60 * 24 * 56)) -- 56 days
     (LegalHoldAccessTokenTimeout (60 * 15)) -- 15 minutes
 
-data Env = Env
+data ZAuthEnv = ZAuthEnv
   { private :: !ZC.SigningKey,
     publicKeys :: !(Vector PublicKey),
     settings :: !Settings
@@ -121,11 +111,11 @@ instance FromJSON Settings where
 readKeys :: (Read k) => FilePath -> IO (Maybe (NonEmpty k))
 readKeys fp = nonEmpty . map read . filter (not . null) . lines <$> readFile fp
 
-mkEnv :: NonEmpty SecretKey -> NonEmpty PublicKey -> Settings -> IO Env
-mkEnv sk pk sets = do
+mkZAuthEnv :: NonEmpty SecretKey -> NonEmpty PublicKey -> Settings -> IO ZAuthEnv
+mkZAuthEnv sk pk sets = do
   zc <- createSigningKey sets.keyIndex sk
   let pubKeys = Vector.fromList $ NonEmpty.toList pk
-  pure $! Env zc pubKeys sets
+  pure $! ZAuthEnv zc pubKeys sets
 
 createSigningKey :: Int -> NonEmpty SecretKey -> IO ZC.SigningKey
 createSigningKey i keys = do
@@ -136,7 +126,7 @@ createSigningKey i keys = do
   pure $ ZC.SigningKey i signingKey
 
 class (Body t ~ Access, SerializableToken t) => AccessTokenLike t where
-  renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token t -> m Auth.AccessToken
+  renewAccessToken :: (Member (Embed IO) r, Member (Input ZAuthEnv) r) => Maybe ClientId -> Token t -> Sem r Auth.AccessToken
   accessTTL :: Settings -> Integer
 
 instance AccessTokenLike A where
@@ -165,34 +155,35 @@ instance UserTokenLike LU where
   allowSessionToken = False
   userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
 
-mkUserToken :: (MonadZAuth m, SerializableToken t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token t)
-mkUserToken u cid r t = liftZAuth $ do
-  z <- ask
+mkUserToken :: (Member (Embed IO) r, Member (Input ZAuthEnv) r, SerializableToken t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> Sem r (Token t)
+mkUserToken u cid r t = do
+  z <- input
   ZC.newToken z.private (TokenExpiresAt (utcTimeToPOSIXSeconds t)) Nothing (User (toUUID u) (fmap clientToText cid) r)
 
-newUserToken :: forall t m. (MonadZAuth m, UserTokenLike t) => UserId -> Maybe ClientId -> m (Token t)
-newUserToken u c = liftZAuth $ do
-  z <- ask
+newUserToken :: forall t r. (Member (Embed IO) r, Member (Input ZAuthEnv) r, UserTokenLike t) => UserId -> Maybe ClientId -> Sem r (Token t)
+newUserToken u c = do
+  z <- input
   r <- liftIO randomValue
   let ttl = userTTL @t z.settings
    in ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $ User (toUUID u) (fmap clientToText c) r
 
-newSessionToken :: forall t m. (MonadZAuth m, UserTokenLike t, MonadThrow m) => UserId -> Maybe ClientId -> m (Token t)
+newSessionToken :: forall t r. (Member (Embed IO) r, Member (Input ZAuthEnv) r, UserTokenLike t) => UserId -> Maybe ClientId -> Sem r (Token t)
 newSessionToken u c = do
   unless (allowSessionToken @t) $
-    throwM ZV.Invalid
-  z <- liftZAuth ask
+    -- TODO: Is this right? It used to be MonadThrow
+    liftIO (throwIO ZV.Invalid)
+  z <- input
   r <- liftIO randomValue
   let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout
    in ZC.newToken z.private (TokenExpiresAfter ttl) (Just S) $ User (toUUID u) (fmap clientToText c) r
 
 newAccessToken ::
-  forall t m.
-  (MonadZAuth m, AccessTokenLike (AccessTokenType t), Body t ~ User) =>
+  forall t r.
+  (Member (Embed IO) r, Member (Input ZAuthEnv) r, AccessTokenLike (AccessTokenType t), Body t ~ User) =>
   Token t ->
-  m Auth.AccessToken
-newAccessToken xt = liftZAuth $ do
-  z <- ask
+  Sem r Auth.AccessToken
+newAccessToken xt = do
+  z <- input
   let ttl = accessTTL @(AccessTokenType t) z.settings
   -- TODO: Test that connId is randomly generated, there was a test in
   -- zauth, which got deleted as a result of moving this code here.
@@ -206,9 +197,9 @@ newAccessToken xt = liftZAuth $ do
       (toByteString accessToken)
       ttl
 
-renewAccessToken' :: (MonadZAuth m) => Maybe ClientId -> Token A -> m Auth.AccessToken
-renewAccessToken' mcid old = liftZAuth $ do
-  z <- ask
+renewAccessToken' :: (Member (Embed IO) r, Member (Input ZAuthEnv) r) => Maybe ClientId -> Token A -> Sem r Auth.AccessToken
+renewAccessToken' mcid old = do
+  z <- input
   let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
   new <-
     ZC.renewToken
@@ -222,25 +213,25 @@ renewAccessToken' mcid old = liftZAuth $ do
       (toByteString new)
       ttl
 
-newBotToken :: (MonadZAuth m) => ProviderId -> BotId -> ConvId -> m (Token B)
-newBotToken pid bid cid = liftZAuth $ do
-  z <- ask
+newBotToken :: (Member (Embed IO) r, Member (Input ZAuthEnv) r) => ProviderId -> BotId -> ConvId -> Sem r (Token B)
+newBotToken pid bid cid = do
+  z <- input
   ZC.newToken z.private TokenNeverExpires Nothing $
     Bot (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
 
-newProviderToken :: (MonadZAuth m) => ProviderId -> m (Token P)
-newProviderToken pid = liftZAuth $ do
-  z <- ask
+newProviderToken :: (Member (Embed IO) r, Member (Input ZAuthEnv) r) => ProviderId -> Sem r (Token P)
+newProviderToken pid = do
+  z <- input
   let ProviderTokenTimeout ttl = z.settings.providerTokenTimeout
    in ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $ Provider (toUUID pid)
 
 renewLegalHoldAccessToken ::
-  (MonadZAuth m) =>
+  (Member (Embed IO) r, Member (Input ZAuthEnv) r) =>
   Maybe ClientId ->
   Token LA ->
-  m Auth.AccessToken
-renewLegalHoldAccessToken _mcid old = liftZAuth $ do
-  z <- ask
+  Sem r Auth.AccessToken
+renewLegalHoldAccessToken _mcid old = do
+  z <- input
   let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
   new <- ZC.renewToken z.private ttl (old.header) (old.body)
   pure $
@@ -250,11 +241,11 @@ renewLegalHoldAccessToken _mcid old = liftZAuth $ do
       ttl
 
 validateToken ::
-  (MonadZAuth m, SerializableToken t) =>
+  (Member (Embed IO) r, Member (Input ZAuthEnv) r, SerializableToken t) =>
   Token t ->
-  m (Either ZV.Failure ())
-validateToken t = liftZAuth $ do
-  z <- ask
+  Sem r (Either ZV.Failure ())
+validateToken t = do
+  z <- input
   ZV.check z.publicKeys t
 
 userTokenClient :: User -> Maybe ClientId

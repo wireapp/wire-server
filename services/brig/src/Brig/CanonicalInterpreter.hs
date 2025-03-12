@@ -37,6 +37,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.DeleteQueue
@@ -160,6 +161,10 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
+     Input ZAuthEnv,
+     -- TODO: Do not keep this around, move authentication subsystem stuff into
+     -- the subsystem and remove this
+     Input App.Env,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -271,6 +276,8 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
+              . runInputConst e
+              . runInputConst e.zauthEnv
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())

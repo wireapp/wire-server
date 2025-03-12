@@ -70,6 +70,7 @@ module Brig.App
     disabledVersionsLens,
     enableSFTFederationLens,
     rateLimitEnvLens,
+    initZAuth,
 
     -- * App Monad
     AppT (..),
@@ -156,7 +157,6 @@ import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
-import Wire.AuthenticationSubsystem.ZAuth (MonadZAuth (..), runZAuth)
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
@@ -202,7 +202,7 @@ data Env = Env
     turnEnv :: Calling.TurnEnv,
     sftEnv :: Maybe Calling.SFTEnv,
     currentTime :: IO UTCTime,
-    zauthEnv :: ZAuth.Env,
+    zauthEnv :: ZAuth.ZAuthEnv,
     digestSHA256 :: Digest,
     digestMD5 :: Digest,
     indexEnv :: IndexEnv,
@@ -352,7 +352,7 @@ mkIndexEnv esOpts logger galleyEp rpcHttpManager = do
         idxCredentials = mEsCreds
       }
 
-initZAuth :: Opts -> IO ZAuth.Env
+initZAuth :: Opts -> IO ZAuth.ZAuthEnv
 initZAuth o = do
   let zOpts = Opt.zauth o
       privateKeys = Opt.privateKeys zOpts
@@ -362,7 +362,7 @@ initZAuth o = do
   case (sk, pk) of
     (Nothing, _) -> error ("No private key in: " ++ privateKeys)
     (_, Nothing) -> error ("No public key in: " ++ publicKeys)
-    (Just s, Just p) -> ZAuth.mkEnv s p $ Opt.authSettings zOpts
+    (Just s, Just p) -> ZAuth.mkZAuthEnv s p $ Opt.authSettings zOpts
 
 initHttpManager :: IO Manager
 initHttpManager = do
@@ -551,12 +551,6 @@ instance MonadHttp (AppT r) where
     manager <- asks (.httpManager)
     liftIO $ withResponse req manager handler
 
-instance MonadZAuth (AppT r) where
-  liftZAuth za = asks (.zauthEnv) >>= \e -> runZAuth e za
-
-instance MonadZAuth (ExceptT err (AppT r)) where
-  liftZAuth za = lift (asks (.zauthEnv)) >>= flip runZAuth za
-
 -- | The function serves as a crutch while Brig is being polysemised. Use it
 -- whenever the compiler complains that there is no instance of `MonadClient`
 -- for `AppT r`. It can be removed once there is no `AppT` anymore.
@@ -602,9 +596,6 @@ runHttpClientIO env =
     . runHttpT (env.httpManager)
     . flip runReaderT env
     . unHttpClientIO
-
-instance MonadZAuth HttpClientIO where
-  liftZAuth za = asks (.zauthEnv) >>= flip runZAuth za
 
 instance HasRequestId HttpClientIO where
   getRequestId = asks (.requestId)

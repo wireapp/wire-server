@@ -85,6 +85,7 @@ import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
@@ -122,6 +123,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.AuthenticationSubsystem as Authentication
+import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
@@ -132,6 +134,7 @@ import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -143,7 +146,10 @@ botAPI ::
   ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input ZAuthEnv) r,
+    Member (Embed IO) r,
+    Member SessionStore r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -189,7 +195,9 @@ providerAPI ::
     Member EmailSending r,
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member (Input ZAuthEnv) r,
+    Member (Embed IO) r
   ) =>
   ServerT ProviderAPI (Handler r)
 providerAPI =
@@ -312,7 +320,9 @@ getPasswordResetCode email = do
 
 login ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input ZAuthEnv) r,
+    Member (Embed IO) r
   ) =>
   ProviderLogin ->
   Handler r ProviderTokenCookie
@@ -323,7 +333,7 @@ login l = do
       >>= maybeBadCredentials
   unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid l.providerLoginPassword)) do
     throwStd (errorToWai @E.BadCredentials)
-  token <- ZAuth.newProviderToken pid
+  token <- lift . liftSem $ ZAuth.newProviderToken pid
   s <- asks (.settings)
   pure $ ProviderTokenCookie (ProviderToken token) (not s.cookieInsecure)
 
@@ -724,7 +734,9 @@ updateServiceWhitelist uid con tid upd = do
 
 addBot ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input ZAuthEnv) r,
+    Member (Embed IO) r
   ) =>
   UserId ->
   ConnId ->
@@ -769,7 +781,7 @@ addBot zuid zcon cid add = do
   -- Prepare a user ID, client ID and token for the bot.
   bid <- BotId <$> randomId
   domain <- viewFederationDomain
-  btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
+  btk <- lift . liftSem $ Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
   let bcl = ClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
   let zQualifiedUid = Qualified zuid domain
@@ -881,7 +893,8 @@ botUpdatePrekeys bot upd = do
 botClaimUsersPrekeys ::
   ( Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   BotId ->
   Public.UserClients ->
