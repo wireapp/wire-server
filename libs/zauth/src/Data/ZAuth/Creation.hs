@@ -51,9 +51,12 @@ data TokenExpiry
 
 data ZAuthCreation m a where
   NewToken :: (SerializableToken t) => TokenExpiry -> Maybe Tag -> Body t -> ZAuthCreation m (Token t)
-  RenewToken :: (SerializableToken t) => Integer -> Header t -> Body t -> ZAuthCreation m (Token t)
 
 makeSem ''ZAuthCreation
+
+renewToken :: (Member ZAuthCreation r, SerializableToken t) => Integer -> Header t -> Body t -> Sem r (Token t)
+renewToken dur hdr bdy = do
+  newToken (TokenExpiresAfter dur) (hdr.tag) bdy
 
 data Env = Env
   { keyIdx :: Int,
@@ -79,7 +82,6 @@ interpretZAuthCreation env =
 interpretZAuthCreationInput :: (Member (Embed IO) r, Member (Input Env) r) => InterpreterFor ZAuthCreation r
 interpretZAuthCreationInput = interpret $ \case
   NewToken tokenTime mTag body -> newTokenImpl tokenTime mTag body
-  RenewToken dur hdr bdy -> renewTokenImpl dur hdr bdy
 
 newTokenImpl :: (Member (Embed IO) r, Member (Input Env) r, SerializableToken t) => TokenExpiry -> Maybe Tag -> Body t -> Sem r (Token t)
 newTokenImpl tokenExpiry mTag a = do
@@ -91,10 +93,6 @@ newTokenImpl tokenExpiry mTag a = do
   let h = Header tokenVersion env.keyIdx (floor tokenTime) mTag
   s <- embed $ signToken env h a
   pure $ Token s h a
-
-renewTokenImpl :: (Member (Input Env) r, Member (Embed IO) r, SerializableToken t) => Integer -> Header t -> Body t -> Sem r (Token t)
-renewTokenImpl dur hdr bdy = do
-  newTokenImpl (TokenExpiresAfter dur) (hdr.tag) bdy
 
 -----------------------------------------------------------------------------
 -- Internal
