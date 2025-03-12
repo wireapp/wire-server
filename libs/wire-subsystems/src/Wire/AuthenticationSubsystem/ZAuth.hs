@@ -6,7 +6,7 @@ import Data.Bits
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text.Encoding qualified as T
 import Data.Time.Clock
@@ -19,8 +19,6 @@ import Data.ZAuth.Token
 import Data.ZAuth.Validation qualified as ZV
 import Imports
 import OpenSSL.Random
-import Polysemy
-import Polysemy.Error
 import Sodium.Crypto.Sign
 import Wire.API.User.Auth (bearerToken)
 import Wire.API.User.Auth qualified as Auth
@@ -68,7 +66,7 @@ defSettings =
     (LegalHoldAccessTokenTimeout (60 * 15)) -- 15 minutes
 
 data Env = Env
-  { private :: !ZC.Env,
+  { private :: !ZC.SigningKey,
     publicKeys :: !(Vector PublicKey),
     settings :: !Settings
   }
@@ -125,9 +123,17 @@ readKeys fp = nonEmpty . map read . filter (not . null) . lines <$> readFile fp
 
 mkEnv :: NonEmpty SecretKey -> NonEmpty PublicKey -> Settings -> IO Env
 mkEnv sk pk sets = do
-  zc <- ZC.mkEnv sets.keyIndex (NonEmpty.head sk) (NonEmpty.tail sk)
+  zc <- createSigningKey sets.keyIndex sk
   let pubKeys = Vector.fromList $ NonEmpty.toList pk
   pure $! Env zc pubKeys sets
+
+createSigningKey :: Int -> NonEmpty SecretKey -> IO ZC.SigningKey
+createSigningKey i keys = do
+  let signingKey =
+        if i > 0 && i <= length keys
+          then keys NonEmpty.!! (i - 1)
+          else error "keyIndex out of range"
+  pure $ ZC.SigningKey i signingKey
 
 class (Body t ~ Access, SerializableToken t) => AccessTokenLike t where
   renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token t -> m Auth.AccessToken
@@ -159,33 +165,24 @@ instance UserTokenLike LU where
   newSessionToken _ _ = throwM ZV.Unsupported
   userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
 
-runCreate :: ZC.Env -> Sem '[ZC.ZAuthCreation, Embed IO] a -> IO a
-runCreate env = runM . ZC.interpretZAuthCreation env
-
 mkUserToken :: (MonadZAuth m, SerializableToken t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token t)
 mkUserToken u cid r t = liftZAuth $ do
   z <- ask
-  liftIO $
-    runCreate z.private $
-      ZC.newToken (TokenExpiresAt (utcTimeToPOSIXSeconds t)) Nothing (User (toUUID u) (fmap clientToText cid) r)
+  ZC.newToken z.private (TokenExpiresAt (utcTimeToPOSIXSeconds t)) Nothing (User (toUUID u) (fmap clientToText cid) r)
 
 newUserToken :: forall t m. (MonadZAuth m, UserTokenLike t) => UserId -> Maybe ClientId -> m (Token t)
 newUserToken u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
-  liftIO $
-    runCreate z.private $
-      let ttl = userTTL @t z.settings
-       in ZC.newToken (TokenExpiresAfter ttl) Nothing $ User (toUUID u) (fmap clientToText c) r
+  let ttl = userTTL @t z.settings
+   in ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $ User (toUUID u) (fmap clientToText c) r
 
 newSessionToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token U)
 newSessionToken' u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
-  liftIO $
-    runCreate z.private $
-      let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout
-       in ZC.newToken (TokenExpiresAfter ttl) (Just S) $ User (toUUID u) (fmap clientToText c) r
+  let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout
+   in ZC.newToken z.private (TokenExpiresAfter ttl) (Just S) $ User (toUUID u) (fmap clientToText c) r
 
 newAccessToken ::
   forall t m.
@@ -194,53 +191,46 @@ newAccessToken ::
   m Auth.AccessToken
 newAccessToken xt = liftZAuth $ do
   z <- ask
-  liftIO $
-    runCreate z.private $ do
-      let ttl = accessTTL @(AccessTokenType t) z.settings
-      -- TODO: Test that connId is randomly generated, there was a test in
-      -- zauth, which got deleted as a result of moving this code here.
-      connId <- liftIO randomConnId
-      accessToken :: (Token A) <-
-        ZC.newToken (TokenExpiresAfter ttl) Nothing $
-          Access xt.body.user xt.body.client connId
-      pure $
-        bearerToken
-          (Id accessToken.body.userId)
-          (toByteString accessToken)
-          ttl
+  let ttl = accessTTL @(AccessTokenType t) z.settings
+  -- TODO: Test that connId is randomly generated, there was a test in
+  -- zauth, which got deleted as a result of moving this code here.
+  connId <- liftIO randomConnId
+  accessToken :: (Token A) <-
+    ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $
+      Access xt.body.user xt.body.client connId
+  pure $
+    bearerToken
+      (Id accessToken.body.userId)
+      (toByteString accessToken)
+      ttl
 
 renewAccessToken' :: (MonadZAuth m) => Maybe ClientId -> Token A -> m Auth.AccessToken
 renewAccessToken' mcid old = liftZAuth $ do
   z <- ask
-  liftIO $
-    runCreate z.private $ do
-      let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
-      new <-
-        ZC.renewToken
-          ttl
-          (old.header)
-          (old.body {clientId = fmap clientToText mcid})
-      pure $
-        bearerToken
-          (Id new.body.userId)
-          (toByteString new)
-          ttl
+  let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
+  new <-
+    ZC.renewToken
+      z.private
+      ttl
+      (old.header)
+      (old.body {clientId = fmap clientToText mcid})
+  pure $
+    bearerToken
+      (Id new.body.userId)
+      (toByteString new)
+      ttl
 
 newBotToken :: (MonadZAuth m) => ProviderId -> BotId -> ConvId -> m (Token B)
 newBotToken pid bid cid = liftZAuth $ do
   z <- ask
-  liftIO $
-    runCreate z.private $
-      ZC.newToken TokenNeverExpires Nothing $
-        Bot (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
+  ZC.newToken z.private TokenNeverExpires Nothing $
+    Bot (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
 
 newProviderToken :: (MonadZAuth m) => ProviderId -> m (Token P)
 newProviderToken pid = liftZAuth $ do
   z <- ask
-  liftIO $
-    runCreate z.private $
-      let ProviderTokenTimeout ttl = z.settings.providerTokenTimeout
-       in ZC.newToken (TokenExpiresAfter ttl) Nothing $ Provider (toUUID pid)
+  let ProviderTokenTimeout ttl = z.settings.providerTokenTimeout
+   in ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $ Provider (toUUID pid)
 
 renewLegalHoldAccessToken ::
   (MonadZAuth m) =>
@@ -249,15 +239,13 @@ renewLegalHoldAccessToken ::
   m Auth.AccessToken
 renewLegalHoldAccessToken _mcid old = liftZAuth $ do
   z <- ask
-  liftIO $
-    runCreate z.private $ do
-      let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
-      new <- ZC.renewToken ttl (old.header) (old.body)
-      pure $
-        bearerToken
-          (Id new.body.userId)
-          (toByteString new)
-          ttl
+  let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
+  new <- ZC.renewToken z.private ttl (old.header) (old.body)
+  pure $
+    bearerToken
+      (Id new.body.userId)
+      (toByteString new)
+      ttl
 
 validateToken ::
   (MonadZAuth m, SerializableToken t) =>
@@ -265,11 +253,7 @@ validateToken ::
   m (Either ZV.Failure ())
 validateToken t = liftZAuth $ do
   z <- ask
-  liftIO
-    . runM
-    . runError
-    . ZV.interpretZAuthValidation z.publicKeys
-    $ ZV.check t
+  ZV.check z.publicKeys t
 
 userTokenClient :: User -> Maybe ClientId
 userTokenClient u = fromByteString . T.encodeUtf8 =<< u.client

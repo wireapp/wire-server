@@ -1,6 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,21 +16,18 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Data.ZAuth.Validation
-  ( ZAuthValidation,
-    interpretZAuthValidation,
-    Failure (..),
+  ( Failure (..),
     check,
   )
 where
 
+import Control.Error (runExceptT, throwE)
 import Data.ByteString.Conversion
 import Data.Time.Clock.POSIX
 import Data.Vector (Vector, (!))
 import Data.Vector qualified as Vec
 import Data.ZAuth.Token
 import Imports
-import Polysemy
-import Polysemy.Error
 import Sodium.Crypto.Sign (PublicKey, verifyWith)
 
 data Failure
@@ -49,30 +43,21 @@ data Failure
 
 instance Exception Failure
 
-data ZAuthValidation m a where
-  Check :: (ToByteString (Header t), ToByteString (Body t)) => Token t -> ZAuthValidation m ()
-
-makeSem ''ZAuthValidation
-
-interpretZAuthValidation :: (Member (Error Failure) r, Member (Embed IO) r) => Vector PublicKey -> InterpreterFor ZAuthValidation r
-interpretZAuthValidation pubKeys = interpret $ \case
-  Check tok -> checkImpl pubKeys tok
-
-checkImpl :: (ToByteString (Header t), ToByteString (Body t), Member (Error Failure) r, Member (Embed IO) r) => Vector PublicKey -> Token t -> Sem r ()
-checkImpl pubKeys t = do
+check :: (SerializableToken t, MonadIO m) => Vector PublicKey -> Token t -> m (Either Failure ())
+check pubKeys t = runExceptT $ do
   let dat = toByteString' $ writeData t.header t.body
   let k = t.header.key
   when (k < 1 || k > Vec.length pubKeys) $
-    throw Invalid
+    throwE Invalid
   ok <- liftIO $ verifyWith (pubKeys ! (k - 1)) t.signature dat
   unless ok $
-    throw Falsified
+    throwE Falsified
   isExpired <-
     if t.header.time == -1
       then pure False
       else (t.header.time <) <$> now
   when isExpired $
-    throw Expired
+    throwE Expired
 
 now :: (MonadIO m) => m Integer
 now = floor <$> liftIO getPOSIXTime
