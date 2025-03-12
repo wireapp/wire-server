@@ -83,7 +83,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
     :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
     :<|> IFeatureStatusLockStatusPut ChannelsConfig
-    :<|> IFeatureStatusLockStatusPut PydioConfig
+    :<|> IFeatureStatusLockStatusPut CellsConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"

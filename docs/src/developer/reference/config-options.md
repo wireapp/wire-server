@@ -530,13 +530,13 @@ domainRegistration:
     lockStatus: locked
 ```
 
-### Pydio
+### Cells
 
-This feature flag enables pydio integration in wire-server. By default, it is disabled and locked. When enabled, it allows changing the pydio state of a conversation.
+This feature flag enables cells integration in wire-server. By default, it is disabled and locked. When enabled, it allows changing the cells state of a conversation.
 
 ```yaml
 # galley.yaml
-pydio:
+cells:
   defaults:
     status: disabled
     lockStatus: locked

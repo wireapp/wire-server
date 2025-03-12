@@ -289,7 +289,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
     <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
     <@> mkNamedAPI @'("ilock", ChannelsConfig) (updateLockStatus @ChannelsConfig)
-    <@> mkNamedAPI @'("ilock", PydioConfig) (updateLockStatus @PydioConfig)
+    <@> mkNamedAPI @'("ilock", CellsConfig) (updateLockStatus @CellsConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 

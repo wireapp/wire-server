@@ -130,6 +130,7 @@ library
     Test.ExternalPartner
     Test.FeatureFlags
     Test.FeatureFlags.AppLock
+    Test.FeatureFlags.Cells
     Test.FeatureFlags.Channels
     Test.FeatureFlags.ClassifiedDomains
     Test.FeatureFlags.ConferenceCalling
@@ -144,7 +145,6 @@ library
     Test.FeatureFlags.MlsE2EId
     Test.FeatureFlags.MlsMigration
     Test.FeatureFlags.OutlookCalIntegration
-    Test.FeatureFlags.Pydio
     Test.FeatureFlags.SearchVisibilityAvailable
     Test.FeatureFlags.SearchVisibilityInbound
     Test.FeatureFlags.SelfDeletingMessages

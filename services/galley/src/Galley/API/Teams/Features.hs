@@ -462,4 +462,4 @@ instance SetFeatureConfig LimitedEventFanoutConfig
 
 instance SetFeatureConfig DomainRegistrationConfig
 
-instance SetFeatureConfig PydioConfig
+instance SetFeatureConfig CellsConfig

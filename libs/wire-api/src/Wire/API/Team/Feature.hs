@@ -84,7 +84,7 @@ module Wire.API.Team.Feature
     EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
-    PydioConfig (..),
+    CellsConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -238,7 +238,7 @@ data FeatureSingleton cfg where
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
   FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
-  FeatureSingletonPydioConfig :: FeatureSingleton PydioConfig
+  FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
 
 type family DeprecatedFeatureName cfg :: Symbol
 
@@ -1407,25 +1407,25 @@ instance IsFeatureConfig DomainRegistrationConfig where
   objectSchema = pure DomainRegistrationConfig
 
 --------------------------------------------------------------------------------
--- Pydio feature
+-- Cells feature
 
 -- | This feature does not have a PUT endpoint. See [Note: unsettable features].
-data PydioConfig = PydioConfig
+data CellsConfig = CellsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (Arbitrary) via (GenericUniform PydioConfig)
-  deriving (RenderableSymbol) via (RenderableTypeName PydioConfig)
-  deriving (Default, ParseDbFeature) via (TrivialFeature PydioConfig)
+  deriving (Arbitrary) via (GenericUniform CellsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName CellsConfig)
+  deriving (Default, ParseDbFeature) via (TrivialFeature CellsConfig)
 
-instance ToSchema PydioConfig where
-  schema = object "PydioConfig" objectSchema
+instance ToSchema CellsConfig where
+  schema = object "CellsConfig" objectSchema
 
-instance Default (LockableFeature PydioConfig) where
+instance Default (LockableFeature CellsConfig) where
   def = defLockedFeature
 
-instance IsFeatureConfig PydioConfig where
-  type FeatureSymbol PydioConfig = "pydio"
-  featureSingleton = FeatureSingletonPydioConfig
-  objectSchema = pure PydioConfig
+instance IsFeatureConfig CellsConfig where
+  type FeatureSymbol CellsConfig = "cells"
+  featureSingleton = FeatureSingletonCellsConfig
+  objectSchema = pure CellsConfig
 
 ----------------------------------------------------------------------
 -- FeatureStatus
@@ -1512,7 +1512,7 @@ type Features =
     LimitedEventFanoutConfig,
     DomainRegistrationConfig,
     ChannelsConfig,
-    PydioConfig
+    CellsConfig
   ]
 
 -- | list of available features as a record

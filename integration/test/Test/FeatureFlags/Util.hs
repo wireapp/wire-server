@@ -148,7 +148,7 @@ defAllFeatures =
                   "allowed_to_open_channels" .= "team-members"
                 ]
           ],
-      "pydio" .= disabledLocked
+      "cells" .= disabledLocked
     ]
 
 hasExplicitLockStatus :: String -> Bool
