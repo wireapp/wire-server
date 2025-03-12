@@ -152,6 +152,7 @@ import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
+import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
@@ -175,8 +176,10 @@ import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
+import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
@@ -383,7 +386,11 @@ servantSitemap ::
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
     Member RateLimit r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member (Input ZAuthEnv) r,
+    Member SessionStore r,
+    Member (Input Env) r,
+    Member Metrics r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -614,7 +621,7 @@ listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler 
 listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
-  (Member DeleteQueue r) =>
+  (Member DeleteQueue r, Member SessionStore r) =>
   UserId ->
   UserId ->
   ClientId ->
@@ -624,7 +631,7 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  (Member DeleteQueue r) =>
+  (Member DeleteQueue r, Member SessionStore r) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
@@ -644,7 +651,8 @@ getPrekeyBundleH zusr (Qualified uid domain) =
 
 getMultiUserPrekeyBundleUnqualifiedH ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   UserId ->
   Public.UserClients ->
@@ -670,7 +678,8 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
 
 getMultiUserPrekeyBundleHV3 ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -681,7 +690,8 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
 
 getMultiUserPrekeyBundleH ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -698,7 +708,8 @@ addClient ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -713,7 +724,8 @@ addClient lusr con new = do
 
 deleteClient ::
   ( Member AuthenticationSubsystem r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   UserId ->
   ConnId ->
@@ -856,7 +868,10 @@ createUser ::
     Member HashPassword r,
     Member EmailSending r,
     Member ActivationCodeStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member (Input ZAuthEnv) r,
+    Member (Embed IO) r,
+    Member SessionStore r
   ) =>
   IpAddr ->
   Public.NewUserPublic ->
@@ -898,10 +913,10 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
   cok <-
     Auth.toWebCookie =<< case userStatus acc of
       Public.Ephemeral ->
-        lift . wrapHttpClient $
+        lift . liftSem $
           Auth.newCookie @ZAuth.U userId Nothing Public.SessionCookie newUserLabel
       _ ->
-        lift . wrapHttpClient $
+        lift . liftSem $
           Auth.newCookie @ZAuth.U userId Nothing Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
@@ -1090,7 +1105,8 @@ changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SessionStore r
   ) =>
   UserId ->
   Public.PasswordChange ->
@@ -1366,7 +1382,8 @@ deleteSelfUser ::
     Member PropertySubsystem r,
     Member Events r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
@@ -1383,7 +1400,8 @@ verifyDeleteUser ::
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member SessionStore r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()

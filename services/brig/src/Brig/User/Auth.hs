@@ -78,6 +78,10 @@ import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.Sem.Concurrency
+import Wire.Sem.Metrics (Metrics)
+import Wire.Sem.Now (Now)
+import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)
@@ -98,7 +102,13 @@ login ::
     Member UserStore r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input Env) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member (Embed IO) r
   ) =>
   Login ->
   CookieType ->
@@ -193,13 +203,13 @@ withRetryLimit action uid = do
     action bkey budget
 
 logout ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member (Embed IO) r, Member SessionStore r) =>
   List1 (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
 logout uts at = do
   (u, ck) <- validateTokens uts (Just at)
-  lift $ wrapClient $ revokeCookies u [cookieId ck] []
+  lift . liftSem $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
   forall r u a.
@@ -208,7 +218,13 @@ renewAccess ::
     Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
-    ZAuth.AccessTokenType u ~ a
+    ZAuth.AccessTokenType u ~ a,
+    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Embed IO) r,
+    Member (Input Env) r,
+    Member Metrics r,
+    Member SessionStore r,
+    Member (Concurrency Unsafe) r
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -219,14 +235,16 @@ renewAccess uts at mcid = do
   wrapClientE $ traverse_ (checkClientId uid) mcid
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
-  ck' <- wrapHttpClientE $ nextCookie ck mcid
-  at' <- lift $ newAccessToken (fromMaybe ck ck') at
-  pure $ Access at' ck'
+  mapExceptT liftSem $ do
+    ck' <- nextCookie ck mcid
+    at' <- lift $ newAccessToken (fromMaybe ck ck') at
+    pure $ Access at' ck'
 
 revokeAccess ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->
@@ -241,7 +259,7 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
   unless isSaml do
     (lift . liftSem $ Authentication.authenticateEither u pw)
       >>= either throwE pure
-  lift $ wrapHttpClient $ revokeCookies u cc ll
+  lift $ liftSem $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
 -- Internal
@@ -249,7 +267,9 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
 catchSuspendInactiveUser ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Concurrency 'Unsafe) r,
+    Member SessionStore r
   ) =>
   UserId ->
   e ->
@@ -277,7 +297,13 @@ newAccess ::
     Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
-    ZAuth.AccessTokenType u ~ a
+    ZAuth.AccessTokenType u ~ a,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input Env) r,
+    Member Now r,
+    Member (Embed IO) r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -286,11 +312,11 @@ newAccess ::
   ExceptT LoginError (AppT r) (Access u)
 newAccess uid cid ct cl = do
   catchSuspendInactiveUser uid LoginSuspended
-  r <- lift $ wrapHttpClient $ newCookieLimited uid cid ct cl
+  r <- lift $ liftSem $ newCookieLimited uid cid ct cl
   case r of
     Left delay -> throwE $ LoginThrottled delay
     Right ck -> do
-      t <- lift $ newAccessToken @u @a ck Nothing
+      t <- lift . liftSem $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
 resolveLoginId ::
@@ -357,7 +383,7 @@ isPendingActivation ident = case ident of
 --   given, we perform the usual checks.
 --   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member (Embed IO) r) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -376,16 +402,16 @@ validateTokens uts at = do
       _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member (Embed IO) r) =>
   ZAuth.Token u ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
 validateToken ut at = do
   unless (maybe True ((ut.body.user ==) . (.body.userId)) at) $
     throwE ZAuth.Invalid
-  ExceptT (ZAuth.validateToken ut)
+  ExceptT . liftSem $ ZAuth.validateToken ut
   forM_ at $ \token ->
-    ExceptT (ZAuth.validateToken token)
+    ExceptT (liftSem $ ZAuth.validateToken token)
       `catchE` \e ->
         unless (e == ZAuth.Expired) (throwE e)
   ck <- lift (wrapClient $ lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) pure
@@ -396,7 +422,13 @@ ssoLogin ::
   ( Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input Env) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member (Embed IO) r
   ) =>
   SsoLogin ->
   CookieType ->
@@ -429,7 +461,13 @@ legalHoldLogin ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input Env) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member (Embed IO) r
   ) =>
   LegalHoldLogin ->
   CookieType ->

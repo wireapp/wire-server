@@ -51,12 +51,16 @@ import Wire.API.User.Auth.Sso
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
-import Wire.AuthenticationSubsystem.ZAuth hiding (Env, settings)
+import Wire.AuthenticationSubsystem.ZAuth hiding (settings)
 import Wire.BlockListStore
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess
+import Wire.Sem.Concurrency
+import Wire.Sem.Metrics (Metrics)
+import Wire.Sem.Now (Now)
+import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -69,7 +73,13 @@ import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 accessH ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Input ZAuthEnv) r,
+    Member (Input Env) r,
+    Member (Embed IO) r,
+    Member Metrics r,
+    Member SessionStore r,
+    Member (Concurrency Unsafe) r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -87,7 +97,13 @@ access ::
     Member Events r,
     UserTokenLike u,
     AccessTokenLike a,
-    AccessTokenType u ~ a
+    AccessTokenType u ~ a,
+    Member (Input ZAuthEnv) r,
+    Member (Embed IO) r,
+    Member Metrics r,
+    Member SessionStore r,
+    Member (Concurrency Unsafe) r,
+    Member (Input Env) r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -112,7 +128,13 @@ login ::
     Member UserSubsystem r,
     Member ActivationCodeStore r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input ZAuthEnv) r,
+    Member (Input Env) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member (Embed IO) r
   ) =>
   Login ->
   Maybe Bool ->
@@ -123,6 +145,7 @@ login l (fromMaybe False -> persist) = do
   traverse mkUserTokenCookie c
 
 logoutH ::
+  (Member (Input ZAuthEnv) r, Member (Embed IO) r, Member SessionStore r) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   Handler r ()
@@ -132,7 +155,7 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (UserTokenLike u, AccessTokenLike a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (UserTokenLike u, AccessTokenLike a, Member (Input ZAuthEnv) r, Member (Embed IO) r, Member SessionStore r) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
@@ -147,7 +170,9 @@ changeSelfEmail ::
     Member (Input UserSubsystemConfig) r,
     Member TinyLog r,
     Member DomainRegistrationStore r,
-    Member SparAPIAccess r
+    Member SparAPIAccess r,
+    Member (Input ZAuthEnv) r,
+    Member (Embed IO) r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -164,7 +189,7 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (UserTokenLike u, AccessTokenLike a) =>
+  (UserTokenLike u, AccessTokenLike a, Member (Input ZAuthEnv) r, Member (Embed IO) r) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
@@ -180,7 +205,8 @@ listCookies lusr (fold -> labels) =
 removeCookies ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   RemoveCookies ->
@@ -193,7 +219,13 @@ legalHoldLogin ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input ZAuthEnv) r,
+    Member (Input Env) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member (Embed IO) r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -206,7 +238,13 @@ ssoLogin ::
   ( Member TinyLog r,
     Member AuthenticationSubsystem r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Input ZAuthEnv) r,
+    Member (Input Env) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member (Embed IO) r
   ) =>
   SsoLogin ->
   Maybe Bool ->
