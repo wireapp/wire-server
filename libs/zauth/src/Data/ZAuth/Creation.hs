@@ -36,7 +36,6 @@ module Data.ZAuth.Creation
 where
 
 import Data.ByteString.Builder (toLazyByteString)
-import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Time.Clock.POSIX
 import Data.ZAuth.Token hiding (signature)
@@ -51,8 +50,8 @@ data TokenExpiry
   | TokenNeverExpires
 
 data ZAuthCreation m a where
-  NewToken :: (ToByteString (Body t), KnownType t) => TokenExpiry -> Maybe Tag -> Body t -> ZAuthCreation m (Token t)
-  RenewToken :: (ToByteString (Body t), KnownType t) => Integer -> Header t -> Body t -> ZAuthCreation m (Token t)
+  NewToken :: (SerializableToken t) => TokenExpiry -> Maybe Tag -> Body t -> ZAuthCreation m (Token t)
+  RenewToken :: (SerializableToken t) => Integer -> Header t -> Body t -> ZAuthCreation m (Token t)
 
 makeSem ''ZAuthCreation
 
@@ -82,7 +81,7 @@ interpretZAuthCreationInput = interpret $ \case
   NewToken tokenTime mTag body -> newTokenImpl tokenTime mTag body
   RenewToken dur hdr bdy -> renewTokenImpl dur hdr bdy
 
-newTokenImpl :: (Member (Embed IO) r, Member (Input Env) r, ToByteString (Body t), KnownType t) => TokenExpiry -> Maybe Tag -> Body t -> Sem r (Token t)
+newTokenImpl :: (Member (Embed IO) r, Member (Input Env) r, SerializableToken t) => TokenExpiry -> Maybe Tag -> Body t -> Sem r (Token t)
 newTokenImpl tokenExpiry mTag a = do
   env <- input
   tokenTime <- case tokenExpiry of
@@ -93,14 +92,14 @@ newTokenImpl tokenExpiry mTag a = do
   s <- embed $ signToken env h a
   pure $ Token s h a
 
-renewTokenImpl :: (Member (Input Env) r, Member (Embed IO) r, KnownType t, ToByteString (Body t)) => Integer -> Header t -> Body t -> Sem r (Token t)
+renewTokenImpl :: (Member (Input Env) r, Member (Embed IO) r, SerializableToken t) => Integer -> Header t -> Body t -> Sem r (Token t)
 renewTokenImpl dur hdr bdy = do
   newTokenImpl (TokenExpiresAfter dur) (hdr.tag) bdy
 
 -----------------------------------------------------------------------------
 -- Internal
 
-signToken :: (ToByteString (Body t), KnownType t) => Env -> Header t -> Body t -> IO Signature
+signToken :: (SerializableToken t) => Env -> Header t -> Body t -> IO Signature
 signToken e h a = do
   liftIO . signature e.key . toStrict . toLazyByteString $ writeData h a
 

@@ -21,6 +21,7 @@
 module Data.ZAuth.Token
   ( -- * Token
     Token (..),
+    SerializableToken,
 
     -- * Header
     Header (..),
@@ -168,7 +169,14 @@ instance (KnownType t, ReadProperties (Body t)) => FromByteString (Token t) wher
         Nothing -> fail "Invalid token"
         Just t -> pure t
 
-instance (ToByteString (Body t), KnownType t) => ToByteString (Token t) where
+-- | Litte alias to help with reducing constraints. These constraints come
+-- together in many places because the 'Header' and 'Body' need to be serialized
+-- separately from the 'Token' for signing.
+--
+-- Perhaps it'd be better to just have a special type for an unsigned token.
+type SerializableToken t = (ToByteString (Header t), ToByteString (Body t))
+
+instance (SerializableToken t) => ToByteString (Token t) where
   builder = writeToken
 
 -----------------------------------------------------------------------------
@@ -236,26 +244,26 @@ instance ReadProperties Provider where
 -----------------------------------------------------------------------------
 -- Writing
 
-writeToken :: (ToByteString (Body t), KnownType t) => Token t -> Builder
+writeToken :: (ToByteString (Body t), ToByteString (Header t)) => Token t -> Builder
 writeToken t =
   byteString (encode (sigBytes (t.signature)))
     <> dot
     <> writeData (t.header) (t.body)
 
-writeData :: (ToByteString (Body t), KnownType t) => Header t -> Body t -> Builder
-writeData h a = writeHeader h <> dot <> builder a
+writeData :: (SerializableToken t) => Header t -> Body t -> Builder
+writeData h a = builder h <> dot <> builder a
 
-writeHeader :: forall t. (KnownType t) => Header t -> Builder
-writeHeader h =
-  field "v" h.version
-    <> dot
-    <> field "k" h.key
-    <> dot
-    <> field "d" h.time
-    <> dot
-    <> field "t" (typeVal @t)
-    <> dot
-    <> field "l" (foldMap builder (h.tag))
+instance (KnownType t) => ToByteString (Header t) where
+  builder h =
+    field "v" h.version
+      <> dot
+      <> field "k" h.key
+      <> dot
+      <> field "d" h.time
+      <> dot
+      <> field "t" (typeVal @t)
+      <> dot
+      <> field "l" (foldMap builder (h.tag))
 
 instance ToByteString Access where
   builder t =

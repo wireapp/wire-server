@@ -87,8 +87,6 @@ access ::
     Member Events r,
     UserTokenLike u,
     AccessTokenLike a,
-    ZAuth.KnownType u,
-    ZAuth.KnownType a,
     AccessTokenType u ~ a
   ) =>
   Maybe ClientId ->
@@ -134,7 +132,7 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (UserTokenLike u, AccessTokenLike a, ZAuth.KnownType u, ZAuth.KnownType a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (UserTokenLike u, AccessTokenLike a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
@@ -166,7 +164,7 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (UserTokenLike u, AccessTokenLike a, ZAuth.KnownType u, ZAuth.KnownType a) =>
+  (UserTokenLike u, AccessTokenLike a) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId

@@ -69,8 +69,7 @@ newCookie ::
   ( ZAuth.UserTokenLike u,
     MonadReader Env m,
     ZAuth.MonadZAuth m,
-    MonadClient m,
-    ZAuth.KnownType u
+    MonadClient m
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -100,7 +99,6 @@ newCookie uid cid typ label = do
 -- exceeds the configured minimum threshold.
 nextCookie ::
   ( ZAuth.UserTokenLike u,
-    ZAuth.KnownType u,
     MonadReader Env m,
     Log.MonadLogger m,
     ZAuth.MonadZAuth m,
@@ -146,8 +144,7 @@ renewCookie ::
   ( ZAuth.UserTokenLike u,
     MonadReader Env m,
     ZAuth.MonadZAuth m,
-    MonadClient m,
-    ZAuth.KnownType u
+    MonadClient m
   ) =>
   Cookie (ZAuth.Token u) ->
   Maybe ClientId ->
@@ -234,8 +231,7 @@ newCookieLimited ::
   ( ZAuth.UserTokenLike t,
     MonadReader Env m,
     MonadClient m,
-    ZAuth.MonadZAuth m,
-    ZAuth.KnownType t
+    ZAuth.MonadZAuth m
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -259,7 +255,7 @@ newCookieLimited u c typ label = do
 --------------------------------------------------------------------------------
 -- HTTP
 
-toWebCookie :: (MonadReader Env m, ZAuth.UserTokenLike u, ZAuth.KnownType u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
+toWebCookie :: (MonadReader Env m, ZAuth.UserTokenLike u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
 toWebCookie c = do
   s <- asks (.settings)
   pure $
