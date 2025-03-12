@@ -64,6 +64,8 @@ module Wire.API.Conversation
 
     -- * create
     NewConv (..),
+    GroupConvType (..),
+    NewOne2OneConv (..),
     ConvTeamInfo (..),
 
     -- * invite
@@ -136,7 +138,8 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode
+    cnvmReceiptMode :: Maybe ReceiptMode,
+    cnvmGroupConvType :: Maybe GroupConvType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -152,7 +155,8 @@ defConversationMetadata mCreator =
       cnvmName = Nothing,
       cnvmTeam = Nothing,
       cnvmMessageTimer = Nothing,
-      cnvmReceiptMode = Nothing
+      cnvmReceiptMode = Nothing,
+      cnvmGroupConvType = Just GroupConversation
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -212,6 +216,7 @@ conversationMetadataObjectSchema sch =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+    <*> cnvmGroupConvType .= optField "group_conv_type" (maybeWithDefault A.Null schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
@@ -657,6 +662,19 @@ instance ToSchema ReceiptMode where
 --------------------------------------------------------------------------------
 -- create
 
+data GroupConvType = GroupConversation | Channel
+  deriving stock (Eq, Show, Generic, Enum)
+  deriving (Arbitrary) via (GenericUniform GroupConvType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GroupConvType
+
+instance ToSchema GroupConvType where
+  schema =
+    enum @Text "GroupConvType" $
+      mconcat
+        [ element "group_conversation" GroupConversation,
+          element "channel" Channel
+        ]
+
 data NewConv = NewConv
   { newConvUsers :: [UserId],
     -- | A list of qualified users, which can include some local qualified users
@@ -671,7 +689,8 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: BaseProtocolTag
+    newConvProtocol :: BaseProtocolTag,
+    newConvGroupConvType :: GroupConvType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -737,6 +756,7 @@ newConvSchema v sch =
         .= fmap
           (fromMaybe BaseProtocolProteusTag)
           (optField "protocol" schema)
+      <*> newConvGroupConvType .= (fromMaybe GroupConversation <$> optField "group_conv_type" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \
@@ -780,6 +800,56 @@ instance ToSchema ConvTeamInfo where
     where
       c :: (ToJSON a) => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
+
+data NewOne2OneConv = NewOne2OneConv
+  { users :: [UserId],
+    -- | A list of qualified users, which can include some local qualified users
+    -- too.
+    qualifiedUsers :: [Qualified UserId],
+    name :: Maybe (Range 1 256 Text),
+    team :: Maybe ConvTeamInfo
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewOne2OneConv)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewOne2OneConv)
+
+instance ToSchema NewOne2OneConv where
+  schema =
+    objectWithDocModifier
+      "NewOne2OneConv"
+      (description ?~ "JSON object to create a new 1:1 conversation. When using 'qualified_users' (preferred), you can omit 'users'")
+      $ NewOne2OneConv
+        <$> users
+          .= ( fieldWithDocModifier
+                 "users"
+                 ( (S.deprecated ?~ True)
+                     . (description ?~ usersDesc)
+                 )
+                 (array schema)
+                 <|> pure []
+             )
+        <*> (.qualifiedUsers)
+          .= ( fieldWithDocModifier
+                 "qualified_users"
+                 (description ?~ qualifiedUsersDesc)
+                 (array schema)
+                 <|> pure []
+             )
+        <*> name .= maybe_ (optField "name" schema)
+        <*> team
+          .= maybe_
+            ( optFieldWithDocModifier
+                "team"
+                (description ?~ "Team information of this conversation")
+                schema
+            )
+    where
+      usersDesc =
+        "List of user IDs (excluding the requestor) to be \
+        \part of this conversation (deprecated)"
+      qualifiedUsersDesc =
+        "List of qualified user IDs (excluding the requestor) \
+        \to be part of this conversation"
 
 --------------------------------------------------------------------------------
 -- invite

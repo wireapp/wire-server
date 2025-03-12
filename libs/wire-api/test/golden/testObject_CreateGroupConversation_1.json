@@ -3,6 +3,7 @@
     "access_role": [],
     "creator": "00000001-0000-0001-0000-000200000001",
     "failed_to_add": [],
+    "group_conv_type": null,
     "id": "00000001-0000-0000-0000-000000000000",
     "last_event": "0.0",
     "last_event_time": "1970-01-01T00:00:00.000Z",

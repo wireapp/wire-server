@@ -145,6 +145,8 @@ data GalleyError
     BulkGetMemberLimitExceeded
   | -- Team Notification errors
     InvalidTeamNotificationId
+  | ChannelsNotEnabled
+  | NotAnMlsConversation
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -328,6 +330,10 @@ type instance MapError 'UserLegalHoldNotPending = 'StaticError 412 "legalhold-no
 type instance MapError 'NoLegalHoldDeviceAllocated = 'StaticError 404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
 
 type instance MapError 'LegalHoldCouldNotBlockConnections = 'StaticError 500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
+
+type instance MapError 'ChannelsNotEnabled = 'StaticError 403 "channels-not-enabled" "The channels feature is not enabled for this team"
+
+type instance MapError 'NotAnMlsConversation = 'StaticError 403 "not-mls-conversation" "This operation requires an MLS conversation"
 
 --------------------------------------------------------------------------------
 -- Team Member errors

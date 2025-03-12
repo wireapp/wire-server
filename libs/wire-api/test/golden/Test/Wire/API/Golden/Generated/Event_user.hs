@@ -156,7 +156,8 @@ testObject_Event_user_8 =
                     cnvmName = Just "\a\SO\r",
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 283898987885780}),
-                    cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
+                    cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -1}),
+                    cnvmGroupConvType = Just GroupConversation
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =
