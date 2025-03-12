@@ -922,8 +922,8 @@ For a multi-ingress setup multiple services need to be configured:
 
 nginz sets [CORS
 headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS). To generate
-them for multiple domains (usually, *nginz* works with only one root domain)
-these need to be defined with `nginx_conf.additional_external_env_domains`.
+them for multiple domains (usually, *nginz* works with only one root domain `nginx_conf.external_env_domain`)
+these need to be defined with `nginx_conf.additional_external_env_domains`. 
 
 E.g.
 
@@ -935,13 +935,16 @@ nginx_conf:
     - blue.example.net
 ```
 
+### Note:
+- To enable clients other than the web interface, configure the [deeplinks for each additional domain](../../understand/associate/deeplink.md#host-deeplinks-for-a-multi-ingress-setup). The default deep link will not respond to other domains.
+
 ### Cannon
 
 *cannon* sets [CORS
 headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) for direct API
 accesses by clients. To generate them for multiple domains (usually, *cannon*
 works with only one root domain) these need to be defined with
-`nginx_conf.additional_external_env_domains`.
+`nginx_conf.additional_external_env_domains`. 
 
 E.g.
 
