@@ -67,6 +67,7 @@ data ConfigRaw = ConfigRaw
     _cfgRawSPSsoURI :: Maybe URI,
     _cfgRawContacts :: Maybe [ContactPerson]
   }
+  deriving (Show)
 
 instance ToSchema ConfigRaw where
   schema =
@@ -119,10 +120,48 @@ instance ToSchema Config where
   schema = u .= ((schema @ConfigRaw) `withParser` p)
     where
       p :: ConfigRaw -> Yaml.Parser Config
-      p = _
+      p config@(ConfigRaw {..}) =
+        case (_cfgRawDomainConfigs, _cfgRawSPAppURI, _cfgRawSPSsoURI, _cfgRawContacts) of
+          (Nothing, Just _cfgSPAppURI, Just _cfgSPSsoURI, Just _cfgContacts) ->
+            pure
+              Config
+                { _cfgLogLevel = _cfgRawLogLevel,
+                  _cfgSPHost = _cfgRawSPHost,
+                  _cfgSPPort = _cfgRawSPPort,
+                  _cfgDomainConfigs = Left MultiIngressDomainConfig {..}
+                }
+          (Just domainConfigsMap, Nothing, Nothing, Nothing) ->
+            pure
+              Config
+                { _cfgLogLevel = _cfgRawLogLevel,
+                  _cfgSPHost = _cfgRawSPHost,
+                  _cfgSPPort = _cfgRawSPPort,
+                  _cfgDomainConfigs = Right domainConfigsMap
+                }
+          _ -> fail $ "Cannot parse to Config from ConfigRaw: " ++ show config
 
       u :: Config -> ConfigRaw
-      u = _
+      u (Config {..}) = case _cfgDomainConfigs of
+        Left MultiIngressDomainConfig {..} ->
+          ConfigRaw
+            { _cfgRawLogLevel = _cfgLogLevel,
+              _cfgRawSPHost = _cfgSPHost,
+              _cfgRawSPPort = _cfgSPPort,
+              _cfgRawDomainConfigs = Nothing,
+              _cfgRawSPAppURI = Just _cfgSPAppURI,
+              _cfgRawSPSsoURI = Just _cfgSPSsoURI,
+              _cfgRawContacts = Just _cfgContacts
+            }
+        Right domainConfigsMap ->
+          ConfigRaw
+            { _cfgRawLogLevel = _cfgLogLevel,
+              _cfgRawSPHost = _cfgSPHost,
+              _cfgRawSPPort = _cfgSPPort,
+              _cfgRawDomainConfigs = Just domainConfigsMap,
+              _cfgRawSPAppURI = Nothing,
+              _cfgRawSPSsoURI = Nothing,
+              _cfgRawContacts = Nothing
+            }
 
 instance ToSchema Level where
   schema =
