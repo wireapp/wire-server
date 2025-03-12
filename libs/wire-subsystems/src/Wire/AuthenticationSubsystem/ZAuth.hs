@@ -129,7 +129,7 @@ mkEnv sk pk sets = do
   let pubKeys = Vector.fromList $ NonEmpty.toList pk
   pure $! Env zc pubKeys sets
 
-class (Body t ~ Access) => AccessTokenLike t where
+class (Body t ~ Access, SerializableToken t) => AccessTokenLike t where
   renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token t -> m Auth.AccessToken
   accessTTL :: Settings -> Integer
 
@@ -141,7 +141,7 @@ instance AccessTokenLike LA where
   renewAccessToken = renewLegalHoldAccessToken
   accessTTL = (.legalHoldAccessTokenTimeout.legalHoldAccessTokenTimeoutSeconds)
 
-class (Body t ~ User, AccessTokenLike (AccessTokenType t)) => UserTokenLike t where
+class (Body t ~ User, AccessTokenLike (AccessTokenType t), SerializableToken t) => UserTokenLike t where
   type AccessTokenType t :: Type
   mkSomeToken :: Token t -> Auth.SomeUserToken
   newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> Maybe ClientId -> m (Token t)
@@ -162,14 +162,14 @@ instance UserTokenLike LU where
 runCreate :: ZC.Env -> Sem '[ZC.ZAuthCreation, Embed IO] a -> IO a
 runCreate env = runM . ZC.interpretZAuthCreation env
 
-mkUserToken :: (MonadZAuth m, KnownType t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token t)
+mkUserToken :: (MonadZAuth m, SerializableToken t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token t)
 mkUserToken u cid r t = liftZAuth $ do
   z <- ask
   liftIO $
     runCreate z.private $
       ZC.newToken (TokenExpiresAt (utcTimeToPOSIXSeconds t)) Nothing (User (toUUID u) (fmap clientToText cid) r)
 
-newUserToken :: forall t m. (MonadZAuth m, UserTokenLike t, KnownType t) => UserId -> Maybe ClientId -> m (Token t)
+newUserToken :: forall t m. (MonadZAuth m, UserTokenLike t) => UserId -> Maybe ClientId -> m (Token t)
 newUserToken u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
@@ -260,7 +260,7 @@ renewLegalHoldAccessToken _mcid old = liftZAuth $ do
           ttl
 
 validateToken ::
-  (MonadZAuth m, ToByteString (Body t), KnownType t) =>
+  (MonadZAuth m, SerializableToken t) =>
   Token t ->
   m (Either ZV.Failure ())
 validateToken t = liftZAuth $ do

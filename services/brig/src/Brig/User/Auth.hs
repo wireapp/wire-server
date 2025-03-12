@@ -193,7 +193,7 @@ withRetryLimit action uid = do
     action bkey budget
 
 logout ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, ZAuth.KnownType u, ZAuth.KnownType a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   List1 (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
@@ -208,8 +208,6 @@ renewAccess ::
     Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
-    ZAuth.KnownType u,
-    ZAuth.KnownType a,
     ZAuth.AccessTokenType u ~ a
   ) =>
   List1 (ZAuth.Token u) ->
@@ -279,8 +277,7 @@ newAccess ::
     Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
-    ZAuth.AccessTokenType u ~ a,
-    ZAuth.KnownType u
+    ZAuth.AccessTokenType u ~ a
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -360,7 +357,7 @@ isPendingActivation ident = case ident of
 --   given, we perform the usual checks.
 --   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, ZAuth.KnownType u, ZAuth.KnownType a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -379,7 +376,7 @@ validateTokens uts at = do
       _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, ZAuth.KnownType u, ZAuth.KnownType a) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
   ZAuth.Token u ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
