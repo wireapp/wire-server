@@ -92,6 +92,7 @@ import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Cells
 import Galley.API.Query qualified as Query
+import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation qualified as Data
@@ -134,6 +135,7 @@ import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
+import Wire.API.Team.Feature
 import Wire.API.User.Client
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
@@ -1681,12 +1683,21 @@ rmBot lusr zcon b = do
         pure $ Updated e
 
 updateCellsState ::
-  (Member ConversationStore r) =>
+  ( Member ConversationStore r,
+    Member (ErrorS ConvNotFound) r,
+    Member (ErrorS InvalidOperation) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
   ConvId ->
   CellsState ->
   Sem r ()
 updateCellsState cnv state = do
-  -- TODO declare event queue when cells is first activated
+  when (state /= CellsDisabled) $ do
+    conv <- E.getConversation cnv >>= noteS @ConvNotFound
+    tid <- noteS @InvalidOperation conv.convMetadata.cnvmTeam
+    feat <- getFeatureForTeam @CellsConfig tid
+    noteS @InvalidOperation $ guard (feat.status == FeatureStatusEnabled)
   E.setConversationCellsState cnv state
 
 -------------------------------------------------------------------------------

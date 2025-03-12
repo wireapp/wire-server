@@ -575,7 +575,9 @@ type IEJPDAPI =
 type ICellsAPI =
   Named
     "set-cells-state"
-    ( "conversations"
+    ( CanThrow ConvNotFound
+        :> CanThrow InvalidOperation
+        :> "conversations"
         :> Capture "conversation" ConvId
         :> "cells-state"
         :> ReqBody '[JSON] CellsState
