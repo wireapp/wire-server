@@ -584,7 +584,7 @@ testInvalidToken z b = do
   where
     errResponse = do
       const 403 === statusCode
-      const (Just "Invalid access token") =~= responseBody
+      const (Just "Invalid token") =~= responseBody
 
 testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
 testMissingCookie z b = do
@@ -688,7 +688,7 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
   put (req . header "Authorization" "xxx")
     !!! errResponse "invalid-credentials" "Invalid authorization scheme"
   put (req . header "Authorization" "Bearer xxx")
-    !!! errResponse "client-error" "Failed reading: Invalid access token"
+    !!! errResponse "client-error" "Failed reading: Invalid token"
   put (req . header "Authorization" ("Bearer " <> BS.toStrict tok.access))
     !!! errResponse "invalid-credentials" "Invalid token"
   where
