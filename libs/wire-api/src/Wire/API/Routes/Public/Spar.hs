@@ -17,9 +17,14 @@
 
 module Wire.API.Routes.Public.Spar where
 
+import Control.Lens ((^.))
+import Data.Domain
 import Data.Id
+import Data.Kind (Type)
 import Data.Proxy
 import Data.Range
+-- TODO: Do we really want to have `cs` in this module?
+import Data.String.Conversions
 import Imports
 import SAML2.WebSSO qualified as SAML
 import Servant
@@ -65,9 +70,9 @@ type APISSO =
     ( --  This deprecated endpoint should be removed at some point. However it does not make a lot of sense to apply our versioning mechanism to it,
       -- as this is not a classic client API endpoint. It is used in the SAML IDP flow and should exist independently of the API version,
       -- and requires a different process for decommissioning. See https://wearezeta.atlassian.net/browse/WPB-15319
-      DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta
+      DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> ZHostOpt :> SAML.APIMeta
     )
-    :<|> Named "sso-team-metadata" ("metadata" :> Capture "team" TeamId :> SAML.APIMeta)
+    :<|> Named "sso-team-metadata" ("metadata" :> ZHostOpt :> Capture "team" TeamId :> SAML.APIMeta)
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
     :<|> APIAuthRespLegacy
@@ -162,17 +167,65 @@ type SsoSettingsGet =
     ( Get '[JSON] SsoSettings
     )
 
-sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m SAML.Issuer
-sparSPIssuer Nothing =
-  SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
-sparSPIssuer (Just tid) =
-  SAML.Issuer <$> SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid
+-- TODO: This can be simplified: Reduce duplication with `sparResponseURI`
+sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> Maybe Domain -> m (Maybe SAML.Issuer)
+sparSPIssuer Nothing mbDomain =
+  SAML.Issuer <$$> getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy) mbDomain
+sparSPIssuer (Just tid) mbDomain =
+  SAML.Issuer <$$> getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid mbDomain
 
-sparResponseURI :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m URI.URI
+sparResponseURI :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> Maybe Domain -> m (Maybe URI.URI)
 sparResponseURI Nothing =
-  SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
+  getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
 sparResponseURI (Just tid) =
-  SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid
+  getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid
+
+getSsoURI ::
+  forall m endpoint api.
+  ( HasCallStack,
+    Functor m,
+    SAML.HasConfig m,
+    IsElem endpoint api,
+    HasLink endpoint,
+    ToHttpApiData (SAML.MkLink endpoint)
+  ) =>
+  Proxy api ->
+  Proxy endpoint ->
+  Maybe Domain ->
+  m (Maybe URI.URI)
+getSsoURI proxyAPI proxyAPIAuthResp mbDomain = (extpath . (^. SAML.cfgSPSsoURI)) <$$> (domainConfig <$> SAML.getConfig)
+  where
+    extpath :: URI.URI -> URI.URI
+    extpath = (SAML.=/ (cs . toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp))
+
+    domainConfig :: SAML.Config -> Maybe SAML.MultiIngressDomainConfig
+    domainConfig config = SAML.getMultiIngressDomainConfig config mbDomain
+
+-- | 'getSsoURI' for links that have one variable path segment.
+--
+-- FUTUREWORK: this is only sometimes what we need.  it would be nice to have a type class with a
+-- method 'getSsoURI' for arbitrary path arities.
+getSsoURI' ::
+  forall endpoint api a (f :: Type -> Type) t.
+  ( Functor f,
+    SAML.HasConfig f,
+    SAML.MkLink endpoint ~ (t -> a),
+    HasLink endpoint,
+    ToHttpApiData a,
+    IsElem endpoint api
+  ) =>
+  Proxy api ->
+  Proxy endpoint ->
+  t ->
+  Maybe Domain ->
+  f (Maybe URI.URI)
+getSsoURI' proxyAPI proxyAPIAuthResp idpid mbDomain = (extpath . (^. SAML.cfgSPSsoURI)) <$$> (domainConfig <$> SAML.getConfig)
+  where
+    extpath :: URI.URI -> URI.URI
+    extpath = (SAML.=/ (cs . toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp idpid))
+
+    domainConfig :: SAML.Config -> Maybe SAML.MultiIngressDomainConfig
+    domainConfig config = SAML.getMultiIngressDomainConfig config mbDomain
 
 -- SCIM
 

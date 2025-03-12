@@ -29,9 +29,13 @@ spec = describe "Config" $ do
             { _cfgLogLevel = Debug,
               _cfgSPHost = "me.wire.com",
               _cfgSPPort = 443,
-              _cfgSPAppURI = [uri|https://me.wire.com/sp|],
-              _cfgSPSsoURI = [uri|https://me.wire.com/sso|],
-              _cfgContacts = [fallbackContact]
+              _cfgDomainConfigs =
+                Left
+                  MultiIngressDomainConfig
+                    { _cfgSPAppURI = [uri|https://me.wire.com/sp|],
+                      _cfgSPSsoURI = [uri|https://me.wire.com/sso|],
+                      _cfgContacts = [fallbackContact]
+                    }
             }
     it "standard" $ do
       want <- readSampleIO "server-config.yaml"
@@ -40,7 +44,7 @@ spec = describe "Config" $ do
     it "minimal contacts" $ do
       want <- readSampleIO "server-config-minimal-contact-details.yaml"
       let pers = ContactPerson ContactAdministrative Nothing Nothing Nothing (Just [uri|email:president@evil.corp|]) Nothing
-          have' = have & cfgContacts .~ [pers]
+          have' = have & cfgDomainConfigs . _Left . cfgContacts .~ [pers]
       over _Left show (Yaml.decodeEither' (cs want))
         `shouldBe` Right have'
     it "multi-ingress" $ do
@@ -77,4 +81,4 @@ spec = describe "Config" $ do
               ++ "        email: email:president@evil.corp\n"
               ++ "        phone: '+314159265'\n"
       -- TODO: Implement this test
-      undefined
+      pending
