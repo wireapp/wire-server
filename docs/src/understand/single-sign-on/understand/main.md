@@ -467,7 +467,7 @@ currently supported:
 #### NOTE
 It is important to configure your SAML provider to use `nameid-format:emailAddress` or `nameid-format:unspecified`.  Other nameid formats are not supported at this moment.
 
-See [FAQ](https://docs.wire.com/how-to/single-sign-on/trouble-shooting.html#how-should-i-map-user-data-to-scim-attributes-when-provisioning-users-via-scim)
+See [FAQ](../../../understand/single-sign-on/trouble-shooting.md#how-should-i-map-user-data-to-scim-attributes-when-provisioning-users-via-scim)
 
 We also support custom fields that are used in rich profiles in this form (see: [https://github.com/wireapp/wire-server/blob/develop/docs/reference/user/rich-info.md](https://github.com/wireapp/wire-server/blob/develop/docs/reference/user/rich-info.md)):
 

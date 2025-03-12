@@ -46,7 +46,7 @@ and similar (replace `P-256` with `P-384` or `P-521`).
 
 ## Feature flags
 
-> Also see [Wire docs](https://docs.wire.com/how-to/install/team-feature-settings.html) where some of the feature flags are documented from an operations point of view.
+> Also see [Wire docs](../../understand/team-feature-settings.md) where some of the feature flags are documented from an operations point of view.
 
 Feature flags can be used to turn features on or off, or determine the
 behavior of the features. Example:
@@ -677,7 +677,7 @@ See [Configure federation strategy (whom to federate with) in brig](../../unders
 
 ### OAuth
 
-For more information on OAuth please refer to [https://docs.wire.com/developer/reference/oauth.html](https://docs.wire.com/developer/reference/oauth.html).
+For more information on OAuth please refer to [oauth](./oauth.md).
 
 En-/Disable OAuth as follows (if not set the default is disabled):
 
@@ -715,7 +715,7 @@ optSettings:
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
 ```
 
-For more information on what these settings mean in particular, please refer to [https://docs.wire.com/developer/reference/oauth.html](https://docs.wire.com/developer/reference/oauth.html).
+For more information on what these settings mean in particular, please refer to [oauth](./oauth.md).
 
 #### Max number of active refresh tokens
 

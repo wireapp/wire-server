@@ -381,7 +381,7 @@ Users that are part of a team, for which a team admin has configured SSO (Single
 More information:
 
 - [FAQ](../single-sign-on/trouble-shooting.md#trouble-shooting-faq)
-- [setup howtos for various IdP vendors](https://docs.wire.com/how-to/single-sign-on/index.html)
+- [setup howtos for various IdP vendors](../../understand/single-sign-on/README.md)
 - [a few fragments that may help admins](https://github.com/wireapp/wire-docs/blob/main/src/developer/reference/spar-braindump.md)
 
 ### LegalHold

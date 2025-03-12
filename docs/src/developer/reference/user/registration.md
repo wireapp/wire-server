@@ -156,7 +156,7 @@ Set-Cookie: zuid=...
 
 ## Blocking creation of personal users, new teams {#RefRestrictRegistration}
 
-[moved here](https://docs.wire.com/how-to/install/configuration-options.html#blocking-creation-of-personal-users-new-teams)
+[moved here](../../../how-to/install/infrastructure-configuration.md#blocking-creation-of-personal-users-new-teams)
 
 ### Details
 
