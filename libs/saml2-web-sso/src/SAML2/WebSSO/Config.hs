@@ -101,7 +101,7 @@ instance ToSchema ContactPerson where
         <*> (_cntPhone .= maybe_ (optField "phone" schema))
 
 instance ToSchema XmlText where
-  schema = _
+  schema = mkXmlText <$> unsafeFromXmlText .= (schema @T.Text)
 
 -- TODO: Replace old template-haskell'ed ToJSON and FromJSON instances
 instance ToSchema ContactType where
@@ -116,7 +116,13 @@ instance ToSchema ContactType where
         ]
 
 instance ToSchema Config where
-  schema = _ -- TODO: use `withParser` on `ConfigRaw`
+  schema = u .= ((schema @ConfigRaw) `withParser` p)
+    where
+      p :: ConfigRaw -> Yaml.Parser Config
+      p = _
+
+      u :: Config -> ConfigRaw
+      u = _
 
 instance ToSchema Level where
   schema =
