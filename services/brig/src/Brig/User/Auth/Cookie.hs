@@ -186,7 +186,7 @@ mustSuspendInactiveUser uid =
 
 newAccessToken ::
   forall u a m.
-  (ZAuth.MonadZAuth m, ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a) =>
+  (ZAuth.MonadZAuth m, ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, ZAuth.AccessTokenType u ~ a) =>
   Cookie (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   m AccessToken
