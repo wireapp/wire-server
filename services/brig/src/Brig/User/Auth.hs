@@ -209,7 +209,8 @@ renewAccess ::
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
     ZAuth.KnownType u,
-    ZAuth.KnownType a
+    ZAuth.KnownType a,
+    ZAuth.AccessTokenType u ~ a
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -277,7 +278,8 @@ newAccess ::
     Member UserSubsystem r,
     Member Events r,
     ZAuth.UserTokenLike u,
-    ZAuth.AccessTokenLike a
+    ZAuth.AccessTokenLike a,
+    ZAuth.AccessTokenType u ~ a
   ) =>
   UserId ->
   Maybe ClientId ->

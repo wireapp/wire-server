@@ -88,7 +88,8 @@ access ::
     UserTokenLike u,
     AccessTokenLike a,
     ZAuth.KnownType u,
-    ZAuth.KnownType a
+    ZAuth.KnownType a,
+    AccessTokenType u ~ a
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->

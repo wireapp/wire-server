@@ -131,31 +131,34 @@ mkEnv sk pk sets = do
 
 class (Body t ~ Access) => AccessTokenLike t where
   renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token t -> m Auth.AccessToken
+  accessTTL :: Settings -> Integer
 
 instance AccessTokenLike A where
   renewAccessToken = renewAccessToken'
+  accessTTL = (.accessTokenTimeout.accessTokenTimeoutSeconds)
 
 instance AccessTokenLike LA where
   renewAccessToken = renewLegalHoldAccessToken
+  accessTTL = (.legalHoldAccessTokenTimeout.legalHoldAccessTokenTimeoutSeconds)
 
-class (Body t ~ User) => UserTokenLike t where
+class (Body t ~ User, AccessTokenLike (AccessTokenType t)) => UserTokenLike t where
+  type AccessTokenType t :: Type
   mkSomeToken :: Token t -> Auth.SomeUserToken
   newUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token t)
-  newAccessToken :: (MonadZAuth m) => Token t -> m Auth.AccessToken
   newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> Maybe ClientId -> m (Token t)
   userTTL :: Settings -> Integer
 
 instance UserTokenLike U where
+  type AccessTokenType U = A
   mkSomeToken = Auth.PlainUserToken
-  newAccessToken = newAccessToken'
   newUserToken = newUserToken'
   newSessionToken uid = newSessionToken' uid
   userTTL = (.userTokenTimeout.userTokenTimeoutSeconds)
 
 instance UserTokenLike LU where
+  type AccessTokenType LU = LA
   mkSomeToken = Auth.LHUserToken
   newUserToken = newLegalHoldUserToken
-  newAccessToken = newLegalHoldAccessToken
   newSessionToken _ _ = throwM ZV.Unsupported
   userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
 
@@ -187,12 +190,16 @@ newSessionToken' u c = liftZAuth $ do
       let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout
        in ZC.newToken (TokenExpiresAfter ttl) (Just S) $ User (toUUID u) (fmap clientToText c) r
 
-newAccessToken' :: (MonadZAuth m) => Token U -> m Auth.AccessToken
-newAccessToken' xt = liftZAuth $ do
+newAccessToken ::
+  forall t m.
+  (MonadZAuth m, AccessTokenLike (AccessTokenType t), Body t ~ User) =>
+  Token t ->
+  m Auth.AccessToken
+newAccessToken xt = liftZAuth $ do
   z <- ask
   liftIO $
     runCreate z.private $ do
-      let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
+      let ttl = accessTTL @(AccessTokenType t) z.settings
       -- TODO: Test that connId is randomly generated, there was a test in
       -- zauth, which got deleted as a result of moving this code here.
       connId <- liftIO randomConnId
@@ -246,22 +253,6 @@ newLegalHoldUserToken u c = liftZAuth $ do
     runCreate z.private $
       let LegalHoldUserTokenTimeout ttl = z.settings.legalHoldUserTokenTimeout
        in ZC.newToken (TokenExpiresAfter ttl) Nothing $ User (toUUID u) (fmap clientToText c) r
-
-newLegalHoldAccessToken :: (MonadZAuth m) => Token LU -> m Auth.AccessToken
-newLegalHoldAccessToken xt = liftZAuth $ do
-  z <- ask
-  liftIO $
-    runCreate z.private $ do
-      let LegalHoldAccessTokenTimeout ttl = z.settings.legalHoldAccessTokenTimeout
-      connId <- liftIO randomConnId
-      new :: (Token LA) <-
-        ZC.newToken (TokenExpiresAfter ttl) Nothing $
-          Access (xt.body.user) (xt.body.client) connId
-      pure $
-        bearerToken
-          (Id new.body.userId)
-          (toByteString new)
-          ttl
 
 renewLegalHoldAccessToken ::
   (MonadZAuth m) =>
