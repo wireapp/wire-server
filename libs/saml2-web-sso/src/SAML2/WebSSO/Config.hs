@@ -14,6 +14,7 @@ import Data.ByteString (toStrict)
 import Data.ByteString.Builder
 import Data.Domain
 import Data.Map
+import Data.Map qualified as Map
 import Data.Schema
 import Data.String.Conversions
 import Data.Text qualified as T
@@ -41,6 +42,13 @@ data Config = Config
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema Config
+
+getMultiIngressDomainConfig :: Config -> Maybe Domain -> Maybe MultiIngressDomainConfig
+getMultiIngressDomainConfig config mbDomain =
+  case (_cfgDomainConfigs config, mbDomain) of
+    (Left cfg, _) -> pure cfg
+    (Right cfgMap, Just d) -> Map.lookup d cfgMap
+    (_, _) -> Nothing
 
 data MultiIngressDomainConfig = MultiIngressDomainConfig
   { _cfgSPAppURI :: URI,
