@@ -141,7 +141,7 @@ testInvalidCookie = do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "client-error"
         msg <- asString $ resp.json %. "message"
-        msg `shouldContain` "Invalid user token"
+        msg `shouldContain` "Invalid token"
 
       (owner, tid, [alice]) <- createTeam domain 2
       aliceEmail <- asString $ alice %. "email"
