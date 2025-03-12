@@ -34,7 +34,7 @@ For more info, you can have a look at respective charts values files, i.e.:
 
 If for instance the following fails:
 
-```
+```default
 ansible all -i hosts.ini -m shell -a "echo hello"
 ```
 
@@ -57,26 +57,22 @@ ansible_python_interpreter=/usr/bin/python3
 
 Cassandra is *very* picky about time! Ensure that NTP is properly set up on all nodes. Particularly for Cassandra *DO NOT* use anything else other than ntp. Here are some helpful blogs that explain why:
 
-> - <https://blog.rapid7.com/2014/03/14/synchronizing-clocks-in-a-cassandra-cluster-pt-1-the-problem/>
-> - <https://blog.rapid7.com/2014/03/17/synchronizing-clocks-in-a-cassandra-cluster-pt-2-solutions/>
-> - <https://www.digitalocean.com/community/tutorials/how-to-set-up-time-synchronization-on-ubuntu-16-04>
+> - [https://blog.rapid7.com/2014/03/14/synchronizing-clocks-in-a-cassandra-cluster-pt-1-the-problem/](https://blog.rapid7.com/2014/03/14/synchronizing-clocks-in-a-cassandra-cluster-pt-1-the-problem/)
+> - [https://blog.rapid7.com/2014/03/17/synchronizing-clocks-in-a-cassandra-cluster-pt-2-solutions/](https://blog.rapid7.com/2014/03/17/synchronizing-clocks-in-a-cassandra-cluster-pt-2-solutions/)
+> - [https://www.digitalocean.com/community/tutorials/how-to-set-up-time-synchronization-on-ubuntu-16-04](https://www.digitalocean.com/community/tutorials/how-to-set-up-time-synchronization-on-ubuntu-16-04)
 
 How can I ensure that I have correctly setup NTP on my machine(s)? Have a look at [this ansible playbook](https://github.com/wireapp/wire-server-deploy/blob/develop/ansible/cassandra-verify-ntp.yml)
 
-## I deployed `demo-smtp` but I'm not receiving any verification emails
+## I deployed `demo-smtp` but I’m not receiving any verification emails
 
 1. Check whether brig deployed successfully (brig pod(s) should be in state *Running*)
-
-   ```
+   ```default
    kubectl get pods -o wide
    ```
-
 2. Inspect Brig logs
-
-   ```
+   ```default
    kubectl logs $BRING_POD_NAME
    ```
-
 3. The receiving email server might refuse to accept any email sent by the `demo-smtp` server, due to not being
    a trusted origin. You may want to set up one of the following email verification mechanisms.
 
@@ -84,7 +80,7 @@ How can I ensure that I have correctly setup NTP on my machine(s)? Have a look a
 - [DKIM](https://en.wikipedia.org/wiki/DomainKeys_Identified_Mail)
 - [DMARC](https://en.wikipedia.org/wiki/DMARC)
 
-4. You may want to adjust the SMTP configuration for Brig (`wire-server/[values,secrets].yaml`).
+1. You may want to adjust the SMTP configuration for Brig (`wire-server/[values,secrets].yaml`).
 
 ```yaml
 brig:
@@ -101,7 +97,7 @@ brig:
     smtpPassword: dummyPassword
 ```
 
-(Don't forget to apply the changes with `helm upgrade wire-server wire/wire-server -f values.yaml -f secrets.yaml`)
+(Don’t forget to apply the changes with `helm upgrade wire-server wire/wire-server -f values.yaml -f secrets.yaml`)
 
 ## I deployed `demo-smtp` and I want to skip email configuration and retrieve verification codes directly
 
@@ -109,43 +105,39 @@ If the only thing you need demo-smtp for is sending yourself verification codes 
 
 To do this, click create a user/account/team, or if you already have, click on `Resend Code`:
 
-```{figure} img/code-input.png
-The code input interface
-```
+![image](img/code-input.png)
 
 Then run the following command
 
-```
+```default
 kubectl exec $(kubectl get pod -lapp=demo-smtp | grep demo | awk '{print $1;}') -- sh -c 'cat /var/spool/exim4/input/* | grep -Po "^\\d{6}$" '
 ```
 
 Or step by step:
 
 1. Get the name of the pod
-
-   ```
+   ```default
    kubectl get pod -lapp=demo-smtp
    ```
 
 Which will give you a result that looks something like this
 
-```
+```default
 > kubectl get pod -lapp=demo-smtp
 NAME                         READY   STATUS    RESTARTS   AGE
 demo-smtp-85557f6877-qxk2p   1/1     Running   0          80m
 ```
 
-In which case, the pod name is `demo-smtp-85557f6877-qxk2p`, which replaces \<name of pod> in the next command.
+In which case, the pod name is `demo-smtp-85557f6877-qxk2p`, which replaces <name of pod> in the next command.
 
-2. Then get the content of emails and extract the code
-
-   ```
+1. Then get the content of emails and extract the code
+   ```default
    kubectl exec <name of pod> -- sh -c 'head -n 15 /var/spool/exim4/input/*  '
    ```
 
 Which will give you the content of sent emails, including the code
 
-```
+```default
 > kubectl exec demo-smtp-85557f6877-qxk2p -- sh -c 'head -n 15 /var/spool/exim4/input/*  '
 ==> /var/spool/exim4/input/1mECxm-000068-28-D <==
 1mECxm-000068-28-D
@@ -161,53 +153,42 @@ erify your email and create your account=2E
 
 This means the code is `022515`, simply enter it in the interface.
 
-If the email has already been sent out, it's possible the queue will be empty.
+If the email has already been sent out, it’s possible the queue will be empty.
 
-If that is the case, simply click the "Resend Code" link in the interface, then quickly re-send the command, a new email should now be present.
+If that is the case, simply click the “Resend Code” link in the interface, then quickly re-send the command, a new email should now be present.
 
 ## Obtaining Brig logs, and the format of different team/user events
 
 To obtain brig logs, simply run
 
-```
+```default
 kubectl logs $(kubectl get pods | grep brig | awk '{print $1;}' | head -n 1)
 ```
 
 You will get log entries for various different types of events that happen, for example:
 
 1. User creation
-
-   ```
+   ```default
    {"user":"24bdd52e-af33-400c-8e47-d16bf8695dbd","request":"c0575ff5a2d61bfc2be21e77260fccab","msgs":["I","Creating user"]}
    ```
-
 2. Activation key creation
-
-   ```
+   ```default
    {"activation.code":"949721","activation.key":"p8o032Ljqhjgcea9R0AAnOeiUniGm63BrY9q_aeS1Cc=","request":"c0575ff5a2d61bfc2be21e77260fccab","msgs":["I","Activating"]}
    ```
-
 3. Activation of a new user
-
-   ```
+   ```default
    {"user":"24bdd52e-af33-400c-8e47-d16bf8695dbd","request":"c0575ff5a2d61bfc2be21e77260fccab","msgs":["I","User activated"]}
    ```
-
 4. User indexing
-
-   ```
+   ```default
    {"user":"24bdd52e-af33-400c-8e47-d16bf8695dbd","logger":"index.brig","msgs":["I","Indexing user"]}
    ```
-
 5. Team creation
-
-   ```
+   ```default
    {"email_sha256":"a7ca34df62e3aa18e071e6bd4740009ce7a25278869badc1ad8f6afda792d427","team":"6ef03a2b-34b5-4b65-8d72-1e4fc7697553","user":"24bdd52e-af33-400c-8e47-d16bf8695dbd","module":"Brig.API.Public","fn":"Brig.API.Public.createUser","request":"c0575ff5a2d61bfc2be21e77260fccab","msgs":["I","Sucessfully created user"]}
    ```
-
 6. Invitation sent
-
-   ```
+   ```default
    {"invitation_code":"hJuh1C1PzMkgtesAYZZ4SZrP5xO-xM_m","email_sha256":"eef48a690436699c653110387455a4afe93ce29febc348acd20f6605787956e6","team":"6ef03a2b-34b5-4b65-8d72-1e4fc7697553","module":"Brig.Team.API","fn":"Brig.Team.API.createInvitationPublic","request":"c43440074629d802a199464dd892cd92","msgs":["I","Succesfully created invitation"]}
    ```
 
@@ -219,37 +200,37 @@ If you are experiencing bad network/disconnection issues, here is how to obtain 
 
 In the Web client, the connection state handler logs the disconnected state as reported by WebRTC as:
 
-```
+```default
 flow(...): connection_handler: disconnected, starting disconnect timer
 ```
 
 On mobile, the output in the log is slightly different:
 
-```
+```default
 pf(...): ice connection state: Disconnected
 ```
 
 And when the timer expires and the connection is not re-established:
 
-```
+```default
 ecall(...): mf_restart_handler: triggering restart due to network drop
 ```
 
 If the attempt to reconnect then fails you will likely see the following:
 
-```
+```default
 ecall(...): connection timeout after 10000 milliseconds
 ```
 
-If the connection to the SFT ({ref}`understand-sft`) server is considered lost due to missing ping messages from a non-functionning or delayed data channel or a failure to receive/decrypt media you will see:
+If the connection to the SFT ([Conference Calling 2.0 (aka SFT)](../../understand/sft.md#understand-sft)) server is considered lost due to missing ping messages from a non-functionning or delayed data channel or a failure to receive/decrypt media you will see:
 
-```
+```default
 ccall(...): reconnect
 ```
 
 Then followed by these values:
 
-```
+```default
 cp: received CONFPART message YES/NO
 da: decrypt attempted YES/NO
 ds: decrypt successful YES/NO
@@ -269,7 +250,7 @@ Some steps of the installation (for example `helm` commands) provide less feedba
 
 These are some steps you can take to debug what is going on when the installation process breaks down.
 
-As an example, we'll take a case where we try installing `wire-server` with `helm`, but it fails due to `cassandra` being broken in some way.
+As an example, we’ll take a case where we try installing `wire-server` with `helm`, but it fails due to `cassandra` being broken in some way.
 
 This guide, while focusing on a `cassandra` related issue, will also provide general steps to debug problems that could be related to other components like `rabbitmq`, `redis`, etc.
 
@@ -277,7 +258,7 @@ Our first step is to identify and isolate which component is causing the issue.
 
 Before installing `wire-server`, we run `d kubectl get pods` and get the result:
 
-```
+```default
 demo@admin-host:~/wire-server-deploy$ d kubectl get pods
 NAME                            READY   STATUS    RESTARTS   AGE
 demo-smtp-d98b789d7-5ntj6       1/1     Running   0          75m
@@ -290,21 +271,21 @@ redis-ephemeral-master-0        1/1     Running   0          76m
 
 We then run the `wire-server` helm installation command:
 
-```
+```default
 d helm install wire-server ./charts/wire-server --timeout=15m0s --values ./values/wire-server/values.yaml --values ./values/wire-server/secrets.yaml
 ```
 
 And we get the following error:
 
-```
+```default
 Error: INSTALLATION FAILED: failed pre-install: job failed: BackoffLimitExceeded
 ```
 
-This, by itself, isn't much help in understanding what is going wrong.
+This, by itself, isn’t much help in understanding what is going wrong.
 
 We can get more information by running `d kubectl get pods` again:
 
-```
+```default
 demo@admin-host:~/wire-server-deploy$ d kubectl get pods
 NAME                            READY   STATUS    RESTARTS   AGE
 cassandra-migration-qgn7r       0/1     Init:0/4  0          12s
@@ -316,27 +297,26 @@ reaper-84cfbf746d-wk8nc         1/1     Running   0          95m
 redis-ephemeral-master-0        1/1     Running   0          96m
 ```
 
-(You can also do `d kubectl get pods -o wide` to get more details though that's not necessary here)
+(You can also do `d kubectl get pods -o wide` to get more details though that’s not necessary here)
 
 When comparing with the previous run of the command, we can see that a new pod has been created, called `cassandra-migration-qgn7r`, and that it is in the `Init:0/4` state.
 
 This means that the pod has been created, but that the init containers have not yet completed. In particular, it is at step 0 out of 4.
 
-If we let it running for a while, we'd see the "`RESTARTS`" field increase to 1, then 2, etc, as the init containers keep failing.
+If we let it running for a while, we’d see the “`RESTARTS`” field increase to 1, then 2, etc, as the init containers keep failing.
 
 We can use `d kubectl logs` to learn more about this failing pod:
 
-```
+```default
 demo@admin-host:~/wire-server-deploy$ d kubectl logs cassandra-migrations-qgn7r
 Error from server (BadRequest): container "job-done" in pod "cassandra-migrations-qgn7r" is waiting to start: PodInitializing
 ```
 
 Note the name `job-done`, this is the name of the last step (container) of the pod, which is not yet running.
 
-
 We can get even more information about the pod by running `d kubectl describe pod cassandra-migration-qgn7r`:
 
-```
+```default
 demo@admin-host:~/wire-server-deploy$ d kubectl describe pod cassandra-migrations-qgn7r
 Name:         cassandra-migrations-qgn7r
 Namespace:    default
@@ -390,13 +370,13 @@ In this output, the «containers» are the different «stages» of this pod, des
 
 We can see that the `gundeck-schema` container (step) has failed, and that it has been restarted 4 times.
 
-The other containers (steps) have not yet been executed, because the previous step failed, they'll be in a "`Waiting`"" state
+The other containers (steps) have not yet been executed, because the previous step failed, they’ll be in a “`Waiting`”” state
 
 We can get further information about the failure by running `d kubectl logs cassandra-migrations-qgn7r -c gundeck-schema`.
 
 This will provide us an output such as:
 
-```
+```default
 demo@admin-host:~/wire-server-deploy$ d kubectl logs cassandra-migrations-qgn7r -c gundeck-schema
 D, Connecting to 172.16.0.134:9042  
 I, Known hosts: [datacenter1:rack1:172.16.0.132:9042,datacenter1:rack1:172.16.0.133:9042,datacenter1:rack1:172.16.0.134:9042]
@@ -418,7 +398,7 @@ Note that because the `cassandra-migration-qgn7r` pod might get destroyed once t
 
 More generally, you can also get `d kubectl get events` to get a list of all the events that have happened in your cluster, including the creation/destruction of pods, and the errors that have occured.
 
-```
+```default
 demo@admin-host:~/wire-server-deploy$ d kubectl get events
 LAST SEEN   TYPE      REASON                    OBJECT                                           MESSAGE
 17m         Normal    Scheduled                 pod/cassandra-migrations-qgn7r                   Successfully assigned default/cassandra-migrations-qgn7r to kubenode1
@@ -440,7 +420,7 @@ Here we can see that the `cassandra-migrations-qgn7r` pod was created, then the 
 
 After installation, or if you meet some functionality problems, you should check that your DNS setup is correct.
 
-You'll do this from either your own computer (any public computer connected to the Internet), or from the Wire backend itself.
+You’ll do this from either your own computer (any public computer connected to the Internet), or from the Wire backend itself.
 
 ### Testing public domains.
 
@@ -461,13 +441,13 @@ Some domains (such as the federator) might not apply to your setup. Refer to the
 
 You can test if a domain is reachable by typing in your local terminal:
 
-```
+```default
 nslookup assets.yourdomain.com
 ```
 
 If the domain is succesfully resolved, you should see something like:
 
-```
+```default
 Server:         127.0.0.53
 Address:        127.0.0.53#53
 
@@ -478,7 +458,7 @@ Address: 388.114.97.2
 
 And if the domain can not be resolved, it will be something like this:
 
-```
+```default
 Server:         127.0.0.53
 Address:        127.0.0.53#53
 
@@ -499,7 +479,7 @@ Open a shell inside the SNS pod, and make sure you can resolve the following thr
 
 First get a list of all pods:
 
-```
+```default
 kubectl get pods --all-namespaces
 ```
 
@@ -507,19 +487,19 @@ In here, find the sns pod (usually its name contains `fake-aws-sns`).
 
 Open a shell into that pod:
 
-```
+```default
 kubectl exec -it my-sns-pod-name -- /bin/sh
 ```
 
 From inside the pod, you should now test each domain:
 
-```
+```default
 nslookup minio-external
 ```
 
 If the domain is succesfully resolved, you should see something like:
 
-```
+```default
 Server:         127.0.0.53
 Address:        127.0.0.53#53
 
@@ -530,7 +510,7 @@ Address: 173.188.1.14
 
 And if the domain can not be resolved, it will be something like this:
 
-```
+```default
 Server:         127.0.0.53
 Address:        127.0.0.53#53
 
@@ -547,7 +527,7 @@ Here we will use `us-west-1` but please change this to whichever value you set i
 
 First list all pods:
 
-```
+```default
 kubectl get pods --all-namespaces
 ```
 
@@ -555,19 +535,19 @@ In here, find the sns pod (usually its name contains `fake-aws-sns`).
 
 Open a shell into that pod:
 
-```
+```default
 kubectl exec -it my-sns-pod-name -- /bin/sh
 ```
 
 And test the reachability of the AWS services:
 
-```
+```default
 nslookup sqs.us-west-1.amazonaws.com
 ```
 
-If it can be reached, you'll see something like this:
+If it can be reached, you’ll see something like this:
 
-```
+```default
 Server:         127.0.0.53
 Address:        127.0.0.53#53
 
@@ -577,9 +557,9 @@ Name:   us-west-1.queue.amazonaws.com
 Address: 3.101.114.18
 ```
 
-And if it can't:
+And if it can’t:
 
-```
+```default
 Server:         127.0.0.53
 Address:        127.0.0.53#53
 
@@ -588,11 +568,10 @@ Address:        127.0.0.53#53
 
 If you can not reach the AWS domain from the SNS pod, you need to try those from one of the servers running kubernetes (kubernetes host):
 
-```
+```default
 ssh kubernetes-server
 ```
 
 Then try the same thing using `nslookup`.
 
 If either of these steps fail, please request support.
-

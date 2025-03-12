@@ -1,4 +1,4 @@
-(configuration-options)=
+<a id="configuration-options"></a>
 
 # Infrastructure configuration options
 
@@ -46,11 +46,11 @@ gundeck:
 
 Depending on your setup, you may need to repeat this for the other services like `brig` as well.
 
-(push-sns)=
+<a id="push-sns"></a>
 
 ## Enable push notifications using the public appstore / playstore mobile Wire clients
 
-1. You need to get in touch with us. Please talk to sales or customer support - see <https://wire.com>
+1. You need to get in touch with us. Please talk to sales or customer support - see [https://wire.com](https://wire.com)
 2. If a contract agreement has been reached, we can set up a separate AWS account for you containing the necessary AWS SQS/SNS setup to route push notifications through to the mobile apps. We will then forward some configuration / access credentials that looks like:
 
 ```yaml
@@ -70,7 +70,7 @@ gundeck:
 
 To make use of those, first test the credentials are correct, e.g. using the `aws` command-line tool (for more information on how to configure credentials, please refer to the [official docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html#cli-configure-quickstart-precedence)):
 
-```
+```default
 AWS_REGION=<region>
 AWS_ACCESS_KEY_ID=<...>
 AWS_SECRET_ACCESS_KEY=<...>
@@ -81,7 +81,7 @@ aws sqs get-queue-url --queue-name "$ENV-gundeck-events"
 
 You should get a result like this:
 
-```
+```default
 {
     "QueueUrl": "https://<region>.queue.amazonaws.com/<aws-account-id>/<environment>-gundeck-events"
 }
@@ -126,18 +126,18 @@ fake-aws-sns:
 
 ## Controlling the speed of websocket draining during cannon pod replacement
 
-The 'cannon' component is responsible for persistent websocket connections.
+The ‘cannon’ component is responsible for persistent websocket connections.
 Normally the default options would slowly and gracefully drain active websocket
 connections over a maximum of `(amount of cannon replicas * 30 seconds)` during
 the deployment of a new wire-server version. This will lead to a very brief
 interruption for Wire clients when their client has to re-connect on the
 websocket.
 
-You're not expected to need to change these settings.
+You’re not expected to need to change these settings.
 
 The following options are only relevant during the restart of cannon itself.
 During a restart of nginz or ingress-controller, all websockets will get
-severed. If this is to be avoided, see section {ref}`separate-websocket-traffic`
+severed. If this is to be avoided, see section [Separate incoming websocket network traffic from the rest of the https traffic](#separate-websocket-traffic)
 
 `drainOpts`: Drain websockets in a controlled fashion when cannon receives a
 SIGTERM or SIGINT (this happens when a pod is terminated e.g. during rollout
@@ -148,7 +148,7 @@ rollouts of new versions.
 There is no way to entirely disable this behaviour, two extreme examples below
 
 - the quickest way to kill cannon is to set `gracePeriodSeconds: 1` and
-  `minBatchSize: 100000` which would sever all connections immediately; but it's
+  `minBatchSize: 100000` which would sever all connections immediately; but it’s
   not recommended as you could DDoS yourself by forcing all active clients to
   reconnect at the same time. With this, cannon pod replacement takes only 1
   second per pod.
@@ -236,7 +236,7 @@ nginz:
     enabled_extra_upstreams: ["proxy"]
 ```
 
-(separate-websocket-traffic)=
+<a id="separate-websocket-traffic"></a>
 
 ## Separate incoming websocket network traffic from the rest of the https traffic
 
@@ -249,7 +249,7 @@ In order to have graceful draining of websockets when something gets restarted, 
 possible to implement the graceful draining on nginx-ingress-controller or nginz by itself, there is
 a configuration option to get the following network hops:
 
-Internet -> separate LoadBalancer for cannon only -> kube-proxy -> \[nginz->cannon (2 containers in the same pod)\]
+Internet -> separate LoadBalancer for cannon only -> kube-proxy -> [nginz->cannon (2 containers in the same pod)]
 
 ```yaml
 # example on AWS when using cert-manager for TLS certificates and external-dns for DNS records
@@ -291,7 +291,7 @@ websockets:
 ## You may want
 
 - more server resources to ensure
-  [high-availability](#persistence-and-high-availability)
+  [high-availability]()
 - an email/SMTP server to send out registration emails
 - depending on your required functionality, you may or may not need an
   [AWS account](https://aws.amazon.com/). See details about
@@ -299,14 +299,13 @@ websockets:
 - one or more people able to maintain the installation
 - official support by Wire ([contact us](https://wire.com/pricing/))
 
-```{warning}
+#### WARNING
 As of 2020-08-10, the documentation sections below are partially out of date and need to be updated.
-```
 
 ## Metrics/logging
 
-- {ref}`monitoring`
-- {ref}`logging`
+- [Monitoring wire-server using Prometheus and Grafana](monitoring.md#monitoring)
+- [Installing centralized logging dashboards using Kibana](logging.md#logging)
 
 ## SMTP server
 
@@ -323,11 +322,11 @@ As of 2020-08-10, the documentation sections below are partially out of date and
 
 **How to configure**:
 
-- *if using a gmail account, ensure to enable* ['less secure
-  apps'](https://support.google.com/accounts/answer/6010255?hl=en)
-- Add user, SMTP server, connection type to `values/wire-server`'s
+- *if using a gmail account, ensure to enable* [‘less secure
+  apps’](https://support.google.com/accounts/answer/6010255?hl=en)
+- Add user, SMTP server, connection type to `values/wire-server`’s
   values file under `brig.config.smtp`
-- Add password in `secrets/wire-server`'s secrets file under
+- Add password in `secrets/wire-server`’s secrets file under
   `brig.secrets.smtpPassword`
 
 ## Load balancer on bare metal servers
@@ -338,7 +337,7 @@ As of 2020-08-10, the documentation sections below are partially out of date and
   that can bind to a public IP address.
 - **If you are using AWS or another cloud provider, see**[Creating a
   cloudprovider-based load
-  balancer](#load-balancer-on-cloud-provider)**instead**
+  balancer]()**instead**
 
 **Provides**:
 
@@ -352,17 +351,14 @@ As of 2020-08-10, the documentation sections below are partially out of date and
 - A kubernetes node with a *public* IP address (or internal, if you do
   not plan to expose the Wire backend over the Internet but we will
   assume you are using a public IP address)
-
 - DNS records for the different exposed addresses (the ingress depends
   on the usage of virtual hosts), namely:
-
   - `nginz-https.<domain>`
   - `nginz-ssl.<domain>`
   - `assets.<domain>`
   - `webapp.<domain>`
   - `account.<domain>`
   - `teams.<domain>`
-
 - A wildcard certificate for the different hosts (`*.<domain>`) - we
   assume you want to do SSL termination on the ingress controller
 
@@ -374,7 +370,7 @@ As of 2020-08-10, the documentation sections below are partially out of date and
 
 **How to configure**:
 
-```
+```default
 cp values/metallb/demo-values.example.yaml values/metallb/demo-values.yaml
 cp values/nginx-ingress-services/demo-values.example.yaml values/nginx-ingress-services/demo-values.yaml
 cp values/nginx-ingress-services/demo-secrets.example.yaml values/nginx-ingress-services/demo-secrets.yaml
@@ -398,13 +394,13 @@ helm upgrade --install --namespace metallb-system metallb wire/metallb \
 Install `nginx-ingress-[controller,services]`:
 
 ::
-: helm upgrade --install --namespace demo demo-nginx-ingress-controller wire/nginx-ingress-controller
+: helm upgrade –install –namespace demo demo-nginx-ingress-controller wire/nginx-ingress-controller
 
-  : --wait
+: –wait
 
-  helm upgrade --install --namespace demo demo-nginx-ingress-services wire/nginx-ingress-services
+helm upgrade –install –namespace demo demo-nginx-ingress-services wire/nginx-ingress-services
 
-  : -f values/nginx-ingress-services/demo-values.yaml -f values/nginx-ingress-services/demo-secrets.yaml --wait
+: -f values/nginx-ingress-services/demo-values.yaml -f values/nginx-ingress-services/demo-secrets.yaml –wait
 
 Now, create DNS records for the URLs configured above.
 
@@ -417,7 +413,7 @@ certificates](https://aws.amazon.com/premiumsupport/knowledge-center/import-ssl-
 Create and configure `values/aws-ingress/demo-values.yaml` from the
 examples.
 
-```
+```default
 helm upgrade --install --namespace demo demo-aws-ingress wire/aws-ingress \
     -f values/aws-ingress/demo-values.yaml \
     --wait
@@ -427,7 +423,7 @@ To give your load balancers public DNS names, create and edit
 `values/external-dns/demo-values.yaml`, then run
 [external-dns](https://github.com/helm/charts/tree/master/stable/external-dns):
 
-```
+```default
 helm repo update
 helm upgrade --install --namespace demo demo-external-dns stable/external-dns \
     --version 1.7.3 \
@@ -439,7 +435,7 @@ Things to note about external-dns:
 
 - There can only be a single external-dns chart installed (one per
   kubernetes cluster, not one per namespace). So if you already have
-  one running for another namespace you probably don't need to do
+  one running for another namespace you probably don’t need to do
   anything.
 - You have to add the appropriate IAM permissions to your cluster (see
   the
@@ -448,7 +444,7 @@ Things to note about external-dns:
 
 ### Other cloud providers
 
-This information is not yet available. If you'd like to contribute by
+This information is not yet available. If you’d like to contribute by
 adding this information for your cloud provider, feel free to read the
 [contributing guidelines](https://github.com/wireapp/wire-server-deploy/blob/master/CONTRIBUTING.md) and open a PR.
 
@@ -474,16 +470,14 @@ adding this information for your cloud provider, feel free to read the
 
 - Instead of using fake-aws charts, you need to set up the respective
   services in your account, create queues, tables etc. Have a look at
-  the fake-aws-\* charts; you'll need to replicate a similar setup.
-
+  the fake-aws-\* charts; you’ll need to replicate a similar setup.
   - Once real AWS resources are created, adapt the configuration in
     the values and secrets files for wire-server to use real endpoints
     and real AWS keys. Look for comments including
     `if using real AWS`.
-
 - Creating AWS resources in a way that is easy to create and delete
   could be done using either [terraform](https://www.terraform.io/)
-  or [pulumi](https://pulumi.io/). If you'd like to contribute by
+  or [pulumi](https://pulumi.io/). If you’d like to contribute by
   creating such automation, feel free to read the [contributing
   guidelines](https://github.com/wireapp/wire-server-deploy/blob/master/CONTRIBUTING.md) and open a PR.
 
@@ -524,8 +518,8 @@ For a production deployment, you should, as a minimum:
 - Ensure developers encrypt any secrets.yaml files
 
 Additionally, you may wish to build, sign, and host your own docker
-images to have increased confidence in those images. We haved "signed
-container images" on our roadmap.
+images to have increased confidence in those images. We haved “signed
+container images” on our roadmap.
 
 ## 3rd-party proxying
 
@@ -553,7 +547,7 @@ nginz:
 
 In case your wire installation is self-hosted (on-premise, demo installs), it needs to be aware that it is through a configuration option.  As of release chart 4.15.0, `"true"` is the default behavior, and nothing needs to be done.
 
-If that option is not set, team-settings will prompt users about "wire for free" and associated functions.
+If that option is not set, team-settings will prompt users about “wire for free” and associated functions.
 
 With that option set, all payment related functionality is disabled.
 
@@ -575,12 +569,12 @@ envVars:
   IS_SELF_HOSTED: "true"
 ```
 
-(auth-cookie-config)=
+<a id="auth-cookie-config"></a>
 
 ## Configuring authentication cookie throttling
 
 Authentication cookies and the related throttling mechanism is described in the *API documentation*:
-{ref}`login-cookies`
+[Cookies](../../understand/api-client-perspective/authentication.md#login-cookies)
 
 The maximum number of cookies per account and type is defined by the brig option
 `setUserCookieLimit`. Its default is `32`.
@@ -591,14 +585,14 @@ object that contains two fields:
 `stdDev`
 
 : The minimal standard deviation of cookie creation timestamps in
-  Seconds. (Default: `3000`,
-  [Wikipedia: Standard deviation](https://en.wikipedia.org/wiki/Standard_deviation))
+Seconds. (Default: `3000`,
+[Wikipedia: Standard deviation](https://en.wikipedia.org/wiki/Standard_deviation))
 
 `retryAfter`
 
 : Wait time in Seconds when `stdDev` is violated. (Default: `86400`)
 
-The default values are fine for most use cases. (Generally, you don't have to
+The default values are fine for most use cases. (Generally, you don’t have to
 configure them for your installation.)
 
 Condensed example:
@@ -616,14 +610,14 @@ brig:
 
 S3 can either by addressed in path style, i.e.
 `https://<s3-endpoint>/<bucket-name>/<object>`, or vhost style, i.e.
-`https://<bucket-name>.<s3-endpoint>/<object>`. AWS's S3 offering has deprecated
+`https://<bucket-name>.<s3-endpoint>/<object>`. AWS’s S3 offering has deprecated
 path style addressing for S3 and completely disabled it for buckets created
 after 30 Sep 2020:
-<https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/>
+[https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/](https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/)
 
 However other object storage providers (specially self-deployed ones like MinIO)
 may not support vhost style addressing yet (or ever?). Users of such buckets
-should configure this option to "path":
+should configure this option to “path”:
 
 ```yaml
 cargohold:
@@ -631,10 +625,10 @@ cargohold:
     s3AddressingStyle: path
 ```
 
-Installations using S3 service provided by AWS, should use "auto", this option
+Installations using S3 service provided by AWS, should use “auto”, this option
 will ensure that vhost style is only used when it is possible to construct a
-valid hostname from the bucket name and the bucket name doesn't contain a '.'.
-Having a '.' in the bucket name causes TLS validation to fail, hence it is not
+valid hostname from the bucket name and the bucket name doesn’t contain a ‘.’.
+Having a ‘.’ in the bucket name causes TLS validation to fail, hence it is not
 used by default:
 
 ```yaml
@@ -643,10 +637,10 @@ cargohold:
     s3AddressingStyle: auto
 ```
 
-Using "virtual" as an option is only useful in situations where vhost style
+Using “virtual” as an option is only useful in situations where vhost style
 addressing must be used even if it is not possible to construct a valid hostname
 from the bucket name or the S3 service provider can ensure correct certificate
-is issued for bucket which contain one or more '.'s in the name:
+is issued for bucket which contain one or more ‘.’s in the name:
 
 ```yaml
 cargohold:
@@ -669,14 +663,10 @@ This can be changed in the Brig config, with this option:
       setMaxTeamSize: 501
 
 ```
-   
-```{note}
 
-If you create a team with more than 2000 members then clients won't receive certain team update events (e.g. new member joining) live via websocket anymore, but most of the app will still function normally.
+#### NOTE
+If you create a team with more than 2000 members then clients won’t receive certain team update events (e.g. new member joining) live via websocket anymore, but most of the app will still function normally.
 
 Irrespective of team size conversations can have at most 2000 members. This limit cannot be overridden.
 
-Wire's backend currently only supports fanning out a single message to at most 2000 recipients, hence the limitations on conversation size. Increasing this limit is work in progress.
-
-```
-
+Wire’s backend currently only supports fanning out a single message to at most 2000 recipients, hence the limitations on conversation size. Increasing this limit is work in progress.

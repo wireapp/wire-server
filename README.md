@@ -43,7 +43,8 @@ It also contains
 
 - **build**: Build scripts and Dockerfiles for some platforms
 - **deploy**: (Work-in-progress) - how to run wire-server in an ephemeral, in-memory demo mode
-- **doc**: Documentation
+- **docs**: Documentation
+   - **Note**: This directory contains only files that have been modified within the last year (since 19/02/25); all other files have been moved to the [wire-docs](https://github.com/wireapp/wire-docs) repository. The files in this directory are used when building the full wire documentation site, so any changes to these files should be updated here, while updates to the other files should be committed directly to the wire-docs repository.
 - **hack**: scripts and configuration for kuberentes helm chart development/releases mainly used by CI
 - **charts**: Kubernetes Helm charts. The charts are mirroed to S3 and can be used with `helm repo add wire https://s3-eu-west-1.amazonaws.com/public.wire.com/charts`. See the [Administrator's Guide](https://docs.wire.com) for more info.
 
@@ -86,7 +87,7 @@ See the `Makefile`s and `Dockerfile`s, as well as [build/ubuntu/README.md](build
 
 #### 2. Use nix-provided build environment
 
-This is suitable only for local development and testing. See [build instructions](./docs/src/developer/developer/building.md) in the developer documentation.
+This is suitable only for local development and testing. See [build instructions](https://docs.wire.com/developer/developer/building.html) in the developer documentation.
 
 ## How to install and run `wire-server`
 
