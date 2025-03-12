@@ -10,7 +10,7 @@ import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
 import Data.String.Conversions
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Hedgehog
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Arbitrary
@@ -44,7 +44,7 @@ spec = describe "Config" $ do
       over _Left show (Yaml.decodeEither' (cs want))
         `shouldBe` Right have'
     it "multi-ingress" $ do
-      let simpleIn =
+      let simple =
             "version: SAML2.0\n"
               ++ "logLevel: Warn\n"
               ++ "spHost: 0.0.0.0\n"
@@ -53,17 +53,6 @@ spec = describe "Config" $ do
               ++ "spSsoUri: http://localhost:8088/sso\n"
               ++ "contacts\n:"
               ++ "  - email: email:president@evil.corp\n"
-
-          simpleOut =
-            "default\n:"
-              ++ "  version: SAML2.0\n"
-              ++ "  logLevel: Warn\n"
-              ++ "  spHost: 0.0.0.0\n"
-              ++ "  spPort: 8088\n"
-              ++ "  spAppUri: http://localhost:8088\n/"
-              ++ "  spSsoUri: http://localhost:8088/sso\n"
-              ++ "  contacts\n:"
-              ++ "    - email: email:president@evil.corp\n"
 
           multi =
             "version: SAML2.0\n"
@@ -80,6 +69,12 @@ spec = describe "Config" $ do
               ++ "    spAppUri: http://localhost:8088\n/"
               ++ "    spSsoUri: http://localhost:8088/sso\n"
               ++ "    contacts\n:"
-              ++ "      - email: email:president@evil.corp\n"
-      in
-         _
+              ++ "      - email: email:vice-president@evil.corp\n"
+              ++ "      - type: ContactSupport\n"
+              ++ "        company: evil corp.\n"
+              ++ "        givenName: Dr.\n"
+              ++ "        surname: Girlfriend\n"
+              ++ "        email: email:president@evil.corp\n"
+              ++ "        phone: '+314159265'\n"
+      -- TODO: Implement this test
+      undefined
