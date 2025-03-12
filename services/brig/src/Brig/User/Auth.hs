@@ -279,7 +279,8 @@ newAccess ::
     Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
-    ZAuth.AccessTokenType u ~ a
+    ZAuth.AccessTokenType u ~ a,
+    ZAuth.KnownType u
   ) =>
   UserId ->
   Maybe ClientId ->
