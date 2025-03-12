@@ -530,6 +530,18 @@ domainRegistration:
     lockStatus: locked
 ```
 
+### Pydio
+
+This feature flag enables pydio integration in wire-server. By default, it is disabled and locked. When enabled, it allows changing the pydio state of a conversation.
+
+```yaml
+# galley.yaml
+pydio:
+  defaults:
+    status: disabled
+    lockStatus: locked
+```
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only
