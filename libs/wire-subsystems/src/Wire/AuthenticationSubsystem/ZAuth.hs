@@ -140,14 +140,12 @@ instance AccessTokenLike LA where
 
 class (Body t ~ User) => UserTokenLike t where
   mkSomeToken :: Token t -> Auth.SomeUserToken
-  mkUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token t)
   newUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token t)
   newAccessToken :: (MonadZAuth m) => Token t -> m Auth.AccessToken
   newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> Maybe ClientId -> m (Token t)
   userTTL :: Settings -> Integer
 
 instance UserTokenLike U where
-  mkUserToken = mkUserToken'
   mkSomeToken = Auth.PlainUserToken
   newAccessToken = newAccessToken'
   newUserToken = newUserToken'
@@ -155,7 +153,6 @@ instance UserTokenLike U where
   userTTL = (.userTokenTimeout.userTokenTimeoutSeconds)
 
 instance UserTokenLike LU where
-  mkUserToken = mkLegalHoldUserToken
   mkSomeToken = Auth.LHUserToken
   newUserToken = newLegalHoldUserToken
   newAccessToken = newLegalHoldAccessToken
@@ -165,8 +162,8 @@ instance UserTokenLike LU where
 runCreate :: ZC.Env -> Sem '[ZC.ZAuthCreation, Embed IO] a -> IO a
 runCreate env = runM . ZC.interpretZAuthCreation env
 
-mkUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token U)
-mkUserToken' u cid r t = liftZAuth $ do
+mkUserToken :: (MonadZAuth m, KnownType t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token t)
+mkUserToken u cid r t = liftZAuth $ do
   z <- ask
   liftIO $
     runCreate z.private $
@@ -240,28 +237,6 @@ newProviderToken pid = liftZAuth $ do
     runCreate z.private $
       let ProviderTokenTimeout ttl = z.settings.providerTokenTimeout
        in ZC.newToken (TokenExpiresAfter ttl) Nothing $ Provider (toUUID pid)
-
--- FUTUREWORK: this function is very similar to mkUserToken',
--- the differences are
--- 1) LU / U
--- 2) (mkLegalHoldUser uid r) / (mkUser uid r)
--- Possibly some duplication could be removed.
--- See https://github.com/wireapp/wire-server/pull/761/files#r318612423
-mkLegalHoldUserToken ::
-  (MonadZAuth m) =>
-  UserId ->
-  Maybe ClientId ->
-  Word32 ->
-  UTCTime ->
-  m (Token LU)
-mkLegalHoldUserToken u c r t = liftZAuth $ do
-  z <- ask
-  liftIO $
-    runCreate z.private $
-      ZC.newToken
-        (TokenExpiresAt $ utcTimeToPOSIXSeconds t)
-        Nothing
-        (User (toUUID u) (fmap clientToText c) r)
 
 newLegalHoldUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token LU)
 newLegalHoldUserToken u c = liftZAuth $ do
