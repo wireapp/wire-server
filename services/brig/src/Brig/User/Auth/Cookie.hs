@@ -69,7 +69,8 @@ newCookie ::
   ( ZAuth.UserTokenLike u,
     MonadReader Env m,
     ZAuth.MonadZAuth m,
-    MonadClient m
+    MonadClient m,
+    ZAuth.KnownType u
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -145,7 +146,8 @@ renewCookie ::
   ( ZAuth.UserTokenLike u,
     MonadReader Env m,
     ZAuth.MonadZAuth m,
-    MonadClient m
+    MonadClient m,
+    ZAuth.KnownType u
   ) =>
   Cookie (ZAuth.Token u) ->
   Maybe ClientId ->
@@ -232,7 +234,8 @@ newCookieLimited ::
   ( ZAuth.UserTokenLike t,
     MonadReader Env m,
     MonadClient m,
-    ZAuth.MonadZAuth m
+    ZAuth.MonadZAuth m,
+    ZAuth.KnownType t
   ) =>
   UserId ->
   Maybe ClientId ->

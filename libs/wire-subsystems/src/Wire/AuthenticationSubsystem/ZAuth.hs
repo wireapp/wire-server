@@ -144,21 +144,18 @@ instance AccessTokenLike LA where
 class (Body t ~ User, AccessTokenLike (AccessTokenType t)) => UserTokenLike t where
   type AccessTokenType t :: Type
   mkSomeToken :: Token t -> Auth.SomeUserToken
-  newUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token t)
   newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> Maybe ClientId -> m (Token t)
   userTTL :: Settings -> Integer
 
 instance UserTokenLike U where
   type AccessTokenType U = A
   mkSomeToken = Auth.PlainUserToken
-  newUserToken = newUserToken'
   newSessionToken uid = newSessionToken' uid
   userTTL = (.userTokenTimeout.userTokenTimeoutSeconds)
 
 instance UserTokenLike LU where
   type AccessTokenType LU = LA
   mkSomeToken = Auth.LHUserToken
-  newUserToken = newLegalHoldUserToken
   newSessionToken _ _ = throwM ZV.Unsupported
   userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
 
@@ -172,13 +169,13 @@ mkUserToken u cid r t = liftZAuth $ do
     runCreate z.private $
       ZC.newToken (TokenExpiresAt (utcTimeToPOSIXSeconds t)) Nothing (User (toUUID u) (fmap clientToText cid) r)
 
-newUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token U)
-newUserToken' u c = liftZAuth $ do
+newUserToken :: forall t m. (MonadZAuth m, UserTokenLike t, KnownType t) => UserId -> Maybe ClientId -> m (Token t)
+newUserToken u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
   liftIO $
     runCreate z.private $
-      let UserTokenTimeout ttl = z.settings.userTokenTimeout
+      let ttl = userTTL @t z.settings
        in ZC.newToken (TokenExpiresAfter ttl) Nothing $ User (toUUID u) (fmap clientToText c) r
 
 newSessionToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token U)
@@ -244,15 +241,6 @@ newProviderToken pid = liftZAuth $ do
     runCreate z.private $
       let ProviderTokenTimeout ttl = z.settings.providerTokenTimeout
        in ZC.newToken (TokenExpiresAfter ttl) Nothing $ Provider (toUUID pid)
-
-newLegalHoldUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token LU)
-newLegalHoldUserToken u c = liftZAuth $ do
-  z <- ask
-  r <- liftIO randomValue
-  liftIO $
-    runCreate z.private $
-      let LegalHoldUserTokenTimeout ttl = z.settings.legalHoldUserTokenTimeout
-       in ZC.newToken (TokenExpiresAfter ttl) Nothing $ User (toUUID u) (fmap clientToText c) r
 
 renewLegalHoldAccessToken ::
   (MonadZAuth m) =>

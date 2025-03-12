@@ -206,10 +206,10 @@ testLoginWith6CharPassword opts brig db = do
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
 
-randomAccessToken :: forall u. (ZAuth.UserTokenLike u) => ZAuth AccessToken
+randomAccessToken :: forall u. (ZAuth.UserTokenLike u, ZAuth.KnownType u) => ZAuth AccessToken
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
-randomUserToken :: (ZAuth.UserTokenLike u) => ZAuth (ZAuth.Token u)
+randomUserToken :: (ZAuth.UserTokenLike u, ZAuth.KnownType u) => ZAuth (ZAuth.Token u)
 randomUserToken = do
   r <- Id <$> liftIO UUID.nextRandom
   ZAuth.newUserToken r Nothing
@@ -586,7 +586,7 @@ testInvalidToken z b = do
       const 403 === statusCode
       const (Just "Invalid token") =~= responseBody
 
-testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
+testMissingCookie :: forall u. (ZAuth.UserTokenLike u, ZAuth.KnownType u) => ZAuth.Env -> Brig -> Http ()
 testMissingCookie z b = do
   -- Missing cookie, i.e. token refresh mandates a cookie.
   post (unversioned . b . path "/access")
