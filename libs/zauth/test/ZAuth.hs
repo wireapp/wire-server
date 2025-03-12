@@ -31,28 +31,19 @@ import Data.ZAuth.Creation as C
 import Data.ZAuth.Token
 import Data.ZAuth.Validation as V
 import Imports
-import Polysemy
-import Polysemy.Error
 import Sodium.Crypto.Sign
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
-
-runCreateAndValidate :: C.Env -> Vector PublicKey -> Sem '[ZAuthCreation, ZAuthValidation, Error Failure, Embed IO] a -> IO (Either Failure a)
-runCreateAndValidate env pubKeys =
-  runM
-    . runError
-    . V.interpretZAuthValidation pubKeys
-    . C.interpretZAuthCreation env
 
 tests :: IO TestTree
 tests = do
   (p1, s1) <- newKeyPair
   (p2, s2) <- newKeyPair
   (p3, s3) <- newKeyPair
-  z1 <- C.mkEnv 1 s1 [s2, s3]
-  z2 <- C.mkEnv 2 s1 [s2, s3]
-  z3 <- C.mkEnv 3 s1 [s2, s3]
+  let z1 = C.SigningKey 1 s1
+      z2 = C.SigningKey 2 s2
+      z3 = C.SigningKey 3 s3
   let pubKeys = Vector.fromList [p1, p2, p3]
   pure $
     testGroup
@@ -95,35 +86,32 @@ testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) === Just t
 testDecEncLegalHoldAccessToken :: Token LA -> Property
 testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) === Just t
 
-testNotExpired :: C.Env -> Vector PublicKey -> IO ()
-testNotExpired env pubKeys = do
-  x <- runCreateAndValidate env pubKeys $ do
-    u <- liftIO nextRandom
-    t <- newToken @_ @U (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
-    check t
+testNotExpired :: C.SigningKey -> Vector PublicKey -> IO ()
+testNotExpired signingKey pubKeys = do
+  u <- liftIO nextRandom
+  t <- newToken @_ @U signingKey (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
+  x <- check pubKeys t
   Right () @=? x
 
 -- The testExpired test conforms to the following testing standards:
 -- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2 @S3
 --
 -- Using an expired access token should fail
-testExpired :: C.Env -> Vector PublicKey -> IO ()
-testExpired env pubKeys = do
-  x <- runCreateAndValidate env pubKeys $ do
-    u <- liftIO nextRandom
-    t <- newToken @_ @U (TokenExpiresAfter 0) Nothing $ User u Nothing 100
-    waitSeconds 1
-    check t
+testExpired :: C.SigningKey -> Vector PublicKey -> IO ()
+testExpired signingKey pubKeys = do
+  u <- liftIO nextRandom
+  t <- newToken @_ @U signingKey (TokenExpiresAfter 0) Nothing $ User u Nothing 100
+  waitSeconds 1
+  x <- check pubKeys t
   Left Expired @=? x
 
 -- @END
 
-testSignAndVerify :: C.Env -> Vector PublicKey -> IO ()
-testSignAndVerify env pubKeys = do
-  x <- runCreateAndValidate env pubKeys $ do
-    u <- liftIO nextRandom
-    t <- newToken @_ @U (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
-    check t
+testSignAndVerify :: C.SigningKey -> Vector PublicKey -> IO ()
+testSignAndVerify signingKey pubKeys = do
+  u <- liftIO nextRandom
+  t <- newToken @_ @U signingKey (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
+  x <- check pubKeys t
   Right () @=? x
 
 -- Helpers:

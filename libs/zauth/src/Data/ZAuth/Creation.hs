@@ -1,7 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -21,17 +17,12 @@
 
 module Data.ZAuth.Creation
   ( -- * Types
-    ZAuthCreation,
-    Env,
+    SigningKey (..),
     TokenExpiry (..),
 
     -- * Actions
     newToken,
     renewToken,
-
-    -- * Execution
-    mkEnv,
-    interpretZAuthCreation,
   )
 where
 
@@ -40,8 +31,6 @@ import Data.ByteString.Lazy (toStrict)
 import Data.Time.Clock.POSIX
 import Data.ZAuth.Token hiding (signature)
 import Imports
-import Polysemy
-import Polysemy.Input
 import Sodium.Crypto.Sign
 
 data TokenExpiry
@@ -49,57 +38,34 @@ data TokenExpiry
   | TokenExpiresAt POSIXTime
   | TokenNeverExpires
 
-data ZAuthCreation m a where
-  NewToken :: (SerializableToken t) => TokenExpiry -> Maybe Tag -> Body t -> ZAuthCreation m (Token t)
-
-makeSem ''ZAuthCreation
-
-renewToken :: (Member ZAuthCreation r, SerializableToken t) => Integer -> Header t -> Body t -> Sem r (Token t)
-renewToken dur hdr bdy = do
-  newToken (TokenExpiresAfter dur) (hdr.tag) bdy
-
-data Env = Env
+data SigningKey = SigningKey
   { keyIdx :: Int,
     key :: SecretKey
   }
 
+renewToken :: (MonadIO m, SerializableToken t) => SigningKey -> Integer -> Header t -> Body t -> m (Token t)
+renewToken signingKey dur hdr bdy = do
+  newToken signingKey (TokenExpiresAfter dur) (hdr.tag) bdy
+
 tokenVersion :: Int
 tokenVersion = 1
 
-mkEnv :: Int -> SecretKey -> [SecretKey] -> IO Env
-mkEnv i k kk = do
-  let keys = k : kk
-      signingKey =
-        if i > 0 && i <= length keys
-          then keys !! (i - 1)
-          else error "keyIndex out of range"
-  pure $ Env i signingKey
-
-interpretZAuthCreation :: (Member (Embed IO) r) => Env -> InterpreterFor ZAuthCreation r
-interpretZAuthCreation env =
-  runInputConst env . interpretZAuthCreationInput . raiseUnder
-
-interpretZAuthCreationInput :: (Member (Embed IO) r, Member (Input Env) r) => InterpreterFor ZAuthCreation r
-interpretZAuthCreationInput = interpret $ \case
-  NewToken tokenTime mTag body -> newTokenImpl tokenTime mTag body
-
-newTokenImpl :: (Member (Embed IO) r, Member (Input Env) r, SerializableToken t) => TokenExpiry -> Maybe Tag -> Body t -> Sem r (Token t)
-newTokenImpl tokenExpiry mTag a = do
-  env <- input
+newToken :: (MonadIO m, SerializableToken t) => SigningKey -> TokenExpiry -> Maybe Tag -> Body t -> m (Token t)
+newToken signingKey tokenExpiry mTag a = do
   tokenTime <- case tokenExpiry of
     TokenExpiresAt t -> pure t
     TokenNeverExpires -> pure (-1)
     TokenExpiresAfter ttl -> expiry ttl
-  let h = Header tokenVersion env.keyIdx (floor tokenTime) mTag
-  s <- embed $ signToken env h a
+  let h = Header tokenVersion signingKey.keyIdx (floor tokenTime) mTag
+  s <- liftIO $ signToken signingKey.key h a
   pure $ Token s h a
 
 -----------------------------------------------------------------------------
 -- Internal
 
-signToken :: (SerializableToken t) => Env -> Header t -> Body t -> IO Signature
-signToken e h a = do
-  liftIO . signature e.key . toStrict . toLazyByteString $ writeData h a
+signToken :: (SerializableToken t) => SecretKey -> Header t -> Body t -> IO Signature
+signToken key h a = do
+  liftIO . signature key . toStrict . toLazyByteString $ writeData h a
 
 expiry :: (MonadIO m) => Integer -> m POSIXTime
 expiry d = (fromInteger d +) <$> liftIO getPOSIXTime
