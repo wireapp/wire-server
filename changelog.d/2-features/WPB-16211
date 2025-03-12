@@ -1,1 +1,1 @@
-Enable multiple deeplinks for multi-ingress
+The `nginz` chart now configures nginx to configure deeplink for each domain in multi-ingress setup. Check out `nginx_conf.multi_ingress_deeplink`.
