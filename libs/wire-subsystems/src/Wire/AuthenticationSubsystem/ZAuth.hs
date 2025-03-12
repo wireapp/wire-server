@@ -150,19 +150,19 @@ instance AccessTokenLike LA where
 class (Body t ~ User, AccessTokenLike (AccessTokenType t), SerializableToken t) => UserTokenLike t where
   type AccessTokenType t :: Type
   mkSomeToken :: Token t -> Auth.SomeUserToken
-  newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> Maybe ClientId -> m (Token t)
+  allowSessionToken :: Bool
   userTTL :: Settings -> Integer
 
 instance UserTokenLike U where
   type AccessTokenType U = A
   mkSomeToken = Auth.PlainUserToken
-  newSessionToken uid = newSessionToken' uid
+  allowSessionToken = True
   userTTL = (.userTokenTimeout.userTokenTimeoutSeconds)
 
 instance UserTokenLike LU where
   type AccessTokenType LU = LA
   mkSomeToken = Auth.LHUserToken
-  newSessionToken _ _ = throwM ZV.Unsupported
+  allowSessionToken = False
   userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
 
 mkUserToken :: (MonadZAuth m, SerializableToken t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token t)
@@ -177,9 +177,11 @@ newUserToken u c = liftZAuth $ do
   let ttl = userTTL @t z.settings
    in ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $ User (toUUID u) (fmap clientToText c) r
 
-newSessionToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token U)
-newSessionToken' u c = liftZAuth $ do
-  z <- ask
+newSessionToken :: forall t m. (MonadZAuth m, UserTokenLike t, MonadThrow m) => UserId -> Maybe ClientId -> m (Token t)
+newSessionToken u c = do
+  unless (allowSessionToken @t) $
+    throwM ZV.Invalid
+  z <- liftZAuth ask
   r <- liftIO randomValue
   let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout
    in ZC.newToken z.private (TokenExpiresAfter ttl) (Just S) $ User (toUUID u) (fmap clientToText c) r
