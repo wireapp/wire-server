@@ -283,3 +283,5 @@ instance HasConfig ((->) Config) where
 -- TH stuff at the end of the module
 
 makeLenses ''Config
+
+makeLenses ''MultiIngressDomainConfig
