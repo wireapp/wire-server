@@ -99,6 +99,7 @@ newCookie uid cid typ label = do
 -- exceeds the configured minimum threshold.
 nextCookie ::
   ( ZAuth.UserTokenLike u,
+    ZAuth.KnownType u,
     MonadReader Env m,
     Log.MonadLogger m,
     ZAuth.MonadZAuth m,
