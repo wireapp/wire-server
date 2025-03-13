@@ -22,9 +22,8 @@ import Data.UUID.V4 qualified as UUID
 import GHC.Stack
 import SAML2.Util
 import SAML2.WebSSO.Config
-import SAML2.WebSSO.Servant.CPP
 import SAML2.WebSSO.Types
-import Servant hiding (MkLink, URI (..))
+import Servant hiding (URI (..))
 import URI.ByteString
 
 ----------------------------------------------------------------------
@@ -160,7 +159,7 @@ getSsoURINoMultiIngress ::
     HasConfig m,
     IsElem endpoint api,
     HasLink endpoint,
-    ToHttpApiData (MkLink endpoint)
+    ToHttpApiData (MkLink endpoint Link)
   ) =>
   Proxy api ->
   Proxy endpoint ->
