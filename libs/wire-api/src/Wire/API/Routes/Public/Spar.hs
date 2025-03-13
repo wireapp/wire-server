@@ -23,8 +23,6 @@ import Data.Id
 import Data.Kind (Type)
 import Data.Proxy
 import Data.Range
--- TODO: Do we really want to have `cs` in this module?
-import Data.String.Conversions
 import Imports
 import SAML2.WebSSO qualified as SAML
 import Servant
@@ -187,7 +185,7 @@ getSsoURI ::
     SAML.HasConfig m,
     IsElem endpoint api,
     HasLink endpoint,
-    ToHttpApiData (SAML.MkLink endpoint)
+    ToHttpApiData (MkLink endpoint Link)
   ) =>
   Proxy api ->
   Proxy endpoint ->
@@ -196,7 +194,7 @@ getSsoURI ::
 getSsoURI proxyAPI proxyAPIAuthResp mbDomain = (extpath . (^. SAML.cfgSPSsoURI)) <$$> (domainConfig <$> SAML.getConfig)
   where
     extpath :: URI.URI -> URI.URI
-    extpath = (SAML.=/ (cs . toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp))
+    extpath = (SAML.=/ (toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp))
 
     domainConfig :: SAML.Config -> Maybe SAML.MultiIngressDomainConfig
     domainConfig config = SAML.getMultiIngressDomainConfig config mbDomain
@@ -209,7 +207,7 @@ getSsoURI' ::
   forall endpoint api a (f :: Type -> Type) t.
   ( Functor f,
     SAML.HasConfig f,
-    SAML.MkLink endpoint ~ (t -> a),
+    MkLink endpoint Link ~ (t -> a),
     HasLink endpoint,
     ToHttpApiData a,
     IsElem endpoint api
@@ -222,7 +220,7 @@ getSsoURI' ::
 getSsoURI' proxyAPI proxyAPIAuthResp idpid mbDomain = (extpath . (^. SAML.cfgSPSsoURI)) <$$> (domainConfig <$> SAML.getConfig)
   where
     extpath :: URI.URI -> URI.URI
-    extpath = (SAML.=/ (cs . toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp idpid))
+    extpath = (SAML.=/ (toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp idpid))
 
     domainConfig :: SAML.Config -> Maybe SAML.MultiIngressDomainConfig
     domainConfig config = SAML.getMultiIngressDomainConfig config mbDomain
