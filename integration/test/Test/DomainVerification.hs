@@ -125,7 +125,7 @@ testDomainVerificationOnPremFlow = do
             resp.json %. "due_to_existing_account" `shouldMatch` True
           else do
             resp.json %. "domain_redirect" `shouldMatch` "none"
-            lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe String)
+            lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe Bool)
 
 testDomainVerificationWrongAuth :: (HasCallStack) => App ()
 testDomainVerificationWrongAuth = do
