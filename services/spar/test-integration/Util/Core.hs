@@ -226,7 +226,7 @@ mkEnvFromOptions = do
   let desc = "Spar - SSO Service Integration Test Suite"
   (integrationCfgFilePath, cfgFilePath) <- OPA.execParser (OPA.info (OPA.helper <*> cliOptsParser) (OPA.header desc <> OPA.fullDesc))
   integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationCfgFilePath >>= either (error . show) pure
-  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) Spar.Options.deriveOpts
+  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) pure
   mkEnv integrationOpts serviceOpts
 
 -- | Accept config file locations as cli options.

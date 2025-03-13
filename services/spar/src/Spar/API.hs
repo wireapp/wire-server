@@ -185,11 +185,11 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  Named @"sso-metadata" (getMetadata Nothing)
+  Named @"sso-metadata" (\mbHost -> getMetadata Nothing mbHost)
     :<|> Named @"sso-team-metadata" (\mbHost tid -> getMetadata (Just tid) mbHost)
     :<|> Named @"auth-req-precheck" authreqPrecheck
     :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
-    :<|> Named @"auth-resp-legacy" (authresp . Just)
+    :<|> Named @"auth-resp-legacy" (authresp Nothing)
     :<|> Named @"auth-resp" (authresp . Just)
     :<|> Named @"sso-settings" ssoSettings
 
