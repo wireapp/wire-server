@@ -13,6 +13,9 @@
 , imports
 , lib
 , optparse-applicative
+, polysemy
+, polysemy-plugin
+, polysemy-wire-zoo
 , sodium-crypto-sign
 , tasty
 , tasty-hunit
@@ -36,6 +39,9 @@ mkDerivation {
     bytestring-conversion
     errors
     imports
+    polysemy
+    polysemy-plugin
+    polysemy-wire-zoo
     sodium-crypto-sign
     time
     uuid
@@ -51,6 +57,8 @@ mkDerivation {
     base
     bytestring-conversion
     imports
+    polysemy
+    polysemy-wire-zoo
     sodium-crypto-sign
     tasty
     tasty-hunit
