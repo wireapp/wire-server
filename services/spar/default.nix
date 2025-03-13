@@ -61,7 +61,6 @@
 , string-conversions
 , tasty-hunit
 , text
-, text-latin1
 , these
 , time
 , tinylog
@@ -124,7 +123,6 @@ mkDerivation {
     servant-multipart
     servant-server
     text
-    text-latin1
     these
     time
     tinylog

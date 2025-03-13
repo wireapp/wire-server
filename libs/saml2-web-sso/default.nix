@@ -273,6 +273,7 @@ mkDerivation {
     text
     time
     transformers
+    types-common
     uniplate
     uri-bytestring
     uuid

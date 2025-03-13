@@ -202,7 +202,6 @@ mkDerivation {
     singletons-base
     singletons-th
     sop-core
-    string-conversions
     tagged
     text
     these
