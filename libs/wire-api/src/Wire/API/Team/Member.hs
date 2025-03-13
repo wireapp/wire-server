@@ -84,6 +84,7 @@ import Data.Misc (PlainTextPassword6)
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi.Schema qualified as S
 import Data.Proxy
+import Data.Range
 import Data.Schema
 import Data.Set qualified as Set
 import Imports
@@ -94,6 +95,8 @@ import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Sem.Paging
+import Wire.Sem.Paging.Cassandra
 
 data PermissionTag = Required | Optional
 
@@ -144,6 +147,10 @@ deriving via
   instance
     (ToSchema (TeamMember' tag), Typeable tag) =>
     S.ToSchema (TeamMember' tag)
+
+type instance PagingBounds InternalPaging TeamMember = Range 1 HardTruncationLimit Int32
+
+type instance PagingBounds CassandraPaging TeamMember = Range 1 HardTruncationLimit Int32
 
 mkTeamMember ::
   UserId ->

@@ -47,7 +47,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
-import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
+import Data.Qualified (Qualified (qUnqualified), Remote, deprecatedSchema)
 import Data.Range
 import Data.Schema
 import Data.Text as Text
@@ -55,6 +55,8 @@ import Imports
 import Servant.API
 import Wire.API.Routes.MultiTablePaging
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
+import Wire.Sem.Paging
+import Wire.Sem.Paging.Cassandra
 
 --------------------------------------------------------------------------------
 -- UserConnectionList
@@ -122,6 +124,8 @@ instance ToSchema UserConnection where
         <*> ucConvId .= maybe_ (optField "qualified_conversation" schema)
         <* (fmap qUnqualified . ucConvId)
           .= maybe_ (optField "conversation" (deprecatedSchema "qualified_conversation" schema))
+
+type instance PagingBounds InternalPaging (Remote UserConnection) = Range 1 1000 Int32
 
 --------------------------------------------------------------------------------
 -- Relation

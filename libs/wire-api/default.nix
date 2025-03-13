@@ -69,6 +69,7 @@
 , openapi3
 , pem
 , polysemy
+, polysemy-wire-zoo
 , process
 , profunctors
 , proto-lens
@@ -179,6 +180,7 @@ mkDerivation {
     openapi3
     pem
     polysemy
+    polysemy-wire-zoo
     profunctors
     proto-lens
     protobuf

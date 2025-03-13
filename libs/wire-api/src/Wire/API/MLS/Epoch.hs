@@ -23,9 +23,11 @@ import Data.Aeson qualified as A
 import Data.Binary
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
+import Wire.Sem.FromUTC
 
 newtype Epoch = Epoch {epochNumber :: Word64}
   deriving stock (Eq, Show)
@@ -37,6 +39,9 @@ instance ParseMLS Epoch where
 
 instance SerialiseMLS Epoch where
   serialiseMLS (Epoch n) = put n
+
+instance FromUTC Epoch where
+  fromUTCTime = Epoch . floor . utcTimeToPOSIXSeconds
 
 addToEpoch :: (Integral a) => a -> Epoch -> Epoch
 addToEpoch n (Epoch e) = Epoch (e + fromIntegral n)
