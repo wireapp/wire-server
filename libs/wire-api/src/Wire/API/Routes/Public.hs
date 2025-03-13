@@ -222,6 +222,11 @@ type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 -- | Optional @Z-Host@ header (added by @nginz@)
 data ZHostOpt
 
+instance HasLink api =>  HasLink (ZHostOpt :> api) where
+  type MkLink (ZHostOpt :> api) a  = MkLink api a
+  toLink = let simpleToLink toA _ = toLink toA (Proxy :: Proxy api)
+               in simpleToLink
+
 type ZHostValue = Text
 
 type ZOptHostHeader =
