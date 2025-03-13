@@ -110,6 +110,7 @@ type APIAuthRespLegacy =
         :> "finalize-login"
         -- (SAML.APIAuthResp from here on, except for response)
         :> MultipartForm Mem SAML.AuthnResponseBody
+        :> ZHostOpt
         :> Post '[PlainText] Void
     )
 
@@ -120,6 +121,7 @@ type APIAuthResp =
         :> Capture "team" TeamId
         -- (SAML.APIAuthResp from here on, except for response)
         :> MultipartForm Mem SAML.AuthnResponseBody
+        :> ZHostOpt
         :> Post '[PlainText] Void
     )
 
