@@ -147,7 +147,7 @@ instance ToSchema Config where
                   _cfgDomainConfigs = Right domainConfigsMap
                 }
           _ -> fail $ "Cannot parse to Config from ConfigRaw: " ++ show config ++
-              " (give either all of `spAppUri`, `spSsoUri`, `contacts`, or `domainConfigs`)"
+              " (give either all of `spAppUri`, `spSsoUri`, `contacts`, or `spDomainConfigs`)"
 
 
       u :: Config -> ConfigRaw
