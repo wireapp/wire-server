@@ -97,7 +97,7 @@ instance ToSchema MultiIngressDomainConfig where
         <*> (_cfgSPSsoURI .= field "spSsoUri" schema)
         <*> (_cfgContacts .= field "contacts" (array schema))
 
--- TODO: Replace old template-haskell'ed ToJSON and FromJSON instances
+-- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
 instance ToSchema ContactPerson where
   schema =
     object "ContactPerson" $
@@ -112,7 +112,7 @@ instance ToSchema ContactPerson where
 instance ToSchema XmlText where
   schema = mkXmlText <$> unsafeFromXmlText .= (schema @T.Text)
 
--- TODO: Replace old template-haskell'ed ToJSON and FromJSON instances
+-- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
 instance ToSchema ContactType where
   schema =
     enum @T.Text "ContactType" $
