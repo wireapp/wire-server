@@ -20,6 +20,7 @@ import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
+import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Imports
 import Polysemy
 import Polysemy.Async
@@ -143,6 +144,7 @@ type BrigLowerLevelEffects =
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      DomainVerificationChallengeStore,
      DomainRegistrationStore,
+     CryptoSign,
      HashPassword,
      UserKeyStore,
      UserStore,
@@ -296,6 +298,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
               . runHashPassword e.settings.passwordHashingOptions
+              . runCryptoSign
               . interpretDomainRegistrationStoreToCassandra e.casClient
               . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig

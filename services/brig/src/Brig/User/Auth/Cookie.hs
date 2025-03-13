@@ -48,6 +48,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List qualified as List
 import Data.RetryAfter
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import Data.ZAuth.Validation qualified as ZAuth
 import Imports
@@ -60,12 +61,14 @@ import System.Logger.Class (field, msg, val, (~~))
 import Util.Timeout
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
+import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SessionStore qualified as Store
 
@@ -81,7 +84,10 @@ nextCookie ::
     Member Metrics r,
     Member SessionStore r,
     Member (Input ZAuthEnv) r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member AuthenticationSubsystem r
   ) =>
   Cookie (ZAuth.Token u) ->
   Maybe ClientId ->
@@ -120,10 +126,9 @@ nextCookie c mNewCid = runMaybeT $ do
 -- | Renew the given cookie with a fresh token.
 renewCookie ::
   ( ZAuth.UserTokenLike u,
-    Member (Input ZAuthEnv) r,
     Member (Input Env) r,
     Member SessionStore r,
-    Member (Embed IO) r
+    Member AuthenticationSubsystem r
   ) =>
   Cookie (ZAuth.Token u) ->
   Maybe ClientId ->
@@ -165,7 +170,14 @@ mustSuspendInactiveUser uid =
 
 newAccessToken ::
   forall u a r.
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, ZAuth.AccessTokenType u ~ a, Member (Input ZAuthEnv) r, Member (Embed IO) r) =>
+  ( ZAuth.UserTokenLike u,
+    ZAuth.AccessTokenLike a,
+    ZAuth.AccessTokenType u ~ a,
+    Member (Input ZAuthEnv) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member Random r
+  ) =>
   Cookie (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   Sem r AccessToken
@@ -209,11 +221,10 @@ revokeCookies u ids labels = do
 
 newCookieLimited ::
   ( ZAuth.UserTokenLike t,
-    Member (Input ZAuthEnv) r,
     Member SessionStore r,
     Member Now r,
     Member (Input Env) r,
-    Member (Embed IO) r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Maybe ClientId ->

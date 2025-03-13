@@ -54,6 +54,7 @@ import Wire.API.Allowlists qualified as Allowlists
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.User
+import Wire.AuthenticationSubsystem.Error (zauthError)
 import Wire.Error
 
 -------------------------------------------------------------------------------
@@ -98,7 +99,7 @@ instance Exception UserNotAllowedToJoinTeam
 brigErrorHandlers :: Logger -> ByteString -> [Catch.Handler IO (Either HttpError a)]
 brigErrorHandlers logger reqId =
   [ Catch.Handler $ \(ex :: ZV.Failure) ->
-      pure (Left (zauthError ex)),
+      pure (Left (StdError (zauthError ex))),
     Catch.Handler $ \(ex :: AWS.Error) ->
       case ex of
         AWS.SESInvalidDomain ->

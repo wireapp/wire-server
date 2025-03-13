@@ -64,6 +64,7 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Clock.System
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
 import Polysemy
@@ -121,6 +122,7 @@ import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
@@ -172,7 +174,9 @@ servantSitemap ::
     Member SessionStore r,
     Member (Input ZAuthEnv) r,
     Member (Input Env) r,
-    Member Now r
+    Member Now r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -323,7 +327,8 @@ authAPI ::
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
     Member Now r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Random r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
