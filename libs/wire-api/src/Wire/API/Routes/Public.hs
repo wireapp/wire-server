@@ -227,7 +227,7 @@ instance HasLink api =>  HasLink (ZHostOpt :> api) where
   toLink = let simpleToLink toA _ = toLink toA (Proxy :: Proxy api)
                in simpleToLink
 
-type ZHostValue = Text
+type ZHostValue = Text -- FUTUREWORK: use Data.Domain.Domain here instead of Text?
 
 type ZOptHostHeader =
   Header' '[Servant.Optional, Strict] "Z-Host" ZHostValue
