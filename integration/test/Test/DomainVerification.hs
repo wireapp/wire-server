@@ -300,6 +300,34 @@ testUpdateTeamInvite = do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "none"
 
+  -- [customer admin] set domain_redirect to no-registration
+  updateTeamInvite owner domain (object ["team_invite" .= "not-allowed", "domain_redirect" .= "no-registration"])
+    >>= assertStatus 200
+
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "no-registration"
+    resp.json %. "team_invite" `shouldMatch` "not-allowed"
+
+  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_redirect" `shouldMatch` "no-registration"
+
+  -- [customer admin] set domain_redirect back to none
+  updateTeamInvite owner domain (object ["team_invite" .= "not-allowed", "domain_redirect" .= "none"])
+    >>= assertStatus 200
+
+  bindResponse (getDomainRegistration OwnDomain domain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain" `shouldMatch` domain
+    resp.json %. "domain_redirect" `shouldMatch` "none"
+    resp.json %. "team_invite" `shouldMatch` "not-allowed"
+
+  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_redirect" `shouldMatch` "none"
+
 testUpdateTeamInviteSSO :: (HasCallStack) => App ()
 testUpdateTeamInviteSSO = do
   domain <- randomDomain

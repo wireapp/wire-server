@@ -592,10 +592,12 @@ updateTeamInviteImpl luid domain config = do
         throw EnterpriseLoginSubsystemOperationForbidden
       case conf.teamInvite of
         Team tidConfig | tidConfig /= tid -> throw EnterpriseLoginSubsystemOperationForbidden
-        validTeamInvite -> case conf.code of
-          Just idpId -> do
+        validTeamInvite -> case conf.domainRedirect of
+          Just (TeamSso idpId) -> do
             validateIdPId tid idpId
             pure $ DomainRegistrationUpdate (SSO idpId) validTeamInvite
+          Just TeamNone -> pure $ DomainRegistrationUpdate None validTeamInvite
+          Just TeamNoRegistration -> pure $ DomainRegistrationUpdate NoRegistration validTeamInvite
           Nothing -> pure $ DomainRegistrationUpdate domReg.domainRedirect validTeamInvite
 
     validateIdPId ::
