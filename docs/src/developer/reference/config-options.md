@@ -1022,7 +1022,6 @@ configuration.
 So, we go from single-domain *SP* configuration:
 
 ```yaml
-```
 config:
 ...
   spAppUri: <webapp-uri> # E.g. https://webapp.<domain>
@@ -1034,12 +1033,12 @@ config:
       givenName: <name> # Optional
       surname: <name> # Optional
       phone: <phone-number-string> # Optional
- 
+... 
+```
 
 To the multi-domain *SP* configuration:
 
 ```yaml
-
 config:
 ...
   domainConfigs:
@@ -1056,10 +1055,18 @@ config:
     <domain2>:
       ...
 ```
+(N.B. the structures in Helm values and spar's service YAML file are almost the
+same. Only the outer `config` object is added to the spar YAML config in Helm.)
 
 The inner data structure stays the same. The difference is that it's on
 `config`'s top level for single-ingress and in each `<domain>` entry in
 `domainConfigs` for multi-ingress.
+
+In a single-ingress setup the SCIM base URI is deduced from `spSsoUri` in
+Helm. In a multi-ingress setup this relationship isn't that clear as there are
+multiple `spSsoUri`s defined. So, the SCIM base URI needs to be set explicitly
+in `scimBaseUri`. In spar's YAML config file `scimBaseUri` is always required.
+
 
 ### Webapp
 
