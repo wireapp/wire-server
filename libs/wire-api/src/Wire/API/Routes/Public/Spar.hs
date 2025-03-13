@@ -165,12 +165,8 @@ type SsoSettingsGet =
     ( Get '[JSON] SsoSettings
     )
 
--- TODO: This can be simplified: Reduce duplication with `sparResponseURI`
 sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> Maybe Domain -> m (Maybe SAML.Issuer)
-sparSPIssuer Nothing mbDomain =
-  SAML.Issuer <$$> getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy) mbDomain
-sparSPIssuer (Just tid) mbDomain =
-  SAML.Issuer <$$> getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid mbDomain
+sparSPIssuer mbtid = (SAML.Issuer <$$>) . sparResponseURI mbtid
 
 sparResponseURI :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> Maybe Domain -> m (Maybe URI.URI)
 sparResponseURI Nothing =
