@@ -54,6 +54,7 @@ import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import Data.ZAuth.Validation qualified as ZAuth
 import Imports
@@ -81,6 +82,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -108,7 +110,8 @@ login ::
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
     Member Now r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Random r
   ) =>
   Login ->
   CookieType ->
@@ -203,7 +206,7 @@ withRetryLimit action uid = do
     action bkey budget
 
 logout ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member (Embed IO) r, Member SessionStore r) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
   List1 (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
@@ -224,7 +227,11 @@ renewAccess ::
     Member (Input Env) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r
+    Member (Concurrency Unsafe) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member AuthenticationSubsystem r,
+    Member Random r
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -303,7 +310,9 @@ newAccess ::
     Member (Input ZAuth.ZAuthEnv) r,
     Member (Input Env) r,
     Member Now r,
-    Member (Embed IO) r
+    Member AuthenticationSubsystem r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -383,7 +392,7 @@ isPendingActivation ident = case ident of
 --   given, we perform the usual checks.
 --   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member (Embed IO) r) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member CryptoSign r, Member Now r) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -402,7 +411,7 @@ validateTokens uts at = do
       _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member (Embed IO) r) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member CryptoSign r, Member Now r) =>
   ZAuth.Token u ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -428,7 +437,8 @@ ssoLogin ::
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
     Member Now r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Random r
   ) =>
   SsoLogin ->
   CookieType ->
@@ -467,7 +477,8 @@ legalHoldLogin ::
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
     Member Now r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Random r
   ) =>
   LegalHoldLogin ->
   CookieType ->

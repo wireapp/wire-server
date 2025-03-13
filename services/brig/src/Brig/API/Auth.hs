@@ -31,6 +31,7 @@ import Data.List1 (List1 (..))
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token (Token)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
@@ -51,15 +52,18 @@ import Wire.API.User.Auth.Sso
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error (zauthError)
 import Wire.AuthenticationSubsystem.ZAuth hiding (settings)
 import Wire.BlockListStore
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.Error (HttpError (..))
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.UserKeyStore
@@ -79,7 +83,11 @@ accessH ::
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r
+    Member (Concurrency Unsafe) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member AuthenticationSubsystem r,
+    Member Random r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -103,7 +111,11 @@ access ::
     Member Metrics r,
     Member SessionStore r,
     Member (Concurrency Unsafe) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member AuthenticationSubsystem r,
+    Member Random r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -111,7 +123,7 @@ access ::
   Handler r SomeAccess
 access mcid t mt =
   traverse mkUserTokenCookie
-    =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
+    =<< Auth.renewAccess (List1 t) mt mcid !>> (StdError . zauthError)
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode _ =
@@ -134,7 +146,8 @@ login ::
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
     Member Now r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Random r
   ) =>
   Login ->
   Maybe Bool ->
@@ -145,7 +158,7 @@ login l (fromMaybe False -> persist) = do
   traverse mkUserTokenCookie c
 
 logoutH ::
-  (Member (Input ZAuthEnv) r, Member (Embed IO) r, Member SessionStore r) =>
+  (Member (Input ZAuthEnv) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   Handler r ()
@@ -155,9 +168,9 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (UserTokenLike u, AccessTokenLike a, Member (Input ZAuthEnv) r, Member (Embed IO) r, Member SessionStore r) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (UserTokenLike u, AccessTokenLike a, Member (Input ZAuthEnv) r, Member SessionStore r, Member CryptoSign r, Member Now r) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
-logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
+logout uts (Just at) = Auth.logout (List1 uts) at !>> StdError . zauthError
 
 changeSelfEmail ::
   ( Member BlockListStore r,
@@ -172,7 +185,8 @@ changeSelfEmail ::
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
     Member (Input ZAuthEnv) r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Now r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -189,13 +203,13 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (UserTokenLike u, AccessTokenLike a, Member (Input ZAuthEnv) r, Member (Embed IO) r) =>
+  (UserTokenLike u, AccessTokenLike a, Member (Input ZAuthEnv) r, Member CryptoSign r, Member Now r) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
 validateCredentials _ Nothing = throwStd missingAccessToken
 validateCredentials uts mat =
-  fst <$> Auth.validateTokens (List1 uts) mat !>> zauthError
+  fst <$> Auth.validateTokens (List1 uts) mat !>> StdError . zauthError
 
 listCookies :: Local UserId -> Maybe (CommaSeparatedList CookieLabel) -> Handler r CookieList
 listCookies lusr (fold -> labels) =
@@ -225,7 +239,8 @@ legalHoldLogin ::
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
     Member Now r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Random r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -244,7 +259,8 @@ ssoLogin ::
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
     Member Now r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Random r
   ) =>
   SsoLogin ->
   Maybe Bool ->

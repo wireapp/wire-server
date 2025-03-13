@@ -73,6 +73,7 @@ import Data.Set qualified as Set
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text
+import Data.ZAuth.CryptoSign (CryptoSign)
 import GHC.TypeNats
 import Imports
 import Network.HTTP.Types
@@ -134,6 +135,7 @@ import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.Sem.Now (Now)
 import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserSubsystem
@@ -148,8 +150,9 @@ botAPI ::
     Member DeleteQueue r,
     Member AuthenticationSubsystem r,
     Member (Input ZAuthEnv) r,
-    Member (Embed IO) r,
-    Member SessionStore r
+    Member SessionStore r,
+    Member Now r,
+    Member CryptoSign r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -197,7 +200,8 @@ providerAPI ::
     Member VerificationCodeSubsystem r,
     Member RateLimit r,
     Member (Input ZAuthEnv) r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Now r
   ) =>
   ServerT ProviderAPI (Handler r)
 providerAPI =
@@ -322,7 +326,8 @@ login ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member (Input ZAuthEnv) r,
-    Member (Embed IO) r
+    Member CryptoSign r,
+    Member Now r
   ) =>
   ProviderLogin ->
   Handler r ProviderTokenCookie
@@ -736,7 +741,8 @@ addBot ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member (Input ZAuthEnv) r,
-    Member (Embed IO) r
+    Member Now r,
+    Member CryptoSign r
   ) =>
   UserId ->
   ConnId ->

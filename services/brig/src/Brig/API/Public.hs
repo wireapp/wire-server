@@ -85,6 +85,7 @@ import Data.Range
 import Data.Schema ()
 import Data.Text.Encoding qualified as Text
 import Data.Time.Clock
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
@@ -151,7 +152,7 @@ import Wire.API.User.Search qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
+import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
@@ -179,6 +180,7 @@ import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
@@ -390,7 +392,9 @@ servantSitemap ::
     Member (Input ZAuthEnv) r,
     Member SessionStore r,
     Member (Input Env) r,
-    Member Metrics r
+    Member Metrics r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -869,9 +873,7 @@ createUser ::
     Member EmailSending r,
     Member ActivationCodeStore r,
     Member RateLimit r,
-    Member (Input ZAuthEnv) r,
-    Member (Embed IO) r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   IpAddr ->
   Public.NewUserPublic ->
@@ -914,10 +916,10 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
     Auth.toWebCookie =<< case userStatus acc of
       Public.Ephemeral ->
         lift . liftSem $
-          Auth.newCookie @ZAuth.U userId Nothing Public.SessionCookie newUserLabel
+          AuthenticationSubsystem.newCookie @_ @ZAuth.U userId Nothing Public.SessionCookie newUserLabel
       _ ->
         lift . liftSem $
-          Auth.newCookie @ZAuth.U userId Nothing Public.PersistentCookie newUserLabel
+          AuthenticationSubsystem.newCookie @_ @ZAuth.U userId Nothing Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
   where

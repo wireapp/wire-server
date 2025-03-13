@@ -47,6 +47,7 @@ import Data.Text.IO (hPutStrLn)
 import Data.Text.Lazy qualified as Lazy
 import Data.Time.Clock
 import Data.UUID.V4 qualified as UUID
+import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Client (equivCookie)
@@ -70,6 +71,9 @@ import Wire.API.User.Client
 import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.HashPassword.Interpreter
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO
+import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
@@ -207,10 +211,10 @@ testLoginWith6CharPassword opts brig db = do
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
 
-randomAccessToken :: forall u r. (ZAuth.UserTokenLike u, Member (Input ZAuthEnv) r, Member (Embed IO) r) => Sem r AccessToken
+randomAccessToken :: forall u r. (ZAuth.UserTokenLike u, Member (Input ZAuthEnv) r, Member (Embed IO) r, Member CryptoSign r, Member Now r, Member Random r) => Sem r AccessToken
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
-randomUserToken :: (ZAuth.UserTokenLike u, Member (Embed IO) r, Member (Input ZAuthEnv) r) => Sem r (ZAuth.Token u)
+randomUserToken :: (ZAuth.UserTokenLike u, Member (Embed IO) r, Member (Input ZAuthEnv) r, Member CryptoSign r, Member Now r, Member Random r) => Sem r (ZAuth.Token u)
 randomUserToken = do
   r <- Id <$> liftIO UUID.nextRandom
   ZAuth.newUserToken r Nothing
@@ -1181,5 +1185,5 @@ remJson p l ids =
       "ids" .= ids
     ]
 
-runZAuth :: (MonadIO m) => ZAuthEnv -> Sem '[Input ZAuthEnv, Embed IO] a -> m a
-runZAuth zenv = liftIO . runM . runInputConst zenv
+runZAuth :: (MonadIO m) => ZAuthEnv -> Sem '[Input ZAuthEnv, CryptoSign, Now, Random, Embed IO] a -> m a
+runZAuth zenv = liftIO . runM . randomToIO . nowToIO . runCryptoSign . runInputConst zenv
