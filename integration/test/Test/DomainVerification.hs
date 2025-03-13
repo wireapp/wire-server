@@ -118,11 +118,14 @@ testDomainVerificationOnPremFlow = do
 
       bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
         resp.status `shouldMatchInt` 200
-        resp.json %. "domain_redirect" `shouldMatch` "none"
         isBackend <- config %. "domain_redirect" >>= asString <&> (== "backend")
         if isBackend
-          then resp.json %. "due_to_existing_account" `shouldMatch` True
-          else lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe String)
+          then do
+            resp.json %. "domain_redirect" `shouldMatch` "no-registration"
+            resp.json %. "due_to_existing_account" `shouldMatch` True
+          else do
+            resp.json %. "domain_redirect" `shouldMatch` "none"
+            lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe String)
 
 testDomainVerificationWrongAuth :: (HasCallStack) => App ()
 testDomainVerificationWrongAuth = do
@@ -473,18 +476,13 @@ testGetAndDeleteRegisteredDomains = do
 
   checkDelete expectedDomains
 
-testGetDomainRegistrationUserExists :: (HasCallStack) => App ()
-testGetDomainRegistrationUserExists = do
+testGetDomainRegistrationUserExistsBackend :: (HasCallStack) => App ()
+testGetDomainRegistrationUserExistsBackend = do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
   -- create a user with email on this domain
-  void
-    $ randomUser
-      OwnDomain
-      def
-        { email = Just ("paolo@" <> domain)
-        }
+  void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
 
   setup <- setupOwnershipToken OwnDomain domain
   updateDomainRedirect
@@ -498,13 +496,62 @@ testGetDomainRegistrationUserExists = do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "backend"
     resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
-    lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe String)
+    lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe Bool)
 
   bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" <> domain)) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "domain_redirect" `shouldMatch` "none"
+    resp.json %. "domain_redirect" `shouldMatch` "no-registration"
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe String)
     resp.json %. "due_to_existing_account" `shouldMatch` True
+
+testGetDomainRegistrationUserExistsSso :: (HasCallStack) => App ()
+testGetDomainRegistrationUserExistsSso = do
+  emailDomain <- randomDomain
+  (owner, tid, mem : _) <- createTeamWithEmailDomain OwnDomain emailDomain 2
+  memMail <- mem %. "email" & asString
+  let paoloMail = "paolo@" <> emailDomain
+  void $ randomUser OwnDomain def {email = Just paoloMail}
+  let svenMail = "sven@" <> emailDomain
+  void $ randomUser OwnDomain def {email = Just svenMail, team = True}
+  let newUserMail = "newUser@" <> emailDomain
+
+  setup <- setupOwnershipToken OwnDomain emailDomain
+
+  -- enable domain registration feature
+  assertSuccess =<< do
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
+
+  authorizeTeam owner emailDomain setup.ownershipToken >>= assertStatus 200
+
+  -- [customer admin] register a new idp and use it to set a team-invite config
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+  updateTeamInvite owner emailDomain (object ["team_invite" .= "allowed", "sso" .= idpId])
+    >>= assertStatus 200
+
+  -- newUserMail is not registered yet
+  bindResponse (getDomainRegistrationFromEmail OwnDomain newUserMail) \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_redirect" `shouldMatch` "sso"
+    resp.json %. "sso_code" `shouldMatch` idpId
+
+  void $ loginWithSaml True tid newUserMail (idpId, idpMeta)
+
+  -- now the account exists, and but as this is an SSO user they should be directed to the SSO flow
+  bindResponse (getDomainRegistrationFromEmail OwnDomain newUserMail) \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_redirect" `shouldMatch` "sso"
+    resp.json %. "sso_code" `shouldMatch` idpId
+
+  -- these have normal password accounts, and some are not members of the team
+  for_ [memMail, paoloMail, svenMail] \email -> do
+    bindResponse (getDomainRegistrationFromEmail OwnDomain email) \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "domain_redirect" `shouldMatch` "no-registration"
+      lookupField resp.json "sso_code" `shouldMatch` (Nothing :: Maybe String)
+      lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe Bool)
 
 testSsoLoginNoEmailVerification :: (HasCallStack) => App ()
 testSsoLoginNoEmailVerification = do

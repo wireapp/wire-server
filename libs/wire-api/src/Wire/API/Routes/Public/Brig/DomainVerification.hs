@@ -153,7 +153,7 @@ instance ToSchema RegisteredDomains where
         <$> unRegisteredDomains .= field "registered_domains" (array schema)
 
 data DomainRedirectResponse = DomainRedirectResponse
-  { userExists :: Bool,
+  { propagateUserExists :: Bool,
     redirect :: DomainRedirect
   }
   deriving (Eq, Show, Generic)
@@ -164,7 +164,7 @@ instance ToSchema DomainRedirectResponse where
   schema =
     object "DomainRedirectResponse" $
       DomainRedirectResponse
-        <$> (\r -> True <$ guard r.userExists)
+        <$> (\r -> True <$ guard r.propagateUserExists)
           .= maybe_
             ( fromMaybe False <$> optField "due_to_existing_account" schema
             )

@@ -80,7 +80,8 @@ runEnterpriseLoginSubsystemWithConfig ::
     Member Random r,
     Member Rpc r,
     Member UserKeyStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   EnterpriseLoginSubsystemConfig ->
   Sem (EnterpriseLoginSubsystem ': r) a ->
@@ -103,7 +104,8 @@ runEnterpriseLoginSubsystem ::
     Member Random r,
     Member Rpc r,
     Member UserKeyStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Sem (EnterpriseLoginSubsystem ': r) a ->
   Sem r a
@@ -649,13 +651,18 @@ getDomainRegistrationPublicImpl ::
   ( Member UserKeyStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member DomainRegistrationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   GetDomainRegistrationRequest ->
   Sem r DomainRedirectResponse
 getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
   -- check if the email belongs to a registered user
-  mUser <- lookupKey (mkEmailKey email)
+  mUser <- do
+    mUid <- lookupKey (mkEmailKey email)
+    mLuid <- for mUid (\uid -> flip qualifyAs uid <$> input)
+    maybe (pure Nothing) (fmap (fmap selfUser) . getSelfProfile) mLuid
 
   domain <-
     either
@@ -664,7 +671,13 @@ getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
       $ mkDomain (Text.decodeUtf8 (domainPart email))
   mReg <- getDomainRegistrationImpl domain
 
-  pure $ case mUser of
-    Nothing -> DomainRedirectResponse False (maybe None (.domainRedirect) mReg)
-    Just _ ->
-      DomainRedirectResponse (fmap (domainRedirectTag . (.domainRedirect)) mReg == Just BackendTag) None
+  pure $ case (mUser, maybe None (.domainRedirect) mReg) of
+    (Just _, Backend _) -> DomainRedirectResponse True NoRegistration
+    (Just user, SSO _)
+      | not (isSSOAccountFromTeam (mReg >>= (.authorizedTeam)) user) ->
+          DomainRedirectResponse False NoRegistration
+    (_, dr) -> DomainRedirectResponse False dr
+  where
+    isSSOAccountFromTeam :: Maybe TeamId -> User -> Bool
+    isSSOAccountFromTeam Nothing _ = False
+    isSSOAccountFromTeam (Just tid) user = any isSSOIdentity user.userIdentity && user.userTeam == Just tid
