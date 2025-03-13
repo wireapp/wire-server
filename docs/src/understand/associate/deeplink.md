@@ -103,19 +103,20 @@ As of release `2.117.0` from `2021-10-29` (see `release notes<release-notes>`), 
 # (e.g. under ./values/wire-server/values.yaml)
 nginz:
   nginx_conf:
+    external_env_domain: example.com
     deeplink:
       endpoints:
         backendURL: "https://nginz-https.example.com"
         backendWSURL: "https://nginz-ssl.example.com"
         teamsURL: "https://teams.example.com"
         accountsURL: "https://account.example.com"
-        blackListURL: "https://clientblacklist.wire.com/prod"
-        websiteURL: "https://wire.com"
+        blackListURL: "https://clientblacklist.example.com/prod"
+        websiteURL: "https://example.com"
       apiProxy: # (optional)
         host: "socks5.proxy.com"
         port: 1080
         needsAuthentication: true
-      title: "My Custom Wire Backend"
+      title: "Example Backend"
 ```
 
 (As with any configuration changes, you need to apply them following your usual way of updating configuration (e.g. 'helm upgrade...'))
@@ -124,6 +125,53 @@ Now both static files should become accessible at the backend domain under `/dee
 
 - `https://nginz-https.<domain>/deeplink.json`
 - `https://nginz-https.<domain>/deeplink.html`
+
+#### Host deeplinks for a multi ingress setup
+
+This configuration is necessary only when using a [Multi-Ingress Setup](../../developer/reference/config-options.md#multi-ingress-setup). To enable deeplink URLs on different domains configured under `nginx_conf.additional_external_env_domains`, use the following configuration:
+
+```
+nginz:
+  nginx_conf:
+    ...
+    multi_ingress_deeplink:
+      red.example.com:
+        endpoints:
+          backendURL: "https://nginz-https.red.example.com"
+          backendWSURL: "https://nginz-ssl.red.example.com"
+          blackListURL: "https://clientblacklist.red.example.com/prod"
+          teamsURL: "https://teams.red.example.com"
+          accountsURL: "https://account.red.example.com"
+          websiteURL: "https://red.example.com"
+        title: "Production red.example.com"
+        apiProxy: # (optional)
+          host: "socks5.proxy.com"
+          port: 1080
+          needsAuthentication: true
+      green.example.org:
+        endpoints:
+          backendURL: "https://nginz-https.green.example.org"
+          backendWSURL: "https://nginz-ssl.green.example.org"
+          blackListURL: "https://clientblacklist.green.example.org/prod"
+          teamsURL: "https://teams.green.example.org"
+          accountsURL: "https://account.green.example.org"
+          websiteURL: "https://green.example.org"
+        title: "Production green.example.org" 
+      blue.example.net:
+        endpoints:
+          backendURL: "https://nginz-https.blue.example.net"
+          backendWSURL: "https://nginz-ssl.blue.example.net"
+          blackListURL: "https://clientblacklist.blue.example.net/prod"
+          teamsURL: "https://teams.blue.example.net"
+          accountsURL: "https://account.blue.example.net"
+          websiteURL: "https://blue.example.net"
+        title: "Production blue.example.net" 
+```
+
+#### Note:
+  - Each entry in `nginx_conf.multi_ingress_deeplink` must be listed in `nginx_conf.additional_external_env_domains`. If these lists do not match, deeplinks for the corresponding domains will not function.
+
+  - The deeplink configured under `nginx_conf.deeplink` should align with `nginx_conf.external_env_domain` and should not be repeated in `multi_ingress_deeplink`.
 
 #### Host a deeplink using minio (deprecated)
 

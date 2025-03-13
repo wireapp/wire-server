@@ -66,6 +66,9 @@ spec:
         - name: upstreams
           mountPath: /etc/wire/nginz/upstreams
           readOnly: true
+        - name: deeplink
+          mountPath: /etc/wire/nginz/deeplink
+          readOnly: true
         ports:
         - name: http
           containerPort: {{ .Values.config.http.httpPort }}
@@ -98,3 +101,6 @@ spec:
           secretName: nginz
       - name: upstreams
         emptyDir: {}
+      - name: deeplink
+        configMap:
+          name: nginz-deeplink
