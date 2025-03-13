@@ -174,7 +174,7 @@ newSessionToken :: forall t r. (Member CryptoSign r, Member Now r, Member (Input
 newSessionToken u c = runError $ do
   unless (allowSessionToken @t) $
     -- TODO: Is this right? It used to be MonadThrow
-    throw ZV.Invalid
+    throw ZV.Unsupported
   z <- input
   r <- randomValue
   let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout

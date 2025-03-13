@@ -28,6 +28,7 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Time
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (local, lookup)
 import Polysemy
 import Polysemy.Error
@@ -40,7 +41,9 @@ import Wire.API.Allowlists qualified as AllowLists
 import Wire.API.User
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Cookie
 import Wire.AuthenticationSubsystem.Error
+import Wire.AuthenticationSubsystem.ZAuth
 import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
@@ -49,6 +52,7 @@ import Wire.PasswordStore qualified as PasswordStore
 import Wire.RateLimit
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.SessionStore
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -63,25 +67,33 @@ interpretAuthenticationSubsystem ::
     Member TinyLog r,
     Member HashPassword r,
     Member SessionStore r,
+    -- TODO: Make a config type to unify these inputs
     Member (Input (Local ())) r,
     Member (Input (Maybe AllowlistEmailDomains)) r,
+    Member (Input ZAuthEnv) r,
     Member PasswordStore r,
     Member EmailSubsystem r,
     Member UserStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
     userSubsystemInterpreter . \case
-      AuthenticateEither uid pwd -> authenticateEitherImpl uid pwd
-      ReauthenticateEither uid pwd -> reauthenticateEitherImpl uid pwd
+      -- Password Management
       CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
       ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
+      -- Password Verification
+      AuthenticateEither uid pwd -> authenticateEitherImpl uid pwd
+      ReauthenticateEither uid pwd -> reauthenticateEitherImpl uid pwd
       VerifyUserPassword uid plaintext -> verifyUserPasswordImpl uid plaintext
       VerifyUserPasswordError luid plaintext -> verifyUserPasswordErrorImpl luid plaintext
       VerifyProviderPassword pid plaintext -> verifyProviderPasswordImpl pid plaintext
+      -- Cookie Management
+      NewCookie uid mcid typ mLabel -> newCookieImpl uid mcid typ mLabel
       -- Testing
       InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
 

@@ -5,6 +5,7 @@ module Wire.MockInterpreters (module MockInterpreters) where
 
 import Wire.MockInterpreters.ActivationCodeStore as MockInterpreters
 import Wire.MockInterpreters.BlockListStore as MockInterpreters
+import Wire.MockInterpreters.CryptoSign as MockInterpreters
 import Wire.MockInterpreters.DomainRegistrationStore as MockInterpreters
 import Wire.MockInterpreters.DomainVerificationChallengeStore as MockInterpreters
 import Wire.MockInterpreters.EmailSending as MockInterpreters

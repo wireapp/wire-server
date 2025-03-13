@@ -17,7 +17,6 @@
 
 module Brig.User.Auth.Cookie
   ( -- * Cookie Essentials
-    newCookie,
     newAccessToken,
     nextCookie,
     lookupCookie,
@@ -72,32 +71,6 @@ import Wire.SessionStore qualified as Store
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management
-
-newCookie ::
-  (ZAuth.UserTokenLike u, Member (Embed IO) r, Member (Input ZAuthEnv) r, Member SessionStore r) =>
-  UserId ->
-  Maybe ClientId ->
-  CookieType ->
-  Maybe CookieLabel ->
-  Sem r (Cookie (ZAuth.Token u))
-newCookie uid cid typ label = do
-  now <- liftIO $ getCurrentTime
-  tok <-
-    if typ == PersistentCookie
-      then ZAuth.newUserToken uid cid
-      else ZAuth.newSessionToken uid cid
-  let c =
-        Cookie
-          { cookieId = CookieId tok.body.rand,
-            cookieCreated = now,
-            cookieExpires = ZAuth.tokenExpiresUTC tok,
-            cookieLabel = label,
-            cookieType = typ,
-            cookieSucc = Nothing,
-            cookieValue = tok
-          }
-  Store.insertCookie uid (toUnitCookie c) Nothing
-  pure c
 
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
