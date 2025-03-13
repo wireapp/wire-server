@@ -1012,6 +1012,55 @@ multiIngress:
    green.example.com: https://accounts.green.example.net/conversation-join/
 ```
 
+### Spar
+
+To enable SSO via SAML spar needs to act as multiple *ServiceProvider*s
+(*SP*s); one per multi-ingress domain. The configuration is done with a map of
+domains to *SP* settings. It replaces the usual (single-domain) *SP*
+configuration.
+
+So, we go from single-domain *SP* configuration:
+
+```yaml
+```
+config:
+...
+  spAppUri: <webapp-uri> # E.g. https://webapp.<domain>
+  spSsoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  contacts:
+    - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+      company: <company-name> # Optional
+      email: <contact-email-address> # Optional
+      givenName: <name> # Optional
+      surname: <name> # Optional
+      phone: <phone-number-string> # Optional
+ 
+
+To the multi-domain *SP* configuration:
+
+```yaml
+
+config:
+...
+  domainConfigs:
+    <domain1>: # The domain of the incoming nginz-https host. E.g. nginz-https.<domain>
+      spAppUri: <webapp-uri> # E.g. https://webapp.<domain>
+      spSsoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+      contacts:
+        - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+          company: <company-name> # Optional
+          email: <contact-email-address> # Optional
+          givenName: <name> # Optional
+          surname: <name> # Optional
+          phone: <phone-number-string> # Optional
+    <domain2>:
+      ...
+```
+
+The inner data structure stays the same. The difference is that it's on
+`config`'s top level for single-ingress and in each `<domain>` entry in
+`domainConfigs` for multi-ingress.
+
 ### Webapp
 
 The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables).
