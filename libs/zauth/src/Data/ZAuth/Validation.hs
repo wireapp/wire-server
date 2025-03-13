@@ -21,14 +21,18 @@ module Data.ZAuth.Validation
   )
 where
 
-import Control.Error (runExceptT, throwE)
 import Data.ByteString.Conversion
 import Data.Time.Clock.POSIX
 import Data.Vector (Vector, (!))
 import Data.Vector qualified as Vec
+import Data.ZAuth.CryptoSign (CryptoSign, verifyWith)
 import Data.ZAuth.Token
 import Imports
-import Sodium.Crypto.Sign (PublicKey, verifyWith)
+import Polysemy
+import Polysemy.Error
+import Sodium.Crypto.Sign (PublicKey)
+import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
+import Wire.Sem.Now qualified as Now
 
 data Failure
   = -- | The token signature is incorrect.
@@ -43,21 +47,21 @@ data Failure
 
 instance Exception Failure
 
-check :: (SerializableToken t, MonadIO m) => Vector PublicKey -> Token t -> m (Either Failure ())
-check pubKeys t = runExceptT $ do
+check :: (SerializableToken t, Member CryptoSign r, Member Now.Now r) => Vector PublicKey -> Token t -> Sem r (Either Failure ())
+check pubKeys t = runError $ do
   let dat = toByteString' $ writeData t.header t.body
   let k = t.header.key
   when (k < 1 || k > Vec.length pubKeys) $
-    throwE Invalid
-  ok <- liftIO $ verifyWith (pubKeys ! (k - 1)) t.signature dat
+    throw Invalid
+  ok <- verifyWith (pubKeys ! (k - 1)) t.signature dat
   unless ok $
-    throwE Falsified
+    throw Falsified
   isExpired <-
     if t.header.time == -1
       then pure False
       else (t.header.time <) <$> now
   when isExpired $
-    throwE Expired
+    throw Expired
 
-now :: (MonadIO m) => m Integer
-now = floor <$> liftIO getPOSIXTime
+now :: (Member Now.Now r) => Sem r Integer
+now = floor . fromUTCTime @POSIXTime <$> Now.get

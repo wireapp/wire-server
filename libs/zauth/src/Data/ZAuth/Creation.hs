@@ -29,9 +29,14 @@ where
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.Time.Clock.POSIX
+import Data.ZAuth.CryptoSign
 import Data.ZAuth.Token hiding (signature)
 import Imports
-import Sodium.Crypto.Sign
+import Polysemy
+import Sodium.Crypto.Sign (SecretKey, Signature)
+import Wire.Sem.FromUTC
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 data TokenExpiry
   = TokenExpiresAfter Integer
@@ -43,29 +48,29 @@ data SigningKey = SigningKey
     key :: SecretKey
   }
 
-renewToken :: (MonadIO m, SerializableToken t) => SigningKey -> Integer -> Header t -> Body t -> m (Token t)
+renewToken :: forall t r. (SerializableToken t, Member Now r, Member CryptoSign r) => SigningKey -> Integer -> Header t -> Body t -> Sem r (Token t)
 renewToken signingKey dur hdr bdy = do
   newToken signingKey (TokenExpiresAfter dur) (hdr.tag) bdy
 
 tokenVersion :: Int
 tokenVersion = 1
 
-newToken :: (MonadIO m, SerializableToken t) => SigningKey -> TokenExpiry -> Maybe Tag -> Body t -> m (Token t)
+newToken :: forall t r. (SerializableToken t, Member CryptoSign r, Member Now r) => SigningKey -> TokenExpiry -> Maybe Tag -> Body t -> Sem r (Token t)
 newToken signingKey tokenExpiry mTag a = do
   tokenTime <- case tokenExpiry of
     TokenExpiresAt t -> pure t
     TokenNeverExpires -> pure (-1)
     TokenExpiresAfter ttl -> expiry ttl
   let h = Header tokenVersion signingKey.keyIdx (floor tokenTime) mTag
-  s <- liftIO $ signToken signingKey.key h a
+  s <- signToken signingKey.key h a
   pure $ Token s h a
 
 -----------------------------------------------------------------------------
 -- Internal
 
-signToken :: (SerializableToken t) => SecretKey -> Header t -> Body t -> IO Signature
-signToken key h a = do
-  liftIO . signature key . toStrict . toLazyByteString $ writeData h a
+signToken :: (SerializableToken t, Member CryptoSign r) => SecretKey -> Header t -> Body t -> Sem r Signature
+signToken key h a =
+  sign key . toStrict . toLazyByteString $ writeData h a
 
-expiry :: (MonadIO m) => Integer -> m POSIXTime
-expiry d = (fromInteger d +) <$> liftIO getPOSIXTime
+expiry :: (Member Now r) => Integer -> Sem r POSIXTime
+expiry d = (fromInteger d +) . fromUTCTime <$> Now.get

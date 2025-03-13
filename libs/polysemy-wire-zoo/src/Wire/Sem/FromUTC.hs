@@ -19,6 +19,7 @@
 module Wire.Sem.FromUTC where
 
 import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (POSIXTime, utcTimeToPOSIXSeconds)
 import Imports
 import qualified SAML2.WebSSO.Types as SAML
 
@@ -33,3 +34,6 @@ instance FromUTC UTCTime where
 
 instance FromUTC SAML.Time where
   fromUTCTime = SAML.Time
+
+instance FromUTC POSIXTime where
+  fromUTCTime = utcTimeToPOSIXSeconds

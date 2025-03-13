@@ -1,6 +1,5 @@
 module Wire.AuthenticationSubsystem.ZAuth where
 
-import Control.Exception (throwIO)
 import Data.Aeson
 import Data.Bits
 import Data.ByteString qualified as BS
@@ -15,15 +14,19 @@ import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Data.ZAuth.Creation (TokenExpiry (..))
 import Data.ZAuth.Creation qualified as ZC
+import Data.ZAuth.CryptoSign
 import Data.ZAuth.Token
 import Data.ZAuth.Validation qualified as ZV
 import Imports
-import OpenSSL.Random
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Sodium.Crypto.Sign
 import Wire.API.User.Auth (bearerToken)
 import Wire.API.User.Auth qualified as Auth
+import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
+import Wire.Sem.Random qualified as Random
 
 data Settings = Settings
   { -- | Secret key index to use
@@ -126,7 +129,7 @@ createSigningKey i keys = do
   pure $ ZC.SigningKey i signingKey
 
 class (Body t ~ Access, SerializableToken t) => AccessTokenLike t where
-  renewAccessToken :: (Member (Embed IO) r, Member (Input ZAuthEnv) r) => Maybe ClientId -> Token t -> Sem r Auth.AccessToken
+  renewAccessToken :: (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r) => Maybe ClientId -> Token t -> Sem r Auth.AccessToken
   accessTTL :: Settings -> Integer
 
 instance AccessTokenLike A where
@@ -155,31 +158,31 @@ instance UserTokenLike LU where
   allowSessionToken = False
   userTTL = (.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds)
 
-mkUserToken :: (Member (Embed IO) r, Member (Input ZAuthEnv) r, SerializableToken t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> Sem r (Token t)
+mkUserToken :: (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r, SerializableToken t, Body t ~ User) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> Sem r (Token t)
 mkUserToken u cid r t = do
   z <- input
   ZC.newToken z.private (TokenExpiresAt (utcTimeToPOSIXSeconds t)) Nothing (User (toUUID u) (fmap clientToText cid) r)
 
-newUserToken :: forall t r. (Member (Embed IO) r, Member (Input ZAuthEnv) r, UserTokenLike t) => UserId -> Maybe ClientId -> Sem r (Token t)
+newUserToken :: forall t r. (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r, UserTokenLike t, Member Random r) => UserId -> Maybe ClientId -> Sem r (Token t)
 newUserToken u c = do
   z <- input
-  r <- liftIO randomValue
+  r <- randomValue
   let ttl = userTTL @t z.settings
    in ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $ User (toUUID u) (fmap clientToText c) r
 
-newSessionToken :: forall t r. (Member (Embed IO) r, Member (Input ZAuthEnv) r, UserTokenLike t) => UserId -> Maybe ClientId -> Sem r (Token t)
-newSessionToken u c = do
+newSessionToken :: forall t r. (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r, UserTokenLike t, Member Random r) => UserId -> Maybe ClientId -> Sem r (Either ZV.Failure (Token t))
+newSessionToken u c = runError $ do
   unless (allowSessionToken @t) $
     -- TODO: Is this right? It used to be MonadThrow
-    liftIO (throwIO ZV.Invalid)
+    throw ZV.Invalid
   z <- input
-  r <- liftIO randomValue
+  r <- randomValue
   let SessionTokenTimeout ttl = z.settings.sessionTokenTimeout
    in ZC.newToken z.private (TokenExpiresAfter ttl) (Just S) $ User (toUUID u) (fmap clientToText c) r
 
 newAccessToken ::
   forall t r.
-  (Member (Embed IO) r, Member (Input ZAuthEnv) r, AccessTokenLike (AccessTokenType t), Body t ~ User) =>
+  (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r, AccessTokenLike (AccessTokenType t), Body t ~ User, Member Random r) =>
   Token t ->
   Sem r Auth.AccessToken
 newAccessToken xt = do
@@ -187,7 +190,7 @@ newAccessToken xt = do
   let ttl = accessTTL @(AccessTokenType t) z.settings
   -- TODO: Test that connId is randomly generated, there was a test in
   -- zauth, which got deleted as a result of moving this code here.
-  connId <- liftIO randomConnId
+  connId <- randomConnId
   accessToken :: (Token A) <-
     ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $
       Access xt.body.user xt.body.client connId
@@ -197,7 +200,7 @@ newAccessToken xt = do
       (toByteString accessToken)
       ttl
 
-renewAccessToken' :: (Member (Embed IO) r, Member (Input ZAuthEnv) r) => Maybe ClientId -> Token A -> Sem r Auth.AccessToken
+renewAccessToken' :: (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r) => Maybe ClientId -> Token A -> Sem r Auth.AccessToken
 renewAccessToken' mcid old = do
   z <- input
   let AccessTokenTimeout ttl = z.settings.accessTokenTimeout
@@ -213,20 +216,20 @@ renewAccessToken' mcid old = do
       (toByteString new)
       ttl
 
-newBotToken :: (Member (Embed IO) r, Member (Input ZAuthEnv) r) => ProviderId -> BotId -> ConvId -> Sem r (Token B)
+newBotToken :: (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r) => ProviderId -> BotId -> ConvId -> Sem r (Token B)
 newBotToken pid bid cid = do
   z <- input
   ZC.newToken z.private TokenNeverExpires Nothing $
     Bot (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
 
-newProviderToken :: (Member (Embed IO) r, Member (Input ZAuthEnv) r) => ProviderId -> Sem r (Token P)
+newProviderToken :: (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r) => ProviderId -> Sem r (Token P)
 newProviderToken pid = do
   z <- input
   let ProviderTokenTimeout ttl = z.settings.providerTokenTimeout
    in ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $ Provider (toUUID pid)
 
 renewLegalHoldAccessToken ::
-  (Member (Embed IO) r, Member (Input ZAuthEnv) r) =>
+  (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r) =>
   Maybe ClientId ->
   Token LA ->
   Sem r Auth.AccessToken
@@ -241,7 +244,7 @@ renewLegalHoldAccessToken _mcid old = do
       ttl
 
 validateToken ::
-  (Member (Embed IO) r, Member (Input ZAuthEnv) r, SerializableToken t) =>
+  (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r, SerializableToken t) =>
   Token t ->
   Sem r (Either ZV.Failure ())
 validateToken t = do
@@ -257,12 +260,12 @@ tokenExpires t = fromIntegral (t.header.time)
 tokenExpiresUTC :: Token a -> UTCTime
 tokenExpiresUTC = posixSecondsToUTCTime . tokenExpires
 
-randomValue :: IO Word32
-randomValue = BS.foldl' f 0 <$> randBytes 4
+randomValue :: (Member Random r) => Sem r Word32
+randomValue = BS.foldl' f 0 <$> Random.bytes 4
   where
     f r w = shiftL r 8 .|. fromIntegral w
 
-randomConnId :: IO Word64
-randomConnId = BS.foldl' f 0 <$> randBytes 8
+randomConnId :: (Member Random r) => Sem r Word64
+randomConnId = BS.foldl' f 0 <$> Random.bytes 8
   where
     f r w = shiftL r 8 .|. fromIntegral w

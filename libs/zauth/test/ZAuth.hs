@@ -28,13 +28,17 @@ import Data.UUID.V4
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Data.ZAuth.Creation as C
+import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Data.ZAuth.Token
 import Data.ZAuth.Validation as V
 import Imports
+import Polysemy
 import Sodium.Crypto.Sign
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO
 
 tests :: IO TestTree
 tests = do
@@ -68,6 +72,9 @@ tests = do
 defDuration :: Integer
 defDuration = 1
 
+runEffects :: Sem '[CryptoSign, Now, Embed IO] a -> IO a
+runEffects = runM . nowToIO . runCryptoSign
+
 testUserIsNotLegalHoldUser :: Token LU -> Property
 testUserIsNotLegalHoldUser t = fromByteString @(Token U) (toByteString' t) === Nothing
 
@@ -87,32 +94,32 @@ testDecEncLegalHoldAccessToken :: Token LA -> Property
 testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) === Just t
 
 testNotExpired :: C.SigningKey -> Vector PublicKey -> IO ()
-testNotExpired signingKey pubKeys = do
+testNotExpired signingKey pubKeys = runEffects $ do
   u <- liftIO nextRandom
-  t <- newToken @_ @U signingKey (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
+  t <- newToken @U signingKey (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
   x <- check pubKeys t
-  Right () @=? x
+  liftIO $ Right () @=? x
 
 -- The testExpired test conforms to the following testing standards:
 -- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2 @S3
 --
 -- Using an expired access token should fail
 testExpired :: C.SigningKey -> Vector PublicKey -> IO ()
-testExpired signingKey pubKeys = do
+testExpired signingKey pubKeys = runEffects $ do
   u <- liftIO nextRandom
-  t <- newToken @_ @U signingKey (TokenExpiresAfter 0) Nothing $ User u Nothing 100
+  t <- newToken @U signingKey (TokenExpiresAfter 0) Nothing $ User u Nothing 100
   waitSeconds 1
   x <- check pubKeys t
-  Left Expired @=? x
+  liftIO $ Left Expired @=? x
 
 -- @END
 
 testSignAndVerify :: C.SigningKey -> Vector PublicKey -> IO ()
-testSignAndVerify signingKey pubKeys = do
+testSignAndVerify signingKey pubKeys = runEffects $ do
   u <- liftIO nextRandom
-  t <- newToken @_ @U signingKey (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
+  t <- newToken @U signingKey (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
   x <- check pubKeys t
-  Right () @=? x
+  liftIO $ Right () @=? x
 
 -- Helpers:
 
