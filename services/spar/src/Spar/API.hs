@@ -254,16 +254,16 @@ getMetadata ::
   Maybe Text ->
   Sem r SAML.SPMetadata
 getMetadata mbTid mbHost = do
-  mbHostDom <- (\host -> mkDomain host & either undefined pure) `mapM` mbHost
+  let err :: Sem r any
+      err = throwSparSem (SparSPNotFound "")
+
+  mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
 
   let iss :: Sem r SAML.Issuer
       iss = SamlProtocolSettings.spIssuer mbTid mbHostDom >>= maybe err pure
 
       rsp :: Sem r URI.URI
       rsp = SamlProtocolSettings.responseURI mbTid mbHostDom >>= maybe err pure
-
-      err :: Sem r any
-      err = throwSparSem (SparSPNotFound "")
 
   SAML2.meta appName iss rsp
 
@@ -303,15 +303,17 @@ authreq authreqttl msucc merr idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
-    mbHostDom <- (\host -> mkDomain host & either undefined pure) `mapM` mbHost
+
+    let err :: Sem r any
+        err = throwSparSem (SparSPNotFound "")
+    mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
+
     let mbtid :: Maybe TeamId
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . apiVersion) of
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . team
         iss :: Sem r SAML.Issuer
         iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
-        err :: Sem r any
-        err = throwSparSem (SparSPNotFound "")
     SAML2.authReq authreqttl iss idpid
   VerdictFormatStore.store authreqttl reqid vformat
   pure form
@@ -357,16 +359,16 @@ authresp ::
   Maybe Text ->
   Sem r Void
 authresp mbtid arbody mbHost = do
-  mbHostDom <- (\host -> mkDomain host & either undefined pure) `mapM` mbHost
+  let err :: Sem r any
+      err = throwSparSem (SparSPNotFound "")
+
+  mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
 
   let iss :: Sem r SAML.Issuer
       iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
 
       rsp :: Sem r URI.URI
       rsp = SamlProtocolSettings.responseURI mbtid mbHostDom >>= maybe err pure
-
-      err :: Sem r any
-      err = throwSparSem (SparSPNotFound "")
 
   logErrors $ SAML2.authResp mbtid iss rsp go arbody
   where
