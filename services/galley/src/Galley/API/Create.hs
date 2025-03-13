@@ -33,9 +33,9 @@ where
 
 import Control.Error (headMay)
 import Control.Lens hiding ((??))
+import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
@@ -43,6 +43,7 @@ import Data.Set qualified as Set
 import Data.Time
 import Data.UUID.Tagged qualified as U
 import Galley.API.Action
+import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.Mapping
@@ -591,12 +592,16 @@ createConnectConversation lusr conn j = do
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
       notifyCreatedConversation lusr conn c
-      for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)) $ \p ->
-        pushNotifications
-          [ p
-              & pushRoute .~ PushV2.RouteDirect
-              & pushConn .~ conn
-          ]
+      pushNotifications
+        [ def
+            { origin = Just (tUnqualified lusr),
+              json = toJSONObject e,
+              recipients = map localMemberToRecipient (Data.convLocalMembers c),
+              isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+              route = PushV2.RouteDirect,
+              conn
+            }
+        ]
       conversationCreated lusr c
     update n conv = do
       let mems = Data.convLocalMembers conv
@@ -631,12 +636,16 @@ createConnectConversation lusr conn j = do
             Nothing -> pure $ Data.convName conv
           t <- input
           let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t (EdConnect j)
-          for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers conv)) $ \p ->
-            pushNotifications
-              [ p
-                  & pushRoute .~ PushV2.RouteDirect
-                  & pushConn .~ conn
-              ]
+          pushNotifications
+            [ def
+                { origin = Just (tUnqualified lusr),
+                  json = toJSONObject e,
+                  recipients = map localMemberToRecipient (Data.convLocalMembers conv),
+                  isCellsEvent = shouldPushToCells conv.convMetadata (evtType e),
+                  route = PushV2.RouteDirect,
+                  conn
+                }
+            ]
           pure $ Data.convSetName n' conv
       | otherwise = pure conv
 
@@ -672,7 +681,8 @@ newRegularConversation lusr newConv = do
                   cnvmMessageTimer = newConvMessageTimer newConv,
                   cnvmReceiptMode = newConvReceiptMode newConv,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
-                  cnvmGroupConvType = Just newConv.newConvGroupConvType
+                  cnvmGroupConvType = Just newConv.newConvGroupConvType,
+                  cnvmCellsState = def
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv
@@ -732,9 +742,14 @@ notifyCreatedConversation lusr conn c = do
       c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr (lmId m))
       let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t (EdConversation c')
       pure $
-        newPushLocal1 (tUnqualified lusr) (toJSONObject e) (NonEmpty.singleton (localMemberToRecipient m))
-          & pushConn .~ conn
-          & pushRoute .~ route
+        def
+          { origin = Just (tUnqualified lusr),
+            json = toJSONObject e,
+            recipients = [localMemberToRecipient m],
+            isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+            route,
+            conn
+          }
 
 localOne2OneConvId ::
   (Member (Error InvalidInput) r) =>

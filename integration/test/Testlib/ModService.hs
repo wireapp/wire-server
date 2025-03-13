@@ -6,6 +6,7 @@ module Testlib.ModService
     startDynamicBackends,
     startDynamicBackendsReturnResources,
     traverseConcurrentlyCodensity,
+    getServiceConfig,
   )
 where
 
@@ -18,13 +19,17 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import qualified Data.Aeson as A
 import qualified Data.Attoparsec.Text as Parser
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Char as Char
 import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import qualified Data.List as List
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -144,7 +149,11 @@ startDynamicBackendsReturnResources beOverrides k = do
         pure resources
   runCodensity startDynamicBackendsCodensity k
 
-startDynamicBackend :: (HasCallStack) => BackendResource -> ServiceOverrides -> Codensity App String
+startDynamicBackend ::
+  (HasCallStack) =>
+  BackendResource ->
+  ServiceOverrides ->
+  Codensity App (String, Map Service Value)
 startDynamicBackend resource beOverrides = do
   let overrides =
         mconcat
@@ -156,8 +165,20 @@ startDynamicBackend resource beOverrides = do
             setLogLevel,
             beOverrides
           ]
-  startBackend resource overrides
-  pure resource.berDomain
+  configs <- startBackend resource overrides
+
+  -- ensure config directory exists
+  base <- lift integrationConfigsDir
+  let configDir = base </> backendNameToString resource.berName
+  liftIO $ createDirectoryIfMissing True configDir
+
+  -- store configuration files for this backend
+  liftIO $ for_ (Map.assocs configs) $ \(service, config) ->
+    BL.writeFile
+      (configDir </> (serviceName service <> ".json"))
+      (A.encode config)
+
+  pure (resource.berDomain, configs)
   where
     setAwsConfigs :: ServiceOverrides
     setAwsConfigs =
@@ -278,11 +299,26 @@ startBackend ::
   (HasCallStack) =>
   BackendResource ->
   ServiceOverrides ->
-  Codensity App ()
+  Codensity App (Map Service Value)
 startBackend resource overrides = do
   lift $ waitForPortsToBeFree resource
-  traverseConcurrentlyCodensity (withProcess resource overrides) allServices
+  configs <- lift $ computeServiceConfigs resource overrides
+  traverseConcurrentlyCodensity (withProcess resource) (Map.assocs configs)
   lift $ ensureBackendReachable resource.berDomain
+  pure configs
+
+computeServiceConfigs :: BackendResource -> ServiceOverrides -> App (Map Service Value)
+computeServiceConfigs resource overrides = fmap Map.fromList $
+  for allServices $ \service -> do
+    config <- computeServiceConfig resource overrides service
+    pure (service, config)
+
+computeServiceConfig :: BackendResource -> ServiceOverrides -> Service -> App Value
+computeServiceConfig _ _ Nginz = pure (object [])
+computeServiceConfig resource overrides service =
+  readServiceConfig service
+    >>= updateServiceMapInConfig resource service
+    >>= lookupConfigOverride overrides service
 
 waitForPortsToBeFree :: (HasCallStack) => BackendResource -> App ()
 waitForPortsToBeFree backend = do
@@ -439,30 +475,23 @@ checkServiceIsUp domain srv = do
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
-withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service -> Codensity App ()
-withProcess resource overrides service = do
+withProcess :: (HasCallStack) => BackendResource -> (Service, Value) -> Codensity App ()
+withProcess resource (service, config) = do
   let domain = berDomain resource
   sm <- lift $ getServiceMap domain
   env <- lift ask
-  getConfig <-
-    lift . appToIO $
-      readServiceConfig service
-        >>= updateServiceMapInConfig resource service
-        >>= lookupConfigOverride overrides service
   let execName = configName service
-  let (cwd, exe) = case env.servicesCwdBase of
-        Nothing -> (Nothing, execName)
-        Just dir ->
-          (Just (dir </> execName), "../../dist" </> execName)
-
-  startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
+  (cwd, exe, initNginz) <- case env.projectRoot of
+    Nothing -> pure (Nothing, execName, startNginzK8s domain sm)
+    Just dir -> do
+      let basedir = dir </> "services"
+      startNginzLocalIO <- lift $ appToIO $ startNginzLocal basedir resource
+      pure (Just (basedir </> execName), "../../dist" </> execName, startNginzLocalIO)
 
   let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
-  let initProcess = case (service, cwd) of
-        (Nginz, Nothing) -> startNginzK8s domain sm
-        (Nginz, Just _) -> startNginzLocalIO
+  let initProcess = case service of
+        Nginz -> initNginz
         _ -> do
-          config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
           let colorize = fromMaybe id (lookup execName processColors)
@@ -521,8 +550,8 @@ startNginzK8s domain sm = do
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 
-startNginzLocal :: BackendResource -> App ServiceInstance
-startNginzLocal resource = do
+startNginzLocal :: FilePath -> BackendResource -> App ServiceInstance
+startNginzLocal basedir resource = do
   let domain = berDomain resource
       http2Port = berNginzHttp2Port resource
       sslPort = berNginzSslPort resource
@@ -532,8 +561,6 @@ startNginzLocal resource = do
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
   tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
-  mBaseDir <- asks (.servicesCwdBase)
-  basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
 
   -- copy all config files into the tmp dir
   liftIO $ do
@@ -643,3 +670,22 @@ startNginz domain conf workingDir = do
   void $ forkIO $ logToConsole colorize prefix stderrHdl
 
   pure ph
+
+integrationConfigsDir :: App FilePath
+integrationConfigsDir = do
+  env <- ask
+  pure $ case env.projectRoot of
+    Nothing -> "/tmp/configs"
+    Just root -> root </> ".configs"
+
+getServiceConfig :: BackendResource -> Service -> App Value
+getServiceConfig resource service = do
+  configDir <- integrationConfigsDir
+  config <-
+    liftIO . BL.readFile $
+      configDir
+        </> backendNameToString (resource.berName)
+        </> (serviceName service <> ".json")
+  case A.eitherDecode config of
+    Left err -> failApp err
+    Right x -> pure x

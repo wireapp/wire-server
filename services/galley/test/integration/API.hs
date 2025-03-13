@@ -49,6 +49,7 @@ import Data.Aeson hiding (json)
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util (toBase64Text, toUTCTimeMillis)
@@ -2222,6 +2223,7 @@ accessConvMeta = do
           Nothing
           Nothing
           (Just GroupConversation)
+          def
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode
     const (Just meta) === (decode <=< responseBody)

@@ -92,6 +92,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
@@ -111,6 +112,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports
 import System.Random (randomRIO)
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
@@ -139,7 +141,8 @@ data ConversationMetadata = ConversationMetadata
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
     cnvmReceiptMode :: Maybe ReceiptMode,
-    cnvmGroupConvType :: Maybe GroupConvType
+    cnvmGroupConvType :: Maybe GroupConvType,
+    cnvmCellsState :: CellsState
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -156,7 +159,8 @@ defConversationMetadata mCreator =
       cnvmTeam = Nothing,
       cnvmMessageTimer = Nothing,
       cnvmReceiptMode = Nothing,
-      cnvmGroupConvType = Just GroupConversation
+      cnvmGroupConvType = Just GroupConversation,
+      cnvmCellsState = def
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -217,6 +221,7 @@ conversationMetadataObjectSchema sch =
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
     <*> cnvmGroupConvType .= optField "group_conv_type" (maybeWithDefault A.Null schema)
+    <*> cnvmCellsState .= (fromMaybe def <$> optField "cells_state" schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)

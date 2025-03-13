@@ -36,6 +36,7 @@ where
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Kind
@@ -211,9 +212,8 @@ pushFeatureEvent tid event = do
           . Log.msg @Text "Fanout limit exceeded. Events will not be sent."
     else do
       let recipients = membersToRecipients Nothing (memList ^. teamMembers)
-      pushNotifications $
-        maybeToList $
-          (newPush Nothing (toJSONObject event) recipients)
+      pushNotifications
+        [def {json = toJSONObject event, recipients}]
 
 guardLockStatus ::
   forall r.

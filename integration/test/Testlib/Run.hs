@@ -117,7 +117,12 @@ runTests tests mXMLOutput cfg = do
           Nothing -> pure ()
   let writeOutput = writeChan output . Just
 
-  runCodensity (mkGlobalEnv cfg) $ \genv ->
+  let mProjectRoot = do
+        let base = takeDirectory cfg
+        guard $ takeFileName base == "services"
+        pure (takeDirectory base)
+
+  runCodensity (mkGlobalEnv mProjectRoot cfg) $ \genv ->
     withAsync displayOutput $ \displayThread -> do
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
@@ -164,25 +169,14 @@ deleteFederationV0AndV1Queues env = do
         <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
         <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_" <> suffix))
 
-deleteFederationQueues :: [String] -> RabbitMQConfig -> Text -> Text -> IO ()
-deleteFederationQueues testDomains rc username password = do
-  let opts =
-        RabbitMqAdminOpts
-          { host = rc.host,
-            port = 0,
-            adminPort = fromIntegral rc.adminPort,
-            vHost = fromString rc.vHost,
-            tls =
-              if rc.tls
-                then Just (RabbitMqTlsOpts Nothing True)
-                else Nothing
-          }
+deleteFederationQueues :: [String] -> RabbitMqAdminOpts -> Text -> Text -> IO ()
+deleteFederationQueues testDomains opts username password = do
   client <- mkRabbitMqAdminClientEnvWithCreds opts username password
   for_ testDomains $ \domain -> do
-    page <- client.listQueuesByVHost (fromString rc.vHost) (fromString $ "^backend-notifications\\." <> domain <> "$") True 100 1
+    page <- client.listQueuesByVHost opts.vHost (fromString $ "^backend-notifications\\." <> domain <> "$") True 100 1
     for_ page.items $ \queue -> do
       putStrLn $ "Deleting queue " <> T.unpack queue.name
-      void $ deleteQueue client (fromString rc.vHost) queue.name
+      void $ deleteQueue client opts.vHost queue.name
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do

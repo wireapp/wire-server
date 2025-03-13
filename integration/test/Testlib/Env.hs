@@ -5,12 +5,12 @@ module Testlib.Env where
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+import Control.Monad.Trans.Maybe
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import Data.Traversable (for)
 import qualified Data.Yaml as Yaml
 import qualified Database.CQL.IO as Cassandra
 import GHC.Stack
@@ -41,8 +41,8 @@ serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
 serviceHostPort m WireServerEnterprise = m.wireServerEnterprise
 
-mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
-mkGlobalEnv cfgFile = do
+mkGlobalEnv :: Maybe FilePath -> FilePath -> Codensity IO GlobalEnv
+mkGlobalEnv mProjectRoot cfgFile = do
   eith <- liftIO $ Yaml.decodeFileEither cfgFile
   intConfig <- liftIO $ case eith of
     Left err -> do
@@ -50,21 +50,13 @@ mkGlobalEnv cfgFile = do
       exitFailure
     Right (intConfig :: IntegrationConfig) -> pure intConfig
 
-  let devEnvProjectRoot = case splitPath (takeDirectory cfgFile) of
-        [] -> Nothing
-        ps ->
-          if last ps == "services"
-            then Just (joinPath (init ps))
-            else Nothing
-      getCassCertFilePath :: IO (Maybe FilePath) =
-        maybe
-          (pure Nothing)
-          ( \certFilePath ->
-              if isAbsolute certFilePath
-                then pure $ Just certFilePath
-                else for devEnvProjectRoot $ \projectRoot -> makeAbsolute $ combine projectRoot certFilePath
-          )
-          intConfig.cassandra.cassTlsCa
+  let getCassCertFilePath :: IO (Maybe FilePath) = runMaybeT $ do
+        certFilePath <- MaybeT $ pure intConfig.cassandra.cassTlsCa
+        if isAbsolute certFilePath
+          then pure $ certFilePath
+          else do
+            projectRoot <- MaybeT $ pure mProjectRoot
+            lift $ makeAbsolute $ combine projectRoot certFilePath
 
   manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
 
@@ -97,7 +89,8 @@ mkGlobalEnv cfgFile = do
       fromMaybe 10 . (readMaybe @Int =<<) <$> lookupEnv "TEST_TIMEOUT_SECONDS"
   pure
     GlobalEnv
-      { gServiceMap = sm,
+      { gProjectRoot = mProjectRoot,
+        gServiceMap = sm,
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
         gIntegrationTestHostName = intConfig.integrationTestHostName,
@@ -106,7 +99,6 @@ mkGlobalEnv cfgFile = do
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 8,
         gManager = manager,
-        gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
         gRabbitMQConfigV0 = intConfig.rabbitmqV0,
@@ -139,7 +131,8 @@ mkEnv currentTestName ge = do
     lpks <- newIORef someLastPrekeys
     pure
       Env
-        { serviceMap = gServiceMap ge,
+        { projectRoot = gProjectRoot ge,
+          serviceMap = gServiceMap ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
           integrationTestHostName = gIntegrationTestHostName ge,
@@ -156,7 +149,6 @@ mkEnv currentTestName ge = do
                 (gFederationV1Domain ge, 5)
               ],
           manager = gManager ge,
-          servicesCwdBase = gServicesCwdBase ge,
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,

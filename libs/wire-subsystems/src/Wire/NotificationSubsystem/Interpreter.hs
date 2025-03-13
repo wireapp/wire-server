@@ -4,7 +4,6 @@ import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
-import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Proxy
@@ -46,7 +45,7 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
-  SetupConsumableNotifications uid cid -> GundeckAPIAccess.registerConsumableNotifcationsClient uid cid
+  SetupConsumableNotifications uid cid -> GundeckAPIAccess.registerConsumableNotificationsClient uid cid
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
@@ -109,8 +108,8 @@ pushImpl ps = do
 
 removeIfLargeFanout :: Range n m Int32 -> [Push] -> [Push]
 removeIfLargeFanout limit =
-  filter \Push {_pushRecipients} ->
-    length _pushRecipients <= fromIntegral (fromRange limit)
+  filter \p ->
+    length p.recipients <= fromIntegral (fromRange limit)
 
 mkPushes :: Natural -> [Push] -> [[V2.Push]]
 mkPushes chunkSize = map (map toV2Push) . chunkPushes chunkSize
@@ -118,18 +117,19 @@ mkPushes chunkSize = map (map toV2Push) . chunkPushes chunkSize
 {-# INLINE [1] toV2Push #-}
 toV2Push :: Push -> V2.Push
 toV2Push p =
-  (V2.newPush p.pushOrigin (unsafeRange (Set.fromList recipients)) pload)
-    & V2.pushOriginConnection .~ _pushConn p
-    & V2.pushTransient .~ _pushTransient p
-    & maybe id (set V2.pushNativePriority) p._pushNativePriority
+  (V2.newPush p.origin (Set.fromList recipients) pload)
+    & V2.pushOriginConnection .~ p.conn
+    & V2.pushTransient .~ p.transient
+    & maybe id (set V2.pushNativePriority) p.nativePriority
+    & V2.pushIsCellsEvent .~ p.isCellsEvent
   where
     pload :: List1 Object
-    pload = List1.singleton (pushJson p)
+    pload = List1.singleton p.json
     recipients :: [V2.Recipient]
-    recipients = map toRecipient $ toList p._pushRecipients
+    recipients = map toRecipient $ toList p.recipients
     toRecipient :: Recipient -> V2.Recipient
     toRecipient r =
-      (recipient r.recipientUserId p._pushRoute)
+      (recipient r.recipientUserId p.route)
         { V2._recipientClients = r.recipientClients
         }
 
@@ -144,7 +144,7 @@ chunkPushes maxRecipients
     go n acc (y : ys)
       | n >= maxRecipients = acc : go 0 [] (y : ys)
       | otherwise =
-          let totalLength = (n + fromIntegral (length y._pushRecipients))
+          let totalLength = (n + fromIntegral (length y.recipients))
            in if totalLength > maxRecipients
                 then
                   let (y1, y2) = splitPush (maxRecipients - n) y
@@ -154,8 +154,8 @@ chunkPushes maxRecipients
     -- n must be strictly > 0 and < length (_pushRecipients p)
     splitPush :: Natural -> Push -> (Push, Push)
     splitPush n p =
-      let (r1, r2) = splitAt (fromIntegral n) (toList p._pushRecipients)
-       in (p {_pushRecipients = fromJust $ nonEmpty r1}, p {_pushRecipients = fromJust $ nonEmpty r2})
+      let (r1, r2) = splitAt (fromIntegral n) (toList p.recipients)
+       in (p {recipients = r1}, p {recipients = r2})
 
 pushSlowlyImpl ::
   ( Member Delay r,

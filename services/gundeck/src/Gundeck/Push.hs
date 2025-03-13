@@ -30,7 +30,6 @@ module Gundeck.Push
 where
 
 import Bilge qualified
-import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
@@ -40,10 +39,10 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
-import Data.List1 (List1, list1, toNonEmpty)
+import Data.List.NonEmpty (nonEmpty)
+import Data.List1 (List1 (..), list1, toNonEmpty)
 import Data.Map qualified as Map
 import Data.Misc
-import Data.Range
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
@@ -90,6 +89,7 @@ push ps = do
 -- | Abstract over all effects in 'pushAll' (for unit testing).
 class (MonadThrow m) => MonadPushAll m where
   mpaNotificationTTL :: m NotificationTTL
+  mpaCellsEventQueue :: m (Maybe Text)
   mpaMkNotificationId :: m NotificationId
   mpaListAllPresences :: [UserId] -> m [[Presence]]
   mpaBulkPush :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
@@ -98,10 +98,11 @@ class (MonadThrow m) => MonadPushAll m where
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
   mpaGetClients :: Set UserId -> m UserClientsFull
-  mpaPublishToRabbitMq :: Text -> Q.Message -> m ()
+  mpaPublishToRabbitMq :: Text -> Text -> Q.Message -> m ()
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . settings . notificationTTL)
+  mpaCellsEventQueue = view (options . settings . cellsEventQueue)
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
@@ -112,10 +113,10 @@ instance MonadPushAll Gundeck where
   mpaGetClients = getClients
   mpaPublishToRabbitMq = publishToRabbitMq
 
-publishToRabbitMq :: Text -> Q.Message -> Gundeck ()
-publishToRabbitMq routingKey qMsg = do
+publishToRabbitMq :: Text -> Text -> Q.Message -> Gundeck ()
+publishToRabbitMq exchangeName routingKey qMsg = do
   chan <- getRabbitMqChan
-  void $ liftIO $ Q.publishMsg chan userNotificationExchangeName routingKey qMsg
+  void $ liftIO $ Q.publishMsg chan exchangeName routingKey qMsg
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
@@ -147,27 +148,27 @@ instance MonadMapAsync Gundeck where
 
 splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push])
 splitPushes ps = do
-  allUserClients <- mpaGetClients (Set.unions $ map (\p -> Set.map (._recipientId) $ p._pushRecipients.fromRange) ps)
+  allUserClients <- mpaGetClients (Set.unions $ map (\p -> Set.map (._recipientId) $ p._pushRecipients) ps)
   pure . partitionHereThere $ map (splitPush allUserClients) ps
 
 -- | Split a push into rabbitmq and legacy push. This code exists to help with
 -- migration. Once it is completed and old APIs are not supported anymore we can
--- assume everything is meant for RabbtiMQ and stop splitting.
+-- assume everything is meant for RabbitMQ and stop splitting.
 splitPush ::
   UserClientsFull ->
   Push ->
   These Push Push
 splitPush clientsFull p = do
   let (rabbitmqRecipients, legacyRecipients) =
-        partitionHereThereRange . rcast @_ @_ @1024 $
-          mapRange splitRecipient (rangeSetToList $ p._pushRecipients)
-  case (runcons rabbitmqRecipients, runcons legacyRecipients) of
-    (Nothing, _) -> (That p)
-    (_, Nothing) -> (This p)
-    (Just (rabbit0, rabbits), Just (legacy0, legacies)) ->
+        partitionHereThere $
+          map splitRecipient (toList p._pushRecipients)
+  case (null rabbitmqRecipients, null legacyRecipients) of
+    (True, _) -> (That p)
+    (_, True) -> (This p)
+    (False, False) ->
       These
-        p {_pushRecipients = rangeListToSet $ rcons rabbit0 rabbits}
-        p {_pushRecipients = rangeListToSet $ rcons legacy0 legacies}
+        p {_pushRecipients = Set.fromList rabbitmqRecipients}
+        p {_pushRecipients = Set.fromList legacyRecipients}
   where
     splitRecipient :: Recipient -> These Recipient Recipient
     splitRecipient rcpt = do
@@ -197,23 +198,6 @@ splitPush clientsFull p = do
             rcpt {_recipientClients = RecipientClientsSome $ list1 r rs}
             rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
 
-    partitionHereThereRange :: Range 0 m [These a b] -> (Range 0 m [a], Range 0 m [b])
-    partitionHereThereRange =
-      ((&&&) (rconcat . mapRange fst) (rconcat . mapRange snd))
-        . mapRange partitionToRange
-      where
-        rsingleton0 :: forall x. x -> Range 0 1 [x]
-        rsingleton0 = rcast . rsingleton
-
-        rnil1 :: forall x. Range 0 1 [x]
-        rnil1 = rcast rnil
-
-        partitionToRange :: These a b -> (Range 0 1 [a], Range 0 1 [b])
-        partitionToRange = \case
-          (This a) -> (rsingleton0 a, rnil1)
-          (That b) -> (rnil1, rsingleton0 b)
-          (These a b) -> (rsingleton0 a, rsingleton0 b)
-
 getClients :: Set UserId -> Gundeck UserClientsFull
 getClients uids = do
   fmap mconcat
@@ -240,12 +224,13 @@ pushAll pushes = do
   (rabbitmqPushes, legacyPushes) <- splitPushes pushes
   pushAllLegacy legacyPushes
   pushAllViaRabbitMq rabbitmqPushes
+  pushAllToCells pushes
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
 pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
 pushAllLegacy pushes = do
-  newNotifications <- mapM mkNewNotification pushes
+  newNotifications <- catMaybes <$> mapM mkNewNotification pushes
   -- persist push request
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications
@@ -277,42 +262,10 @@ pushAllViaRabbitMq pushes =
 
 pushViaRabbitMq :: (MonadPushAll m) => Push -> m ()
 pushViaRabbitMq p = do
-  notifId <- mpaMkNotificationId
-  NotificationTTL ttl <- mpaNotificationTTL
-  let qMsg =
-        Q.newMsg
-          { msgBody =
-              Aeson.encode
-                . queuedNotification notifId
-                $ toNonEmpty p._pushPayload,
-            msgContentType = Just "application/json",
-            msgDeliveryMode =
-              -- Non-persistent messages never hit the disk and so do not
-              -- survive RabbitMQ node restarts, this is great for transient
-              -- notifications.
-              Just
-                ( if p._pushTransient
-                    then Q.NonPersistent
-                    else Q.Persistent
-                ),
-            msgExpiration =
-              Just
-                ( if p._pushTransient
-                    then
-                      ( -- Means that if there is no active consumer, this
-                        -- message will never be delivered to anyone. It can
-                        -- still take some time before RabbitMQ forgets about
-                        -- this message because the expiration is only
-                        -- considered for messages which are at the head of a
-                        -- queue. See docs: https://www.rabbitmq.com/docs/ttl
-                        "0"
-                      )
-                    else showT $ fromIntegral ttl # Second #> MilliSecond
-                )
-          }
-      routingKeys =
+  qMsg <- mkMessage p
+  let routingKeys =
         Set.unions $
-          flip Set.map (fromRange p._pushRecipients) \r ->
+          flip Set.map p._pushRecipients \r ->
             case r._recipientClients of
               RecipientClientsAll ->
                 Set.singleton $ userRoutingKey r._recipientId
@@ -321,7 +274,53 @@ pushViaRabbitMq p = do
                   temporaryRoutingKey r._recipientId
                     : map (clientRoutingKey r._recipientId) cs
   for_ routingKeys $ \routingKey ->
-    mpaPublishToRabbitMq routingKey qMsg
+    mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
+
+pushAllToCells :: (MonadPushAll m) => [Push] -> m ()
+pushAllToCells ps = do
+  mQueue <- mpaCellsEventQueue
+  for_ mQueue $ \queue -> for_ ps (pushToCells queue)
+
+pushToCells :: (MonadPushAll m) => Text -> Push -> m ()
+pushToCells queue p = when p._pushIsCellsEvent $ do
+  qMsg <- mkMessage p
+  mpaPublishToRabbitMq "" queue qMsg
+
+mkMessage :: (MonadPushAll m) => Push -> m Message
+mkMessage p = do
+  notifId <- mpaMkNotificationId
+  NotificationTTL ttl <- mpaNotificationTTL
+  pure $
+    Q.newMsg
+      { msgBody =
+          Aeson.encode
+            . queuedNotification notifId
+            $ toNonEmpty p._pushPayload,
+        msgContentType = Just "application/json",
+        msgDeliveryMode =
+          -- Non-persistent messages never hit the disk and so do not
+          -- survive RabbitMQ node restarts, this is great for transient
+          -- notifications.
+          Just
+            ( if p._pushTransient
+                then Q.NonPersistent
+                else Q.Persistent
+            ),
+        msgExpiration =
+          Just
+            ( if p._pushTransient
+                then
+                  ( -- Means that if there is no active consumer, this
+                    -- message will never be delivered to anyone. It can
+                    -- still take some time before RabbitMQ forgets about
+                    -- this message because the expiration is only
+                    -- considered for messages which are at the head of a
+                    -- queue. See docs: https://www.rabbitmq.com/docs/ttl
+                    "0"
+                  )
+                else showT $ fromIntegral ttl # Second #> MilliSecond
+            )
+      }
 
 -- | A new notification to be stored in C* and pushed over websockets
 data NewNotification = NewNotification
@@ -330,21 +329,12 @@ data NewNotification = NewNotification
     nnRecipients :: List1 Recipient
   }
 
-mkNewNotification :: forall m. (MonadPushAll m) => Push -> m NewNotification
-mkNewNotification psh = NewNotification psh <$> mkNotif <*> rcps
-  where
-    mkNotif :: m Notification
-    mkNotif = do
-      notifId <- mpaMkNotificationId
-      pure $ Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
-
-    rcps :: m (List1 Recipient)
-    rcps = assertList1 . toList . fromRange $ (psh ^. pushRecipients :: Range 1 1024 (Set Recipient))
-
-    -- Shouldn't fail as we just extracted this from `Range 1 1024`
-    assertList1 :: [a] -> m (List1 a)
-    assertList1 (x : xs) = pure $ list1 x xs
-    assertList1 _ = throwM $ ErrorCall "mkNotification: internal error." -- can @listAll@ return @[]@?
+mkNewNotification :: forall m. (MonadPushAll m) => Push -> m (Maybe NewNotification)
+mkNewNotification psh = runMaybeT $ do
+  rcps <- MaybeT . pure . fmap List1 . nonEmpty . toList $ psh ^. pushRecipients
+  notifId <- lift mpaMkNotificationId
+  let notif = Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
+  pure $ NewNotification psh notif rcps
 
 -- | Information to be stored in cassandra for every 'Notification'.
 data CassandraTargets = CassandraTargets
@@ -435,7 +425,7 @@ pushNative notif prio rcps = do
 -- | Compute list of 'Recipient's from a 'Push' that may be interested in a native push.  More
 -- filtering in 'nativeTargets'.
 nativeTargetsRecipients :: Push -> [Recipient]
-nativeTargetsRecipients psh = filter routeNative (toList (fromRange (psh ^. pushRecipients)))
+nativeTargetsRecipients psh = filter routeNative (toList (psh ^. pushRecipients))
   where
     routeNative u =
       u ^. recipientRoute /= RouteDirect

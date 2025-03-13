@@ -4,6 +4,7 @@
         "sdf",
         "wire-client"
     ],
+    "is_cells_event": false,
     "native_aps": {
         "badge": true,
         "loc_args": [

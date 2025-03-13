@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Testlib.ResourcePool
   ( ResourcePool,
     BackendResource (..),
@@ -67,7 +69,7 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: [BackendResource] -> RabbitMQConfig -> ClientState -> IO (ResourcePool BackendResource)
+createBackendResourcePool :: [BackendResource] -> RabbitMqAdminOpts -> ClientState -> IO (ResourcePool BackendResource)
 createBackendResourcePool resources rabbitmq cassClient =
   let cleanupBackend :: BackendResource -> IO ()
       cleanupBackend resource = do
@@ -78,17 +80,9 @@ createBackendResourcePool resources rabbitmq cassClient =
         <*> newIORef (Set.fromList resources)
         <*> pure cleanupBackend
 
-deleteAllRabbitMQQueues :: RabbitMQConfig -> BackendResource -> IO ()
-deleteAllRabbitMQQueues rc resource = do
-  let opts =
-        RabbitMqAdminOpts
-          { host = rc.host,
-            port = 0,
-            adminPort = fromIntegral rc.adminPort,
-            vHost = fromString resource.berVHost,
-            tls = Just $ RabbitMqTlsOpts Nothing True
-          }
-  client <- mkRabbitMqAdminClientEnv opts
+deleteAllRabbitMQQueues :: RabbitMqAdminOpts -> BackendResource -> IO ()
+deleteAllRabbitMQQueues opts resource = do
+  client <- mkRabbitMqAdminClientEnv opts {vHost = fromString resource.berVHost}
   queuesPage <- listQueuesByVHost client (fromString resource.berVHost) (fromString "") False 100 1
   for_ queuesPage.items $ \queue ->
     deleteQueue client (fromString resource.berVHost) queue.name

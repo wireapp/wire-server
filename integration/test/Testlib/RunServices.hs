@@ -57,10 +57,7 @@ main = do
   cwd <- getWorkingDirectory
   mbProjectRoot <- findProjectRoot cwd
   opts <- execParser (info (optsParser <**> helper) fullDesc)
-  cfg <- case mbProjectRoot of
-    Nothing -> error "Could not find project root. Please make sure you call run-services from somewhere in wire-server."
-    Just projectRoot ->
-      pure $ joinPath [projectRoot, "services/integration.yaml"]
+  let projectRoot = fromMaybe (error "Could not find project root. Please make sure you call run-services from somewhere in wire-server.") mbProjectRoot
 
   let run = case opts.runSubprocess of
         [] -> do
@@ -71,17 +68,21 @@ main = do
           (_, _, _, ph) <- createProcess cp
           exitWith =<< waitForProcess ph
 
-  runCodensity (mkGlobalEnv cfg >>= mkEnv Nothing) $ \env ->
+  let cfgFile = projectRoot </> "services" </> "integration.yaml"
+  runCodensity (mkGlobalEnv (Just projectRoot) cfgFile >>= mkEnv Nothing) $ \env ->
     runAppWithEnv env
       $ lowerCodensity
       $ do
         _modifyEnv <-
           traverseConcurrentlyCodensity
-            ( \r ->
+            ( \r -> do
                 void
-                  $ if opts.withManualTestingOverrides
-                    then startDynamicBackend r manualTestingOverrides
-                    else startDynamicBackend r mempty
+                  $ startDynamicBackend
+                    r
+                    ( if opts.withManualTestingOverrides
+                        then manualTestingOverrides
+                        else mempty
+                    )
             )
             [backendA, backendB]
         liftIO run

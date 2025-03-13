@@ -25,7 +25,7 @@ testNestedError = do
   lowerCodensity $ do
     [res] <- acquireResources 1 resourcePool
     mockConfig <- do
-      mBase <- asks (.servicesCwdBase)
+      mBase <- asks (.projectRoot)
       pure $ case mBase of
         Just _ ->
           -- when running locally, spawn a fake ingress returning an error

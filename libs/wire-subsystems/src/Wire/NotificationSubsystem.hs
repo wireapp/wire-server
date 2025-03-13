@@ -3,10 +3,9 @@
 module Wire.NotificationSubsystem where
 
 import Control.Concurrent.Async (Async)
-import Control.Lens (makeLenses)
 import Data.Aeson
+import Data.Default
 import Data.Id
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Imports
 import Polysemy
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
@@ -20,19 +19,18 @@ data Recipient = Recipient
   deriving (Arbitrary) via GenericUniform Recipient
 
 data Push = Push
-  { _pushConn :: Maybe ConnId,
-    _pushTransient :: Bool,
-    _pushRoute :: Route,
-    _pushNativePriority :: Maybe Priority,
-    pushOrigin :: Maybe UserId,
-    _pushRecipients :: NonEmpty Recipient,
-    pushJson :: Object,
-    _pushApsData :: Maybe ApsData
+  { conn :: Maybe ConnId,
+    transient :: Bool,
+    route :: Route,
+    nativePriority :: Maybe Priority,
+    origin :: Maybe UserId,
+    recipients :: [Recipient],
+    json :: Object,
+    apsData :: Maybe ApsData,
+    isCellsEvent :: Bool
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform Push
-
-makeLenses ''Push
 
 -- | This subsystem governs mechanisms to send notifications to users.
 data NotificationSubsystem m a where
@@ -53,25 +51,19 @@ data NotificationSubsystem m a where
 
 makeSem ''NotificationSubsystem
 
-newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> Push
-newPush1 from e rr =
-  Push
-    { _pushConn = Nothing,
-      _pushTransient = False,
-      _pushRoute = RouteAny,
-      _pushNativePriority = Nothing,
-      _pushApsData = Nothing,
-      pushJson = e,
-      pushOrigin = from,
-      _pushRecipients = rr
-    }
+instance Default Push where
+  def =
+    Push
+      { conn = Nothing,
+        transient = False,
+        route = RouteAny,
+        nativePriority = Nothing,
+        apsData = Nothing,
+        json = mempty,
+        origin = Nothing,
+        recipients = [],
+        isCellsEvent = False
+      }
 
-newPush :: Maybe UserId -> Object -> [Recipient] -> Maybe Push
-newPush _ _ [] = Nothing
-newPush u e (r : rr) = Just $ newPush1 u e (r :| rr)
-
-newPushLocal :: UserId -> Object -> [Recipient] -> Maybe Push
-newPushLocal uid = newPush (Just uid)
-
-newPushLocal1 :: UserId -> Object -> NonEmpty Recipient -> Push
-newPushLocal1 uid = newPush1 (Just uid)
+newPushLocal :: UserId -> Push
+newPushLocal uid = def {origin = Just uid}

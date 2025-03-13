@@ -105,3 +105,6 @@ logs-integration
 
 # BOM file - https://github.com/wireapp/tom-bombadil
 sbom.json
+
+# configuration values computed by run-services
+.configs

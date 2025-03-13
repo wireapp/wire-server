@@ -117,6 +117,7 @@ library
     Test.Cargohold.API.Util
     Test.Cargohold.API.V3
     Test.Cargohold.Metrics
+    Test.Cells
     Test.Channels
     Test.Client
     Test.Connection
@@ -214,6 +215,7 @@ library
     , aeson
     , aeson-diff
     , aeson-pretty
+    , amqp
     , array
     , asn1-encoding
     , asn1-types

@@ -163,20 +163,22 @@ dynamicBackends:
 
 rabbitmq:
   host: localhost
+  port: 5671
   adminPort: 15671
-  tls: true
+  enableTls: true
+  insecureSkipVerifyTls: true
   vHost: /
 
 rabbitmq-v0:
   host: localhost
+  port: 5671
   adminPort: 15672
-  tls: false
   vHost: federation-v0
 
 rabbitmq-v1:
   host: localhost
+  port: 5671
   adminPort: 15672
-  tls: false
   vHost: federation-v1
 
 cassandra:

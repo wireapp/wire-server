@@ -143,3 +143,9 @@ setTeamFeatureMigrationState :: (HasCallStack, MakesValue domain) => domain -> S
 setTeamFeatureMigrationState domain tid state = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "feature-migration-state"]
   submit "PUT" $ req & addJSON (A.String (T.pack state))
+
+setCellsState :: (MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
+setCellsState user conv state = do
+  convId <- snd <$> objQid conv
+  req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "conversations", convId, "cells-state"]
+  submit "PUT" $ req & addJSON (toJSON state)
