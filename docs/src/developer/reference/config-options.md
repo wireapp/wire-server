@@ -372,6 +372,48 @@ To get the public key run:
 openssl ec -in private.pem -pubout --out public.pem
 ```
 
+### Channels
+
+Channels are configured per team (as "team feature".) The configuration defines
+if the channels feature is activated and who can create or open channels.
+
+The configuration has these fields:
+
+- `lockStatus`: `locked` or `unlocked`
+- `status`: `enabled` or `disabled`
+- `config.allowed_to_create_channels`: _roles_
+- `config.allowed_to_open_channels`: _roles_
+
+Possible _roles_ are:
+
+| Value          | Who is that?                                    | UX description                    |
+| -------------- | ----------------------------------------------- | --------------------------------- |
+| `everyone`     | Partner (a.k.a. external), Member, Admin, Owner | Everyone in the team              |
+| `team-members` | Member, Admin, Owner                            | Team members (excluding external) |
+| `admins`       | Admin, Owner                                    | Only admins                       |
+
+Configuration example (in Galley's config):
+
+```yaml
+settings:
+---
+featureFlags:
+---
+channels:
+  defaults:
+    status: enabled
+    lockStatus: unlocked
+    config:
+      allowed_to_create_channels: everyone
+      allowed_to_open_channels: team-members
+```
+
+Default values:
+
+- `lockStatus`: `locked`
+- `status`: `disabled`
+- `config.allowed_to_create_channels`: `team-members`
+- `config.allowed_to_open_channels`: `team-members`
 
 ### Federation Domain
 
