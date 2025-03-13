@@ -9,7 +9,7 @@ where
 import Control.Concurrent.MVar
 import Control.Lens
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import SAML2.WebSSO
 import SAML2.WebSSO.API.Example (AssertionStore)
 import SAML2.WebSSO.Test.Lenses

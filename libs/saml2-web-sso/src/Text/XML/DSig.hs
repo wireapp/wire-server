@@ -47,36 +47,36 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.IO.Class
-import qualified Crypto.Hash as Crypto
-import qualified Crypto.PubKey.RSA as RSA
-import qualified Crypto.PubKey.RSA.PKCS15 as RSA
-import qualified Crypto.PubKey.RSA.Types as RSA
-import qualified Crypto.Random.Types as Crypto
-import qualified Data.ByteArray as ByteArray
+import Crypto.Hash qualified as Crypto
+import Crypto.PubKey.RSA qualified as RSA
+import Crypto.PubKey.RSA.PKCS15 qualified as RSA
+import Crypto.PubKey.RSA.Types qualified as RSA
+import Crypto.Random.Types qualified as Crypto
+import Data.ByteArray qualified as ByteArray
 import Data.Either (isRight)
 import Data.EitherR (fmapL)
 import Data.Foldable (toList)
-import qualified Data.Hourglass as Hourglass
+import Data.Hourglass qualified as Hourglass
 import Data.List (foldl')
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NL
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NL
+import Data.Map qualified as Map
 import Data.String.Conversions
 import Data.UUID as UUID
-import qualified Data.X509 as X509
+import Data.X509 qualified as X509
 import GHC.Stack
 import Network.URI (URI, parseRelativeReference)
-import qualified SAML2.XML as HS hiding (Node, URI)
-import qualified SAML2.XML.Canonical as HS
-import qualified SAML2.XML.Signature as HS
+import SAML2.XML qualified as HS hiding (Node, URI)
+import SAML2.XML.Canonical qualified as HS
+import SAML2.XML.Signature qualified as HS
 import System.IO (stderr, stdout)
 import System.IO.Silently (hCapture)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (mkStdGen, random)
 import Text.XML as XML
-import qualified Text.XML.HXT.DOM.XmlNode as HXT
+import Text.XML.HXT.DOM.XmlNode qualified as HXT
 import Text.XML.Util
-import qualified Time.System as Hourglass
+import Time.System qualified as Hourglass
 
 ----------------------------------------------------------------------
 -- types

@@ -9,12 +9,12 @@ where
 import Control.Monad (replicateM_, (>=>))
 import Data.Either
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.String.Conversions
-import qualified Data.UUID as UUID
-import qualified Data.X509 as X509
+import Data.UUID qualified as UUID
+import Data.X509 qualified as X509
 import SAML2.WebSSO.Test.Util
-import qualified Samples
+import Samples qualified
 import Test.Hspec
 import Text.Hamlet.XML (xml)
 import Text.XML

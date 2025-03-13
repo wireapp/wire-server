@@ -9,7 +9,7 @@ where
 import Control.Lens
 import Control.Monad.Except
 import Data.String.Conversions
-import qualified Data.Text as ST
+import Data.Text qualified as ST
 import Data.Typeable
 import GHC.Stack
 import Text.XML.Util

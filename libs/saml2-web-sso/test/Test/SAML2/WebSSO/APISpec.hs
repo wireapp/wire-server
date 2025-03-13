@@ -11,13 +11,13 @@ import Control.Exception (SomeException, try)
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
-import qualified Data.ByteString.Base64.Lazy as EL (decodeLenient, encode)
+import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.Either
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Network.Wai.Test
 import SAML2.Util
 import SAML2.WebSSO

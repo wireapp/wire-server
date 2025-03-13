@@ -14,14 +14,14 @@ where
 import Control.Lens
 import Control.Monad.Except
 import Data.Binary.Builder (toLazyByteString)
-import qualified Data.ByteString.Builder as SBSBuilder
+import Data.ByteString.Builder qualified as SBSBuilder
 import Data.Proxy
 import Data.String.Conversions
-import qualified Data.Text as ST
+import Data.Text qualified as ST
 import Data.Time
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types
-import qualified Network.HTTP.Types.Header as HttpTypes
+import Network.HTTP.Types.Header qualified as HttpTypes
 import SAML2.WebSSO.SP
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML

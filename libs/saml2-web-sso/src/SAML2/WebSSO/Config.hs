@@ -146,9 +146,11 @@ instance ToSchema Config where
                   _cfgSPPort = _cfgRawSPPort,
                   _cfgDomainConfigs = Right domainConfigsMap
                 }
-          _ -> fail $ "Cannot parse to Config from ConfigRaw: " ++ show config ++
-              " (give either all of `spAppUri`, `spSsoUri`, `contacts`, or `spDomainConfigs`)"
-
+          _ ->
+            fail $
+              "Cannot parse to Config from ConfigRaw: "
+                ++ show config
+                ++ " (give either all of `spAppUri`, `spSsoUri`, `contacts`, or `spDomainConfigs`)"
 
       u :: Config -> ConfigRaw
       u (Config {..}) = case _cfgDomainConfigs of

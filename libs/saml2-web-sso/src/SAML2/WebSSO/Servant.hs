@@ -5,12 +5,12 @@ module SAML2.WebSSO.Servant where
 import Data.EitherR
 import Data.Function
 import Data.List (nubBy)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.String.Conversions
 import Network.HTTP.Media ((//))
 import Network.HTTP.Types
-import qualified Network.HTTP.Types.Header as HttpTypes
+import Network.HTTP.Types.Header qualified as HttpTypes
 import Network.Wai hiding (Response)
 import Network.Wai.Internal as Wai
 import SAML2.WebSSO.XML
