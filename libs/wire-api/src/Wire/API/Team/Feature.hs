@@ -85,6 +85,7 @@ module Wire.API.Team.Feature
     EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
+    CellsConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -238,6 +239,7 @@ data FeatureSingleton cfg where
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
   FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
+  FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
 
 type family DeprecatedFeatureName cfg :: Symbol
 
@@ -1405,6 +1407,27 @@ instance IsFeatureConfig DomainRegistrationConfig where
   featureSingleton = FeatureSingletonDomainRegistrationConfig
   objectSchema = pure DomainRegistrationConfig
 
+--------------------------------------------------------------------------------
+-- Cells feature
+
+-- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+data CellsConfig = CellsConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform CellsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName CellsConfig)
+  deriving (Default, ParseDbFeature) via (TrivialFeature CellsConfig)
+
+instance ToSchema CellsConfig where
+  schema = object "CellsConfig" objectSchema
+
+instance Default (LockableFeature CellsConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig CellsConfig where
+  type FeatureSymbol CellsConfig = "cells"
+  featureSingleton = FeatureSingletonCellsConfig
+  objectSchema = pure CellsConfig
+
 ----------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1489,7 +1512,8 @@ type Features =
     EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig,
     DomainRegistrationConfig,
-    ChannelsConfig
+    ChannelsConfig,
+    CellsConfig
   ]
 
 -- | list of available features as a record

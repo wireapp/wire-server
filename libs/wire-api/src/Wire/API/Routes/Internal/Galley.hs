@@ -81,6 +81,9 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
+    :<|> IFeatureStatusLockStatusPut ChannelsConfig
+    :<|> IFeatureStatusLockStatusPut CellsConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -98,8 +101,6 @@ type IFeatureAPI =
                     UserId
                :> Get '[JSON] AllTeamFeatures
            )
-    :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
-    :<|> IFeatureStatusLockStatusPut ChannelsConfig
 
 type InternalAPI = "i" :> InternalAPIBase
 

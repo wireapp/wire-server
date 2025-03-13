@@ -530,6 +530,18 @@ domainRegistration:
     lockStatus: locked
 ```
 
+### Cells
+
+This feature flag enables cells integration in wire-server. By default, it is disabled and locked. When enabled, it allows changing the cells state of a conversation.
+
+```yaml
+# galley.yaml
+cells:
+  defaults:
+    status: disabled
+    lockStatus: locked
+```
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only
