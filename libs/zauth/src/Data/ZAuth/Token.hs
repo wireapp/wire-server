@@ -83,7 +83,6 @@ data Type
 class KnownType (t :: Type) where
   typeVal :: Type
 
--- TODO: use singletons?
 instance KnownType A where
   typeVal = A
 
