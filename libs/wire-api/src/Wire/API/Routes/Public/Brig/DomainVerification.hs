@@ -91,9 +91,60 @@ instance ToSchema GetDomainRegistrationRequest where
         <$> domainRegistrationRequestEmail
           .= field "email" schema
 
+data TeamDomainRedirect
+  = TeamSso SAML.IdPId
+  | TeamNoRegistration
+  | TeamNone
+  deriving (Show, Eq)
+
+data TeamDomainRedirectTag = TeamNoRegistrationTag | TeamNoneTag
+  deriving (Show, Ord, Eq, Enum, Bounded)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema TeamDomainRedirectTag
+
+instance ToSchema TeamDomainRedirectTag where
+  schema =
+    enum @Text
+      "TeamDomainRedirectTag"
+      $ mconcat
+        [ element "no-registration" TeamNoRegistrationTag,
+          element "none" TeamNoneTag
+        ]
+
+idpIdValueSchema :: ValueSchema SwaggerDoc SAML.IdPId
+idpIdValueSchema = SAML.fromIdPId .= fmap SAML.IdPId (Data.Schema.unnamed uuidSchema)
+
+maybeTeamDomainRedirectTargetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe TeamDomainRedirectTag, Maybe SAML.IdPId) (Maybe TeamDomainRedirect)
+maybeTeamDomainRedirectTargetObjectSchema =
+  withParser teamDomainRedirectTargetTupleObjectSchema maybeTeamDomainRedirectTargetTargetFromTuple
+  where
+    teamDomainRedirectTargetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe TeamDomainRedirectTag, Maybe SAML.IdPId)
+    teamDomainRedirectTargetTupleObjectSchema =
+      (,)
+        <$> fst .= maybe_ (optField "domain_redirect" schema)
+        <*> snd .= maybe_ (optField "sso" idpIdValueSchema)
+
+    fromTag :: TeamDomainRedirectTag -> TeamDomainRedirect
+    fromTag = \case
+      TeamNoRegistrationTag -> TeamNoRegistration
+      TeamNoneTag -> TeamNone
+
+    maybeTeamDomainRedirectTargetTargetFromTuple :: (Maybe TeamDomainRedirectTag, Maybe SAML.IdPId) -> A.Parser (Maybe TeamDomainRedirect)
+    maybeTeamDomainRedirectTargetTargetFromTuple = \case
+      (Just _, Just _) -> fail "only one of domain_redirect or sso must be present"
+      (Just redirect, _) -> pure $ Just (fromTag redirect)
+      (_, Just sso) -> pure $ Just (TeamSso sso)
+      (Nothing, Nothing) -> pure Nothing
+
+maybeTeamDomainRedirectToTuple :: Maybe TeamDomainRedirect -> (Maybe TeamDomainRedirectTag, Maybe SAML.IdPId)
+maybeTeamDomainRedirectToTuple = \case
+  (Just TeamNone) -> (Just TeamNoneTag, Nothing)
+  (Just TeamNoRegistration) -> (Just TeamNoRegistrationTag, Nothing)
+  (Just (TeamSso sso)) -> (Nothing, Just sso)
+  Nothing -> (Nothing, Nothing)
+
 data TeamInviteConfig = TeamInviteConfig
   { teamInvite :: TeamInvite,
-    code :: Maybe SAML.IdPId
+    domainRedirect :: Maybe TeamDomainRedirect
   }
   deriving (Show, Eq)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TeamInviteConfig)
@@ -103,7 +154,7 @@ instance ToSchema TeamInviteConfig where
     object "TeamInviteConfig" $
       TeamInviteConfig
         <$> (.teamInvite) .= teamInviteObjectSchema
-        <*> code .= maybe_ (optField "sso" samlIdpIdSchema)
+        <*> (maybeTeamDomainRedirectToTuple . (.domainRedirect)) .= maybeTeamDomainRedirectTargetObjectSchema
 
 samlIdpIdSchema :: ValueSchema NamedSwaggerDoc SAML.IdPId
 samlIdpIdSchema = SAML.fromIdPId .= fmap SAML.IdPId uuidSchema
