@@ -906,6 +906,48 @@ assets. The Haddock of
 [`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
 provides a lot of useful information.
 
+## Settings in spar
+
+This section describes the common "single-ingress" (one backend is reachable by
+only one domain) case. The multi-ingress case is described in [Multi-Ingress
+setup](#multi-ingress-setup)
+
+### SAML
+
+In Helm:
+
+```yaml
+config:
+...
+  appUri: <webapp-uri> # E.g. https://webapp.<domain>
+  ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  contacts:
+    - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+      company: <company-name> # Optional
+      email: <contact-email-address> # Optional
+      givenName: <name> # Optional
+      surname: <name> # Optional
+      phone: <phone-number-string> # Optional
+...
+```
+
+`appUri` and `ssoUri` are mapped to `spAppUri` and `spSsoUri` in the `spar`
+configuration respectively.
+
+### SCIM
+
+In Helm:
+```yaml
+config:
+...
+    maxScimTokens: <number-of-allowed-scim-tokens>
+    scimBaseUri: <scim-endpoint-uri>
+```
+
+If not defined, `scimBaseUri` is automatically deduced from `ssoUri` (see
+[SAML](#saml).) E.g. `appUri: https://nginz-https.example.com/sso` would be
+translated to `scimBaseUri: https://nginz-https.example.com/scim/v2`.
+
 
 ## Multi-Ingress setup
 
@@ -1024,8 +1066,8 @@ So, we go from single-domain *SP* configuration:
 ```yaml
 config:
 ...
-  spAppUri: <webapp-uri> # E.g. https://webapp.<domain>
-  spSsoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  appUri: <webapp-uri> # E.g. https://webapp.<domain>
+  ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
   contacts:
     - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
       company: <company-name> # Optional
@@ -1043,8 +1085,8 @@ config:
 ...
   domainConfigs:
     <domain1>: # The domain of the incoming nginz-https host. E.g. nginz-https.<domain>
-      spAppUri: <webapp-uri> # E.g. https://webapp.<domain>
-      spSsoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+      appUri: <webapp-uri> # E.g. https://webapp.<domain>
+      ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
       contacts:
         - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
           company: <company-name> # Optional
@@ -1062,10 +1104,11 @@ The inner data structure stays the same. The difference is that it's on
 `config`'s top level for single-ingress and in each `<domain>` entry in
 `domainConfigs` for multi-ingress.
 
-In a single-ingress setup the SCIM base URI is deduced from `spSsoUri` in
-Helm. In a multi-ingress setup this relationship isn't that clear as there are
-multiple `spSsoUri`s defined. So, the SCIM base URI needs to be set explicitly
-in `scimBaseUri`. In spar's YAML config file `scimBaseUri` is always required.
+In a single-ingress setup the SCIM base URI can be deduced from `ssoUri` in
+Helm (see [SAML](#saml).) In a multi-ingress setup this relationship isn't that
+clear as there are multiple `ssoUri`s defined. So, the SCIM base URI needs to
+be set explicitly in `scimBaseUri`. In spar's YAML config file `scimBaseUri` is
+always required.
 
 
 ### Webapp

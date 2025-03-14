@@ -43,8 +43,8 @@ config:
   # configure a map with the domain as key.
   #
   # Single domain configuration
-  # spAppUri: <webapp-uri> # E.g. https://webapp.<domain>
-  # spSsoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  # appUri: <webapp-uri> # E.g. https://webapp.<domain>
+  # ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
   # contacts:
   #   - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
   #     company: <company-name> # Optional
@@ -56,8 +56,8 @@ config:
   # Multi-ingress configuration
   # domainConfigs:
   #   <domain1>: # The domain of the incoming nginz-https host. E.g. nginz-https.<domain>
-  #     spAppUri: <webapp-uri> # E.g. https://webapp.<domain>
-  #     spSsoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  #     appUri: <webapp-uri> # E.g. https://webapp.<domain>
+  #     ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
   #     contacts:
   #       - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
   #         company: <company-name> # Optional
