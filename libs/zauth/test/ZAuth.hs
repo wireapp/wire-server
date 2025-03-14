@@ -23,25 +23,32 @@ module ZAuth
 where
 
 import Arbitraries ()
-import Control.Lens
 import Data.ByteString.Conversion
 import Data.UUID.V4
+import Data.Vector (Vector)
+import Data.Vector qualified as Vector
 import Data.ZAuth.Creation as C
+import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Data.ZAuth.Token
 import Data.ZAuth.Validation as V
 import Imports
+import Polysemy
 import Sodium.Crypto.Sign
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO
 
 tests :: IO TestTree
 tests = do
   (p1, s1) <- newKeyPair
   (p2, s2) <- newKeyPair
   (p3, s3) <- newKeyPair
-  z <- C.mkEnv s1 [s2, s3]
-  let v = V.mkEnv p1 [p2, p3]
+  let z1 = C.SigningKey 1 s1
+      z2 = C.SigningKey 2 s2
+      z3 = C.SigningKey 3 s3
+  let pubKeys = Vector.fromList [p1, p2, p3]
   pure $
     testGroup
       "ZAuth"
@@ -56,70 +63,63 @@ tests = do
           ],
         testGroup
           "Signing and Verifying"
-          [ testCase "expired" (runCreate z 1 $ testExpired v),
-            testCase "not expired" (runCreate z 2 $ testNotExpired v),
-            testCase "signed access-token is valid" (runCreate z 3 $ testSignAndVerify v)
-          ],
-        testGroup
-          "Various"
-          [testCase "random device ids" (runCreate z 1 testRandDevIds)]
+          [ testCase "expired" (testExpired z1 pubKeys),
+            testCase "not expired" (testNotExpired z2 pubKeys),
+            testCase "signed access-token is valid" (testSignAndVerify z3 pubKeys)
+          ]
       ]
 
 defDuration :: Integer
 defDuration = 1
 
-testUserIsNotLegalHoldUser :: Token LegalHoldUser -> Bool
-testUserIsNotLegalHoldUser t = isNothing (fromByteString @(Token User) (toByteString' t))
+runEffects :: Sem '[CryptoSign, Now, Embed IO] a -> IO a
+runEffects = runM . nowToIO . runCryptoSign
 
-testUserIsNotLegalHoldUser' :: Token User -> Bool
-testUserIsNotLegalHoldUser' t = isNothing (fromByteString @(Token LegalHoldUser) (toByteString' t))
+testUserIsNotLegalHoldUser :: Token LU -> Property
+testUserIsNotLegalHoldUser t = fromByteString @(Token U) (toByteString' t) === Nothing
 
-testDecEncAccessToken :: Token Access -> Bool
-testDecEncAccessToken t = fromByteString (toByteString' t) == Just t
+testUserIsNotLegalHoldUser' :: Token U -> Property
+testUserIsNotLegalHoldUser' t = fromByteString @(Token LU) (toByteString' t) === Nothing
 
-testDecEncUserToken :: Token User -> Bool
-testDecEncUserToken t = fromByteString (toByteString' t) == Just t
+testDecEncAccessToken :: Token A -> Property
+testDecEncAccessToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncLegalHoldUserToken :: Token LegalHoldUser -> Bool
-testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) == Just t
+testDecEncUserToken :: Token U -> Property
+testDecEncUserToken t = fromByteString (toByteString' t) === Just t
 
-testDecEncLegalHoldAccessToken :: Token LegalHoldAccess -> Bool
-testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) == Just t
+testDecEncLegalHoldUserToken :: Token LU -> Property
+testDecEncLegalHoldUserToken t = fromByteString (toByteString' t) === Just t
 
-testNotExpired :: V.Env -> Create ()
-testNotExpired p = do
+testDecEncLegalHoldAccessToken :: Token LA -> Property
+testDecEncLegalHoldAccessToken t = fromByteString (toByteString' t) === Just t
+
+testNotExpired :: C.SigningKey -> Vector PublicKey -> IO ()
+testNotExpired signingKey pubKeys = runEffects $ do
   u <- liftIO nextRandom
-  t <- userToken defDuration u Nothing 100
-  x <- liftIO $ runValidate p $ check t
-  liftIO $ assertBool "testNotExpired: validation failed" (isRight x)
+  t <- newToken @U signingKey (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
+  x <- check pubKeys t
+  liftIO $ Right () @=? x
 
 -- The testExpired test conforms to the following testing standards:
 -- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2 @S3
 --
 -- Using an expired access token should fail
-testExpired :: V.Env -> Create ()
-testExpired p = do
+testExpired :: C.SigningKey -> Vector PublicKey -> IO ()
+testExpired signingKey pubKeys = runEffects $ do
   u <- liftIO nextRandom
-  t <- userToken 0 u Nothing 100
+  t <- newToken @U signingKey (TokenExpiresAfter 0) Nothing $ User u Nothing 100
   waitSeconds 1
-  x <- liftIO $ runValidate p $ check t
+  x <- check pubKeys t
   liftIO $ Left Expired @=? x
 
 -- @END
 
-testSignAndVerify :: V.Env -> Create ()
-testSignAndVerify p = do
+testSignAndVerify :: C.SigningKey -> Vector PublicKey -> IO ()
+testSignAndVerify signingKey pubKeys = runEffects $ do
   u <- liftIO nextRandom
-  t <- userToken defDuration u Nothing 100
-  x <- liftIO $ runValidate p $ check t
-  liftIO $ assertBool "testSignAndVerify: validation failed" (isRight x)
-
-testRandDevIds :: Create ()
-testRandDevIds = do
-  u <- liftIO nextRandom
-  t1 <- view body <$> accessToken1 defDuration u Nothing
-  t2 <- view body <$> accessToken1 defDuration u Nothing
-  liftIO $ assertBool "unexpected: Same device ID." (t1 ^. connection /= t2 ^. connection)
+  t <- newToken @U signingKey (TokenExpiresAfter defDuration) Nothing $ User u Nothing 100
+  x <- check pubKeys t
+  liftIO $ Right () @=? x
 
 -- Helpers:
 

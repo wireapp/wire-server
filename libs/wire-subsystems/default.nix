@@ -73,6 +73,7 @@
 , scientific
 , servant
 , servant-client-core
+, sodium-crypto-sign
 , stomp-queue
 , streaming-commons
 , string-conversions
@@ -90,11 +91,13 @@
 , unordered-containers
 , uri-bytestring
 , uuid
+, vector
 , wai-utilities
 , wire-api
 , wire-api-federation
 , wire-otel
 , witherable
+, zauth
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -163,6 +166,7 @@ mkDerivation {
     schema-profunctor
     servant
     servant-client-core
+    sodium-crypto-sign
     stomp-queue
     template
     text
@@ -178,11 +182,13 @@ mkDerivation {
     unordered-containers
     uri-bytestring
     uuid
+    vector
     wai-utilities
     wire-api
     wire-api-federation
     wire-otel
     witherable
+    zauth
   ];
   testHaskellDepends = [
     aeson
@@ -201,6 +207,7 @@ mkDerivation {
     iproute
     iso639
     lens
+    memory
     mime-mail
     network
     pipes
@@ -215,6 +222,7 @@ mkDerivation {
     saml2-web-sso
     scientific
     servant-client-core
+    sodium-crypto-sign
     streaming-commons
     string-conversions
     text
@@ -224,8 +232,10 @@ mkDerivation {
     types-common
     uri-bytestring
     uuid
+    vector
     wire-api
     wire-api-federation
+    zauth
   ];
   testToolDepends = [ hspec-discover ];
   license = lib.licenses.agpl3Only;

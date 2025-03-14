@@ -19,10 +19,9 @@
 module Wire.Sem.FromUTC where
 
 import Data.Time (UTCTime)
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Time.Clock.POSIX (POSIXTime, utcTimeToPOSIXSeconds)
 import Imports
 import qualified SAML2.WebSSO.Types as SAML
-import Wire.API.MLS.Epoch (Epoch (..))
 
 -- | The class is helpful in interpreters for the 'Now' effect. It makes it
 -- possible to use the interpreters for any time type so long as it implements
@@ -36,5 +35,5 @@ instance FromUTC UTCTime where
 instance FromUTC SAML.Time where
   fromUTCTime = SAML.Time
 
-instance FromUTC Epoch where
-  fromUTCTime = Epoch . floor . utcTimeToPOSIXSeconds
+instance FromUTC POSIXTime where
+  fromUTCTime = utcTimeToPOSIXSeconds

@@ -1,6 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -20,152 +17,60 @@
 
 module Data.ZAuth.Creation
   ( -- * Types
-    Create,
-    Env,
+    SigningKey (..),
+    TokenExpiry (..),
 
-    -- * Initialisation
-    mkEnv,
-    runCreate,
-
-    -- * Specific
-    accessToken,
-    accessToken1,
-    userToken,
-    sessionToken,
-    botToken,
-    providerToken,
-    legalHoldAccessToken,
-    legalHoldAccessToken1,
-    legalHoldUserToken,
-
-    -- * Generic
+    -- * Actions
     newToken,
     renewToken,
   )
 where
 
-import Control.Lens
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Data.ByteString qualified as Strict
 import Data.ByteString.Builder (toLazyByteString)
-import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Time.Clock.POSIX
-import Data.UUID
-import Data.Vector (Vector, (!))
-import Data.Vector qualified as Vec
+import Data.ZAuth.CryptoSign
 import Data.ZAuth.Token hiding (signature)
 import Imports
-import Sodium.Crypto.Sign
-import System.Random.MWC
+import Polysemy
+import Sodium.Crypto.Sign (SecretKey, Signature)
+import Wire.Sem.FromUTC
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
-data Env = Env
+data TokenExpiry
+  = TokenExpiresAfter Integer
+  | TokenExpiresAt POSIXTime
+  | TokenNeverExpires
+
+data SigningKey = SigningKey
   { keyIdx :: Int,
-    zSign :: Vector (Strict.ByteString -> IO Signature),
-    randGen :: GenIO
+    key :: SecretKey
   }
 
-newtype Create a = Create
-  { zauth :: ReaderT Env IO a
-  }
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch
-    )
+renewToken :: forall t r. (SerializableToken t, Member Now r, Member CryptoSign r) => SigningKey -> Integer -> Header t -> Body t -> Sem r (Token t)
+renewToken signingKey dur hdr bdy = do
+  newToken signingKey (TokenExpiresAfter dur) (hdr.tag) bdy
 
 tokenVersion :: Int
 tokenVersion = 1
 
-mkEnv :: SecretKey -> [SecretKey] -> IO Env
-mkEnv k kk = Env 1 (Vec.fromList $ map signature (k : kk)) <$> liftIO createSystemRandom
-
-runCreate :: Env -> Int -> Create a -> IO a
-runCreate z k m = do
-  when (k < 1 || k > Vec.length (zSign z)) $
-    error "runCreate: Key index out of range."
-  runReaderT (zauth m) (z {keyIdx = k})
-
-userToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
-userToken dur usr cli rnd = do
-  d <- expiry dur
-  newToken d U Nothing (mkUser usr cli rnd)
-
-sessionToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
-sessionToken dur usr cli rnd = do
-  d <- expiry dur
-  newToken d U (Just S) (mkUser usr cli rnd)
-
--- | Create an access token taking a duration, userId, clientId and a (random)
--- number that can be used as connection identifier
-accessToken :: Integer -> UUID -> Maybe Text -> Word64 -> Create (Token Access)
-accessToken dur usr cid con = do
-  d <- expiry dur
-  newToken d A Nothing (mkAccess usr cid con)
-
--- | Create an access token taking a duration, userId and clientId.
--- Similar to 'accessToken', except that the connection identifier is randomly
--- generated.
-accessToken1 :: Integer -> UUID -> Maybe Text -> Create (Token Access)
-accessToken1 dur usr cid = do
-  g <- Create $ asks randGen
-  d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
-  accessToken dur usr cid d
-
-legalHoldUserToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token LegalHoldUser)
-legalHoldUserToken dur usr cli rnd = do
-  d <- expiry dur
-  newToken d LU Nothing (mkLegalHoldUser usr cli rnd)
-
--- | Create a legal hold access token taking a duration, userId, clientId and a
--- (random) number that can be used as connection identifier
-legalHoldAccessToken ::
-  Integer ->
-  UUID ->
-  Maybe Text ->
-  Word64 ->
-  Create (Token LegalHoldAccess)
-legalHoldAccessToken dur usr cid con = do
-  d <- expiry dur
-  newToken d LA Nothing (mkLegalHoldAccess usr cid con)
-
--- | Create a legal hold access token taking a duration, userId. Similar to 'legalHoldAccessToken', except that the connection identifier is randomly generated.
-legalHoldAccessToken1 :: Integer -> UUID -> Maybe Text -> Create (Token LegalHoldAccess)
-legalHoldAccessToken1 dur usr cid = do
-  g <- Create $ asks randGen
-  d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
-  legalHoldAccessToken dur usr cid d
-
-botToken :: UUID -> UUID -> UUID -> Create (Token Bot)
-botToken pid bid cnv = newToken (-1) B Nothing (mkBot pid bid cnv)
-
-providerToken :: Integer -> UUID -> Create (Token Provider)
-providerToken dur pid = do
-  d <- expiry dur
-  newToken d P Nothing (mkProvider pid)
-
-renewToken :: (ToByteString a) => Integer -> Header -> a -> Create (Token a)
-renewToken dur hdr bdy = do
-  d <- expiry dur
-  newToken d (hdr ^. typ) (hdr ^. tag) bdy
-
-newToken :: (ToByteString a) => POSIXTime -> Type -> Maybe Tag -> a -> Create (Token a)
-newToken ti ty ta a = do
-  k <- Create $ asks keyIdx
-  let h = mkHeader tokenVersion k (floor ti) ty ta
-  s <- signToken h a
-  pure $ mkToken s h a
+newToken :: forall t r. (SerializableToken t, Member CryptoSign r, Member Now r) => SigningKey -> TokenExpiry -> Maybe Tag -> Body t -> Sem r (Token t)
+newToken signingKey tokenExpiry mTag a = do
+  tokenTime <- case tokenExpiry of
+    TokenExpiresAt t -> pure t
+    TokenNeverExpires -> pure (-1)
+    TokenExpiresAfter ttl -> expiry ttl
+  let h = Header tokenVersion signingKey.keyIdx (floor tokenTime) mTag
+  s <- signToken signingKey.key h a
+  pure $ Token s h a
 
 -----------------------------------------------------------------------------
 -- Internal
 
-signToken :: (ToByteString a) => Header -> a -> Create Signature
-signToken h a = Create $ do
-  f <- (! (h ^. key - 1)) <$> asks zSign
-  liftIO . f . toStrict . toLazyByteString $ writeData h a
+signToken :: (SerializableToken t, Member CryptoSign r) => SecretKey -> Header t -> Body t -> Sem r Signature
+signToken key h a =
+  sign key . toStrict . toLazyByteString $ writeData h a
 
-expiry :: (MonadIO m) => Integer -> m POSIXTime
-expiry d = (fromInteger d +) <$> liftIO getPOSIXTime
+expiry :: (Member Now r) => Integer -> Sem r POSIXTime
+expiry d = (fromInteger d +) . fromUTCTime <$> Now.get

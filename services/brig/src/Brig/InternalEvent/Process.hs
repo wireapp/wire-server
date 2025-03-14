@@ -39,6 +39,7 @@ import Wire.Events (Events)
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
 import Wire.Sem.Delay
+import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem
@@ -57,7 +58,8 @@ onEvent ::
     Member UserStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member SessionStore r
   ) =>
   InternalNotification ->
   Sem r ()

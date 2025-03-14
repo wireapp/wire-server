@@ -23,7 +23,6 @@ import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.Text.Lazy as LT
-import Data.ZAuth.Validation qualified as ZAuth
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
@@ -114,12 +113,6 @@ reauthError (ReAuthError e) = authError e
 reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
 reauthError ReAuthCodeVerificationNoPendingCode = StdError verificationCodeNoPendingCode
 reauthError ReAuthCodeVerificationNoEmail = StdError verificationCodeNoEmail
-
-zauthError :: ZAuth.Failure -> HttpError
-zauthError ZAuth.Expired = StdError authTokenExpired
-zauthError ZAuth.Falsified = StdError authTokenInvalid
-zauthError ZAuth.Invalid = StdError authTokenInvalid
-zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 
 clientError :: ClientError -> HttpError
 clientError ClientNotFound = StdError (errorToWai @'E.ClientNotFound)
@@ -279,15 +272,6 @@ missingAccessToken = Wai.mkError status403 "invalid-credentials" "Missing access
 
 authTokenMismatch :: Wai.Error
 authTokenMismatch = Wai.mkError status403 "invalid-credentials" "Token mismatch"
-
-authTokenExpired :: Wai.Error
-authTokenExpired = Wai.mkError status403 "invalid-credentials" "Token expired"
-
-authTokenInvalid :: Wai.Error
-authTokenInvalid = Wai.mkError status403 "invalid-credentials" "Invalid token"
-
-authTokenUnsupported :: Wai.Error
-authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported token operation for this token type"
 
 -- | User's relation to the team is not what we expect it to be. Examples:
 --

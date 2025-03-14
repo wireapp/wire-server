@@ -64,6 +64,7 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Clock.System
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
 import Polysemy
@@ -94,6 +95,7 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.DomainRegistrationStore hiding (domain)
@@ -119,6 +121,9 @@ import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Concurrency
+import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
+import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
@@ -165,7 +170,13 @@ servantSitemap ::
     Member EnterpriseLoginSubsystem r,
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SessionStore r,
+    Member (Input ZAuthEnv) r,
+    Member (Input Env) r,
+    Member Now r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -226,7 +237,9 @@ accountAPI ::
     Member DomainRegistrationStore r,
     Member RateLimit r,
     Member SparAPIAccess r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member SessionStore r,
+    Member (Concurrency Unsafe) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -279,7 +292,8 @@ teamsAPI ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member SessionStore r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -307,7 +321,14 @@ authAPI ::
     Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input ZAuthEnv) r,
+    Member (Input Env) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -483,7 +504,8 @@ addClientInternalH ::
     Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member SessionStore r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -501,7 +523,7 @@ legalHoldClientRequestedH :: (Member Events r) => UserId -> LegalHoldClientReque
 legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
-removeLegalHoldClientH :: (Member DeleteQueue r, Member Events r) => UserId -> (Handler r) NoContent
+removeLegalHoldClientH :: (Member DeleteQueue r, Member Events r, Member SessionStore r) => UserId -> (Handler r) NoContent
 removeLegalHoldClientH uid = do
   lift $ NoContent <$ API.removeLegalHoldClient uid
 
@@ -571,7 +593,8 @@ deleteUserNoAuthH ::
     Member UserKeyStore r,
     Member Events r,
     Member UserSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member SessionStore r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -721,7 +744,9 @@ getPasswordResetCode email =
 
 changeAccountStatusH ::
   ( Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r
   ) =>
   UserId ->
   AccountStatusUpdate ->
