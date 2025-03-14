@@ -178,6 +178,7 @@ library
     Test.Search
     Test.Services
     Test.Spar
+    Test.Spar.MultiIngressSSO
     Test.Spar.STM
     Test.Swagger
     Test.Teams

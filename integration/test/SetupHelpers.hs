@@ -27,6 +27,8 @@ import qualified Data.UUID as UUID
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Vector (fromList)
+-- TODO: Finally, delete the trace logs
+import Debug.Trace
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
@@ -445,13 +447,29 @@ updateTestIdpWithMetaWithPrivateCreds owner idpId = do
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.
 loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App (Maybe String, SAML.SignedAuthnResponse)
-loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
+loginWithSaml = loginWithSamlWithZHost Nothing OwnDomain
+
+-- | Given a team configured with saml sso, attempt a login with valid credentials.  This
+-- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
+-- scim-provisioned users as well as saml auto-provisioning without scim.
+loginWithSamlWithZHost ::
+  (MakesValue domain, HasCallStack) =>
+  Maybe String ->
+  domain ->
+  Bool ->
+  String ->
+  String ->
+  (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) ->
+  App (Maybe String, SAML.SignedAuthnResponse)
+loginWithSamlWithZHost mbZHost domain expectSuccess tid email (iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
-  spmeta <- getSPMetadata OwnDomain tid
-  authnreq <- initiateSamlLogin OwnDomain iid
+  spmeta <- getSPMetadataWithZHost domain mbZHost tid
+  traceM $ "XXX loginWithSamlWithZHost - spmeta: " ++ show spmeta
+  authnreq <- initiateSamlLoginWithZHost domain mbZHost iid
+  traceM $ "XXX loginWithSamlWithZHost - authnreq: " ++ show authnreq
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
   authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  mUid <- finalizeSamlLogin OwnDomain tid authnResp `bindResponse` validateLoginResp
+  mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnResp `bindResponse` validateLoginResp
   pure (mUid, authnResp)
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
