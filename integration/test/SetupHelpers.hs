@@ -61,18 +61,25 @@ deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
 
 -- | returns (owner, team id, members)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
-createTeam domain memberCount = do
-  owner <- createUser domain def {team = True} >>= getJSON 201
+createTeam domain memberCount = createTeamWithEmailDomain domain "example.com" memberCount
+
+createTeamWithEmailDomain :: (HasCallStack, MakesValue domain) => domain -> String -> Int -> App (Value, String, [Value])
+createTeamWithEmailDomain domain emailDomain memberCount = do
+  ownerEmail <- randomName <&> (<> "@" <> emailDomain)
+  owner <- createUser domain def {team = True, email = Just ownerEmail} >>= getJSON 201
   tid <- owner %. "team" & asString
-  members <- pooledForConcurrentlyN 64 [2 .. memberCount] $ \_ -> createTeamMember owner def
+  members <- pooledForConcurrentlyN 64 [2 .. memberCount] $ \_ -> do
+    email <- randomName <&> (<> "@" <> emailDomain)
+    createTeamMember owner def {email = Just email}
   pure (owner, tid, members)
 
 data CreateTeamMember = CreateTeamMember
-  { role :: String
+  { role :: String,
+    email :: Maybe String
   }
 
 instance Default CreateTeamMember where
-  def = CreateTeamMember {role = "member"}
+  def = CreateTeamMember {role = "member", email = Nothing}
 
 createTeamMember ::
   (HasCallStack, MakesValue inviter) =>
@@ -80,7 +87,7 @@ createTeamMember ::
   CreateTeamMember ->
   App Value
 createTeamMember inviter args = do
-  newUserEmail <- randomEmail
+  newUserEmail <- maybe randomEmail pure args.email
   invitation <-
     postInvitation
       inviter
