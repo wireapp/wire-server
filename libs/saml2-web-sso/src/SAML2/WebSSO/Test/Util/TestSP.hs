@@ -12,11 +12,11 @@ import Crypto.Random.Types (MonadRandom (..))
 import Data.EitherR
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe
 import Data.Time
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import Data.Void (Void)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIsAliveID', simpleStoreID', simpleUnStoreID')

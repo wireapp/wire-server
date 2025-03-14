@@ -48,7 +48,7 @@ data SAML2 m a where
     (AuthnResponse -> IdP -> AccessVerdict -> m resp) ->
     AuthnResponseBody ->
     SAML2 m resp
-  Meta :: Text -> m Issuer -> m URI -> SAML2 m SPMetadata
+  Meta :: Text -> m Issuer -> m URI -> m [ContactPerson] -> SAML2 m SPMetadata
   ToggleCookie ::
     (KnownSymbol name) =>
     ByteString ->

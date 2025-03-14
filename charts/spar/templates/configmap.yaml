@@ -44,9 +44,21 @@ data:
 
       spHost: 0.0.0.0
       spPort: {{ $.Values.service.externalPort }}
-      spAppUri: {{ .appUri }}
-      spSsoUri: {{ .ssoUri }}
-
+      {{- if .domainConfigs }}
+      domainConfigs:
+        {{- range $key, $value := .Values.domainConfigs }}
+        {{ $key }}:
+          spAppUri: {{ required (printf "Multi-ingress: config.appUri required for %s" $key) $value.appUri }}
+          spSsoUri: {{ required (printf "Multi-ingress: config.ssoUri required for %s" $key) $value.ssoUri }}
+          contacts:
+            {{- required (printf "Multi-ingress: config.contacts required for %s" $key) $value.contacts | toYaml  | nindent 10 }}
+        {{- end }}
+      {{- else }}
+      spAppUri: {{ required "No multi-ingress: config.appUri required" .appUri }}
+      spSsoUri: {{ required "No multi-ingress: config.ssoUri required" .ssoUri }}
       contacts:
-        {{- toYaml .contacts | nindent 8 }}
+        {{- required "No multi-ingress: config.contacts required" .contacts | toYaml  | nindent 8 }}
+      {{- end }}
+
+    scimBaseUri: {{ include "computeScimBaseUri" . | quote }}
 {{- end }}

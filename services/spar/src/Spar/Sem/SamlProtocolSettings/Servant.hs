@@ -31,5 +31,6 @@ import Wire.API.Routes.Public.Spar
 
 sparRouteToServant :: SAML.Config -> Sem (SamlProtocolSettings ': r) a -> Sem r a
 sparRouteToServant cfg = interpret $ \case
-  SpIssuer mitlt -> pure $ sparSPIssuer mitlt cfg
-  ResponseURI mitlt -> pure $ sparResponseURI mitlt cfg
+  SpIssuer mitlt mbDomain -> pure $ sparSPIssuer mitlt mbDomain cfg
+  ResponseURI mitlt mbDomain -> pure $ sparResponseURI mitlt mbDomain cfg
+  ContactPersons mbDomain -> pure $ getContactPersons mbDomain cfg

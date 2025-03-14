@@ -3,21 +3,21 @@
 module Text.XML.Util where
 
 import Control.Monad.Except
-import qualified Data.ByteString.Lazy as BSL
+import Data.ByteString.Lazy qualified as BSL
 import Data.Char (isSpace)
-import qualified Data.Generics.Uniplate.Data as Uniplate
+import Data.Generics.Uniplate.Data qualified as Uniplate
 import Data.Kind (Type)
 import Data.Map as Map
 import Data.Proxy
 import Data.String.Conversions
-import qualified Data.Text as ST
-import qualified Data.Tree.NTree.TypeDefs as HXT
+import Data.Text qualified as ST
+import Data.Tree.NTree.TypeDefs qualified as HXT
 import Data.Typeable
 import GHC.Stack
-import qualified SAML2.XML as HS
+import SAML2.XML qualified as HS
 import Text.XML
-import qualified Text.XML.HXT.Core as HXT
-import qualified Text.XML.HXT.DOM.ShowXml
+import Text.XML.HXT.Core qualified as HXT
+import Text.XML.HXT.DOM.ShowXml qualified
 
 die :: forall (a :: Type) b c m. (Typeable a, Show b, MonadError String m) => Proxy a -> b -> m c
 die = die' Nothing

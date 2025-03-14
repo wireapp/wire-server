@@ -258,7 +258,7 @@ getPath' = fmap renderURI . getPath
 
 getPath :: forall m. (Monad m, HasConfig m) => Path -> m URI
 getPath path = do
-  cfg <- getConfig
+  cfg <- getMultiIngressDomainConfigNoMultiIngress
   let sp, sso :: ST -> URI
       sp = ((cfg ^. cfgSPAppURI) =/)
       sso = ((cfg ^. cfgSPSsoURI) =/)

@@ -30,39 +30,39 @@ import Control.Lens hiding (element)
 import Control.Monad
 import Control.Monad.Except
 import Data.CaseInsensitive (CI)
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.EitherR
 import Data.Foldable (toList)
 import Data.Kind (Type)
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.NonEmpty as NL (NonEmpty ((:|)), nonEmpty)
-import qualified Data.List.NonEmpty as NL
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NL
+import Data.Map qualified as Map
 import Data.Maybe
 import Data.String.Conversions
-import qualified Data.Text as ST
+import Data.Text qualified as ST
 import Data.Time
 import Data.Typeable (Proxy (Proxy), Typeable)
-import qualified Data.X509 as X509
+import Data.X509 qualified as X509
 import GHC.Stack
-import qualified Network.URI as HS
-import qualified SAML2.Bindings.Identifiers as HS
-import qualified SAML2.Core as HS
-import qualified SAML2.Metadata.Metadata as HS
-import qualified SAML2.Profiles as HS
+import Network.URI qualified as HS
+import SAML2.Bindings.Identifiers qualified as HS
+import SAML2.Core qualified as HS
+import SAML2.Metadata.Metadata qualified as HS
+import SAML2.Profiles qualified as HS
 import SAML2.Util
 import SAML2.WebSSO.SP
 import SAML2.WebSSO.Types
-import qualified SAML2.WebSSO.Types.Email as Email
-import qualified SAML2.XML as HS
-import qualified SAML2.XML as HX
-import qualified SAML2.XML.Schema.Datatypes as HX (Boolean, Duration, UnsignedShort)
-import qualified SAML2.XML.Signature.Types as HX (Signature)
+import SAML2.WebSSO.Types.Email qualified as Email
+import SAML2.XML qualified as HS
+import SAML2.XML qualified as HX
+import SAML2.XML.Schema.Datatypes qualified as HX (Boolean, Duration, UnsignedShort)
+import SAML2.XML.Signature.Types qualified as HX (Signature)
 import Text.Hamlet.XML
 import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
-import qualified Text.XML.HXT.Arrow.Pickle.Xml as HS
+import Text.XML.HXT.Arrow.Pickle.Xml qualified as HS
 import URI.ByteString as U
 import Prelude hiding (id, (.))
 

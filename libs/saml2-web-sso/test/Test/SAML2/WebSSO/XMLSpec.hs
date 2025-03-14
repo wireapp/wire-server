@@ -9,11 +9,11 @@ where
 
 import Data.Either
 import Data.String.Conversions
-import qualified Data.Text.Lazy as LT
-import qualified SAML2.Core as HS
+import Data.Text.Lazy qualified as LT
+import SAML2.Core qualified as HS
 import SAML2.Util
 import SAML2.WebSSO
-import qualified SAML2.XML as HS
+import SAML2.XML qualified as HS
 import Test.Hspec
 import URI.ByteString.QQ (uri)
 

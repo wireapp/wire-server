@@ -9,11 +9,11 @@ where
 import Control.Lens
 import Data.Aeson as Aeson
 import Data.List (sort)
-import qualified Data.List.NonEmpty as NL
+import Data.List.NonEmpty qualified as NL
 import Data.Proxy
 import Hedgehog
 import Hedgehog.Gen as Gen
-import qualified SAML2.Core as HS
+import SAML2.Core qualified as HS
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Arbitrary
 import SAML2.WebSSO.Test.Util

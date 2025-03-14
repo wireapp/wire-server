@@ -11,13 +11,13 @@ import Control.Exception (SomeException, try)
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
-import qualified Data.ByteString.Base64.Lazy as EL (decodeLenient, encode)
+import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.Either
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Network.Wai.Test
 import SAML2.Util
 import SAML2.WebSSO
@@ -145,7 +145,7 @@ spec = describe "API" $ do
       ctx <- mkTestCtxSimple
       c2 <- ioFromTestSP ctx $ toggleCookie @CookieName "/" (Just ("nick", defReqTTL))
       rndtrip c2 `shouldBe` Right c2
-  describe "meta" . withapp (Proxy @APIMeta') (meta "toy-sp" defSPIssuer defResponseURI) mkTestCtxSimple $ do
+  describe "meta" . withapp (Proxy @APIMeta') (meta "toy-sp" defSPIssuer defResponseURI defContactPersons) mkTestCtxSimple $ do
     it "responds with 200 and an 'SPSSODescriptor'" . runtest' $ do
       get "/meta"
         `shouldRespondWith` 200 {matchBody = bodyContains "OrganizationName xml:lang=\"EN\">toy-sp"}

@@ -32,9 +32,44 @@ config:
   maxttlAuthreq: 7200
   maxttlAuthresp: 7200
   proxy: {}
+
   # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: [ development ]
+
+  # SAML - ServiceProvider configuration
+  # Usually, one would configure one set of options for a single domain. For
+  # multi-ingress setups (one backend is available through multiple domains),
+  # configure a map with the domain as key.
+  #
+  # Single domain configuration
+  # appUri: <webapp-uri> # E.g. https://webapp.<domain>
+  # ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  # contacts:
+  #   - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+  #     company: <company-name> # Optional
+  #     email: <contact-email-address> # Optional
+  #     givenName: <name> # Optional
+  #     surname: <name> # Optional
+  #     phone: <phone-number-string> # Optional
+  #
+  # Multi-ingress configuration
+  # domainConfigs:
+  #   <domain1>: # The domain of the incoming nginz-https host. E.g. nginz-https.<domain>
+  #     appUri: <webapp-uri> # E.g. https://webapp.<domain>
+  #     ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  #     contacts:
+  #       - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+  #         company: <company-name> # Optional
+  #         email: <contact-email-address> # Optional
+  #         givenName: <name> # Optional
+  #         surname: <name> # Optional
+  #         phone: <phone-number-string> # Optional
+  #   <domain2>:
+  #     ...
+  
+  # SCIM base URI (by default deduced from single-domain spSsoUri)
+  # scimBaseUri: <uri> 
 
 podSecurityContext:
   allowPrivilegeEscalation: false

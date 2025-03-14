@@ -16,11 +16,11 @@
 module SAML2.WebSSO.Types.Email (Email, render, validate) where
 
 import Data.Aeson
-import qualified Data.ByteString as BS
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString qualified as BS
+import Data.CaseInsensitive qualified as CI
 import Data.String.Conversions
 import Data.Word8 (toLower)
-import qualified Text.Email.Validate as Email
+import Text.Email.Validate qualified as Email
 
 newtype Email = Email {fromEmail :: Email.EmailAddress}
   deriving (Eq, Ord, Show)

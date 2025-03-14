@@ -185,7 +185,6 @@ library
     , servant-multipart
     , servant-server
     , text
-    , text-latin1
     , these
     , time
     , tinylog

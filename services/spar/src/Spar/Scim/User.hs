@@ -960,7 +960,7 @@ synthesizeStoredUser acc veid =
             (,,,)
               <$> BrigAccess.getRichInfo uid
               <*> ScimUserTimesStore.read uid
-              <*> inputs (derivedOptsScimBaseURI . derivedOpts)
+              <*> inputs scimBaseUri
               <*> getRole
 
       let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Sem r ()

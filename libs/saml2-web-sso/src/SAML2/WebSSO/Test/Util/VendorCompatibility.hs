@@ -10,11 +10,11 @@ where
 import Control.Concurrent.MVar
 import Control.Lens
 import Control.Monad
-import qualified Data.ByteString.Base64.Lazy as EL (encode)
-import qualified Data.Map as Map
+import Data.ByteString.Base64.Lazy qualified as EL (encode)
+import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.String.Conversions
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Network.HTTP.Types.Status (statusCode)
 import Network.Wai.Test
 import SAML2.WebSSO
@@ -84,7 +84,7 @@ vendorCompatibility filePath ssoURI = testAuthRespApp ssoURI $ do
               & ctxIdPs .~ [(idpcfg, sampleidp)]
               -- & ctxConfig . cfgSPAppURI .~ _
               -- (the SPAppURI default is a incorrect, but that should not invalidate the test)
-              & ctxConfig . cfgSPSsoURI .~ ssoURI
+              & ctxConfig . cfgDomainConfigs . _Left . cfgSPSsoURI .~ ssoURI
               & ctxRequestStore .~ reqstore
               & ctxNow .~ now
         verdict :: SResponse <-
