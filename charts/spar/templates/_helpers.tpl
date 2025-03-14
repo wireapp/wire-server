@@ -27,23 +27,23 @@ created one (in case the CA is provided as PEM string.)
 
 The rules are:
 - If `scimBaseUri` is defined, take that value
-- Otherwise, if `spAppUri` is defined, take the value and drop a possible last /sso path element
+- Otherwise, if `ssoUri` is defined, take the value and drop a possible last /sso path element
 - Otherwise, fail
 */}}
 {{- define "computeScimBaseUri" -}}
-{{- $scimBaseUri := .Values.config.scimBaseUri -}}
-{{- $spAppUri := .Values.config.spAppUri -}}
+{{- $scimBaseUri := .scimBaseUri -}}
+{{- $ssoUri := .ssoUri -}}
 {{- if $scimBaseUri -}}
   {{- $scimBaseUri -}}
-{{- else if $spAppUri -}}
-  {{- $parts := split "/" $spAppUri -}}
+{{- else if $ssoUri -}}
+  {{- $parts := splitList "/" $ssoUri -}}
   {{- if eq (last $parts) "sso" -}}
-    {{- $baseUri := (pluck 0 (sub 1 (len $parts)) $parts) | join "/" -}}
+    {{- $baseUri := $parts | reverse | rest | reverse | join "/" -}}
     {{- $baseUri -}}
   {{- else -}}
-    {{- $spAppUri -}}
+    {{- $ssoUri -}}
   {{- end -}}
 {{- else -}}
-  {{- fail "Either scimBaseUri or spAppUri must be defined" -}}
+  {{- fail "Either scimBaseUri or ssoUri must be defined" -}}
 {{- end -}}
 {{- end -}}
