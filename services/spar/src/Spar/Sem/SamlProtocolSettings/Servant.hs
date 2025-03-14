@@ -33,3 +33,4 @@ sparRouteToServant :: SAML.Config -> Sem (SamlProtocolSettings ': r) a -> Sem r 
 sparRouteToServant cfg = interpret $ \case
   SpIssuer mitlt mbDomain -> pure $ sparSPIssuer mitlt mbDomain cfg
   ResponseURI mitlt mbDomain -> pure $ sparResponseURI mitlt mbDomain cfg
+  ContactPersons mbDomain -> pure $ getContactPersons mbDomain cfg

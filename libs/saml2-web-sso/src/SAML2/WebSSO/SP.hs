@@ -151,7 +151,7 @@ noLater early late = early <= addTime tolerance late
 ----------------------------------------------------------------------
 -- paths
 
--- This function exists to deal with legacy test cases.
+-- | This function exists to deal with legacy test cases.
 getSsoURINoMultiIngress ::
   forall m endpoint api.
   ( HasCallStack,
@@ -170,7 +170,10 @@ getSsoURINoMultiIngress proxyAPI proxyAPIAuthResp =
     extpath :: URI -> URI
     extpath = (=/ (cs . toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp))
 
+-- | DANGER: This function is not valid for all spar configurations! It
+-- spuriously fails for multi-ingress configs!
 getMultiIngressDomainConfigNoMultiIngress :: forall m. (HasConfig m, Functor m) => m MultiIngressDomainConfig
+-- TODO: Can we get rid of this dangerous function?
 getMultiIngressDomainConfigNoMultiIngress = (fromJust . (`getMultiIngressDomainConfig` Nothing)) <$> getConfig
 
 ----------------------------------------------------------------------

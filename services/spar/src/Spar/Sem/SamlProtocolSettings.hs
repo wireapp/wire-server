@@ -21,6 +21,7 @@ module Spar.Sem.SamlProtocolSettings
   ( SamlProtocolSettings (..),
     spIssuer,
     responseURI,
+    contactPersons,
   )
 where
 
@@ -34,5 +35,6 @@ import qualified URI.ByteString as URI
 data SamlProtocolSettings m a where
   SpIssuer :: Maybe TeamId -> Maybe Domain -> SamlProtocolSettings m (Maybe SAML.Issuer)
   ResponseURI :: Maybe TeamId -> Maybe Domain -> SamlProtocolSettings m (Maybe URI.URI)
+  ContactPersons :: Maybe Domain -> SamlProtocolSettings m ([SAML.ContactPerson])
 
 makeSem ''SamlProtocolSettings

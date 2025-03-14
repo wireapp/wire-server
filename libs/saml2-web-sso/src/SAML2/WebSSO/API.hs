@@ -78,7 +78,7 @@ type API =
 
 api :: forall err m. (SPHandler (Error err) m) => ST -> HandleVerdict m -> ServerT API m
 api appName handleVerdict =
-  meta appName defSPIssuer defResponseURI
+  meta appName defSPIssuer defResponseURI defContactPersons
     :<|> authreq' defSPIssuer
     :<|> authresp' Nothing {- this is a lazy short-cut: no SPIds expected in this API -} defSPIssuer defResponseURI handleVerdict
 
@@ -90,6 +90,9 @@ defSPIssuer = Issuer <$> defResponseURI
 -- | The URI that 'AuthnResponse' values are delivered to ('APIAuthResp').
 defResponseURI :: (Functor m, HasConfig m) => m URI
 defResponseURI = getSsoURINoMultiIngress (Proxy @API) (Proxy @APIAuthResp')
+
+defContactPersons :: (Functor m, HasConfig m) => m [ContactPerson]
+defContactPersons = _cfgContacts <$> getMultiIngressDomainConfigNoMultiIngress
 
 ----------------------------------------------------------------------
 -- authentication response body processing
@@ -264,12 +267,13 @@ meta ::
   ST ->
   m Issuer ->
   m URI ->
+  m [ContactPerson] ->
   m SPMetadata
-meta appName getRequestIssuer getResponseURI = do
+meta appName getRequestIssuer getResponseURI getContactPersons = do
   enterH "meta"
   Issuer org <- getRequestIssuer
   resp <- getResponseURI
-  contacts <- (_cfgContacts) <$> getMultiIngressDomainConfigNoMultiIngress
+  contacts <- getContactPersons
   mkSPMetadata appName org resp contacts
 
 -- | Create authnreq, store it for comparison against assertions later, and return it in an HTTP

@@ -265,7 +265,10 @@ getMetadata mbTid mbHost = do
       rsp :: Sem r URI.URI
       rsp = SamlProtocolSettings.responseURI mbTid mbHostDom >>= maybe err pure
 
-  SAML2.meta appName iss rsp
+      contactList :: Sem r [SAML.ContactPerson]
+      contactList = SamlProtocolSettings.contactPersons mbHostDom
+
+  SAML2.meta appName iss rsp contactList
 
 authreqPrecheck ::
   ( Member IdPConfigStore r,

@@ -223,6 +223,17 @@ getSsoURI' proxyAPI proxyAPIAuthResp idpid mbDomain = (extpath . (^. SAML.cfgSPS
     domainConfig :: SAML.Config -> Maybe SAML.MultiIngressDomainConfig
     domainConfig config = SAML.getMultiIngressDomainConfig config mbDomain
 
+getContactPersons ::
+  ( Functor f,
+    SAML.HasConfig f
+  ) =>
+  Maybe Domain ->
+  f [SAML.ContactPerson]
+getContactPersons mbDomain = domainConfig <$> SAML.getConfig
+  where
+    domainConfig :: SAML.Config -> [SAML.ContactPerson]
+    domainConfig config = concatMap SAML._cfgContacts (SAML.getMultiIngressDomainConfig config mbDomain)
+
 -- SCIM
 
 type APIScim =
