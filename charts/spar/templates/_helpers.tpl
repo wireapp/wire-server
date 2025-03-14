@@ -39,9 +39,9 @@ The rules are:
   {{- $parts := splitList "/" $ssoUri -}}
   {{- if eq (last $parts) "sso" -}}
     {{- $baseUri := $parts | reverse | rest | reverse | join "/" -}}
-    {{- $baseUri -}}
+    {{- $baseUri -}}/scim/v2
   {{- else -}}
-    {{- $ssoUri -}}
+    {{- $ssoUri -}}/scim/v2
   {{- end -}}
 {{- else -}}
   {{- fail "Either scimBaseUri or ssoUri must be defined" -}}
