@@ -5,7 +5,7 @@ module Test.Cells where
 import API.Galley
 import qualified API.GalleyInternal as I
 import Control.Concurrent.MVar
-import Control.Exception
+import qualified Control.Exception as E
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
@@ -94,24 +94,19 @@ connectToCellsQueue resource = do
                     }
               liftIO $ openConnection'' connOpts
           )
-  conn <- Codensity $ \k -> do
-    iok <- appToIOKleisli k
-    liftIO $ bracket createConnection closeConnection iok
-  chan <- Codensity $ \k -> do
-    iok <- appToIOKleisli k
-    liftIO $ bracket (openChannel conn) closeChannel iok
+  conn <- hoistCodensity $ Codensity $ E.bracket createConnection closeConnection
+  chan <- hoistCodensity $ Codensity $ E.bracket (openChannel conn) closeChannel
 
   msgVar <- liftIO newEmptyMVar
   let handler (m, e) = do
         putMVar msgVar m
         ackMsg chan e.envDeliveryTag False
-  void $ Codensity $ \k -> do
-    iok <- appToIOKleisli k
-    liftIO
-      $ bracket
-        (consumeMsgs chan (fromString queueName) Ack handler)
-        (cancelConsumer chan)
-        iok
+  void
+    . hoistCodensity
+    $ Codensity
+    $ E.bracket
+      (consumeMsgs chan (fromString queueName) Ack handler)
+      (cancelConsumer chan)
   pure CellsQueue {msgVar, queueTimeout = 1000000}
 
 getMessageMaybe :: CellsQueue -> App (Maybe Value)

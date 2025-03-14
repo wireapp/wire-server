@@ -9,6 +9,7 @@ import Control.Exception as E
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.Codensity
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Crypto.Random (MonadRandom (..))
@@ -393,6 +394,11 @@ appToIOKleisli :: (a -> App b) -> App (a -> IO b)
 appToIOKleisli k = do
   env <- ask
   pure $ \a -> runAppWithEnv env (k a)
+
+hoistCodensity :: Codensity IO a -> Codensity App a
+hoistCodensity m = Codensity $ \k -> do
+  iok <- appToIOKleisli k
+  liftIO $ runCodensity m iok
 
 getServiceMap :: (HasCallStack) => String -> App ServiceMap
 getServiceMap fedDomain = do
