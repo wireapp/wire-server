@@ -191,7 +191,7 @@ newAccessToken xt = do
   -- TODO: Test that connId is randomly generated, there was a test in
   -- zauth, which got deleted as a result of moving this code here.
   connId <- randomConnId
-  accessToken :: (Token A) <-
+  accessToken :: Token A <-
     ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $
       Access xt.body.user xt.body.client connId
   pure $
