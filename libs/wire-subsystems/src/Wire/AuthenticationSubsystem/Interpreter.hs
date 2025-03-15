@@ -67,7 +67,6 @@ interpretAuthenticationSubsystem ::
     Member TinyLog r,
     Member HashPassword r,
     Member SessionStore r,
-    -- TODO: Make a config type to unify these inputs
     Member (Input (Local ())) r,
     Member (Input (Maybe AllowlistEmailDomains)) r,
     Member (Input ZAuthEnv) r,
