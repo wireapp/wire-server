@@ -68,6 +68,7 @@ type NotificationAPI =
   Named
     "get-notification-by-id"
     ( Summary "Fetch a notification by ID"
+        :> Until 'V9
         :> ZUser
         :> "notifications"
         :> Capture' '[Description "Notification ID"] "id" NotificationId
@@ -83,6 +84,7 @@ type NotificationAPI =
     :<|> Named
            "get-last-notification"
            ( Summary "Fetch the last notification"
+               :> Until 'V9
                :> ZUser
                :> "notifications"
                :> "last"
@@ -116,6 +118,7 @@ type NotificationAPI =
            "get-notifications"
            ( Summary "Fetch notifications"
                :> From 'V3
+               :> Until 'V9
                :> ZUser
                :> "notifications"
                :> QueryParam' [Optional, Strict, Description "Only return notifications more recent than this"] "since" NotificationId

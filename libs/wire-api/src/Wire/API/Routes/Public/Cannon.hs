@@ -30,6 +30,7 @@ type CannonAPI =
     "await-notifications"
     ( Summary "Establish websocket connection"
         -- Description "This is the legacy variant of \"consume-events\""
+        :> Until 'V9
         :> "await"
         :> ZUser
         :> ZConn
