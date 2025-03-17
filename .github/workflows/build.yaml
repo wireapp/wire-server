@@ -38,3 +38,5 @@ jobs:
           
           cat .gitmodules
           make build
+
+# tasks to update the submodule reference in wire-docs repo are yet to be added

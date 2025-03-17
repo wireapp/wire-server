@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 750">
+  <!-- Background -->
+  <rect width="800" height="750" fill="#f8f8f8" />
+  
+  <!-- Title -->
+  <text x="400" y="40" font-family="Arial" font-size="20" text-anchor="middle" font-weight="bold">Wire-Server PR Validation Workflow</text>
+  
+  <!-- Repositories -->
+  <rect x="50" y="70" width="280" height="120" rx="10" ry="10" fill="#e6f2ff" stroke="#333" stroke-width="2" />
+  <text x="190" y="95" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold">wireapp/wire-server</text>
+  <rect x="80" y="110" width="100" height="30" rx="5" ry="5" fill="#c6e2ff" stroke="#333" stroke-width="1" />
+  <text x="130" y="130" font-family="Arial" font-size="14" text-anchor="middle">develop</text>
+  <rect x="200" y="110" width="100" height="30" rx="5" ry="5" fill="#d6f0ff" stroke="#333" stroke-width="1" />
+  <text x="250" y="130" font-family="Arial" font-size="14" text-anchor="middle">PR branch</text>
+  
+  <rect x="470" y="70" width="280" height="120" rx="10" ry="10" fill="#ffe6e6" stroke="#333" stroke-width="2" />
+  <text x="610" y="95" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold">wireapp/wire-docs</text>
+  <rect x="500" y="110" width="100" height="30" rx="5" ry="5" fill="#ffc6c6" stroke="#333" stroke-width="1" />
+  <text x="550" y="130" font-family="Arial" font-size="14" text-anchor="middle">main</text>
+  <rect x="620" y="110" width="100" height="30" rx="5" ry="5" fill="#ffd6d6" stroke="#333" stroke-width="1" />
+  <text x="670" y="130" font-family="Arial" font-size="14" text-anchor="middle">.gitmodules</text>
+  
+  <!-- Github Actions Workflow -->
+  <rect x="50" y="220" width="700" height="420" rx="10" ry="10" fill="#f0f0f0" stroke="#666" stroke-width="2" />
+  <text x="400" y="245" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold">GitHub Actions Workflow (Triggered by PR to develop)</text>
+  
+  <!-- Workflow Steps -->
+  <rect x="80" y="270" width="640" height="350" rx="8" ry="8" fill="#ffffff" stroke="#888" stroke-width="1" />
+  
+  <!-- Step 1 -->
+  <rect x="100" y="290" width="600" height="40" rx="5" ry="5" fill="#e6ffec" stroke="#333" stroke-width="1" />
+  <text x="400" y="315" font-family="Arial" font-size="14" text-anchor="middle">git clone --branch main https://github.com/wireapp/wire-docs.git</text>
+  
+  <!-- Step 2 -->
+  <rect x="100" y="340" width="600" height="40" rx="5" ry="5" fill="#e6ffec" stroke="#333" stroke-width="1" />
+  <text x="400" y="365" font-family="Arial" font-size="14" text-anchor="middle">Modify .gitmodules to point to PR branch instead of develop</text>
+  
+  <!-- Step 3 -->
+  <rect x="100" y="390" width="600" height="40" rx="5" ry="5" fill="#e6ffec" stroke="#333" stroke-width="1" />
+  <text x="400" y="415" font-family="Arial" font-size="14" text-anchor="middle">Run make build to validate symlinks work with PR changes</text>
+  
+  <!-- Step 4 -->
+  <rect x="100" y="440" width="600" height="40" rx="5" ry="5" fill="#e6ffec" stroke="#333" stroke-width="1" />
+  <text x="400" y="465" font-family="Arial" font-size="14" text-anchor="middle">Validation result: Can the PR changes work with wire-docs symlinks?</text>
+  
+  <!-- NEW Step 5 -->
+  <rect x="100" y="490" width="600" height="40" rx="5" ry="5" fill="#fff9e6" stroke="#333" stroke-width="1" />
+  <text x="400" y="515" font-family="Arial" font-size="14" text-anchor="middle">Create PR to wire-docs to update submodule to PR commit ID</text>
+  
+  <!-- Step 6 -->
+  <rect x="100" y="540" width="600" height="40" rx="5" ry="5" fill="#fff9e6" stroke="#333" stroke-width="1" />
+  <text x="400" y="565" font-family="Arial" font-size="14" text-anchor="middle">Submodule reference updated when PR to wire-docs is merged</text>
+  
+  <!-- Arrows -->
+  <path d="M250 140 L250 180 L400 180 L400 270" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="300" y="175" font-family="Arial" font-size="14" text-anchor="middle">PR triggers workflow</text>
+  
+  <path d="M550 140 L550 180 L400 180" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="500" y="175" font-family="Arial" font-size="14" text-anchor="middle">Clone repo</text>
+  
+  <path d="M400 330 L400 340" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <path d="M400 380 L400 390" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <path d="M400 430 L400 440" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <path d="M400 480 L400 490" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <path d="M400 530 L400 540" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  
+  <!-- Return arrow to wire-docs -->
+  <path d="M700 515 L730 515 L730 130 L670 130" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="735" y="340" font-family="Arial" font-size="14" text-anchor="middle" transform="rotate(90, 735, 340)">Create PR to update .gitmodules</text>
+
+  
+  <!-- Arrow definitions -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+</svg>
