@@ -37,11 +37,6 @@ module Data.ZAuth.Token
 
     -- * User body
     User (..),
-    -- -- * UserTokenType
-    -- UserTokenType (..),
-    -- accessTokenType,
-    -- userTokenType,
-    -- KnownUserTokenType (..),
 
     -- * Bot body
     Bot (..),
