@@ -109,7 +109,7 @@ data AuthnResponseBody = AuthnResponseBody
 renderAuthnResponseBody :: AuthnResponse -> LBS
 renderAuthnResponseBody = EL.encode . cs . encode
 
--- | Implies verification, hence the constraints.
+-- | Implies verification, hence the constraints and the optional service provider ID (needed for IdP lookup).
 parseAuthnResponseBody ::
   forall m err spid extra.
   (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
@@ -167,6 +167,11 @@ idpToCreds issuer idp = do
 -- | Pull assertions sub-forest and pass unparsed xml input to 'verify' with a reference to
 -- each assertion individually.  The input must be a valid 'AuthnResponse'.  All assertions
 -- need to be signed by the issuer given in the arguments using the same key.
+--
+-- The assertions are returned.
+--
+-- NEVER PROCESS AN ASSERTION NOT RETURNED BY THIS FUNCTION (or another one that validates
+-- signatures).
 simpleVerifyAuthnResponse :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> m ()
 simpleVerifyAuthnResponse creds raw = do
   doc :: Cursor <- do
@@ -182,6 +187,9 @@ simpleVerifyAuthnResponse creds raw = do
     let assertionID :: Element -> m String
         assertionID (Element _ attrs _) =
           maybe (throwError BadSamlResponseAssertionWithoutID) (pure . cs) $
+            -- NB: it is not exactly obvious what happens if ID is non-unique in the document,
+            -- but `simpleVerifyAuthnResponse` guarantees that whichever sub-trees are
+            -- actually returned have valid signatures.
             Map.lookup "ID" attrs
     assertionID `mapM` assertions
   allVerifies creds raw nodeids

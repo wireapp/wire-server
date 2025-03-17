@@ -220,6 +220,7 @@ verify creds el signedID = case unsafePerformIO (try @SomeException $ verifyIO c
   Right errs -> throwError $ show (snd <$> errs)
   Left exc -> throwError $ show exc
 
+-- TODO: remove this, it isn't used anywhere outside the tests.
 verifyRoot :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> m ()
 verifyRoot creds el = do
   signedID <- do
