@@ -364,6 +364,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel
          in cookie.cookieExpires === addUTCTime (fromIntegral defSettings.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds) defaultTime
 
+    modifyMaxSuccess (const 3) . prop "cookie is persisted" $
+      \localDomain uid cid mLabel -> do
+        let Right (cky, sto) = runAllEffects localDomain [] Nothing $ do
+              c <- newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel
+              s <- listCookies uid
+              pure (c, s)
+        length sto `shouldBe` 1
+        (head sto).cookieId `shouldBe` cky.cookieId
+
 newtype Upto4 = Upto4 Int
   deriving newtype (Show, Eq)
 
