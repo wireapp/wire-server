@@ -19,10 +19,11 @@
 
 module Test.Channels where
 
+import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (setTeamFeatureConfig)
 import GHC.Stack
-import MLS.Util (createMLSClient, uploadNewKeyPackage)
+import MLS.Util (createAddCommit, createGroup, createMLSClient, sendAndConsumeCommitBundle, uploadNewKeyPackage)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -115,3 +116,50 @@ config perms =
             "allowed_to_open_channels" .= perms
           ]
     ]
+
+testTeamAdminPermissions :: (HasCallStack) => App ()
+testTeamAdminPermissions = do
+  (owner, tid, mem : otherMem : mems) <- createTeam OwnDomain 4
+  clients@(_ : memClient : _) <- for (owner : mem : otherMem : mems) $ createMLSClient def def
+  for_ clients (uploadNewKeyPackage def)
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  -- a member creates a channel
+  conv <- postConversation memClient defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def memClient convId
+
+  -- other team members are added to the channel
+  void $ createAddCommit memClient convId (owner : otherMem : mems) >>= sendAndConsumeCommitBundle
+  bindResponse (getConversation mem (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members" %. "others" & asList
+    for members (\m -> m %. "id") `shouldMatchSet` (for (owner : otherMem : mems) (\m -> m %. "id"))
+    for_ members $ \m -> do
+      m %. "conversation_role" `shouldMatch` "wire_member"
+
+  assertChannelAdminPermission mem conv
+  assertChannelAdminPermission owner conv
+  assertNoChannelAdminPermission otherMem conv
+  -- make otherMem a team admin
+  updateTeamMember tid owner otherMem Admin >>= assertSuccess
+  assertChannelAdminPermission otherMem conv
+  -- make otherMem a team member again
+  updateTeamMember tid owner otherMem Member >>= assertSuccess
+  assertNoChannelAdminPermission otherMem conv
+  where
+    assertChannelAdminPermission :: (HasCallStack) => Value -> Value -> App ()
+    assertChannelAdminPermission mem conv = do
+      newName <- randomName
+      changeConversationName mem conv newName >>= assertSuccess
+      bindResponse (getConversation mem conv) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "name" `shouldMatch` newName
+
+    assertNoChannelAdminPermission :: (HasCallStack) => Value -> Value -> App ()
+    assertNoChannelAdminPermission mem conv = do
+      newName <- randomName
+      changeConversationName mem conv newName `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "action-denied"

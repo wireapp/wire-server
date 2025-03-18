@@ -120,6 +120,23 @@ deleteTeamMember tid owner mem = do
   req <- baseRequest owner Galley Versioned path
   submit "DELETE" (addJSONObject ["password" .= defPassword] req)
 
+data TeamPermissions = Partner | Member | Admin | Owner
+
+instance ToJSON TeamPermissions where
+  toJSON perms = object ["self" .= toInt perms, "copy" .= toInt perms]
+    where
+      toInt Partner = Number 1025
+      toInt Member = Number 1587
+      toInt Admin = Number 5951
+      toInt Owner = Number 8191
+
+updateTeamMember :: (HasCallStack, MakesValue user, MakesValue member) => String -> user -> member -> TeamPermissions -> App Response
+updateTeamMember tid owner mem permissions = do
+  memId <- objId mem
+  let path = joinHttpPath ["teams", tid, "members"]
+  req <- baseRequest owner Galley Versioned path
+  submit "PUT" (req & addJSONObject ["member" .= object ["user" .= memId, "permissions" .= permissions]])
+
 putConversationProtocol ::
   ( HasCallStack,
     MakesValue user,
