@@ -4,15 +4,19 @@ module Test.Cells where
 
 import API.Galley
 import qualified API.GalleyInternal as I
-import Control.Concurrent.MVar
+import Control.Concurrent
+import Control.Concurrent.Async
+import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Control.Monad.Trans.Maybe
 import Control.Retry
 import qualified Data.Aeson as A
+import Data.IORef
+import qualified Data.Map as Map
 import Network.AMQP
 import Network.AMQP.Extended
+import Notifications
 import SetupHelpers
 import System.Timeout
 import Testlib.Prelude
@@ -22,6 +26,7 @@ testCellsEvent :: App ()
 testCellsEvent = do
   (alice, tid, [bob, chaz, dean]) <- createTeam OwnDomain 4
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
+  q <- watchCellsEvents backendA
 
   bobId <- bob %. "qualified_id"
   chazId <- chaz %. "qualified_id"
@@ -35,13 +40,12 @@ testCellsEvent = do
   I.setCellsState alice conv "ready" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [deanId]} >>= assertSuccess
 
-  runCodensity (connectToCellsQueue backendA) $ \q -> do
-    event <- getMessage q %. "payload.0"
-    event %. "type" `shouldMatch` "conversation.member-join"
-    event %. "conversation" `shouldMatch` (conv %. "id")
-    event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
-    users <- event %. "data.users" & asList
-    assertOne users %. "qualified_id" `shouldMatch` deanId
+  event <- getMessage q (MessageFilter (isNotifConv conv)) %. "payload.0"
+  event %. "type" `shouldMatch` "conversation.member-join"
+  event %. "conversation" `shouldMatch` (conv %. "id")
+  event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+  users <- event %. "data.users" & asList
+  assertOne users %. "qualified_id" `shouldMatch` deanId
 
 testCellsFeatureCheck :: App ()
 testCellsFeatureCheck = do
@@ -65,19 +69,15 @@ testCellsIgnoredEvents = do
   (alice, tid, _) <- createTeam OwnDomain 1
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
   I.setCellsState alice conv "ready" >>= assertSuccess
+  q <- watchCellsEvents backendA
   void $ updateMessageTimer alice conv 1000 >>= getBody 200
-  runCodensity (connectToCellsQueue backendA) assertNoMessage
+  assertNoMessage q (MessageFilter (isNotifConv conv))
 
 --------------------------------------------------------------------------------
 -- Utilities
 
-data CellsQueue = CellsQueue
-  { msgVar :: MVar Message,
-    queueTimeout :: Int
-  }
-
-connectToCellsQueue :: BackendResource -> Codensity App CellsQueue
-connectToCellsQueue resource = do
+connectToCellsQueue :: BackendResource -> TChan Message -> Codensity App ()
+connectToCellsQueue resource messages = do
   queueName <- lift $ asks (.cellsEventQueue)
 
   env <- lift ask
@@ -94,33 +94,105 @@ connectToCellsQueue resource = do
                     }
               liftIO $ openConnection'' connOpts
           )
-  conn <- hoistCodensity $ Codensity $ E.bracket createConnection closeConnection
-  chan <- hoistCodensity $ Codensity $ E.bracket (openChannel conn) closeChannel
+  conn <-
+    hoistCodensity
+      $ Codensity
+      $ E.bracket createConnection closeConnection
 
-  msgVar <- liftIO newEmptyMVar
-  let handler (m, e) = do
-        putMVar msgVar m
-        ackMsg chan e.envDeliveryTag False
+  chan <-
+    hoistCodensity
+      $ Codensity
+      $ E.bracket (openChannel conn) closeChannel
+
+  handler <- lift $ appToIOKleisli $ \(m, e) -> do
+    liftIO $ atomically $ writeTChan messages m
+    liftIO $ ackMsg chan e.envDeliveryTag False
+
   void
     . hoistCodensity
     $ Codensity
     $ E.bracket
       (consumeMsgs chan (fromString queueName) Ack handler)
       (cancelConsumer chan)
-  pure CellsQueue {msgVar, queueTimeout = 1000000}
 
-getMessageMaybe :: CellsQueue -> App (Maybe Value)
-getMessageMaybe q = runMaybeT $ do
-  m <- MaybeT . liftIO . timeout q.queueTimeout $ takeMVar q.msgVar
-  either (lift . assertFailure) pure $ A.eitherDecode m.msgBody
+newtype MessageFilter = MessageFilter
+  { applyMessageFilter :: Value -> App Bool
+  }
 
-getMessage :: CellsQueue -> App Value
-getMessage q = getMessageMaybe q >>= assertJust "Cells queue timeout"
+instance Default MessageFilter where
+  def = MessageFilter {applyMessageFilter = const (pure True)}
 
-assertNoMessage :: CellsQueue -> App ()
-assertNoMessage q =
-  getMessageMaybe q >>= \case
+getNextMessage :: QueueConsumer -> MessageFilter -> App Value
+getNextMessage q f = do
+  m <- liftIO $ atomically $ readTChan q.chan
+  v <- either assertFailure pure $ A.eitherDecode m.msgBody
+  ok <- applyMessageFilter f v
+  if ok
+    then pure v
+    else getNextMessage q f
+
+getMessageMaybe :: QueueConsumer -> MessageFilter -> App (Maybe Value)
+getMessageMaybe q f = do
+  timeOutSeconds <- asks (.timeOutSeconds)
+  next <- appToIO (getNextMessage q f)
+  liftIO $ timeout (timeOutSeconds * 1000000) next
+
+getMessage :: QueueConsumer -> MessageFilter -> App Value
+getMessage q f = getMessageMaybe q f >>= assertJust "Cells queue timeout"
+
+assertNoMessage :: QueueConsumer -> MessageFilter -> App ()
+assertNoMessage q f =
+  getMessageMaybe q f >>= \case
     Nothing -> pure ()
     Just m -> do
       j <- prettyJSON m
       assertFailure $ "Expected no message, got:\n" <> j
+
+--------------------------------------------------------------------------------
+-- Queue watcher
+
+data QueueConsumer = QueueConsumer
+  { chan :: TChan Message
+  }
+
+startQueueWatcher :: BackendResource -> App QueueWatcher
+startQueueWatcher resource = do
+  broadcast <- liftIO newBroadcastTChanIO
+  readyVar <- liftIO $ newEmptyMVar
+  doneVar <- liftIO $ newEmptyMVar
+
+  startIO <- appToIO $ lowerCodensity $ do
+    void $ connectToCellsQueue resource broadcast
+    liftIO $ putMVar readyVar ()
+    liftIO $ takeMVar doneVar
+
+  void $ liftIO $ async startIO
+  liftIO $ takeMVar readyVar
+
+  pure QueueWatcher {doneVar, broadcast}
+
+ensureWatcher :: BackendResource -> App QueueWatcher
+ensureWatcher resource = do
+  watchersLock <- asks (.cellsEventWatchersLock)
+  watchersRef <- asks (.cellsEventWatchers)
+  start <- appToIO (startQueueWatcher resource)
+
+  liftIO
+    $ E.bracket
+      (putMVar watchersLock ())
+      (\_ -> tryTakeMVar watchersLock)
+    $ \_ -> do
+      watchers <- liftIO $ readIORef watchersRef
+      case Map.lookup resource watchers of
+        Nothing -> do
+          watcher <- start
+          let watchers' = Map.insert resource watcher watchers
+          writeIORef watchersRef watchers'
+          pure watcher
+        Just watcher -> pure watcher
+
+watchCellsEvents :: BackendResource -> App QueueConsumer
+watchCellsEvents resource = do
+  watcher <- ensureWatcher resource
+  chan <- liftIO $ atomically $ dupTChan watcher.broadcast
+  pure QueueConsumer {chan}

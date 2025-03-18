@@ -5,6 +5,8 @@ NOTE: Don't import any other Testlib modules here. Use this module to break depe
 module Testlib.Types where
 
 import Control.Concurrent (QSemN)
+import Control.Concurrent.MVar
+import Control.Concurrent.STM.TChan
 import Control.Exception as E
 import Control.Monad
 import Control.Monad.Base
@@ -37,6 +39,7 @@ import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
+import qualified Network.AMQP as Q
 import Network.AMQP.Extended
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
@@ -120,7 +123,9 @@ data GlobalEnv = GlobalEnv
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
     gDNSMockServerConfig :: DNSMockServerConfig,
-    gCellsEventQueue :: String
+    gCellsEventQueue :: String,
+    gCellsEventWatchersLock :: MVar (),
+    gCellsEventWatchers :: IORef (Map BackendResource QueueWatcher)
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -212,6 +217,14 @@ instance FromJSON CassandraConfig where
       dropPrefix :: String -> String
       dropPrefix = Prelude.drop (length "cass")
 
+data QueueWatcher = QueueWatcher
+  { doneVar :: MVar (),
+    broadcast :: TChan Q.Message
+  }
+
+stopQueueWatcher :: QueueWatcher -> IO ()
+stopQueueWatcher watcher = void $ tryPutMVar watcher.doneVar ()
+
 -- | Initialised once per test.
 data Env = Env
   { serviceMap :: Map String ServiceMap,
@@ -233,7 +246,9 @@ data Env = Env
     timeOutSeconds :: Int,
     currentTestName :: Maybe String,
     dnsMockServerConfig :: DNSMockServerConfig,
-    cellsEventQueue :: String
+    cellsEventQueue :: String,
+    cellsEventWatchersLock :: MVar (),
+    cellsEventWatchers :: IORef (Map BackendResource QueueWatcher)
   }
 
 data Response = Response

@@ -2,9 +2,12 @@
 
 module Testlib.Env where
 
+import Control.Concurrent.MVar
+import qualified Control.Exception as E
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+import Data.Foldable
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
@@ -95,6 +98,12 @@ mkGlobalEnv cfgFile = do
   timeOutSeconds <-
     liftIO $
       fromMaybe 10 . (readMaybe @Int =<<) <$> lookupEnv "TEST_TIMEOUT_SECONDS"
+  gCellsEventWatchersLock <- liftIO newEmptyMVar
+  gCellsEventWatchers <- liftIO $ newIORef mempty
+  Codensity $ \k -> do
+    E.finally (k ()) $ do
+      watchers <- readIORef gCellsEventWatchers
+      traverse_ stopQueueWatcher watchers
   pure
     GlobalEnv
       { gServiceMap = sm,
@@ -114,7 +123,9 @@ mkGlobalEnv cfgFile = do
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds,
         gDNSMockServerConfig = intConfig.dnsMockServer,
-        gCellsEventQueue = intConfig.cellsEventQueue
+        gCellsEventQueue = intConfig.cellsEventQueue,
+        gCellsEventWatchersLock,
+        gCellsEventWatchers
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -166,7 +177,9 @@ mkEnv currentTestName ge = do
           timeOutSeconds = ge.gTimeOutSeconds,
           currentTestName,
           dnsMockServerConfig = ge.gDNSMockServerConfig,
-          cellsEventQueue = ge.gCellsEventQueue
+          cellsEventQueue = ge.gCellsEventQueue,
+          cellsEventWatchersLock = ge.gCellsEventWatchersLock,
+          cellsEventWatchers = ge.gCellsEventWatchers
         }
 
 allCiphersuites :: [Ciphersuite]
