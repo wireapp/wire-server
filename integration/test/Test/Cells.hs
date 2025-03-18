@@ -40,7 +40,7 @@ testCellsEvent = do
   I.setCellsState alice conv "ready" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [deanId]} >>= assertSuccess
 
-  event <- getMessage q (MessageFilter (isNotifConv conv)) %. "payload.0"
+  event <- getMessage q (isNotifConv conv) %. "payload.0"
   event %. "type" `shouldMatch` "conversation.member-join"
   event %. "conversation" `shouldMatch` (conv %. "id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
@@ -71,7 +71,7 @@ testCellsIgnoredEvents = do
   I.setCellsState alice conv "ready" >>= assertSuccess
   q <- watchCellsEvents backendA
   void $ updateMessageTimer alice conv 1000 >>= getBody 200
-  assertNoMessage q (MessageFilter (isNotifConv conv))
+  assertNoMessage q (isNotifConv conv)
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -115,32 +115,25 @@ connectToCellsQueue resource messages = do
       (consumeMsgs chan (fromString queueName) Ack handler)
       (cancelConsumer chan)
 
-newtype MessageFilter = MessageFilter
-  { applyMessageFilter :: Value -> App Bool
-  }
-
-instance Default MessageFilter where
-  def = MessageFilter {applyMessageFilter = const (pure True)}
-
-getNextMessage :: QueueConsumer -> MessageFilter -> App Value
+getNextMessage :: QueueConsumer -> (Value -> App Bool) -> App Value
 getNextMessage q f = do
   m <- liftIO $ atomically $ readTChan q.chan
   v <- either assertFailure pure $ A.eitherDecode m.msgBody
-  ok <- applyMessageFilter f v
+  ok <- f v
   if ok
     then pure v
     else getNextMessage q f
 
-getMessageMaybe :: QueueConsumer -> MessageFilter -> App (Maybe Value)
+getMessageMaybe :: QueueConsumer -> (Value -> App Bool) -> App (Maybe Value)
 getMessageMaybe q f = do
   timeOutSeconds <- asks (.timeOutSeconds)
   next <- appToIO (getNextMessage q f)
   liftIO $ timeout (timeOutSeconds * 1000000) next
 
-getMessage :: QueueConsumer -> MessageFilter -> App Value
+getMessage :: QueueConsumer -> (Value -> App Bool) -> App Value
 getMessage q f = getMessageMaybe q f >>= assertJust "Cells queue timeout"
 
-assertNoMessage :: QueueConsumer -> MessageFilter -> App ()
+assertNoMessage :: QueueConsumer -> (Value -> App Bool) -> App ()
 assertNoMessage q f =
   getMessageMaybe q f >>= \case
     Nothing -> pure ()
