@@ -1603,6 +1603,8 @@ addBot lusr zcon b = do
       self <- getSelfMemberFromLocals (tUnqualified lusr) users
       -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
       -- Remember to change this if we ever want to allow non admins to add bots.
+      -- Also note, that in the future we want to allow channel admins (who are not necessarily conversation admins) to add bots.
+      -- Currently bots cannot be added to channels because channels are always MLS conversations which do not support bots.
       ensureActionAllowed SAddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
@@ -1635,7 +1637,7 @@ rmBot lusr zcon b = do
     -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
     -- Remember to change this if we ever want to allow non admins to remove bots.
     self <- getSelfMemberFromLocals (tUnqualified lusr) users
-    todo
+    -- Similarly to addBot we currently only allow admins to remove bots. Once bots support MLS we, also need to check for channel admin permissions here.
     ensureActionAllowed SRemoveConversationMember self
   let lcnv = qualifyAs lusr (Data.convId c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)

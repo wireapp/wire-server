@@ -32,7 +32,6 @@ module Galley.API.Action
     pushTypingIndicatorEvents,
 
     -- * Utilities
-    ensureConversationActionAllowed,
     addMembersToLocalConversation,
     notifyConversationAction,
     updateLocalStateOfRemoteConv,
