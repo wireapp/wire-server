@@ -26,7 +26,7 @@ testCellsEvent :: (HasCallStack) => App ()
 testCellsEvent = do
   (alice, tid, [bob, chaz, dean, eve]) <- createTeam OwnDomain 5
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
-  q <- watchCellsEvents backendA
+  q <- watchCellsEvents (convEvents conv)
 
   bobId <- bob %. "qualified_id"
   chazId <- chaz %. "qualified_id"
@@ -44,14 +44,14 @@ testCellsEvent = do
   I.setCellsState alice conv "disabled" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [eveId]} >>= assertSuccess
 
-  event <- getMessage q (isNotifConv conv) %. "payload.0"
+  event <- getMessage q %. "payload.0"
   event %. "type" `shouldMatch` "conversation.member-join"
   event %. "conversation" `shouldMatch` (conv %. "id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
   users <- event %. "data.users" & asList
   assertOne users %. "qualified_id" `shouldMatch` deanId
 
-  assertNoMessage q (isNotifConv conv)
+  assertNoMessage q
 
 testCellsFeatureCheck :: (HasCallStack) => App ()
 testCellsFeatureCheck = do
@@ -75,9 +75,9 @@ testCellsIgnoredEvents = do
   (alice, tid, _) <- createTeam OwnDomain 1
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
   I.setCellsState alice conv "ready" >>= assertSuccess
-  q <- watchCellsEvents backendA
+  q <- watchCellsEvents (convEvents conv)
   void $ updateMessageTimer alice conv 1000 >>= getBody 200
-  assertNoMessage q (isNotifConv conv)
+  assertNoMessage q
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -121,27 +121,27 @@ connectToCellsQueue resource messages = do
       (consumeMsgs chan (fromString queueName) Ack handler)
       (cancelConsumer chan)
 
-getNextMessage :: QueueConsumer -> (Value -> App Bool) -> App Value
-getNextMessage q f = do
+getNextMessage :: QueueConsumer -> App Value
+getNextMessage q = do
   m <- liftIO $ atomically $ readTChan q.chan
   v <- either assertFailure pure $ A.eitherDecode m.msgBody
-  ok <- f v
+  ok <- q.filter v
   if ok
     then pure v
-    else getNextMessage q f
+    else getNextMessage q
 
-getMessageMaybe :: QueueConsumer -> (Value -> App Bool) -> App (Maybe Value)
-getMessageMaybe q f = do
+getMessageMaybe :: QueueConsumer -> App (Maybe Value)
+getMessageMaybe q = do
   timeOutSeconds <- asks (.timeOutSeconds)
-  next <- appToIO (getNextMessage q f)
+  next <- appToIO (getNextMessage q)
   liftIO $ timeout (timeOutSeconds * 1000000) next
 
-getMessage :: QueueConsumer -> (Value -> App Bool) -> App Value
-getMessage q f = getMessageMaybe q f >>= assertJust "Cells queue timeout"
+getMessage :: QueueConsumer -> App Value
+getMessage q = getMessageMaybe q >>= assertJust "Cells queue timeout"
 
-assertNoMessage :: QueueConsumer -> (Value -> App Bool) -> App ()
-assertNoMessage q f =
-  getMessageMaybe q f >>= \case
+assertNoMessage :: QueueConsumer -> App ()
+assertNoMessage f =
+  getMessageMaybe f >>= \case
     Nothing -> pure ()
     Just m -> do
       j <- prettyJSON m
@@ -151,7 +151,8 @@ assertNoMessage q f =
 -- Queue watcher
 
 data QueueConsumer = QueueConsumer
-  { chan :: TChan Message
+  { chan :: TChan Message,
+    filter :: Value -> App Bool
   }
 
 startQueueWatcher :: BackendResource -> App QueueWatcher
@@ -190,8 +191,23 @@ ensureWatcher resource = do
           pure watcher
         Just watcher -> pure watcher
 
-watchCellsEvents :: BackendResource -> App QueueConsumer
-watchCellsEvents resource = do
-  watcher <- ensureWatcher resource
+data WatchCellsEvents = WatchCellsEvents
+  { backend :: BackendResource,
+    filter :: Value -> App Bool
+  }
+
+instance Default WatchCellsEvents where
+  def =
+    WatchCellsEvents
+      { backend = backendA,
+        filter = const (pure True)
+      }
+
+convEvents :: (MakesValue conv) => conv -> WatchCellsEvents
+convEvents conv = def {filter = isNotifConv conv}
+
+watchCellsEvents :: WatchCellsEvents -> App QueueConsumer
+watchCellsEvents opts = do
+  watcher <- ensureWatcher opts.backend
   chan <- liftIO $ atomically $ dupTChan watcher.broadcast
-  pure QueueConsumer {chan}
+  pure QueueConsumer {filter = opts.filter, chan}
