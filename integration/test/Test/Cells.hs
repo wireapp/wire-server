@@ -22,15 +22,16 @@ import System.Timeout
 import Testlib.Prelude
 import Testlib.ResourcePool
 
-testCellsEvent :: App ()
+testCellsEvent :: (HasCallStack) => App ()
 testCellsEvent = do
-  (alice, tid, [bob, chaz, dean]) <- createTeam OwnDomain 4
+  (alice, tid, [bob, chaz, dean, eve]) <- createTeam OwnDomain 5
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
   q <- watchCellsEvents backendA
 
   bobId <- bob %. "qualified_id"
   chazId <- chaz %. "qualified_id"
   deanId <- dean %. "qualified_id"
+  eveId <- eve %. "qualified_id"
 
   addMembers alice conv def {role = Just "wire_member", users = [bobId]} >>= assertSuccess
 
@@ -40,6 +41,9 @@ testCellsEvent = do
   I.setCellsState alice conv "ready" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [deanId]} >>= assertSuccess
 
+  I.setCellsState alice conv "disabled" >>= assertSuccess
+  addMembers alice conv def {role = Just "wire_member", users = [eveId]} >>= assertSuccess
+
   event <- getMessage q (isNotifConv conv) %. "payload.0"
   event %. "type" `shouldMatch` "conversation.member-join"
   event %. "conversation" `shouldMatch` (conv %. "id")
@@ -47,7 +51,9 @@ testCellsEvent = do
   users <- event %. "data.users" & asList
   assertOne users %. "qualified_id" `shouldMatch` deanId
 
-testCellsFeatureCheck :: App ()
+  assertNoMessage q (isNotifConv conv)
+
+testCellsFeatureCheck :: (HasCallStack) => App ()
 testCellsFeatureCheck = do
   (alice, tid, _) <- createTeam OwnDomain 1
   I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
@@ -56,7 +62,7 @@ testCellsFeatureCheck = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "invalid-op"
 
-testCellsTeamConversationCheck :: App ()
+testCellsTeamConversationCheck :: (HasCallStack) => App ()
 testCellsTeamConversationCheck = do
   alice <- randomUser OwnDomain def
   conv <- postConversation alice defProteus >>= getJSON 201
@@ -64,7 +70,7 @@ testCellsTeamConversationCheck = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "invalid-op"
 
-testCellsIgnoredEvents :: App ()
+testCellsIgnoredEvents :: (HasCallStack) => App ()
 testCellsIgnoredEvents = do
   (alice, tid, _) <- createTeam OwnDomain 1
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
