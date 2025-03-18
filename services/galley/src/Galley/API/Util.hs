@@ -426,6 +426,25 @@ instance IsConvMemberId (Qualified UserId) (Either LocalMember RemoteMember) whe
       (fmap Left . getConvMember loc conv)
       (fmap Right . getConvMember loc conv)
 
+instance IsConvMemberId LocalConvMember (Either LocalMember RemoteMember) where
+  getConvMember loc conv (ConvMemberNoTeam quid) =
+    getConvMember loc conv quid
+  getConvMember loc conv (ConvMemberTeam tm) =
+    Left . updateChannelPermissions <$> getConvMember loc conv (tm ^. Mem.userId)
+    where
+      updateChannelPermissions :: LocalMember -> LocalMember
+      updateChannelPermissions lm =
+        if hasChannelAdminPermissions
+          then lm {lmConvRoleName = roleNameWireAdmin}
+          else lm
+
+      hasChannelAdminPermissions :: Bool
+      hasChannelAdminPermissions =
+        conv.convMetadata.cnvmGroupConvType == Just Channel
+          && isAdminOrOwner (tm ^. permissions)
+
+data LocalConvMember = ConvMemberNoTeam (Qualified UserId) | ConvMemberTeam TeamMember
+
 class IsConvMember mem where
   convMemberRole :: mem -> RoleName
   convMemberId :: Local x -> mem -> Qualified UserId

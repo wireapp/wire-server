@@ -273,7 +273,8 @@ leaveConversation ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Domain ->
   LeaveConversationRequest ->

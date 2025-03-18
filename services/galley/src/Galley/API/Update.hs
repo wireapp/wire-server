@@ -323,7 +323,8 @@ updateConversationReceiptMode ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -397,7 +398,8 @@ updateConversationReceiptModeUnqualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -415,7 +417,8 @@ updateConversationMessageTimer ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -447,7 +450,8 @@ updateConversationMessageTimerUnqualified ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -711,7 +715,8 @@ updateConversationProtocolWithLocalUser ::
     Member Random r,
     Member ProposalStore r,
     Member SubConversationStore r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1040,7 +1045,8 @@ updateOtherMemberLocalConv ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1066,7 +1072,8 @@ updateOtherMemberUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1091,7 +1098,8 @@ updateOtherMember ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1130,7 +1138,8 @@ removeMemberUnqualified ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1159,7 +1168,8 @@ removeMemberQualified ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1235,7 +1245,8 @@ removeMemberFromLocalConv ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1624,6 +1635,7 @@ rmBot lusr zcon b = do
     -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
     -- Remember to change this if we ever want to allow non admins to remove bots.
     self <- getSelfMemberFromLocals (tUnqualified lusr) users
+    todo
     ensureActionAllowed SRemoveConversationMember self
   let lcnv = qualifyAs lusr (Data.convId c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
