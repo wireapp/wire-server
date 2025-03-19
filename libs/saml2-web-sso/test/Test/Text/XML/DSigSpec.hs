@@ -49,12 +49,12 @@ spec = describe "xml:dsig" $ do
     it "works" $ do
       Right keyinfo <- (parseKeyInfo True >=> certToCreds) <$> readSampleIO "microsoft-idp-keyinfo.xml"
       raw <- cs <$> readSampleIO "microsoft-authnresponse-2.xml"
-      verify (keyinfo :| []) raw "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6" `shouldBe` Right ()
+      verify (keyinfo :| []) raw "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6" `shouldSatisfy` isRight
     it "works with more than one key" $ do
       SampleIdP _ _ cert _ <- makeSampleIdPMetadata
       Right keyinfo <- (parseKeyInfo True >=> certToCreds) <$> readSampleIO "microsoft-idp-keyinfo.xml"
       raw <- cs <$> readSampleIO "microsoft-authnresponse-2.xml"
-      verify (keyinfo :| [cert]) raw "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6" `shouldBe` Right ()
+      verify (keyinfo :| [cert]) raw "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6" `shouldSatisfy` isRight
   describe "signature verification helpers cloned from hsaml2" $ do
     runVerifyExample `mapM_` examples
 
@@ -63,7 +63,7 @@ data VerifyExample
       LByteString -- keyinfo from metadata of idp
       LByteString -- signed response (in the base64 encoded form from the multipart body)
       String -- identifier of the sub-tree of which the signature is to be verified
-      (Either HS.SignatureError () -> Bool) -- expected result
+      (forall a. Either HS.SignatureError a -> Bool) -- expected result
       Int -- serial number
 
 runVerifyExample :: VerifyExample -> Spec
@@ -71,7 +71,7 @@ runVerifyExample (VerifyExample keys xmltree refid want examplenumber) = it (sho
   let keys' = either (error . show) id $ prsKey keys
   let xmltree' = either (error . show) id $ (EL.decode >=> xmlToDocE) xmltree
   have <- verifySignatureUnenvelopedSigs keys' refid xmltree'
-  have `shouldSatisfy` want
+  void have `shouldSatisfy` want
   where
     prsKey :: LByteString -> Either String HS.PublicKeys
     prsKey = getCert >=> getKeys

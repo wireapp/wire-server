@@ -78,7 +78,6 @@ import Network.URI (URI (..), parseRelativeReference)
 import SAML2.XML qualified as HS hiding (Node, URI)
 import SAML2.XML.Canonical qualified as HS
 import SAML2.XML.Signature qualified as HS
-import SAML2.XML.Signature qualified as HSSig
 import System.IO (stderr, stdout)
 import System.IO.Silently (hCapture)
 import System.IO.Unsafe (unsafePerformIO)
@@ -229,20 +228,20 @@ mkSignCredsWithCert mValidSince size = do
 -- same arguments and return the same result value, or not be called a second time with the
 -- same arguments, in which case that same value will be used.
 {-# NOINLINE verify #-}
-verify :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> String -> m ()
+verify :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> String -> m HXTC.XmlTree
 verify creds el sid = case unsafePerformIO (try @SomeException $ verifyIO creds el sid) of
-  Right [] -> pure ()
-  Right errs -> throwError $ show (snd <$> errs)
+  Right (_, Right xml) -> pure xml
+  Right (_, Left exc) -> throwError $ show exc
   Left exc -> throwError $ show exc
 
 -- | Try a list of creds against a document.  If all fail, return a list of errors for each cert; if
 -- *any* succeed, return the empty list.
-verifyIO :: NonEmpty SignCreds -> LBS -> String -> IO [(SignCreds, Either HS.SignatureError ())]
+verifyIO :: NonEmpty SignCreds -> LBS -> String -> IO (SignCreds, Either HS.SignatureError HXTC.XmlTree)
 verifyIO creds el sid = capture' $ do
   results <- NL.zip creds <$> forM creds (\cred -> verifyIO' cred el sid)
   case NL.filter (isRight . snd) results of
-    (_ : _) -> pure []
-    [] -> pure $ NL.toList results
+    [result] -> pure result
+    _ -> throwIO . ErrorCall $ "all credentials failed to verify signature"
   where
     capture' :: IO a -> IO a
     capture' action =
@@ -250,30 +249,27 @@ verifyIO creds el sid = capture' $ do
         ("", out) -> pure out
         (noise, _) -> throwIO . ErrorCall $ "noise on stdout/stderr from hsaml2 package: " <> noise
 
-verifyIO' :: SignCreds -> LBS -> String -> IO (Either HS.SignatureError ())
+verifyIO' :: SignCreds -> LBS -> String -> IO (Either HS.SignatureError HXTC.XmlTree)
 verifyIO' (SignCreds SignDigestSha256 (SignKeyRSA key)) el sid = runExceptT $ do
   el' <- either (throwError . HS.SignatureParseError) pure $ HS.xmlToDocE el
-  ExceptT $ HS.verifySignatureUnenvelopedSigs (HS.PublicKeys Nothing . Just $ key) sid el'
+  ExceptT $ verifySignatureUnenvelopedSigs (HS.PublicKeys Nothing . Just $ key) sid el'
 
 -- | It turns out sometimes we don't get envelopped signatures, but signatures that are
 -- located outside the signed sub-tree.  Since 'verifySignature' doesn't support this case, if
 -- you encounter it you should fall back to 'verifySignatureUnenvelopedSigs'.
-verifySignatureUnenvelopedSigs :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO (Either HS.SignatureError ()) -- [XML.XmlTree])
+verifySignatureUnenvelopedSigs :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO (Either HS.SignatureError HXTC.XmlTree)
 verifySignatureUnenvelopedSigs pks xid doc = catchAll $ warpResult <$> verifySignature pks xid doc
   where
-    catchAll :: IO (Either HS.SignatureError ()) -> IO (Either HS.SignatureError ())
+    catchAll :: IO (Either HS.SignatureError a) -> IO (Either HS.SignatureError a)
     catchAll = handle $ pure . Left . HS.SignatureVerificationLegacyFailure . Left . (show @SomeException)
 
-    warpResult (Just True) = Right ()
-    warpResult bad = Left (HS.SignatureVerificationLegacyFailure (Right bad))
+    warpResult :: Maybe HXTC.XmlTree -> Either HS.SignatureError HXTC.XmlTree
+    warpResult (Just xml) = Right xml
+    warpResult Nothing = Left (HS.SignatureVerificationLegacyFailure (Right Nothing))
 
--- | Returns the xml trees of which signatures valid signatures are present in the document.
---
--- Exception in IO:  something is syntactically wrong with the input
--- Nothing:          no matching key/alg pairs found
--- Just False:       signature verification failed || dangling refs || explicit ref is not among the signed ones
--- Just True:        everything is ok!
-verifySignature :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO (Maybe Bool) -- [HXT.XmlTree]
+-- | Returns the xml sub-trees of the input that have valid signatures signatures.  May throw
+-- exceptions in IO.
+verifySignature :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO (Maybe HXTC.XmlTree)
 verifySignature pks xid doc = do
   let namespaces = DOM.toNsEnv $ HXTC.runLA HXTC.collectNamespaceDecl doc
   x <- case HXTC.runLA (getID xid HXTC.>>> HXTC.attachNsEnv namespaces) doc of
@@ -284,13 +280,19 @@ verifySignature pks xid doc = do
     _ -> fail "verifySignature: Signature not found"
   s@HS.Signature {signatureSignedInfo = si} <- either fail return $ HS.docToSAML sx
   six <- applyCanonicalization (HS.signedInfoCanonicalizationMethod si) (Just xpath) $ DOM.mkRoot [] [x]
-  rl <- mapM (`verifyReference` x) (HS.signedInfoReference si)
-  let verified :: Maybe Bool
-      verified = verifyBytes pks (HS.signatureMethodAlgorithm $ HS.signedInfoSignatureMethod si) (HS.signatureValue $ HS.signatureSignatureValue s) six
-      valid :: Bool
-      valid = elem (Right xid) rl && all isRight rl
-  return $ (valid &&) <$> verified
+  results <- mapM (`verifyReference` x) (HS.signedInfoReference si)
+  let mResult = case filter matchingId (toList results) of
+        [(Right (_, xml))] -> Just xml
+        _ -> Nothing
+  let isSignatureValid = verifyBytes pks (HS.signatureMethodAlgorithm $ HS.signedInfoSignatureMethod si) (HS.signatureValue $ HS.signatureSignatureValue s) six
+  pure $ case isSignatureValid of
+    Just True -> mResult
+    _ -> Nothing
   where
+    matchingId :: Either String (String, HXTC.XmlTree) -> Bool
+    matchingId (Right (xid', _)) = xid == xid'
+    matchingId (Left _) = False
+
     child n = HXTC.runLA $ Arr.getChildren HXTC.>>> isDSElem n HXTC.>>> HXTC.cleanupNamespaces HXTC.collectPrefixUriPairs
     xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ HS.namespaceURIString HS.ns ++ "']"
     xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
@@ -354,17 +356,17 @@ applyDigest d = error $ "unsupported " ++ show d
 -- | Re-compute the digest (after transforms) of a 'Reference'd subtree of an xml document and
 -- compare it against the one given in the 'Reference'.  If it matches, return the xml ID;
 -- otherwise, return an error string.
-verifyReference :: (HasCallStack) => HS.Reference -> HXTC.XmlTree -> IO (Either String String)
+verifyReference :: (HasCallStack) => HS.Reference -> HXTC.XmlTree -> IO (Either String (String, HXTC.XmlTree))
 verifyReference r doc = case HS.referenceURI r of
   Just URI {uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#' : xid} ->
     case HXTC.runLA (getID xid) doc of
-      x@[_] -> do
+      x@[result] -> do
         t :: BSL.ByteString <- applyTransforms (HS.referenceTransforms r) $ DOM.mkRoot [] x
         let have = applyDigest (HS.referenceDigestMethod r) t
             want = HS.referenceDigestValue r
         return $
           if have == want
-            then Right xid
+            then Right (xid, result)
             else Left $ "#" <> xid <> ": digest mismatch"
       bad -> return . Left $ "#" <> xid <> ": has " <> show (length bad) <> " matches, should have 1."
   bad -> return . Left $ "unexpected referenceURI: " <> show bad
