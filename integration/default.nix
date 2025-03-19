@@ -6,6 +6,7 @@
 , aeson
 , aeson-diff
 , aeson-pretty
+, amqp
 , array
 , asn1-encoding
 , asn1-types
@@ -111,6 +112,7 @@ mkDerivation {
     aeson
     aeson-diff
     aeson-pretty
+    amqp
     array
     asn1-encoding
     asn1-types
