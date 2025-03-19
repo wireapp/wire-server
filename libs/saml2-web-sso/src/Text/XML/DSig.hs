@@ -26,7 +26,6 @@ module Text.XML.DSig
 
     -- * signature verification
     verify,
-    verifyRoot,
     verifyIO,
 
     -- * signature creation
@@ -219,21 +218,6 @@ verify creds el signedID = case unsafePerformIO (try @SomeException $ verifyIO c
   Right [] -> pure ()
   Right errs -> throwError $ show (snd <$> errs)
   Left exc -> throwError $ show exc
-
--- TODO: remove this, it isn't used anywhere outside the tests.
-verifyRoot :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> m ()
-verifyRoot creds el = do
-  signedID <- do
-    XML.Document _ (XML.Element _ attrs _) _ <-
-      either
-        (throwError . ("Could not parse signed document: " <>) . cs . show)
-        pure
-        (XML.parseLBS XML.def el)
-    maybe
-      (throwError $ "Could not parse signed document: no ID attribute in root element." <> show el)
-      (pure . cs)
-      (Map.lookup "ID" attrs)
-  verify creds el signedID
 
 -- | Try a list of creds against a document.  If all fail, return a list of errors for each cert; if
 -- *any* succeed, return the empty list.
