@@ -109,6 +109,7 @@ library
     , http-media            >=0.8.0.0
     , http-types            >=0.12.3
     , hxt                   >=9.3.1.18
+    , imports
     , invertible-hxt
     , lens                  >=4.17.1
     , lens-datetime         >=0.3
@@ -143,7 +144,7 @@ library
     , xml-types             >=0.3.6
     , yaml                  >=0.8.25.1
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable toy-sp
   main-is:            Main.hs
@@ -214,6 +215,7 @@ executable toy-sp
     , http-media            >=0.8.0.0
     , http-types            >=0.12.3
     , hxt                   >=9.3.1.18
+    , imports
     , lens                  >=4.17.1
     , lens-datetime         >=0.3
     , memory                >=0.14.18
@@ -249,7 +251,7 @@ executable toy-sp
     , xml-types             >=0.3.6
     , yaml                  >=0.8.25.1
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite spec
   type:               exitcode-stdio-1.0
@@ -338,6 +340,7 @@ test-suite spec
     , http-media            >=0.8.0.0
     , http-types            >=0.12.3
     , hxt                   >=9.3.1.18
+    , imports
     , lens                  >=4.17.1
     , lens-datetime         >=0.3
     , memory                >=0.14.18
@@ -372,4 +375,4 @@ test-suite spec
     , xml-types             >=0.3.6
     , yaml                  >=0.8.25.1
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
