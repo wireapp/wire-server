@@ -109,6 +109,7 @@ library
     , http-media            >=0.8.0.0
     , http-types            >=0.12.3
     , hxt                   >=9.3.1.18
+    , invertible-hxt
     , lens                  >=4.17.1
     , lens-datetime         >=0.3
     , memory                >=0.14.18
