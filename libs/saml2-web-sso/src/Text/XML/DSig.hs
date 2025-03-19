@@ -44,24 +44,23 @@ module Text.XML.DSig
 where
 
 import Control.Arrow.ArrowTree qualified as Arr
-import Control.Exception (ErrorCall (ErrorCall), SomeException, throwIO, try)
-import Control.Exception (handle)
+import Control.Exception (ErrorCall (ErrorCall), SomeException, handle, throwIO, try)
 import Control.Lens
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.IO.Class
-import Crypto.Hash (hashlazy, SHA1(..), SHA256(..), SHA512(..), RIPEMD160(..))
+import Crypto.Hash (RIPEMD160 (..), SHA1 (..), SHA256 (..), SHA512 (..), hashlazy)
 import Crypto.Hash qualified as Crypto
 import Crypto.Number.Serialize (os2ip)
 import Crypto.PubKey.DSA qualified as DSA
-import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.PubKey.RSA qualified as RSA
+import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.PubKey.RSA.Types qualified as RSA
 import Crypto.Random.Types qualified as Crypto
 import Data.ByteArray qualified as BA
 import Data.ByteArray qualified as ByteArray
-import Data.ByteString.Lazy qualified as BSL
 import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BSL
 import Data.Either (isRight)
 import Data.EitherR (fmapL)
 import Data.Foldable (toList)
@@ -76,12 +75,12 @@ import Data.UUID as UUID
 import Data.X509 qualified as X509
 import GHC.Stack
 import Network.URI (URI (..), parseRelativeReference)
-import SAML2.XML.Canonical qualified as HS
 import SAML2.XML qualified as HS hiding (Node, URI)
+import SAML2.XML.Canonical qualified as HS
 import SAML2.XML.Signature qualified as HS
 import SAML2.XML.Signature qualified as HSSig
-import System.IO.Silently (hCapture)
 import System.IO (stderr, stdout)
+import System.IO.Silently (hCapture)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (mkStdGen, random)
 import Text.XML as XML
@@ -283,7 +282,7 @@ verifySignature pks xid doc = do
   sx <- case child "Signature" x of
     [sx] -> return sx
     _ -> fail "verifySignature: Signature not found"
-  s@HS.Signature{ signatureSignedInfo = si } <- either fail return $ HS.docToSAML sx
+  s@HS.Signature {signatureSignedInfo = si} <- either fail return $ HS.docToSAML sx
   six <- applyCanonicalization (HS.signedInfoCanonicalizationMethod si) (Just xpath) $ DOM.mkRoot [] [x]
   rl <- mapM (`verifyReference` x) (HS.signedInfoReference si)
   let verified :: Maybe Bool
@@ -292,27 +291,31 @@ verifySignature pks xid doc = do
       valid = elem (Right xid) rl && all isRight rl
   return $ (valid &&) <$> verified
   where
-  child n = HXTC.runLA $ Arr.getChildren HXTC.>>> isDSElem n HXTC.>>> HXTC.cleanupNamespaces HXTC.collectPrefixUriPairs
-  xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ HS.namespaceURIString HS.ns ++ "']"
-  xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
-  xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
+    child n = HXTC.runLA $ Arr.getChildren HXTC.>>> isDSElem n HXTC.>>> HXTC.cleanupNamespaces HXTC.collectPrefixUriPairs
+    xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ HS.namespaceURIString HS.ns ++ "']"
+    xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
+    xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
 
 -- | indicate verification result; return 'Nothing' if no matching key/alg pair is found
 verifyBytes :: HS.PublicKeys -> HS.IdentifiedURI HS.SignatureAlgorithm -> BS.ByteString -> BS.ByteString -> Maybe Bool
-verifyBytes HS.PublicKeys{ publicKeyDSA = Just k } (HS.Identified HS.SignatureDSA_SHA1) sig m = Just $
-  BS.length sig == 40 &&
-  DSA.verify SHA1 k DSA.Signature{ DSA.sign_r = os2ip r, DSA.sign_s = os2ip s } m
-  where (r, s) = BS.splitAt 20 sig
-verifyBytes HS.PublicKeys{ publicKeyRSA = Just k } (HS.Identified HS.SignatureRSA_SHA1) sig m = Just $
-  RSA.verify (Just SHA1) k m sig
-verifyBytes HS.PublicKeys{ publicKeyRSA = Just k } (HS.Identified HS.SignatureRSA_SHA256) sig m = Just $
-  RSA.verify (Just SHA256) k m sig
+verifyBytes HS.PublicKeys {publicKeyDSA = Just k} (HS.Identified HS.SignatureDSA_SHA1) sig m =
+  Just $
+    BS.length sig == 40
+      && DSA.verify SHA1 k DSA.Signature {DSA.sign_r = os2ip r, DSA.sign_s = os2ip s} m
+  where
+    (r, s) = BS.splitAt 20 sig
+verifyBytes HS.PublicKeys {publicKeyRSA = Just k} (HS.Identified HS.SignatureRSA_SHA1) sig m =
+  Just $
+    RSA.verify (Just SHA1) k m sig
+verifyBytes HS.PublicKeys {publicKeyRSA = Just k} (HS.Identified HS.SignatureRSA_SHA256) sig m =
+  Just $
+    RSA.verify (Just SHA256) k m sig
 verifyBytes _ _ _ _ = Nothing
 
-isDSElem :: HXTC.ArrowXml a => String -> a HXTC.XmlTree HXTC.XmlTree
+isDSElem :: (HXTC.ArrowXml a) => String -> a HXTC.XmlTree HXTC.XmlTree
 isDSElem n = HXTC.isElem HXTC.>>> HXTC.hasQName (HS.mkNName HS.ns n)
 
-getID :: HXTC.ArrowXml a => String -> a HXTC.XmlTree HXTC.XmlTree
+getID :: (HXTC.ArrowXml a) => String -> a HXTC.XmlTree HXTC.XmlTree
 getID = HXTC.deep . HXTC.hasAttrValue "ID" . (==)
 
 applyCanonicalization :: HS.CanonicalizationMethod -> Maybe String -> HXTC.XmlTree -> IO BS.ByteString
@@ -326,12 +329,16 @@ applyTransformsBytes (t : _) _ = fail ("applyTransforms: unsupported Signature "
 applyTransformsXML :: [HS.Transform] -> HXTC.XmlTree -> IO BSL.ByteString
 applyTransformsXML (HS.Transform (HS.Identified (HS.TransformCanonicalization a)) ins x : tl) =
   applyTransformsBytes tl . BSL.fromStrict
-  <=< applyCanonicalization (HS.CanonicalizationMethod (HS.Identified a) ins (map (XP.pickleDoc XP.xpickle) x)) Nothing
+    <=< applyCanonicalization (HS.CanonicalizationMethod (HS.Identified a) ins (map (XP.pickleDoc XP.xpickle) x)) Nothing
 applyTransformsXML (HS.Transform (HS.Identified HS.TransformEnvelopedSignature) Nothing [] : tl) =
   -- XXX assumes "this" signature in top-level
   applyTransformsXML tl
-  . head . HXTC.runLA (HXTC.processChildren $ HXTC.processChildren
-    $ HXTC.neg (isDSElem "Signature"))
+    . head
+    . HXTC.runLA
+      ( HXTC.processChildren $
+          HXTC.processChildren $
+            HXTC.neg (isDSElem "Signature")
+      )
 applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . return
 
 applyTransforms :: Maybe HS.Transforms -> HXTC.XmlTree -> IO BSL.ByteString
@@ -347,17 +354,18 @@ applyDigest d = error $ "unsupported " ++ show d
 -- | Re-compute the digest (after transforms) of a 'Reference'd subtree of an xml document and
 -- compare it against the one given in the 'Reference'.  If it matches, return the xml ID;
 -- otherwise, return an error string.
-verifyReference :: HasCallStack => HS.Reference -> HXTC.XmlTree -> IO (Either String String)
+verifyReference :: (HasCallStack) => HS.Reference -> HXTC.XmlTree -> IO (Either String String)
 verifyReference r doc = case HS.referenceURI r of
-  Just URI{ uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#':xid } ->
+  Just URI {uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#' : xid} ->
     case HXTC.runLA (getID xid) doc of
       x@[_] -> do
         t :: BSL.ByteString <- applyTransforms (HS.referenceTransforms r) $ DOM.mkRoot [] x
         let have = applyDigest (HS.referenceDigestMethod r) t
             want = HS.referenceDigestValue r
-        return $ if have == want
-          then Right xid
-          else Left $ "#" <> xid <> ": digest mismatch"
+        return $
+          if have == want
+            then Right xid
+            else Left $ "#" <> xid <> ": digest mismatch"
       bad -> return . Left $ "#" <> xid <> ": has " <> show (length bad) <> " matches, should have 1."
   bad -> return . Left $ "unexpected referenceURI: " <> show bad
 

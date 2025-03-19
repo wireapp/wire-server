@@ -23,22 +23,22 @@ where
 import Control.Lens hiding (element)
 import Control.Monad hiding (ap)
 import Control.Monad.Except
-import qualified Data.ByteString.Base64.Lazy as EL (decodeLenient, encode)
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
+import Data.ByteString.Lazy qualified as LBS
+import Data.CaseInsensitive qualified as CI
 import Data.Either (isRight)
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Proxy
 import Data.String.Conversions
-import qualified Data.Text as ST
+import Data.Text qualified as ST
 import Data.Time
 import GHC.Generics
 import SAML2.Util
 import SAML2.WebSSO.Config
-import qualified SAML2.WebSSO.Cookie as Cky
+import SAML2.WebSSO.Cookie qualified as Cky
 import SAML2.WebSSO.Error as SamlErr
 import SAML2.WebSSO.SP
 import SAML2.WebSSO.Servant
