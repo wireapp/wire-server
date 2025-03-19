@@ -113,7 +113,7 @@ run opts = withTracer \tracer -> do
 
     createCellsNotificationsQueue :: Channel -> IO ()
     createCellsNotificationsQueue chan = for_
-      (opts ^. settings ^. cellsEventQueue)
+      (opts ^. (settings . cellsEventQueue))
       $ \name ->
         declareQueue chan newQueue {queueName = name}
 

@@ -37,6 +37,7 @@ import Data.Range
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
+import Galley.API.Cells
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
 import Galley.API.Error
@@ -45,7 +46,6 @@ import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
 import Galley.API.One2One
 import Galley.API.Public.Servant
-import Galley.API.Cells
 import Galley.API.Query qualified as Query
 import Galley.API.Teams
 import Galley.API.Teams qualified as Teams

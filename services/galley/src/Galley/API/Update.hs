@@ -87,10 +87,10 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
+import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
-import Galley.API.Cells
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
@@ -118,9 +118,9 @@ import Polysemy.TinyLog
 import Wire.API.Bot hiding (addBot)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol qualified as P
-import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
