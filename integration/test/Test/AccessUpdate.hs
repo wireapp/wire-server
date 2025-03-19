@@ -39,17 +39,6 @@ testBaz :: HasCallStack => App ()
 testBaz = pure ()
 -}
 
-data ConversationProtocol
-  = ConversationProtocolProteus
-  | ConversationProtocolMLS
-
-instance TestCases ConversationProtocol where
-  mkTestCases =
-    pure
-      [ MkTestCase "[proto=proteus]" ConversationProtocolProteus,
-        MkTestCase "[proto=mls]" ConversationProtocolMLS
-      ]
-
 -- | @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that, among others, remote users are removed from a

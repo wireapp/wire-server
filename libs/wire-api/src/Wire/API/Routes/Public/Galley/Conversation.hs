@@ -1155,6 +1155,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
+               :> CanThrow 'MLSReadReceiptsNotAllowed
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "receipt-mode"
@@ -1174,6 +1175,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
+               :> CanThrow 'MLSReadReceiptsNotAllowed
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "receipt-mode"

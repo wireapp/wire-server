@@ -240,7 +240,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
     ( Member ConversationStore r,
-      Member (Error NoChanges) r
+      Member (Error NoChanges) r,
+      Member (ErrorS MLSReadReceiptsNotAllowed) r
     )
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
     ( Member ConversationStore r,
@@ -314,6 +315,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
   HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag =
     '[ ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
        ErrorS 'InvalidOperation,
+       ErrorS 'MLSReadReceiptsNotAllowed,
        ErrorS 'ConvNotFound
      ]
   HasConversationActionGalleyErrors 'ConversationAccessDataTag =
@@ -438,6 +440,10 @@ ensureAllowed tag loc action conv origUser = do
             throwS @'InvalidTargetAccess
     SConversationUpdateAddPermissionTag -> do
       unless (conv.convMetadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
+    SConversationReceiptModeUpdateTag -> do
+      -- cannot update receipt mode of MLS conversations
+      when (convProtocolTag conv == ProtocolMLSTag) $
+        throwS @MLSReadReceiptsNotAllowed
     _ -> pure ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)

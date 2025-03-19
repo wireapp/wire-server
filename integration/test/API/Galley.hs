@@ -53,6 +53,10 @@ defProteus =
 defMLS :: CreateConv
 defMLS = defProteus {protocol = "mls"}
 
+defConv :: ConversationProtocol -> CreateConv
+defConv ConversationProtocolProteus = defProteus
+defConv ConversationProtocolMLS = defMLS
+
 allowGuests :: CreateConv -> CreateConv
 allowGuests cc =
   cc
