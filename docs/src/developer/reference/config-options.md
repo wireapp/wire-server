@@ -1371,3 +1371,15 @@ rabbitmq:
 In case it is not possible to verify the TLS certificate of the RabbitMQ
 server, verification can be turned off by settings `insecureSkipVerifyTls` to
 `true`.
+
+## Configure Cells
+
+If Cells integration is enabled, gundeck must be configured with the name of
+the RabbitMQ queue where Cells events can be forwarded. This can be done via
+the `cellsEventQueue` setting:
+
+```yaml
+gundeck:
+  settings:
+    cellsEventQueue: "cells_events"
+```

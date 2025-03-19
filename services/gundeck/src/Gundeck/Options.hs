@@ -83,7 +83,7 @@ data Settings = Settings
     -- reduce the amount by which setMaxPayloadLoadSize is exceeded when loading
     -- notifications from the database if notifications have inlined payloads.
     _internalPageSize :: Maybe Int32,
-    -- | TODO docs
+    -- | The name of the RabbitMQ queue to be used to forward events to Cells.
     _cellsEventQueue :: !(Maybe Text)
   }
   deriving (Show, Generic)
