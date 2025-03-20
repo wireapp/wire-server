@@ -15,6 +15,7 @@ module SAML2.WebSSO.XML
     decodeElem,
     renderToDocument,
     parseFromDocument,
+    parseFromXmlTree,
     unsafeReadTime,
     decodeTime,
     renderTime,
@@ -41,6 +42,7 @@ import Data.Map qualified as Map
 import Data.Maybe
 import Data.String.Conversions
 import Data.Text qualified as ST
+import Data.Text.Lazy.Encoding
 import Data.Time
 import Data.Typeable (Proxy (Proxy), Typeable)
 import Data.X509 qualified as X509
@@ -63,6 +65,7 @@ import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import Text.XML.HXT.Arrow.Pickle.Xml qualified as HS
+import Text.XML.HXT.DOM.TypeDefs (XmlTree)
 import URI.ByteString as U
 import Prelude hiding (id, (.))
 
@@ -100,6 +103,11 @@ renderToDocument = mkDocument . renderRoot
 
 parseFromDocument :: (HasXML a, MonadError String m) => Document -> m a
 parseFromDocument doc = parse [NodeElement $ documentRoot doc]
+
+parseFromXmlTree :: (MonadError String m, HasXML a) => XmlTree -> m a
+parseFromXmlTree raw = do
+  doc <- decode . decodeUtf8 $ HX.docToXMLWithoutRoot raw
+  parseFromDocument doc
 
 -- FUTUREWORK: perhaps we want to split this up: HasXML (for nameSpaces), and HasXMLParse, HasXMLRender,
 -- and drop the assymetric, little used render function from HasXML?
@@ -349,7 +357,7 @@ importAuthnResponse rsp = do
   _rspDestination <- traverse importURI $ HS.protocolDestination proto
   _rspIssuer <- traverse importIssuer $ HS.protocolIssuer proto
   _rspStatus <- importStatus $ HS.status rsptyp
-  _rspPayload <- maybe (throwError "no assertions") pure . NL.nonEmpty =<< (importAssertion `mapM` HS.responseAssertions rsp)
+  _rspPayload <- maybe (throwError "no assertions") pure . NL.nonEmpty =<< (importPossiblyEncryptedAssertion `mapM` HS.responseAssertions rsp)
   -- ignore: @HS.protocolSignature proto :: Maybe SAML2.XML.Signature.Types.Signature@
   -- ignore: @HS.relayState proto :: Maybe SAML2.Bindings.General.RelayState@
 
@@ -375,12 +383,15 @@ exportAuthnResponse rsp =
             HS.statusInResponseTo = exportID <$> (rsp ^. rspInRespTo),
             HS.status = exportStatus (rsp ^. rspStatus)
           },
-      HS.responseAssertions = toList $ exportAssertion <$> (rsp ^. rspPayload)
+      HS.responseAssertions = toList $ exportPossiblyEncryptedAssertion <$> (rsp ^. rspPayload)
     }
 
-importAssertion :: (HasCallStack, MonadError String m) => HS.PossiblyEncrypted HS.Assertion -> m Assertion
-importAssertion bad@(HS.SoEncrypted _) = die (Proxy @Assertion) bad
-importAssertion (HS.NotEncrypted ass) = do
+importPossiblyEncryptedAssertion :: (HasCallStack, MonadError String m) => HS.PossiblyEncrypted HS.Assertion -> m Assertion
+importPossiblyEncryptedAssertion bad@(HS.SoEncrypted _) = die (Proxy @Assertion) bad
+importPossiblyEncryptedAssertion (HS.NotEncrypted ass) = importAssertion ass
+
+importAssertion :: (HasCallStack, MonadError String m) => HS.Assertion -> m Assertion
+importAssertion ass = do
   () <- importVersion $ HS.assertionVersion ass
   _assID <- importID $ HS.assertionID ass
   _assIssueInstant <- importTime $ HS.assertionIssueInstant ass
@@ -398,20 +409,22 @@ importAssertion (HS.NotEncrypted ass) = do
     die (Proxy @Assertion) (HS.assertionAdvice ass)
   pure Assertion {..}
 
-exportAssertion :: (HasCallStack) => Assertion -> HS.PossiblyEncrypted HS.Assertion
+exportPossiblyEncryptedAssertion :: (HasCallStack) => Assertion -> HS.PossiblyEncrypted HS.Assertion
+exportPossiblyEncryptedAssertion = HS.NotEncrypted . exportAssertion
+
+exportAssertion :: (HasCallStack) => Assertion -> HS.Assertion
 exportAssertion ass =
-  HS.NotEncrypted
-    HS.Assertion
-      { HS.assertionVersion = exportVersion,
-        HS.assertionID = exportID (ass ^. assID),
-        HS.assertionIssueInstant = exportTime (ass ^. assIssueInstant),
-        HS.assertionIssuer = exportIssuer (ass ^. assIssuer),
-        HS.assertionSignature = Nothing, -- signatures are handled before parsing.
-        HS.assertionSubject = exportSubject $ ass ^. assContents . sasSubject,
-        HS.assertionConditions = exportConditions <$> (ass ^. assConditions),
-        HS.assertionAdvice = Nothing,
-        HS.assertionStatement = exportStatement <$> (ass ^. assContents . sasStatements . to toList)
-      }
+  HS.Assertion
+    { HS.assertionVersion = exportVersion,
+      HS.assertionID = exportID (ass ^. assID),
+      HS.assertionIssueInstant = exportTime (ass ^. assIssueInstant),
+      HS.assertionIssuer = exportIssuer (ass ^. assIssuer),
+      HS.assertionSignature = Nothing, -- signatures are handled before parsing.
+      HS.assertionSubject = exportSubject $ ass ^. assContents . sasSubject,
+      HS.assertionConditions = exportConditions <$> (ass ^. assConditions),
+      HS.assertionAdvice = Nothing,
+      HS.assertionStatement = exportStatement <$> (ass ^. assContents . sasStatements . to toList)
+    }
 
 importSubject :: (HasCallStack, MonadError String m) => HS.Subject -> m Subject
 importSubject (HS.Subject Nothing _) = die (Proxy @Subject) ("Subject NameID is missing" :: String)
@@ -986,8 +999,14 @@ instance HasXMLRoot AuthnResponse where
   renderRoot = wrapRenderRoot exportAuthnResponse
 
 instance HasXMLImport Assertion (HS.PossiblyEncrypted HS.Assertion) where
-  importXml = importAssertion
-  exportXml = exportAssertion
+  importXml = importPossiblyEncryptedAssertion
+  exportXml = exportPossiblyEncryptedAssertion
+
+instance HasXML Assertion where
+  parse = wrapParse importAssertion
+
+instance HasXMLRoot Assertion where
+  renderRoot = wrapRenderRoot exportAssertion
 
 instance HasXML Subject where
   parse = wrapParse importSubject
