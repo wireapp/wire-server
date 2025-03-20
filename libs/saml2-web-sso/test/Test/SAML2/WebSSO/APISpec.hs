@@ -11,13 +11,13 @@ import Control.Exception (SomeException, try)
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
-import qualified Data.ByteString.Base64.Lazy as EL (decodeLenient, encode)
+import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.Either
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Network.Wai.Test
 import SAML2.Util
 import SAML2.WebSSO
@@ -116,12 +116,12 @@ spec = describe "API" $ do
                   modifyMVar_ ctx (pure . (ctxIdPs .~ maybeToList midpcfg))
                   ioFromTestSP ctx action
                 missuer = (^. _1 . idpMetadata . edIssuer) <$> midpcfg
-                go :: TestSP ()
+                go :: TestSP Assertion
                 go = do
                   creds <- issuerToCreds missuer Nothing
                   simpleVerifyAuthnResponse creds resp
             if expectOutcome
-              then run go `shouldReturn` ()
+              then fmap _assID (run go) `shouldReturn` ID (mkXmlText "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6")
               else run go `shouldThrow` anyException
     context "good signature" $ do
       context "known key" $ check True (Just True) True
@@ -234,7 +234,7 @@ spec = describe "API" $ do
               liftIO . ioFromTestSP ctx $ mkAuthnResponse privkey (idpcfg ^. _1) spmeta authnreq True
             let authnrespLBS = renderLBS def authnrespDoc
             creds <- issuerToCreds (Just idpissuer) Nothing
-            simpleVerifyAuthnResponse creds authnrespLBS
+            void $ simpleVerifyAuthnResponse creds authnrespLBS
           result `shouldSatisfy` expectation
     it "Produces output that passes 'simpleVerifyAuthnResponse'" $ do
       check True isRight

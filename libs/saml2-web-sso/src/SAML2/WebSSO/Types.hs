@@ -162,26 +162,27 @@ import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Bifunctor (first)
-import qualified Data.CaseInsensitive as CI
-import qualified Data.List as L
-import Data.List.NonEmpty
+import Data.CaseInsensitive qualified as CI
+import Data.List qualified as L
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NL
 import Data.Maybe
 import Data.String.Conversions (ST, cs)
-import qualified Data.Text as ST
+import Data.Text qualified as ST
 import Data.Time (NominalDiffTime, UTCTime (..), addUTCTime, defaultTimeLocale, formatTime, parseTimeM)
 import Data.UUID as UUID
-import qualified Data.X509 as X509
-import qualified Foundation.Network.IPv4 as IPv4
-import qualified Foundation.Network.IPv6 as IPv6
-import qualified Foundation.Parser as IP
+import Data.X509 qualified as X509
+import Foundation.Network.IPv4 qualified as IPv4
+import Foundation.Network.IPv6 qualified as IPv6
+import Foundation.Parser qualified as IP
 import GHC.Generics (Generic)
 import GHC.Stack
-import qualified Network.DNS.Utils as DNS
+import Network.DNS.Utils qualified as DNS
 import SAML2.Util
 import SAML2.WebSSO.Orphans ()
-import qualified SAML2.WebSSO.Types.Email as Email
+import SAML2.WebSSO.Types.Email qualified as Email
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
-import qualified Servant
+import Servant qualified
 import URI.ByteString
 
 -- | Text that needs to be escaped when rendered into XML.  See 'mkXmlText', 'escapeXmlText'.

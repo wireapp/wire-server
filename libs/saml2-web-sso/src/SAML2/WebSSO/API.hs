@@ -26,9 +26,9 @@ import Control.Monad.Except
 import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive qualified as CI
-import Data.Either (isRight)
+import Data.Either (isRight, fromRight)
 import Data.EitherR
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Proxy
@@ -53,6 +53,9 @@ import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig
 import URI.ByteString
+import Text.XML.HXT.Core (XmlTree)
+import Data.Tree.NTree.TypeDefs (NTree(NTree))
+import SAML2.XML (docToSAML)
 
 ----------------------------------------------------------------------
 -- saml web-sso api
@@ -102,12 +105,19 @@ data AuthnResponseBody = AuthnResponseBody
       forall m err spid extra.
       (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
       Maybe spid ->
-      m (AuthnResponse, IdPConfig extra),
-    authnResponseBodyRaw :: MultipartData Mem
+      m (Assertion, IdPConfig extra),
+    authnResponseBodyRaw :: MultipartData Mem -- TODO: this is only for error logging.  we should remove it and log something else, that's safer!
   }
 
 renderAuthnResponseBody :: AuthnResponse -> LBS
 renderAuthnResponseBody = EL.encode . cs . encode
+
+{-
+<resp>
+  <assertion id="3">.......</assertion>
+  <assertion id="3">......<sig>...</assertion>
+</resp>
+-}
 
 -- | Implies verification, hence the constraints and the optional service provider ID (needed for IdP lookup).
 parseAuthnResponseBody ::
@@ -115,7 +125,7 @@ parseAuthnResponseBody ::
   (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
   Maybe spid ->
   ST ->
-  m (AuthnResponse, IdPConfig extra)
+  m (Assertion, IdPConfig extra)
 parseAuthnResponseBody mbSPId base64 = do
   -- https://www.ietf.org/rfc/rfc4648.txt states that all "noise" characters should be rejected
   -- unless another standard says they should be ignored.  'EL.decodeLenient' chooses the radical
@@ -123,14 +133,18 @@ parseAuthnResponseBody mbSPId base64 = do
   -- '=', and probably other noise, this seems the safe thing to do.  It is no less secure than
   -- rejecting some noise characters and ignoring others.
   let xmltxt :: LBS = EL.decodeLenient (cs base64 :: LBS)
-  resp <-
-    either (throwError . BadSamlResponseXmlError . cs) pure $
-      decode (cs xmltxt)
-  issuer <- maybe (throwError BadSamlResponseIssuerMissing) pure (resp ^. rspIssuer)
-  idp :: IdPConfig extra <- getIdPConfigByIssuerOptionalSPId issuer mbSPId
-  creds <- idpToCreds issuer idp
-  simpleVerifyAuthnResponse creds xmltxt
-  pure (resp, idp)
+
+  (signedAssertion, idp) <- do
+    resp <-
+      -- do not use this as a result of `parseAuthnResponseBody`!  only use what comes back
+      -- from `simpleVerifyAuthnResponse`!
+      either (throwError . BadSamlResponseXmlError . cs) pure $
+        decode @_ @AuthnResponse (cs xmltxt)
+    issuer <- maybe (throwError BadSamlResponseIssuerMissing) pure (resp ^. rspIssuer)
+    idp :: IdPConfig extra <- getIdPConfigByIssuerOptionalSPId issuer mbSPId
+    creds <- idpToCreds issuer idp
+    (,idp) <$> simpleVerifyAuthnResponse creds xmltxt
+  pure (signedAssertion, idp)
 
 authnResponseBodyToMultipart :: AuthnResponse -> MultipartData tag
 authnResponseBodyToMultipart resp = MultipartData [Input "SAMLResponse" (cs $ renderAuthnResponseBody resp)] []
@@ -142,7 +156,7 @@ instance FromMultipart Mem AuthnResponseBody where
         forall m err spid extra.
         (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
         Maybe spid ->
-        m (AuthnResponse, IdPConfig extra)
+        m (Assertion, IdPConfig extra)
       eval mbSPId = do
         base64 <-
           either (const $ throwError BadSamlResponseFormFieldMissing) pure $
@@ -170,50 +184,75 @@ idpToCreds issuer idp = do
 --
 -- The assertions are returned.
 --
--- NEVER PROCESS AN ASSERTION NOT RETURNED BY THIS FUNCTION (or another one that validates
--- signatures).
-simpleVerifyAuthnResponse :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> m ()
+-- NEVER PROCESS AN ASSERTION NOT RETURNED BY A SIGNATURE VERifICATION FUNCTION.
+--
+-- `simpleVerifyAuthnResponse` ensures that the assertion list is non-empty, and (more
+-- importantly) that the IDs are unique accross the entire document we pass to the signature
+-- validation function.  REASON: since we use xml-conduit as a parser here, and signature
+-- validation uses a different one, we can't guarantee that the assertions we return here are
+-- the ones of which we validated the signatures.  this problem can get very real very
+-- quickly:
+-- https://github.blog/security/sign-in-as-anyone-bypassing-saml-sso-authentication-with-parser-differentials
+simpleVerifyAuthnResponse :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> m Assertion
 simpleVerifyAuthnResponse creds raw = do
+  let err = throwError . BadSamlResponseSamlError . cs . show
   doc :: Cursor <- do
-    let err = throwError . BadSamlResponseSamlError . cs . show
     either err (pure . fromDocument) (parseLBS def raw)
-  assertions :: [Element] <- do
+  assertions <- do
     let elemOnly (NodeElement el) = Just el
         elemOnly _ = Nothing
     case mapMaybe (elemOnly . node) (doc $/ element "{urn:oasis:names:tc:SAML:2.0:assertion}Assertion") of
       [] -> throwError BadSamlResponseNoAssertions
-      some@(_ : _) -> pure some
+      hd : tl -> pure (hd :| tl)
   nodeids :: [String] <- do
     let assertionID :: Element -> m String
         assertionID (Element _ attrs _) =
           maybe (throwError BadSamlResponseAssertionWithoutID) (pure . cs) $
-            -- NB: it is not exactly obvious what happens if ID is non-unique in the document,
-            -- but `simpleVerifyAuthnResponse` guarantees that whichever sub-trees are
-            -- actually returned have valid signatures.
             Map.lookup "ID" attrs
-    assertionID `mapM` assertions
+    assertionID `mapM` (toList assertions)
   allVerifies creds raw nodeids
+  pure undefined
 
 -- | Call verify and, if that fails, any work-arounds we have.  Discard all errors from
 -- work-arounds, and throw the error from the regular verification.
-allVerifies :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> [String] -> m ()
+allVerifies :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> [String] -> m [Assertion]
 allVerifies creds raw nodeids = do
-  let workArounds :: [Either String ()]
-      workArounds =
-        [ verifyADFS creds raw nodeids
-        ]
-  case verify creds raw `mapM_` nodeids of
-    Right () -> pure ()
-    Left err -> do
-      if any isRight workArounds
-        then pure ()
-        else throwError . BadSamlResponseInvalidSignature $ cs err
+  let workArounds :: Either String [Assertion]
+      workArounds =  verifyADFS creds raw nodeids
+  case verify creds raw `mapM` nodeids of
+    Right assertions -> pure $ fmap hack assertions
+    Left err -> case workArounds of
+      Left _ -> throwError . BadSamlResponseInvalidSignature $ cs err
+      Right ws -> pure ws
+
+-- TODO>>>
+
+hack :: XmlTree -> SAML2.WebSSO.Types.Assertion
+hack = fromRight undefined . parseFromDocument @SAML2.WebSSO.Types.Assertion @(Either String) . x
+  where
+    x :: XmlTree -> Document
+    x = (fromRight undefined . decode) . _
+
+-- A hsaml2 Assertion
+-- B saml2-web-sso-type Assertion
+-- C hsaml2 XmlTree
+-- D saml2-web-sso-type Document / Node
+
+{-
+
+importAssertion :: A -> Either String B
+
+-}
+
+-- <<<TODO
 
 -- | ADFS illegally breaks whitespace after signing documents; here we try to fix that.
 -- https://github.com/wireapp/wire-server/issues/656
 -- (This may also have been a copy&paste issue in customer support, but let's just leave it in just in case.)
-verifyADFS :: (MonadError String m) => NonEmpty SignCreds -> LBS -> [String] -> m ()
-verifyADFS creds raw nodeids = verify creds raw' `mapM_` nodeids
+verifyADFS :: (MonadError String m) => NonEmpty SignCreds -> LBS -> [String] -> m [Assertion]
+verifyADFS creds raw nodeids = do
+  x <- verify creds raw' `mapM` nodeids
+  pure $ fmap hack x -- TODO: user equivalent of fromJSON...
   where
     raw' = go raw
       where
@@ -315,13 +354,13 @@ authresp ::
   Maybe (IdPConfigSPId m) ->
   m Issuer ->
   m URI ->
-  (AuthnResponse -> IdPConfig extra -> AccessVerdict -> m resp) ->
+  (Assertion -> IdPConfig extra -> AccessVerdict -> m resp) ->
   AuthnResponseBody ->
   m resp
 authresp mbSPId getSPIssuer getResponseURI handleVerdictAction body = do
   enterH "authresp: entering"
   jctx :: JudgeCtx <- JudgeCtx <$> getSPIssuer <*> getResponseURI
-  (resp :: AuthnResponse, idp :: IdPConfig extra) <- authnResponseBodyAction body mbSPId
+  (resp :: Assertion, idp :: IdPConfig extra) <- authnResponseBodyAction body mbSPId
   logger Debug $ "authresp: " <> ppShow (jctx, resp)
   verdict <- judge resp jctx
   logger Debug $ "authresp: " <> show verdict
@@ -339,7 +378,7 @@ authresp' ::
 authresp' mbSPId getRequestIssuerURI getResponseURI handleVerdict body = do
   let handleVerdictAction resp _idp verdict = case handleVerdict of
         HandleVerdictRedirect onsuccess -> simpleHandleVerdict onsuccess verdict
-        HandleVerdictRaw action -> throwError . CustomServant =<< action resp verdict
+        HandleVerdictRaw action -> throwError . CustomServant =<< undefined action resp verdict
   authresp mbSPId getRequestIssuerURI getResponseURI handleVerdictAction body
 
 type OnSuccessRedirect m = UserRef -> m (Cky, URI)

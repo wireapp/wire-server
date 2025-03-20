@@ -11,14 +11,15 @@ import Control.Monad.Reader
 import Control.Monad.Writer
 import Data.Foldable (toList)
 import Data.Kind (Type)
+import Data.List (nub, partition)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe
-import qualified Data.Semigroup
+import Data.Semigroup qualified
 import Data.String.Conversions
 import Data.Time
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import GHC.Stack
 import SAML2.Util
 import SAML2.WebSSO.Config
@@ -276,22 +277,23 @@ instance (Monad m, SPStoreID i m) => SPStoreID i (JudgeT m) where
 -- 'Assertion's, but not the entire response, and we make taht an assumption when validating
 -- signatures.  So the status info is not signed, and could easily be changed by an attacker
 -- attempting to authenticate.
-judge :: (Monad m, SP m, SPStore m) => AuthnResponse -> JudgeCtx -> m AccessVerdict
+judge :: (Monad m, SP m, SPStore m) => Assertion -> JudgeCtx -> m AccessVerdict
 judge resp ctx = runJudgeT ctx (judge' resp)
 
-judge' :: (HasCallStack, MonadJudge m, SP m, SPStore m) => AuthnResponse -> m AccessVerdict
+judge' :: (HasCallStack, MonadJudge m, SP m, SPStore m) => Assertion -> m AccessVerdict
 judge' resp = do
-  case resp ^. rspStatus of
-    StatusSuccess -> pure ()
-    StatusFailure -> deny DeniedStatusFailure
-  uref <- either (giveup . DeniedBadUserRefs) pure $ getUserRef resp
-  inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ rspInResponseTo resp
-  checkInResponseTo "response" inRespTo
-  checkIsInPast DeniedIssueInstantNotInPast $ resp ^. rspIssueInstant
-  maybe (pure ()) (checkDestination DeniedBadDestination) (resp ^. rspDestination)
-  verdict <- checkAssertions (resp ^. rspIssuer) (resp ^. rspPayload) uref
-  unStoreID inRespTo
-  pure verdict
+  -- case resp ^. rspStatus of
+  --   StatusSuccess -> pure ()
+  --   StatusFailure -> deny DeniedStatusFailure
+  -- uref <- either (giveup . DeniedBadUserRefs) pure $ getUserRef resp
+  -- inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ rspInResponseTo resp
+  -- checkInResponseTo "response" inRespTo
+  -- checkIsInPast DeniedIssueInstantNotInPast $ resp ^. rspIssueInstant
+  -- maybe (pure ()) (checkDestination DeniedBadDestination) (resp ^. rspDestination)
+  -- verdict <- checkAssertions (resp ^. rspIssuer) (resp ^. rspPayload) uref
+  -- unStoreID inRespTo
+  -- pure verdict
+  pure undefined
 
 -- | If this fails, we could continue ('deny'), but we stop processing ('giveup') to make DOS
 -- attacks harder.
