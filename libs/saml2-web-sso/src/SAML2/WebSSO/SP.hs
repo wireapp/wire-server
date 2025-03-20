@@ -273,27 +273,36 @@ instance (Monad m, SPStoreID i m) => SPStoreID i (JudgeT m) where
 --  * 'astSubjectLocality' ("This element is entirely advisory, since both of these fields are
 --    quite easily “spoofed,” but may be useful information in some applications." [1/2.7.2.1])
 --
--- 'judge' does check the 'rspStatus' field, even though that makes no sense: most IdPs encrypt the
--- 'Assertion's, but not the entire response, and we make taht an assumption when validating
--- signatures.  So the status info is not signed, and could easily be changed by an attacker
--- attempting to authenticate.
-judge :: (Monad m, SP m, SPStore m) => Assertion -> JudgeCtx -> m AccessVerdict
-judge resp ctx = runJudgeT ctx (judge' resp)
+-- 'judge' does *not* check any of the *unsigned* parts of the AuthnResponse body because...
+-- those are not signed!  the standard doesn't seem to worry about that, but wire does.  this
+-- affects `rspStatus`, `inRespTo`, `rspIssueInstant`, `rspDestination`.  those are inferred
+-- from the *signed* information available.
+judge :: (Monad m, SP m, SPStore m) => NonEmpty Assertion -> JudgeCtx -> m AccessVerdict
+judge assertions ctx = runJudgeT ctx (foldJudge assertions)
 
-judge' :: (HasCallStack, MonadJudge m, SP m, SPStore m) => Assertion -> m AccessVerdict
-judge' resp = do
-  -- case resp ^. rspStatus of
-  --   StatusSuccess -> pure ()
-  --   StatusFailure -> deny DeniedStatusFailure
-  -- uref <- either (giveup . DeniedBadUserRefs) pure $ getUserRef resp
-  -- inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ rspInResponseTo resp
-  -- checkInResponseTo "response" inRespTo
-  -- checkIsInPast DeniedIssueInstantNotInPast $ resp ^. rspIssueInstant
-  -- maybe (pure ()) (checkDestination DeniedBadDestination) (resp ^. rspDestination)
-  -- verdict <- checkAssertions (resp ^. rspIssuer) (resp ^. rspPayload) uref
-  -- unStoreID inRespTo
-  -- pure verdict
-  pure undefined
+foldJudge :: (HasCallStack, MonadJudge m, SP m, SPStore m) => NonEmpty Assertion -> m AccessVerdict
+foldJudge (toList -> assertions) = do
+  verdicts <- judge1 `mapM` assertions
+  let (granteds, denieds) =
+        verdicts
+          & partition
+            ( \case
+                r@(AccessDenied _) -> False
+                r@(AccessGranted _) -> True
+            )
+
+  pure $ case (granteds, denieds) of
+    (nub -> [result@(AccessGranted uref)], []) -> result
+    (_, denied : _) -> denied
+    (bad, _) -> AccessDenied (DeniedBadUserRefs (show bad) : join (view avReasons <$> denieds))
+
+judge1 :: (HasCallStack, MonadJudge m, SP m, SPStore m) => Assertion -> m AccessVerdict
+judge1 assertion = do
+  inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ assertionToInResponseTo assertion
+  checkInResponseTo "response" inRespTo
+  verdict <- checkAssertion assertion
+  unStoreID inRespTo
+  pure verdict
 
 -- | If this fails, we could continue ('deny'), but we stop processing ('giveup') to make DOS
 -- attacks harder.
@@ -314,22 +323,16 @@ checkDestination err (renderURI -> expectedByIdp) = do
   (renderURI -> expectedByUs) <- (^. judgeCtxResponseURI) <$> getJudgeCtx
   unless (expectedByUs == expectedByIdp) . deny $ err (cs expectedByUs) (cs expectedByIdp)
 
-checkAssertions :: (SP m, SPStore m, MonadJudge m) => Maybe Issuer -> NonEmpty Assertion -> UserRef -> m AccessVerdict
-checkAssertions missuer (toList -> assertions) uref@(UserRef issuer _) = do
-  forM_ assertions $ \ass -> do
-    checkIsInPast DeniedAssertionIssueInstantNotInPast (ass ^. assIssueInstant)
-    storeAssertion (ass ^. assID) (ass ^. assEndOfLife)
-  checkConditions `mapM_` mapMaybe (^. assConditions) assertions
-  unless (maybe True (issuer ==) missuer) . deny $ DeniedIssuerMismatch missuer issuer
-  checkSubjectConfirmations assertions
-  let statements :: [Statement]
-      statements = mconcat $ (^. assContents . sasStatements . to toList) <$> assertions
-  when (null statements) $
-    deny DeniedNoStatements -- (not sure this is even possible?)
-  unless (any isAuthnStatement statements) $
-    deny DeniedNoAuthnStatement
-  checkStatement `mapM_` statements
-  pure $ AccessGranted uref
+checkAssertion :: (SP m, SPStore m, MonadJudge m) => Assertion -> m AccessVerdict
+checkAssertion ass = do
+  checkIsInPast DeniedAssertionIssueInstantNotInPast (ass ^. assIssueInstant)
+  storeAssertion (ass ^. assID) (ass ^. assEndOfLife)
+  checkConditions `mapM_` (ass ^. assConditions)
+  checkSubjectConfirmations ass
+  let statements = ass ^. assContents . sasStatements
+  unless (any isAuthnStatement statements) (deny DeniedNoAuthnStatement)
+  checkStatement `mapM_` toList statements
+  pure $ AccessGranted (assertionToUserRef ass)
 
 checkStatement :: (SP m, MonadJudge m) => Statement -> m ()
 checkStatement stm =
@@ -343,23 +346,15 @@ checkStatement stm =
 
 -- | Check all 'SubjectConfirmation's and 'Subject's in all 'Assertion'.  Deny if not at least one
 -- confirmation has method "bearer".
-checkSubjectConfirmations :: (SP m, SPStore m, MonadJudge m) => [Assertion] -> m ()
-checkSubjectConfirmations assertions = do
-  bearerFlags :: [[HasBearerConfirmation]] <- forM assertions $
-    \assertion -> case assertion ^. assContents . sasSubject of
+checkSubjectConfirmations :: (SP m, SPStore m, MonadJudge m) => Assertion -> m ()
+checkSubjectConfirmations assertion = do
+  bearerFlags :: [HasBearerConfirmation] <- case assertion ^. assContents . sasSubject of
       Subject _ confs -> checkSubjectConfirmation assertion `mapM` confs
-  unless (mconcat (mconcat bearerFlags) == HasBearerConfirmation) $
+  unless (nub bearerFlags == [HasBearerConfirmation]) $
     deny DeniedNoBearerConfSubj
 
 data HasBearerConfirmation = HasBearerConfirmation | NoBearerConfirmation
   deriving (Eq, Ord, Bounded, Enum)
-
-instance Monoid HasBearerConfirmation where
-  mappend = (Data.Semigroup.<>)
-  mempty = maxBound
-
-instance Data.Semigroup.Semigroup HasBearerConfirmation where
-  (<>) = min
 
 -- | Locally check one 'SubjectConfirmation' and deny if there is a problem.  If this is a
 -- confirmation of method "bearer", return 'HasBearerConfirmation'.

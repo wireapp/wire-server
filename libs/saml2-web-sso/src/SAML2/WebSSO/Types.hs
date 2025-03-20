@@ -150,7 +150,8 @@ module SAML2.WebSSO.Types
     idPIdToST,
     assEndOfLife,
     rspInResponseTo,
-    getUserRef,
+    assertionToInResponseTo,
+    assertionToUserRef,
     nelConcat,
     (<$$>),
   )
@@ -834,45 +835,46 @@ assEndOfLife = lens gt st
 -- | [3/4.1.4.2] SubjectConfirmation [...] If the containing message is in response to an
 -- AuthnRequest, then the InResponseTo attribute MUST match the request's ID.
 rspInResponseTo :: (MonadError String m) => AuthnResponse -> m (ID AuthnRequest)
-rspInResponseTo aresp = case (inResp, inSubjectConf) of
-  (_, []) ->
-    throwError "not found" -- the inSubjectConf is required!
-  (Nothing, js@(_ : _))
-    | L.length (L.nub js) /= 1 ->
-        throwError $ "mismatching inResponseTo attributes in subject confirmation data: " <> show js
-  (Just i, js@(_ : _))
-    | L.length (L.nub (i : js)) /= 1 ->
-        throwError $ "mismatching inResponseTo attributes in response header, subject confirmation data: " <> show (i, js)
-  (_, (j : _)) ->
-    pure j
-  where
-    inSubjectConf :: [ID AuthnRequest]
-    inSubjectConf =
-      maybeToList
-        . (^. scdInResponseTo)
-        =<< maybeToList
-          . (^. scData)
-        =<< (^. assContents . sasSubject . subjectConfirmations)
-        =<< toList (aresp ^. rspPayload)
-    inResp :: Maybe (ID AuthnRequest)
-    inResp = aresp ^. rspInRespTo
+rspInResponseTo aresp = do
+  let inResp :: Maybe (ID AuthnRequest)
+      inResp = aresp ^. rspInRespTo
+  inSubjectConf :: [ID AuthnRequest] <-
+    assertionToInResponseTo `mapM` NL.toList (aresp ^. rspPayload)
+  case (inResp, inSubjectConf) of
+    (_, []) ->
+      throwError "not found" -- the inSubjectConf is required!
+    (Nothing, js@(_ : _))
+      | L.length (L.nub js) /= 1 ->
+          throwError $ "mismatching inResponseTo attributes in subject confirmation data: " <> show js
+    (Just i, js@(_ : _))
+      | L.length (L.nub (i : js)) /= 1 ->
+          throwError $ "mismatching inResponseTo attributes in response header, subject confirmation data: " <> show (i, js)
+    (_, (j : _)) ->
+      pure j
 
-getUserRef :: (HasCallStack, MonadError String m) => AuthnResponse -> m UserRef
-getUserRef resp = do
-  let assertions = resp ^. rspPayload
-  issuer :: Issuer <- case nub $ (^. assIssuer) <$> assertions of
-    i :| [] -> pure i
-    bad -> throwError $ "bad issuers: " <> show bad
-  subject :: NameID <- case nub $ (^. assContents . sasSubject) <$> assertions of
-    Subject s _ :| [] -> pure s
-    bad -> throwError $ "bad subjects: " <> show bad
-  pure $ UserRef issuer subject
+assertionToInResponseTo :: forall m. (MonadError String m) => Assertion -> m (ID AuthnRequest)
+assertionToInResponseTo assertion = do
+  case L.nub (catMaybes is) of
+    [i] -> pure i
+    _ -> throwError $ "missing or incoherent inResponseTo information in assertion: " <> show assertion
+  where
+    ss :: [SubjectConfirmation]
+    ss = assertion ^. assContents . sasSubject . subjectConfirmations
+
+    is :: [Maybe (ID AuthnRequest)]
+    is = ss <&> (^? scData . _Just . scdInResponseTo . _Just)
+
+assertionToUserRef :: Assertion -> UserRef
+assertionToUserRef assertion =
+  let issuer = assertion ^. assIssuer
+      Subject subject _ = assertion ^. assContents . sasSubject
+   in UserRef issuer subject
 
 ----------------------------------------------------------------------
 -- why is this not in the resp. packages?
 
 nelConcat :: NonEmpty (NonEmpty a) -> NonEmpty a
-nelConcat ((x :| xs) :| ys) = x :| mconcat (xs : (toList <$> ys))
+nelConcat ((x :| xs) :| ys) = x :| mconcat (xs : (NL.toList <$> ys))
 
 (<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
 (<$$>) = fmap . fmap

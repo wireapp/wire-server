@@ -119,7 +119,7 @@ spec = describe "API" $ do
                 go :: TestSP Assertion
                 go = do
                   creds <- issuerToCreds missuer Nothing
-                  simpleVerifyAuthnResponse creds resp
+                  simpleVerifyAuthnResponse creds resp >>= \case a :| [] -> pure a
             if expectOutcome
               then fmap _assID (run go) `shouldReturn` ID (mkXmlText "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6")
               else run go `shouldThrow` anyException
