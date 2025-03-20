@@ -37,18 +37,27 @@ testCellsEvent = do
   I.setCellsState alice conv "pending" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [chazId]} >>= assertSuccess
 
+  do
+    event <- getMessage q %. "payload.0"
+    event %. "type" `shouldMatch` "conversation.member-join"
+    event %. "conversation" `shouldMatch` (conv %. "id")
+    event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+    users <- event %. "data.users" & asList
+    assertOne users %. "qualified_id" `shouldMatch` chazId
+
   I.setCellsState alice conv "ready" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [deanId]} >>= assertSuccess
 
+  do
+    event <- getMessage q %. "payload.0"
+    event %. "type" `shouldMatch` "conversation.member-join"
+    event %. "conversation" `shouldMatch` (conv %. "id")
+    event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+    users <- event %. "data.users" & asList
+    assertOne users %. "qualified_id" `shouldMatch` deanId
+
   I.setCellsState alice conv "disabled" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [eveId]} >>= assertSuccess
-
-  event <- getMessage q %. "payload.0"
-  event %. "type" `shouldMatch` "conversation.member-join"
-  event %. "conversation" `shouldMatch` (conv %. "id")
-  event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
-  users <- event %. "data.users" & asList
-  assertOne users %. "qualified_id" `shouldMatch` deanId
 
   assertNoMessage q
 
