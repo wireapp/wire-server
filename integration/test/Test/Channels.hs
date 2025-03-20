@@ -167,6 +167,10 @@ testTeamAdminPermissions = do
         asList (resp.json %. "access_role") `shouldMatchSet` ["team_member"]
       void $ createAddCommit userClient convId [userToAdd] >>= sendAndConsumeCommitBundle
       void $ createRemoveCommit userClient convId [userToAddClient] >>= sendAndConsumeCommitBundle
+    -- TODO:
+    -- allow guests/guest links
+    -- archive conversation
+    -- delete conversation?
 
     assertNoChannelAdminPermission :: (HasCallStack) => ConvId -> Value -> Value -> ClientIdentity -> (Value, ClientIdentity) -> ClientIdentity -> App ()
     assertNoChannelAdminPermission convId conv user userClient (userToAdd, _) userToUpdate = do
