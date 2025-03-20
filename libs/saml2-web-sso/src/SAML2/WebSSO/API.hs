@@ -396,6 +396,10 @@ data HandleVerdict m
   = HandleVerdictRedirect (OnSuccessRedirect m)
   | HandleVerdictRaw (AuthnResponse -> AccessVerdict -> m ResponseVerdict)
 
+{- TODO:
+newtype ResponseVerdicts = ResponseVerdicts { unResponseVerdicts :: [ResponseVerdict] }
+data ResponseVerdict = ... | ...
+-}
 type ResponseVerdict = ServerError
 
 simpleHandleVerdict ::
