@@ -588,3 +588,44 @@ Where:
 - `$EMAIL_CODE` is the validation code received by email after running the previous script/command
 - `$TEAM_CURRENCY` is the currency of the team
 - `$TEAM_NAME` is the name of the team
+
+## Workaround for deploying a first user.
+
+If you are running wire-server in an offline environment, where there is no mail server available, you might need to manually gather the email validation code for user creation.
+
+First do:
+
+```sh
+curl --resolve nginz-https.MY_DOMAIN_NAME:31773:INGRESS_IP https://nginz-https.MY_DOMAIN_NAME:31773/register -XPOST -H"Content-Type: application/json" --data '{"email":"YOUR_USER_EMAIL", "name":"YOUR_USER_NAME"}' -k
+```
+
+Where:
+
+- `MY_DOMAIN_NAME` is the domain name of your wire-server instance.
+- `INGRESS_IP` is the ingress IP address.
+- `YOUR_USER_EMAIL` is the (dummy) email address of the user you want to create.
+- `YOUR_USER_NAME` is the display name of the user you want to create.
+
+This will result in an email being sent internally, but if you do not have an email server handling those, they simply stack up in the `demo-smtp` kubernetes pod.
+
+You need to get the name of that pod by running:
+
+```sh
+kubectl get pod -lapp=demo-smtp
+```
+
+Once you have it, for example if it is `demo-smtp-5bb6449497-4w7c4`, you can run:
+
+```sh
+d kubectl exec demo-smtp-5bb6449497-4w7c4 – sh -c 'grep -H -E "^[TX]" /var/spool/exim4/input/*-D'
+```
+
+This will display emails that have been sent, and you should be able to see the code from there, is is a 6 digit number, for example `607708`.
+
+From the email, you will also get the key, which will look something like `AoL0FrCGSnurvAJFUv3x5YkiA4hFbpVDlKpwGTzAuNU=`.
+
+Finally, you use that code to validate the user creation:
+
+```sh
+curl --resolve nginz-https.MY_DOMAIN_NAME:31773:INGRESS_IP https://nginz-https.MY_DOMAIN_NAME:31773/activate -XPOST -H"Content-Type: application/json" --data '{"email":"YOUR_USER_EMAIL", "key":"AoL0FrCGSnurvAJFUv3x5YkiA4hFbpVDlKpwGTzAuNU=", "code": "607708"}' -k
+```
