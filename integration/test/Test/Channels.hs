@@ -23,7 +23,7 @@ import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (setTeamFeatureConfig)
 import GHC.Stack
-import MLS.Util (createAddCommit, createGroup, createMLSClient, sendAndConsumeCommitBundle, uploadNewKeyPackage)
+import MLS.Util
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -119,8 +119,8 @@ config perms =
 
 testTeamAdminPermissions :: (HasCallStack) => App ()
 testTeamAdminPermissions = do
-  (owner, tid, mem : otherMem : mems) <- createTeam OwnDomain 4
-  clients@(_ : memClient : _) <- for (owner : mem : otherMem : mems) $ createMLSClient def def
+  (owner, tid, mem : nonAdmin : mems) <- createTeam OwnDomain 10
+  clients@(ownerClient : memClient : nonAdminClient : _) <- for (owner : mem : nonAdmin : mems) $ createMLSClient def def
   for_ clients (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
@@ -131,35 +131,64 @@ testTeamAdminPermissions = do
   createGroup def memClient convId
 
   -- other team members are added to the channel
-  void $ createAddCommit memClient convId (owner : otherMem : mems) >>= sendAndConsumeCommitBundle
+  void $ createAddCommit memClient convId [owner, nonAdmin] >>= sendAndConsumeCommitBundle
   bindResponse (getConversation mem (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     members <- resp.json %. "members" %. "others" & asList
-    for members (\m -> m %. "id") `shouldMatchSet` (for (owner : otherMem : mems) (\m -> m %. "id"))
+    for members (\m -> m %. "id") `shouldMatchSet` (for [owner, nonAdmin] (\m -> m %. "id"))
     for_ members $ \m -> do
       m %. "conversation_role" `shouldMatch` "wire_member"
 
-  assertChannelAdminPermission mem conv
-  assertChannelAdminPermission owner conv
-  assertNoChannelAdminPermission otherMem conv
-  -- make otherMem a team admin
-  updateTeamMember tid owner otherMem Admin >>= assertSuccess
-  assertChannelAdminPermission otherMem conv
-  -- make otherMem a team member again
-  updateTeamMember tid owner otherMem Member >>= assertSuccess
-  assertNoChannelAdminPermission otherMem conv
+  let otherMembers = mems `zip` drop 3 clients
+
+  assertChannelAdminPermission convId conv mem memClient (head otherMembers) owner
+  assertChannelAdminPermission convId conv owner ownerClient (otherMembers !! 1) mem
+  assertNoChannelAdminPermission convId conv nonAdmin nonAdminClient (otherMembers !! 2) ownerClient
+  -- make nonAdmin a team admin
+  updateTeamMember tid owner nonAdmin Admin >>= assertSuccess
+  assertChannelAdminPermission convId conv nonAdmin nonAdminClient (otherMembers !! 3) mem
+  -- make nonAdmin a team member again
+  updateTeamMember tid owner nonAdmin Member >>= assertSuccess
+  assertNoChannelAdminPermission convId conv nonAdmin nonAdminClient (otherMembers !! 4) ownerClient
   where
-    assertChannelAdminPermission :: (HasCallStack) => Value -> Value -> App ()
-    assertChannelAdminPermission mem conv = do
+    assertChannelAdminPermission :: (HasCallStack) => ConvId -> Value -> Value -> ClientIdentity -> (Value, ClientIdentity) -> Value -> App ()
+    assertChannelAdminPermission convId conv user userClient (userToAdd, userToAddClient) userToUpdate = do
       newName <- randomName
-      changeConversationName mem conv newName >>= assertSuccess
-      bindResponse (getConversation mem conv) $ \resp -> do
+      changeConversationName user conv newName >>= assertSuccess
+      updateReceiptMode user conv (42 :: Int) >>= assertSuccess
+      updateMessageTimer user conv 1000 >>= assertSuccess
+      updateAccess user conv (["access" .= ([] :: [String]), "access_role" .= ["team_member"]]) >>= assertSuccess
+      updateConversationMember user conv userToUpdate "wire_member" >>= assertSuccess
+      bindResponse (getConversation user conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "name" `shouldMatch` newName
+        resp.json %. "receipt_mode" `shouldMatchInt` 42
+        resp.json %. "message_timer" `shouldMatchInt` 1000
+        asList (resp.json %. "access_role") `shouldMatchSet` ["team_member"]
+      void $ createAddCommit userClient convId [userToAdd] >>= sendAndConsumeCommitBundle
+      void $ createRemoveCommit userClient convId [userToAddClient] >>= sendAndConsumeCommitBundle
 
-    assertNoChannelAdminPermission :: (HasCallStack) => Value -> Value -> App ()
-    assertNoChannelAdminPermission mem conv = do
+    assertNoChannelAdminPermission :: (HasCallStack) => ConvId -> Value -> Value -> ClientIdentity -> (Value, ClientIdentity) -> ClientIdentity -> App ()
+    assertNoChannelAdminPermission convId conv user userClient (userToAdd, _) userToUpdate = do
       newName <- randomName
-      changeConversationName mem conv newName `bindResponse` \resp -> do
+      changeConversationName user conv newName `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "action-denied"
+      updateReceiptMode user conv (41 :: Int) `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "action-denied"
+      updateMessageTimer user conv 2000 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "action-denied"
+      updateAccess user conv (["access" .= ([] :: [String]), "access_role" .= ["team_member"]]) `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "action-denied"
+      updateConversationMember user conv userToUpdate "wire_member" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "action-denied"
+      -- since the mls test client cannot handle failed commits, we need to restore the state manually
+      mlsState <- getMLSState
+      createAddCommit userClient convId [userToAdd] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
+      modifyMLSState (const mlsState)
+      createRemoveCommit userClient convId [userToUpdate] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
+      modifyMLSState (const mlsState)

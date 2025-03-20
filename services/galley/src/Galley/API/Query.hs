@@ -978,7 +978,8 @@ ensureConvAdmin ::
   [LocalMember] ->
   UserId ->
   Sem r ()
-ensureConvAdmin users uid =
+ensureConvAdmin users uid = do
+  todo "check for channel admin"
   case find ((== uid) . lmId) users of
     Nothing -> throwS @'ConvNotFound
     Just lm -> unless (lmConvRoleName lm == roleNameWireAdmin) $ throwS @'ConvAccessDenied

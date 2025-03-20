@@ -226,6 +226,7 @@ createGroup cs cid convId = do
           MLSConv
             { members = Set.singleton cid,
               newMembers = mempty,
+              membersToBeRemoved = mempty,
               groupId,
               convId = convId,
               epoch = 0,
@@ -263,6 +264,7 @@ resetOne2OneGroupGeneric cs cid conv keys = do
           MLSConv
             { members = Set.singleton cid,
               newMembers = mempty,
+              membersToBeRemoved = mempty,
               groupId = groupId,
               convId = convId,
               epoch = 0,
@@ -435,6 +437,17 @@ createRemoveCommit cid convId targets = do
           <> map show indices
       )
       Nothing
+
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            ( \oldConvState ->
+                oldConvState {membersToBeRemoved = Set.fromList targets}
+            )
+            convId
+            mls.convs
+      }
 
   welcome <- liftIO $ BS.readFile welcomeFile
   gi <- liftIO $ BS.readFile giFile
@@ -703,7 +716,7 @@ sendAndConsumeCommitBundleWithProtocol protocol mp = do
         when (Set.member mp.sender conv.newMembers) $
           traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
 
-      -- increment epoch and add new clients
+      -- increment epoch and add new/remove clients
       modifyMLSState $ \mls ->
         mls
           { convs =
@@ -711,7 +724,8 @@ sendAndConsumeCommitBundleWithProtocol protocol mp = do
                 ( \conv ->
                     conv
                       { epoch = conv.epoch + 1,
-                        members = conv.members <> conv.newMembers,
+                        members = (conv.members <> conv.newMembers) Set.\\ conv.membersToBeRemoved,
+                        membersToBeRemoved = mempty,
                         newMembers = mempty
                       }
                 )

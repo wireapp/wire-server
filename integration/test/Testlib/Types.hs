@@ -322,10 +322,20 @@ data MLSState = MLSState
   }
   deriving (Show)
 
+printMLSState :: MLSState -> String
+printMLSState MLSState {convs, clientGroupState} =
+  "MLSState {"
+    <> "convs = "
+    <> show convs
+    <> ", clientGroupState = "
+    <> show (Map.keys clientGroupState)
+    <> "}"
+
 data MLSConv = MLSConv
   { members :: Set ClientIdentity,
     -- | users expected to receive a welcome message after the next commit
     newMembers :: Set ClientIdentity,
+    membersToBeRemoved :: Set ClientIdentity,
     groupId :: String,
     convId :: ConvId,
     epoch :: Word64,
