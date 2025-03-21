@@ -272,8 +272,12 @@ verifyChallengeImpl mLusr domain challengeId challengeToken = do
   where
     domainRegistrationForAnonymousAllowed :: Maybe DomainRegistration -> Bool
     domainRegistrationForAnonymousAllowed mDr = case (.domainRedirect) <$> mDr of
+      Nothing -> False
+      Just Locked -> False
       Just PreAuthorized -> True
-      _ -> False
+      -- once the domain was registered before (meaning an entry exists other than Locked or Preauthorized)
+      -- there is no need to preauthorize it again before verifying the DNS record
+      Just _ -> True
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,

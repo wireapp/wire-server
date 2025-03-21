@@ -428,8 +428,6 @@ testOverwriteOwnershipToken = do
     (mkDomainRedirectBackend "https://wire1.example.com")
     >>= assertStatus 200
 
-  domainRegistrationUnAuthorize OwnDomain domain >>= assertStatus 204
-  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   -- get a second ownership token
   setup2 <- setupOwnershipToken OwnDomain domain
   updateDomainRedirect
@@ -439,8 +437,6 @@ testOverwriteOwnershipToken = do
     (object ["domain_redirect" .= "remove"])
     >>= assertStatus 200
 
-  domainRegistrationUnAuthorize OwnDomain domain >>= assertStatus 204
-  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   -- the first ownership token is not valid anymore
   updateDomainRedirect
     OwnDomain
