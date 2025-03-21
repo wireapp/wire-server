@@ -35,6 +35,14 @@ testDomainVerificationGetOwnershipToken = do
   -- the challenge should be deleted after successful verification
   verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken >>= assertStatus 404
 
+testCreateChallengeFailsIfLocked :: (HasCallStack) => App ()
+testCreateChallengeFailsIfLocked = do
+  domain <- randomDomain
+  domainRegistrationLock OwnDomain domain >>= assertStatus 204
+  getDomainVerificationChallenge OwnDomain domain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+
 testDomainVerificationOnPremFlow :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlow = do
   domain <- randomDomain
@@ -373,31 +381,18 @@ testUpdateTeamInviteLocked :: (HasCallStack) => App ()
 testUpdateTeamInviteLocked = do
   (owner, tid, _m : _) <- createTeam OwnDomain 2
   domain <- randomDomain
-  -- set domain-redirect to locked
-  domainRegistrationLock OwnDomain domain >>= assertStatus 204
-
-  setup <- setupOwnershipToken OwnDomain domain
 
   -- enable domain registration feature
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
-  -- can't authorize a team when the domain is locked
-  authorizeTeam owner domain setup.ownershipToken >>= assertStatus 403
-
-  updateDomainRegistration
-    OwnDomain
-    domain
-    ( object
-        [ "domain_redirect" .= "backend",
-          "team_invite" .= "not-allowed",
-          "backend_url" .= "https://wire.example.com"
-        ]
-    )
-    >>= assertStatus 204
+  setup <- setupOwnershipToken OwnDomain domain
 
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
+
+  -- set domain-redirect to locked
+  domainRegistrationLock OwnDomain domain >>= assertStatus 204
 
   -- setting team-invite to allowed should fail for on-prem domains
   bindResponse (updateTeamInvite owner domain (object ["team_invite" .= "allowed"])) $ \resp -> do

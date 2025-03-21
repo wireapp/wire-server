@@ -205,11 +205,17 @@ createDomainVerificationChallengeImpl ::
     Member DomainVerificationChallengeStore r,
     Member (Error ParseException) r,
     Member (Input Endpoint) r,
-    Member Rpc r
+    Member Rpc r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r
   ) =>
   Domain ->
   Sem r DomainVerificationChallenge
 createDomainVerificationChallengeImpl domain = do
+  dr <- lookup domain
+  when (((.domainRedirect) <$> dr) == Just Locked) $
+    throw EnterpriseLoginSubsystemOperationForbidden
   challengeId <- Id <$> Random.uuid
   token <- Token <$> Random.bytes 32
   dnsVerificationToken <- newDnsVerificationToken
