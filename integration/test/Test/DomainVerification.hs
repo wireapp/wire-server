@@ -369,7 +369,7 @@ testUpdateTeamInviteSSO = do
     resp.json %. "sso_code" `shouldMatch` idp
 
 testVerifyChallengeFailsIfLocked :: (HasCallStack) => App ()
-testVerifyChallengeFailsIfLocked  = do
+testVerifyChallengeFailsIfLocked = do
   (owner, tid, _m : _) <- createTeam OwnDomain 2
   emailDomain <- randomDomain
 
