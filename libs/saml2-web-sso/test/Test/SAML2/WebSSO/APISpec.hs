@@ -131,6 +131,12 @@ spec = describe "API" $ do
       context "known key" $ check False (Just True) False
       context "bad key" $ check False (Just False) False
       context "unknown key" $ check False Nothing False
+    describe "counter-examples" $ do
+      it "1" $ do
+        rawResp <- readSampleIO "authnresponse-3.xml"
+        xmlResp <- either (error . show) pure $ decode @_ @AuthnResponse (cs rawResp)
+        let respId = unsafeFromXmlText . fromID $ xmlResp ^. rspID
+        respId `shouldBe` "_5ae4ec37-8e91-4f15-9170-655941b42b8e"
   describe "cookies" $ do
     let rndtrip =
           parseUrlPiece @Cky
@@ -251,6 +257,13 @@ spec = describe "API" $ do
 
     it "succeeds with HTTP-Post (not all caps)" $ do
       res <- parseSample "authnresponse-case-insensitive.xml"
+      res `shouldSatisfy` isRight
+
+  describe "AuthnResponse parsing" $ do
+    let parseSample :: FilePath -> IO (Either String AuthnResponse)
+        parseSample samplePath = decode <$> readSampleIO samplePath
+    it "works" $ do
+      res <- parseSample "authnresponse-1.xml"
       res `shouldSatisfy` isRight
 
   describe "vendor compatibility tests" $ do
