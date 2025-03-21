@@ -32,7 +32,6 @@ module Galley.API.Action
     pushTypingIndicatorEvents,
 
     -- * Utilities
-    ensureConversationActionAllowed,
     addMembersToLocalConversation,
     notifyConversationAction,
     updateLocalStateOfRemoteConv,
@@ -734,7 +733,8 @@ updateLocalConversation ::
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     HasConversationActionEffects tag r,
-    SingI tag
+    SingI tag,
+    Member TeamStore r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -772,7 +772,8 @@ updateLocalConversationUnchecked ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    HasConversationActionEffects tag r
+    HasConversationActionEffects tag r,
+    Member TeamStore r
   ) =>
   Local Conversation ->
   Qualified UserId ->
@@ -784,8 +785,10 @@ updateLocalConversationUnchecked lconv qusr con action = do
       lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
 
+  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
+
   -- retrieve member
-  self <- noteS @'ConvNotFound $ getConvMember lconv conv qusr
+  self <- noteS @'ConvNotFound $ getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember)
 
   -- perform checks
   ensureConversationActionAllowed (sing @tag) lcnv action conv self
@@ -801,6 +804,9 @@ updateLocalConversationUnchecked lconv qusr con action = do
     lconv
     (convBotsAndMembers conv <> extraTargets)
     action'
+  where
+    getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
+    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities

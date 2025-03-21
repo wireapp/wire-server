@@ -102,6 +102,7 @@ import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
@@ -323,7 +324,8 @@ updateConversationReceiptMode ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -397,7 +399,8 @@ updateConversationReceiptModeUnqualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -415,7 +418,8 @@ updateConversationMessageTimer ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -447,7 +451,8 @@ updateConversationMessageTimerUnqualified ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -501,7 +506,8 @@ addCodeUnqualifiedWithReqBody ::
     Member HashPassword r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   UserId ->
   Maybe Text ->
@@ -526,7 +532,8 @@ addCodeUnqualified ::
     Member (Input Opts) r,
     Member HashPassword r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   Maybe CreateConversationCodeRequest ->
   UserId ->
@@ -553,7 +560,8 @@ addCode ::
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Maybe ZHostValue ->
@@ -564,7 +572,8 @@ addCode ::
 addCode lusr mbZHost mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (Data.convTeam conv)
-  Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.convMetadata.cnvmTeam
+  Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
   convUri <- getConversationCodeURI mbZHost
@@ -601,7 +610,8 @@ rmCodeUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -618,7 +628,8 @@ rmCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -627,7 +638,8 @@ rmCode ::
 rmCode lusr zcon lcnv = do
   conv <-
     E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.convMetadata.cnvmTeam
+  Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
   key <- E.makeKey (tUnqualified lcnv)
@@ -711,7 +723,8 @@ updateConversationProtocolWithLocalUser ::
     Member Random r,
     Member ProposalStore r,
     Member SubConversationStore r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1040,7 +1053,8 @@ updateOtherMemberLocalConv ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1066,7 +1080,8 @@ updateOtherMemberUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1091,7 +1106,8 @@ updateOtherMember ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1130,7 +1146,8 @@ removeMemberUnqualified ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1159,7 +1176,8 @@ removeMemberQualified ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1235,7 +1253,8 @@ removeMemberFromLocalConv ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1592,6 +1611,8 @@ addBot lusr zcon b = do
       self <- getSelfMemberFromLocals (tUnqualified lusr) users
       -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
       -- Remember to change this if we ever want to allow non admins to add bots.
+      -- Also note, that in the future we want to allow channel admins (who are not necessarily conversation admins) to add bots.
+      -- Currently bots cannot be added to channels because channels are always MLS conversations which do not support bots.
       ensureActionAllowed SAddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
@@ -1624,6 +1645,7 @@ rmBot lusr zcon b = do
     -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
     -- Remember to change this if we ever want to allow non admins to remove bots.
     self <- getSelfMemberFromLocals (tUnqualified lusr) users
+    -- Similarly to addBot we currently only allow admins to remove bots. Once bots support MLS we, also need to check for channel admin permissions here.
     ensureActionAllowed SRemoveConversationMember self
   let lcnv = qualifyAs lusr (Data.convId c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)

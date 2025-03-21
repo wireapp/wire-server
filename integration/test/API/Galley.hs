@@ -120,6 +120,23 @@ deleteTeamMember tid owner mem = do
   req <- baseRequest owner Galley Versioned path
   submit "DELETE" (addJSONObject ["password" .= defPassword] req)
 
+data TeamPermissions = Partner | Member | Admin | Owner
+
+instance ToJSON TeamPermissions where
+  toJSON perms = object ["self" .= toInt perms, "copy" .= toInt perms]
+    where
+      toInt Partner = Number 1025
+      toInt Member = Number 1587
+      toInt Admin = Number 5951
+      toInt Owner = Number 8191
+
+updateTeamMember :: (HasCallStack, MakesValue user, MakesValue member) => String -> user -> member -> TeamPermissions -> App Response
+updateTeamMember tid owner mem permissions = do
+  memId <- objId mem
+  let path = joinHttpPath ["teams", tid, "members"]
+  req <- baseRequest owner Galley Versioned path
+  submit "PUT" (req & addJSONObject ["member" .= object ["user" .= memId, "permissions" .= permissions]])
+
 putConversationProtocol ::
   ( HasCallStack,
     MakesValue user,
@@ -434,6 +451,12 @@ getConversationCode user conv mbZHost = do
         & addQueryParams [("cnv", convId)]
         & maybe id zHost mbZHost
     )
+
+deleteConversationCode :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> App Response
+deleteConversationCode user conv = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit "DELETE" req
 
 getJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
 getJoinCodeConv u k v = do
@@ -769,3 +792,9 @@ sendTypingStatus user conv status = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "typing"])
   submit "POST"
     $ addJSONObject ["status" .= status] req
+
+updateConversationSelf :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> Value -> App Response
+updateConversationSelf user conv payload = do
+  (domain, cnv) <- objQid conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "self"])
+  submit "PUT" $ req & addJSON payload
