@@ -164,7 +164,15 @@ saml2ToSaml2WebSso =
       get_c <- bindT $ \(a, (b, c)) -> mc a b c
       ins <- getInspectorT
       s <- getInitialStateT
-      x <- raise $ unSPImpl $ SAML.authresp mitlt (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (\x y z -> inspectOrBomb ins $ get_c $ (x, (y, z)) <$ s) ab
+      x <-
+        raise $
+          unSPImpl $
+            SAML.authresp
+              mitlt
+              (inspectOrBomb ins get_a)
+              (inspectOrBomb ins get_b)
+              (\x y z -> inspectOrBomb ins $ get_c $ (x, (y, z)) <$ s)
+              ab
       pure $ x <$ s
     Meta t ma mb -> do
       get_a <- runT ma
