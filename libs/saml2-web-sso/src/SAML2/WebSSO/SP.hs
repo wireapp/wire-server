@@ -324,7 +324,9 @@ checkDestination err (renderURI -> expectedByIdp) = do
 checkAssertion :: (SP m, SPStore m, MonadJudge m) => Assertion -> m AccessVerdict
 checkAssertion ass = do
   checkIsInPast DeniedAssertionIssueInstantNotInPast (ass ^. assIssueInstant)
-  storeAssertion (ass ^. assID) (ass ^. assEndOfLife)
+  storeAssertion (ass ^. assID) (ass ^. assEndOfLife) >>= \case
+    True -> pure ()
+    False -> deny DeniedStatusFailure
   checkConditions `mapM_` (ass ^. assConditions)
   checkSubjectConfirmations ass
   let statements = ass ^. assContents . sasStatements
