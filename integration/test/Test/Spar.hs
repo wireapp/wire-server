@@ -402,7 +402,7 @@ testSsoLoginNoSamlEmailValidation = do
           . SAMLXML.parseFromDocument
           . SAML.fromSignedAuthnResponse
           $ authnResp
-      uref = fromRight (error "invalid userRef") $ SAML.getUserRef parsed
+      uref = either (error . show) id $ SAML.assertionsToUserRef (parsed ^. SAML.rspPayload)
       eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
   eid `shouldMatch` email
   getUsersId OwnDomain [uid] `bindResponse` \res -> do

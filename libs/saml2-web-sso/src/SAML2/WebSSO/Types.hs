@@ -151,6 +151,7 @@ module SAML2.WebSSO.Types
     assEndOfLife,
     rspInResponseTo,
     assertionToInResponseTo,
+    assertionsToUserRef,
     assertionToUserRef,
     nelConcat,
     (<$$>),
@@ -863,6 +864,11 @@ assertionToInResponseTo assertion = do
 
     is :: [Maybe (ID AuthnRequest)]
     is = ss <&> (^? scData . _Just . scdInResponseTo . _Just)
+
+assertionsToUserRef :: NonEmpty Assertion -> Either [UserRef] UserRef
+assertionsToUserRef assertions = case NL.nub $ assertionToUserRef <$> assertions of
+  u :| [] -> pure u
+  bad -> throwError (NL.toList bad)
 
 assertionToUserRef :: Assertion -> UserRef
 assertionToUserRef assertion =

@@ -27,6 +27,7 @@ module Spar.Sem.SAML2
 where
 
 import Data.Id (TeamId)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Time (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
 import Imports (ByteString, Maybe, Text)
@@ -45,7 +46,7 @@ data SAML2 m a where
     Maybe TeamId ->
     m Issuer ->
     m URI ->
-    (AuthnResponse -> IdP -> AccessVerdict -> m resp) ->
+    (NonEmpty Assertion -> IdP -> AccessVerdict -> m resp) ->
     AuthnResponseBody ->
     SAML2 m resp
   Meta :: Text -> m Issuer -> m URI -> SAML2 m SPMetadata

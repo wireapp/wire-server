@@ -52,6 +52,7 @@ import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.HavePendingInvitations
 import Data.Id
+import Data.List.NonEmpty (NonEmpty)
 import Data.Proxy
 import Data.Range
 import Data.Text.Encoding.Error
@@ -65,6 +66,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.App
@@ -322,9 +324,9 @@ authresp ::
   Sem r Void
 authresp mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
   where
-    go :: SAML.AuthnResponse -> IdP -> SAML.AccessVerdict -> Sem r Void
-    go resp verdict idp = do
-      result :: SAML.ResponseVerdict <- verdictHandler resp idp verdict
+    go :: NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
+    go assertions verdict idp = do
+      result :: SAML.ResponseVerdict <- verdictHandler assertions idp verdict
       throw @SparError $ SAML.CustomServant result
 
     logErrors :: Sem r Void -> Sem r Void

@@ -47,6 +47,8 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.CaseInsensitive as CI
 import Data.Id
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Encoding as Text
@@ -282,7 +284,7 @@ verdictHandler ::
     Member Reporter r,
     Member SAMLUserStore r
   ) =>
-  SAML.AuthnResponse ->
+  NonEmpty SAML.Assertion ->
   SAML.AccessVerdict ->
   IdP ->
   Sem r SAML.ResponseVerdict
@@ -291,7 +293,12 @@ verdictHandler aresp verdict idp = do
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
   Logger.log Logger.Debug $ "entering verdictHandler: " <> show (aresp, verdict)
-  reqid <- either (throwSparSem . SparNoRequestRefInResponse . LText.pack) pure $ SAML.rspInResponseTo aresp
+  reqid <- do
+    let xs = SAML.assertionToInResponseTo `mapM` aresp
+    case NonEmpty.nub <$> xs of
+      Right (x :| []) -> pure x
+      Left err -> throwSparSem (SparNoRequestRefInResponse $ "missing or incoherent requestIDs: " <> LText.pack err)
+      _ -> throwSparSem SparNoSuchRequest
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just VerdictFormatWeb ->

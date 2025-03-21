@@ -55,7 +55,6 @@ import SAML2.WebSSO
     edIssuer,
     edRequestURI,
     fromIssuer,
-    getUserRef,
     idPIdToST,
     idpExtraInfo,
     idpId,
@@ -1529,7 +1528,7 @@ getSsoidViaAuthResp :: (HasCallStack) => SignedAuthnResponse -> TestSpar UserSSO
 getSsoidViaAuthResp aresp = do
   parsed :: AuthnResponse <-
     either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-  either error (pure . UserSSOId) $ getUserRef parsed
+  either (error . show) (pure . UserSSOId) $ SAML.assertionsToUserRef (parsed ^. SAML.rspPayload)
 
 specSparUserMigration :: SpecWith TestEnv
 specSparUserMigration = do
