@@ -110,13 +110,6 @@ data AuthnResponseBody = AuthnResponseBody
 renderAuthnResponseBody :: AuthnResponse -> LBS
 renderAuthnResponseBody = EL.encode . cs . encode
 
-{-
-<resp>
-  <assertion id="3">.......</assertion>
-  <assertion id="3">......<sig>...</assertion>
-</resp>
--}
-
 -- | Implies verification, hence the constraints and the optional service provider ID (needed for IdP lookup).
 parseAuthnResponseBody ::
   forall m err spid extra.
