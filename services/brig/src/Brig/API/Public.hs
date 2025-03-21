@@ -565,7 +565,8 @@ servantSitemap =
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
     domainVerificationTeamAPI =
-      Named @"domain-verification-authorize-team" authorizeTeam
+      Named @"verify-challenge-team" verifyChallengeTeam
+        :<|> Named @"domain-verification-authorize-team" authorizeTeam
         :<|> Named @"update-team-invite" updateTeamInvite
         :<|> Named @"get-all-registered-domains" getAllRegisteredDomains
         :<|> Named @"delete-registered-domain" deleteRegisteredDomain
@@ -1588,7 +1589,18 @@ verifyChallenge ::
   Handler r DomainOwnershipToken
 verifyChallenge domain challengeId (ChallengeToken token) = do
   lift . liftSem . fmap DomainOwnershipToken $
-    EnterpriseLogin.verifyChallenge domain challengeId token
+    EnterpriseLogin.verifyChallenge Nothing domain challengeId token
+
+verifyChallengeTeam ::
+  (_) =>
+  Local UserId ->
+  Domain ->
+  ChallengeId ->
+  ChallengeToken ->
+  Handler r DomainOwnershipToken
+verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
+  lift . liftSem . fmap DomainOwnershipToken $
+    EnterpriseLogin.verifyChallenge (Just lusr) domain challengeId token
 
 -- Deprecated
 

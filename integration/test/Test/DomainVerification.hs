@@ -19,6 +19,7 @@ mkDomainRedirectBackend url = object ["domain_redirect" .= "backend", "backend_u
 testDomainVerificationGetOwnershipToken :: (HasCallStack) => App ()
 testDomainVerificationGetOwnershipToken = do
   domain <- randomDomain
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   challenge <- setupChallenge OwnDomain domain
 
   bindResponse (verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken) $ \resp -> do
@@ -43,28 +44,24 @@ testCreateChallengeFailsIfLocked = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
+testVerifyChallengeFailsIfNotPreauthorized :: (HasCallStack) => App ()
+testVerifyChallengeFailsIfNotPreauthorized = do
+  domain <- randomDomain
+  challenge <- setupChallenge OwnDomain domain
+  registerTechnitiumRecord challenge.technitiumToken domain ("wire-domain." <> domain) "TXT" challenge.dnsToken
+  verifyDomain OwnDomain domain challenge.challengeId challenge.challengeToken `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+
 testDomainVerificationOnPremFlow :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlow = do
   domain <- randomDomain
   void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
 
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+
   setup <- setupOwnershipToken OwnDomain domain
   let ownershipToken = setup.ownershipToken
-
-  -- cannot set config for non-preauthorized domain
-  bindResponse
-    ( updateDomainRedirect
-        OwnDomain
-        domain
-        (Just ownershipToken)
-        (mkDomainRedirectBackend "https://wire.example.com")
-    )
-    $ \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
-
-  -- preauth
-  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
   -- post config without ownership token (this is not allowed)
   updateDomainRedirect
@@ -138,12 +135,12 @@ testDomainVerificationOnPremFlow = do
 testDomainVerificationWrongAuth :: (HasCallStack) => App ()
 testDomainVerificationWrongAuth = do
   domain <- randomDomain
-  void $ setupOwnershipToken OwnDomain domain
-  wrongSetup <- setupOwnershipToken OwnDomain =<< randomDomain
-  let wrongToken = wrongSetup.ownershipToken
-
-  -- [backoffice] preauth
+  wrongDomain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  void $ setupOwnershipToken OwnDomain domain
+  domainRegistrationPreAuthorize OwnDomain wrongDomain >>= assertStatus 204
+  wrongSetup <- setupOwnershipToken OwnDomain wrongDomain
+  let wrongToken = wrongSetup.ownershipToken
 
   -- [customer admin] post config with wrong token
   bindResponse
@@ -160,10 +157,8 @@ testDomainVerificationWrongAuth = do
 testDomainVerificationOnPremFlowNoRegistration :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlowNoRegistration = do
   domain <- randomDomain
-  setup <- setupOwnershipToken OwnDomain domain
-
-  -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  setup <- setupOwnershipToken OwnDomain domain
 
   -- [customer admin] post no-registration config
   updateDomainRedirect
@@ -180,10 +175,8 @@ testDomainVerificationOnPremFlowNoRegistration = do
 testDomainVerificationRemoveFailure :: (HasCallStack) => App ()
 testDomainVerificationRemoveFailure = do
   domain <- randomDomain
-  setup <- setupOwnershipToken OwnDomain domain
-
-  -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  setup <- setupOwnershipToken OwnDomain domain
 
   bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
@@ -219,9 +212,8 @@ testDomainVerificationRemoveFailure = do
 testDomainVerificationLockedState :: (HasCallStack) => App ()
 testDomainVerificationLockedState = do
   domain <- randomDomain
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipToken OwnDomain domain
-
-  -- [backoffice] lock the domain (public email provider)
   domainRegistrationLock OwnDomain domain >>= assertStatus 204
 
   -- domain redirect cannot be updated
@@ -241,22 +233,22 @@ testDomainVerificationLockedState = do
 testUpdateTeamInvite :: (HasCallStack) => App ()
 testUpdateTeamInvite = do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
-
   domain <- randomDomain
-  setup <- setupOwnershipToken OwnDomain domain
-
-  bindResponse (authorizeTeam owner domain setup.ownershipToken) $ \resp -> do
-    resp.status `shouldMatchInt` 402
-    resp.json %. "label" `shouldMatch` "domain-registration-update-payment-required"
 
   -- enable domain registration feature
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
-  bindResponse (authorizeTeam mem domain setup.ownershipToken) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+  setup <- setupOwnershipTokenForTeam owner domain
+
+  setTeamFeatureStatus owner tid "domainRegistration" "disabled" >>= assertSuccess
+
+  bindResponse (authorizeTeam owner domain setup.ownershipToken) $ \resp -> do
+    resp.status `shouldMatchInt` 402
+    resp.json %. "label" `shouldMatch` "domain-registration-update-payment-required"
+
+  setTeamFeatureStatus owner tid "domainRegistration" "enabled" >>= assertSuccess
 
   -- admin should not be able to set team-invite if the team hasn't been authorized
   bindResponse
@@ -343,12 +335,11 @@ testUpdateTeamInviteSSO :: (HasCallStack) => App ()
 testUpdateTeamInviteSSO = do
   domain <- randomDomain
   (owner, tid, _m : _) <- createTeam OwnDomain 2
-  setup <- setupOwnershipToken OwnDomain domain
-
-  -- enable domain registration feature
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
+
+  setup <- setupOwnershipTokenForTeam owner domain
 
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
@@ -377,6 +368,22 @@ testUpdateTeamInviteSSO = do
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "sso_code" `shouldMatch` idp
 
+testVerifyChallengeFailsIfLocked :: (HasCallStack) => App ()
+testVerifyChallengeFailsIfLocked  = do
+  (owner, tid, _m : _) <- createTeam OwnDomain 2
+  emailDomain <- randomDomain
+
+  -- enable domain registration feature
+  assertSuccess =<< do
+    setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+    setTeamFeatureStatus owner tid "domainRegistration" "enabled"
+
+  challenge <- setupChallengeAndDnsRecord owner emailDomain
+  domainRegistrationLock OwnDomain emailDomain >>= assertStatus 204
+  bindResponse (verifyDomainForTeam owner emailDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
+
 testUpdateTeamInviteLocked :: (HasCallStack) => App ()
 testUpdateTeamInviteLocked = do
   (owner, tid, _m : _) <- createTeam OwnDomain 2
@@ -387,7 +394,7 @@ testUpdateTeamInviteLocked = do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
-  setup <- setupOwnershipToken OwnDomain domain
+  setup <- setupOwnershipTokenForTeam owner domain
 
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
@@ -421,6 +428,8 @@ testOverwriteOwnershipToken = do
     (mkDomainRedirectBackend "https://wire1.example.com")
     >>= assertStatus 200
 
+  domainRegistrationUnAuthorize OwnDomain domain >>= assertStatus 204
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   -- get a second ownership token
   setup2 <- setupOwnershipToken OwnDomain domain
   updateDomainRedirect
@@ -430,6 +439,8 @@ testOverwriteOwnershipToken = do
     (object ["domain_redirect" .= "remove"])
     >>= assertStatus 200
 
+  domainRegistrationUnAuthorize OwnDomain domain >>= assertStatus 204
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   -- the first ownership token is not valid anymore
   updateDomainRedirect
     OwnDomain
@@ -442,14 +453,16 @@ testChallengeTtl :: (HasCallStack) => App ()
 testChallengeTtl = withModifiedBackend
   (def {brigCfg = (setField "optSettings.setChallengeTTL" (2 :: Int))})
   $ \domain -> do
-    registrationDomain <- randomDomain
-    challenge <- getDomainVerificationChallenge domain registrationDomain >>= getJSON 200
+    emailDomain <- randomDomain
+    domainRegistrationPreAuthorize domain emailDomain >>= assertStatus 204
+
+    challenge <- getDomainVerificationChallenge domain emailDomain >>= getJSON 200
     challengeId <- challenge %. "id" & asString
     challengeToken <- challenge %. "token" & asString
 
     -- wait until the challenge ttl expires
     liftIO $ threadDelay 2_500_000
-    bindResponse (verifyDomain domain registrationDomain challengeId challengeToken) $ \resp -> do
+    bindResponse (verifyDomain domain emailDomain challengeId challengeToken) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
 testGetAndDeleteRegisteredDomains :: (HasCallStack) => App ()
@@ -463,7 +476,7 @@ testGetAndDeleteRegisteredDomains = do
 
   expectedDomains <- replicateM 5 do
     domain <- randomDomain
-    setup <- setupOwnershipToken OwnDomain domain
+    setup <- setupOwnershipTokenForTeam owner domain
     authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
     pure domain
 
@@ -538,13 +551,12 @@ testGetDomainRegistrationUserExistsSso = do
   void $ randomUser OwnDomain def {email = Just svenMail, team = True}
   let newUserMail = "newUser@" <> emailDomain
 
-  setup <- setupOwnershipToken OwnDomain emailDomain
-
   -- enable domain registration feature
   assertSuccess =<< do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
+  setup <- setupOwnershipTokenForTeam owner emailDomain
   authorizeTeam owner emailDomain setup.ownershipToken >>= assertStatus 200
 
   -- [customer admin] register a new idp and use it to set a team-invite config
@@ -585,7 +597,7 @@ testSsoLoginNoEmailVerification = do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
-  setup <- setupOwnershipToken OwnDomain emailDomain
+  setup <- setupOwnershipTokenForTeam owner emailDomain
   authorizeTeam owner emailDomain setup.ownershipToken >>= assertSuccess
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -638,7 +650,7 @@ testScimOnlyWithRegisteredEmailDomain = do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
-  setup <- setupOwnershipToken OwnDomain emailDomain
+  setup <- setupOwnershipTokenForTeam owner emailDomain
   authorizeTeam owner emailDomain setup.ownershipToken >>= assertSuccess
 
   updateTeamInvite owner emailDomain (object ["team_invite" .= "team", "team" .= tid]) >>= assertSuccess
@@ -673,7 +685,7 @@ testScimAndSamlWithRegisteredEmailDomain = do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
-  setup <- setupOwnershipToken OwnDomain emailDomain
+  setup <- setupOwnershipTokenForTeam owner emailDomain
   authorizeTeam owner emailDomain setup.ownershipToken >>= assertSuccess
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -716,7 +728,7 @@ testVerificationRequiredIfEmailDomainRedirectNotSso = do
     setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
-  setup <- setupOwnershipToken OwnDomain emailDomain
+  setup <- setupOwnershipTokenForTeam owner emailDomain
   authorizeTeam owner emailDomain setup.ownershipToken >>= assertSuccess
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"

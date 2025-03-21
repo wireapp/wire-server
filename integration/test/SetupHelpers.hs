@@ -569,15 +569,29 @@ data DomainRegistrationSetup = DomainRegistrationSetup
     ownershipToken :: String
   }
 
-setupOwnershipToken :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
-setupOwnershipToken domain registrationDomain = do
+setupChallengeAndDnsRecord :: (MakesValue domain, HasCallStack) => domain -> String -> App ChallengeSetup
+setupChallengeAndDnsRecord domain registrationDomain = do
   challenge <- setupChallenge domain registrationDomain
-
   -- register TXT DNS record
   registerTechnitiumRecord challenge.technitiumToken registrationDomain ("wire-domain." <> registrationDomain) "TXT" challenge.dnsToken
+  pure challenge
+
+setupOwnershipToken :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
+setupOwnershipToken domain registrationDomain = do
+  challenge <- setupChallengeAndDnsRecord domain registrationDomain
+  -- verify domain
+  ownershipToken <- bindResponse (verifyDomain domain registrationDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_ownership_token" & asString
+
+  pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken
+
+setupOwnershipTokenForTeam :: (MakesValue user, HasCallStack) => user -> String -> App DomainRegistrationSetup
+setupOwnershipTokenForTeam user registrationDomain = do
+  challenge <- setupChallengeAndDnsRecord user registrationDomain
 
   -- verify domain
-  ownershipToken <- bindResponse (verifyDomain OwnDomain registrationDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+  ownershipToken <- bindResponse (verifyDomainForTeam user registrationDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_ownership_token" & asString
 

@@ -129,9 +129,9 @@ runEnterpriseLoginSubsystem = interpret $
     CreateDomainVerificationChallenge domain ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         createDomainVerificationChallengeImpl domain
-    VerifyChallenge domain challengeId challengeToken ->
+    VerifyChallenge mLusr domain challengeId challengeToken ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
-        verifyChallengeImpl domain challengeId challengeToken
+        verifyChallengeImpl mLusr domain challengeId challengeToken
     AuthorizeTeam lusr domain ownershipToken ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         authorizeTeamImpl lusr domain ownershipToken
@@ -236,13 +236,22 @@ verifyChallengeImpl ::
     Member (Input Endpoint) r,
     Member Random r,
     Member Rpc r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
+  Maybe (Local UserId) ->
   Domain ->
   ChallengeId ->
   Token ->
   Sem r Token
-verifyChallengeImpl domain challengeId challengeToken = do
+verifyChallengeImpl mLusr domain challengeId challengeToken = do
+  mCurrentEntry <- lookup domain
+  when (((.domainRedirect) <$> mCurrentEntry) == Just Locked) $
+    throw EnterpriseLoginSubsystemOperationForbidden
+  case mLusr of
+    Just lusr -> void $ guardTeamAdminAccess lusr
+    Nothing -> unless (domainRegistrationForAnonymousAllowed mCurrentEntry) $ throw EnterpriseLoginSubsystemOperationForbidden
   challenge <- Challenge.lookup challengeId >>= note EnterpriseLoginSubsystemChallengeNotFound
   unless
     ( challenge.challengeTokenHash == hashToken challengeToken
@@ -252,15 +261,19 @@ verifyChallengeImpl domain challengeId challengeToken = do
       throw EnterpriseLoginSubsystemAuthFailure
   verifyDNSRecord domain challenge.dnsVerificationToken
   authToken <- Token <$> Random.bytes 32
-  mOld <- lookup domain
-  let old = fromMaybe (mkDomainRegistration domain) mOld
+  let domReg = fromMaybe (mkDomainRegistration domain) mCurrentEntry
   upsert $
-    old
+    domReg
       { authTokenHash = Just $ hashToken authToken,
         dnsVerificationToken = Just challenge.dnsVerificationToken
       }
   Challenge.delete challengeId
   pure authToken
+  where
+    domainRegistrationForAnonymousAllowed :: Maybe DomainRegistration -> Bool
+    domainRegistrationForAnonymousAllowed mDr = case (.domainRedirect) <$> mDr of
+      Just PreAuthorized -> True
+      _ -> False
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
