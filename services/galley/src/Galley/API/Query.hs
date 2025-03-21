@@ -80,6 +80,7 @@ import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.ListItems qualified as E
 import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.TeamStore qualified as E
 import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -107,6 +108,7 @@ import Wire.API.MLS.Keys
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
+import Wire.API.Team.Member (TeamMember, isAdminOrOwner, permissions)
 import Wire.API.User
 import Wire.HashPassword (HashPassword)
 import Wire.RateLimit
@@ -685,14 +687,16 @@ getConversationGuestLinksStatus ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamStore r
   ) =>
   UserId ->
   ConvId ->
   Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksStatus uid convId = do
   conv <- E.getConversation convId >>= noteS @'ConvNotFound
-  ensureConvAdmin (Data.convLocalMembers conv) uid
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember uid) conv.convMetadata.cnvmTeam
+  ensureConvAdmin conv uid mTeamMember
   getConversationGuestLinksFeatureStatus (Data.convTeam conv)
 
 getConversationGuestLinksFeatureStatus ::
@@ -975,11 +979,20 @@ ensureConvAdmin ::
   ( Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r
   ) =>
-  [LocalMember] ->
+  Data.Conversation ->
   UserId ->
+  Maybe TeamMember ->
   Sem r ()
-ensureConvAdmin users uid = do
-  todo "check for channel admin"
-  case find ((== uid) . lmId) users of
+ensureConvAdmin conversation uid mTeamMember = do
+  case find ((== uid) . lmId) conversation.convLocalMembers of
     Nothing -> throwS @'ConvNotFound
-    Just lm -> unless (lmConvRoleName lm == roleNameWireAdmin) $ throwS @'ConvAccessDenied
+    Just lm -> unless (hasAdminPermissions lm) $ throwS @'ConvAccessDenied
+  where
+    hasAdminPermissions :: LocalMember -> Bool
+    hasAdminPermissions lm = lmConvRoleName lm == roleNameWireAdmin || isChannelAdmin mTeamMember
+
+    isChannelAdmin :: Maybe TeamMember -> Bool
+    isChannelAdmin Nothing = False
+    isChannelAdmin (Just tm) =
+      conversation.convMetadata.cnvmGroupConvType == Just Channel
+        && isAdminOrOwner (tm ^. permissions)

@@ -102,6 +102,7 @@ import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
@@ -505,7 +506,8 @@ addCodeUnqualifiedWithReqBody ::
     Member HashPassword r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   UserId ->
   Maybe Text ->
@@ -530,7 +532,8 @@ addCodeUnqualified ::
     Member (Input Opts) r,
     Member HashPassword r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   Maybe CreateConversationCodeRequest ->
   UserId ->
@@ -557,7 +560,8 @@ addCode ::
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Maybe ZHostValue ->
@@ -568,7 +572,8 @@ addCode ::
 addCode lusr mbZHost mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (Data.convTeam conv)
-  Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.convMetadata.cnvmTeam
+  Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
   convUri <- getConversationCodeURI mbZHost
@@ -605,7 +610,8 @@ rmCodeUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -622,7 +628,8 @@ rmCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -631,7 +638,8 @@ rmCode ::
 rmCode lusr zcon lcnv = do
   conv <-
     E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.convMetadata.cnvmTeam
+  Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
   key <- E.makeKey (tUnqualified lcnv)

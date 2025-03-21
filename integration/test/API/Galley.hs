@@ -452,6 +452,12 @@ getConversationCode user conv mbZHost = do
         & maybe id zHost mbZHost
     )
 
+deleteConversationCode :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> App Response
+deleteConversationCode user conv = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit "DELETE" req
+
 getJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
 getJoinCodeConv u k v = do
   req <- baseRequest u Galley Versioned (joinHttpPath ["conversations", "join"])
@@ -786,3 +792,9 @@ sendTypingStatus user conv status = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "typing"])
   submit "POST"
     $ addJSONObject ["status" .= status] req
+
+updateConversationSelf :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> Value -> App Response
+updateConversationSelf user conv payload = do
+  (domain, cnv) <- objQid conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "self"])
+  submit "PUT" $ req & addJSON payload

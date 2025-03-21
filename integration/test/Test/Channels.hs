@@ -150,6 +150,9 @@ testTeamAdminPermissions = do
   -- make nonAdmin a team member again
   updateTeamMember tid owner nonAdmin Member >>= assertSuccess
   assertNoChannelAdminPermission convId conv nonAdmin nonAdminClient (otherMembers !! 4) ownerClient
+  -- finally make them admin again and check that they can delete the conversation
+  updateTeamMember tid owner nonAdmin Admin >>= assertSuccess
+  deleteTeamConv tid conv nonAdmin >>= assertSuccess
   where
     assertChannelAdminPermission :: (HasCallStack) => ConvId -> Value -> Value -> ClientIdentity -> (Value, ClientIdentity) -> Value -> App ()
     assertChannelAdminPermission convId conv user userClient (userToAdd, userToAddClient) userToUpdate = do
@@ -157,20 +160,21 @@ testTeamAdminPermissions = do
       changeConversationName user conv newName >>= assertSuccess
       updateReceiptMode user conv (42 :: Int) >>= assertSuccess
       updateMessageTimer user conv 1000 >>= assertSuccess
-      updateAccess user conv (["access" .= ([] :: [String]), "access_role" .= ["team_member"]]) >>= assertSuccess
+      updateAccess user conv (["access" .= ["code", "invite"], "access_role" .= ["team_member", "guest"]]) >>= assertSuccess
       updateConversationMember user conv userToUpdate "wire_member" >>= assertSuccess
+      updateConversationSelf user conv (object ["otr_archived" .= True]) >>= assertSuccess
+      postConversationCode user conv Nothing Nothing >>= assertSuccess
+      getConversationCode user conv Nothing >>= assertSuccess
+      deleteConversationCode user conv >>= assertSuccess
       bindResponse (getConversation user conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "name" `shouldMatch` newName
         resp.json %. "receipt_mode" `shouldMatchInt` 42
         resp.json %. "message_timer" `shouldMatchInt` 1000
-        asList (resp.json %. "access_role") `shouldMatchSet` ["team_member"]
+        asList (resp.json %. "access_role") `shouldMatchSet` ["team_member", "guest"]
+        resp.json %. "members.self.otr_archived" `shouldMatch` True
       void $ createAddCommit userClient convId [userToAdd] >>= sendAndConsumeCommitBundle
       void $ createRemoveCommit userClient convId [userToAddClient] >>= sendAndConsumeCommitBundle
-    -- TODO:
-    -- allow guests/guest links
-    -- archive conversation
-    -- delete conversation?
 
     assertNoChannelAdminPermission :: (HasCallStack) => ConvId -> Value -> Value -> ClientIdentity -> (Value, ClientIdentity) -> ClientIdentity -> App ()
     assertNoChannelAdminPermission convId conv user userClient (userToAdd, _) userToUpdate = do
@@ -184,12 +188,17 @@ testTeamAdminPermissions = do
       updateMessageTimer user conv 2000 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "action-denied"
-      updateAccess user conv (["access" .= ([] :: [String]), "access_role" .= ["team_member"]]) `bindResponse` \resp -> do
+      updateAccess user conv (["access" .= ["code"], "access_role" .= ["team_member", "guest"]]) `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "action-denied"
       updateConversationMember user conv userToUpdate "wire_member" `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "action-denied"
+      tid <- user %. "team" & asString
+      deleteTeamConv tid conv user `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "action-denied"
+      updateConversationSelf user conv (object ["otr_archived" .= True]) >>= assertSuccess
       -- since the mls test client cannot handle failed commits, we need to restore the state manually
       mlsState <- getMLSState
       createAddCommit userClient convId [userToAdd] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
