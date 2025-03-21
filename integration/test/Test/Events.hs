@@ -135,7 +135,8 @@ testTemporaryQueuesAreDeletedAfterUse = do
     rabbitmqAdmin <- mkRabbitMqAdminClientForResource beResource
     queuesBeforeWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
     let deadNotifsQueue = Queue {name = fromString "dead-user-notifications", vhost = fromString beResource.berVHost}
-    queuesBeforeWS.items `shouldMatch` [deadNotifsQueue]
+        cellsEventsQueue = Queue {name = fromString "cells_events", vhost = fromString beResource.berVHost}
+    queuesBeforeWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue]
 
     [alice, bob] <- createAndConnectUsers [domain, domain]
 
@@ -145,7 +146,7 @@ testTemporaryQueuesAreDeletedAfterUse = do
 
       queuesDuringWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
       addJSONToFailureContext "queuesDuringWS" queuesDuringWS $ do
-        length queuesDuringWS.items `shouldMatchInt` 2
+        length queuesDuringWS.items `shouldMatchInt` 3
 
       -- We cannot use 'assertEvent' here because there is a race between the temp
       -- queue being created and rabbitmq fanning out the previous events.
@@ -159,7 +160,7 @@ testTemporaryQueuesAreDeletedAfterUse = do
 
     -- Use let binding here so 'shouldMatchEventually' retries the whole request
     let queuesAfterWSM = rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
-    fmap (.items) queuesAfterWSM `shouldEventuallyMatch` ([deadNotifsQueue])
+    eventually $ fmap (.items) queuesAfterWSM `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue]
 
 testMLSTempEvents :: (HasCallStack) => App ()
 testMLSTempEvents = do
