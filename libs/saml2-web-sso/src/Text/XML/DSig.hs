@@ -273,12 +273,12 @@ verifySignature :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO (Maybe HXTC.Xml
 verifySignature pks xid doc = do
   let namespaces = DOM.toNsEnv $ HXTC.runLA HXTC.collectNamespaceDecl doc
   x <- case HXTC.runLA (getID xid HXTC.>>> HXTC.attachNsEnv namespaces) doc of
-    [x] -> return x
+    [x] -> pure x
     _ -> fail "verifySignature: element not found"
   sx <- case child "Signature" x of
-    [sx] -> return sx
+    [sx] -> pure sx
     _ -> fail "verifySignature: Signature not found"
-  s@HS.Signature {signatureSignedInfo = si} <- either fail return $ HS.docToSAML sx
+  s@HS.Signature {signatureSignedInfo = si} <- either fail pure $ HS.docToSAML sx
   six <- applyCanonicalization (HS.signedInfoCanonicalizationMethod si) (Just xpath) $ DOM.mkRoot [] [x]
   results <- mapM (`verifyReference` x) (HS.signedInfoReference si)
   let mResult = case filter matchingId (toList results) of
@@ -325,7 +325,7 @@ applyCanonicalization (HS.CanonicalizationMethod (HS.Identified a) ins []) x y =
 applyCanonicalization m _ _ = fail $ "applyCanonicalization: unsupported " ++ show m
 
 applyTransformsBytes :: [HS.Transform] -> BSL.ByteString -> IO BSL.ByteString
-applyTransformsBytes [] v = return v
+applyTransformsBytes [] v = pure v
 applyTransformsBytes (t : _) _ = fail ("applyTransforms: unsupported Signature " ++ show t)
 
 applyTransformsXML :: [HS.Transform] -> HXTC.XmlTree -> IO BSL.ByteString
@@ -341,7 +341,7 @@ applyTransformsXML (HS.Transform (HS.Identified HS.TransformEnvelopedSignature) 
           HXTC.processChildren $
             HXTC.neg (isDSElem "Signature")
       )
-applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . return
+applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . pure
 
 applyTransforms :: Maybe HS.Transforms -> HXTC.XmlTree -> IO BSL.ByteString
 applyTransforms = applyTransformsXML . maybe [] (NonEmpty.toList . HS.transforms)
@@ -364,12 +364,12 @@ verifyReference r doc = case HS.referenceURI r of
         t :: BSL.ByteString <- applyTransforms (HS.referenceTransforms r) $ DOM.mkRoot [] x
         let have = applyDigest (HS.referenceDigestMethod r) t
             want = HS.referenceDigestValue r
-        return $
+        pure $
           if have == want
             then Right (xid, result)
             else Left $ "#" <> xid <> ": digest mismatch"
-      bad -> return . Left $ "#" <> xid <> ": has " <> show (length bad) <> " matches, should have 1."
-  bad -> return . Left $ "unexpected referenceURI: " <> show bad
+      bad -> pure . Left $ "#" <> xid <> ": has " <> show (length bad) <> " matches, should have 1."
+  bad -> pure . Left $ "unexpected referenceURI: " <> show bad
 
 ----------------------------------------------------------------------
 -- signature creation

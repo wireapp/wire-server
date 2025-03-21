@@ -223,7 +223,7 @@ spec = describe "API" $ do
       SignedAuthnResponse authnrespDoc <-
         ioFromTestSP ctx $ mkAuthnResponse privcert testIdPConfig spmeta authnreq True
       parseFromDocument @AuthnResponse authnrespDoc `shouldSatisfy` isRight
-    let check :: HasCallStack => Bool -> (Either SomeException () -> Bool) -> IO ()
+    let check :: (HasCallStack) => Bool -> (Either SomeException () -> Bool) -> IO ()
         check certIsGood expectation = do
           testIdPConfig@(_, SampleIdP _ privkey _ goodCert) <- makeTestIdPConfig
           (_, SampleIdP _ _ _ badCert) <- makeTestIdPConfig

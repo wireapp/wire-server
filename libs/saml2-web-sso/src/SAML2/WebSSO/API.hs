@@ -24,7 +24,6 @@ import Control.Lens hiding (element)
 import Control.Monad hiding (ap)
 import Control.Monad.Except
 import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
-import Data.Text.Lazy qualified as LT
 import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive qualified as CI
 import Data.EitherR
@@ -34,6 +33,7 @@ import Data.Maybe (mapMaybe)
 import Data.Proxy
 import Data.String.Conversions
 import Data.Text qualified as ST
+import Data.Text.Lazy qualified as LT
 import Data.Time
 import GHC.Generics
 import SAML2.Util
@@ -52,8 +52,8 @@ import Text.Show.Pretty (ppShow)
 import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig
-import URI.ByteString
 import Text.XML.HXT.Core (XmlTree)
+import URI.ByteString
 
 ----------------------------------------------------------------------
 -- saml web-sso api
@@ -225,7 +225,6 @@ allVerifies creds raw nodeids = do
 renderVerifyErrorHack :: forall m err a. (MonadError (Error err) m) => Either String a -> m a
 renderVerifyErrorHack = either throwError pure . fmapL (BadSamlResponseSamlError . LT.pack)
 
-
 -- | ADFS illegally breaks whitespace after signing documents; here we try to fix that.
 -- https://github.com/wireapp/wire-server/issues/656
 -- (This may also have been a copy&paste issue in customer support, but let's just leave it in just in case.)
@@ -233,14 +232,14 @@ verifyADFS :: (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> NonEmpt
 verifyADFS creds raw nodeids = do
   xmls :: NonEmpty XmlTree <-
     either throwError pure . fmapL (BadSamlResponseXmlError . LT.pack) $
-    verify creds (tweak raw) `mapM` nodeids
+      verify creds (tweak raw) `mapM` nodeids
   (renderVerifyErrorHack . parseFromXmlTree) `mapM` xmls
   where
-        tweak :: LBS -> LBS
-        tweak "" = ""
-        tweak rw = case (LBS.splitAt 3 rw, LBS.splitAt 1 rw) of
-          (("> <", tl), _) -> "><" <> tweak tl
-          (_, (hd, tl)) -> hd <> tweak tl
+    tweak :: LBS -> LBS
+    tweak "" = ""
+    tweak rw = case (LBS.splitAt 3 rw, LBS.splitAt 1 rw) of
+      (("> <", tl), _) -> "><" <> tweak tl
+      (_, (hd, tl)) -> hd <> tweak tl
 
 ----------------------------------------------------------------------
 -- form redirect

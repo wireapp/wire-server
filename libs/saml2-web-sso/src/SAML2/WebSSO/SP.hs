@@ -292,7 +292,7 @@ foldJudge (toList -> assertions) = do
   pure $ case (granteds, denieds) of
     (nub -> [result@(AccessGranted _)], []) -> result
     (_, denied : _) -> denied
-    (bad, _) -> AccessDenied (DeniedBadUserRefs (show bad) : join (view avReasons <$> denieds))
+    (bad, _) -> AccessDenied (DeniedBadUserRefs (show bad) : (view avReasons =<< denieds))
 
 judge1 :: (HasCallStack, MonadJudge m, SP m, SPStore m) => Assertion -> m AccessVerdict
 judge1 assertion = do
@@ -349,7 +349,7 @@ checkStatement stm =
 checkSubjectConfirmations :: (SP m, SPStore m, MonadJudge m) => Assertion -> m ()
 checkSubjectConfirmations assertion = do
   bearerFlags :: [HasBearerConfirmation] <- case assertion ^. assContents . sasSubject of
-      Subject _ confs -> checkSubjectConfirmation assertion `mapM` confs
+    Subject _ confs -> checkSubjectConfirmation assertion `mapM` confs
   unless (nub bearerFlags == [HasBearerConfirmation]) $
     deny DeniedNoBearerConfSubj
 
