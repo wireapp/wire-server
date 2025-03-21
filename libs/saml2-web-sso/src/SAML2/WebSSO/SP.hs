@@ -13,8 +13,6 @@ import Data.Foldable (toList)
 import Data.Kind (Type)
 import Data.List (nub, partition)
 import Data.List.NonEmpty (NonEmpty)
-import Data.Maybe
-import Data.Semigroup qualified
 import Data.String.Conversions
 import Data.Time
 import Data.UUID (UUID)
@@ -287,12 +285,12 @@ foldJudge (toList -> assertions) = do
         verdicts
           & partition
             ( \case
-                r@(AccessDenied _) -> False
-                r@(AccessGranted _) -> True
+                AccessDenied _ -> False
+                AccessGranted _ -> True
             )
 
   pure $ case (granteds, denieds) of
-    (nub -> [result@(AccessGranted uref)], []) -> result
+    (nub -> [result@(AccessGranted _)], []) -> result
     (_, denied : _) -> denied
     (bad, _) -> AccessDenied (DeniedBadUserRefs (show bad) : join (view avReasons <$> denieds))
 
