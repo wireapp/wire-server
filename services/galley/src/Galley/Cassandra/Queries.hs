@@ -230,6 +230,7 @@ type ConvRow =
     Maybe (Writetime Epoch),
     Maybe CipherSuiteTag,
     Maybe GroupConvType,
+    Maybe AddPermission,
     Maybe CellsState
   )
 

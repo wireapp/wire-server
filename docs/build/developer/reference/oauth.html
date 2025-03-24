@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>6. OAuth &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="7. SCIM tokens" href="provisioning/scim-token.html" />
+    <link rel="prev" title="5. Make docker and QEMU" href="make-docker-and-qemu.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../developer/index.html">Developer</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Reference</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="config-options.html">1. Config Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="conversation.html">2. Creating and populating conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="elastic-search.html">3. Maintaining ElasticSearch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="elasticsearch-migration-2021-02-16.html">4. ElasticSearch migration instructions for release 2021-02-16</a></li>
+<li class="toctree-l3"><a class="reference internal" href="make-docker-and-qemu.html">5. Make docker and QEMU</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">6. OAuth</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#introduction-and-overview">6.1. Introduction and overview</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#oauth-client-developer-reference">6.2. OAuth client developer reference</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wire-client-developer-reference-zauth-authorized-api">6.3. Wire client developer reference (ZAuth authorized API)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#site-admin-reference-configuration">6.4. Site admin reference (Configuration)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#enable-3rd-party-apps-for-teams">6.5. Enable 3rd party apps for teams</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#implementation-details">6.6. Implementation details</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="provisioning/scim-token.html">7. SCIM tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="spar-braindump.html">8. Spar braindump</a></li>
+<li class="toctree-l3"><a class="reference internal" href="team/legalhold.html">9. Legal hold</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/activation.html">10. User Activation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/connection.html">11. Connection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/connection.html#connection-backend-internals">12. Connection backend internals</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/registration.html">13. User Registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/rich-info.html">14. User Rich info</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Reference</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">6. </span>OAuth</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/oauth.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="oauth">
+<h1><a class="toc-backref" href="#id1" role="doc-backlink"><span class="section-number">6. </span>OAuth</a><a class="headerlink" href="#oauth" title="Permalink to this heading"></a></h1>
+<nav class="contents" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#oauth" id="id1">OAuth</a></p>
+<ul>
+<li><p><a class="reference internal" href="#introduction-and-overview" id="id2">Introduction and overview</a></p>
+<ul>
+<li><p><a class="reference internal" href="#roles" id="id3">Roles</a></p></li>
+<li><p><a class="reference internal" href="#supported-oauth-flow" id="id4">Supported OAuth flow</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#oauth-client-developer-reference" id="id5">OAuth client developer reference</a></p>
+<ul>
+<li><p><a class="reference internal" href="#registering-an-oauth-client" id="id6">Registering an OAuth client</a></p></li>
+<li><p><a class="reference internal" href="#authorization-request" id="id7">Authorization request</a></p></li>
+<li><p><a class="reference internal" href="#retrieve-access-and-refresh-token" id="id8">Retrieve access and refresh token</a></p></li>
+<li><p><a class="reference internal" href="#accessing-a-resource" id="id9">Accessing a resource</a></p></li>
+<li><p><a class="reference internal" href="#refresh-access-token" id="id10">Refresh access token</a></p></li>
+<li><p><a class="reference internal" href="#revoke-a-refresh-token" id="id11">Revoke a refresh token</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#wire-client-developer-reference-zauth-authorized-api" id="id12">Wire client developer reference (ZAuth authorized API)</a></p>
+<ul>
+<li><p><a class="reference internal" href="#retrieve-oauth-client-info" id="id13">Retrieve OAuth client info</a></p></li>
+<li><p><a class="reference internal" href="#retrieve-a-list-of-3rd-party-apps-with-account-access" id="id14">Retrieve a list of 3rd party apps with account access</a></p></li>
+<li><p><a class="reference internal" href="#revoke-account-access" id="id15">Revoke account access</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#site-admin-reference-configuration" id="id16">Site admin reference (Configuration)</a></p>
+<ul>
+<li><p><a class="reference internal" href="#enable-disable-oauth" id="id17">Enable/disable OAuth</a></p></li>
+<li><p><a class="reference internal" href="#oauth-authorization-code-access-token-and-refresh-token-expiration" id="id18">OAuth authorization code, access token, and refresh token expiration</a></p></li>
+<li><p><a class="reference internal" href="#maximum-number-of-active-refresh-tokens" id="id19">Maximum number of active refresh tokens</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#enable-3rd-party-apps-for-teams" id="id20">Enable 3rd party apps for teams</a></p></li>
+<li><p><a class="reference internal" href="#implementation-details" id="id21">Implementation details</a></p>
+<ul>
+<li><p><a class="reference internal" href="#token-handling" id="id22">Token handling</a></p></li>
+<li><p><a class="reference internal" href="#scopes" id="id23">Scopes</a></p></li>
+<li><p><a class="reference internal" href="#steps-for-adding-a-new-scope-making-an-endpoint-accessible-via-oauth" id="id24">Steps for adding a new scope (making an endpoint accessible via OAuth)</a></p></li>
+<li><p><a class="reference internal" href="#public-private-keys" id="id25">Public/private keys</a></p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+<section id="introduction-and-overview">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink"><span class="section-number">6.1. </span>Introduction and overview</a><a class="headerlink" href="#introduction-and-overview" title="Permalink to this heading"></a></h2>
+<p>OAuth 2.0 is used to authorize 3rd party applications to access <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> resources on behalf of a Wire user.</p>
+<p>Currently, only 3rd party apps that have been implemented and approved by Wire are supported. OAuth is not open for public use.</p>
+<p>Supported OAuth apps:</p>
+<ul class="simple">
+<li><p>Outlook Calendar Extension</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">wire-server</span></code> implements a subset of the <a class="reference external" href="https://www.rfc-editor.org/rfc/rfc6749">The OAuth 2.0 Authorization Framework (RFC 6749)</a>.</p>
+<p>Please refer to the documentation below for a reference of the subset that is implemented without the noise of having to go through the complete RFC.</p>
+<section id="roles">
+<h3><a class="toc-backref" href="#id3" role="doc-backlink"><span class="section-number">6.1.1. </span>Roles</a><a class="headerlink" href="#roles" title="Permalink to this heading"></a></h3>
+<section id="the-user-resource-owner">
+<h4><span class="section-number">6.1.1.1. </span>The user (resource owner)<a class="headerlink" href="#the-user-resource-owner" title="Permalink to this heading"></a></h4>
+<p>The user is the resource owner who gives permission to the OAuth client to access parts of their resources.</p>
+</section>
+<section id="rd-party-application-oauth-client">
+<h4><span class="section-number">6.1.1.2. </span>3rd party application (OAuth client)<a class="headerlink" href="#rd-party-application-oauth-client" title="Permalink to this heading"></a></h4>
+<p>A 3rd party app is attempting to get access a resource on behalf of the user. It needs to get permission from the user in order to do so.  The terminology is a bit fuzzy here: we use the terms app, application, client synonymous.  To disambiguate, we qualify with “oauth” (<em>oauth</em> client, …).</p>
+</section>
+<section id="resource-server">
+<h4><span class="section-number">6.1.1.3. </span>Resource server<a class="headerlink" href="#resource-server" title="Permalink to this heading"></a></h4>
+<p>The resource server is the API server the 3rd party app attempts to access on behalf of the user. In our case the resource server is <code class="docutils literal notranslate"><span class="pre">wire-server</span></code>.</p>
+</section>
+<section id="authorization-server">
+<h4><span class="section-number">6.1.1.4. </span>Authorization server<a class="headerlink" href="#authorization-server" title="Permalink to this heading"></a></h4>
+<p>The authorization server does the authentication of the user and establishes whether the user approves or denies the client’s access request. In this case the authorization server is the same server as the resource server which is <code class="docutils literal notranslate"><span class="pre">wire-server</span></code>.</p>
+</section>
+</section>
+<section id="supported-oauth-flow">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink"><span class="section-number">6.1.2. </span>Supported OAuth flow</a><a class="headerlink" href="#supported-oauth-flow" title="Permalink to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">wire-server</span></code> currently only supports the <a class="reference external" href="https://www.rfc-editor.org/rfc/rfc7636">Authorization Code Flow with Proof Key for Code Exchange (PKCE)</a> which is optimized for public clients such as Outlook Calendar Extension.</p>
+<img alt="../../_images/oauth.svg" src="../../_images/oauth.svg" /></section>
+</section>
+<section id="oauth-client-developer-reference">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink"><span class="section-number">6.2. </span>OAuth client developer reference</a><a class="headerlink" href="#oauth-client-developer-reference" title="Permalink to this heading"></a></h2>
+<section id="registering-an-oauth-client">
+<h3><a class="toc-backref" href="#id6" role="doc-backlink"><span class="section-number">6.2.1. </span>Registering an OAuth client</a><a class="headerlink" href="#registering-an-oauth-client" title="Permalink to this heading"></a></h3>
+<p>A new OAuth client can be register <em>only</em> via the internal API of <code class="docutils literal notranslate"><span class="pre">brig</span></code> by providing an application name and a redirect URL:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="w">  </span>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>server-internal.example.com/i/oauth/clients<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+<span class="s1">      &quot;application_name&quot;:&quot;Outlook Calendar Extension&quot;,</span>
+<span class="s1">      &quot;redirect_url&quot;:&quot;https://client.example.com&quot;</span>
+<span class="s1">    }&#39;</span>
+</pre></div>
+</div>
+<p>Parameters:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">redirect_url</span></code></p></td>
+<td><p>The URL to which Wire app will redirect the browser after authorization has been granted by the user</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">application_name</span></code></p></td>
+<td><p>The name of the application that will be shown on the consent page</p></td>
+</tr>
+</tbody>
+</table>
+<p>Client credentials will be generated and returned by wire-server:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;clientId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;b9e65569-aa61-462d-915d-94c8d6ef17a7&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;clientSecret&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3f6fbd62835859b2bac411b2a2a2a54699ec56504ee32099748de3a762d41a2d&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>These credentials have to be stored in a safe place and cannot be recovered if they are lost.</p>
+</section>
+<section id="authorization-request">
+<h3><a class="toc-backref" href="#id7" role="doc-backlink"><span class="section-number">6.2.2. </span>Authorization request</a><a class="headerlink" href="#authorization-request" title="Permalink to this heading"></a></h3>
+<p>When the user wants to use the 3rd party app for the first time, they need to authorize it to access Wire resources on their behalf.</p>
+<p>They first need to click on the “Login” (or similar) button (1. in OAuth 2.0 authorization code flow diagram above) which will redirect them to a Wire login page to authenticate (2.-3. in diagram above). Once authenticated, they are redirected to the consent page.</p>
+<p>If the user is already logged in the authentication will be skipped and they are directly shown the consent page.</p>
+<p>On the consent page, the user is asked to authorize the client’s access request. They can either grant or deny the request and the corresponding scope, a list of permissions to give to the 3rd party app, (4. in diagram above).</p>
+<p>The client needs to create a unique <code class="docutils literal notranslate"><span class="pre">code_verifier</span></code> as described in <a class="reference external" href="https://www.rfc-editor.org/rfc/rfc7636#section-4.1">RFC 7636 section 4.1</a> and send a <code class="docutils literal notranslate"><span class="pre">code_challenge</span></code>, which is the unpadded base64url-encoded SHA256 hash of the code verifier as described in <a class="reference external" href="https://www.rfc-editor.org/rfc/rfc7636#section-4.2">RFC 7636 section 4.2</a>. The <code class="docutils literal notranslate"><span class="pre">code_challenge</span></code> must be included in the request. The <code class="docutils literal notranslate"><span class="pre">S256</span></code> code challenge method is mandatory. The <code class="docutils literal notranslate"><span class="pre">code_verifier</span></code> must not be included in the request.</p>
+<p>Example request:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>GET /authorize?
+  scope=read%3Aself%20write%3Aconversation&amp;
+  response_type=code&amp;
+  client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&amp;
+  redirect_uri=https%3A%2F%2Fclient.example.com&amp;
+  state=foobar&amp;
+  code_challenge=qVrqDTN8ivyWEEw6wyfUc3bwhCA2RE4V2fbiC4mC7ofqAF4t&amp;
+  code_challenge_method=S256 HTTP/1.1
+</pre></div>
+</div>
+<p>Url encoded query parameters:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scope</span></code></p></td>
+<td><p>Required. The scope of the access request.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">response_type</span></code></p></td>
+<td><p>Required. Value MUST be set to <code class="docutils literal notranslate"><span class="pre">code</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">client_id</span></code></p></td>
+<td><p>Required. The client identifier.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">redirect_url</span></code></p></td>
+<td><p>Required. MUST match the URL that was provided during client registration</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">state</span></code></p></td>
+<td><p>Required. An opaque value used by the client to maintain state between the request and callback.</br>The authorization server includes this value when redirecting the user-agent back to the client.</br>The parameter is used for preventing cross-site request forgery.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">code_challenge</span></code></p></td>
+<td><p>Required. Generated by the client from the <code class="docutils literal notranslate"><span class="pre">code_verifier</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">code_challenge_method</span></code></p></td>
+<td><p>Required. It MUST be set to <code class="docutils literal notranslate"><span class="pre">S256</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Once the user consents, the browser will be redirected back to the 3rd party app, using the redirect URI provided during client registration, with an authorization code and the state value as query parameters (5. in diagram above). The authorization code can now be used by the 3rd party app to retrieve an access token and a refresh token and is good for one use.</p>
+<p>Example response:</p>
+<div class="highlight-http notranslate"><div class="highlight"><pre><span></span><span class="kr">HTTP</span><span class="o">/</span><span class="m">1.1</span> <span class="m">302</span> <span class="ne">Found</span>
+<span class="na">Transfer-Encoding</span><span class="o">:</span> <span class="l">chunked</span>
+<span class="na">Date</span><span class="o">:</span> <span class="l">Thu, 23 Feb 2023 15:50:21 GMT</span>
+<span class="na">Server</span><span class="o">:</span> <span class="l">Warp/3.3.23</span>
+<span class="na">Location</span><span class="o">:</span> <span class="l">https://client.example.com?code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&amp;state=foobar</span>
+<span class="na">Vary</span><span class="o">:</span> <span class="l">Accept-Encoding</span>
+</pre></div>
+</div>
+</section>
+<section id="retrieve-access-and-refresh-token">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink"><span class="section-number">6.2.3. </span>Retrieve access and refresh token</a><a class="headerlink" href="#retrieve-access-and-refresh-token" title="Permalink to this heading"></a></h3>
+<p>The 3rd party app sends the authorization code together with the client credentials and the parameters shown below using the <code class="docutils literal notranslate"><span class="pre">application/x-www-form-urlencoded</span></code> format with character encoding of UTF-8 to the authorization server (6. in diagram above) to retrieve an access token and a refresh token (7.-8. in diagram above):</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>server.example.com/oauth/token<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/x-www-form-urlencoded&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&amp;client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&amp;grant_type=authorization_code&amp;redirect_uri=https%3A%2F%2Fclient.example.com&amp;code_verifier=2dae11ce5e162e2c01180ae4f8b55103b8297408b8aab12f99f63df3c2415234&#39;</span>
+</pre></div>
+</div>
+<p>Parameters:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">code</span></code></p></td>
+<td><p>Required. The authorization code received from the authorization server.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">client_id</span></code></p></td>
+<td><p>Required. The client identifier.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grant_type</span></code></p></td>
+<td><p>Required. Value MUST be set to <code class="docutils literal notranslate"><span class="pre">authorization_code</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">redirect_uri</span></code></p></td>
+<td><p>Required. The value MUST be identical to the one provided in the  authorization request</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">code_verifier</span></code></p></td>
+<td><p>Required. The code verifier as described above.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Example response:</p>
+<div class="highlight-JSON notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;access_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eyJhbGciOiJFZERTQSJ9.eyJhdWQiOiJleGFtcGxlLmNvbSIsImV4cCI6MS42NzcyMzYyNDkxMTIzMTk3MWU5LCJpYXQiOjEuNjc3MjM2MjQ2MTEyMzE5NzFlOSwiaXNzIjoiZXhhbXBsZS5jb20iLCJzY29wZSI6InJlYWQ6c2VsZiIsInN1YiI6ImJhOTIxY2ZmLWU1ZWEtNDMxNS1iZTNkLWZiNjA3NTU0M2Y3MCJ9.5ksjS7msi9NSNat-qh7-Y5O-u9TcuYeLWTAsiAyes_oLwfjD_jYtGevUAuiVV6RXgPBO00VEMv-ZS86e7sd5Dg&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;expires_in&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">300</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;refresh_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiI4NzI1ZTRkNC01Njc5LTQwZGEtOTI3My03YTBkMmIwYjUwMGYifQ.59IICzGoli5nfwJ1ZwRH_b3T-lRgBrralE1EZZRtadI2eKrta0kaLIZpuMWPC2Icj6-LSEBsyYLXpxOm3cNaDw&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;token_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Bearer&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The expiration time in the response (<code class="docutils literal notranslate"><span class="pre">expires_in</span></code>) refers to the expiration time of the access token.</p>
+</section>
+<section id="accessing-a-resource">
+<h3><a class="toc-backref" href="#id9" role="doc-backlink"><span class="section-number">6.2.4. </span>Accessing a resource</a><a class="headerlink" href="#accessing-a-resource" title="Permalink to this heading"></a></h3>
+<p>The access token, presented as <code class="docutils literal notranslate"><span class="pre">Bearer</span> <span class="pre">&lt;token&gt;</span></code> in the <code class="docutils literal notranslate"><span class="pre">Authorization</span></code> header, can now be used by the 3rd party app to access resources on behalf of the user (9.-11. in diagram above).</p>
+</section>
+<section id="refresh-access-token">
+<h3><a class="toc-backref" href="#id10" role="doc-backlink"><span class="section-number">6.2.5. </span>Refresh access token</a><a class="headerlink" href="#refresh-access-token" title="Permalink to this heading"></a></h3>
+<p>Access tokens are short lived and need to be refreshed regularly. To do so, the client makes a refresh request to the token endpoint by adding the parameters shown below using the <code class="docutils literal notranslate"><span class="pre">application/x-www-form-urlencoded</span></code> format with a character encoding of UTF-8 in the HTTP request entity-body.</p>
+<p>Example request:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>server.example.com/oauth/token<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/x-www-form-urlencoded&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;refresh_token=eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiI4NzI1ZTRkNC01Njc5LTQwZGEtOTI3My03YTBkMmIwYjUwMGYifQ.59IICzGoli5nfwJ1ZwRH_b3T-lRgBrralE1EZZRtadI2eKrta0kaLIZpuMWPC2Icj6-LSEBsyYLXpxOm3cNaDw&amp;client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&amp;grant_type=refresh_token&amp;client_secret=3f6fbd62835859b2bac411b2a2a2a54699ec56504ee32099748de3a762d41a2d&#39;</span>
+</pre></div>
+</div>
+<p>Parameters:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">refresh_token</span></code></p></td>
+<td><p>Required. The refresh token issued to the client.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">client_id</span></code></p></td>
+<td><p>Required. The client identifier.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grant_type</span></code></p></td>
+<td><p>Required. Value MUST be set to <code class="docutils literal notranslate"><span class="pre">refresh_token</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">client_secret</span></code></p></td>
+<td><p>Required. The client’s secret.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Example response:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;access_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eyJhbGciOiJFZERTQSJ9.eyJhdWQiOiJleGFtcGxlLmNvbSIsImV4cCI6MS42NzcyMzc3MjkyMzAyMDU3NTJlOSwiaWF0IjoxLjY3NzIzNzcyNjIzMDIwNTc1MmU5LCJpc3MiOiJleGFtcGxlLmNvbSIsInNjb3BlIjoicmVhZDpzZWxmIiwic3ViIjoiYmE5MjFjZmYtZTVlYS00MzE1LWJlM2QtZmI2MDc1NTQzZjcwIn0.__fa8l5E2L-DNaxG5tJFLF8zf5y8lpCJI0F5MOFPdewaXbOLleTJ_eAueCjG7dB7yXNVY9Uiry_W5Mw7O19UCw&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;expires_in&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">300</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;refresh_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiJjMzQwOWU4OC0wYmE5LTQ3YjgtOWQ0My03YTVmMmM3YjhlNGYifQ.Padku_6pOUIlE469cW5TELtiNtO1mZnBrRpj8CRMgNVBTck7qxInz6LyXVYfSV7soAa44202yXzI0o4IcfZiBA&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;token_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Bearer&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="revoke-a-refresh-token">
+<h3><a class="toc-backref" href="#id11" role="doc-backlink"><span class="section-number">6.2.6. </span>Revoke a refresh token</a><a class="headerlink" href="#revoke-a-refresh-token" title="Permalink to this heading"></a></h3>
+<p>A refresh token can be revoked as follows:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-i<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>localhost:8080/oauth/revoke<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+<span class="s1">    &quot;client_id&quot;: &quot;31a605c5-b033-405a-ab05-f8307cf22d3f&quot;,</span>
+<span class="s1">    &quot;client_secret&quot;: &quot;d2580e9b759eca52fdf3a21532ea5aae0e08706529a0a6e6fa4ab2a3d7b39da4&quot;,</span>
+<span class="s1">    &quot;refresh_token&quot;: &quot;eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiJjMzQwOWU4OC0wYmE5LTQ3YjgtOWQ0My03YTVmMmM3YjhlNGYifQ.Padku_6pOUIlE469cW5TELtiNtO1mZnBrRpj8CRMgNVBTck7qxInz6LyXVYfSV7soAa44202yXzI0o4IcfZiBA&quot;</span>
+<span class="s1">  }&#39;</span>
+</pre></div>
+</div>
+<p>Parameters:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">client_id</span></code></p></td>
+<td><p>Required. The client identifier.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">refresh_token</span></code></p></td>
+<td><p>Required. The refresh token issued to the client.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">client_secret</span></code></p></td>
+<td><p>Required. The client’s secret.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Example response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">HTTP</span><span class="o">/</span><span class="mf">1.1</span> <span class="mi">200</span> <span class="n">OK</span>
+<span class="p">(</span><span class="n">empty</span><span class="o">-</span><span class="n">response</span><span class="o">-</span><span class="n">body</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="wire-client-developer-reference-zauth-authorized-api">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink"><span class="section-number">6.3. </span>Wire client developer reference (ZAuth authorized API)</a><a class="headerlink" href="#wire-client-developer-reference-zauth-authorized-api" title="Permalink to this heading"></a></h2>
+<section id="retrieve-oauth-client-info">
+<h3><a class="toc-backref" href="#id13" role="doc-backlink"><span class="section-number">6.3.1. </span>Retrieve OAuth client info</a><a class="headerlink" href="#retrieve-oauth-client-info" title="Permalink to this heading"></a></h3>
+<p>Authenticated endpoint to retrieve client information, necessary to display authorization prompt/user consent page.</p>
+<p>See <a class="reference external" href="https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/get_oauth_clients__OAuthClientId_">swagger docs</a>.</p>
+</section>
+<section id="retrieve-a-list-of-3rd-party-apps-with-account-access">
+<h3><a class="toc-backref" href="#id14" role="doc-backlink"><span class="section-number">6.3.2. </span>Retrieve a list of 3rd party apps with account access</a><a class="headerlink" href="#retrieve-a-list-of-3rd-party-apps-with-account-access" title="Permalink to this heading"></a></h3>
+<p>Authenticated endpoint to retrieve a list of all applications that have account access via OAuth.</p>
+<p>See <a class="reference external" href="https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/get_oauth_applications">swagger docs</a>.</p>
+</section>
+<section id="revoke-account-access">
+<h3><a class="toc-backref" href="#id15" role="doc-backlink"><span class="section-number">6.3.3. </span>Revoke account access</a><a class="headerlink" href="#revoke-account-access" title="Permalink to this heading"></a></h3>
+<p>3rd party app access can be revoked, by invalidating all active refresh tokens, as follows:</p>
+<p>See <a class="reference external" href="https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/delete_oauth_applications__OAuthClientId_">swagger docs</a>.</p>
+</section>
+</section>
+<section id="site-admin-reference-configuration">
+<h2><a class="toc-backref" href="#id16" role="doc-backlink"><span class="section-number">6.4. </span>Site admin reference (Configuration)</a><a class="headerlink" href="#site-admin-reference-configuration" title="Permalink to this heading"></a></h2>
+<section id="enable-disable-oauth">
+<h3><a class="toc-backref" href="#id17" role="doc-backlink"><span class="section-number">6.4.1. </span>Enable/disable OAuth</a><a class="headerlink" href="#enable-disable-oauth" title="Permalink to this heading"></a></h3>
+<p>If not configured, OAuth is disabled per default. OAuth can be enabled in the wire-server Helm as follows:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">brig</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># ...</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># ...</span>
+<span class="w">    </span><span class="nt">optSettings</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># ...</span>
+<span class="w">      </span><span class="nt">setOAuthEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<section id="setting-up-public-and-private-keys">
+<h4><span class="section-number">6.4.1.1. </span>Setting up public and private keys<a class="headerlink" href="#setting-up-public-and-private-keys" title="Permalink to this heading"></a></h4>
+<p>To use the OAuth functionality, you will need to set up a public and private JSON web key pair (JWK) in the wire-server Helm chart. This key pair will be used to sign and verify OAuth access tokens.</p>
+<p>Key can be generated e.g. with <a class="reference external" href="https://github.com/lestrrat-go/jwx/tree/develop/v2/cmd/jwx">jwx</a> like this:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>jwx<span class="w"> </span>jwk<span class="w"> </span>generate<span class="w"> </span>--type<span class="w"> </span>OKP<span class="w"> </span>--curve<span class="w"> </span>Ed25519<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-c
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">jwx</span></code> is available via nix: <code class="docutils literal notranslate"><span class="pre">nix-shell</span> <span class="pre">-p</span> <span class="pre">jwx</span></code>.</p>
+<p>To configure the JWK, go to the wire-server Helm chart and provide the JWK information, private and public key set for <code class="docutils literal notranslate"><span class="pre">brig</span></code> and the public key for <code class="docutils literal notranslate"><span class="pre">nginz</span></code>, as in the examples below:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># values.yaml or secrets.yaml</span>
+<span class="nt">brig</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">secrets</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">oauthJwkKeyPair</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">      </span><span class="no">{</span>
+<span class="w">        </span><span class="no">&quot;kty&quot;: &quot;OKP&quot;,</span>
+<span class="w">        </span><span class="no">&quot;crv&quot;: &quot;Ed25519&quot;,</span>
+<span class="w">        </span><span class="no">&quot;x&quot;: &quot;...&quot;,</span>
+<span class="w">        </span><span class="no">&quot;d&quot;: &quot;...&quot;</span>
+<span class="w">      </span><span class="no">}</span>
+</pre></div>
+</div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># values.yaml or secrets.yaml</span>
+<span class="nt">nginz</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">secrets</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">oAuth</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">publicKeys</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">{</span>
+<span class="w">          </span><span class="no">&quot;kty&quot;: &quot;OKP&quot;,</span>
+<span class="w">          </span><span class="no">&quot;crv&quot;: &quot;Ed25519&quot;,</span>
+<span class="w">          </span><span class="no">&quot;x&quot;: &quot;...&quot;</span>
+<span class="w">        </span><span class="no">}</span>
+</pre></div>
+</div>
+<p>Note that the JWK is a sensitive configuration value, so it is recommended to use Helm’s support for managing secrets instead of including it in a plaintext <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> file.</p>
+</section>
+</section>
+<section id="oauth-authorization-code-access-token-and-refresh-token-expiration">
+<h3><a class="toc-backref" href="#id18" role="doc-backlink"><span class="section-number">6.4.2. </span>OAuth authorization code, access token, and refresh token expiration</a><a class="headerlink" href="#oauth-authorization-code-access-token-and-refresh-token-expiration" title="Permalink to this heading"></a></h3>
+<p>The the OAuth authorization code expiration and access and refresh token expiration can be overridden in the Helm file as follows:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">brig</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># ...</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># ...</span>
+<span class="w">    </span><span class="nt">optSettings</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># ...</span>
+<span class="w">      </span><span class="nt">setOAuthAuthCodeExpirationTimeSecs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span><span class="w"> </span><span class="c1"># 5 minutes</span>
+<span class="w">      </span><span class="nt">setOAuthAccessTokenExpirationTimeSecs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span><span class="w"> </span><span class="c1"># 5 minutes</span>
+<span class="w">      </span><span class="nt">setOAuthRefreshTokenExpirationTimeSecs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">14515200</span><span class="w"> </span><span class="c1"># 24 weeks</span>
+</pre></div>
+</div>
+</section>
+<section id="maximum-number-of-active-refresh-tokens">
+<h3><a class="toc-backref" href="#id19" role="doc-backlink"><span class="section-number">6.4.3. </span>Maximum number of active refresh tokens</a><a class="headerlink" href="#maximum-number-of-active-refresh-tokens" title="Permalink to this heading"></a></h3>
+<p>The maximum number of active OAuth refresh tokens a user is allowed to have can be configured as follows:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">brig</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># ...</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># ...</span>
+<span class="w">    </span><span class="nt">optSettings</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># ...</span>
+<span class="w">      </span><span class="nt">setOAuthMaxActiveRefreshTokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="enable-3rd-party-apps-for-teams">
+<h2><a class="toc-backref" href="#id20" role="doc-backlink"><span class="section-number">6.5. </span>Enable 3rd party apps for teams</a><a class="headerlink" href="#enable-3rd-party-apps-for-teams" title="Permalink to this heading"></a></h2>
+<p>3rd party apps are enabled based on the team’s payment plan by <code class="docutils literal notranslate"><span class="pre">ibis</span></code>.</p>
+</section>
+<section id="implementation-details">
+<h2><a class="toc-backref" href="#id21" role="doc-backlink"><span class="section-number">6.6. </span>Implementation details</a><a class="headerlink" href="#implementation-details" title="Permalink to this heading"></a></h2>
+<section id="token-handling">
+<h3><a class="toc-backref" href="#id22" role="doc-backlink"><span class="section-number">6.6.1. </span>Token handling</a><a class="headerlink" href="#token-handling" title="Permalink to this heading"></a></h3>
+<section id="authorization-code">
+<h4><span class="section-number">6.6.1.1. </span>Authorization code<a class="headerlink" href="#authorization-code" title="Permalink to this heading"></a></h4>
+<p>The authorization code is stored as plain text rather than a “scrypted” hash because it is the key to look up the associated information like the client ID, the user ID, the scope and the redirect URL. An authorization code can only be used once and has a very short time to live.</p>
+</section>
+<section id="access-token">
+<h4><span class="section-number">6.6.1.2. </span>Access token<a class="headerlink" href="#access-token" title="Permalink to this heading"></a></h4>
+<p>Access tokens are self-contained JSON Web Tokens (JWT) that contain the following claims:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">iss</span></code>: The issuer, e.g. <code class="docutils literal notranslate"><span class="pre">wire-server</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">aud</span></code>: The resource server (in our case the same as <code class="docutils literal notranslate"><span class="pre">iss</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iat</span></code>: The time at which the token was issued</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sub</span></code>: Identifier of the resource owner, the Wire user ID</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exp</span></code>: The expiration time of the token</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scope</span></code>: A whitespace separated list of permissions</p></li>
+</ul>
+<p>Example token payload:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;iss&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;server.example.com&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;aud&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;server.example.com&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;iat&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1311280970</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;sub&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;7cf24b6c-8c7e-4788-a532-2c998d20ce4a&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;exp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1311281970</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;scope&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;write:conversations write:conversations_code&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>The access tokens are created and signed by <code class="docutils literal notranslate"><span class="pre">brig</span></code>.</p></li>
+<li><p>When accessing a resource <code class="docutils literal notranslate"><span class="pre">nginz</span></code> validates the token and forwards the request to <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> with the <code class="docutils literal notranslate"><span class="pre">Z-User</span></code> header containing the user ID taken from the <code class="docutils literal notranslate"><span class="pre">sub</span></code> claim.</p></li>
+<li><p>Token validation includes signature, expiration, and scope validation.</p></li>
+<li><p>Access tokens are short lived.</p></li>
+<li><p>Access tokens are bearer tokens and cannot be revoked directly, therefore 3rd party access revocation will entail the token expiration.</p></li>
+</ul>
+</section>
+<section id="refresh-token">
+<h4><span class="section-number">6.6.1.3. </span>Refresh token<a class="headerlink" href="#refresh-token" title="Permalink to this heading"></a></h4>
+<ul class="simple">
+<li><p>A refresh token is always associated with</p>
+<ul>
+<li><p>a user</p></li>
+<li><p>a 3rd party app (the OAuth client)</p></li>
+<li><p>and a scope (list of permissions given to the app)</p></li>
+</ul>
+</li>
+<li><p>A user can have more than one active refresh token for the same 3rd party app (e.g. they might use multiple devices, replace devices, or run multiple instances of the app somehow)</p></li>
+<li><p>The maximum number of active refresh tokens per user and app is limited (see <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> for default settings)</p></li>
+<li><p>Once a new refresh token is requested and the limit is exceeded, the oldest refresh token will be deleted/invalidated</p>
+<ul>
+<li><p>If the bearer of the invalidated token is not identical to the requester, it could mean that the bearer of the invalidated token needs to re-authorize</p></li>
+</ul>
+</li>
+<li><p>Once a refresh token is used, it will be invalidated and a new refresh token will be generated and returned as part of the response (token rotation)</p></li>
+<li><p>For now, we will not yet implement re-use detection, but in the future this should be possible</p></li>
+<li><p>The refresh token is given to the client/app as a signed JWT containing only the refresh token ID which is used internally to look up the refresh token info</p></li>
+<li><p>Refresh tokens are long-lived, and the expiration is configurable on the server level</p></li>
+</ul>
+</section>
+</section>
+<section id="scopes">
+<h3><a class="toc-backref" href="#id23" role="doc-backlink"><span class="section-number">6.6.2. </span>Scopes</a><a class="headerlink" href="#scopes" title="Permalink to this heading"></a></h3>
+<p>Endpoints that support OAuth have the required scope listed in the swagger documentation.</p>
+<section id="scope-implementation-details">
+<h4><span class="section-number">6.6.2.1. </span>Scope implementation details<a class="headerlink" href="#scope-implementation-details" title="Permalink to this heading"></a></h4>
+<p>To enable OAuth access for a resource a scope has to be defined in the nginx location config that matches the endpoint’s path.</p>
+<p>The current convention is that scope names should match the resource’s paths separated by an underscore. E.g. <code class="docutils literal notranslate"><span class="pre">/conversations/:cid/code</span></code> becomes <code class="docutils literal notranslate"><span class="pre">conversations_code</span></code> (path parameters are omitted).</p>
+<p>Furthermore, the scope must be prefixed (separated by a colon) with</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">admin</span></code>, <code class="docutils literal notranslate"><span class="pre">write</span></code>, or <code class="docutils literal notranslate"><span class="pre">read</span></code> for endpoints with HTTP method <code class="docutils literal notranslate"><span class="pre">GET</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">admin</span></code>, or <code class="docutils literal notranslate"><span class="pre">write</span></code> for endpoints with HTTP methods <code class="docutils literal notranslate"><span class="pre">POST</span></code> or <code class="docutils literal notranslate"><span class="pre">PUT</span></code></p></li>
+<li><p>and <code class="docutils literal notranslate"><span class="pre">admin</span></code> for endpoints with HTTP method <code class="docutils literal notranslate"><span class="pre">DELETE</span></code></p></li>
+</ul>
+<p>E.g. the required scope for <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/conversations/:cid/code</span></code> is <code class="docutils literal notranslate"><span class="pre">write:conversations_code</span></code>.</p>
+</section>
+</section>
+<section id="steps-for-adding-a-new-scope-making-an-endpoint-accessible-via-oauth">
+<h3><a class="toc-backref" href="#id24" role="doc-backlink"><span class="section-number">6.6.3. </span>Steps for adding a new scope (making an endpoint accessible via OAuth)</a><a class="headerlink" href="#steps-for-adding-a-new-scope-making-an-endpoint-accessible-via-oauth" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>Add a new constructor to the type <code class="docutils literal notranslate"><span class="pre">OAuthScope</span></code> in <code class="docutils literal notranslate"><span class="pre">/home/leif/Repositories/wire-server/libs/wire-api/src/Wire/API/OAuth.hs</span></code></p></li>
+<li><p>Implement <code class="docutils literal notranslate"><span class="pre">IsOAuthScope</span></code></p></li>
+<li><p>Update <code class="docutils literal notranslate"><span class="pre">ToByteString</span></code> and <code class="docutils literal notranslate"><span class="pre">FromByteString</span></code> instances and verify that the roundtrip tests run successfully</p></li>
+<li><p>Add the servant combinator <code class="docutils literal notranslate"><span class="pre">DescriptionOAuthScope</span></code> to the endpoint in question which will render the correct swagger description</p></li>
+<li><p>Finally assign the scope name (without the prefix) to the location config via the <code class="docutils literal notranslate"><span class="pre">charts/nginz/values.yaml</span></code> file to the <code class="docutils literal notranslate"><span class="pre">oauth_scope</span></code> as shown in the example below</p></li>
+</ul>
+<p>Example:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span><span class="w"> </span><span class="kt">SelfAPI</span><span class="w"> </span><span class="ow">=</span>
+<span class="w">  </span><span class="kt">Named</span>
+<span class="w">    </span><span class="s">&quot;get-self&quot;</span>
+<span class="w">    </span><span class="p">(</span><span class="w"> </span><span class="kt">Summary</span><span class="w"> </span><span class="s">&quot;Get your own profile&quot;</span>
+<span class="w">        </span><span class="kt">:&gt;</span><span class="w"> </span><span class="kt">DescriptionOAuthScope</span><span class="w"> </span><span class="kt">&#39;ReadSelf</span>
+<span class="w">        </span><span class="kt">:&gt;</span><span class="w"> </span><span class="kt">ZUser</span>
+<span class="w">        </span><span class="kt">:&gt;</span><span class="w"> </span><span class="s">&quot;self&quot;</span>
+<span class="w">        </span><span class="kt">:&gt;</span><span class="w"> </span><span class="kt">Get</span><span class="w"> </span><span class="kt">&#39;[JSON]</span><span class="w"> </span><span class="kt">SelfProfile</span>
+<span class="w">    </span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-nginx notranslate"><div class="highlight"><pre><span></span><span class="w">    </span><span class="k">-</span><span class="w"> </span><span class="s">path:</span><span class="w"> </span><span class="s">/self</span>$<span class="w"> </span><span class="c1"># Matches exactly /self</span>
+<span class="w">      </span><span class="s">oauth_scope:</span><span class="w"> </span><span class="s">self</span>
+<span class="w">      </span><span class="s">envs:</span>
+</pre></div>
+</div>
+<p>For local development and integration tests, add the scope to <code class="docutils literal notranslate"><span class="pre">services/nginz/integration-test/conf/nginz/nginx.conf</span></code> as follows</p>
+<div class="highlight-nginx notranslate"><div class="highlight"><pre><span></span><span class="w">    </span><span class="k">location</span><span class="w"> </span><span class="p">~</span><span class="sr">*</span><span class="w"> </span><span class="s">^(/v[0-9]+)?/self</span>$<span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="kn">include</span><span class="w"> </span><span class="s">common_response_with_zauth.conf</span><span class="p">;</span>
+<span class="w">      </span><span class="kn">oauth_scope</span><span class="w"> </span><span class="s">self</span><span class="p">;</span>
+<span class="w">      </span><span class="kn">proxy_pass</span><span class="w"> </span><span class="s">http://brig</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="public-private-keys">
+<h3><a class="toc-backref" href="#id25" role="doc-backlink"><span class="section-number">6.6.4. </span>Public/private keys</a><a class="headerlink" href="#public-private-keys" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>Public and private keys are provided as JSON Web Keys (JWK) or key sets</p></li>
+<li><p>The keys can be generated using <a class="reference external" href="https://github.com/lestrrat-go/jwx/tree/develop/v2/cmd/jwx#jwx-jwk-generate">jwx</a></p></li>
+<li><p>Keys are provided as secrets. Details depend on the type of deployment.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">brig</span></code> needs to be in possession of the public and private key and <code class="docutils literal notranslate"><span class="pre">nginz</span></code> needs to be provided with the public key only</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="make-docker-and-qemu.html" class="btn btn-neutral float-left" title="5. Make docker and QEMU" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="provisioning/scim-token.html" class="btn btn-neutral float-right" title="7. SCIM tokens" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

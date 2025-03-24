@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Searchability &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/clipboard.min.js"></script>
+        <script src="../_static/copybutton.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Server and team feature settings" href="team-feature-settings.html" />
+    <link rel="prev" title="Messaging Layer Security (MLS)" href="mls.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../index.html">
+        <img src="../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="overview.html">Architecture Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="single-sign-on/index.html">Single Sign-On and User Provisioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Audio/video calling, restund servers (TURN/STUN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html#federated-conference-calling">Federated Conference Calling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="federation/index.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="associate/index.html">Connecting Wire Clients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api-client-perspective/index.html">Client API documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crypto-libs.html">Crypto libraries and sources of randomness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="block-user-creation.html">Block personal user creation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="classified-domains.html">Classified Domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-federation.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="legalhold.html">Installing and setting up Legal Hold</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mls.html">Messaging Layer Security (MLS)</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">User Searchability</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#searching-users-on-the-same-backend">Searching users on the same backend</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#table-of-possible-outcomes">Table of possible outcomes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#changing-the-configuration-on-the-server">Changing the configuration on the server</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#changing-the-default-configuration-for-all-teams">Changing the default configuration for all teams</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#searching-users-on-another-federated-backend">Searching users on another federated backend</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id3">Table of possible outcomes</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#changing-the-settings-for-a-given-team">Changing the settings for a given team</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#teamfeature-searchvisibilityinbound">TeamFeature searchVisibilityInbound</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#team-searchvisibility">Team searchVisibility</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="team-feature-settings.html">Server and team feature settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Reference</a></li>
+      <li class="breadcrumb-item active">User Searchability</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/understand/searchability.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="user-searchability">
+<span id="id1"></span><h1>User Searchability<a class="headerlink" href="#user-searchability" title="Permalink to this heading"></a></h1>
+<p>You can configure how search is limited or not based on user membership in a given team.</p>
+<p>There are two types of searches based on the direction of search:</p>
+<ul class="simple">
+<li><p><strong>Inbound</strong> searches mean that somebody is searching for you. Configuring the inbound search visibility means that you (or some admin) can configure whether others can find you or not.</p></li>
+<li><p><strong>Out-Bound</strong> searches mean that you are searching for somebody. Configuring the out-bound search visibility means that some admin can configure whether you can find other users or not.</p></li>
+</ul>
+<p>There are different types of matches:</p>
+<ul class="simple">
+<li><p><strong>Exact handle</strong> search means that the user is found only if the search query is exactly the user handle (e.g. searching for <code class="docutils literal notranslate"><span class="pre">mc</span></code> will find <code class="docutils literal notranslate"><span class="pre">&#64;mc</span></code> but not <code class="docutils literal notranslate"><span class="pre">&#64;mccaine</span></code>). This search returns zero or one results.</p></li>
+<li><p><strong>Full text</strong> search means that the user is found if the search query contains some subset of the user display name and handle. (e.g. the query <code class="docutils literal notranslate"><span class="pre">mar</span></code> will find <code class="docutils literal notranslate"><span class="pre">Marco</span> <span class="pre">C</span></code>, <code class="docutils literal notranslate"><span class="pre">Omar</span></code>, <code class="docutils literal notranslate"><span class="pre">&#64;amaro</span></code>)</p></li>
+</ul>
+<section id="searching-users-on-the-same-backend">
+<h2>Searching users on the same backend<a class="headerlink" href="#searching-users-on-the-same-backend" title="Permalink to this heading"></a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For configuring searching accross federated backends this section is irrelevant.</p>
+</div>
+<p>Search visibility is controlled by three parameters on the backend:</p>
+<ul class="simple">
+<li><p>A team out-bound configuration flag, <code class="docutils literal notranslate"><span class="pre">TeamSearchVisibility</span></code> with possible values <code class="docutils literal notranslate"><span class="pre">SearchVisibilityStandard</span></code>, <code class="docutils literal notranslate"><span class="pre">SearchVisibilityNoNameOutsideTeam</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">SearchVisibilityStandard</span></code> means that the user can find other people outside of the team, if the searched-person inbound search allows it</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SearchVisibilityNoNameOutsideTeam</span></code> means that the user can not find any user outside the team by full text search (but exact handle search still works)</p></li>
+</ul>
+</li>
+<li><p>A team inbound configuration flag, <code class="docutils literal notranslate"><span class="pre">SearchVisibilityInbound</span></code> with possible values <code class="docutils literal notranslate"><span class="pre">SearchableByOwnTeam</span></code>, <code class="docutils literal notranslate"><span class="pre">SearchableByAllTeams</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">SearchableByOwnTeam</span></code> means that the user can be found only by users in their own team.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SearchableByAllTeams</span></code> means that the user can be found by users in any/all teams.</p></li>
+</ul>
+</li>
+<li><p>A server configuration flag <code class="docutils literal notranslate"><span class="pre">searchSameTeamOnly</span></code> with possible values true, false.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">Note</span></code>: For the same backend, this affects inbound and out-bound searches (simply because all teams will be subject to this behavior)</p></li>
+<li><p>Setting this to <code class="docutils literal notranslate"><span class="pre">true</span></code> means that the all teams on that backend can only find users that belong to their team</p></li>
+</ul>
+</li>
+</ul>
+<p>These flag are set on the backend and the clients do not need to be aware of them.</p>
+<p>The flags will influence the behavior of the search API endpoint; clients will only need to parse the results, that are already filtered for them by the backend.</p>
+<section id="table-of-possible-outcomes">
+<h3>Table of possible outcomes<a class="headerlink" href="#table-of-possible-outcomes" title="Permalink to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Is search-er (<cite>uA</cite>) in team (tA)?</p></th>
+<th class="head"><p>Is search-ed (<cite>uB</cite>) in a team?</p></th>
+<th class="head"><p>Backend flag <cite>searchSameTeamOnly</cite></p></th>
+<th class="head"><p>Team <cite>tA</cite>’s flag <cite>TeamSearchVisibility</cite></p></th>
+<th class="head"><p>Team tB’s flag <cite>SearchVisibilityInbound</cite></p></th>
+<th class="head"><p>Result of exact search for <cite>uB</cite></p></th>
+<th class="head"><p>Result of full-text search for <cite>uB</cite></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td colspan="7"><p><strong>Search within the same team</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Yes, <cite>tA</cite></p></td>
+<td><p>Yes, the same team <cite>tA</cite></p></td>
+<td><p>Irrelevant</p></td>
+<td><p>Irrelevant</p></td>
+<td><p>Irrelevant</p></td>
+<td><p>Found</p></td>
+<td><p>Found</p></td>
+</tr>
+<tr class="row-even"><td colspan="7"><p><strong>Out-Bound search unrestricted</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Yes, <cite>tA</cite></p></td>
+<td><p>Yes, another team tB</p></td>
+<td><p>false</p></td>
+<td><p><cite>SearchVisibilityStandard</cite></p></td>
+<td><p><cite>SearchableByAllTeams</cite></p></td>
+<td><p>Found</p></td>
+<td><p>Found</p></td>
+</tr>
+<tr class="row-even"><td><p>Yes, <cite>tA</cite></p></td>
+<td><p>Yes, another team tB</p></td>
+<td><p>false</p></td>
+<td><p><cite>SearchVisibilityStandard</cite></p></td>
+<td><p><cite>SearchableByOwnTeam</cite></p></td>
+<td><p>Found</p></td>
+<td><p>Not found</p></td>
+</tr>
+<tr class="row-odd"><td colspan="7"><p><strong>Out-Bound search restricted</strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Yes, <cite>tA</cite></p></td>
+<td><p>Yes, another team tB</p></td>
+<td><p>true</p></td>
+<td><p>Irrelevant</p></td>
+<td><p>Irrelevant</p></td>
+<td><p>Not found</p></td>
+<td><p>Not found</p></td>
+</tr>
+<tr class="row-odd"><td><p>Yes, <cite>tA</cite></p></td>
+<td><p>Yes, another team tB</p></td>
+<td><p>false</p></td>
+<td><p><cite>SearchVisibilityNoNameOutsideTeam</cite></p></td>
+<td><p>Irrelevant</p></td>
+<td><p>Found</p></td>
+<td><p>Not found</p></td>
+</tr>
+<tr class="row-even"><td><p>Yes, <cite>tA</cite></p></td>
+<td><p>No</p></td>
+<td><p>false</p></td>
+<td><p><cite>SearchVisibilityNoNameOutsideTeam</cite></p></td>
+<td><p>There’s no team B</p></td>
+<td><p>Found</p></td>
+<td><p>Not found</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="changing-the-configuration-on-the-server">
+<h3>Changing the configuration on the server<a class="headerlink" href="#changing-the-configuration-on-the-server" title="Permalink to this heading"></a></h3>
+<p>To change the <code class="docutils literal notranslate"><span class="pre">searchSameTeamOnly</span></code> setting on the backend, edit the <code class="docutils literal notranslate"><span class="pre">values.yaml.gotmpl</span></code> file for the wire-server chart at this nested level of the configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">brig</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># ...</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># ...</span>
+<span class="w">    </span><span class="nt">optSettings</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># ...</span>
+<span class="w">      </span><span class="nt">setSearchSameTeamOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">setSearchSameTeamOnly</span></code> is set to <code class="docutils literal notranslate"><span class="pre">true</span></code> then <code class="docutils literal notranslate"><span class="pre">TeamSearchVisibility</span></code> is forced be in the <code class="docutils literal notranslate"><span class="pre">SearchVisibilityNoNameOutsideTeam</span></code> setting for all teams.</p>
+</section>
+<section id="changing-the-default-configuration-for-all-teams">
+<h3>Changing the default configuration for all teams<a class="headerlink" href="#changing-the-default-configuration-for-all-teams" title="Permalink to this heading"></a></h3>
+<p>If <code class="docutils literal notranslate"><span class="pre">setSearchSameTeamOnly</span></code> is set to <code class="docutils literal notranslate"><span class="pre">false</span></code>  (or missing from the configuration) then the default value <code class="docutils literal notranslate"><span class="pre">TeamSearchVisibility</span></code> can be configured at this level of the configuration of the <code class="docutils literal notranslate"><span class="pre">value.yaml.gotmpl</span></code> file of the wire-server chart:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">galley</span><span class="p">:</span>
+<span class="w">  </span><span class="c1">#...</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="c1">#...</span>
+<span class="w">    </span><span class="nt">settings</span><span class="p">:</span>
+<span class="w">      </span><span class="c1">#...</span>
+<span class="w">      </span><span class="nt">featureFlags</span><span class="p">:</span>
+<span class="w">        </span><span class="c1">#...</span>
+<span class="w">        </span><span class="nt">teamSearchVisibility</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enabled-by-default</span>
+</pre></div>
+</div>
+<p>This default value applies to all teams for which no explicit configuration of the <code class="docutils literal notranslate"><span class="pre">TeamSearchVisibility</span></code> has been set.</p>
+</section>
+</section>
+<section id="searching-users-on-another-federated-backend">
+<span id="id2"></span><h2>Searching users on another federated backend<a class="headerlink" href="#searching-users-on-another-federated-backend" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p>Setting the search policy for individual remote federated backends
+is done via a internal brig api end-points by a sysadmin (see
+<a class="reference internal" href="configure-federation.html#configure-federation-strategy-in-brig"><span class="std std-ref">Configure federation strategy (whom to federate with) in brig</span></a>}.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">SearchVisibilityInbound</span></code> setting applies. Since the default value for teams is <code class="docutils literal notranslate"><span class="pre">SearchableByOwnTeam</span></code> this means that for a team to be full-text searchable by users on a federating backend both</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">FederatedUserSearchPolicy</span></code> needs to be set to to full_search for the federating backend</p></li>
+<li><p>Any team that wants to be full-text searchable needs to be set to <code class="docutils literal notranslate"><span class="pre">SearchableByAllTeams</span></code></p></li>
+</ul>
+</li>
+<li><p>Out-Bound search restrictions (<code class="docutils literal notranslate"><span class="pre">searchSameTeamOnly</span></code>, <code class="docutils literal notranslate"><span class="pre">TeamSearchVisibility</span></code>) do not apply to federated searches</p></li>
+</ul>
+<section id="id3">
+<h3>Table of possible outcomes<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+<p>In the following table, user <code class="docutils literal notranslate"><span class="pre">uA</span></code> on backend A is searching for user <code class="docutils literal notranslate"><span class="pre">uB</span></code> on team <code class="docutils literal notranslate"><span class="pre">tB</span></code> on backend B.</p>
+<p>Any of the flags set for searching users on the same backend are ignored.</p>
+<p>It’s worth nothing that if two users are on two separate backend, they are also guaranteed to be on two separate teams, as teams can not spread across backends.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Who is searching</p></th>
+<th class="head"><p>Backend B flag <code class="docutils literal notranslate"><span class="pre">FederatedUserSearchPolicy</span></code></p></th>
+<th class="head"><p>Team <code class="docutils literal notranslate"><span class="pre">tB</span></code>’s flag <code class="docutils literal notranslate"><span class="pre">SearchVisibilityInbound</span></code></p></th>
+<th class="head"><p>Result of exact search for <code class="docutils literal notranslate"><span class="pre">uB</span></code></p></th>
+<th class="head"><p>Result of full-text search for <code class="docutils literal notranslate"><span class="pre">uB</span></code></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>user <code class="docutils literal notranslate"><span class="pre">uA</span></code> on backend A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">no_search</span></code></p></td>
+<td><p>Irrelevant</p></td>
+<td><p>Not found</p></td>
+<td><p>Not found</p></td>
+</tr>
+<tr class="row-odd"><td><p>user <code class="docutils literal notranslate"><span class="pre">uA</span></code> on backend A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">exact_handle_search</span></code></p></td>
+<td><p>Irrelevant</p></td>
+<td><p>Found</p></td>
+<td><p>Not found</p></td>
+</tr>
+<tr class="row-even"><td><p>user <code class="docutils literal notranslate"><span class="pre">uA</span></code> on backend A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">full_search</span></code></p></td>
+<td><p>SearchableByOwnTeam</p></td>
+<td><p>Found</p></td>
+<td><p>Not found</p></td>
+</tr>
+<tr class="row-odd"><td><p>user <code class="docutils literal notranslate"><span class="pre">uA</span></code> on backend A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">full_search</span></code></p></td>
+<td><p>SearchableByAllTeams</p></td>
+<td><p>Found</p></td>
+<td><p>Found</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="changing-the-settings-for-a-given-team">
+<h2>Changing the settings for a given team<a class="headerlink" href="#changing-the-settings-for-a-given-team" title="Permalink to this heading"></a></h2>
+<section id="teamfeature-searchvisibilityinbound">
+<h3>TeamFeature searchVisibilityInbound<a class="headerlink" href="#teamfeature-searchvisibilityinbound" title="Permalink to this heading"></a></h3>
+<p>The team feature flag <code class="docutils literal notranslate"><span class="pre">searchVisibilityInbound</span></code> affects whether the team’s users are searchable by users from other teams.</p>
+<p>The default setting is <code class="docutils literal notranslate"><span class="pre">searchable-by-own-team</span></code> which hides users from search
+results by users from other teams. If it is set to <code class="docutils literal notranslate"><span class="pre">searchable-by-all-teams</span></code>
+then users of this team may be included in the results of search queries by
+other users.</p>
+<p>The default setting that applies to all teams on the instance can be defined at configuration.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">galley</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">settings</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">featureFlags</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">searchVisibilityInbound</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">defaults</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enabled</span><span class="w"> </span><span class="c1"># or &quot;disabled&quot; (default is &quot;disabled&quot;)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Changing this setting in the instance configuration doesn’t affect any users that have already been created. To affect these users please toggle the setting on a per-team basis (see below). Switching between “enabled” and “disabled” setting for the team causes a re-indexing of all the users of the team, thereby making the setting effective, e.g. changing to a “disabled” setting first, followed by changing to an “enabled” setting (or vice versa).</p>
+</div>
+<section id="overriding-the-default-setting">
+<h4>Overriding the default setting<a class="headerlink" href="#overriding-the-default-setting" title="Permalink to this heading"></a></h4>
+<p>Individual teams can overwrite the default setting with API calls:</p>
+<p>To make API calls to set an explicit configuration for <code class="docutils literal notranslate"><span class="pre">SearchVisibilityInbound</span></code> per team, you first need to know the Team ID, which can be found in the team settings app.</p>
+<p>It is an <a class="reference external" href="https://en.wikipedia.org/wiki/Universally_unique_identifier">UUID</a> which has format like this  <code class="docutils literal notranslate"><span class="pre">dcbedf9a-af2a-4f43-9fd5-525953a919e1</span></code>.</p>
+<p>In the following we will be using this Team ID as an example, please replace it with your own team id.</p>
+<p>Next find the name of a <code class="docutils literal notranslate"><span class="pre">galley</span></code> pod by looking at the output of running this command:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>wire<span class="w"> </span>get<span class="w"> </span>pods
+</pre></div>
+</div>
+<p>The output will look something like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">...</span>
+<span class="n">galley</span><span class="o">-</span><span class="mi">5</span><span class="n">f4787fdc7</span><span class="o">-</span><span class="mi">9</span><span class="n">l64n</span>   <span class="o">...</span>
+<span class="n">galley</span><span class="o">-</span><span class="n">migrate</span><span class="o">-</span><span class="n">data</span><span class="o">-</span><span class="n">lzz5j</span> <span class="o">...</span>
+<span class="o">...</span>
+</pre></div>
+</div>
+<p>Select any of the galley pods, for example we will use <code class="docutils literal notranslate"><span class="pre">galley-5f4787fdc7-9l64n</span></code>.</p>
+<p>Next, set up a port-forwarding from your local machine’s port <code class="docutils literal notranslate"><span class="pre">9000</span></code> to the galley’s port <code class="docutils literal notranslate"><span class="pre">8080</span></code> by running:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>-n<span class="w"> </span>wire<span class="w"> </span>galley-5f4787fdc7-9l64n<span class="w"> </span><span class="m">9000</span>:8080
+</pre></div>
+</div>
+<p>Keep this command running until the end of these instructions.</p>
+<p>Please run the following commands in a separate terminal while keeping the terminal which establishes the port-forwarding open.</p>
+<p>To see team’s current setting run:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-XGET<span class="w"> </span>http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
+
+<span class="c1"># {&quot;lockStatus&quot;:&quot;unlocked&quot;,&quot;status&quot;:&quot;disabled&quot;}</span>
+</pre></div>
+</div>
+<p>Where <code class="docutils literal notranslate"><span class="pre">disabled</span></code> corresponds to <code class="docutils literal notranslate"><span class="pre">SearchableByOwnTeam</span></code> and enabled corresponds to <code class="docutils literal notranslate"><span class="pre">SearchableByAllTeams</span></code>.</p>
+<p>To change the <code class="docutils literal notranslate"><span class="pre">SearchVisibilityInbound</span></code> to <code class="docutils literal notranslate"><span class="pre">SearchableByAllTeams</span></code> for the team run:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-XPUT<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span>-d<span class="w"> </span><span class="s2">&quot;{\&quot;status\&quot;: \&quot;enabled\&quot;}&quot;</span><span class="w"> </span>http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
+</pre></div>
+</div>
+<p>To change the <code class="docutils literal notranslate"><span class="pre">SearchVisibilityInbound</span></code> to <code class="docutils literal notranslate"><span class="pre">SearchableByOwnTeam</span></code> for the team run:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-XPUT<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span>-d<span class="w"> </span><span class="s2">&quot;{\&quot;status\&quot;: \&quot;disabled\&quot;}&quot;</span><span class="w"> </span>http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
+</pre></div>
+</div>
+</section>
+</section>
+<section id="team-searchvisibility">
+<h3>Team searchVisibility<a class="headerlink" href="#team-searchvisibility" title="Permalink to this heading"></a></h3>
+<p>The team flag <code class="docutils literal notranslate"><span class="pre">searchVisibility</span></code> affects the out-bound search of user searches on the same backend. Federated searches are not affected by its setting.</p>
+<p>If it is set to <code class="docutils literal notranslate"><span class="pre">no-name-outside-team</span></code> for a team then all users of that team will no longer be able to find users that are not part of their team when searching.</p>
+<p>This also includes finding other users by providing their exact handle. By default it is set to <code class="docutils literal notranslate"><span class="pre">standard</span></code>, which doesn’t put any additional restrictions to out-bound searches.</p>
+<p>The setting can be changed via endpoint (for more details on how to make the API calls with <code class="docutils literal notranslate"><span class="pre">curl</span></code>, read further):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">GET</span> <span class="o">/</span><span class="n">teams</span><span class="o">/</span><span class="p">{</span><span class="n">tid</span><span class="p">}</span><span class="o">/</span><span class="n">search</span><span class="o">-</span><span class="n">visibility</span>
+  <span class="o">--</span> <span class="n">Shows</span> <span class="n">the</span> <span class="n">current</span> <span class="n">TeamSearchVisibility</span> <span class="n">value</span> <span class="k">for</span> <span class="n">the</span> <span class="n">given</span> <span class="n">team</span>
+
+<span class="n">PUT</span> <span class="o">/</span><span class="n">teams</span><span class="o">/</span><span class="p">{</span><span class="n">tid</span><span class="p">}</span><span class="o">/</span><span class="n">search</span><span class="o">-</span><span class="n">visibility</span>
+  <span class="o">--</span> <span class="n">Set</span> <span class="n">specific</span> <span class="n">search</span> <span class="n">visibility</span> <span class="k">for</span> <span class="n">the</span> <span class="n">team</span>
+
+<span class="n">pull</span><span class="o">-</span><span class="n">down</span><span class="o">-</span><span class="n">menu</span> <span class="s2">&quot;body&quot;</span><span class="p">:</span>
+  <span class="s2">&quot;standard&quot;</span>
+  <span class="s2">&quot;no-name-outside-team&quot;</span>
+</pre></div>
+</div>
+<p>The team feature flag <code class="docutils literal notranslate"><span class="pre">teamSearchVisibility</span></code> determines whether it is allowed to change the <code class="docutils literal notranslate"><span class="pre">searchVisibility</span></code> setting or not.</p>
+<p>The default is <code class="docutils literal notranslate"><span class="pre">disabled-by-default</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Whenever this feature setting is disabled the <code class="docutils literal notranslate"><span class="pre">searchVisibility</span></code> will be reset to standard.</p>
+</div>
+<p>The default setting that applies to all teams on the instance can be defined at configuration</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">settings</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">featureFlags</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">teamSearchVisibility</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">disabled-by-default</span><span class="w"> </span><span class="c1"># or enabled-by-default</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="mls.html" class="btn btn-neutral float-left" title="Messaging Layer Security (MLS)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="team-feature-settings.html" class="btn btn-neutral float-right" title="Server and team feature settings" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

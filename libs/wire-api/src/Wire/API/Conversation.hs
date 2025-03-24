@@ -61,6 +61,7 @@ module Wire.API.Conversation
     toAccessRoleLegacy,
     defRole,
     maybeRole,
+    AddPermission (..),
 
     -- * create
     NewConv (..),
@@ -143,6 +144,7 @@ data ConversationMetadata = ConversationMetadata
     cnvmMessageTimer :: Maybe Milliseconds,
     cnvmReceiptMode :: Maybe ReceiptMode,
     cnvmGroupConvType :: Maybe GroupConvType,
+    cnvmChannelAddPermission :: Maybe AddPermission,
     cnvmCellsState :: CellsState
   }
   deriving stock (Eq, Show, Generic)
@@ -161,6 +163,7 @@ defConversationMetadata mCreator =
       cnvmMessageTimer = Nothing,
       cnvmReceiptMode = Nothing,
       cnvmGroupConvType = Just GroupConversation,
+      cnvmChannelAddPermission = Nothing,
       cnvmCellsState = def
     }
 
@@ -222,6 +225,7 @@ conversationMetadataObjectSchema sch =
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
     <*> cnvmGroupConvType .= optField "group_conv_type" (maybeWithDefault A.Null schema)
+    <*> cnvmChannelAddPermission .= optField "add_permission" (maybeWithDefault A.Null schema)
     <*> cnvmCellsState .= (fromMaybe def <$> optField "cells_state" schema)
 
 instance ToSchema ConversationMetadata where

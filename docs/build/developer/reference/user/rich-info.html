@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>14. User Rich info &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/clipboard.min.js"></script>
+        <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="prev" title="13. User Registration" href="registration.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../../index.html">
+        <img src="../../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../developer/index.html">Developer</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Reference</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../config-options.html">1. Config Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../conversation.html">2. Creating and populating conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elastic-search.html">3. Maintaining ElasticSearch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elasticsearch-migration-2021-02-16.html">4. ElasticSearch migration instructions for release 2021-02-16</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../make-docker-and-qemu.html">5. Make docker and QEMU</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../oauth.html">6. OAuth</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../provisioning/scim-token.html">7. SCIM tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../spar-braindump.html">8. Spar braindump</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../team/legalhold.html">9. Legal hold</a></li>
+<li class="toctree-l3"><a class="reference internal" href="activation.html">10. User Activation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="connection.html">11. Connection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="connection.html#connection-backend-internals">12. Connection backend internals</a></li>
+<li class="toctree-l3"><a class="reference internal" href="registration.html">13. User Registration</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">14. User Rich info</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#summary-refrichinfosummary">14.1. Summary {#RefRichInfoSummary}</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#api-refrichinfoapi">14.2. API {#RefRichInfoApi}</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#scim-support-refrichinfoscim">14.3. SCIM support {#RefRichInfoScim}</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#limitations-refrichinfolimitations">14.4. Limitations {#RefRichInfoLimitations}</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Reference</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">14. </span>User Rich info</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/user/rich-info.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="user-rich-info">
+<h1><span class="section-number">14. </span>User Rich info<a class="headerlink" href="#user-rich-info" title="Permalink to this heading"></a></h1>
+<p>Reference: {#RefRichInfo}</p>
+<p><em>Author: Artyom Kazak</em></p>
+<hr class="docutils" />
+<p>This page describes a part of the user profile called “Rich info”. The corresponding feature is called “Rich profiles”.</p>
+<section id="summary-refrichinfosummary">
+<h2><span class="section-number">14.1. </span>Summary {#RefRichInfoSummary}<a class="headerlink" href="#summary-refrichinfosummary" title="Permalink to this heading"></a></h2>
+<p>For every team user we can store a list of key-value pairs that are displayed in the user profile. This is similar to “custom profile fields” in Slack and other enterprise messengers.</p>
+<p>Different users can have different sets of fields; there is no team-wide schema for fields. All field values are strings. Fields are passed as an ordered list, and the order information is preserved when displaying fields in client apps.</p>
+<p>Only team members and partners can see the user’s rich info.</p>
+</section>
+<section id="api-refrichinfoapi">
+<h2><span class="section-number">14.2. </span>API {#RefRichInfoApi}<a class="headerlink" href="#api-refrichinfoapi" title="Permalink to this heading"></a></h2>
+<section id="querying-rich-info-refrichinfoget">
+<h3><span class="section-number">14.2.1. </span>Querying rich info {#RefRichInfoGet}<a class="headerlink" href="#querying-rich-info-refrichinfoget" title="Permalink to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/users/:uid/rich-info</span></code>. Sample output:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;fields&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Department&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Sales &amp; Marketing&quot;</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Favorite color&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Blue&quot;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>If the requesting user is not allowed to see rich info, error code 403 is returned with the <code class="docutils literal notranslate"><span class="pre">&quot;insufficient-permissions&quot;</span></code> error label.</p>
+<p>Otherwise, if the rich info is missing, an empty field list is returned:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;fields&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="setting-rich-info-refrichinfoput">
+<h3><span class="section-number">14.2.2. </span>Setting rich info {#RefRichInfoPut}<a class="headerlink" href="#setting-rich-info-refrichinfoput" title="Permalink to this heading"></a></h3>
+<p><strong>Not implemented yet.</strong> Currently the only way to set rich info is via SCIM.</p>
+</section>
+<section id="events-refrichinfoevents">
+<h3><span class="section-number">14.2.3. </span>Events {#RefRichInfoEvents}<a class="headerlink" href="#events-refrichinfoevents" title="Permalink to this heading"></a></h3>
+<p><strong>Not implemented yet.</strong></p>
+<p>When user’s rich info changes, the backend sends out an event to all team members:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user.rich-info-update&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;user&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;user ID&gt;&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Connected users who are not members of user’s team will not receive an event (nor can they query user’s rich info by other means).</p>
+</section>
+</section>
+<section id="scim-support-refrichinfoscim">
+<h2><span class="section-number">14.3. </span>SCIM support {#RefRichInfoScim}<a class="headerlink" href="#scim-support-refrichinfoscim" title="Permalink to this heading"></a></h2>
+<p>Rich info can be pushed to Wire by setting JSON keys under the <code class="docutils literal notranslate"><span class="pre">&quot;urn:ietf:params:scim:schemas:extension:wire:1.0:User&quot;</span></code> extension. Both <code class="docutils literal notranslate"><span class="pre">PUT</span> <span class="pre">/scim/v2/Users/:id</span></code> , <code class="docutils literal notranslate"><span class="pre">PATCH</span> <span class="pre">/scim/v2/Users/:id</span></code> and <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/scim/v2/Users/:id</span></code> can contain rich info. Here is an example for <code class="docutils literal notranslate"><span class="pre">PUT</span></code>:</p>
+<div class="highlight-javascript notranslate"><div class="highlight"><pre><span></span><span class="nx">PUT</span><span class="w"> </span><span class="o">/</span><span class="nx">scim</span><span class="o">/</span><span class="nx">v2</span><span class="o">/</span><span class="nx">Users</span><span class="o">/:</span><span class="nx">id</span>
+
+<span class="p">{</span>
+<span class="w">    </span><span class="p">...,</span>
+<span class="w">    </span><span class="s2">&quot;urn:ietf:params:scim:schemas:extension:wire:1.0:User&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="s2">&quot;Department&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;Sales &amp; Marketing&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;FavoriteColor&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;Blue&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Here is an example for <code class="docutils literal notranslate"><span class="pre">PATCH</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">PATCH</span> <span class="o">/</span><span class="n">scim</span><span class="o">/</span><span class="n">v2</span><span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="p">:</span><span class="nb">id</span>
+
+<span class="p">{</span>
+  <span class="s2">&quot;schemas&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="s2">&quot;urn:ietf:params:scim:api:messages:2.0:PatchOp&quot;</span>
+  <span class="p">],</span>
+  <span class="s2">&quot;operations&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;op&quot;</span><span class="p">:</span> <span class="s2">&quot;add&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="s2">&quot;urn:ietf:params:scim:schemas:extension:wire:1.0:User:Department&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;Development &quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;op&quot;</span><span class="p">:</span> <span class="s2">&quot;replace&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="s2">&quot;urn:ietf:params:scim:schemas:extension:wire:1.0:User:Country&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;Germany&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;op&quot;</span><span class="p">:</span> <span class="s2">&quot;remove&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="s2">&quot;urn:ietf:params:scim:schemas:extension:wire:1.0:User:City&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+
+</pre></div>
+</div>
+<p>Rich info set via SCIM can be queried by doing a <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/scim/v2/Users</span></code> or <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/scim/v2/Users/:id</span></code> query.</p>
+<section id="set-up-scim-richinfo-mapping-in-azure-refrichinfoscimagents">
+<h3><span class="section-number">14.3.1. </span>Set up SCIM RichInfo mapping in Azure {#RefRichInfoScimAgents}<a class="headerlink" href="#set-up-scim-richinfo-mapping-in-azure-refrichinfoscimagents" title="Permalink to this heading"></a></h3>
+<p>Go to your provisioning page</p>
+<p><img alt="image" src="https://user-images.githubusercontent.com/628387/119977043-393b3000-bfb8-11eb-9e5b-18a955ca3181.png" /></p>
+<p>Click “Edit attribute mappings”</p>
+<p>Then click “Mappings” And then click <strong>Synchronize Azure Active Directory Users to <em>appname</em></strong>
+<img alt="image" src="https://user-images.githubusercontent.com/628387/119977488-c9797500-bfb8-11eb-81b8-46376f5fdadb.png" /></p>
+<p>Click “Show Advanced options” and then <strong>Edit attribute list for <em>appname</em></strong>
+<img alt="image" src="https://user-images.githubusercontent.com/628387/119977905-3f7ddc00-bfb9-11eb-90e2-28da82c6f13e.png" /></p>
+<p>Add a new attribute name. The type should be <code class="docutils literal notranslate"><span class="pre">String</span></code> and the name should be prefixed with <code class="docutils literal notranslate"><span class="pre">urn:ietf:params:scim:schemas:extension:wire:1.0:User:</span></code>
+e.g. <code class="docutils literal notranslate"><span class="pre">urn:ietf:params:scim:schemas:extension:wire:1.0:User:Location</span></code></p>
+<p><img alt="image" src="https://user-images.githubusercontent.com/628387/119978050-70f6a780-bfb9-11eb-8919-93e32bf76d79.png" /></p>
+<p>Hit <strong>Save</strong> and afterwards hit <strong>Add New Mapping</strong></p>
+<p>Select the Azure AD Source attribute you want to map, and map it to the custom <strong>Target Attribute</strong> that you just added.
+<img alt="image" src="https://user-images.githubusercontent.com/628387/119978316-c5018c00-bfb9-11eb-9290-2076ac1a05df.png" /></p>
+</section>
+</section>
+<section id="limitations-refrichinfolimitations">
+<h2><span class="section-number">14.4. </span>Limitations {#RefRichInfoLimitations}<a class="headerlink" href="#limitations-refrichinfolimitations" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p>The whole of user-submitted information (field names and values) cannot exceed 5000 characters in length. There are no limitations on the number of fields, or the maximum of individual field names or values.</p></li>
+<li><p>Field values can not be empty (<code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code>). If they are empty, the corresponding field will be removed.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="registration.html" class="btn btn-neutral float-left" title="13. User Registration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

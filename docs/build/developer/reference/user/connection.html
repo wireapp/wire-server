@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>11. Connection &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/clipboard.min.js"></script>
+        <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="13. User Registration" href="registration.html" />
+    <link rel="prev" title="10. User Activation" href="activation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../../index.html">
+        <img src="../../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../developer/index.html">Developer</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Reference</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../config-options.html">1. Config Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../conversation.html">2. Creating and populating conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elastic-search.html">3. Maintaining ElasticSearch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elasticsearch-migration-2021-02-16.html">4. ElasticSearch migration instructions for release 2021-02-16</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../make-docker-and-qemu.html">5. Make docker and QEMU</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../oauth.html">6. OAuth</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../provisioning/scim-token.html">7. SCIM tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../spar-braindump.html">8. Spar braindump</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../team/legalhold.html">9. Legal hold</a></li>
+<li class="toctree-l3"><a class="reference internal" href="activation.html">10. User Activation</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">11. Connection</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#connection-states">11.1. Connection states</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#transitions-between-connection-states">11.2. Transitions between connection states</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#connections-between-team-members">11.3. Connections between team members</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#connection-backend-internals">12. Connection backend internals</a></li>
+<li class="toctree-l3"><a class="reference internal" href="registration.html">13. User Registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rich-info.html">14. User Rich info</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Reference</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">11. </span>Connection</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/user/connection.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="connection">
+<h1><span class="section-number">11. </span>Connection<a class="headerlink" href="#connection" title="Permalink to this heading"></a></h1>
+<p>Reference: {#RefConnection}</p>
+<p>Two users can be <em>connected</em> or not. If the users are connected, each of them can:</p>
+<ul class="simple">
+<li><p>Add the other user to a conversation (which is also a requirement for having a 1-1 conversation or doing a call).</p></li>
+<li><p>See the locale of the other user.</p></li>
+</ul>
+<p>By default users with personal accounts are not connected. A user can send another user a <em>connection request</em>, which can be ignored or accepted by the other user. A user can also block an existing connection.</p>
+<p>Members of the same team are always considered connected, see <a class="reference internal" href="#refconnectionteam"><span class="std std-ref">Connections between team members</span></a>.</p>
+<p>Internally, connection status is a <em>directed</em> edge from one user to another that is attributed with a relation state and some meta information. If a user has a connection to another user, it can be in one of the six <a class="reference internal" href="#refconnectionstates"><span class="std std-ref">connection states</span></a>.</p>
+<section id="connection-states">
+<h2><span class="section-number">11.1. </span>Connection states<a class="headerlink" href="#connection-states" title="Permalink to this heading"></a></h2>
+<section id="sent">
+<span id="refconnectionstates"></span><h3><span class="section-number">11.1.1. </span>Sent<a class="headerlink" href="#sent" title="Permalink to this heading"></a></h3>
+<p id="refconnectionsent">In order for two users to become connected, one of them performs a <em>connection request</em> and the other one accepts it. Initiating a new connection results in a pending 1-1 conversation to be created with the sender as the sole member. When the connection is accepted, the other user joins the conversation.</p>
+<p>The creator of a new connection (i.e. the sender of the connection request) ends up in this state. From the point of view of the creator, it indicates that a connection request has been sent but not accepted (it might be blocked or ignored).</p>
+</section>
+<section id="pending">
+<h3><span class="section-number">11.1.2. </span>Pending<a class="headerlink" href="#pending" title="Permalink to this heading"></a></h3>
+<p id="refconnectionpending">The recipient of a connection request automatically ends up in this state.
+From his point of view, the state indicates that the connection is pending
+and awaiting further action (i.e. through accepting, ignoring or blocking it).</p>
+</section>
+<section id="blocked">
+<h3><span class="section-number">11.1.3. </span>Blocked<a class="headerlink" href="#blocked" title="Permalink to this heading"></a></h3>
+<p id="refconnectionblocked">When a connection is in this state it indicates that the user does not want to be bothered by the other user, e.g. by receiving messages, calls or being added to conversations.</p>
+<p>Blocking a user does not prevent receiving further messages of that user in existing group conversations where the blocked user is a member.</p>
+<p>When user A blocks user B, the connection restrictions apply to both users – e.g. A can not add B to conversations, even though it’s A who blocked B and not vice-versa.</p>
+</section>
+<section id="ignored">
+<h3><span class="section-number">11.1.4. </span>Ignored<a class="headerlink" href="#ignored" title="Permalink to this heading"></a></h3>
+<p id="refconnectionignored">The recipient of a connection request may decide to explicitly “ignore” the request In this state the sender can continue to send further connection attempts. The recipient can change their mind and accept the request later.</p>
+</section>
+<section id="cancelled">
+<h3><span class="section-number">11.1.5. </span>Cancelled<a class="headerlink" href="#cancelled" title="Permalink to this heading"></a></h3>
+<p id="refconnectioncancelled">This is a state that the sender can change to if the connection has not yet been accepted. The state will also change for the recipient, unless blocked.</p>
+</section>
+<section id="accepted">
+<h3><span class="section-number">11.1.6. </span>Accepted<a class="headerlink" href="#accepted" title="Permalink to this heading"></a></h3>
+<p id="refconnectionaccepted">A connection in this state is fully accepted by a user. The user thus allows the user at the other end of the connection to add him to conversations.</p>
+<p>For two users to be considered “connected”, both A-&gt;B and B-&gt;A connections have to be in the “Accepted” state.</p>
+</section>
+</section>
+<section id="transitions-between-connection-states">
+<h2><span class="section-number">11.2. </span>Transitions between connection states<a class="headerlink" href="#transitions-between-connection-states" title="Permalink to this heading"></a></h2>
+<p id="refconnectiontransitions"><img alt="Connection state transitions" src="../../../_images/connection-transitions.png" /></p>
+<p>(To edit this diagram, open <a class="reference download internal" download="" href="../../../_downloads/0caece086578572f9939c5f1b684b630/connection-transitions.xml"><span class="xref download myst">connection-transitions.xml</span></a> with <a class="reference external" href="https://draw.io">https://draw.io</a>.)</p>
+</section>
+<section id="connections-between-team-members">
+<h2><span class="section-number">11.3. </span>Connections between team members<a class="headerlink" href="#connections-between-team-members" title="Permalink to this heading"></a></h2>
+<p id="refconnectionteam">Users belonging to the same team are always implicitly treated as connected, to make it easier for team members to see each other’s profiles, create conversations, etc.</p>
+<p>Since there is no explicit connection state between two team members, changing the connection status (e.g. blocking a fellow team member) is impossible.</p>
+</section>
+</section>
+<section id="connection-backend-internals">
+<h1><span class="section-number">12. </span>Connection backend internals<a class="headerlink" href="#connection-backend-internals" title="Permalink to this heading"></a></h1>
+<p>In the regular case of a single backend (no federation involved), and in the easiest case of two users Alice and Adham which want to start talking, the simplified internals involving the services brig and galley and cassandra can be seen as follows: (as of 2021-08)</p>
+<p><img alt="Connection backend internal flow" src="../../../_images/connections-flow-1-backend.png" /></p>
+<details>
+<summary>(To edit this diagram, copy the code in this details block to https://swimlanes.io )</summary>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">title</span><span class="p">:</span> <span class="n">Connections</span><span class="p">:</span> <span class="p">(</span><span class="n">no</span> <span class="n">federation</span><span class="p">)</span>
+
+<span class="n">note</span><span class="p">:</span> <span class="n">this</span> <span class="ow">is</span> <span class="n">a</span> <span class="n">simplified</span> <span class="n">view</span> <span class="n">of</span> <span class="n">what</span> <span class="n">happens</span> <span class="n">internall</span> <span class="n">inside</span> <span class="n">the</span> <span class="n">backend</span> <span class="ow">in</span> <span class="n">the</span> <span class="n">simple</span> <span class="n">case</span> <span class="k">for</span> <span class="n">connection</span> <span class="n">requests</span><span class="o">.</span> <span class="n">For</span> <span class="n">the</span> <span class="n">full</span> <span class="n">details</span> <span class="n">refer</span> <span class="n">to</span> <span class="n">the</span> <span class="n">code</span><span class="o">.</span>
+
+<span class="n">note</span><span class="p">:</span> <span class="n">Alice</span> <span class="n">sends</span> <span class="n">a</span> <span class="n">connection</span> <span class="n">request</span> <span class="n">to</span> <span class="n">Adham</span> <span class="p">(</span><span class="nb">all</span> <span class="n">on</span> <span class="n">backend</span> <span class="n">A</span><span class="p">)</span>
+
+<span class="n">order</span><span class="p">:</span> <span class="n">Alice</span><span class="p">,</span> <span class="n">Adham</span><span class="p">,</span> <span class="n">brig</span><span class="p">,</span> <span class="n">galley</span><span class="p">,</span> <span class="n">cassandra</span>
+
+<span class="n">Alice</span> <span class="o">-&gt;</span> <span class="n">brig</span><span class="p">:</span> <span class="n">POST</span> <span class="o">/</span><span class="n">connections</span>
+
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">cassandra</span><span class="p">:</span>  <span class="n">write</span> <span class="ow">in</span> <span class="s1">&#39;connections&#39;</span><span class="p">:</span> <span class="n">Alice</span><span class="o">-</span><span class="n">Adham</span><span class="o">-</span><span class="n">sent</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">cassandra</span><span class="p">:</span>  <span class="n">write</span> <span class="ow">in</span> <span class="s1">&#39;connections&#39;</span><span class="p">:</span> <span class="n">Adham</span><span class="o">-</span><span class="n">Alice</span><span class="o">-</span><span class="n">pending</span>
+<span class="n">note</span> <span class="n">brig</span><span class="p">,</span> <span class="n">galley</span><span class="p">:</span> <span class="n">when</span> <span class="n">a</span> <span class="n">connection</span> <span class="n">request</span> <span class="ow">is</span> <span class="n">sent</span><span class="p">,</span> <span class="n">that</span> <span class="n">also</span> <span class="n">creates</span> <span class="n">a</span> <span class="n">conversation</span> <span class="n">of</span> <span class="nb">type</span> <span class="s1">&#39;connection&#39;</span> <span class="n">containing</span> <span class="n">only</span> <span class="n">the</span> <span class="n">sender</span><span class="p">:</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">galley</span><span class="p">:</span> <span class="o">/</span><span class="n">i</span><span class="o">/</span><span class="n">conversations</span><span class="o">/</span><span class="n">connect</span>
+<span class="n">galley</span> <span class="o">-&gt;</span> <span class="n">cassandra</span><span class="p">:</span> <span class="n">write</span> <span class="ow">in</span> <span class="n">conversations</span><span class="p">:</span> <span class="n">ID</span><span class="o">-</span><span class="n">A</span><span class="o">-</span><span class="n">A</span><span class="p">:</span> <span class="n">connection</span><span class="o">/</span><span class="p">[</span><span class="n">Alice</span><span class="p">]</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">Adham</span><span class="p">:</span> <span class="n">Event</span><span class="p">:</span> <span class="n">new</span> <span class="n">connection</span> <span class="n">request</span> <span class="kn">from</span> <span class="nn">Alice</span>
+
+<span class="o">...</span><span class="p">:</span> <span class="p">{</span><span class="n">fas</span><span class="o">-</span><span class="n">spinner</span><span class="p">}</span>
+
+<span class="n">note</span> <span class="n">Alice</span><span class="p">,</span> <span class="n">cassandra</span><span class="p">:</span> <span class="n">Adham</span> <span class="n">reacts</span> <span class="ow">and</span> <span class="n">sends</span> <span class="n">a</span> <span class="n">request</span> <span class="n">to</span> <span class="n">accept</span> <span class="n">the</span> <span class="n">connection</span> <span class="n">request</span>
+
+<span class="n">Adham</span> <span class="o">-&gt;</span> <span class="n">brig</span><span class="p">:</span> <span class="o">*</span><span class="n">PUT</span> <span class="o">/</span><span class="n">connections</span><span class="o">/&lt;</span><span class="nb">id</span><span class="o">&gt;*</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">cassandra</span><span class="p">:</span> <span class="n">read</span> <span class="s1">&#39;connections&#39;</span> <span class="k">for</span> <span class="n">Alice</span><span class="o">-</span><span class="n">Adham</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">cassandra</span><span class="p">:</span> <span class="n">read</span> <span class="s1">&#39;connections&#39;</span> <span class="k">for</span> <span class="n">Adham</span><span class="o">-</span><span class="n">Alice</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">cassandra</span><span class="p">:</span>  <span class="n">write</span> <span class="ow">in</span> <span class="s1">&#39;connections&#39;</span><span class="p">:</span> <span class="n">Alice</span><span class="o">-</span><span class="n">Adham</span><span class="o">-</span><span class="n">accept</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">cassandra</span><span class="p">:</span>  <span class="n">write</span> <span class="ow">in</span> <span class="s1">&#39;connections&#39;</span><span class="p">:</span> <span class="n">Adham</span><span class="o">-</span><span class="n">Alice</span><span class="o">-</span><span class="n">accept</span>
+
+<span class="n">note</span> <span class="n">brig</span><span class="p">,</span> <span class="n">galley</span><span class="p">:</span> <span class="n">Accepting</span> <span class="n">a</span> <span class="n">connection</span> <span class="n">also</span> <span class="n">leads</span> <span class="n">to</span> <span class="n">the</span> <span class="n">upgrade</span> <span class="n">of</span> <span class="n">the</span> <span class="s1">&#39;connect&#39;</span> <span class="n">conversation</span> <span class="n">to</span> <span class="n">a</span> <span class="s1">&#39;one2one&#39;</span> <span class="n">conversation</span> <span class="ow">and</span> <span class="n">adds</span> <span class="n">Adham</span> <span class="n">to</span> <span class="n">the</span> <span class="n">member</span> <span class="nb">list</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">galley</span><span class="p">:</span> <span class="o">/</span><span class="n">i</span><span class="o">/</span><span class="n">conversations</span><span class="o">/</span><span class="p">:</span><span class="n">convId</span><span class="o">/</span><span class="n">accept</span><span class="o">/</span><span class="n">v2</span>
+<span class="n">galley</span> <span class="o">-&gt;</span> <span class="n">cassandra</span><span class="p">:</span> <span class="n">write</span> <span class="ow">in</span> <span class="n">conversations</span><span class="p">:</span> <span class="n">ID</span><span class="o">-</span><span class="n">A</span><span class="o">-</span><span class="n">A</span><span class="p">:</span> <span class="n">one2one</span><span class="o">/</span><span class="p">[</span><span class="n">Alice</span><span class="p">,</span><span class="n">Adham</span><span class="p">]</span>
+<span class="n">brig</span> <span class="o">-&gt;</span> <span class="n">Alice</span><span class="p">:</span> <span class="n">Event</span><span class="p">:</span> <span class="n">connection</span> <span class="n">request</span> <span class="n">accepted</span>
+</pre></div>
+</div>
+</details>
+<p>The connection / one2one conversation ID is deterministically determined using a combination of the two involved user’s UUIDs, using the <a class="reference external" href="https://github.com/wireapp/wire-server/blob/3b1d0c5acee58bb65d8d72e71baf68dd4c0096ae/libs/types-common/src/Data/UUID/Tagged.hs#L67-L83">addv4</a> function.</p>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="activation.html" class="btn btn-neutral float-left" title="10. User Activation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="registration.html" class="btn btn-neutral float-right" title="13. User Registration" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

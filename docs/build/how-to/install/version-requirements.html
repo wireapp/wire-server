@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Required/Supported versions &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Dependencies on operator’s machine" href="dependencies.html" />
+    <link rel="prev" title="Implementation plan" href="planning.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Installation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="planning.html">How to plan an installation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Version requirements</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#persistence">Persistence</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#infrastructure">Infrastructure</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#automation">Automation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html">How to install kubernetes (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html">How to install wire-server using Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html">Infrastructure configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html">Web app settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Installing Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Installing Restund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html">Configure TLS ciphers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html">Verifying your installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Installation</a></li>
+      <li class="breadcrumb-item active">Required/Supported versions</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/install/version-requirements.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="required-supported-versions">
+<h1>Required/Supported versions<a class="headerlink" href="#required-supported-versions" title="Permalink to this heading"></a></h1>
+<p><em>Updated: 26.04.2021</em></p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If you already installed Wire by using <code class="docutils literal notranslate"><span class="pre">poetry</span></code>, please refer to the
+<a class="reference external" href="https://docs.wire.com/versions/install-with-poetry/how-to/index.html">old version</a> of
+the installation guide.</p>
+</div>
+<section id="persistence">
+<h2>Persistence<a class="headerlink" href="#persistence" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p>Cassandra: 3.11 (OpenJDK 8)</p></li>
+<li><p>Elasticsearch: 6.6.0</p></li>
+<li><p>Minio
+: - server: latest (tested v2020-03-25)</p>
+<ul>
+<li><p>client: latest (tested v2020-03-14)</p></li>
+</ul>
+</li>
+</ul>
+<section id="infrastructure">
+<h3>Infrastructure<a class="headerlink" href="#infrastructure" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>Ubuntu: 18.04</p></li>
+<li><p>Docker: latest</p></li>
+<li><p>Kubernetes: 1.19.7</p></li>
+</ul>
+</section>
+<section id="automation">
+<h3>Automation<a class="headerlink" href="#automation" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>Ansible: 2.9</p></li>
+<li><p>Helm: &gt;= v3</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="planning.html" class="btn btn-neutral float-left" title="Implementation plan" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="dependencies.html" class="btn btn-neutral float-right" title="Dependencies on operator’s machine" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

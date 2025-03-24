@@ -2225,6 +2225,7 @@ accessConvMeta = do
           Nothing
           Nothing
           (Just GroupConversation)
+          Nothing
           def
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode

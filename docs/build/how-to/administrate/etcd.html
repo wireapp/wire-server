@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Etcd &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="General - Linux" href="general-linux.html" />
+    <link rel="prev" title="Elasticsearch" href="elasticsearch.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Administration</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="kubernetes/index.html">Kubernetes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backup-disaster-recovery.html">Backup and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cassandra.html">Cassandra</a></li>
+<li class="toctree-l2"><a class="reference internal" href="elasticsearch.html">Elasticsearch</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Etcd</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-see-cluster-health">How to see cluster health</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-inspect-tables-and-data-manually">How to inspect tables and data manually</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-rolling-restart-an-etcd-cluster">How to rolling-restart an etcd cluster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#backing-up-and-restoring">Backing up and restoring</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-recover-from-a-single-unhealthy-etcd-node-after-virtual-machine-snapshot-restore">How to recover from a single unhealthy etcd node after virtual machine snapshot restore</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="general-linux.html">General - Linux</a></li>
+<li class="toctree-l2"><a class="reference internal" href="minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operations.html">Operational procedures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Restund (TURN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="users.html">Investigative tasks (e.g. searching for users as server admin)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Administration</a></li>
+      <li class="breadcrumb-item active">Etcd</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/administrate/etcd.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="etcd">
+<h1>Etcd<a class="headerlink" href="#etcd" title="Permalink to this heading"></a></h1>
+<p>This section is about <strong>how to perform a specific task</strong>. If you want to <strong>understand how a certain component works, please see</strong> <a class="reference internal" href="../../understand/index.html#understand"><span class="std std-ref">Reference</span></a></p>
+<p>The rest of the page assumes you installed using the ansible playbooks from <a class="reference external" href="https://github.com/wireapp/wire-server-deploy/tree/master/ansible">wire-server-deploy</a></p>
+<p>For any command below, first ssh into the server:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span> <span class="o">&lt;</span><span class="n">name</span> <span class="ow">or</span> <span class="n">IP</span> <span class="n">of</span> <span class="n">the</span> <span class="n">VM</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>This section only covers the bare minimum, for more information, see the <a class="reference external" href="https://etcd.io/">etcd documentation</a></p>
+<section id="how-to-see-cluster-health">
+<span id="id1"></span><h2>How to see cluster health<a class="headerlink" href="#how-to-see-cluster-health" title="Permalink to this heading"></a></h2>
+<p>If the file <code class="docutils literal notranslate"><span class="pre">/usr/local/bin/etcd-health.sh</span></code> is available, you can run</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>etcd-health.sh
+</pre></div>
+</div>
+<p>which should produce an output similar to:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Cluster</span><span class="o">-</span><span class="n">Endpoints</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">cURL</span> <span class="n">Command</span><span class="p">:</span> <span class="n">curl</span> <span class="o">-</span><span class="n">X</span> <span class="n">GET</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">2379</span><span class="o">/</span><span class="n">v2</span><span class="o">/</span><span class="n">members</span>
+<span class="n">member</span> <span class="mi">7</span><span class="n">c37f7dc10558fae</span> <span class="ow">is</span> <span class="n">healthy</span><span class="p">:</span> <span class="n">got</span> <span class="n">healthy</span> <span class="n">result</span> <span class="kn">from</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.11</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">member</span> <span class="n">cca4e6f315097b3b</span> <span class="ow">is</span> <span class="n">healthy</span><span class="p">:</span> <span class="n">got</span> <span class="n">healthy</span> <span class="n">result</span> <span class="kn">from</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.10</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">member</span> <span class="n">e767162297c84b1e</span> <span class="ow">is</span> <span class="n">healthy</span><span class="p">:</span> <span class="n">got</span> <span class="n">healthy</span> <span class="n">result</span> <span class="kn">from</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.12</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">cluster</span> <span class="ow">is</span> <span class="n">healthy</span>
+</pre></div>
+</div>
+<p>If that helper file is not available, create it with the following contents:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/usr/bin/env bash</span>
+
+<span class="nv">HOST</span><span class="o">=</span><span class="k">$(</span>hostname<span class="k">)</span>
+
+etcdctl<span class="w"> </span>--endpoints<span class="w"> </span>https://127.0.0.1:2379<span class="w"> </span>--ca-file<span class="o">=</span>/etc/ssl/etcd/ssl/ca.pem<span class="w"> </span>--cert-file<span class="o">=</span>/etc/ssl/etcd/ssl/member-<span class="nv">$HOST</span>.pem<span class="w"> </span>--key-file<span class="o">=</span>/etc/ssl/etcd/ssl/member-<span class="nv">$HOST</span>-key.pem<span class="w"> </span>--debug<span class="w"> </span>cluster-health
+</pre></div>
+</div>
+<p>and then make it executable: <code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">+x</span> <span class="pre">/usr/local/bin/etcd-health.sh</span></code></p>
+</section>
+<section id="how-to-inspect-tables-and-data-manually">
+<h2>How to inspect tables and data manually<a class="headerlink" href="#how-to-inspect-tables-and-data-manually" title="Permalink to this heading"></a></h2>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>TODO
+</pre></div>
+</div>
+</section>
+<section id="how-to-rolling-restart-an-etcd-cluster">
+<span id="id2"></span><h2>How to rolling-restart an etcd cluster<a class="headerlink" href="#how-to-rolling-restart-an-etcd-cluster" title="Permalink to this heading"></a></h2>
+<p>Etcd is a consistent and partition tolerant key-value store.  This means that
+Etcd nodes can be restarted (one by one) with no impact to the consistency of
+data, but there might a small time in which the database can not process
+writes. Etcd has a designated leader which decides ordering of events (and thus
+writes) in the cluster. When the leader crashes, a leadership election takes
+place.  During the leadership election, the cluster might be briefly
+unavailable for writes.  Writes during this period are queued up until a new
+leader is elected.  Any writes that were happening during the crash of the
+leader that were not acknowledged by the leader and the followers yet will be
+‘lost’.  The client that performed this write will experience this as a write
+timeout. (Source: <a class="reference external" href="https://etcd.io/docs/v3.4.0/op-guide/failures/">https://etcd.io/docs/v3.4.0/op-guide/failures/</a>).  Client
+applications (like kubernetes) are expected to deal with this failure scenario
+gracefully.</p>
+<p>Etcd can be restarted in a rolling fashion, by cleanly shutting down and
+starting up  etcd servers one by one.  In Etcd 3.1 and up, when the leader is
+cleanly shut down, it will hand over leadership gracefully to another node,
+which will minimize the impact of write-availability as election time is
+reduced. (Source :
+<a class="reference external" href="https://kubernetes.io/blog/2018/12/11/etcd-current-status-and-future-roadmap/">https://kubernetes.io/blog/2018/12/11/etcd-current-status-and-future-roadmap/</a>)
+Restarting follower nodes has no impact to availability.</p>
+<p>Etcd does load-balancing between servrvers on the client-side. This means that
+if a server you were talking to is being restarted, etcd will transparently
+redirect the request to another server. It’s is thus safe to shut them down at
+any point.</p>
+<p>Now to perform a rolling restart of the cluster, do the following steps:</p>
+<ol class="arabic simple">
+<li><p>Check your cluster is healthy (see above)</p></li>
+<li><p>Stop the process with <code class="docutils literal notranslate"><span class="pre">systemctl</span> <span class="pre">stop</span> <span class="pre">etcd</span></code> (this should be safe since etcd clients retry their operation if one endpoint becomes unavailable, see <a class="reference external" href="https://etcd.io/docs/v3.3.12/learning/client-architecture/">this page</a>)</p></li>
+<li><p>Do any operation you need, if any. Like rebooting</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">systemctl</span> <span class="pre">start</span> <span class="pre">etcd</span></code></p></li>
+<li><p>Wait for your cluster to be healthy again.</p></li>
+<li><p>Do the same on the next server.</p></li>
+</ol>
+<p><em>For more details please refer to the official documentation:</em> <a class="reference external" href="https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/#replacing-a-failed-etcd-member">Replacing a failed etcd member</a></p>
+</section>
+<section id="backing-up-and-restoring">
+<span id="etcd-backup-and-restore"></span><h2>Backing up and restoring<a class="headerlink" href="#backing-up-and-restoring" title="Permalink to this heading"></a></h2>
+<p>Though as long as quorum is maintained in etcd there will be no dataloss, it is
+still good to prepare for the worst. If a disaster takes out too many nodes, then
+you might have to restore from an old backup.</p>
+<p>Luckily, etcd can take periodic snapshots of your cluster and these can be used
+in cases of disaster recovery. Information about how to do snapshots and
+restores can be found here:
+<a class="reference external" href="https://github.com/etcd-io/etcd/blob/master/Documentation/op-guide/recovery.md">https://github.com/etcd-io/etcd/blob/master/Documentation/op-guide/recovery.md</a></p>
+<p><em>For more details please refer to the official documentation:</em> <a class="reference external" href="https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/#backing-up-an-etcd-cluster">Backing up an etcd cluster</a></p>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading"></a></h2>
+<section id="how-to-recover-from-a-single-unhealthy-etcd-node-after-virtual-machine-snapshot-restore">
+<h3>How to recover from a single unhealthy etcd node after virtual machine snapshot restore<a class="headerlink" href="#how-to-recover-from-a-single-unhealthy-etcd-node-after-virtual-machine-snapshot-restore" title="Permalink to this heading"></a></h3>
+<p>After restoring an etcd machine from an earlier snapshot of the machine disk, etcd members may become unable to join.</p>
+<p>Symptoms: That etcd process is unable to start and crashes, and other etcd nodes can’t reach it:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">failed</span> <span class="n">to</span> <span class="n">check</span> <span class="n">the</span> <span class="n">health</span> <span class="n">of</span> <span class="n">member</span> <span class="n">e767162297c84b1e</span> <span class="n">on</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.12</span><span class="p">:</span><span class="mi">2379</span><span class="p">:</span> <span class="n">Get</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.12</span><span class="p">:</span><span class="mi">2379</span><span class="o">/</span><span class="n">health</span><span class="p">:</span> <span class="n">dial</span> <span class="n">tcp</span> <span class="mf">10.10.1.12</span><span class="p">:</span><span class="mi">2379</span><span class="p">:</span> <span class="n">getsockopt</span><span class="p">:</span> <span class="n">connection</span> <span class="n">refused</span>
+<span class="n">member</span> <span class="n">e767162297c84b1e</span> <span class="ow">is</span> <span class="n">unreachable</span><span class="p">:</span> <span class="p">[</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.12</span><span class="p">:</span><span class="mi">2379</span><span class="p">]</span> <span class="n">are</span> <span class="nb">all</span> <span class="n">unreachable</span>
+</pre></div>
+</div>
+<p>Logs from the crashing etcd:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>(...)
+Sep 25 09:27:05 node2 etcd[20288]: 2019-09-25 07:27:05.691409 I | raft: e767162297c84b1e [term: 28] received a MsgHeartbeat message with higher term from cca4e6f315097b3b [term: 30]
+Sep 25 09:27:05 node2 etcd[20288]: 2019-09-25 07:27:05.691620 I | raft: e767162297c84b1e became follower at term 30
+Sep 25 09:27:05 node2 etcd[20288]: 2019-09-25 07:27:05.692423 C | raft: tocommit(16152654) is out of range [lastIndex(16061986)]. Was the raft log corrupted, truncated, or lost?
+Sep 25 09:27:05 node2 etcd[20288]: panic: tocommit(16152654) is out of range [lastIndex(16061986)]. Was the raft log corrupted, truncated, or lost?
+Sep 25 09:27:05 node2 etcd[20288]: goroutine 90 [running]:
+(...)
+</pre></div>
+</div>
+<p>Etcd will refuse nodes that run behind to join the cluster.  If a node has
+committed to a certain version of the raft log, it is expected not to jump back
+in time after that. In this scenario, we turned an etcd server off, made a
+snapshot of the virtual machine, brought it back online, and then restored the
+snapshot.  What went wrong is is that if you bring up a VM snapshot, it means
+the etcd node will now have an older raft log than it had before; even though
+it already gossiped to all other nodes that it has knowledge of newer entries.</p>
+<p>As a safety precaution, the other nodes will reject the node that is travelling
+back in time, to avoid data corruption. A node could get corrupted for other
+reasons as well. Perhaps a disk is faulty and is serving wrong data. Either
+way, if you end up in a scenario where a node is unhealthy and will refuse to
+rejoin the cluster, it is time to do some operations to get the cluster back in
+a healthy state.</p>
+<p>It is not recommended to restore an etcd node from a vm snapshot, as that will
+cause these kind of time-travelling behaviours which will make the node
+unhealthy. To recover from this situation anyway,
+I quote from the etcdv2 admin guide <a class="reference external" href="https://github.com/etcd-io/etcd/blob/master/Documentation/v2/admin_guide.md">https://github.com/etcd-io/etcd/blob/master/Documentation/v2/admin_guide.md</a></p>
+<blockquote>
+<div><p>If a member’s data directory is ever lost or corrupted then the user should
+remove the etcd member from the cluster using etcdctl tool.  A user should
+avoid restarting an etcd member with a data directory from an out-of-date
+backup. Using an out-of-date data directory can lead to inconsistency as the
+member had agreed to store information via raft then re-joins saying it
+needs that information again. For maximum safety, if an etcd member suffers
+any sort of data corruption or loss, it must be removed from the cluster.
+Once removed the member can be re-added with an empty data directory.</p>
+</div></blockquote>
+<p>Note that this piece of documentation is from etcdv2 and not etcdv3. However
+the etcdv3 docs describe a similar procedure here
+<a class="reference external" href="https://github.com/etcd-io/etcd/blob/master/Documentation/op-guide/runtime-configuration.md#replace-a-failed-machine">https://github.com/etcd-io/etcd/blob/master/Documentation/op-guide/runtime-configuration.md#replace-a-failed-machine</a></p>
+<p>The procedure to remove and add a member is documented here:
+<a class="reference external" href="https://github.com/etcd-io/etcd/blob/master/Documentation/op-guide/runtime-configuration.md#remove-a-member">https://github.com/etcd-io/etcd/blob/master/Documentation/op-guide/runtime-configuration.md#remove-a-member</a></p>
+<p>It is also documented in the kubernetes documentation:
+<a class="reference external" href="https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/#replacing-a-failed-etcd-member">https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/#replacing-a-failed-etcd-member</a></p>
+<p>So following the above guides step by step, we can recover our cluster to be
+healthy again.</p>
+<p>First let us make sure our broken member is stopped by runnning this on <code class="docutils literal notranslate"><span class="pre">node</span></code>:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>systemctl<span class="w"> </span>stop<span class="w"> </span>etcd
+</pre></div>
+</div>
+<p>Now from a healthy node, e.g. <code class="docutils literal notranslate"><span class="pre">node0</span></code> remove the broken node</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>etcdctl3.sh<span class="w">  </span>member<span class="w"> </span>remove<span class="w"> </span>e767162297c84b1e
+</pre></div>
+</div>
+<p>And we expect the output to be something like</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>Member<span class="w"> </span>e767162297c84b1e<span class="w"> </span>removed<span class="w"> </span>from<span class="w"> </span>cluster<span class="w"> </span>432c10551aa096af
+</pre></div>
+</div>
+<p>By removing the member from the cluster, you signal the other nodes to not
+expect it to come back with the right state. It will be considered dead and
+removed from the peers.  This will allow the node to come up with an empty data
+directory and it not getting kicked out of the cluster. The cluster should now
+be healthy, but only have 2 members, and so it is not to resistent to crashes
+at the moment! As we can see if we run the health check from a healthy node.</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>etcd-health.sh
+</pre></div>
+</div>
+<p>And we expect only two nodes to be in the cluster:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Cluster</span><span class="o">-</span><span class="n">Endpoints</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">cURL</span> <span class="n">Command</span><span class="p">:</span> <span class="n">curl</span> <span class="o">-</span><span class="n">X</span> <span class="n">GET</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">2379</span><span class="o">/</span><span class="n">v2</span><span class="o">/</span><span class="n">members</span>
+<span class="n">member</span> <span class="mi">7</span><span class="n">c37f7dc10558fae</span> <span class="ow">is</span> <span class="n">healthy</span><span class="p">:</span> <span class="n">got</span> <span class="n">healthy</span> <span class="n">result</span> <span class="kn">from</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.11</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">member</span> <span class="n">cca4e6f315097b3b</span> <span class="ow">is</span> <span class="n">healthy</span><span class="p">:</span> <span class="n">got</span> <span class="n">healthy</span> <span class="n">result</span> <span class="kn">from</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.10</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">cluster</span> <span class="ow">is</span> <span class="n">healthy</span>
+</pre></div>
+</div>
+<p>Now from a healthy node, re-add the node you just removed. Make sure
+to replace the IP in the snippet below with the IP of the node you just removed.</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>etcdctl3.sh<span class="w"> </span>member<span class="w"> </span>add<span class="w"> </span>etcd_2<span class="w"> </span>--peer-urls<span class="w"> </span>https://10.10.1.12:2380
+</pre></div>
+</div>
+<p>And it should report that it has been added:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Member</span> <span class="n">e13b1d076b2f9344</span> <span class="n">added</span> <span class="n">to</span> <span class="n">cluster</span> <span class="mi">432</span><span class="n">c10551aa096af</span>
+
+<span class="n">ETCD_NAME</span><span class="o">=</span><span class="s2">&quot;etcd_2&quot;</span>
+<span class="n">ETCD_INITIAL_CLUSTER</span><span class="o">=</span><span class="s2">&quot;etcd_1=https://10.10.1.11:2380,etcd_0=https://10.10.1.10:2380,etcd_2=https://10.10.1.12:2380&quot;</span>
+<span class="n">ETCD_INITIAL_CLUSTER_STATE</span><span class="o">=</span><span class="s2">&quot;existing&quot;</span>
+</pre></div>
+</div>
+<p>it should now be in the list as “unstarted”  instead of it not being in the list at all.</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>etcdctl3.sh<span class="w"> </span>member<span class="w"> </span>list
+
+
+7c37f7dc10558fae,<span class="w"> </span>started,<span class="w"> </span>etcd_1,<span class="w"> </span>https://10.10.1.11:2380,<span class="w"> </span>https://10.10.1.11:2379
+cca4e6f315097b3b,<span class="w"> </span>started,<span class="w"> </span>etcd_0,<span class="w"> </span>https://10.10.1.10:2380,<span class="w"> </span>https://10.10.1.10:2379
+e13b1d076b2f9344,<span class="w"> </span>unstarted,<span class="w"> </span>,<span class="w"> </span>https://10.10.1.12:2380,
+</pre></div>
+</div>
+<p>Now on the broken node, remove the on-disk state, which was corrupted, and start etcd</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>mv<span class="w"> </span>/var/lib/etcd<span class="w"> </span>/var/lib/etcd.bak
+sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>etcd
+</pre></div>
+</div>
+<p>If we run the health check now, the cluster should report its healthy now again.</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>etcd-health.sh
+</pre></div>
+</div>
+<p>And indeed it outputs so:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Cluster</span><span class="o">-</span><span class="n">Endpoints</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">cURL</span> <span class="n">Command</span><span class="p">:</span> <span class="n">curl</span> <span class="o">-</span><span class="n">X</span> <span class="n">GET</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">2379</span><span class="o">/</span><span class="n">v2</span><span class="o">/</span><span class="n">members</span>
+<span class="n">member</span> <span class="mi">7</span><span class="n">c37f7dc10558fae</span> <span class="ow">is</span> <span class="n">healthy</span><span class="p">:</span> <span class="n">got</span> <span class="n">healthy</span> <span class="n">result</span> <span class="kn">from</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.11</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">member</span> <span class="n">cca4e6f315097b3b</span> <span class="ow">is</span> <span class="n">healthy</span><span class="p">:</span> <span class="n">got</span> <span class="n">healthy</span> <span class="n">result</span> <span class="kn">from</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.10</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">member</span> <span class="n">e13b1d076b2f9344</span> <span class="ow">is</span> <span class="n">healthy</span><span class="p">:</span> <span class="n">got</span> <span class="n">healthy</span> <span class="n">result</span> <span class="kn">from</span> <span class="nn">https</span><span class="p">:</span><span class="o">//</span><span class="mf">10.10.1.12</span><span class="p">:</span><span class="mi">2379</span>
+<span class="n">cluster</span> <span class="ow">is</span> <span class="n">healthy</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="elasticsearch.html" class="btn btn-neutral float-left" title="Elasticsearch" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="general-linux.html" class="btn btn-neutral float-right" title="General - Linux" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

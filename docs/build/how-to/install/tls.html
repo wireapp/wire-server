@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configure TLS ciphers &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Manage ansible authentication settings" href="ansible-authentication.html" />
+    <link rel="prev" title="Installing Restund" href="restund.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Installation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="planning.html">How to plan an installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="version-requirements.html">Version requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html">How to install kubernetes (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html">How to install wire-server using Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html">Infrastructure configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html">Web app settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Installing Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Installing Restund</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Configure TLS ciphers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ingress-traffic-wire-server">Ingress Traffic (wire-server)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#egress-traffic-wire-server-federation">Egress Traffic (wire-server/federation)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sftd-ansible">SFTD (ansible)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sftd-kubernetes">SFTD (kubernetes)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#coturn-kubernetes">Coturn (kubernetes)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#restund-ansible">Restund (ansible)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#restund-kubernetes">Restund (kubernetes)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html">Verifying your installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Installation</a></li>
+      <li class="breadcrumb-item active">Configure TLS ciphers</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/install/tls.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="configure-tls-ciphers">
+<span id="tls"></span><h1>Configure TLS ciphers<a class="headerlink" href="#configure-tls-ciphers" title="Permalink to this heading"></a></h1>
+<p>The following table lists recommended ciphers for TLS server setups, which should be used in wire deployments.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Cipher</p></th>
+<th class="head"><p>Version</p></th>
+<th class="head"><p>Wire default</p></th>
+<th class="head"><p><a class="reference external" href="https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf">BSI TR-02102-2</a></p></th>
+<th class="head"><p><a class="reference external" href="https://wiki.mozilla.org/Security/Server_Side_TLS">Mozilla TLS Guideline</a></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ECDHE-ECDSA-AES128-GCM-SHA256</p></td>
+<td><p>TLSv1.2</p></td>
+<td><p>no</p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p>intermediate</p></td>
+</tr>
+<tr class="row-odd"><td><p>ECDHE-RSA-AES128-GCM-SHA256</p></td>
+<td><p>TLSv1.2</p></td>
+<td><p>no</p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p>intermediate</p></td>
+</tr>
+<tr class="row-even"><td><p>ECDHE-ECDSA-AES256-GCM-SHA384</p></td>
+<td><p>TLSv1.2</p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p>intermediate</p></td>
+</tr>
+<tr class="row-odd"><td><p>ECDHE-RSA-AES256-GCM-SHA384</p></td>
+<td><p>TLSv1.2</p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p>intermediate</p></td>
+</tr>
+<tr class="row-even"><td><p>ECDHE-ECDSA-CHACHA20-POLY1305</p></td>
+<td><p>TLSv1.2</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+<td><p>intermediate</p></td>
+</tr>
+<tr class="row-odd"><td><p>ECDHE-RSA-CHACHA20-POLY1305</p></td>
+<td><p>TLSv1.2</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+<td><p>intermediate</p></td>
+</tr>
+<tr class="row-even"><td><p>TLS_AES_128_GCM_SHA256</p></td>
+<td><p>TLSv1.3</p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p><strong>modern</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>TLS_AES_256_GCM_SHA384</p></td>
+<td><p>TLSv1.3</p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p><strong>yes</strong></p></td>
+<td><p><strong>modern</strong></p></td>
+</tr>
+<tr class="row-even"><td><p>TLS_CHACHA20_POLY1305_SHA256</p></td>
+<td><p>TLSv1.3</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+<td><p><strong>modern</strong></p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you enable TLSv1.3, openssl does always enable the three default cipher suites for TLSv1.3.
+Therefore it is not necessary to add them to openssl based configurations.</p>
+</div>
+<section id="ingress-traffic-wire-server">
+<span id="ingress-traffic"></span><h2>Ingress Traffic (wire-server)<a class="headerlink" href="#ingress-traffic-wire-server" title="Permalink to this heading"></a></h2>
+<p>The list of TLS ciphers for incoming requests is limited by default to the <a class="reference external" href="https://github.com/wireapp/wire-server/blob/master/charts/ingress-nginx-controller/values.yaml#L41-45">following</a> (for general server-certificates, both for federation and client API), and can be overridden on your installation if needed.</p>
+</section>
+<section id="egress-traffic-wire-server-federation">
+<h2>Egress Traffic (wire-server/federation)<a class="headerlink" href="#egress-traffic-wire-server-federation" title="Permalink to this heading"></a></h2>
+<p>The list of TLS ciphers for outgoing federation requests is currently hardcoded, the list is <a class="reference external" href="https://github.com/wireapp/wire-server/blob/master/services/federator/src/Federator/Remote.hs#L164-L180">here</a>.</p>
+</section>
+<section id="sftd-ansible">
+<h2>SFTD (ansible)<a class="headerlink" href="#sftd-ansible" title="Permalink to this heading"></a></h2>
+<p>The list of TLS ciphers for incoming SFT requests (and metrics) are defined in ansible templates <a class="reference external" href="https://github.com/wireapp/ansible-sft/blob/develop/roles/sft-server/templates/sftd.vhost.conf.j2#L19">sftd.vhost.conf.j2</a> and <a class="reference external" href="https://github.com/wireapp/ansible-sft/blob/develop/roles/sft-server/templates/metrics.vhost.conf.j2#L13">metrics.vhost.conf.j2</a>.</p>
+</section>
+<section id="sftd-kubernetes">
+<h2>SFTD (kubernetes)<a class="headerlink" href="#sftd-kubernetes" title="Permalink to this heading"></a></h2>
+<p>SFTD deployed via kubernetes uses <code class="docutils literal notranslate"><span class="pre">kubernetes.io/ingress</span></code> for ingress traffic, configured in <a class="reference external" href="https://github.com/wireapp/wire-server/blob/develop/charts/sftd/templates/ingress.yaml">ingress.yaml</a>.
+Kubernetes based deployments make use of the settings from <a class="reference internal" href="#ingress-traffic"><span class="std std-ref">Ingress Traffic (wire-server)</span></a>.</p>
+</section>
+<section id="coturn-kubernetes">
+<h2>Coturn (kubernetes)<a class="headerlink" href="#coturn-kubernetes" title="Permalink to this heading"></a></h2>
+<p>The list of TLS ciphers for “TLS over TCP” TURN are defined in the <a class="reference external" href="https://github.com/wireapp/wire-server/blob/master/charts/coturn/">coturn helm chart</a></p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">../charts/coturn/values.yaml</span><a class="headerlink" href="#id1" title="Permalink to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">tls</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="c1"># compliant with BSI TR-02102-2</span>
+<span class="w">  </span><span class="nt">ciphers</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384&#39;</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="restund-ansible">
+<h2>Restund (ansible)<a class="headerlink" href="#restund-ansible" title="Permalink to this heading"></a></h2>
+<p>The list of TLS ciphers for “TLS over TCP” TURN (and metrics) are defined in ansible templates <a class="reference external" href="https://github.com/wireapp/ansible-restund/blob/master/templates/nginx-stream.conf.j2#L25">nginx-stream.conf.j2</a> and <a class="reference external" href="https://github.com/wireapp/ansible-restund/blob/master/templates/nginx-metrics.conf.j2#L15">nginx-metrics.conf.j2</a>.</p>
+</section>
+<section id="restund-kubernetes">
+<h2>Restund (kubernetes)<a class="headerlink" href="#restund-kubernetes" title="Permalink to this heading"></a></h2>
+<p><a class="reference external" href="https://github.com/wireapp/wire-server/tree/develop/charts/restund">Kubernetes restund</a> deployment does not provide TLS connectivity.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="restund.html" class="btn btn-neutral float-left" title="Installing Restund" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="ansible-authentication.html" class="btn btn-neutral float-right" title="Manage ansible authentication settings" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

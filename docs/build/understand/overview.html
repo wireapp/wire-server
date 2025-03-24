@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architecture Overview &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/clipboard.min.js"></script>
+        <script src="../_static/copybutton.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Single Sign-On and User Provisioning" href="single-sign-on/index.html" />
+    <link rel="prev" title="Reference" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../index.html">
+        <img src="../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Architecture Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#architecture-and-networking">Architecture and networking</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#focus-on-internet-protocols">Focus on internet protocols</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#focus-on-high-availability">Focus on high-availability</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#backend-components-startup">Backend components startup</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#focus-on-pods">Focus on pods</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="single-sign-on/index.html">Single Sign-On and User Provisioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Audio/video calling, restund servers (TURN/STUN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html#federated-conference-calling">Federated Conference Calling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="federation/index.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="associate/index.html">Connecting Wire Clients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api-client-perspective/index.html">Client API documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crypto-libs.html">Crypto libraries and sources of randomness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="block-user-creation.html">Block personal user creation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="classified-domains.html">Classified Domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-federation.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="legalhold.html">Installing and setting up Legal Hold</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mls.html">Messaging Layer Security (MLS)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="searchability.html">User Searchability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="team-feature-settings.html">Server and team feature settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Reference</a></li>
+      <li class="breadcrumb-item active">Architecture Overview</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/understand/overview.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="architecture-overview">
+<span id="overview"></span><h1>Architecture Overview<a class="headerlink" href="#architecture-overview" title="Permalink to this heading"></a></h1>
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h2>
+<p>In a simplified way, the server components for Wire involve the following:</p>
+<img alt="../_images/architecture-server-simplified.png" src="../_images/architecture-server-simplified.png" />
+<p>The Wire clients (such as the Wire app on your phone) connect either directly (or via a load balancer) to the “Wire Server”. By “Wire Server” we mean multiple API server components that connect to each other, and which also connect to a few databases. Both the API components and the databases are each in a “cluster”, which means copies of the same program code runs multiple times. This allows any one component to fail without users noticing that there is a problem (also called
+“high-availability”).</p>
+</section>
+<section id="architecture-and-networking">
+<h2>Architecture and networking<a class="headerlink" href="#architecture-and-networking" title="Permalink to this heading"></a></h2>
+<p>Note that the webapp, account pages, and team-settings, while in a way not part of the backend,
+are installed with the rest and therefore included.</p>
+<section id="focus-on-internet-protocols">
+<h3>Focus on internet protocols<a class="headerlink" href="#focus-on-internet-protocols" title="Permalink to this heading"></a></h3>
+<img alt="../_images/architecture-tls-on-prem-2020-09.png" src="../_images/architecture-tls-on-prem-2020-09.png" />
+</section>
+<section id="focus-on-high-availability">
+<h3>Focus on high-availability<a class="headerlink" href="#focus-on-high-availability" title="Permalink to this heading"></a></h3>
+<p>The following diagram shows a usual setup with multiple VMs (Virtual Machines):</p>
+<img alt="../_images/architecture-server-ha.png" src="../_images/architecture-server-ha.png" />
+<p>Wire clients (such as the Wire app on your phone) connect to a load balancer.</p>
+<p>The load balancer forwards traffic to the ingress inside the kubernetes VMs. (Restund is special, see <a class="reference internal" href="restund.html#understand-restund"><span class="std std-ref">Restund (TURN) servers</span></a> for details on how Restund works.)</p>
+<p>The nginx ingress pods inside kubernetes look at incoming traffic, and forward that traffic on to the right place, depending on what’s inside the URL passed. For example, if a request comes in for <code class="docutils literal notranslate"><span class="pre">https://example-https.example.com</span></code>, it is forwarded to a component called <code class="docutils literal notranslate"><span class="pre">nginz</span></code>, which is the main entry point for the <a class="reference external" href="https://github.com/wireapp/wire-server">wire-server API</a>. If, however, a request comes in for <code class="docutils literal notranslate"><span class="pre">https://webapp.example.com</span></code>, it is forwarded to a component called <a class="reference external" href="https://github.com/wireapp/wire-webapp">webapp</a>, which hosts the graphical browser Wire client (as found when you open <a class="reference external" href="https://app.wire.com">https://app.wire.com</a>).</p>
+<p>Wire-server needs a range of databases. Their names are: cassandra, elasticsearch, minio, redis, etcd.</p>
+<p>All the server components on one physical machine can connect to all the databases (also those on a different physical machine). The databases each connect to each-other, e.g. cassandra on machine 1 will connect to the cassandra VMs on machines 2 and 3.</p>
+</section>
+<section id="backend-components-startup">
+<h3>Backend components startup<a class="headerlink" href="#backend-components-startup" title="Permalink to this heading"></a></h3>
+<p>The Wire server backend is designed to run on a kubernetes cluster. From a high level perspective the startup sequence from machine power-on to the Wire server being ready to receive requests is as follow:</p>
+<ol class="arabic simple">
+<li><p><em>Kubernetes node power on</em>. Systemd starts the kubelet service which makes the worker node available to kubernetes. For more details about kubernetes startup refer to <a class="reference external" href="https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/">the official kubernetes documentation</a>. For details about the installation and configuration of kubernetes and worker nodes for Wire server see <a class="reference internal" href="../how-to/install/ansible-VMs.html#ansible-vms"><span class="std std-ref">Installing kubernetes and databases on VMs with ansible</span></a></p></li>
+<li><p><em>Kubernetes workload startup</em>. Kubernetes will ensure that Wire server workloads installed via helm are scheduled on available worker nodes. For more details about workload scheduling refer to <a class="reference external" href="https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/">the official kubernetes documentation</a>. For details about how to install Wire server with helm refer to <a class="reference internal" href="../how-to/install/helm-prod.html#helm-prod"><span class="std std-ref">Installing wire-server (production) components using Helm</span></a>.</p></li>
+<li><p><em>Stateful workload startup</em>. Systemd starts the stateful services (cassandra, elasticsearch and minio). See for instance <a class="reference external" href="https://github.com/wireapp/ansible-cassandra/blob/master/tasks/systemd.yml#L10">ansible-cassandra role</a> and other database installation instructions in <a class="reference internal" href="../how-to/install/ansible-VMs.html#ansible-vms"><span class="std std-ref">Installing kubernetes and databases on VMs with ansible</span></a></p></li>
+<li><p><em>Other services</em>. Systemd starts the restund docker container. See <a class="reference external" href="https://github.com/wireapp/ansible-restund/blob/9807313a7c72ffa40e74f69d239404fd87db65ab/templates/restund.service.j2#L12-L19">ansible-restund role</a>. For details about docker container startup <a class="reference external" href="https://docs.docker.com/get-started/overview/#docker-architecture">consult the official documentation</a></p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For more information about Virual Machine startup or operating system level service startup, please consult your virtualisation and operating system documentation.</p>
+</div>
+</section>
+<section id="focus-on-pods">
+<h3>Focus on pods<a class="headerlink" href="#focus-on-pods" title="Permalink to this heading"></a></h3>
+<p>The Wire backend runs in <a class="reference external" href="https://kubernetes.io/">a kubernetes cluster</a>, with different components running in different <a class="reference external" href="https://kubernetes.io/docs/concepts/workloads/pods/">pods</a>.</p>
+<p>This is a list of those pods as found in a typical installation.</p>
+<p>HTTPS Entry points:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">nginx-ingress-controller-controller</span></code>: <a class="reference external" href="https://kubernetes.github.io/ingress-nginx/">Ingress</a> exposes HTTP and HTTPS routes from outside the cluster to services within the cluster.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nginx-ingress-controller-default-backend</span></code>: <a class="reference external" href="https://kubernetes.github.io/ingress-nginx/user-guide/default-backend/">The default backend</a> is a service which handles all URL paths and hosts the nginx controller doesn’t understand (i.e., all the requests that are not mapped with an Ingress), that is 404 pages. Part of <code class="docutils literal notranslate"><span class="pre">nginx-ingress</span></code>.</p></li>
+</ul>
+<p>Frontend pods:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">webapp</span></code>: The fully functioning Web client (like <a class="reference external" href="https://app.wire.com">https://app.wire.com</a>). <a class="reference external" href="https://github.com/wireapp/wire-docs/blob/master/src/how-to/install/helm.rst#what-will-be-installed">This pod</a> serves the web interface itself, which then interfaces with other services/pods, such as the APIs.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">account-pages</span></code>: <a class="reference external" href="https://github.com/wireapp/wire-docs/blob/master/src/how-to/install/helm.rst#what-will-be-installed">This pod</a> serves Web pages for user account management (a few pages relating to e.g. password reset).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">team-settings</span></code>: Team management Web interface (like <a class="reference external" href="https://teams.wire.com">https://teams.wire.com</a>).</p></li>
+</ul>
+<p>Pods with an HTTP API:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">brig</span></code>: <a class="reference external" href="https://github.com/wireapp/wire-server/tree/develop/services/brig">The user management API service</a>. Connects to <code class="docutils literal notranslate"><span class="pre">cassandra</span></code> and <code class="docutils literal notranslate"><span class="pre">elastisearch</span></code> for user data storage, sends emails and SMS for account validation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cannon</span></code>: <a class="reference external" href="https://github.com/wireapp/wire-server/blob/develop/services/cannon/">WebSockets API Service</a>. Holds WebSocket connections.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cargohold</span></code>: <a class="reference external" href="https://docs.wire.com/how-to/install/aws-prod.html">Asset Storage API Service</a>. Amazon-AWS-S3-style services are used by <code class="docutils literal notranslate"><span class="pre">cargohold</span></code> to store encrypted files that users are sharing amongst each other, such as images, files, and other static content, which we call assets. All assets except profile pictures are symmetrically encrypted before storage (and the keys are only known to the participants of the conversation in which an assets was shared - servers have no knowledge of the keys).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">galley</span></code>: <a class="reference external" href="https://docs.wire.com/understand/api-client-perspective/index.html">Conversations and Teams API Service</a>. Data is stored in cassandra. Uses <code class="docutils literal notranslate"><span class="pre">gundeck</span></code> to send notifications to users.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nginz</span></code>: Public API Reverse Proxy (Nginx with custom libzauth module). A modified copy of nginx, compiled with a specific set of upstream extra modules, and one important additional module zauth_nginx_module. Responsible for user authentication validation. Forwards traffic to all other API services (except federator)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">spar</span></code>: <a class="reference external" href="https://en.wikipedia.org/wiki/Single_sign-on">Single Sign On (SSO)</a> and <a class="reference external" href="https://en.wikipedia.org/wiki/System_for_Cross-domain_Identity_Management">SCIM</a>. Stores data in cassandra.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">gundeck</span></code>: Push Notification Hub (WebSocket/mobile push notifications). Uses redis as a temporary data store for websocket presences. Uses Amazon SNS and SQS.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">federator</span></code>: <a class="reference external" href="https://docs.wire.com/understand/federation/index.html">Connects different wire installations together</a>. Wire Federation, once implemented, aims to allow multiple Wire-server backends to federate with each other. That means that a user 1 registered on backend A and a user 2 registered on backend B should be able to interact with each other as if they belonged to the same backend.</p></li>
+</ul>
+<p>Supporting pods and data storage:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cassandra-ephemeral</span></code> (or <code class="docutils literal notranslate"><span class="pre">cassandra-external</span></code>): <a class="reference external" href="https://github.com/wireapp/wire-server/tree/develop/charts/cassandra-ephemeral">NoSQL Database management system</a> (<a class="reference external" href="https://en.wikipedia.org/wiki/Apache_Cassandra">https://en.wikipedia.org/wiki/Apache_Cassandra</a>). Everything stateful in wire-server (cassandra is used by <code class="docutils literal notranslate"><span class="pre">brig</span></code>, <code class="docutils literal notranslate"><span class="pre">galley</span></code>, <code class="docutils literal notranslate"><span class="pre">gundeck</span></code> and <code class="docutils literal notranslate"><span class="pre">spar</span></code>) is stored in cassandra.
+* <code class="docutils literal notranslate"><span class="pre">cassandra-ephemeral</span></code> is for test clusters where persisting the data (i.e. loose users, conversations,…) does not matter, but this shouldn’t be used in production environments.
+* <code class="docutils literal notranslate"><span class="pre">cassandra-external</span></code> is used to point to an external cassandra cluster which is installed outside of Kubernetes.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">demo-smtp</span></code>: In “demo” installations, used to replace a proper external SMTP server for the sending of emails (for example verification codes). In production environments, an actual SMTP server is used directly instead of this pod. (<a class="reference external" href="https://github.com/namshi/docker-smtp">https://github.com/namshi/docker-smtp</a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fluent-bit</span></code>: A log processor and forwarder, allowing collection of data such as metrics and logs from different sources. Not typically deployed. (<a class="reference external" href="https://fluentbit.io/">https://fluentbit.io/</a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">elastisearch-ephemeral</span></code> (or <code class="docutils literal notranslate"><span class="pre">elastisearch-external</span></code>): <a class="reference external" href="https://github.com/wireapp/wire-server/tree/develop/charts/elastisearch-external">Distributed search and analytics engines, stores some user information (name, handle, userid, teamid)</a>. Information is duplicated here from cassandra to allow searching for users. Information here can be re-populated from data in cassandra (albeit with some downtime for search functionality) (<a class="reference external" href="https://www.elastic.co/what-is/elasticsearch">https://www.elastic.co/what-is/elasticsearch</a>).
+* <code class="docutils literal notranslate"><span class="pre">elastisearch-ephemeral</span></code> is for test clusters where persisting the data doesn’t matter.
+* <code class="docutils literal notranslate"><span class="pre">elastisearch-external</span></code> refers to elasticsearch IPs located outside kubernetes by specifying IPs manually.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fake-aws-s3</span></code>: Amazon-AWS-S3-compatible object storage using MinIO (<a class="reference external" href="https://min.io/">https://min.io/</a>), used by cargohold to store (encrypted) assets such as files, posted images, profile pics, etc.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fake-aws-s3-reaper</span></code>: Creates the default S3 bucket inside fake-aws-s3.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fake-aws-sns</span></code>. <a class="reference external" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/NotificationHowTo.html">Amazon Simple Notification Service (Amazon SNS)</a>, used to push messages to mobile devices or distributed services. SNS can publish a message once, and deliver it one or more times.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fake-aws-sqs</span></code>: <a class="reference external" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/NotificationHowTo.html">Amazon Simple Queue Service (Amazon SQS) queue</a>, used to transmit any volume of data without requiring other services to be always available.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redis-ephemeral</span></code>: Stores websocket connection assignments (part of the <code class="docutils literal notranslate"><span class="pre">gundeck</span></code> / <code class="docutils literal notranslate"><span class="pre">cannon</span></code> architecture).</p></li>
+</ul>
+<p>Short running jobs that run during installation/upgrade (these should usually be in the status ‘Completed’ except immediately after installation/upgrade):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cassandra-migrations</span></code>: Used to initialize or upgrade the database schema in cassandra (for example when the software is upgraded to a new version).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">galley-migrate-data</span></code>: Used to upgrade data in <code class="docutils literal notranslate"><span class="pre">cassandra</span></code> when the data model changes (for example when the software is upgraded to a new version).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">brig-index-migrate-data</span></code>: Used to upgrade data in <code class="docutils literal notranslate"><span class="pre">cassandra</span></code> when the data model changes in brig (for example when the software is upgraded to a new version)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">elastisearch-index-create</span></code>: <a class="reference external" href="https://github.com/wireapp/wire-server/blob/develop/charts/elasticsearch-index/templates/create-index.yaml#L29">Creates</a> an Elastisearch index for brig.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">spar-migrate-data</span></code>: <a class="reference external" href="https://github.com/wireapp/wire-server/blob/develop/charts/cassandra-migrations/templates/spar-migrate-data.yaml">Used to update spar data</a> in cassandra when schema changes occur.</p></li>
+</ul>
+<p>As an example, this is the result of running the <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">--namespace</span> <span class="pre">wire</span></code> command to obtain a list of all pods in a typical cluster:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>NAMESPACE<span class="w">      </span>NAME<span class="w">                                                      </span>READY<span class="w">   </span>STATUS<span class="w">      </span>RESTARTS<span class="w">   </span>AGE
+wire<span class="w">           </span>account-pages-54bfcb997f-hwxlf<span class="w">                            </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>85d
+wire<span class="w">           </span>brig-58bc7f844d-rp2mx<span class="w">                                     </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+wire<span class="w">           </span>brig-index-migrate-data-s7lmf<span class="w">                             </span><span class="m">0</span>/1<span class="w">     </span>Completed<span class="w">   </span><span class="m">0</span><span class="w">          </span>3h33m
+wire<span class="w">           </span>cannon-0<span class="w">                                                  </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h53m
+wire<span class="w">           </span>cargohold-779bff9fc6-7d9hm<span class="w">                                </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+wire<span class="w">           </span>cassandra-ephemeral-0<span class="w">                                     </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>cassandra-migrations-66n8d<span class="w">                                </span><span class="m">0</span>/1<span class="w">     </span>Completed<span class="w">   </span><span class="m">0</span><span class="w">          </span>3h34m
+wire<span class="w">           </span>demo-smtp-784ddf6989-7zvsk<span class="w">                                </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>elasticsearch-ephemeral-86f4b8ff6f-fkjlk<span class="w">                  </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>elasticsearch-index-create-l5zbr<span class="w">                          </span><span class="m">0</span>/1<span class="w">     </span>Completed<span class="w">   </span><span class="m">0</span><span class="w">          </span>3h34m
+wire<span class="w">           </span>fake-aws-s3-77d9447b8f-9n4fj<span class="w">                              </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>fake-aws-s3-reaper-78d9f58dd4-kf582<span class="w">                       </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>fake-aws-sns-6c7c4b7479-nzfj2<span class="w">                             </span><span class="m">2</span>/2<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>fake-aws-sqs-59fbfbcbd4-ptcz6<span class="w">                             </span><span class="m">2</span>/2<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>federator-6d7b66f4d5-xgkst<span class="w">                                </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+wire<span class="w">           </span>galley-5b47f7ff96-m9zrs<span class="w">                                   </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+wire<span class="w">           </span>galley-migrate-data-97gn8<span class="w">                                 </span><span class="m">0</span>/1<span class="w">     </span>Completed<span class="w">   </span><span class="m">0</span><span class="w">          </span>3h33m
+wire<span class="w">           </span>gundeck-76c4599845-4f4pd<span class="w">                                  </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+wire<span class="w">           </span>nginx-ingress-controller-controller-2nbkq<span class="w">                 </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>9d
+wire<span class="w">           </span>nginx-ingress-controller-controller-8ggw2<span class="w">                 </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>9d
+wire<span class="w">           </span>nginx-ingress-controller-default-backend-dd5c45cf-jlmbl<span class="w">   </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>nginz-77d7586bd9-vwlrh<span class="w">                                    </span><span class="m">2</span>/2<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+wire<span class="w">           </span>redis-ephemeral-master-0<span class="w">                                  </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>176d
+wire<span class="w">           </span>spar-8576b6845c-npb92<span class="w">                                     </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+wire<span class="w">           </span>spar-migrate-data-lz5ls<span class="w">                                   </span><span class="m">0</span>/1<span class="w">     </span>Completed<span class="w">   </span><span class="m">0</span><span class="w">          </span>3h33m
+wire<span class="w">           </span>team-settings-86747b988b-5rt45<span class="w">                            </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>50d
+wire<span class="w">           </span>webapp-54458f756c-r7l6x<span class="w">                                   </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+<span class="w">                  </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">     </span><span class="m">0</span><span class="w">          </span>3h54m
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This list is not exhaustive, and your installation may have additional pods running depending on your configuration.</p>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="single-sign-on/index.html" class="btn btn-neutral float-right" title="Single Sign-On and User Provisioning" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

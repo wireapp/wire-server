@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infrastructure configuration options &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Monitoring wire-server using Prometheus and Grafana" href="monitoring.html" />
+    <link rel="prev" title="Installing wire-server (production) components using Helm" href="helm-prod.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Installation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="planning.html">How to plan an installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="version-requirements.html">Version requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html">How to install kubernetes (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html">How to install wire-server using Helm</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Infrastructure configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#redirect-some-traffic-through-a-http-s-proxy">Redirect some traffic through a http(s) proxy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#enable-push-notifications-using-the-public-appstore-playstore-mobile-wire-clients">Enable push notifications using the public appstore / playstore mobile Wire clients</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#controlling-the-speed-of-websocket-draining-during-cannon-pod-replacement">Controlling the speed of websocket draining during cannon pod replacement</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#control-nginz-upstreams-routes-into-the-kubernetes-cluster">Control nginz upstreams (routes) into the Kubernetes cluster</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#default-upstreams">Default upstreams</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#optional-upstreams">Optional upstreams</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#combining-default-and-extra-upstream-configurations">Combining default and extra upstream configurations</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#separate-incoming-websocket-network-traffic-from-the-rest-of-the-https-traffic">Separate incoming websocket network traffic from the rest of the https traffic</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#you-may-want">You may want</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#metrics-logging">Metrics/logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#smtp-server">SMTP server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#load-balancer-on-bare-metal-servers">Load balancer on bare metal servers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#load-balancer-on-cloud-provider">Load Balancer on cloud-provider</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#aws">AWS</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#other-cloud-providers">Other cloud providers</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#real-aws-services">Real AWS services</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#persistence-and-high-availability">Persistence and high-availability</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#security">Security</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sign-up-with-a-phone-number-sending-sms">Sign up with a phone number (Sending SMS)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#rd-party-proxying">3rd-party proxying</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#routing-traffic-to-other-namespaces-via-nginz">Routing traffic to other namespaces via nginz</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#marking-an-installation-as-self-hosted">Marking an installation as self-hosted</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#configuring-authentication-cookie-throttling">Configuring authentication cookie throttling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#s3-addressing-style">S3 Addressing Style</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html">Web app settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Installing Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Installing Restund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html">Configure TLS ciphers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html">Verifying your installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Installation</a></li>
+      <li class="breadcrumb-item active">Infrastructure configuration options</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/install/infrastructure-configuration.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="infrastructure-configuration-options">
+<span id="configuration-options"></span><h1>Infrastructure configuration options<a class="headerlink" href="#infrastructure-configuration-options" title="Permalink to this heading"></a></h1>
+<p>This contains instructions to configure specific aspects of your production setup depending on your needs.</p>
+<p>Depending on your use-case and requirements, you may need to
+configure none, or only a subset of the following sections.</p>
+<section id="redirect-some-traffic-through-a-http-s-proxy">
+<h2>Redirect some traffic through a http(s) proxy<a class="headerlink" href="#redirect-some-traffic-through-a-http-s-proxy" title="Permalink to this heading"></a></h2>
+<p>In case you wish to use http(s) proxies, you can add a configuration like this to the wire-server services in question:</p>
+<p>Assuming your proxy can be reached from within Kubernetes at <code class="docutils literal notranslate"><span class="pre">http://proxy:8080</span></code>, add the following for each affected service (e.g. <code class="docutils literal notranslate"><span class="pre">gundeck</span></code>) to your Helm overrides in <code class="docutils literal notranslate"><span class="pre">values/wire-server/values.yaml</span></code> :</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">gundeck</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># ...</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># ...</span>
+<span class="w">    </span><span class="nt">proxy</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">httpProxy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;http://proxy:8080&quot;</span>
+<span class="w">      </span><span class="nt">httpsProxy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;http://proxy:8080&quot;</span>
+<span class="w">      </span><span class="nt">noProxyList</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;127.0.0.1&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;10.0.0.0/8&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;elasticsearch-external&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;cassandra-external&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;redis-ephemeral&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;fake-aws-sqs&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;fake-aws-dynamodb&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;fake-aws-sns&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;brig&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;cargohold&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;galley&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;gundeck&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;proxy&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;spar&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;federator&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;cannon&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;cannon-0.cannon.default&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;cannon-1.cannon.default&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;cannon-2.cannon.default&quot;</span>
+</pre></div>
+</div>
+<p>Depending on your setup, you may need to repeat this for the other services like <code class="docutils literal notranslate"><span class="pre">brig</span></code> as well.</p>
+</section>
+<section id="enable-push-notifications-using-the-public-appstore-playstore-mobile-wire-clients">
+<span id="push-sns"></span><h2>Enable push notifications using the public appstore / playstore mobile Wire clients<a class="headerlink" href="#enable-push-notifications-using-the-public-appstore-playstore-mobile-wire-clients" title="Permalink to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>You need to get in touch with us. Please talk to sales or customer support - see <a class="reference external" href="https://wire.com">https://wire.com</a></p></li>
+<li><p>If a contract agreement has been reached, we can set up a separate AWS account for you containing the necessary AWS SQS/SNS setup to route push notifications through to the mobile apps. We will then forward some configuration / access credentials that looks like:</p></li>
+</ol>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">gundeck</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">aws</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;REDACTED&gt;&quot;</span>
+<span class="w">      </span><span class="nt">arnEnv</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;REDACTED&gt;&quot;</span>
+<span class="w">      </span><span class="nt">queueName</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;REDACTED&gt;-gundeck-events&quot;</span>
+<span class="w">      </span><span class="nt">region</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;REDACTED&gt;&quot;</span>
+<span class="w">      </span><span class="nt">snsEndpoint</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://sns.&lt;REDACTED&gt;.amazonaws.com&quot;</span>
+<span class="w">      </span><span class="nt">sqsEndpoint</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://sqs.&lt;REDACTED&gt;.amazonaws.com&quot;</span>
+<span class="w">  </span><span class="nt">secrets</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">awsKeyId</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;REDACTED&gt;&quot;</span>
+<span class="w">    </span><span class="nt">awsSecretKey</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;REDACTED&gt;&quot;</span>
+</pre></div>
+</div>
+<p>To make use of those, first test the credentials are correct, e.g. using the <code class="docutils literal notranslate"><span class="pre">aws</span></code> command-line tool (for more information on how to configure credentials, please refer to the <a class="reference external" href="https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html#cli-configure-quickstart-precedence">official docs</a>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">AWS_REGION</span><span class="o">=&lt;</span><span class="n">region</span><span class="o">&gt;</span>
+<span class="n">AWS_ACCESS_KEY_ID</span><span class="o">=&lt;...&gt;</span>
+<span class="n">AWS_SECRET_ACCESS_KEY</span><span class="o">=&lt;...&gt;</span>
+<span class="n">ENV</span><span class="o">=&lt;</span><span class="n">environment</span><span class="o">&gt;</span> <span class="c1">#e.g staging</span>
+
+<span class="n">aws</span> <span class="n">sqs</span> <span class="n">get</span><span class="o">-</span><span class="n">queue</span><span class="o">-</span><span class="n">url</span> <span class="o">--</span><span class="n">queue</span><span class="o">-</span><span class="n">name</span> <span class="s2">&quot;$ENV-gundeck-events&quot;</span>
+</pre></div>
+</div>
+<p>You should get a result like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s2">&quot;QueueUrl&quot;</span><span class="p">:</span> <span class="s2">&quot;https://&lt;region&gt;.queue.amazonaws.com/&lt;aws-account-id&gt;/&lt;environment&gt;-gundeck-events&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Then add them to your gundeck configuration overrides.</p>
+<p>Keys below <code class="docutils literal notranslate"><span class="pre">gundeck.config</span></code> belong into <code class="docutils literal notranslate"><span class="pre">values/wire-server/values.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">gundeck</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># ...</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">aws</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">queueName</span><span class="p">:</span><span class="w"> </span><span class="c1"># e.g. staging-gundeck-events</span>
+<span class="w">      </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="c1"># &lt;aws-account-id&gt;, e.g. 123456789</span>
+<span class="w">      </span><span class="nt">region</span><span class="p">:</span><span class="w"> </span><span class="c1"># e.g. eu-central-1</span>
+<span class="w">      </span><span class="nt">snsEndpoint</span><span class="p">:</span><span class="w"> </span><span class="c1"># e.g. https://sns.eu-central-1.amazonaws.com</span>
+<span class="w">      </span><span class="nt">sqsEndpoint</span><span class="p">:</span><span class="w"> </span><span class="c1"># e.g. https://sqs.eu-central-1.amazonaws.com</span>
+<span class="w">      </span><span class="nt">arnEnv</span><span class="p">:</span><span class="w"> </span><span class="c1"># e.g. staging - this must match the environment name (first part of queueName)</span>
+</pre></div>
+</div>
+<p>Keys below <code class="docutils literal notranslate"><span class="pre">gundeck.secrets</span></code> belong into <code class="docutils literal notranslate"><span class="pre">values/wire-server/secrets.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">gundeck</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># ...</span>
+<span class="w">  </span><span class="nt">secrets</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">awsKeyId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CHANGE-ME</span>
+<span class="w">    </span><span class="nt">awsSecretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CHANGE-ME</span>
+</pre></div>
+</div>
+<p>After making this change and applying it to gundeck (ensure gundeck pods have restarted to make use of the updated configuration - that should happen automatically), make sure to reset the push token on any mobile devices that you may have in use.</p>
+<p>Next, if you want, you can stop using the <code class="docutils literal notranslate"><span class="pre">fake-aws-sns</span></code> pods in case you ran them before:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># inside override values/fake-aws/values.yaml</span>
+<span class="nt">fake-aws-sns</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</section>
+<section id="controlling-the-speed-of-websocket-draining-during-cannon-pod-replacement">
+<h2>Controlling the speed of websocket draining during cannon pod replacement<a class="headerlink" href="#controlling-the-speed-of-websocket-draining-during-cannon-pod-replacement" title="Permalink to this heading"></a></h2>
+<p>The ‘cannon’ component is responsible for persistent websocket connections.
+Normally the default options would slowly and gracefully drain active websocket
+connections over a maximum of <code class="docutils literal notranslate"><span class="pre">(amount</span> <span class="pre">of</span> <span class="pre">cannon</span> <span class="pre">replicas</span> <span class="pre">*</span> <span class="pre">30</span> <span class="pre">seconds)</span></code> during
+the deployment of a new wire-server version. This will lead to a very brief
+interruption for Wire clients when their client has to re-connect on the
+websocket.</p>
+<p>You’re not expected to need to change these settings.</p>
+<p>The following options are only relevant during the restart of cannon itself.
+During a restart of nginz or ingress-controller, all websockets will get
+severed. If this is to be avoided, see section <a class="reference internal" href="#separate-websocket-traffic"><span class="std std-ref">Separate incoming websocket network traffic from the rest of the https traffic</span></a></p>
+<p><code class="docutils literal notranslate"><span class="pre">drainOpts</span></code>: Drain websockets in a controlled fashion when cannon receives a
+SIGTERM or SIGINT (this happens when a pod is terminated e.g. during rollout
+of a new version). Instead of waiting for connections to close on their own,
+the websockets are now severed at a controlled pace. This allows for quicker
+rollouts of new versions.</p>
+<p>There is no way to entirely disable this behaviour, two extreme examples below</p>
+<ul class="simple">
+<li><p>the quickest way to kill cannon is to set <code class="docutils literal notranslate"><span class="pre">gracePeriodSeconds:</span> <span class="pre">1</span></code> and
+<code class="docutils literal notranslate"><span class="pre">minBatchSize:</span> <span class="pre">100000</span></code> which would sever all connections immediately; but it’s
+not recommended as you could DDoS yourself by forcing all active clients to
+reconnect at the same time. With this, cannon pod replacement takes only 1
+second per pod.</p></li>
+<li><p>the slowest way to roll out a new version of cannon without severing websocket
+connections for a long time is to set <code class="docutils literal notranslate"><span class="pre">minBatchSize:</span> <span class="pre">1</span></code>,
+<code class="docutils literal notranslate"><span class="pre">millisecondsBetweenBatches:</span> <span class="pre">86400000</span></code> and <code class="docutils literal notranslate"><span class="pre">gracePeriodSeconds:</span> <span class="pre">86400</span></code>
+which would lead to one single websocket connection being closed immediately,
+and all others only after 1 day. With this, cannon pod replacement takes a
+full day per pod.</p></li>
+</ul>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># overrides for wire-server/values.yaml</span>
+<span class="nt">cannon</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">drainOpts</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># The following defaults drain a minimum of 400 connections/second</span>
+<span class="w">    </span><span class="c1"># for a total of 10000 over 25 seconds</span>
+<span class="w">    </span><span class="c1"># (if cannon holds more connections, draining will happen at a faster pace)</span>
+<span class="w">    </span><span class="nt">gracePeriodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">25</span>
+<span class="w">    </span><span class="nt">millisecondsBetweenBatches</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">    </span><span class="nt">minBatchSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+</pre></div>
+</div>
+</section>
+<section id="control-nginz-upstreams-routes-into-the-kubernetes-cluster">
+<h2>Control nginz upstreams (routes) into the Kubernetes cluster<a class="headerlink" href="#control-nginz-upstreams-routes-into-the-kubernetes-cluster" title="Permalink to this heading"></a></h2>
+<p>Open unterminated upstreams (routes) into the Kubernetes cluster are a potential
+security issue. To prevent this, there are fine-grained settings in the nginz
+configuration defining which upstreams should exist.</p>
+<section id="default-upstreams">
+<h3>Default upstreams<a class="headerlink" href="#default-upstreams" title="Permalink to this heading"></a></h3>
+<p>Upstreams for services that exist in (almost) every Wire installation are
+enabled by default. These are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">brig</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cannon</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cargohold</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">galley</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">gundeck</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">spar</span></code></p></li>
+</ul>
+<p>For special setups (as e.g. described in [separate-websocket-traffic]) the
+upstreams of these services can be ignored (disabled) with the setting
+<code class="docutils literal notranslate"><span class="pre">nginz.nginx_conf.ignored_upstreams</span></code>.</p>
+<p>The most common example is to disable the upstream of <code class="docutils literal notranslate"><span class="pre">cannon</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">nginz</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nginx_conf</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">ignored_upstreams</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;cannon&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</section>
+<section id="optional-upstreams">
+<h3>Optional upstreams<a class="headerlink" href="#optional-upstreams" title="Permalink to this heading"></a></h3>
+<p>There are some services that are usually not deployed on most Wire installations
+or are specific to the Wire cloud:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ibis</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">galeb</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">calling-test</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">proxy</span></code></p></li>
+</ul>
+<p>The upstreams for those are disabled by default and can be enabled by the
+setting <code class="docutils literal notranslate"><span class="pre">nginz.nginx_conf.enabled_extra_upstreams</span></code>.</p>
+<p>The most common example is to enable the (extra) upstream of <code class="docutils literal notranslate"><span class="pre">proxy</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">nginz</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nginx_conf</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled_extra_upstreams</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;proxy&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</section>
+<section id="combining-default-and-extra-upstream-configurations">
+<h3>Combining default and extra upstream configurations<a class="headerlink" href="#combining-default-and-extra-upstream-configurations" title="Permalink to this heading"></a></h3>
+<p>Default and extra upstream configurations are independent of each other. I.e.
+<code class="docutils literal notranslate"><span class="pre">nginz.nginx_conf.ignored_upstreams</span></code> and
+<code class="docutils literal notranslate"><span class="pre">nginz.nginx_conf.enabled_extra_upstreams</span></code> can be combined in the same
+configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">nginz</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nginx_conf</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">ignored_upstreams</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;cannon&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">enabled_extra_upstreams</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;proxy&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="separate-incoming-websocket-network-traffic-from-the-rest-of-the-https-traffic">
+<span id="separate-websocket-traffic"></span><h2>Separate incoming websocket network traffic from the rest of the https traffic<a class="headerlink" href="#separate-incoming-websocket-network-traffic-from-the-rest-of-the-https-traffic" title="Permalink to this heading"></a></h2>
+<p>By default, incoming network traffic for websockets comes through these network
+hops:</p>
+<p>Internet -&gt; LoadBalancer -&gt; kube-proxy -&gt; nginx-ingress-controller -&gt; nginz -&gt; cannon</p>
+<p>In order to have graceful draining of websockets when something gets restarted, as it is not easily
+possible to implement the graceful draining on nginx-ingress-controller or nginz by itself, there is
+a configuration option to get the following network hops:</p>
+<p>Internet -&gt; separate LoadBalancer for cannon only -&gt; kube-proxy -&gt; [nginz-&gt;cannon (2 containers in the same pod)]</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># example on AWS when using cert-manager for TLS certificates and external-dns for DNS records</span>
+<span class="c1"># (see wire-server/charts/cannon/values.yaml for more possible options)</span>
+
+<span class="c1"># in your wire-server/values.yaml overrides:</span>
+<span class="nt">cannon</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">nginz</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;nginz-ssl.example.com&quot;</span>
+<span class="w">      </span><span class="nt">externalDNS</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">certManager</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">annotations</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">service.beta.kubernetes.io/aws-load-balancer-type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;nlb&quot;</span>
+<span class="w">        </span><span class="nt">service.beta.kubernetes.io/aws-load-balancer-scheme</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;internet-facing&quot;</span>
+<span class="nt">nginz</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nginx_conf</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">ignored_upstreams</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;cannon&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># in your wire-server/secrets.yaml overrides:</span>
+<span class="nt">cannon</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">secrets</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">nginz</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">zAuth</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">publicKeys</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">...</span><span class="w"> </span><span class="c1"># same values as in nginz.secrets.zAuth.publicKeys</span>
+</pre></div>
+</div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># in your nginx-ingress-services/values.yaml overrides:</span>
+<span class="nt">websockets</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</section>
+<section id="you-may-want">
+<h2>You may want<a class="headerlink" href="#you-may-want" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p>more server resources to ensure
+<a class="reference internal" href="#persistence-and-high-availability">high-availability</a></p></li>
+<li><p>an email/SMTP server to send out registration emails</p></li>
+<li><p>depending on your required functionality, you may or may not need an
+<a class="reference external" href="https://aws.amazon.com/">AWS account</a>. See details about
+limitations without an AWS account in the following sections.</p></li>
+<li><p>one or more people able to maintain the installation</p></li>
+<li><p>official support by Wire (<a class="reference external" href="https://wire.com/pricing/">contact us</a>)</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>As of 2020-08-10, the documentation sections below are partially out of date and need to be updated.</p>
+</div>
+</section>
+<section id="metrics-logging">
+<h2>Metrics/logging<a class="headerlink" href="#metrics-logging" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="monitoring.html#monitoring"><span class="std std-ref">Monitoring wire-server using Prometheus and Grafana</span></a></p></li>
+<li><p><a class="reference internal" href="logging.html#logging"><span class="std std-ref">Installing centralized logging dashboards using Kibana</span></a></p></li>
+</ul>
+</section>
+<section id="smtp-server">
+<h2>SMTP server<a class="headerlink" href="#smtp-server" title="Permalink to this heading"></a></h2>
+<p><strong>Assumptions</strong>: none</p>
+<p><strong>Provides</strong>:</p>
+<ul class="simple">
+<li><p>full control over email sending</p></li>
+</ul>
+<p><strong>You need</strong>:</p>
+<ul class="simple">
+<li><p>SMTP credentials (to allow for email sending; prerequisite for
+registering users and running the smoketest)</p></li>
+</ul>
+<p><strong>How to configure</strong>:</p>
+<ul class="simple">
+<li><p><em>if using a gmail account, ensure to enable</em> <a class="reference external" href="https://support.google.com/accounts/answer/6010255?hl=en">‘less secure
+apps’</a></p></li>
+<li><p>Add user, SMTP server, connection type to <code class="docutils literal notranslate"><span class="pre">values/wire-server</span></code>’s
+values file under <code class="docutils literal notranslate"><span class="pre">brig.config.smtp</span></code></p></li>
+<li><p>Add password in <code class="docutils literal notranslate"><span class="pre">secrets/wire-server</span></code>’s secrets file under
+<code class="docutils literal notranslate"><span class="pre">brig.secrets.smtpPassword</span></code></p></li>
+</ul>
+</section>
+<section id="load-balancer-on-bare-metal-servers">
+<h2>Load balancer on bare metal servers<a class="headerlink" href="#load-balancer-on-bare-metal-servers" title="Permalink to this heading"></a></h2>
+<p><strong>Assumptions</strong>:</p>
+<ul class="simple">
+<li><p>You installed kubernetes on bare metal servers or virtual machines
+that can bind to a public IP address.</p></li>
+<li><p><strong>If you are using AWS or another cloud provider, see</strong><a class="reference internal" href="#load-balancer-on-cloud-provider">Creating a
+cloudprovider-based load
+balancer</a><strong>instead</strong></p></li>
+</ul>
+<p><strong>Provides</strong>:</p>
+<ul class="simple">
+<li><p>Allows using a provided Load balancer for incoming traffic</p></li>
+<li><p>SSL termination is done on the ingress controller</p></li>
+<li><p>You can access your wire-server backend with given DNS names, over
+SSL and from anywhere in the internet</p></li>
+</ul>
+<p><strong>You need</strong>:</p>
+<ul class="simple">
+<li><p>A kubernetes node with a <em>public</em> IP address (or internal, if you do
+not plan to expose the Wire backend over the Internet but we will
+assume you are using a public IP address)</p></li>
+<li><p>DNS records for the different exposed addresses (the ingress depends
+on the usage of virtual hosts), namely:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">nginz-https.&lt;domain&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nginz-ssl.&lt;domain&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">assets.&lt;domain&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">webapp.&lt;domain&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">account.&lt;domain&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">teams.&lt;domain&gt;</span></code></p></li>
+</ul>
+</li>
+<li><p>A wildcard certificate for the different hosts (<code class="docutils literal notranslate"><span class="pre">*.&lt;domain&gt;</span></code>) - we
+assume you want to do SSL termination on the ingress controller</p></li>
+</ul>
+<p><strong>Caveats</strong>:</p>
+<ul class="simple">
+<li><p>Note that there can be only a <em>single</em> load balancer, otherwise your
+cluster might become
+<a class="reference external" href="https://metallb.universe.tf/installation/">unstable</a></p></li>
+</ul>
+<p><strong>How to configure</strong>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cp</span> <span class="n">values</span><span class="o">/</span><span class="n">metallb</span><span class="o">/</span><span class="n">demo</span><span class="o">-</span><span class="n">values</span><span class="o">.</span><span class="n">example</span><span class="o">.</span><span class="n">yaml</span> <span class="n">values</span><span class="o">/</span><span class="n">metallb</span><span class="o">/</span><span class="n">demo</span><span class="o">-</span><span class="n">values</span><span class="o">.</span><span class="n">yaml</span>
+<span class="n">cp</span> <span class="n">values</span><span class="o">/</span><span class="n">nginx</span><span class="o">-</span><span class="n">ingress</span><span class="o">-</span><span class="n">services</span><span class="o">/</span><span class="n">demo</span><span class="o">-</span><span class="n">values</span><span class="o">.</span><span class="n">example</span><span class="o">.</span><span class="n">yaml</span> <span class="n">values</span><span class="o">/</span><span class="n">nginx</span><span class="o">-</span><span class="n">ingress</span><span class="o">-</span><span class="n">services</span><span class="o">/</span><span class="n">demo</span><span class="o">-</span><span class="n">values</span><span class="o">.</span><span class="n">yaml</span>
+<span class="n">cp</span> <span class="n">values</span><span class="o">/</span><span class="n">nginx</span><span class="o">-</span><span class="n">ingress</span><span class="o">-</span><span class="n">services</span><span class="o">/</span><span class="n">demo</span><span class="o">-</span><span class="n">secrets</span><span class="o">.</span><span class="n">example</span><span class="o">.</span><span class="n">yaml</span> <span class="n">values</span><span class="o">/</span><span class="n">nginx</span><span class="o">-</span><span class="n">ingress</span><span class="o">-</span><span class="n">services</span><span class="o">/</span><span class="n">demo</span><span class="o">-</span><span class="n">secrets</span><span class="o">.</span><span class="n">yaml</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Adapt <code class="docutils literal notranslate"><span class="pre">values/metallb/demo-values.yaml</span></code> to provide a list of public
+IP address CIDRs that your kubernetes nodes can bind to.</p></li>
+<li><p>Adapt <code class="docutils literal notranslate"><span class="pre">values/nginx-ingress-services/demo-values.yaml</span></code> with correct URLs</p></li>
+<li><p>Put your TLS cert and key into
+<code class="docutils literal notranslate"><span class="pre">values/nginx-ingress-services/demo-secrets.yaml</span></code>.</p></li>
+</ul>
+<p>Install <code class="docutils literal notranslate"><span class="pre">metallb</span></code> (for more information see the
+<a class="reference external" href="https://metallb.universe.tf">docs</a>):</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>--namespace<span class="w"> </span>metallb-system<span class="w"> </span>metallb<span class="w"> </span>wire/metallb<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-f<span class="w"> </span>values/metallb/demo-values.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--wait<span class="w"> </span>--timeout<span class="w"> </span><span class="m">1800</span>
+</pre></div>
+</div>
+<p>Install <code class="docutils literal notranslate"><span class="pre">nginx-ingress-[controller,services]</span></code>:</p>
+<p>::
+: helm upgrade –install –namespace demo demo-nginx-ingress-controller wire/nginx-ingress-controller</p>
+<p>: –wait</p>
+<p>helm upgrade –install –namespace demo demo-nginx-ingress-services wire/nginx-ingress-services</p>
+<p>: -f values/nginx-ingress-services/demo-values.yaml -f values/nginx-ingress-services/demo-secrets.yaml –wait</p>
+<p>Now, create DNS records for the URLs configured above.</p>
+</section>
+<section id="load-balancer-on-cloud-provider">
+<h2>Load Balancer on cloud-provider<a class="headerlink" href="#load-balancer-on-cloud-provider" title="Permalink to this heading"></a></h2>
+<section id="aws">
+<h3>AWS<a class="headerlink" href="#aws" title="Permalink to this heading"></a></h3>
+<p><a class="reference external" href="https://aws.amazon.com/premiumsupport/knowledge-center/import-ssl-certificate-to-iam/">Upload the required
+certificates</a>.
+Create and configure <code class="docutils literal notranslate"><span class="pre">values/aws-ingress/demo-values.yaml</span></code> from the
+examples.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">helm</span> <span class="n">upgrade</span> <span class="o">--</span><span class="n">install</span> <span class="o">--</span><span class="n">namespace</span> <span class="n">demo</span> <span class="n">demo</span><span class="o">-</span><span class="n">aws</span><span class="o">-</span><span class="n">ingress</span> <span class="n">wire</span><span class="o">/</span><span class="n">aws</span><span class="o">-</span><span class="n">ingress</span> \
+    <span class="o">-</span><span class="n">f</span> <span class="n">values</span><span class="o">/</span><span class="n">aws</span><span class="o">-</span><span class="n">ingress</span><span class="o">/</span><span class="n">demo</span><span class="o">-</span><span class="n">values</span><span class="o">.</span><span class="n">yaml</span> \
+    <span class="o">--</span><span class="n">wait</span>
+</pre></div>
+</div>
+<p>To give your load balancers public DNS names, create and edit
+<code class="docutils literal notranslate"><span class="pre">values/external-dns/demo-values.yaml</span></code>, then run
+<a class="reference external" href="https://github.com/helm/charts/tree/master/stable/external-dns">external-dns</a>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">helm</span> <span class="n">repo</span> <span class="n">update</span>
+<span class="n">helm</span> <span class="n">upgrade</span> <span class="o">--</span><span class="n">install</span> <span class="o">--</span><span class="n">namespace</span> <span class="n">demo</span> <span class="n">demo</span><span class="o">-</span><span class="n">external</span><span class="o">-</span><span class="n">dns</span> <span class="n">stable</span><span class="o">/</span><span class="n">external</span><span class="o">-</span><span class="n">dns</span> \
+    <span class="o">--</span><span class="n">version</span> <span class="mf">1.7.3</span> \
+    <span class="o">-</span><span class="n">f</span> <span class="n">values</span><span class="o">/</span><span class="n">external</span><span class="o">-</span><span class="n">dns</span><span class="o">/</span><span class="n">demo</span><span class="o">-</span><span class="n">values</span><span class="o">.</span><span class="n">yaml</span> \
+    <span class="o">--</span><span class="n">wait</span>
+</pre></div>
+</div>
+<p>Things to note about external-dns:</p>
+<ul class="simple">
+<li><p>There can only be a single external-dns chart installed (one per
+kubernetes cluster, not one per namespace). So if you already have
+one running for another namespace you probably don’t need to do
+anything.</p></li>
+<li><p>You have to add the appropriate IAM permissions to your cluster (see
+the
+<a class="reference external" href="https://github.com/helm/charts/tree/master/stable/external-dns">README</a>).</p></li>
+<li><p>Alternatively, use the AWS route53 console.</p></li>
+</ul>
+</section>
+<section id="other-cloud-providers">
+<h3>Other cloud providers<a class="headerlink" href="#other-cloud-providers" title="Permalink to this heading"></a></h3>
+<p>This information is not yet available. If you’d like to contribute by
+adding this information for your cloud provider, feel free to read the
+<a class="reference external" href="https://github.com/wireapp/wire-server-deploy/blob/master/CONTRIBUTING.md">contributing guidelines</a> and open a PR.</p>
+</section>
+</section>
+<section id="real-aws-services">
+<h2>Real AWS services<a class="headerlink" href="#real-aws-services" title="Permalink to this heading"></a></h2>
+<p><strong>Assumptions</strong>:</p>
+<ul class="simple">
+<li><p>You installed kubernetes and wire-server on AWS</p></li>
+</ul>
+<p><strong>Provides</strong>:</p>
+<ul class="simple">
+<li><p>Better availability guarantees and possibly better functionality of
+AWS services such as SQS and dynamoDB.</p></li>
+<li><p>You can use ELBs in front of nginz for higher availability.</p></li>
+<li><p>instead of using a smtp server and connect with SMTP, you may use
+SES. See configuration of brig and the <code class="docutils literal notranslate"><span class="pre">useSES</span></code> toggle.</p></li>
+</ul>
+<p><strong>You need</strong>:</p>
+<ul class="simple">
+<li><p>An AWS account</p></li>
+</ul>
+<p><strong>How to configure</strong>:</p>
+<ul class="simple">
+<li><p>Instead of using fake-aws charts, you need to set up the respective
+services in your account, create queues, tables etc. Have a look at
+the fake-aws-* charts; you’ll need to replicate a similar setup.</p>
+<ul>
+<li><p>Once real AWS resources are created, adapt the configuration in
+the values and secrets files for wire-server to use real endpoints
+and real AWS keys. Look for comments including
+<code class="docutils literal notranslate"><span class="pre">if</span> <span class="pre">using</span> <span class="pre">real</span> <span class="pre">AWS</span></code>.</p></li>
+</ul>
+</li>
+<li><p>Creating AWS resources in a way that is easy to create and delete
+could be done using either <a class="reference external" href="https://www.terraform.io/">terraform</a>
+or <a class="reference external" href="https://pulumi.io/">pulumi</a>. If you’d like to contribute by
+creating such automation, feel free to read the <a class="reference external" href="https://github.com/wireapp/wire-server-deploy/blob/master/CONTRIBUTING.md">contributing
+guidelines</a> and open a PR.</p></li>
+</ul>
+</section>
+<section id="persistence-and-high-availability">
+<h2>Persistence and high-availability<a class="headerlink" href="#persistence-and-high-availability" title="Permalink to this heading"></a></h2>
+<p>Currently, due to the way kubernetes and cassandra
+<a class="reference external" href="https://github.com/kubernetes/kubernetes/issues/28969">interact</a>,
+cassandra cannot reliably be installed on kubernetes. Some people have
+tried, e.g. <a class="reference external" href="https://github.com/instaclustr/cassandra-operator">this
+project</a> though at
+the time of writing (Nov 2018), this does not yet work as advertised. We
+recommend therefore to install cassandra, (possibly also elasticsearch
+and redis) separately, i.e. outside of kubernetes (using 3 nodes each).</p>
+<p>For further higher-availability:</p>
+<ul class="simple">
+<li><p>scale your kubernetes cluster to have separate etcd and master nodes
+(3 nodes each)</p></li>
+<li><p>use 3 instead of 1 replica of each wire-server chart</p></li>
+</ul>
+</section>
+<section id="security">
+<h2>Security<a class="headerlink" href="#security" title="Permalink to this heading"></a></h2>
+<p>For a production deployment, you should, as a minimum:</p>
+<ul class="simple">
+<li><p>Ensure traffic between kubernetes nodes, etcd and databases are
+confined to a private network</p></li>
+<li><p>Ensure kubernetes API is unreachable from the public internet (e.g.
+put behind VPN/bastion host or restrict IP range) to prevent
+<a class="reference external" href="https://www.cvedetails.com/vulnerability-list/vendor_id-15867/product_id-34016/Kubernetes-Kubernetes.html">kubernetes
+vulnerabilities</a>
+from affecting you</p></li>
+<li><p>Ensure your operating systems get security updates automatically</p></li>
+<li><p>Restrict ssh access / harden sshd configuration</p></li>
+<li><p>Ensure no other pods with public access than the main ingress are
+deployed on your cluster, since, in the current setup, pods have
+access to etcd values (and thus any secrets stored there, including
+secrets from other pods)</p></li>
+<li><p>Ensure developers encrypt any secrets.yaml files</p></li>
+</ul>
+<p>Additionally, you may wish to build, sign, and host your own docker
+images to have increased confidence in those images. We haved “signed
+container images” on our roadmap.</p>
+</section>
+<section id="sign-up-with-a-phone-number-sending-sms">
+<h2>Sign up with a phone number (Sending SMS)<a class="headerlink" href="#sign-up-with-a-phone-number-sending-sms" title="Permalink to this heading"></a></h2>
+<p><strong>Provides</strong>:</p>
+<ul class="simple">
+<li><p>Registering accounts with a phone number</p></li>
+</ul>
+<p><strong>You need</strong>:</p>
+<ul class="simple">
+<li><p>a <a class="reference external" href="https://www.nexmo.com/">Nexmo</a> account</p></li>
+<li><p>a <a class="reference external" href="https://www.twilio.com/">Twilio</a> account</p></li>
+</ul>
+<p><strong>How to configure</strong>:</p>
+<p>See the <code class="docutils literal notranslate"><span class="pre">brig</span></code> chart for configuration.</p>
+</section>
+<section id="rd-party-proxying">
+<span id="id1"></span><h2>3rd-party proxying<a class="headerlink" href="#rd-party-proxying" title="Permalink to this heading"></a></h2>
+<p>You need Giphy/Google/Spotify/Soundcloud API keys (if you want to
+support previews by proxying these services)</p>
+<p>See the <code class="docutils literal notranslate"><span class="pre">proxy</span></code> chart for configuration.</p>
+</section>
+<section id="routing-traffic-to-other-namespaces-via-nginz">
+<h2>Routing traffic to other namespaces via nginz<a class="headerlink" href="#routing-traffic-to-other-namespaces-via-nginz" title="Permalink to this heading"></a></h2>
+<p>If you have some components running in namespaces different from nginz. For
+instance, the billing service (<code class="docutils literal notranslate"><span class="pre">ibis</span></code>) could be deployed to a separate
+namespace, say <code class="docutils literal notranslate"><span class="pre">integrations</span></code>. But it still needs to get traffic via
+<code class="docutils literal notranslate"><span class="pre">nginz</span></code>. When this is needed, the helm config can be adjusted like this:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># in your wire-server/values.yaml overrides:</span>
+<span class="nt">nginz</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nginx_conf</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">upstream_namespace</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ibis</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integrations</span>
+</pre></div>
+</div>
+</section>
+<section id="marking-an-installation-as-self-hosted">
+<h2>Marking an installation as self-hosted<a class="headerlink" href="#marking-an-installation-as-self-hosted" title="Permalink to this heading"></a></h2>
+<p>In case your wire installation is self-hosted (on-premise, demo installs), it needs to be aware that it is through a configuration option.  As of release chart 4.15.0, <code class="docutils literal notranslate"><span class="pre">&quot;true&quot;</span></code> is the default behavior, and nothing needs to be done.</p>
+<p>If that option is not set, team-settings will prompt users about “wire for free” and associated functions.</p>
+<p>With that option set, all payment related functionality is disabled.</p>
+<p>The option is <code class="docutils literal notranslate"><span class="pre">IS_SELF_HOSTED</span></code>, and you set it in your <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> file (originally a copy of <code class="docutils literal notranslate"><span class="pre">prod-values.example.yaml</span></code> found in <code class="docutils literal notranslate"><span class="pre">wire-server-deploy/values/wire-server/</span></code>).</p>
+<p>In case of a demo install, replace <code class="docutils literal notranslate"><span class="pre">prod</span></code> with <code class="docutils literal notranslate"><span class="pre">demo</span></code>.</p>
+<p>First set the option under the <code class="docutils literal notranslate"><span class="pre">team-settings</span></code> section, <code class="docutils literal notranslate"><span class="pre">envVars</span></code> sub-section:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># NOTE: Only relevant if you want team-settings</span>
+<span class="nt">team-settings</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">envVars</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">IS_SELF_HOSTED</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;true&quot;</span>
+</pre></div>
+</div>
+<p>Second, also set the option under the <code class="docutils literal notranslate"><span class="pre">account-pages</span></code> section:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># NOTE: Only relevant if you want account-pages</span>
+<span class="nt">account-pages</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">envVars</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">IS_SELF_HOSTED</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;true&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="configuring-authentication-cookie-throttling">
+<span id="auth-cookie-config"></span><h2>Configuring authentication cookie throttling<a class="headerlink" href="#configuring-authentication-cookie-throttling" title="Permalink to this heading"></a></h2>
+<p>Authentication cookies and the related throttling mechanism is described in the <em>API documentation</em>:
+<a class="reference internal" href="../../understand/api-client-perspective/authentication.html#login-cookies"><span class="std std-ref">Cookies</span></a></p>
+<p>The maximum number of cookies per account and type is defined by the brig option
+<code class="docutils literal notranslate"><span class="pre">setUserCookieLimit</span></code>. Its default is <code class="docutils literal notranslate"><span class="pre">32</span></code>.</p>
+<p>Throttling is configured by the brig option <code class="docutils literal notranslate"><span class="pre">setUserCookieThrottle</span></code>. It is an
+object that contains two fields:</p>
+<p><code class="docutils literal notranslate"><span class="pre">stdDev</span></code></p>
+<p>: The minimal standard deviation of cookie creation timestamps in
+Seconds. (Default: <code class="docutils literal notranslate"><span class="pre">3000</span></code>,
+<a class="reference external" href="https://en.wikipedia.org/wiki/Standard_deviation">Wikipedia: Standard deviation</a>)</p>
+<p><code class="docutils literal notranslate"><span class="pre">retryAfter</span></code></p>
+<p>: Wait time in Seconds when <code class="docutils literal notranslate"><span class="pre">stdDev</span></code> is violated. (Default: <code class="docutils literal notranslate"><span class="pre">86400</span></code>)</p>
+<p>The default values are fine for most use cases. (Generally, you don’t have to
+configure them for your installation.)</p>
+<p>Condensed example:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">brig</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">optSettings</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">setUserCookieLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+<span class="w">        </span><span class="nt">setUserCookieThrottle</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">stdDev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3000</span>
+<span class="w">            </span><span class="nt">retryAfter</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">86400</span>
+</pre></div>
+</div>
+</section>
+<section id="s3-addressing-style">
+<h2>S3 Addressing Style<a class="headerlink" href="#s3-addressing-style" title="Permalink to this heading"></a></h2>
+<p>S3 can either by addressed in path style, i.e.
+<code class="docutils literal notranslate"><span class="pre">https://&lt;s3-endpoint&gt;/&lt;bucket-name&gt;/&lt;object&gt;</span></code>, or vhost style, i.e.
+<code class="docutils literal notranslate"><span class="pre">https://&lt;bucket-name&gt;.&lt;s3-endpoint&gt;/&lt;object&gt;</span></code>. AWS’s S3 offering has deprecated
+path style addressing for S3 and completely disabled it for buckets created
+after 30 Sep 2020:
+<a class="reference external" href="https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/">https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/</a></p>
+<p>However other object storage providers (specially self-deployed ones like MinIO)
+may not support vhost style addressing yet (or ever?). Users of such buckets
+should configure this option to “path”:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">cargohold</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">aws</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">s3AddressingStyle</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">path</span>
+</pre></div>
+</div>
+<p>Installations using S3 service provided by AWS, should use “auto”, this option
+will ensure that vhost style is only used when it is possible to construct a
+valid hostname from the bucket name and the bucket name doesn’t contain a ‘.’.
+Having a ‘.’ in the bucket name causes TLS validation to fail, hence it is not
+used by default:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">cargohold</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">aws</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">s3AddressingStyle</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span>
+</pre></div>
+</div>
+<p>Using “virtual” as an option is only useful in situations where vhost style
+addressing must be used even if it is not possible to construct a valid hostname
+from the bucket name or the S3 service provider can ensure correct certificate
+is issued for bucket which contain one or more ‘.’s in the name:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">cargohold</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">aws</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">s3AddressingStyle</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">virtual</span>
+</pre></div>
+</div>
+<p>When this option is unspecified, wire-server defaults to path style addressing
+to ensure smooth transition for older deployments.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="helm-prod.html" class="btn btn-neutral float-left" title="Installing wire-server (production) components using Helm" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="monitoring.html" class="btn btn-neutral float-right" title="Monitoring wire-server using Prometheus and Grafana" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -8,7 +8,8 @@
         "modify_conversation_access",
         "modify_other_conversation_member",
         "leave_conversation",
-        "delete_conversation"
+        "delete_conversation",
+        "modify_add_permission"
     ],
     "conversation_role": "wire_admin"
 }

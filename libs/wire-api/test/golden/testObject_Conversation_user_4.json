@@ -18,6 +18,7 @@
         "guest",
         "service"
     ],
+    "add_permission": null,
     "creator": "00000000-0000-0000-0000-000200000001",
     "epoch": 0,
     "group_conv_type": null,

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installing Conference Calling 2.0 (aka SFT) &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Installing Restund" href="restund.html" />
+    <link rel="prev" title="Web app settings" href="web-app-settings.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Installation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="planning.html">How to plan an installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="version-requirements.html">Version requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html">How to install kubernetes (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html">How to install wire-server using Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html">Infrastructure configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html">Web app settings</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Installing Conference Calling 2.0 (aka SFT)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#background">Background</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#as-part-of-the-wire-server-umbrella-chart">As part of the wire-server umbrella chart</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#standalone">Standalone</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#firewall-rules">Firewall rules</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Installing Restund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html">Configure TLS ciphers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html">Verifying your installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Installation</a></li>
+      <li class="breadcrumb-item active">Installing Conference Calling 2.0 (aka SFT)</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/install/sft.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installing-conference-calling-2-0-aka-sft">
+<span id="install-sft"></span><h1>Installing Conference Calling 2.0 (aka SFT)<a class="headerlink" href="#installing-conference-calling-2-0-aka-sft" title="Permalink to this heading"></a></h1>
+<section id="background">
+<h2>Background<a class="headerlink" href="#background" title="Permalink to this heading"></a></h2>
+<p>Please refer to the following <a class="reference internal" href="../../understand/sft.html#understand-sft"><span class="std std-ref">section to better understand SFT and how it works</span></a>.</p>
+<section id="as-part-of-the-wire-server-umbrella-chart">
+<h3>As part of the wire-server umbrella chart<a class="headerlink" href="#as-part-of-the-wire-server-umbrella-chart" title="Permalink to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">sftd`</span></code> will be installed as part of the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> umbrella chart if you set <code class="docutils literal notranslate"><span class="pre">tags.sftd:</span> <span class="pre">true</span></code></p>
+<p>In your <code class="docutils literal notranslate"><span class="pre">./values/wire-server/values.yaml</span></code> file you should set the following settings:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">tags</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">sftd</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="nt">sftd</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sftd.example.com</span><span class="w"> </span><span class="c1"># Replace example.com with your domain</span>
+<span class="w">  </span><span class="nt">allowOrigin</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">webapp.example.com</span><span class="w"> </span><span class="c1"># Should be the address you used for the webapp deployment</span>
+</pre></div>
+</div>
+<p>In your <code class="docutils literal notranslate"><span class="pre">secrets.yaml</span></code> you should set the TLS keys for sftd domain:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sftd</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">tls</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">crt</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">      </span><span class="no">&lt;TLS CRT HERE&gt;</span>
+<span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">      </span><span class="no">&lt;TLS KEY HERE&gt;</span>
+</pre></div>
+</div>
+<p>You should also make sure that you configure brig to know about the SFT server in your <code class="docutils literal notranslate"><span class="pre">./values/wire-server/values.yaml</span></code>  file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">brig</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">optSettings</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">setSftStaticUrl</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://sftd.example.com:443&quot;</span>
+</pre></div>
+</div>
+<p>Now you can deploy as usual:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>wire-server<span class="w"> </span>wire/wire-server<span class="w"> </span>--values<span class="w"> </span>./values/wire-server/values.yaml
+</pre></div>
+</div>
+</section>
+<section id="standalone">
+<h3>Standalone<a class="headerlink" href="#standalone" title="Permalink to this heading"></a></h3>
+<p>The SFT component is also shipped as a separate helm chart. Installation is similar to installing
+the charts as in <a class="reference internal" href="helm-prod.html#helm-prod"><span class="std std-ref">Installing wire-server (production) components using Helm</span></a>.</p>
+<p>Some people might want to run SFT separately, because the deployment lifecycle for the SFT is a bit more intricate. For example,
+if you want to avoid dropping calls during an upgrade, you’d set the <code class="docutils literal notranslate"><span class="pre">terminationGracePeriodSeconds</span></code> of the SFT to a high number, to wait
+for calls to drain before updating to the new version (See  <a class="reference external" href="https://github.com/wireapp/wire-server/blob/develop/charts/sftd/README.md">technical documentation</a>).  that would cause your otherwise snappy upgrade of the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> chart to now take a long time, as it waits for all
+the SFT servers to drain. If this is a concern for you, we advice installing <code class="docutils literal notranslate"><span class="pre">sftd</span></code> as a separate chart.</p>
+<p>It is important that you disable <code class="docutils literal notranslate"><span class="pre">sftd</span></code> in the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> umbrella chart, by setting this in your <code class="docutils literal notranslate"><span class="pre">./values/wire-server/values.yaml</span></code>  file</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">tags</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">sftd</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p>By default <code class="docutils literal notranslate"><span class="pre">sftd</span></code> doesn’t need to set that many options, so we define them inline. However, you could of course also set these values in a <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> file.</p>
+<p>SFT will deploy a Kubernetes Ingress on <code class="docutils literal notranslate"><span class="pre">$SFTD_HOST</span></code>.  Make sure that the domain name <code class="docutils literal notranslate"><span class="pre">$SFTD_HOST</span></code> points to your ingress IP as set up in <a class="reference internal" href="helm-prod.html#helm-prod"><span class="std std-ref">Installing wire-server (production) components using Helm</span></a>.  The SFT also needs to be made aware of the domain name of the webapp that you set up in <a class="reference internal" href="helm-prod.html#helm-prod"><span class="std std-ref">Installing wire-server (production) components using Helm</span></a> for setting up the appropriate CSP headers.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">SFTD_HOST</span><span class="o">=</span>sftd.example.com
+<span class="nb">export</span><span class="w"> </span><span class="nv">WEBAPP_HOST</span><span class="o">=</span>webapp.example.com
+</pre></div>
+</div>
+<p>Now you can install the chart:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>sftd<span class="w"> </span>wire/sftd<span class="w"> </span>--set
+helm<span class="w"> </span>install<span class="w"> </span>sftd<span class="w"> </span>wire/sftd<span class="w">  </span><span class="se">\</span>
+<span class="w">  </span>--set<span class="w"> </span><span class="nv">host</span><span class="o">=</span><span class="nv">$SFTD_HOST</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set<span class="w"> </span><span class="nv">allowOrigin</span><span class="o">=</span>https://<span class="nv">$WEBAPP_HOST</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set-file<span class="w"> </span>tls.crt<span class="o">=</span>/path/to/tls.crt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set-file<span class="w"> </span>tls.key<span class="o">=</span>/path/to/tls.key
+</pre></div>
+</div>
+<p>You should also make sure that you configure brig to know about the SFT server, in the <code class="docutils literal notranslate"><span class="pre">./values/wire-server/values.yaml</span></code> file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">brig</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">optSettings</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">setSftStaticUrl</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://sftd.example.com:443&quot;</span>
+</pre></div>
+</div>
+<p>And then roll-out the change to the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> chart</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>wire-server<span class="w"> </span>wire/wire-server<span class="w"> </span>--values<span class="w"> </span>./values/wire-server/values.yaml
+</pre></div>
+</div>
+<p>For more advanced setups please refer to the <a class="reference external" href="https://github.com/wireapp/wire-server/blob/develop/charts/sftd/README.md">technical documentation</a>.</p>
+</section>
+<section id="firewall-rules">
+<span id="install-sft-firewall-rules"></span><h3>Firewall rules<a class="headerlink" href="#firewall-rules" title="Permalink to this heading"></a></h3>
+<p>The SFT allocates media addresses in the UDP <a class="reference internal" href="../../understand/notes/port-ranges.html#port-ranges"><span class="std std-ref">default port range</span></a>. Ingress and
+egress traffic should be allowed for this range. Furthermore the SFT needs to be
+able to reach the <a class="reference internal" href="../../understand/restund.html#understand-restund"><span class="std std-ref">Restund server</span></a>, as it uses STUN and TURN in cases the client
+can not directly connect to the SFT. In practise this means the SFT should
+allow ingress and egress traffic on the UDP <a class="reference internal" href="../../understand/notes/port-ranges.html#port-ranges"><span class="std std-ref">default port range</span></a> from and
+to both, clients and <a class="reference internal" href="../../understand/restund.html#understand-restund"><span class="std std-ref">Restund servers</span></a>.</p>
+<p><em>For more information on this port range, how to read and change it, and how to configure your firewall, please see</em> <a class="reference internal" href="../../understand/notes/port-ranges.html#port-ranges"><span class="std std-ref">this note</span></a>.</p>
+<p>The SFT also has an HTTP interface for initializing (allocation) or joining (signaling) a call. This is exposed through
+the ingress controller as an HTTPS service.</p>
+<p>SFT does require access to the TURN control port during process startup, but does not use it for any real purpose.
+It is a health check, that is going to be removed eventually.</p>
+<p>An SFT instance does <strong>not</strong> communicate with other SFT instances, TURN does talk to TURN.</p>
+<p>Recapitulation table:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Origin</p></th>
+<th class="head"><p>Destination</p></th>
+<th class="head"><p>Direction</p></th>
+<th class="head"><p>Protocol</p></th>
+<th class="head"><p>Ports</p></th>
+<th class="head"><p>Action (Policy)</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Denying all ingress</p></td>
+<td><p>Any / none.</p></td>
+<td><p>Here</p></td>
+<td><p>Incoming</p></td>
+<td><p>All</p></td>
+<td><p>None</p></td>
+<td><p>Deny</p></td>
+<td><p>Deny anything incoming: by default nothing is allowed to come in, and we will individually allow specific ports below.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Allowing all egress</p></td>
+<td><p>Here</p></td>
+<td><p>Any</p></td>
+<td><p>Outgoing</p></td>
+<td><p>All</p></td>
+<td><p>All</p></td>
+<td><p>Allow</p></td>
+<td><p>Allow everything outgoing, by default everything is allowed (all ports) in the outgoing direction.</p></td>
+</tr>
+<tr class="row-even"><td><p>Allowing HTTP(S) ingress</p></td>
+<td><p>Any</p></td>
+<td><p>Here</p></td>
+<td><p>Incoming</p></td>
+<td><p>TCP</p></td>
+<td><p>sft_nginx_certbot_port, sft_nginx_sft_port, sft_nginx_metrics_port</p></td>
+<td><p>Allow</p></td>
+<td><p>Allow HTTP(S) access to three different (nginx) confiigured ports. This interface is for initializing (allocation) or joining (signaling) a call.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Allowing SSH ingress</p></td>
+<td><p>Any</p></td>
+<td><p>Here</p></td>
+<td><p>Incoming</p></td>
+<td><p>TCP</p></td>
+<td><p>22 (SSH)</p></td>
+<td><p>Allow</p></td>
+<td><p>Allow Secure Shell Protocol access for administration.</p></td>
+</tr>
+<tr class="row-even"><td><p>Allowing SFT media ingress</p></td>
+<td><p>Any</p></td>
+<td><p>Here</p></td>
+<td><p>Incoming</p></td>
+<td><p>UDP</p></td>
+<td><p>32768-61000</p></td>
+<td><p>Allow</p></td>
+<td rowspan="2"><p>Allow ports in the “Ephemeral range” (<a class="reference external" href="https://en.wikipedia.org/wiki/Ephemeral_port">https://en.wikipedia.org/wiki/Ephemeral_port</a>), defined by the Linux Kernel ass the range from ports 32768 to 61000, used for UDP transmission of media.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Allowing SFT media egress</p></td>
+<td><p>Here</p></td>
+<td><p>Anny</p></td>
+<td><p>Outgoing</p></td>
+<td><p>UDP</p></td>
+<td><p>32768-61000</p></td>
+<td><p>Allow</p></td>
+</tr>
+</tbody>
+</table>
+<p><em>For more information, please refer to the source code of the Ansible role:</em> <a class="reference external" href="https://github.com/wireapp/ansible-sft/blob/develop/roles/sft-server/tasks/traffic.yml">sft-server</a>.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="web-app-settings.html" class="btn btn-neutral float-left" title="Web app settings" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="restund.html" class="btn btn-neutral float-right" title="Installing Restund" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

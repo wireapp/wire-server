@@ -16,6 +16,7 @@
             "guest",
             "service"
         ],
+        "add_permission": null,
         "creator": "00000000-0000-0000-0000-000200000001",
         "group_conv_type": "group_conversation",
         "id": "00000000-0000-0000-0000-000100000001",

@@ -844,6 +844,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmMessageTimer = messageTimer,
             cnvmReceiptMode = receiptMode,
             cnvmGroupConvType = groupConvType,
+            cnvmChannelAddPermission = channelAddPermission,
             cnvmCellsState = def
           }
         (ConvMembers this others)

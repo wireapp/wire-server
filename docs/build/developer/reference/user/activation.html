@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>10. User Activation &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/clipboard.min.js"></script>
+        <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="11. Connection" href="connection.html" />
+    <link rel="prev" title="9. Legal hold" href="../team/legalhold.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../../index.html">
+        <img src="../../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../developer/index.html">Developer</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Reference</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../config-options.html">1. Config Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../conversation.html">2. Creating and populating conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elastic-search.html">3. Maintaining ElasticSearch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elasticsearch-migration-2021-02-16.html">4. ElasticSearch migration instructions for release 2021-02-16</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../make-docker-and-qemu.html">5. Make docker and QEMU</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../oauth.html">6. OAuth</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../provisioning/scim-token.html">7. SCIM tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../spar-braindump.html">8. Spar braindump</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../team/legalhold.html">9. Legal hold</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">10. User Activation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#activated-vs-non-activated-users">10.1. Activated vs. non-activated users</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#api">10.2. API</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#automating-activation-via-email">10.3. Automating activation via email</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#phone-email-whitelist">10.4. Phone/email whitelist</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="connection.html">11. Connection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="connection.html#connection-backend-internals">12. Connection backend internals</a></li>
+<li class="toctree-l3"><a class="reference internal" href="registration.html">13. User Registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rich-info.html">14. User Rich info</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Reference</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">10. </span>User Activation</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/user/activation.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="user-activation">
+<h1><span class="section-number">10. </span>User Activation<a class="headerlink" href="#user-activation" title="Permalink to this heading"></a></h1>
+<p>Reference: {#RefActivation}</p>
+<p><em>Author: Artyom Kazak</em></p>
+<hr class="docutils" />
+<p>A user is called <em>activated</em> they have a verified identity – e.g. a phone number that has been verified via a text message, or an email address that has been verified by sending an activation code to it.</p>
+<p>A user that has been provisioned via single sign-on is always considered to be activated.</p>
+<section id="activated-vs-non-activated-users">
+<h2><span class="section-number">10.1. </span>Activated vs. non-activated users<a class="headerlink" href="#activated-vs-non-activated-users" title="Permalink to this heading"></a></h2>
+<p id="refactivationbenefits">Non-activated users can not <a class="reference internal" href="connection.html"><span class="std std-doc">connect</span></a> to others, nor can connection requests be made to anonymous accounts from verified accounts. As a result:</p>
+<ul class="simple">
+<li><p>A non-activated user cannot add other users to conversations. The only way to participate in a conversation is to either create a new conversation with link access or to use a link provided by another user.</p></li>
+</ul>
+<p>The only flow where it makes sense for non-activated users to exist is the <a class="reference internal" href="registration.html#refregistrationwireless"><span class="std std-ref">wireless flow</span></a> used for <a class="reference external" href="https://wire.com/en/features/encrypted-guest-rooms/">guest rooms</a></p>
+</section>
+<section id="api">
+<h2><span class="section-number">10.2. </span>API<a class="headerlink" href="#api" title="Permalink to this heading"></a></h2>
+<section id="requesting-an-activation-code">
+<span id="refactivationapi"></span><h3><span class="section-number">10.2.1. </span>Requesting an activation code<a class="headerlink" href="#requesting-an-activation-code" title="Permalink to this heading"></a></h3>
+<p id="refactivationrequest">During the <a class="reference internal" href="registration.html#refregistrationstandard"><span class="std std-ref">standard registration flow</span></a>, the user submits an email address or phone number by making a request to <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate/send</span></code>. A six-digit activation code will be sent to that email address / phone number. Sample request and response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">POST</span> <span class="o">/</span><span class="n">activate</span><span class="o">/</span><span class="n">send</span>
+
+<span class="p">{</span>
+    <span class="o">//</span> <span class="n">Either</span> <span class="s1">&#39;email&#39;</span> <span class="ow">or</span> <span class="s1">&#39;phone&#39;</span>
+    <span class="s2">&quot;phone&quot;</span><span class="p">:</span> <span class="s2">&quot;+1234567890&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">200</span> <span class="n">OK</span>
+</pre></div>
+</div>
+<p>The user can submit the activation code during registration to prove that they own the email address / phone number.</p>
+<p>The same <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate/send</span></code> endpoint can be used to re-request an activation code. Please use this ability sparingly! To avoid unnecessary activation code requests, users should be warned that it might take up to a few minutes for an email or text message to arrive.</p>
+</section>
+<section id="activating-an-existing-account">
+<h3><span class="section-number">10.2.2. </span>Activating an existing account<a class="headerlink" href="#activating-an-existing-account" title="Permalink to this heading"></a></h3>
+<p id="refactivationsubmit">If the account <a class="reference internal" href="registration.html#refregistrationnopreverification"><span class="std std-ref">has not been activated during verification</span></a>, it can be activated afterwards by submitting an activation code to <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate</span></code>. Sample request and response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">POST</span> <span class="o">/</span><span class="n">activate</span>
+
+<span class="p">{</span>
+    <span class="o">//</span> <span class="n">One</span> <span class="n">of</span> <span class="s1">&#39;phone&#39;</span><span class="p">,</span> <span class="s1">&#39;email&#39;</span><span class="p">,</span> <span class="ow">or</span> <span class="s1">&#39;key&#39;</span>
+    <span class="s2">&quot;phone&quot;</span><span class="p">:</span> <span class="s2">&quot;+1234567890&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="mi">6</span><span class="o">-</span><span class="n">digit</span> <span class="n">activation</span> <span class="n">code</span>
+    <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="s2">&quot;123456&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="n">Verify</span> <span class="n">the</span> <span class="s1">&#39;code&#39;</span> <span class="n">but</span> <span class="n">don</span><span class="s1">&#39;t activate the account (the 3-attempt limit</span>
+    <span class="o">//</span> <span class="n">on</span> <span class="n">failed</span> <span class="n">verification</span> <span class="n">attempts</span> <span class="n">still</span> <span class="n">applies</span><span class="p">)</span>
+    <span class="s2">&quot;dryrun&quot;</span><span class="p">:</span> <span class="n">false</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">200</span> <span class="n">OK</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;phone&quot;</span><span class="p">:</span> <span class="s2">&quot;+1234567890&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="n">Whether</span> <span class="n">it</span> <span class="ow">is</span> <span class="n">the</span> <span class="n">first</span> <span class="n">successful</span> <span class="n">activation</span> <span class="k">for</span> <span class="n">the</span> <span class="n">user</span>
+    <span class="s2">&quot;first&quot;</span><span class="p">:</span> <span class="n">true</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>If the email or phone has been verified already, <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate</span></code> will return status code <code class="docutils literal notranslate"><span class="pre">204</span> <span class="pre">No</span> <span class="pre">Content</span></code>. If the code is invalid, <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate</span></code> will return status code <code class="docutils literal notranslate"><span class="pre">404</span> <span class="pre">Not</span> <span class="pre">Found</span></code> with <code class="docutils literal notranslate"><span class="pre">&quot;label&quot;:</span> <span class="pre">&quot;invalid-code&quot;</span></code>.</p>
+<p>There is a maximum of 3 activation attempts per activation code. On the third failed attempt the code is invalidated and a new one must be requested.</p>
+</section>
+<section id="activation-event">
+<h3><span class="section-number">10.2.3. </span>Activation event<a class="headerlink" href="#activation-event" title="Permalink to this heading"></a></h3>
+<p id="refactivationevent">When the user becomes activated, they receive an event:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;user.activate&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;user&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="bp">self</span> <span class="n">profile</span><span class="o">&gt;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="detecting-activation-in-the-self-profile">
+<h3><span class="section-number">10.2.4. </span>Detecting activation in the self profile<a class="headerlink" href="#detecting-activation-in-the-self-profile" title="Permalink to this heading"></a></h3>
+<p id="refactivationprofile">In addition to the <a class="reference internal" href="#refactivationevent"><span class="std std-ref">activation event</span></a>, activation can be detected by polling the self profile:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">GET</span> <span class="o">/</span><span class="bp">self</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;accent_id&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">&quot;assets&quot;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="s2">&quot;pink@example.com&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;2f7e582b-9d99-4d50-bbb0-e659d63491d9&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;en&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;managed_by&quot;</span><span class="p">:</span> <span class="s2">&quot;wire&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pink&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;picture&quot;</span><span class="p">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>If the profile includes <code class="docutils literal notranslate"><span class="pre">&quot;email&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;phone&quot;</span></code>, the account is activated.</p>
+</section>
+</section>
+<section id="automating-activation-via-email">
+<h2><span class="section-number">10.3. </span>Automating activation via email<a class="headerlink" href="#automating-activation-via-email" title="Permalink to this heading"></a></h2>
+<p id="refactivationemailheaders">Our email verification messages contain headers that can be used to automate the activation process.</p>
+<p>An email caused by <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate/send</span></code> will contain this set of headers:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">X</span><span class="o">-</span><span class="n">Zeta</span><span class="o">-</span><span class="n">Purpose</span><span class="p">:</span> <span class="n">Verification</span>
+<span class="n">X</span><span class="o">-</span><span class="n">Zeta</span><span class="o">-</span><span class="n">Code</span><span class="p">:</span> <span class="mi">123456</span>
+</pre></div>
+</div>
+<p>An email caused by <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/register</span></code> will contain this set of headers (the opaque <code class="docutils literal notranslate"><span class="pre">&quot;key&quot;</span></code> might be used instead of <code class="docutils literal notranslate"><span class="pre">&quot;email&quot;</span></code> in the <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate</span></code> request):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">X</span><span class="o">-</span><span class="n">Zeta</span><span class="o">-</span><span class="n">Purpose</span><span class="p">:</span> <span class="n">Activation</span>
+<span class="n">X</span><span class="o">-</span><span class="n">Zeta</span><span class="o">-</span><span class="n">Key</span><span class="p">:</span> <span class="o">...</span>
+<span class="n">X</span><span class="o">-</span><span class="n">Zeta</span><span class="o">-</span><span class="n">Code</span><span class="p">:</span> <span class="mi">123456</span>
+</pre></div>
+</div>
+</section>
+<section id="phone-email-whitelist">
+<h2><span class="section-number">10.4. </span>Phone/email whitelist<a class="headerlink" href="#phone-email-whitelist" title="Permalink to this heading"></a></h2>
+<p id="refactivationallowlist">The backend can be configured to only allow specific phone number prefixes and email address domains to register. The following options have to be set in <code class="docutils literal notranslate"><span class="pre">brig.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">optSettings</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">setAllowlistEmailDomains</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wire.com</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">example.com</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">notagoodexample.com</span>
+<span class="w">  </span><span class="nt">setAllowlistPhonePrefixes</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;+49&quot;</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;+1555555&quot;</span>
+</pre></div>
+</div>
+<p>When those options are present, the backend will match every activation request against these lists.</p>
+<p>If an email address or phone number are rejected by the whitelist, <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate/send</span></code> or <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/register</span></code> will return <code class="docutils literal notranslate"><span class="pre">403</span> <span class="pre">Forbidden</span></code>:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">403</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;unauthorized&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Unauthorized e-mail address or phone number.&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../team/legalhold.html" class="btn btn-neutral float-left" title="9. Legal hold" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="connection.html" class="btn btn-neutral float-right" title="11. Connection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

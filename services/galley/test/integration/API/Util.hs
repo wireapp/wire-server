@@ -2365,6 +2365,7 @@ mkProteusConv cnvId creator selfRole otherMembers =
         Nothing
         Nothing
         (Just GroupConversation)
+        Nothing
         def
     )
     (RemoteConvMembers selfRole otherMembers)

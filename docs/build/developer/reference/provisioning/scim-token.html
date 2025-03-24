@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>7. SCIM tokens &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/clipboard.min.js"></script>
+        <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="9. Legal hold" href="../team/legalhold.html" />
+    <link rel="prev" title="6. OAuth" href="../oauth.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../../index.html">
+        <img src="../../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../developer/index.html">Developer</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Reference</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../config-options.html">1. Config Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../conversation.html">2. Creating and populating conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elastic-search.html">3. Maintaining ElasticSearch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elasticsearch-migration-2021-02-16.html">4. ElasticSearch migration instructions for release 2021-02-16</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../make-docker-and-qemu.html">5. Make docker and QEMU</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../oauth.html">6. OAuth</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">7. SCIM tokens</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#using-a-scim-token-refscimtokenusage">7.1. Using a SCIM token {#RefScimTokenUsage}</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#api-refscimtokenapi">7.2. API {#RefScimTokenApi}</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../spar-braindump.html">8. Spar braindump</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../team/legalhold.html">9. Legal hold</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user/activation.html">10. User Activation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user/connection.html">11. Connection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user/connection.html#connection-backend-internals">12. Connection backend internals</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user/registration.html">13. User Registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user/rich-info.html">14. User Rich info</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Reference</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">7. </span>SCIM tokens</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/provisioning/scim-token.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="scim-tokens">
+<h1><span class="section-number">7. </span>SCIM tokens<a class="headerlink" href="#scim-tokens" title="Permalink to this heading"></a></h1>
+<p>Reference: {#RefScimToken}</p>
+<p><em>Author: Artyom Kazak</em></p>
+<hr class="docutils" />
+<p>A <em>SCIM token</em> is a bearer token used to authorize SCIM operations.</p>
+<p>A team owner can create SCIM tokens for the team. Each of those tokens can be used to provision new members to the team, modify members’ profile attributes, etc. Tokens have unlimited duration, but can be revoked.</p>
+<section id="using-a-scim-token-refscimtokenusage">
+<h2><span class="section-number">7.1. </span>Using a SCIM token {#RefScimTokenUsage}<a class="headerlink" href="#using-a-scim-token-refscimtokenusage" title="Permalink to this heading"></a></h2>
+<p>SCIM tokens are not general-purpose API tokens. They only apply to the <code class="docutils literal notranslate"><span class="pre">/scim/v2/</span></code> subtree of the API.</p>
+<p>SCIM tokens are intended to be used by provisioning tools, such as Okta, OneLogin, Active Directory, and so on. If you have your own provisioning utility, you can use a token by adding an <code class="docutils literal notranslate"><span class="pre">Authorization</span></code> header to all <code class="docutils literal notranslate"><span class="pre">/scim/v2/</span></code> requests:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Authorization</span><span class="p">:</span> <span class="n">Bearer</span> <span class="o">&lt;</span><span class="n">token</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>A SCIM token identifies the team that the token belongs to, so you do not need to specify the team in the request.</p>
+</section>
+<section id="api-refscimtokenapi">
+<h2><span class="section-number">7.2. </span>API {#RefScimTokenApi}<a class="headerlink" href="#api-refscimtokenapi" title="Permalink to this heading"></a></h2>
+<section id="creating-a-token-refscimtokencreate">
+<h3><span class="section-number">7.2.1. </span>Creating a token {#RefScimTokenCreate}<a class="headerlink" href="#creating-a-token-refscimtokencreate" title="Permalink to this heading"></a></h3>
+<p>Creating a token requires the user to be a team owner. As an additional precaution, we also require the user to re-enter their password.</p>
+<p>There is a reasonable limit on the number of tokens a single team can have, set in <code class="docutils literal notranslate"><span class="pre">scim.yaml</span></code> at <code class="docutils literal notranslate"><span class="pre">maxScimTokens</span></code>. For Wire the limit is 16.</p>
+<p>Sample request and response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">POST</span> <span class="o">/</span><span class="n">scim</span><span class="o">/</span><span class="n">auth</span><span class="o">-</span><span class="n">tokens</span>
+
+<span class="p">{</span>
+    <span class="o">//</span> <span class="n">Token</span> <span class="n">description</span> <span class="p">(</span><span class="n">useful</span> <span class="k">as</span> <span class="n">a</span> <span class="n">memory</span> <span class="n">aid</span><span class="p">;</span> <span class="n">non</span><span class="o">-</span><span class="n">optional</span> <span class="n">but</span> <span class="n">can</span> <span class="n">be</span> <span class="n">empty</span><span class="p">)</span>
+    <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Sample token&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="n">User</span> <span class="n">password</span><span class="o">.</span> <span class="n">If</span> <span class="n">the</span> <span class="n">user</span> <span class="n">does</span> <span class="ow">not</span> <span class="n">have</span> <span class="n">a</span> <span class="n">password</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">g</span><span class="o">.</span> <span class="n">they</span> <span class="n">are</span>
+    <span class="o">//</span> <span class="n">SCIM</span><span class="o">-</span><span class="n">provisioned</span><span class="p">),</span> <span class="n">this</span> <span class="n">field</span> <span class="n">should</span> <span class="n">be</span> <span class="n">omitted</span><span class="o">.</span>
+    <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;secret&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">201</span> <span class="n">Created</span>
+
+<span class="p">{</span>
+    <span class="o">//</span> <span class="n">Token</span> <span class="n">itself</span><span class="p">;</span> <span class="n">only</span> <span class="n">sent</span> <span class="n">once</span><span class="p">,</span> <span class="n">can</span> <span class="ow">not</span> <span class="n">be</span> <span class="n">listed</span>
+    <span class="s2">&quot;token&quot;</span><span class="p">:</span> <span class="s2">&quot;MzIgcmFuZG9tIGJ5dGVzIGluIGJhc2U2NCBmb3JtYXQ=&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="n">Metadata</span> <span class="n">about</span> <span class="n">the</span> <span class="n">token</span><span class="p">,</span> <span class="n">can</span> <span class="n">be</span> <span class="n">listed</span>
+    <span class="s2">&quot;info&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="o">//</span> <span class="n">Token</span> <span class="n">ID</span><span class="p">,</span> <span class="n">can</span> <span class="n">be</span> <span class="n">used</span> <span class="n">to</span> <span class="n">revoke</span> <span class="n">the</span> <span class="n">token</span>
+        <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;514613de-9fde-4aab-a704-c57af7a3366e&quot;</span><span class="p">,</span>
+        <span class="o">//</span> <span class="n">Token</span> <span class="n">description</span>
+        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Sample token&quot;</span><span class="p">,</span>
+        <span class="o">//</span> <span class="n">Team</span> <span class="n">associated</span> <span class="k">with</span> <span class="n">the</span> <span class="n">token</span>
+        <span class="s2">&quot;team&quot;</span><span class="p">:</span> <span class="s2">&quot;78c65523-490f-4e45-881f-745e3458e280&quot;</span><span class="p">,</span>
+        <span class="o">//</span> <span class="n">When</span> <span class="n">the</span> <span class="n">token</span> <span class="n">was</span> <span class="n">created</span>
+        <span class="s2">&quot;created_at&quot;</span><span class="p">:</span> <span class="s2">&quot;2019-04-18T14:09:43.732Z&quot;</span><span class="p">,</span>
+        <span class="o">//</span> <span class="n">Identity</span> <span class="n">provider</span> <span class="k">for</span> <span class="n">users</span> <span class="n">provisioned</span> <span class="k">with</span> <span class="n">the</span> <span class="n">token</span>
+        <span class="o">//</span> <span class="p">(</span><span class="n">optional</span> <span class="n">but</span> <span class="k">for</span> <span class="n">now</span> <span class="n">always</span> <span class="n">present</span><span class="p">)</span>
+        <span class="s2">&quot;idp&quot;</span><span class="p">:</span> <span class="s2">&quot;784edde5-29d8-4dc3-bb95-924519448f09&quot;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Note that SCIM can only be used with teams that have either no or exactly one SAML IdP (<a class="reference external" href="https://github.com/zinfra/backend-issues/issues/1377">internal issue</a>).</p>
+</section>
+<section id="listing-existing-tokens-refscimtokenlist">
+<h3><span class="section-number">7.2.2. </span>Listing existing tokens {#RefScimTokenList}<a class="headerlink" href="#listing-existing-tokens-refscimtokenlist" title="Permalink to this heading"></a></h3>
+<p>Listing tokens requires the user to be a team owner.</p>
+<p>We don’t ever send tokens themselves, only the metadata (which can be used, for instance, to decide which tokens to revoke).</p>
+<p>Sample request and response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">GET</span> <span class="o">/</span><span class="n">scim</span><span class="o">/</span><span class="n">auth</span><span class="o">-</span><span class="n">tokens</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">200</span> <span class="n">OK</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;tokens&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;514613de-9fde-4aab-a704-c57af7a3366e&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Sample token&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;team&quot;</span><span class="p">:</span> <span class="s2">&quot;78c65523-490f-4e45-881f-745e3458e280&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;created_at&quot;</span><span class="p">:</span> <span class="s2">&quot;2019-04-18T14:09:43.732Z&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;idp&quot;</span><span class="p">:</span> <span class="s2">&quot;784edde5-29d8-4dc3-bb95-924519448f09&quot;</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="revoking-a-token-refscimtokendelete">
+<h3><span class="section-number">7.2.3. </span>Revoking a token {#RefScimTokenDelete}<a class="headerlink" href="#revoking-a-token-refscimtokendelete" title="Permalink to this heading"></a></h3>
+<p>Revoking a token requires the user to be a team owner.</p>
+<p>To revoke a token, the user has to provide the token ID (not the token itself). The revoked token becomes unused immediately and does not show up in the results of <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/scim/auth-tokens</span></code>.</p>
+<p>Sample request and response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>DELETE /scim/auth-tokens?id=514613de-9fde-4aab-a704-c57af7a3366e
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">204</span> <span class="n">No</span> <span class="n">Content</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../oauth.html" class="btn btn-neutral float-left" title="6. OAuth" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../team/legalhold.html" class="btn btn-neutral float-right" title="9. Legal hold" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

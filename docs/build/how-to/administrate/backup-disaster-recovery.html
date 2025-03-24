@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Backup and disaster recovery &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Cassandra" href="cassandra.html" />
+    <link rel="prev" title="Upgrading a Kubernetes cluster" href="kubernetes/upgrade-cluster/index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Administration</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="kubernetes/index.html">Kubernetes</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Backup and disaster recovery</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#backing-up">Backing up</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#backing-up-wire-server">Backing up Wire-server</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#backing-up-cassandra">Backing up Cassandra</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#batch-cassandra-backup">Batch Cassandra backup</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#backing-up-minio">Backing up MinIO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#automated-regular-backups">Automated regular backups</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#recovery-procedure">Recovery procedure</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#restoring-wire-server-from-a-backup">Restoring Wire-Server from a backup</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#restoring-cassandra-from-a-backup">Restoring Cassandra from a backup</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#restoring-minio-from-a-backup">Restoring MinIO from a backup</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cassandra.html">Cassandra</a></li>
+<li class="toctree-l2"><a class="reference internal" href="elasticsearch.html">Elasticsearch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="etcd.html">Etcd</a></li>
+<li class="toctree-l2"><a class="reference internal" href="general-linux.html">General - Linux</a></li>
+<li class="toctree-l2"><a class="reference internal" href="minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operations.html">Operational procedures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Restund (TURN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="users.html">Investigative tasks (e.g. searching for users as server admin)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Administration</a></li>
+      <li class="breadcrumb-item active">Backup and disaster recovery</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/administrate/backup-disaster-recovery.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="backup-and-disaster-recovery">
+<h1>Backup and disaster recovery<a class="headerlink" href="#backup-and-disaster-recovery" title="Permalink to this heading"></a></h1>
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h2>
+<p>While you might never use them, your backup plan (and the corresponding disaster recovery steps) are possibly your most important procedure.</p>
+<p>You should:</p>
+<ol class="arabic simple">
+<li><p>Write it up fully</p></li>
+<li><p>Test it from beginning to end, simulating an actual disaster</p></li>
+<li><p>Run backups on a regular basis, ideally automatically</p></li>
+</ol>
+<p>This page explains in detail how to properly backup an on-premise Wire installation, and how to recover from your backup if you ever need to.</p>
+<p>Note that you should not trust this page (or your execution of it) to allow for a proper backup and restore, therefore, you should immediately (before it becomes critical to do so) back up your Wire installation <strong>and</strong> attempt (as a test) to restore it. This will ensure that you can <strong>in fact</strong> backup and restore Wire, and will catch any problem in the process before any problem becomes damaging to you.</p>
+</section>
+<section id="backing-up">
+<h2>Backing up<a class="headerlink" href="#backing-up" title="Permalink to this heading"></a></h2>
+<p>By nature, a significant part of a Wire installation is ephemeral, and not meant to be stored long-term or recovered: in case of trouble, those parts can just be started fresh with minimal impact on user experience.</p>
+<p>The exceptions to this rule, are what you want to back up. In particular:</p>
+<ul class="simple">
+<li><p>Your “wire-server” installation folder (used during the installation procedure)</p></li>
+<li><p>Your Cassandra database</p></li>
+<li><p>Your Minio data</p></li>
+</ul>
+<p>If you save these, you can then whenever needed, create a fresh installation of Wire, re-import/re-install them on top of it, and get back to a working state.</p>
+<p>Here is how to back up each:</p>
+<section id="backing-up-wire-server">
+<h3>Backing up Wire-server<a class="headerlink" href="#backing-up-wire-server" title="Permalink to this heading"></a></h3>
+<p>To backup the wire-server folder, we simply use ssh to read it from the server in which it is installed:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ssh user@my-wire-server.your-domain.com &#39;cd /path/to/my/folder/for/wire-server/ &amp;&amp; tar -cf - wire-server | gzip -9&#39; &gt; wire-server-backup.tar.gz
+</pre></div>
+</div>
+<p>Where :</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my-wire-server.your-domain.com</span></code> is the domain name or IP address for the server with your Wire install</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/path/to/my/folder/for/wire-server/</span></code> is the (absolute) path, on the server, where your wire-server folder is located</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">wire-server</span></code> is the name of the folder for your wire-server install, typically (as per instructions) simply <code class="docutils literal notranslate"><span class="pre">wire-server</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">wire-server-backup.tar.gz</span></code> is the name of the file in which your wire-server folder will be stored</p></li>
+</ul>
+<p>Once the command is done executing, make sure the file exists and is not empty with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>file wire-server-backup.tar.gz       # Should say the file type is a TAR archive
+ls -lh wire-server-backup.tar.gz     # Should show a file size other than 0
+tar tvf wire-server-backup.tar.gz    # Should list the files inside your wire-server folder correctly
+</pre></div>
+</div>
+<p>Now simply save this file in multiple locations as per your normal company backup procedures, and repeat this procedure on a regular basis as is appropriate.</p>
+</section>
+<section id="backing-up-cassandra">
+<h3>Backing up Cassandra<a class="headerlink" href="#backing-up-cassandra" title="Permalink to this heading"></a></h3>
+<p>Cassandra stores things such as user profiles/accounts, conversations, etc. It is the most critical data to backup/store/recover.</p>
+<p>To backup your Cassandra database, do as follows:</p>
+<p>You can read general information about connecting to your Cassandra node on <a class="reference internal" href="cassandra.html"><span class="doc std std-doc">this page</span></a></p>
+<p>In particular, SSH into the Cassandra Virtual Machine with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ssh user@cassandra-vm.your-domain.com
+</pre></div>
+</div>
+<p>Where:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cassandra-vm.your-domain.com</span></code> is the domain name or IP address for the server with your Cassandra node</p></li>
+</ul>
+<p>Make sure (while connected via ssh) your Cassandra installation is doing well with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>nodetool status
+</pre></div>
+</div>
+<p>or (in newer versions)</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>nodetool -h ::FFFF:127.0.0.1 status
+</pre></div>
+</div>
+<p>You should see a list of nodes like this:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Datacenter: datacenter1
+=======================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address         Load       Tokens          Owns (effective)   Host ID                                Rack
+UN  192.168.220.13  9.51MiB    256             100.0%             3dba71c8-eea7-4e35-8f35-4386e7944894   rack1
+UN  192.168.220.23  9.53MiB    256             100.0%             3af56f1f-7685-4b5b-b73f-efdaa371e96e   rack1
+UN  192.168.220.33  9.55MiB    256             100.0%             RANDOMLY-MADE-UUID-GOES-INTHISPLACE!   rack1
+</pre></div>
+</div>
+<p>As per the <a class="reference external" href="https://cassandra.apache.org/doc/latest/cassandra/operating/backups.html">Cassandra documentation</a> to backup your database, you will use the <code class="docutils literal notranslate"><span class="pre">nodetool</span> <span class="pre">snapshot</span></code> command.</p>
+<p>First we need to edit the <code class="docutils literal notranslate"><span class="pre">cassandra.yaml</span></code> file (which you can if needed find with <code class="docutils literal notranslate"><span class="pre">find</span> <span class="pre">-name</span> <span class="pre">cassandra.yaml</span></code>) has <code class="docutils literal notranslate"><span class="pre">auto_snapshot</span></code> set to <code class="docutils literal notranslate"><span class="pre">false</span></code>:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>auto_snapshot: false
+</pre></div>
+</div>
+<p>Same with: <code class="docutils literal notranslate"><span class="pre">snapshot_before_compaction</span></code></p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>snapshot_before_compaction: false
+</pre></div>
+</div>
+<p>After editing the file, make sure you restart cassandra with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>sudo service cassandra restart
+</pre></div>
+</div>
+<p>You can find a list of all keyspaces by doing:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ls /mnt/cassandra/data/
+</pre></div>
+</div>
+<p>Now (while connected via ssh, as per above), use nodetool to actually generate a snapshot of all tables:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>nodetool snapshot --tag catalog-ks catalogkeyspace
+</pre></div>
+</div>
+<p>This should succesfully save the snapshots to the disk.</p>
+<p>You should now be able to find your snapshots in the snapshots list with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>nodetool listsnapshots
+</pre></div>
+</div>
+<p>To actually save the files, you’ll need to locate them with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>find -name snapshots
+</pre></div>
+</div>
+<p>Which should give you a list of paths to snapshots, such as:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>/mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots
+/mnt/cassandra/data/data/catalogkeyspace/magazine-446eae30c22a11e9b1350d927649052c/snapshots
+</pre></div>
+</div>
+<p>Now to create a (local) backup of these snapshots, we use <code class="docutils literal notranslate"><span class="pre">ssh</span></code> the same way we did above for <code class="docutils literal notranslate"><span class="pre">wire-server</span></code>:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ssh user@cassandra-vm.your-domain.com &#39;cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ &amp;&amp; tar -cf - snapshots | gzip -9&#39; &gt; cassandra-catalogkeyspace-journal-backup.tar.gz
+</pre></div>
+</div>
+<p>Where :</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cassandra-vm.your-domain.com</span></code> is the domain name or IP address for the server with your Wire install</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/mnt/cassandra/</span></code> is the (absolute) path, on the server, where your cassandra folder is located, to which you add the location of the specific snapshot, found with <code class="docutils literal notranslate"><span class="pre">find</span></code> above</p></li>
+</ul>
+<p>Repeat this for each of the snapshots.</p>
+<p>Now simply save these files in multiple locations as per your normal company backup procedures, and repeat this procedure on a regular basis as is appropriate.</p>
+</section>
+<section id="batch-cassandra-backup">
+<h3>Batch Cassandra backup<a class="headerlink" href="#batch-cassandra-backup" title="Permalink to this heading"></a></h3>
+<p>The backup procedure above presumes manually backing up each Cassandra snapshot serially one by one.</p>
+<p>If you want to back all files at once, you can use the <code class="docutils literal notranslate"><span class="pre">find</span></code> command to find all snapshots and pack them into a single archive:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ssh user@cassandra-vm.your-domain.com &#39;find /mnt/cassandra/ -name &quot;snapshots&quot; -print0 | tar -cvf - --null -T - | gzip -9 &#39; &gt; cassandra-batch.tar.gz
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cassandra-vm.your-domain.com</span></code> is the domain name or IP address for the server with your Wire install</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/mnt/cassandra/</span></code> is the (absolute) path, on the server, where your cassandra folder is located, to which you add the location of the specific snapshot, found with <code class="docutils literal notranslate"><span class="pre">find</span></code> above</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cassandra-batch.tar.gz</span></code> is the local file everything will be written to</p></li>
+</ul>
+<p>This will (over ssh) find all <code class="docutils literal notranslate"><span class="pre">snapshot</span></code> folders in the <code class="docutils literal notranslate"><span class="pre">cassandra</span></code> folder, pack them into a tar file, gzip it to save space, and output it to a local file.</p>
+</section>
+<section id="backing-up-minio">
+<h3>Backing up MinIO<a class="headerlink" href="#backing-up-minio" title="Permalink to this heading"></a></h3>
+<p>MinIO emulates an Amazon-S3-compatible file-storage setup, and is used by Wire to store things such as file attachments, images etc.</p>
+<p>If your specific installation is using the actual Amazon file storage (and not a local emulated alternative), you should skip this section (but still actually backup whatever you are using).</p>
+<p>Similarly to Cassandra, to create a backup you need to SSH into the Virtual Machine running MinIO in your installation:</p>
+<p>You can read general information about your MinIO node on <a class="reference internal" href="minio.html"><span class="doc std std-doc">this page</span></a>.</p>
+<p>SSH into the MinIO Virtual Machine with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ssh user@minio-vm.your-domain.com
+</pre></div>
+</div>
+<p>Where:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">minio-vm.your-domain.com</span></code> is the domain name or IP address for the server with your MinIO node</p></li>
+</ul>
+<p>To backup the MinIO data, we need to backup two servers over SSH, the same way we did for Cassandra and wire-server:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ssh user@my-minio-server.your-domain.com &#39;cd /var/lib/ &amp;&amp; tar -cf - minio-server1 | gzip -9&#39; &gt; minio-server1-backup.tar.gz
+ssh user@my-minio-server.your-domain.com &#39;cd /var/lib/ &amp;&amp; tar -cf - minio-server2 | gzip -9&#39; &gt; minio-server2-backup.tar.gz
+</pre></div>
+</div>
+<p>Where:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my-minio-server.your-domain.com</span></code> is the domain name or IP address for the MinIO Virtual Machine</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">minio-server[number]-backup.tar.gz</span></code> is the name of the file in which each minio data folder will be stored</p></li>
+</ul>
+</section>
+<section id="automated-regular-backups">
+<h3>Automated regular backups<a class="headerlink" href="#automated-regular-backups" title="Permalink to this heading"></a></h3>
+<p>It is important to back up as often as possible. You can use <code class="docutils literal notranslate"><span class="pre">cron</span></code> to automatically run your backup commands on a regular basis.</p>
+<p>For example, you can create the following shell script, and write it to <code class="docutils literal notranslate"><span class="pre">/home/myuser/backup/wire-backup.sh</span></code>:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>#!/bin/sh
+# Make the folder if it does not exist yet
+mkdir -p /home/myuser/backup/data/
+
+# Back up wire-server folder
+ssh user@my-wire-server.your-domain.com &#39;cd /path/to/my/folder/for/wire-server/ &amp;&amp; tar -cf - wire-server | gzip -9&#39; &gt; /home/myuser/backup/data/wire-server-backup.tar.gz
+
+# Cause Cassandra to generate new snapshots
+ssh user@cassandra-vm.your-domain.com &#39;nodetool snapshot --tag catalog-ks catalogkeyspace`
+
+# Backup Cassandra snapshots to a file
+ssh user@cassandra-vm.your-domain.com &#39;find /mnt/cassandra/ -name &quot;snapshots&quot; -print0 | tar -cvf - --null -T - | gzip -9 &#39; &gt; /home/myuser/backup/data/cassandra-batch.tar.gz
+
+# Backup MinIO files
+ssh user@my-minio-server.your-domain.com &#39;cd /var/lib/ &amp;&amp; tar -cf - minio-server1 | gzip -9&#39; &gt; /home/myuser/backup/data/minio-server1-backup.tar.gz
+ssh user@my-minio-server.your-domain.com &#39;cd /var/lib/ &amp;&amp; tar -cf - minio-server2 | gzip -9&#39; &gt; /home/myuser/backup/data/minio-server2-backup.tar.gz
+
+# Tar all backup files into a single unified archive
+tar -cf /home/myuser/backup/full-backup.tar /home/myuser/backup/data/*
+
+# Make remote copies of this single file to remote hosts for redundancy
+scp /home/myuser/backup/full-backup.tar user@remote-redundancy-host-one.your-domain.com:/path/to/backup/folder/
+scp /home/myuser/backup/full-backup.tar user@remote-redundancy-host-two.your-domain.com:/path/to/backup/folder/
+</pre></div>
+</div>
+<p>Make the file executable with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>chmod +x /home/myuser/backup/wire-backup.sh
+</pre></div>
+</div>
+<p>You can then manually run the file with:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>./home/myuser/backup/wire-backup.sh
+</pre></div>
+</div>
+<p>As a test, run the script manually to make sure it actually properly does its job without any errors.</p>
+<p>Then, you can add this to your cron file (by running <code class="docutils literal notranslate"><span class="pre">crontab</span> <span class="pre">-e</span></code>) to make sure this commands gets executed on a regular basis (here we will use an hourly backup):</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span># Edit this file to introduce tasks to be run by cron.
+# 
+# m h  dom mon dow   command
+@hourly /home/myuser/backup/wire-backup.sh
+</pre></div>
+</div>
+<p>Your backup should now happen every hour automatically, ensuring you always have a backup at least an hour fresh in case of an emergency.</p>
+<p>There are ways to have incremental backups and to do more complex/refined backup procedure, but those are beyond the scope of this document. You should check out <a class="reference external" href="https://borgbackup.readthedocs.io/en/stable/">Borg</a>.</p>
+<p>You should also set up your monitoring software (for example <a class="reference external" href="https://www.nagios.org/">Nagios</a>) to check whether your backup file is <a class="reference external" href="https://support.nagios.com/kb/article/file-and-folder-checks-783.html#file_modified">older than an hour</a>, and if it is (meaning something went wrong), warn you immediately.</p>
+</section>
+</section>
+<section id="recovery-procedure">
+<h2>Recovery procedure<a class="headerlink" href="#recovery-procedure" title="Permalink to this heading"></a></h2>
+<p>If the worse has happened, and you need to recover/restore your Wire installation, you will need to do the following:</p>
+<ol class="arabic simple">
+<li><p>Create a new Wire installation from scratch (following this website or other customer-specific on-premise instructions you used the first time around).</p></li>
+<li><p>While creating this new wire installation, instead of using a fresh/empty <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> folder, you use the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> folder you backed up above (as it contains your <code class="docutils literal notranslate"><span class="pre">values</span></code> and <code class="docutils literal notranslate"><span class="pre">secret</span></code> files among other important files).</p></li>
+<li><p>Restore your Cassandra backup files over your new Cassandra installation.</p></li>
+<li><p>Restore your MinIO backup files over your new MinIO installation.</p></li>
+<li><p>Restart all services.</p></li>
+<li><p>Ensure all services are functioning correctly</p></li>
+</ol>
+<section id="restoring-wire-server-from-a-backup">
+<h3>Restoring Wire-Server from a backup<a class="headerlink" href="#restoring-wire-server-from-a-backup" title="Permalink to this heading"></a></h3>
+<p>If you correctly backup up your <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> installation, you should have access to a file named <code class="docutils literal notranslate"><span class="pre">wire-server-backup.tar.gz</span></code> (see above).</p>
+<p>You can extract this file to the remote machine with the following command:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>cat wire-server-backup.tar.gz | ssh user@my-wire-server.your-domain.com &quot;cd /path/to/my/folder/for/wire-server/ &amp;&amp; tar zxvf -&quot;
+</pre></div>
+</div>
+<p>Where :</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">wire-server-backup.tar.gz</span></code> is the name of the file in which your wire-server folder has been stored</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my-wire-server.your-domain.com</span></code> is the domain name or IP address for the server with your Wire install</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/path/to/my/folder/for/wire-server/</span></code> is the (absolute) path, on the server, where your wire-server folder is located</p></li>
+</ul>
+<p>Now all files should be in their proper place, with the proper values, and you should be able to run the required ansible/helm commands that will result in a full installation of Wire.</p>
+</section>
+<section id="restoring-cassandra-from-a-backup">
+<h3>Restoring Cassandra from a backup<a class="headerlink" href="#restoring-cassandra-from-a-backup" title="Permalink to this heading"></a></h3>
+<p>If you correctly backed up your Cassandra database, you should have a series of <code class="docutils literal notranslate"><span class="pre">snapshot</span></code> files, which you now need to restore over your “fresh” (ie. empty) Cassandra installation.</p>
+<p><a class="reference external" href="https://docs.datastax.com/en/cassandra-oss/3.0/cassandra/operations/opsBackupSnapshotRestore.html">This page from the Cassandra documentation</a> goes over how to restore from snapshots.</p>
+<p>You should have lots of snapshots from the backup process. This example will go over how to restore one of the snapshots, but you should do this process for <strong>each and every</strong> snapshot you backup up.</p>
+<p>First, transfer and extract the snapshot to the Cassandra Virtual Machine:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>cat cassandra-catalogkeyspace-journal-backup.tar.gz | ssh user@cassandra-vm.your-domain.com &quot;cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ &amp;&amp; tar zxvf -&quot;
+</pre></div>
+</div>
+<p>Now the folder <code class="docutils literal notranslate"><span class="pre">/mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots/</span></code> should contain your snapshot.</p>
+<p>Next, ssh into the Cassandra Virtual Machine and cd to the snapshot folder:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ssh user@cassandra-vm.your-domain.com
+cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/
+</pre></div>
+</div>
+<p>Next run</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ls -lh
+</pre></div>
+</div>
+<p>This will show you a list of the snapshots available:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>drwxr-xr-x 2 cassandra cassandra 4.0K May 26 14:45 1653752714460
+drwxr-xr-x 2 cassandra cassandra 4.0K May 28 17:46 1653752759667
+</pre></div>
+</div>
+<p>Select the most recent one (here it is <code class="docutils literal notranslate"><span class="pre">1653752759667</span></code>).</p>
+<p>Finally, use the <code class="docutils literal notranslate"><span class="pre">sstableloader</span></code> file to load the snapshot to Cassandra:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>sstableloader -d localhost /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots/1653752759667/
+</pre></div>
+</div>
+<p>This should load the snapshot.</p>
+<p>Repeat this for all snapshots you saved, and you should have a fully restored Cassandra database.</p>
+<p>Finally, restart Cassandra:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>sudo service cassandra restart
+</pre></div>
+</div>
+<p>And ensure that it is working properly.</p>
+</section>
+<section id="restoring-minio-from-a-backup">
+<h3>Restoring MinIO from a backup<a class="headerlink" href="#restoring-minio-from-a-backup" title="Permalink to this heading"></a></h3>
+<p>Restoring MinIO from a backup is as simple as extracting the files (<code class="docutils literal notranslate"><span class="pre">minio-server1-backup.tar.gz</span></code> and <code class="docutils literal notranslate"><span class="pre">minio-server2-backup.tar.gz</span></code> which you have backup up in the backup procedure and should have access to) to the correct remote host (MinIO Virtual Machine), and restarting MinIO:</p>
+<p>First run:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>cat minio-server1-backup.tar.gz | ssh user@my-minio-server.your-domain.com &quot;cd /var/lib/  &amp;&amp; tar zxvf -&quot;
+cat minio-server2-backup.tar.gz | ssh user@my-minio-server.your-domain.com &quot;cd /var/lib/  &amp;&amp; tar zxvf -&quot;
+</pre></div>
+</div>
+<p>Where:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my-minio-server.your-domain.com</span></code> is the domain name or IP address for the MinIO Virtual Machine</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">minio-server[number]-backup.tar.gz</span></code> is the name of the file in which each minio data folder was be stored and backup up</p></li>
+</ul>
+<p>Finally SSH into the server and restart MinIO:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ssh user@minio-vm.your-domain.com
+sudo service minio restart
+</pre></div>
+</div>
+<p>Where:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">user</span></code> is the user you used to install Wire on this server, typically <code class="docutils literal notranslate"><span class="pre">wire</span></code> or <code class="docutils literal notranslate"><span class="pre">root</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">minio-vm.your-domain.com</span></code> is the domain name or IP address for the server with your MinIO node</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="kubernetes/upgrade-cluster/index.html" class="btn btn-neutral float-left" title="Upgrading a Kubernetes cluster" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="cassandra.html" class="btn btn-neutral float-right" title="Cassandra" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

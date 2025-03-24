@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>13. User Registration &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/clipboard.min.js"></script>
+        <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="14. User Rich info" href="rich-info.html" />
+    <link rel="prev" title="11. Connection" href="connection.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../../index.html">
+        <img src="../../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../developer/index.html">Developer</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Reference</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../config-options.html">1. Config Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../conversation.html">2. Creating and populating conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elastic-search.html">3. Maintaining ElasticSearch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../elasticsearch-migration-2021-02-16.html">4. ElasticSearch migration instructions for release 2021-02-16</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../make-docker-and-qemu.html">5. Make docker and QEMU</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../oauth.html">6. OAuth</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../provisioning/scim-token.html">7. SCIM tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../spar-braindump.html">8. Spar braindump</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../team/legalhold.html">9. Legal hold</a></li>
+<li class="toctree-l3"><a class="reference internal" href="activation.html">10. User Activation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="connection.html">11. Connection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="connection.html#connection-backend-internals">12. Connection backend internals</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">13. User Registration</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#summary">13.1. Summary</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#standard-registration-flow">13.2. Standard registration flow</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#registration-without-pre-verification">13.3. Registration without pre-verification</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#anonymous-registration-aka-wireless">13.4. Anonymous registration, aka “Wireless”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#blocking-creation-of-personal-users-new-teams-refrestrictregistration">13.5. Blocking creation of personal users, new teams {#RefRestrictRegistration}</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="rich-info.html">14. User Rich info</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Reference</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">13. </span>User Registration</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/user/registration.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="user-registration">
+<h1><span class="section-number">13. </span>User Registration<a class="headerlink" href="#user-registration" title="Permalink to this heading"></a></h1>
+<p id="refregistration"><em>Authors: Artyom Kazak, Matthias Fischmann</em></p>
+<hr class="docutils" />
+<p>This page describes the “normal” user registration flow. Autoprovisioning is covered separately.</p>
+<section id="summary">
+<h2><span class="section-number">13.1. </span>Summary<a class="headerlink" href="#summary" title="Permalink to this heading"></a></h2>
+<p id="refregistrationsummary">The vast majority of our API is only available to Wire users. Unless a user is autoprovisioned, they have to register an account by calling the <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/register</span></code> endpoint.</p>
+<p>Most users also go through <a class="reference internal" href="activation.html"><span class="std std-doc">activation</span></a> – sharing and verifying an email address and/or phone number with Wire. This can happen either before or after registration. <a class="reference internal" href="activation.html#refactivationbenefits"><span class="std std-ref">Certain functionality</span></a> is only available to activated users.</p>
+</section>
+<section id="standard-registration-flow">
+<h2><span class="section-number">13.2. </span>Standard registration flow<a class="headerlink" href="#standard-registration-flow" title="Permalink to this heading"></a></h2>
+<p id="refregistrationstandard">During the standard registration flow, the user first calls <a class="reference internal" href="activation.html#refactivationrequest"><span class="std std-ref"><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate/send</span></code></span></a> to pre-verify their email address or phone number. Phone numbers must be in <a class="reference external" href="https://en.wikipedia.org/wiki/E.164">E.164</a> format.</p>
+<p>After receiving a six-digit activation code via email/text message, it can be submitted with the registration request via <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/register</span></code>. If the code is correct, the account will be activated immediately. Here is a sample request and response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">POST</span> <span class="o">/</span><span class="n">register</span>
+
+<span class="p">{</span>
+    <span class="o">//</span> <span class="n">The</span> <span class="n">name</span> <span class="ow">is</span> <span class="n">mandatory</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pink&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="s1">&#39;email&#39;</span><span class="p">,</span> <span class="s1">&#39;phone&#39;</span><span class="p">,</span> <span class="ow">or</span> <span class="n">both</span> <span class="n">have</span> <span class="n">to</span> <span class="n">be</span> <span class="n">provided</span>
+    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="s2">&quot;pink@example.com&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="n">The</span> <span class="n">password</span> <span class="ow">is</span> <span class="n">optional</span>
+    <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;secret&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="mi">6</span><span class="o">-</span><span class="n">digit</span> <span class="s1">&#39;email_code&#39;</span> <span class="ow">or</span> <span class="s1">&#39;phone_code&#39;</span>
+    <span class="s2">&quot;email_code&quot;</span><span class="p">:</span> <span class="s2">&quot;123456&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">201</span> <span class="n">Created</span>
+<span class="n">Set</span><span class="o">-</span><span class="n">Cookie</span><span class="p">:</span> <span class="n">zuid</span><span class="o">=...</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;accent_id&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">&quot;assets&quot;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="s2">&quot;pink@example.com&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;4e1b823a-7961-4e70-bff5-30c08555c89f&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;en&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;managed_by&quot;</span><span class="p">:</span> <span class="s2">&quot;wire&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pink&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;picture&quot;</span><span class="p">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The response contains an access cookie that can be used to access the rest of the backend API. The cookie can be assigned a label by adding a <code class="docutils literal notranslate"><span class="pre">&quot;label&quot;:</span> <span class="pre">&lt;...&gt;</span></code> field when calling <code class="docutils literal notranslate"><span class="pre">/register</span></code>.</p>
+<p>If the code is incorrect or if an incorrect code has been tried enough times, the response will be as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">404</span> <span class="n">Not</span> <span class="n">Found</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="mi">404</span><span class="p">,</span>
+    <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="s2">&quot;invalid-code&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;Invalid activation code&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="registration-without-pre-verification">
+<h2><span class="section-number">13.3. </span>Registration without pre-verification<a class="headerlink" href="#registration-without-pre-verification" title="Permalink to this heading"></a></h2>
+<p id="refregistrationnopreverification"><em>NOTE: This flow is currently not used by any clients. At least this was the state on 2020-05-28</em></p>
+<p>It is also possible to call <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/register</span></code> without verifying the email address or phone number, in which case the account will have to be activated later by calling <a class="reference internal" href="activation.html#refactivationsubmit"><span class="std std-ref"><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/activate</span></code></span></a>. Sample API request and response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">POST</span> <span class="o">/</span><span class="n">register</span>
+
+<span class="p">{</span>
+    <span class="o">//</span> <span class="n">The</span> <span class="n">name</span> <span class="ow">is</span> <span class="n">mandatory</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pink&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="s1">&#39;email&#39;</span><span class="p">,</span> <span class="s1">&#39;phone&#39;</span><span class="p">,</span> <span class="ow">or</span> <span class="n">both</span> <span class="n">have</span> <span class="n">to</span> <span class="n">be</span> <span class="n">provided</span>
+    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="s2">&quot;pink@example.com&quot;</span><span class="p">,</span>
+
+    <span class="o">//</span> <span class="n">The</span> <span class="n">password</span> <span class="ow">is</span> <span class="n">optional</span>
+    <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;secret&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">201</span> <span class="n">Created</span>
+<span class="n">Set</span><span class="o">-</span><span class="n">Cookie</span><span class="p">:</span> <span class="n">zuid</span><span class="o">=...</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;accent_id&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">&quot;assets&quot;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="s2">&quot;pink@example.com&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;c193136a-55fb-4534-ad72-d02a72bb16af&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;en&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;managed_by&quot;</span><span class="p">:</span> <span class="s2">&quot;wire&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pink&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;picture&quot;</span><span class="p">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>A verification email will be sent to the email address (if provided), and a verification text message will be sent to the phone number (also, if provided).</p>
+</section>
+<section id="anonymous-registration-aka-wireless">
+<h2><span class="section-number">13.4. </span>Anonymous registration, aka “Wireless”<a class="headerlink" href="#anonymous-registration-aka-wireless" title="Permalink to this heading"></a></h2>
+<p id="refregistrationwireless">A user can be created without either email or phone number, in which case only <code class="docutils literal notranslate"><span class="pre">&quot;name&quot;</span></code> is required. The <code class="docutils literal notranslate"><span class="pre">&quot;name&quot;</span></code> does not have to be unique. This feature is used for <a class="reference external" href="https://wire.com/en/features/encrypted-guest-rooms/">guest rooms</a>.</p>
+<p>An anonymous, non-activated account is only usable for a period of time specified in <code class="docutils literal notranslate"><span class="pre">brig.yaml</span></code> at <code class="docutils literal notranslate"><span class="pre">zauth.authSettings.sessionTokenTimeout</span></code>, which is set to 1 day for Wire production. (The access cookie returned by <code class="docutils literal notranslate"><span class="pre">/register</span></code> can not be refreshed, and an anonymous user can not use <code class="docutils literal notranslate"><span class="pre">/login</span></code> to get a new cookie.)</p>
+<p>Sample API request and response:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">POST</span> <span class="o">/</span><span class="n">register</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pink&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">201</span> <span class="n">Created</span>
+<span class="n">Set</span><span class="o">-</span><span class="n">Cookie</span><span class="p">:</span> <span class="n">zuid</span><span class="o">=...</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;accent_id&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">&quot;assets&quot;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="s2">&quot;expires_at&quot;</span><span class="p">:</span> <span class="s2">&quot;2019-04-18T14:09:43.732Z&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;1914b4e6-eb72-4943-8925-06314b24ed68&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;en&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;managed_by&quot;</span><span class="p">:</span> <span class="s2">&quot;wire&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pink&quot;</span>
+    <span class="s2">&quot;picture&quot;</span><span class="p">:</span> <span class="p">[],</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="blocking-creation-of-personal-users-new-teams-refrestrictregistration">
+<h2><span class="section-number">13.5. </span>Blocking creation of personal users, new teams {#RefRestrictRegistration}<a class="headerlink" href="#blocking-creation-of-personal-users-new-teams-refrestrictregistration" title="Permalink to this heading"></a></h2>
+<p><a class="reference external" href="https://docs.wire.com/how-to/install/configuration-options.html#blocking-creation-of-personal-users-new-teams">moved here</a></p>
+<section id="details">
+<h3><span class="section-number">13.5.1. </span>Details<a class="headerlink" href="#details" title="Permalink to this heading"></a></h3>
+<p>You can find the exhaustive list of all routes here:</p>
+<p>https://github.com/wireapp/wire-server-deploy/blob/de7e3e8c709f8baaae66b1540a1778871044f170/charts/nginz/values.yaml#L35-L371</p>
+<p>The paths not cryptographically authenticated can be found by searching for the <code class="docutils literal notranslate"><span class="pre">disable_zauth:</span></code> flag (must be true for <code class="docutils literal notranslate"><span class="pre">env:</span> <span class="pre">prod</span></code> or <code class="docutils literal notranslate"><span class="pre">env:</span> <span class="pre">all</span></code>).</p>
+<p>Two of them allow users to create new users or teams:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/register</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/activate</span></code></p></li>
+</ul>
+<p>These end-points support 5 flows:</p>
+<ol class="arabic simple">
+<li><p>new team account</p></li>
+<li><p>new personal (teamless) account</p></li>
+<li><p>invitation code from team, new member</p></li>
+<li><p>ephemeral user</p></li>
+<li><p>[not supported by clients] new <em>inactive</em> user account</p></li>
+</ol>
+<p>We need an option to block 1, 2, 5 on-prem; 3, 4 should remain available (no block option).  There are also provisioning flows via SAML or SCIM, which are not critical. In short, this could refactored into:</p>
+<ul class="simple">
+<li><p>Allow team members to register (via email/phone or SSO)</p></li>
+<li><p>Allow ephemeral users</p></li>
+</ul>
+<p>During registration, we can take advantage of <a class="reference external" href="https://github.com/wireapp/wire-server/blob/a89b9cd818997e7837e5d0938ecfd90cf8dd9e52/libs/wire-api/src/Wire/API/User.hs#L625">NewUserOrigin</a>; we’re particularly interested in <code class="docutils literal notranslate"><span class="pre">NewUserOriginTeamUser</span></code> –&gt; only <code class="docutils literal notranslate"><span class="pre">NewTeamMember</span></code> or <code class="docutils literal notranslate"><span class="pre">NewTeamMemberSSO</span></code> should be accepted. In case this is a <code class="docutils literal notranslate"><span class="pre">Nothing</span></code>, we need to check if the user expires, i.e., if the user has no identity (and thus <code class="docutils literal notranslate"><span class="pre">Ephemeral</span></code>).</p>
+<p>So <code class="docutils literal notranslate"><span class="pre">/register</span></code> should only succeed iff at least one of these conditions is true:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">Brig.Types.User</span>
+<span class="n">isNewUserTeamMember</span> <span class="o">||</span> <span class="n">isNewUserEphemeral</span>
+</pre></div>
+</div>
+<p>The rest of the unauthorized end-points is safe:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/password-reset</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/delete</span></code>: similar to password reset, for deleting a personal account with password.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/login</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/login/send</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/access</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/sso/initiate-login</span></code>: authenticated via IdP.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/sso/finalize-login</span></code>: authenticated via IdP.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/sso</span></code>: authenticated via IdP or ok to expose to world (<code class="docutils literal notranslate"><span class="pre">/metadata</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/scim/v2</span></code>: authenticated via HTTP simple auth.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">~*</span> <span class="pre">^/teams/invitations/info$</span></code>: only <code class="docutils literal notranslate"><span class="pre">GET</span></code>; requires invitation code.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">~*</span> <span class="pre">^/teams/invitations/by-email$</span></code>: only <code class="docutils literal notranslate"><span class="pre">HEAD</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/invitations/info</span></code>: discontinued feature, can be removed from nginz config.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/conversations/code-check</span></code>: link validation for ephemeral/guest users.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/provider/*</span></code>: bots need to be registered to a team before becoming active.  so if an attacker does not get access to a team, they cannot deploy a bot.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">~*</span> <span class="pre">^/custom-backend/by-domain/([^/]*)$</span></code>: only <code class="docutils literal notranslate"><span class="pre">GET</span></code>; only exposes a list of domains that has is maintained through an internal end-point.  used to redirect stock clients from the cloud instance to on-prem instances.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">~*</span> <span class="pre">^/teams/api-docs</span></code>: only <code class="docutils literal notranslate"><span class="pre">GET</span></code>; swagger for part of the rest API.  safe: it is trivial to identify the software that is running on the instance, and from there it is trivial to get to the source on github, where this can be obtained easily, and more.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/billing</span></code>: separate billing service, usually not installed for on-prem instances.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/calling-test</span></code>: separate testing service that has its own authentication.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="connection.html" class="btn btn-neutral float-left" title="11. Connection" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="rich-info.html" class="btn btn-neutral float-right" title="14. User Rich info" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

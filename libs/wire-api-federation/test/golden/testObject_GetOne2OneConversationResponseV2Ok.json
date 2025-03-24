@@ -1,49 +1,50 @@
 {
-    "contents": {
-        "conversation": {
-            "id": "00000001-0000-0001-0000-000200040001",
-            "members": {
-                "others": [
-                    {
-                        "conversation_role": "wire_member",
-                        "id": "00000001-0000-0001-0000-000200000001",
-                        "qualified_id": {
-                            "domain": "example.com",
-                            "id": "00000001-0000-0001-0000-000200000001"
-                        },
-                        "status": 0
-                    }
-                ],
-                "self_role": "wire_admin"
+  "contents": {
+    "conversation": {
+      "id": "00000001-0000-0001-0000-000200040001",
+      "members": {
+        "others": [
+          {
+            "conversation_role": "wire_member",
+            "id": "00000001-0000-0001-0000-000200000001",
+            "qualified_id": {
+              "domain": "example.com",
+              "id": "00000001-0000-0001-0000-000200000001"
             },
-            "metadata": {
-                "access": [],
-                "access_role": [],
-                "cells_state": "pending",
-                "creator": "00000001-0000-0001-0000-000200000001",
-                "group_conv_type": null,
-                "last_event": "0.0",
-                "last_event_time": "1970-01-01T00:00:00.000Z",
-                "message_timer": null,
-                "name": " 0",
-                "receipt_mode": -2,
-                "team": "00000001-0000-0001-0000-000100000002",
-                "type": 2
-            },
-            "protocol": {
-                "epoch": 0,
-                "group_id": "Z3JvdXA=",
-                "protocol": "mls"
-            }
-        },
-        "public_keys": {
-            "removal": {
-                "ecdsa_secp256r1_sha256": "ArUTSywmqya1wAGwrK+pJuA7KSpKm06y3eZq8Py2NMM=",
-                "ecdsa_secp384r1_sha384": "7pKiTLf72OfpQIeVeXF0mJKfWsBnhTtMUy0zuKasYjlTQUW5fGtcyAFXinM3FahV",
-                "ecdsa_secp521r1_sha512": "9twvhZ57ytiujWXFtSmxd8I5r9iZjgdCtGtReJT3yQL2BCGZ80Vzq/MrmV+O0i7lZEI1gqbr8vL1xKk+2h2LyQ==",
-                "ed25519": "7C8PpP91rzMnD4VHuWTI3yNuInfbzIk937uF0Cg/Piw="
-            }
-        }
+            "status": 0
+          }
+        ],
+        "self_role": "wire_admin"
+      },
+      "metadata": {
+        "access": [],
+        "access_role": [],
+        "cells_state": "pending",
+        "add_permission": null,
+        "creator": "00000001-0000-0001-0000-000200000001",
+        "group_conv_type": null,
+        "last_event": "0.0",
+        "last_event_time": "1970-01-01T00:00:00.000Z",
+        "message_timer": null,
+        "name": " 0",
+        "receipt_mode": -2,
+        "team": "00000001-0000-0001-0000-000100000002",
+        "type": 2
+      },
+      "protocol": {
+        "epoch": 0,
+        "group_id": "Z3JvdXA=",
+        "protocol": "mls"
+      }
     },
-    "tag": "GetOne2OneConversationV2Ok"
+    "public_keys": {
+      "removal": {
+        "ecdsa_secp256r1_sha256": "ArUTSywmqya1wAGwrK+pJuA7KSpKm06y3eZq8Py2NMM=",
+        "ecdsa_secp384r1_sha384": "7pKiTLf72OfpQIeVeXF0mJKfWsBnhTtMUy0zuKasYjlTQUW5fGtcyAFXinM3FahV",
+        "ecdsa_secp521r1_sha512": "9twvhZ57ytiujWXFtSmxd8I5r9iZjgdCtGtReJT3yQL2BCGZ80Vzq/MrmV+O0i7lZEI1gqbr8vL1xKk+2h2LyQ==",
+        "ed25519": "7C8PpP91rzMnD4VHuWTI3yNuInfbzIk937uF0Cg/Piw="
+      }
+    }
+  },
+  "tag": "GetOne2OneConversationV2Ok"
 }

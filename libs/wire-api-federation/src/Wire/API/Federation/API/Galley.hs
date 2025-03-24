@@ -351,7 +351,8 @@ data ConversationCreated conv = ConversationCreated
     messageTimer :: Maybe Milliseconds,
     receiptMode :: Maybe ReceiptMode,
     protocol :: Protocol,
-    groupConvType :: Maybe GroupConvType
+    groupConvType :: Maybe GroupConvType,
+    channelAddPermission :: Maybe AddPermission
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))
@@ -362,6 +363,7 @@ instance (Arbitrary a) => Arbitrary (ConversationCreated a) where
   arbitrary =
     ConversationCreated
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

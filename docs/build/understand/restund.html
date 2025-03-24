@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Restund (TURN) servers &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/clipboard.min.js"></script>
+        <script src="../_static/copybutton.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Conference Calling 2.0 (aka SFT)" href="sft.html" />
+    <link rel="prev" title="8. Spar braindump" href="../developer/reference/spar-braindump.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../index.html">
+        <img src="../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="overview.html">Architecture Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="single-sign-on/index.html">Single Sign-On and User Provisioning</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Audio/video calling, restund servers (TURN/STUN)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#architecture">Architecture</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#what-is-it-used-for">What is it used for</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#network">Network</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#protocols-and-open-ports">Protocols and open ports</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#control-ports">Control ports</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#amount-of-users-and-file-descriptors">Amount of users and file descriptors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#load-balancing-and-high-availability">Load balancing and high-availability</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#discovery-and-establishing-a-call">Discovery and establishing a call</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dns">DNS</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html#federated-conference-calling">Federated Conference Calling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="federation/index.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="associate/index.html">Connecting Wire Clients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api-client-perspective/index.html">Client API documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crypto-libs.html">Crypto libraries and sources of randomness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="block-user-creation.html">Block personal user creation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="classified-domains.html">Classified Domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-federation.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="legalhold.html">Installing and setting up Legal Hold</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mls.html">Messaging Layer Security (MLS)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="searchability.html">User Searchability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="team-feature-settings.html">Server and team feature settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Reference</a></li>
+      <li class="breadcrumb-item active">Restund (TURN) servers</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/understand/restund.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="restund-turn-servers">
+<span id="understand-restund"></span><h1>Restund (TURN) servers<a class="headerlink" href="#restund-turn-servers" title="Permalink to this heading"></a></h1>
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h2>
+<p>Restund servers allow two users on different networks (for
+example Alice who is in an office connected to an office router and Bob
+who is at home connected to a home router) to have a Wire audio or video
+call. More precisely:</p>
+<blockquote>
+<div><p>Restund is a modular and flexible
+<a class="reference external" href="https://en.wikipedia.org/wiki/STUN">STUN</a> and
+<a class="reference external" href="https://en.wikipedia.org/wiki/Traversal_Using_Relays_around_NAT">TURN</a>
+Server, with IPv4 and IPv6 support.</p>
+</div></blockquote>
+</section>
+<section id="architecture">
+<span id="architecture-restund"></span><h2>Architecture<a class="headerlink" href="#architecture" title="Permalink to this heading"></a></h2>
+<p>Since the restund servers help establishing a connection between two
+users, they need to be reachable by both of these users, which usually
+means they need to have a <strong>public IP address</strong>.</p>
+<p>While one server is enough to get started, two servers provide
+high-availability in case one server gets into trouble. A
+Restund instance may communicate with other Restund instances.</p>
+<p>You can either have restund servers directly exposed to the public
+internet:</p>
+<img alt="../_images/architecture-restund.png" src="../_images/architecture-restund.png" />
+<p>Or you can have them reachable by fronting them with a firewall or load
+balancer machine that may have a different IP than the server where
+restund is installed:</p>
+<img alt="../_images/architecture-restund-lb.png" src="../_images/architecture-restund-lb.png" />
+</section>
+<section id="what-is-it-used-for">
+<h2>What is it used for<a class="headerlink" href="#what-is-it-used-for" title="Permalink to this heading"></a></h2>
+<p>Restund is used to assist in NAT-traversal. Its goal is to connect two clients
+who are (possibly both) behind NAT directly in a peer to peer fashion, for
+optimal call quality and lowest latency.</p>
+<p>client A sends a UDP packet to Restund; which will get address-translated by
+the router. Restund then sends back to the client what the source IP and the
+source port was that Restund observed. If the client then communicates this to
+Client B, Client B will be able to send data to that IP,port pair over UDP if
+it does so quickly enough.  Client A and B will then have a peer-to-peer leg.</p>
+<p>This is not always possible (e.g. symmetric NAT makes this technique
+impossible, as the router will NAT a different source-port for each
+connection). In that case clients fall back to TURN, which asks Restund to
+allocate a relay address which relays packets between nodes A and B.</p>
+<p>Restund servers need to have a wide range of ports open to allocate such relay
+addresses.</p>
+</section>
+<section id="network">
+<h2>Network<a class="headerlink" href="#network" title="Permalink to this heading"></a></h2>
+<p>As briefly mentioned above, a TURN server functions as a bridge between
+networks. Networks which don’t have a direct route defined between them,
+usually have distinct address blocks. Depending on the address block they
+are configured with - such block is either considered to be <em>public</em> or <em>private</em>
+(aka special-purpose addresses <a class="reference external" href="https://tools.ietf.org/html/rfc6890">[RFC 6890]</a>)</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml">IPv4 private blocks</a></p></li>
+<li><p><a class="reference external" href="https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml">IPv6 private blocks</a></p></li>
+</ul>
+<p>In cases where a machine, that is hosting the TURN server, also connects
+to a <em>private</em> network in which other services are running, chances are
+that these services are being indirectly exposed through that TURN server.</p>
+<p>To prevent this kind of exposure, a TURN server has to be configured with an inclusive
+or exclusive list of address blocks to prevents undesired connections from being
+established <a class="footnote-reference brackets" href="#footnote-1" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a>. At the moment (Feb. 2021), this functionality is not yet available
+with <em>Restund</em> on the application-level. Instead, the system-level firewall capabilities
+must be utilized. The <a class="reference external" href="https://www.rtcsec.com/post/2021/01/details-about-cve-2020-26262-bypass-of-coturns-default-access-control-protection/#further-concerns-what-else">IP ranges</a>
+mentioned in the article <a class="footnote-reference brackets" href="#footnote-1" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a> should be blocked for egress and, depending on the scenario,
+also for ingress traffic. Tools like <code class="docutils literal notranslate"><span class="pre">iptables</span></code> or <code class="docutils literal notranslate"><span class="pre">ufw</span></code> can be used to set this up.</p>
+</section>
+<section id="protocols-and-open-ports">
+<span id="understand-restund-protocal-and-ports"></span><h2>Protocols and open ports<a class="headerlink" href="#protocols-and-open-ports" title="Permalink to this heading"></a></h2>
+<p>Restund servers provide the best audio/video connections if end-user devices
+can connect to them via UDP.</p>
+<p>In this case, a firewall (if any) needs to allow and/or forward the complete <a class="reference internal" href="notes/port-ranges.html#port-ranges"><span class="std std-ref">default port range</span></a> for incoming UDP traffic.</p>
+<p>Ports for allocations are allocated from the <a class="reference internal" href="notes/port-ranges.html#port-ranges"><span class="std std-ref">default port range</span></a>, for more information on this port range, how to read and change it, and how to configure your firewall, see <a class="reference internal" href="notes/port-ranges.html#port-ranges"><span class="std std-ref">this note</span></a>.</p>
+<p>In case e.g. office firewall rules disallow UDP traffic in this range, there is a possibility to use TCP instead, at the expense of call quality.</p>
+<p>Port <code class="docutils literal notranslate"><span class="pre">3478</span></code> is the default control port,
+however one UDP port per active connection is required, so a whole port
+range must be available and reachable from the outside.</p>
+<p>If <em>Conference Calling 2.0</em> (<a class="reference internal" href="sft.html#understand-sft"><span class="std std-ref">SFT</span></a>) is enabled, a Restund instance,
+additionally, must be allowed to communicate with :<a class="reference internal" href="../how-to/install/sft.html#install-sft-firewall-rules"><span class="std std-ref">SFT instances</span></a>
+on the same UDP ports mentioned above. In this scenario a Restund server becomes sort
+of a proxy for the client, if the client is not able to establish a media channel between
+itself and the SFT server.</p>
+<p><em>For more information, please refer to the source code of the Ansible role:</em> <a class="reference external" href="https://github.com/wireapp/ansible-restund/blob/master/tasks/firewall.yml">restund</a>.</p>
+<section id="control-ports">
+<h3>Control ports<a class="headerlink" href="#control-ports" title="Permalink to this heading"></a></h3>
+<p>Restund listens for control messages on port <code class="docutils literal notranslate"><span class="pre">3478</span></code> on both UDP and TCP. It
+also can listen on port <code class="docutils literal notranslate"><span class="pre">5349</span></code> which uses TLS. One can reconfigure both ports.
+For example, port <code class="docutils literal notranslate"><span class="pre">5349</span></code> can be reconfigured to be port <code class="docutils literal notranslate"><span class="pre">443</span></code>; so that TURN
+traffic can not be distinguished from any other TLS traffic. This might help
+with overcoming certain firewall restrictions. You can instead use (if that’s
+easier with firewall rules) for example ports <code class="docutils literal notranslate"><span class="pre">80</span></code> and <code class="docutils literal notranslate"><span class="pre">443</span></code> (requires to
+run restund as root) or do a redirect from a load balancer (if using one) to
+redirect <code class="docutils literal notranslate"><span class="pre">443</span> <span class="pre">-&gt;</span> <span class="pre">5349</span></code> and <code class="docutils literal notranslate"><span class="pre">80</span> <span class="pre">-&gt;</span> <span class="pre">3478</span></code>.</p>
+</section>
+</section>
+<section id="amount-of-users-and-file-descriptors">
+<h2>Amount of users and file descriptors<a class="headerlink" href="#amount-of-users-and-file-descriptors" title="Permalink to this heading"></a></h2>
+<p>Each allocation (active connection by one participant) requires 1 or 2
+file descriptors, so ensure you increase your file descriptor limits in
+case you have many users.</p>
+<p>Currently one restund server can have a maximum of 64000 allocations. If
+you have more users than that in an active call, you need to deploy more
+restund servers.</p>
+</section>
+<section id="load-balancing-and-high-availability">
+<h2>Load balancing and high-availability<a class="headerlink" href="#load-balancing-and-high-availability" title="Permalink to this heading"></a></h2>
+<p>Load balancing is not possible, since STUN/TURN is a stateful protocol,
+so UDP packets addressed to <code class="docutils literal notranslate"><span class="pre">restund</span> <span class="pre">server</span> <span class="pre">1</span></code>, if by means of a load
+balancer were to end up at <code class="docutils literal notranslate"><span class="pre">restund</span> <span class="pre">server</span> <span class="pre">2</span></code>, would get dropped, as
+the second server doesn’t know the source address.</p>
+<p>High-availability is nevertheless ensured by having and advertising more
+than one restund server.  Instead of the load balancer, the clients will
+switch their server if it fails.</p>
+</section>
+<section id="discovery-and-establishing-a-call">
+<h2>Discovery and establishing a call<a class="headerlink" href="#discovery-and-establishing-a-call" title="Permalink to this heading"></a></h2>
+<p>A simplified flow of how restund servers, along with the wire-server are
+used to establish a call:</p>
+<img alt="../_images/flow-restund.png" src="../_images/flow-restund.png" />
+</section>
+<section id="dns">
+<h2>DNS<a class="headerlink" href="#dns" title="Permalink to this heading"></a></h2>
+<p>Usually DNS records are used which point to the public IPs of the
+restund servers (or of the respective firewall or load balancer
+machines). These DNS names are then used when configuring wire-server.</p>
+<hr class="footnotes docutils" />
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="footnote-1" role="note">
+<span class="label"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id1">1</a>,<a role="doc-backlink" href="#id2">2</a>)</span>
+<p><a class="reference external" href="https://www.rtcsec.com/post/2021/01/details-about-cve-2020-26262-bypass-of-coturns-default-access-control-protection/">Details about CVE-2020-26262, bypass of Coturn’s default access control protection</a></p>
+</aside>
+</aside>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../developer/reference/spar-braindump.html" class="btn btn-neutral float-left" title="8. Spar braindump" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sft.html" class="btn btn-neutral float-right" title="Conference Calling 2.0 (aka SFT)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

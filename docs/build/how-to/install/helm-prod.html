@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installing wire-server (production) components using Helm &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Infrastructure configuration options" href="infrastructure-configuration.html" />
+    <link rel="prev" title="Configuring AWS and wire-server (production) components" href="aws-prod.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Installation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="planning.html">How to plan an installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="version-requirements.html">Version requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html">How to install kubernetes (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">How to install wire-server using Helm</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#what-will-be-installed">What will be installed?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#what-will-not-be-installed">What will not be installed?</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#preparing-to-install-charts-from-the-internet-with-helm">Preparing to install charts from the internet with Helm</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#watching-changes-as-they-happen">Watching changes as they happen</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#general-installation-notes">General installation notes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-install-charts-that-provide-access-to-external-databases">How to install charts that provide access to external databases</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-install-fake-aws-services-for-sns-sqs">How to install fake AWS services for SNS / SQS</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#preparing-to-install-wire-server">Preparing to install wire-server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-install-rabbitmq">How to install RabbitMQ</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-configure-real-smtp-email-services">How to configure real SMTP (email) services</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-install-fake-smtp-email-services">How to install fake SMTP (email) services</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-install-wire-server-itself">How to install wire-server itself</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dns-records">DNS records</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-set-up-dns-records">How to set up DNS records</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-direct-traffic-to-your-cluster">How to direct traffic to your cluster</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#trying-things-out">Trying things out</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html">Infrastructure configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html">Web app settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Installing Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Installing Restund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html">Configure TLS ciphers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html">Verifying your installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Installation</a></li>
+      <li class="breadcrumb-item active">Installing wire-server (production) components using Helm</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/install/helm-prod.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installing-wire-server-production-components-using-helm">
+<span id="helm-prod"></span><h1>Installing wire-server (production) components using Helm<a class="headerlink" href="#installing-wire-server-production-components-using-helm" title="Permalink to this heading"></a></h1>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Code in this repository should be considered <em>beta</em>. As of 2020, we do not (yet)
+run our production infrastructure on Kubernetes (but plan to do so soon).</p>
+</div>
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h2>
+<p>The following will install a version of all the wire-server components. These instructions are for reference, and may not set up what you would consider a production environment, due to the fact that there are varying definitions of ‘production ready’. These instructions will cover what we consider to be a useful overlap of our users’ production needs. They do not cover load balancing/distributing, using multiple datacenters, federating wire, or other forms of intercontinental/interplanetary distribution of the wire service infrastructure. If you deviate from these directions and need to contact us for support, please provide the deviations you made to fit your production environment along with your support request.</p>
+<p>Some of the instructions here will present you with two options: No AWS, and with AWS. The ‘No AWS’ instructions will not require any AWS infrastructure, but may have a reduced feature set. The ‘with AWS’ instructions will assume you have completed the setup procedures in <a class="reference internal" href="aws-prod.html#aws-prod"><span class="std std-ref">Configuring AWS and wire-server (production) components</span></a>.</p>
+<section id="what-will-be-installed">
+<h3>What will be installed?<a class="headerlink" href="#what-will-be-installed" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>wire-server (API)
+: - user accounts, authentication, conversations</p>
+<ul>
+<li><p>assets handling (images, files, …)</p></li>
+<li><p>notifications over websocket</p></li>
+</ul>
+</li>
+<li><p>wire-webapp, a fully functioning web client (like <code class="docutils literal notranslate"><span class="pre">https://app.wire.com/</span></code>)</p></li>
+<li><p>wire-account-pages, user account management (a few pages relating to e.g. password reset procedures)</p></li>
+</ul>
+</section>
+<section id="what-will-not-be-installed">
+<h3>What will not be installed?<a class="headerlink" href="#what-will-not-be-installed" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>team-settings page</p></li>
+<li><p>SSO Capabilities</p></li>
+</ul>
+<p>Additionally, if you opt to do the ‘No AWS’ route, you will not get:</p>
+<ul class="simple">
+<li><p>notifications over native push notifications via <a class="reference external" href="https://firebase.google.com/docs/cloud-messaging/">FCM</a>/<a class="reference external" href="https://developer.apple.com/notifications/">APNS</a></p></li>
+</ul>
+</section>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading"></a></h2>
+<p>You need to have access to a Kubernetes cluster running a Kubernetes version , and the <code class="docutils literal notranslate"><span class="pre">helm</span></code> local binary on your PATH.
+Your Kubernetes cluster needs to have internal DNS services, so that wire-server can find it’s databases.
+You need to have docker on the machine you are using to perform this installation with, or a secure data path to a machine that runs docker. You will be using docker to generate security credentials for your wire installation.</p>
+<ul class="simple">
+<li><p>If you want calling services, you need to have</p>
+<ul>
+<li><p>FIXME</p></li>
+</ul>
+</li>
+<li><p>If you don’t have a Kubernetes cluster, you have two options:</p>
+<ul>
+<li><p>You can get access to a managed Kubernetes cluster with the cloud provider of your choice.</p></li>
+<li><p>You can install one if you have ssh access to a set of sufficiently large virtual machines, see <a class="reference internal" href="kubernetes.html#ansible-kubernetes"><span class="std std-ref">Installing kubernetes for a demo installation (on a single virtual machine)</span></a></p></li>
+</ul>
+</li>
+<li><p>If you don’t have <code class="docutils literal notranslate"><span class="pre">helm</span></code> yet, see <a class="reference external" href="https://helm.sh/docs/using_helm/#installing-helm">Installing helm</a>. If you followed the instructions in <a class="reference internal" href="dependencies.html#dependencies"><span class="std std-ref">Dependencies on operator’s machine</span></a>  should have helm installed already.</p></li>
+</ul>
+<p>Type <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">version</span></code>, you should, if everything is configured correctly, see a result similar this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">version</span><span class="o">.</span><span class="n">BuildInfo</span><span class="p">{</span><span class="n">Version</span><span class="p">:</span><span class="s2">&quot;v3.1.1&quot;</span><span class="p">,</span> <span class="n">GitCommit</span><span class="p">:</span><span class="s2">&quot;afe70585407b420d0097d07b21c47dc511525ac8&quot;</span><span class="p">,</span> <span class="n">GitTreeState</span><span class="p">:</span><span class="s2">&quot;clean&quot;</span><span class="p">,</span> <span class="n">GoVersion</span><span class="p">:</span><span class="s2">&quot;go1.13.8&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>In case <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">version</span></code> shows both Client and Server versions, but <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">version</span></code> does not show a Server version, you may need to run <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">init</span></code>. The exact version matters less as long as both Client and Server versions match (or are very close).</p>
+</section>
+<section id="preparing-to-install-charts-from-the-internet-with-helm">
+<h2>Preparing to install charts from the internet with Helm<a class="headerlink" href="#preparing-to-install-charts-from-the-internet-with-helm" title="Permalink to this heading"></a></h2>
+<p>If your environment is online, you need to add the remote wire Helm repository, to download wire charts.</p>
+<p>To enable the wire charts helm repository:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>repo<span class="w"> </span>add<span class="w"> </span>wire<span class="w"> </span>https://s3-eu-west-1.amazonaws.com/public.wire.com/charts
+</pre></div>
+</div>
+<p>(You can see available helm charts by running <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">search</span> <span class="pre">repo</span> <span class="pre">wire/</span></code>. To see
+new versions as time passes, you may need to run <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">repo</span> <span class="pre">update</span></code>)</p>
+<p>Great! Now you can start installing.</p>
+<p>There is a shell script for doing a version of the following procedure with Helm 22. For reference, examine <a class="reference external" href="https://github.com/wireapp/wire-server-deploy/blob/develop/bin/prod-setup.sh">prod-setup.sh</a>.</p>
+</section>
+<section id="watching-changes-as-they-happen">
+<h2>Watching changes as they happen<a class="headerlink" href="#watching-changes-as-they-happen" title="Permalink to this heading"></a></h2>
+<p>Open a terminal and run:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-w
+</pre></div>
+</div>
+<p>This will block your terminal and show some things happening as you proceed through this guide. Keep this terminal open and open a second terminal.</p>
+</section>
+<section id="general-installation-notes">
+<h2>General installation notes<a class="headerlink" href="#general-installation-notes" title="Permalink to this heading"></a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>All helm and kubectl commands below can also take an extra <code class="docutils literal notranslate"><span class="pre">--namespace</span> <span class="pre">&lt;your-namespace&gt;</span></code> if you don’t want to install into the default Kubernetes namespace.</p>
+</div>
+</section>
+<section id="how-to-install-charts-that-provide-access-to-external-databases">
+<h2>How to install charts that provide access to external databases<a class="headerlink" href="#how-to-install-charts-that-provide-access-to-external-databases" title="Permalink to this heading"></a></h2>
+<p>Before you can deploy the helm charts that tell wire where external services
+are, you need the ‘values’ and ‘secrets’ files for those charts to be
+configured. Values and secrets YAML files provide helm charts with the settings
+that are installed in Kubernetes.</p>
+<p>Assuming you have followed the procedures in the previous document, the values
+and secrets files for cassandra, elasticsearch, and minio (if you are using it)
+will have been filled in automatically. If not, examine the
+<code class="docutils literal notranslate"><span class="pre">prod-values.example.yaml</span></code> files for each of these services in
+values/&lt;servicename&gt;/, copy them to <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>, and then edit them.</p>
+<p>Once the values and secrets files for your databases have been configured, you
+have to write a <code class="docutils literal notranslate"><span class="pre">values/databases-ephemeral/values.yaml</span></code> file to tell
+databases-ephemeral what external database services you are using, and what
+services you want databases-ephemeral to configure. We recommend you use the
+‘redis’ component from this only, as the contents of redis are in fact
+ephemeral. Look at the <code class="docutils literal notranslate"><span class="pre">values/databases-ephemeral/prod-values.example.yaml</span></code>
+file</p>
+<p>Once you have values and secrets for your environment, open a terminal and run:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>cassandra-external<span class="w"> </span>wire/cassandra-external<span class="w"> </span>-f<span class="w"> </span>values/cassandra-external/values.yaml<span class="w"> </span>--wait
+helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>elasticsearch-external<span class="w"> </span>wire/elasticsearch-external<span class="w"> </span>-f<span class="w"> </span>values/elasticsearch-external/values.yaml<span class="w"> </span>--wait
+helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>databases-ephemeral<span class="w"> </span>wire/databases-ephemeral<span class="w"> </span>-f<span class="w"> </span>values/databases-ephemeral/values.yaml<span class="w"> </span>--wait
+</pre></div>
+</div>
+<p>If you are using minio instead of AWS S3, you should also run:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>minio-external<span class="w"> </span>wire/minio-external<span class="w"> </span>-f<span class="w"> </span>values/minio-external/values.yaml<span class="w"> </span>--wait
+</pre></div>
+</div>
+</section>
+<section id="how-to-install-fake-aws-services-for-sns-sqs">
+<h2>How to install fake AWS services for SNS / SQS<a class="headerlink" href="#how-to-install-fake-aws-services-for-sns-sqs" title="Permalink to this heading"></a></h2>
+<p>AWS SNS is required to send notifications to clients. SQS is used to get notified of any devices that have discontinued using Wire (e.g. if you uninstall the app, the push notification token is removed, and the wire-server will get feedback for that using SQS).</p>
+<p>Note: <em>for using real SQS for real native push notifications instead, see also :ref:`pushsns`.</em></p>
+<p>If you use the fake-aws version, clients will use the websocket method to receive notifications, which keeps connections to the servers open, draining battery.</p>
+<p>Open a terminal and run:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span>values/fake-aws/prod-values.example.yaml<span class="w"> </span>values/fake-aws/values.yaml
+helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>fake-aws<span class="w"> </span>wire/fake-aws<span class="w"> </span>-f<span class="w"> </span>values/fake-aws/values.yaml<span class="w"> </span>--wait
+</pre></div>
+</div>
+<p>You should see some pods being created in your first terminal as the above command completes.</p>
+</section>
+<section id="preparing-to-install-wire-server">
+<h2>Preparing to install wire-server<a class="headerlink" href="#preparing-to-install-wire-server" title="Permalink to this heading"></a></h2>
+<p>As part of configuring wire-server, we need to change some values, and provide some secrets. We’re going to copy the files for this to a new folder, so that you always have the originals for reference.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This part of the process makes use of overrides for helm charts. You may wish to read <a class="reference internal" href="../../understand/helm.html#understand-helm-overrides"><span class="std std-ref">Overriding helm configuration settings</span></a> first.</p>
+</div>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>my-wire-server
+cp<span class="w"> </span>values/wire-server/prod-secrets.example.yaml<span class="w"> </span>my-wire-server/secrets.yaml
+cp<span class="w"> </span>values/wire-server/prod-values.example.yaml<span class="w"> </span>my-wire-server/values.yaml
+</pre></div>
+</div>
+</section>
+<section id="how-to-install-rabbitmq">
+<h2>How to install RabbitMQ<a class="headerlink" href="#how-to-install-rabbitmq" title="Permalink to this heading"></a></h2>
+<p>This is only required when federation needs to be enabled.</p>
+<ol class="arabic">
+<li><p>Generate password for rabbitmq:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>env<span class="w"> </span><span class="nv">LC_CTYPE</span><span class="o">=</span>C<span class="w"> </span>tr<span class="w"> </span>-dc<span class="w"> </span>a-zA-Z0-9<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-c<span class="w"> </span><span class="m">42</span><span class="w"> </span>&gt;<span class="w"> </span>my-wire-server/rabbitmq-password
+</pre></div>
+</div>
+</li>
+<li><p>Copy example values</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span>values/rabbitmq/prod-secrets.example.yaml<span class="w"> </span>values/rabbitmq/secrets.yaml
+cp<span class="w"> </span>values/rabbitmq/prod-values.example.yaml<span class="w"> </span>values/rabbitmq/values.yaml
+</pre></div>
+</div>
+</li>
+<li><p>Add the generated secret from <code class="docutils literal notranslate"><span class="pre">my-wire-server/rabbitmq-password</span></code> to
+<code class="docutils literal notranslate"><span class="pre">values/rabbitmq/secrets.yaml</span></code> under <code class="docutils literal notranslate"><span class="pre">rabbitmq.auth.password</span></code>.</p></li>
+<li><p>Install the helm chart using:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>rabbitmq<span class="w"> </span>wire/rabbitmq<span class="w"> </span>-f<span class="w"> </span>values/rabbitmq/values.yaml<span class="w"> </span>-f<span class="w"> </span>values/rabbitmq/secrets.yaml
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="how-to-configure-real-smtp-email-services">
+<h2>How to configure real SMTP (email) services<a class="headerlink" href="#how-to-configure-real-smtp-email-services" title="Permalink to this heading"></a></h2>
+<p>In order for users to interact with their wire account, they need to receive mail from your wire server.</p>
+<p>If you are using a mail server, you will need to provide your authentication credentials before setting up wire.</p>
+<ul class="simple">
+<li><p>Add your SMTP username in my-wire-server/values.yaml under <code class="docutils literal notranslate"><span class="pre">brig.config.smtp.username</span></code>. You may need to add an entry for username.</p></li>
+<li><p>Add your SMTP password is my-wire-server/secrets.yaml under <code class="docutils literal notranslate"><span class="pre">brig.secrets.smtpPassword</span></code>.</p></li>
+</ul>
+</section>
+<section id="how-to-install-fake-smtp-email-services">
+<h2>How to install fake SMTP (email) services<a class="headerlink" href="#how-to-install-fake-smtp-email-services" title="Permalink to this heading"></a></h2>
+<p>If you are not making use of mail services, and are adding your users via some other means, you can use demo-smtp, as a placeholder.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span>values/demo-smtp/prod-values.example.yaml<span class="w"> </span>values/demo-smtp/values.yaml
+helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>smtp<span class="w"> </span>wire/demo-smtp<span class="w"> </span>-f<span class="w"> </span>values/demo-smtp/values.yaml
+</pre></div>
+</div>
+<p>You should see some pods being created in your first terminal as the above command completes.</p>
+</section>
+<section id="how-to-install-wire-server-itself">
+<h2>How to install wire-server itself<a class="headerlink" href="#how-to-install-wire-server-itself" title="Permalink to this heading"></a></h2>
+<p>Open <code class="docutils literal notranslate"><span class="pre">my-wire-server/values.yaml</span></code> and replace <code class="docutils literal notranslate"><span class="pre">example.com</span></code> and other domains and subdomains with domains of your choosing. Look for the <code class="docutils literal notranslate"><span class="pre">#</span> <span class="pre">change</span> <span class="pre">this</span></code> comments. You can try using <code class="docutils literal notranslate"><span class="pre">sed</span> <span class="pre">-i</span> <span class="pre">'s/example.com/&lt;your-domain&gt;/g'</span> <span class="pre">values.yaml</span></code>.</p>
+<ol class="arabic simple">
+<li><p>If you are not using team settings, comment out <code class="docutils literal notranslate"><span class="pre">teamSettings</span></code> under <code class="docutils literal notranslate"><span class="pre">brig.config.externalURLs</span></code>.</p></li>
+</ol>
+<p>Generate some secrets:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>env<span class="w"> </span><span class="nv">LC_CTYPE</span><span class="o">=</span>C<span class="w"> </span>tr<span class="w"> </span>-dc<span class="w"> </span>a-zA-Z0-9<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-c<span class="w"> </span><span class="m">42</span><span class="w"> </span>&gt;<span class="w"> </span>my-wire-server/restund.txt
+apt<span class="w"> </span>install<span class="w"> </span>docker-ce
+sudo<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>quay.io/wire/alpine-intermediate<span class="w"> </span>/dist/zauth<span class="w"> </span>-m<span class="w"> </span>gen-keypair<span class="w"> </span>-i<span class="w"> </span><span class="m">1</span><span class="w"> </span>&gt;<span class="w"> </span>my-wire-server/zauth.txt
+</pre></div>
+</div>
+<ol class="arabic simple">
+<li><p>Add the generated secret from <code class="docutils literal notranslate"><span class="pre">my-wire-server/restund.txt</span></code> to <code class="docutils literal notranslate"><span class="pre">my-wire-server/secrets.yaml</span></code> under <code class="docutils literal notranslate"><span class="pre">brig.secrets.turn.secret</span></code>.</p></li>
+<li><p>add <strong>both</strong> the public and private parts from <code class="docutils literal notranslate"><span class="pre">my-wire-server/zauth.txt</span></code> to <code class="docutils literal notranslate"><span class="pre">my-wire-server/secrets.yaml</span></code> under <code class="docutils literal notranslate"><span class="pre">brig.secrets.zAuth</span></code>.</p></li>
+<li><p>Add the public key from <code class="docutils literal notranslate"><span class="pre">my-wire-server/zauth.txt</span></code> to <code class="docutils literal notranslate"><span class="pre">my-wire-server/secrets.yaml</span></code> under <code class="docutils literal notranslate"><span class="pre">nginz.secrets.zAuth.publicKeys</span></code>.</p></li>
+<li><p>Add the generated secret from my-wire-server/rabbitmq-password to <code class="docutils literal notranslate"><span class="pre">my-wire-server/secerts.yaml</span></code> under <code class="docutils literal notranslate"><span class="pre">brig.secrets.rabbitmq.password</span></code> and <code class="docutils literal notranslate"><span class="pre">background-worker.secrets.rabbitmq.password</span></code>.</p></li>
+</ol>
+<p>Great, now try the installation:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>wire-server<span class="w"> </span>wire/wire-server<span class="w"> </span>-f<span class="w"> </span>my-wire-server/values.yaml<span class="w"> </span>-f<span class="w"> </span>my-wire-server/secrets.yaml<span class="w"> </span>--wait
+</pre></div>
+</div>
+</section>
+<section id="dns-records">
+<span id="helmdns"></span><h2>DNS records<a class="headerlink" href="#dns-records" title="Permalink to this heading"></a></h2>
+<section id="how-to-set-up-dns-records">
+<h3>How to set up DNS records<a class="headerlink" href="#how-to-set-up-dns-records" title="Permalink to this heading"></a></h3>
+<p>An installation needs 5 to 10 domain names (5 without audio/video support, federation and team settings, plus an additional one for each audio/video support and team settings, federation, SFTD and team settings):</p>
+<p>You need</p>
+<ul class="simple">
+<li><p>two DNS names for the so-called “nginz” component of wire-server (the main REST API entry point), these are usually called <cite>nginz-https.&lt;domain&gt;</cite> and <cite>nginz-ssl.&lt;domain&gt;</cite>.</p></li>
+<li><p>one DNS name for the asset store (images, audio files etc. that your users are sharing); usually <cite>assets.&lt;domain&gt;</cite> or <cite>s3.&lt;domain&gt;</cite>.</p></li>
+<li><p>one DNS name for the webapp (equivalent of <a class="reference external" href="https://app.wire.com">https://app.wire.com</a>, i.e. the javascript app running in the browser), usually called <cite>webapp.&lt;domain&gt;</cite>.</p></li>
+<li><p>one DNS name for the account pages (hosts some html/javascript pages for e.g. password reset), usually called <cite>account.&lt;domain&gt;</cite>.</p></li>
+<li><p>(optional) one DNS name for SFTD support (conference calling), usually called <cite>sftd.&lt;domain&gt;</cite></p></li>
+<li><p>(optional) one DNS name for team settings (to manage team membership if using PRO accounts), usually called <cite>teams.&lt;domain&gt;</cite></p></li>
+<li><p>(optional) two DNS names for audio/video calling servers, usually called <cite>restund01.&lt;domain&gt;</cite> and <cite>restund02.&lt;domain&gt;</cite>. Two are used so during upgrades, you can drain one and use the second while work is happening on the first.</p></li>
+<li><p>(optional) one DNS name for the federator, usually called <cite>federator.&lt;domain&gt;</cite>.</p></li>
+<li><p>(optional) one DNS name for SFTD (conference calling), usually called <cite>sftd.&lt;domain&gt;</cite>.</p></li>
+</ul>
+<p>If you are on the most recent charts, these are your names:</p>
+<ul class="simple">
+<li><p>nginz-https.&lt;domain&gt;</p></li>
+<li><p>nginz-ssl.&lt;domain&gt;</p></li>
+<li><p>webapp.&lt;domain&gt;</p></li>
+<li><p>assets.&lt;domain&gt;</p></li>
+<li><p>account.&lt;domain&gt;</p></li>
+</ul>
+<p>And optionally:</p>
+<ul class="simple">
+<li><p>teams.&lt;domain&gt;</p></li>
+<li><p>sftd.&lt;domain&gt;</p></li>
+<li><p>restund01.&lt;domain&gt;</p></li>
+<li><p>restund02.&lt;domain&gt;</p></li>
+<li><p>federator.&lt;domain&gt;</p></li>
+</ul>
+<p>All of these DNS records need to point to the same IP address, the IP you want to provide services on.</p>
+<p>This is necessary for the nginx ingress to know how to do internal routing based on virtual hosting.</p>
+<p>The only expections to this are:</p>
+<ul class="simple">
+<li><p>restund01, restund02  which need the appropriate DNS name pointed to them</p></li>
+<li><p>sftd which needs to point to the external IPs you are providing conference calling on</p></li>
+</ul>
+<p>So <cite>sftd.&lt;domain&gt;</cite> should list both SFT servers, while each of the restund servers get their own respective domain name.</p>
+<p>You may be happy with skipping the DNS setup and just make sure that the <code class="docutils literal notranslate"><span class="pre">/etc/hosts</span></code> on your client machine points all the above names to the right IP address:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mf">1.2.3.4</span> <span class="n">nginz</span><span class="o">-</span><span class="n">https</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">nginz</span><span class="o">-</span><span class="n">ssl</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">assets</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">webapp</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">teams</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">account</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">sftd</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">restund01</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">restund02</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span> <span class="n">federator</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="how-to-direct-traffic-to-your-cluster">
+<h3>How to direct traffic to your cluster<a class="headerlink" href="#how-to-direct-traffic-to-your-cluster" title="Permalink to this heading"></a></h3>
+<p>There are a few options available. The easiest option is to use an ingress with a node port, as this works everywhere and doesn’t need a special setup.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># (assuming you&#39;re in the root directory of wire-server-deploy)</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>nginx-ingress-services<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>nginx-ingress-services
+cp<span class="w"> </span>../values/nginx-ingress-services/demo-secrets.example.yaml<span class="w"> </span>secrets.yaml
+cp<span class="w"> </span>../values/nginx-ingress-services/demo-values.example.yaml<span class="w"> </span>values.yaml
+</pre></div>
+</div>
+<p>You should now have the following directory structure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>.
+├── nginx-ingress-services
+│   ├── secrets.yaml
+│   └── values.yaml
+└── wire-server
+    ├── secrets.yaml
+    └── values.yaml
+</pre></div>
+</div>
+<p>Inside the <code class="docutils literal notranslate"><span class="pre">nginx-ingress-services</span></code> directory, open <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> and replace <code class="docutils literal notranslate"><span class="pre">example.com</span></code> with a domain of your choosing. You can try using <code class="docutils literal notranslate"><span class="pre">sed</span> <span class="pre">-i</span> <span class="pre">'s/example.com/&lt;your-domain&gt;/g'</span> <span class="pre">values.yaml</span></code>.</p>
+<p>Next, open <code class="docutils literal notranslate"><span class="pre">secrets.yaml</span></code> and add a TLS wildcard certificate and private key matching your domain. For <code class="docutils literal notranslate"><span class="pre">example.com</span></code>, you need a certificate for <code class="docutils literal notranslate"><span class="pre">*.example.com</span></code>. The easiest and cheapest option is <a class="reference external" href="https://letsencrypt.org/getting-started/">Let’s Encrypt</a></p>
+<p>The certificate should be provided in the <a class="reference external" href="https://knowledge.digicert.com/quovadis/ssl-certificates/ssl-general-topics/what-is-pem-format.html">PEM format</a>.</p>
+<p>The format is as follows:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">secrets</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">tlsWildcardCert</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">    </span><span class="no">-----BEGIN CERTIFICATE-----</span>
+<span class="w">    </span><span class="no">... &lt;cert goes here&gt;</span>
+<span class="w">    </span><span class="no">-----END CERTIFICATE-----</span>
+
+<span class="w">  </span><span class="nt">tlsWildcardKey</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">    </span><span class="no">-----BEGIN RSA PRIVATE KEY -----</span>
+<span class="w">    </span><span class="no">... &lt;private key goes here&gt;</span>
+<span class="w">    </span><span class="no">-----END RSA PRIVATE KEY-----</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference external" href="https://letsencrypt.org/getting-started/">Let’s Encrypt</a> &amp; <a class="reference external" href="https://cert-manager.io/docs/tutorials/acme/http-validation/">cert-manager</a></p>
+<p>As an alternative to providing your own certificate, you may want to allow for automated certificate issuing through
+Let’s Encrypt. For this, you have to install the <em>cert-manager</em> first:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>-n<span class="w"> </span>cert-manager-ns<span class="w"> </span>--set<span class="w"> </span><span class="s1">&#39;installCRDs=true&#39;</span><span class="w"> </span>cert-manager<span class="w"> </span>jetstack/cert-manager
+</pre></div>
+</div>
+<p>Afterwards, you have to make some minor adjustments to the <code class="docutils literal notranslate"><span class="pre">nginx-ingress-services/values.yaml</span></code> you have just copied
+and edited. Make sure the following properties are set accordingly:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">tls</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">useCertManager</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="nt">certManager</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># NOTE: You may set this to `true` when deploying the first time, just to make</span>
+<span class="w">  </span><span class="c1">#       sure everything is order, and only to `false` before deploying again, so</span>
+<span class="w">  </span><span class="c1">#       that a valid certificate is actually issued.</span>
+<span class="w">  </span><span class="nt">inTestMode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">certmasterEmail</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ADD-VALID-ADDRESS-HERE&quot;</span>
+</pre></div>
+</div>
+<p>Please note, in this case, you can omit the <code class="docutils literal notranslate"><span class="pre">secrets.yaml</span></code> file entirely.</p>
+</div>
+<p>Install the nodeport nginx ingress:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>nginx-ingress-controller<span class="w"> </span>wire/nginx-ingress-controller<span class="w"> </span>--wait
+helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>nginx-ingress-services<span class="w"> </span>wire/nginx-ingress-services<span class="w"> </span>-f<span class="w"> </span>values.yaml<span class="w"> </span>-f<span class="w"> </span>secrets.yaml<span class="w"> </span>--wait
+</pre></div>
+</div>
+<p>Next, we want to redirect port 443 to the port the nginx https ingress nodeport is listening on (31773), and, redirect port 80 to the nginz http port (31772) (for redirects only). To do that, you have two options:</p>
+<ul class="simple">
+<li><p>Option 1: ssh into your kubernetes node, then execute:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">iptables</span> <span class="pre">-t</span> <span class="pre">nat</span> <span class="pre">-A</span> <span class="pre">PREROUTING</span> <span class="pre">-p</span> <span class="pre">tcp</span> <span class="pre">--dport</span> <span class="pre">443</span> <span class="pre">-j</span> <span class="pre">REDIRECT</span> <span class="pre">--to-port</span> <span class="pre">31773</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iptables</span> <span class="pre">-t</span> <span class="pre">nat</span> <span class="pre">-A</span> <span class="pre">PREROUTING</span> <span class="pre">-p</span> <span class="pre">tcp</span> <span class="pre">--dport</span> <span class="pre">80</span> <span class="pre">-j</span> <span class="pre">REDIRECT</span> <span class="pre">--to-port</span> <span class="pre">31772</span></code></p></li>
+</ul>
+</li>
+<li><p>Option 2: Use ansible to do that, run the <a class="reference external" href="https://github.com/wireapp/wire-server-deploy/blob/master/ansible/iptables.yml">iptables playbook</a></p></li>
+</ul>
+</section>
+<section id="trying-things-out">
+<h3>Trying things out<a class="headerlink" href="#trying-things-out" title="Permalink to this heading"></a></h3>
+<p>At this point, with a bit of luck, everything should be working (if not, see the ‘troubleshooting’ section below)</p>
+<p>Can you reach the nginz server?</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="o">-</span><span class="n">i</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">nginz</span><span class="o">-</span><span class="n">https</span><span class="o">.&lt;</span><span class="n">domain</span><span class="o">&gt;/</span><span class="n">status</span>
+</pre></div>
+</div>
+<p>You should get a 200 return code</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">HTTP</span><span class="o">/</span><span class="mf">1.1</span> <span class="mi">200</span> <span class="n">OK</span>
+<span class="n">Content</span><span class="o">-</span><span class="n">Type</span><span class="p">:</span> <span class="n">text</span><span class="o">/</span><span class="n">plain</span>
+<span class="n">Date</span><span class="p">:</span> <span class="o">...</span>
+<span class="n">Server</span><span class="p">:</span> <span class="n">nginx</span>
+<span class="n">Content</span><span class="o">-</span><span class="n">Length</span><span class="p">:</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<p>Can you access the webapp? Open <a class="reference external" href="https://webapp">https://webapp</a>.&lt;your-domain&gt; in your browser (Firefox/Chrome/Safari only)</p>
+</section>
+<section id="troubleshooting">
+<h3>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading"></a></h3>
+<section id="which-version-am-i-on">
+<h4>Which version am I on?<a class="headerlink" href="#which-version-am-i-on" title="Permalink to this heading"></a></h4>
+<p>There are multiple artifacts which combine to form a running wire-server
+deployment; these include:</p>
+<ul class="simple">
+<li><p>docker images for each service</p></li>
+<li><p>Kubernetes configs for each deployment (from helm charts)</p></li>
+<li><p>configuration maps for each deployment (from helm charts)</p></li>
+</ul>
+<p>If you wish to get some information regarding the code currently running
+on your cluster you can run the following from <code class="docutils literal notranslate"><span class="pre">wire-server-deploy</span></code> (if you don’t have wire-server-deploy, <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">clone</span> <span class="pre">https://github.com/wireapp/wire-server-deploy</span> <span class="pre">&amp;&amp;</span> <span class="pre">cd</span> <span class="pre">wire-server-deploy</span></code> first):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">./</span><span class="nb">bin</span><span class="o">/</span><span class="n">deployment</span><span class="o">-</span><span class="n">info</span><span class="o">.</span><span class="n">sh</span> <span class="o">&lt;</span><span class="n">namespace</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">deployment</span><span class="o">-</span><span class="n">name</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">g</span><span class="o">.</span> <span class="n">brig</span><span class="p">)</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Example run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">./</span><span class="n">deployment</span><span class="o">-</span><span class="n">info</span><span class="o">.</span><span class="n">sh</span> <span class="n">demo</span> <span class="n">brig</span>
+<span class="n">docker_image</span><span class="p">:</span>               <span class="n">quay</span><span class="o">.</span><span class="n">io</span><span class="o">/</span><span class="n">wire</span><span class="o">/</span><span class="n">brig</span><span class="p">:</span><span class="mf">2.50.319</span>
+<span class="n">chart_version</span><span class="p">:</span>              <span class="n">wire</span><span class="o">-</span><span class="n">server</span><span class="o">-</span><span class="mf">0.24.9</span>
+<span class="n">wire_server_commit</span><span class="p">:</span>         <span class="mi">8</span><span class="n">ec8b7ce2e5a184233aa9361efa86351c109c134</span>
+<span class="n">wire_server_link</span><span class="p">:</span>           <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">wireapp</span><span class="o">/</span><span class="n">wire</span><span class="o">-</span><span class="n">server</span><span class="o">/</span><span class="n">releases</span><span class="o">/</span><span class="n">tag</span><span class="o">/</span><span class="n">image</span><span class="o">/</span><span class="mf">2.50.319</span>
+<span class="n">wire_server_deploy_commit</span><span class="p">:</span>  <span class="mf">01e0</span><span class="n">f261ca8163e63860f8b2af6d4ae329a32c14</span>
+<span class="n">wire_server_deploy_link</span><span class="p">:</span>    <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">wireapp</span><span class="o">/</span><span class="n">wire</span><span class="o">-</span><span class="n">server</span><span class="o">-</span><span class="n">deploy</span><span class="o">/</span><span class="n">releases</span><span class="o">/</span><span class="n">tag</span><span class="o">/</span><span class="n">chart</span><span class="o">/</span><span class="n">wire</span><span class="o">-</span><span class="n">server</span><span class="o">-</span><span class="mf">0.24.9</span>
+</pre></div>
+</div>
+<p>Note you’ll need <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">git</span></code> and <code class="docutils literal notranslate"><span class="pre">helm</span></code> installed</p>
+<p>It will output the running docker image; the corresponding wire-server
+commit hash (and link) and the wire-server helm chart version which is
+running. This will be helpful for any support requests.</p>
+</section>
+<section id="helm-install-upgrade-failed">
+<h4>Helm install / upgrade failed<a class="headerlink" href="#helm-install-upgrade-failed" title="Permalink to this heading"></a></h4>
+<p>Usually, you want to run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">kubectl</span> <span class="n">get</span> <span class="n">pods</span> <span class="o">--</span><span class="nb">all</span><span class="o">-</span><span class="n">namespaces</span>
+</pre></div>
+</div>
+<p>And look for any pods that are not <code class="docutils literal notranslate"><span class="pre">Running</span></code>. Then you can:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">kubectl</span> <span class="o">--</span><span class="n">namespace</span> <span class="o">&lt;</span><span class="n">namespace</span><span class="o">&gt;</span> <span class="n">logs</span> <span class="o">&lt;</span><span class="n">name</span><span class="o">-</span><span class="n">of</span><span class="o">-</span><span class="n">pod</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>and/or:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">kubectl</span> <span class="o">--</span><span class="n">namespace</span> <span class="o">&lt;</span><span class="n">namespace</span><span class="o">&gt;</span> <span class="n">describe</span> <span class="o">&lt;</span><span class="n">name</span><span class="o">-</span><span class="n">of</span><span class="o">-</span><span class="n">pod</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>to know more.</p>
+<p>As long as nobody is using your cluster yet, you can safely delete and re-create a specific Helm release (list releases with <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">list</span> <span class="pre">--all</span></code>). Example delete the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> Helm release:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>delete<span class="w"> </span>--purge<span class="w"> </span>wire-server
+</pre></div>
+</div>
+</section>
+<section id="it-doesn-t-work-but-my-problem-isn-t-listed-here-help">
+<h4>It doesn’t work, but my problem isn’t listed here. Help!<a class="headerlink" href="#it-doesn-t-work-but-my-problem-isn-t-listed-here-help" title="Permalink to this heading"></a></h4>
+<p>Feel free to open a github issue or pull request <a class="reference external" href="https://github.com/wireapp/wire-docs">here</a> and we’ll try to improve the documentation.</p>
+</section>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="aws-prod.html" class="btn btn-neutral float-left" title="Configuring AWS and wire-server (production) components" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="infrastructure-configuration.html" class="btn btn-neutral float-right" title="Infrastructure configuration options" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
