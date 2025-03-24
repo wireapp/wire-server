@@ -143,7 +143,8 @@ createConversation lcnv nc = do
         meta.cnvmReceiptMode,
         baseProtocolToProtocol (ncProtocol nc),
         mgid,
-        meta.cnvmGroupConvType
+        meta.cnvmGroupConvType,
+        meta.cnvmCellsState
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
   (lmems, rmems) <- addMembers (tUnqualified lcnv) (ncUsers nc)
