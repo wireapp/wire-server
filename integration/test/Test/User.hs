@@ -247,7 +247,7 @@ testMigratingPasswordHashingAlgorithm = do
 
 testUpdateEmailForEmailDomainForAnotherBackend :: (HasCallStack) => App ()
 testUpdateEmailForEmailDomainForAnotherBackend = do
-  domain <- randomDomain
+  emailDomain <- randomDomain
   user <- randomUser OwnDomain def
   email <- user %. "email" & asString
   (cookie, token) <- bindResponse (login user email defPassword) $ \resp -> do
@@ -256,16 +256,16 @@ testUpdateEmailForEmailDomainForAnotherBackend = do
     let cookie = fromJust $ getCookie "zuid" resp
     pure ("zuid=" <> cookie, token)
 
-  setup <- setupOwnershipToken OwnDomain domain
-  I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  I.domainRegistrationPreAuthorize OwnDomain emailDomain >>= assertStatus 204
+  setup <- setupOwnershipTokenForBackend OwnDomain emailDomain
   updateDomainRedirect
     OwnDomain
-    domain
+    emailDomain
     (Just setup.ownershipToken)
     (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
     >>= assertStatus 200
 
-  let newEmail = "galadriel@" <> domain
+  let newEmail = "galadriel@" <> emailDomain
   updateEmail user newEmail cookie token `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "condition-failed"
@@ -319,7 +319,7 @@ testActivateEmailForEmailDomainForAnotherBackend = do
   where
     testActivateEmailShouldBeAllowed :: (HasCallStack) => Bool -> Value -> App ()
     testActivateEmailShouldBeAllowed activateAllowed update = do
-      registrationDomain <- randomDomain
+      emailDomain <- randomDomain
       user <- randomUser OwnDomain def
       email <- user %. "email" & asString
       (cookie, token) <- bindResponse (login user email defPassword) $ \resp -> do
@@ -328,7 +328,7 @@ testActivateEmailForEmailDomainForAnotherBackend = do
         let cookie = fromJust $ getCookie "zuid" resp
         pure ("zuid=" <> cookie, token)
 
-      let newEmail = "galadriel@" <> registrationDomain
+      let newEmail = "galadriel@" <> emailDomain
       updateEmail user newEmail cookie token >>= assertSuccess
 
       (key, code) <- bindResponse (getActivationCode user newEmail) $ \resp -> do
@@ -337,7 +337,7 @@ testActivateEmailForEmailDomainForAnotherBackend = do
           <$> (resp.json %. "key" & asString)
           <*> (resp.json %. "code" & asString)
 
-      I.updateDomainRegistration OwnDomain registrationDomain update >>= assertSuccess
+      I.updateDomainRegistration OwnDomain emailDomain update >>= assertSuccess
 
       if activateAllowed
         then do

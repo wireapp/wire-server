@@ -35,6 +35,7 @@ data EnterpriseLoginSubsystem m a where
     Domain ->
     EnterpriseLoginSubsystem m DomainVerificationChallenge
   VerifyChallenge ::
+    Maybe (Local UserId) ->
     Domain ->
     ChallengeId ->
     Token ->

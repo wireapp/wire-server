@@ -13,10 +13,8 @@ import Testlib.Prelude
 testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend :: (HasCallStack) => App ()
 testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = do
   domain <- randomDomain
-  setup <- setupOwnershipToken OwnDomain domain
-
-  -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
 
   -- [customer admin] post no-registration config
   updateDomainRedirect
@@ -34,10 +32,10 @@ testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = do
 testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration :: (HasCallStack) => App ()
 testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration = do
   domain <- randomDomain
-  setup <- setupOwnershipToken OwnDomain domain
 
   -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
 
   -- [customer admin] post no-registration config
   updateDomainRedirect
@@ -66,7 +64,7 @@ testAllowRegistrationWhenEmailDomainIsTakenByATeamButRedirectIsNone = do
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
   domain <- randomDomain
-  setup <- setupOwnershipToken OwnDomain domain
+  setup <- setupOwnershipTokenForTeam owner domain
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
   -- [customer admin] post no-registration config
@@ -89,7 +87,7 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
     setTeamFeatureStatus owner tid "domainRegistration" "enabled"
 
   domain <- randomDomain
-  setup <- setupOwnershipToken OwnDomain domain
+  setup <- setupOwnershipTokenForTeam owner domain
   authorizeTeam owner domain setup.ownershipToken >>= assertStatus 200
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -173,9 +171,9 @@ testDisallowAcceptingInvitesAfterDomainIsClaimed = do
   invitation <- postInvitation owner def {email = Just email} >>= getJSON 201
   invitationCode <- (getInvitationCode owner invitation >>= getJSON 200) %. "code" & asString
 
-  setup <- setupOwnershipToken OwnDomain domain
   -- [backoffice] preauth
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
 
   -- [customer admin] post no-registration config
   updateDomainRedirect

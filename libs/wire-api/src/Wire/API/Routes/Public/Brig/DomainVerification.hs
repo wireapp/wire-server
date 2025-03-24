@@ -246,18 +246,33 @@ type DomainVerificationChallengeAPI =
 
 type DomainVerificationTeamAPI =
   Named
-    "domain-verification-authorize-team"
-    ( Summary "Authorize a team to operate on a verified domain"
+    "verify-challenge-team"
+    ( Summary "Verify a DNS verification challenge for a team"
         :> CanThrow DomainVerificationAuthFailure
         :> CanThrow DomainVerificationPaymentRequired
         :> CanThrow DomainVerificationOperationForbidden
         :> ZLocalUser
         :> "domain-verification"
         :> Capture "domain" Domain
-        :> "authorize-team"
-        :> ReqBody '[JSON] DomainOwnershipToken
-        :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Authorized")
+        :> "team"
+        :> "challenges"
+        :> Capture "challengeId" ChallengeId
+        :> ReqBody '[JSON] ChallengeToken
+        :> Post '[JSON] DomainOwnershipToken
     )
+    :<|> Named
+           "domain-verification-authorize-team"
+           ( Summary "Authorize a team to operate on a verified domain"
+               :> CanThrow DomainVerificationAuthFailure
+               :> CanThrow DomainVerificationPaymentRequired
+               :> CanThrow DomainVerificationOperationForbidden
+               :> ZLocalUser
+               :> "domain-verification"
+               :> Capture "domain" Domain
+               :> "authorize-team"
+               :> ReqBody '[JSON] DomainOwnershipToken
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Authorized")
+           )
     :<|> Named
            "update-team-invite"
            ( Summary "Update the team-invite configuration"

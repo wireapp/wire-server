@@ -490,6 +490,9 @@ nginx_conf:
       envs:
         - all
       disable_zauth: true
+    - path: /domain-verification/([^/]*)/team/challenges/([^/]*)
+      envs:
+        - all
     - path: /domain-verification/([^/]*)/team$
       envs:
         - all
