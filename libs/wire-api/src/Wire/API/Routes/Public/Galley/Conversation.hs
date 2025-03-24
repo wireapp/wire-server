@@ -1323,3 +1323,28 @@ type ConversationAPI =
                :> ReqBody '[JSON] ProtocolUpdate
                :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
            )
+    :<|> Named
+           "update-channel-add-permission"
+           ( Summary "Update the permissions for adding members to a channel"
+               :> CanThrow ('ActionDenied 'ModifyAddPermission)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'NotConnected
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "message-timer"
+               :> ReqBody '[JSON] AddPermissionUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    (UpdateResponses "Add permissions unchanged" "Add permissions updated" Event)
+                    (UpdateResult Event)
+           )

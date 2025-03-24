@@ -81,6 +81,7 @@ module Wire.API.Conversation
     ConversationJoin (..),
     ConversationMemberUpdate (..),
     ConversationRemoveMembers (..),
+    AddPermissionUpdate (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -1034,6 +1035,34 @@ namespaceMLSSelfConv :: UUID.UUID
 namespaceMLSSelfConv =
   -- a V5 uuid created with the nil namespace
   fromJust . UUID.fromString $ "3eac2a2c-3850-510b-bd08-8a98e80dd4d9"
+
+data AddPermission = Admins | Everyone
+  deriving stock (Eq, Show, Generic, Enum)
+  deriving (Arbitrary) via (GenericUniform AddPermission)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddPermission
+
+instance ToSchema AddPermission where
+  schema =
+    enum @Text "AddPermission" $
+      mconcat
+        [ element "admins" Admins,
+          element "everyone" Everyone
+        ]
+
+newtype AddPermissionUpdate = AddPermissionUpdate
+  { apuPermission :: AddPermission
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AddPermissionUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddPermissionUpdate
+
+instance ToSchema AddPermissionUpdate where
+  schema =
+    objectWithDocModifier
+      "AddPermissionUpdate"
+      (description ?~ "The action of changing the permission to add members to a conversation")
+      $ AddPermissionUpdate
+        <$> apuPermission .= field "permission" schema
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

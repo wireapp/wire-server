@@ -260,6 +260,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member TeamFeatureStore r,
       Member TinyLog r
     )
+  HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
+    (
+    )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -323,6 +326,14 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'ConvNotFound,
        ErrorS 'ConvInvalidProtocolTransition,
        ErrorS 'MLSMigrationCriteriaNotSatisfied,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamNotFound
+     ]
+  HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
+    '[ ErrorS ('ActionDenied 'ModifyAddPermission),
+       ErrorS 'InvalidOperation,
+       ErrorS 'ConvNotFound,
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ErrorS 'TeamNotFound
@@ -518,6 +529,8 @@ performAction tag origUser lconv action = do
         (ProtocolMLSTag, ProtocolMLSTag, _) ->
           noChanges
         (_, _, _) -> throwS @'ConvInvalidProtocolTransition
+    SConversationUpdateAddPermissionTag -> do
+      todo
 
 performConversationJoin ::
   forall r.
@@ -540,7 +553,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
-  checkTeamMemberAddPermissions lusr
+  checkTeamMemberAddPermission lusr
   addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
@@ -629,8 +642,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Sem r ()
     checkLHPolicyConflictsRemote _remotes = pure ()
 
-    checkTeamMemberAddPermissions :: Local UserId -> Sem r ()
-    checkTeamMemberAddPermissions lusr =
+    checkTeamMemberAddPermission :: Local UserId -> Sem r ()
+    checkTeamMemberAddPermission lusr =
       forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
         >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation))
           . join
@@ -967,6 +980,7 @@ updateLocalStateOfRemoteConv rcu con = do
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
       SConversationUpdateProtocolTag -> pure (Just sca, [])
+      SConversationUpdateAddPermissionTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $

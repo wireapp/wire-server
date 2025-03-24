@@ -39,6 +39,7 @@ module Galley.API.Update
     updateConversationMessageTimer,
     updateConversationAccessUnqualified,
     updateConversationAccess,
+    updateChannelAddPermission,
     deleteLocalConversation,
     updateRemoteConversation,
     updateConversationProtocolWithLocalUser,
@@ -753,6 +754,49 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
             newProtocol
       )
       qcnv
+
+updateChannelAddPermission ::
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (ErrorS ('ActionDenied 'ModifyAddPermission)) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (Error FederationError) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member (Input (Local ())) r,
+    Member TinyLog r,
+    Member (ErrorS (MissingPermission Nothing)) r,
+    Member (ErrorS NotATeamMember) r,
+    Member (ErrorS TeamNotFound) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
+    Member BrigAccess r,
+    Member FederatorAccess r,
+    Member MemberStore r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  AddPermissionUpdate ->
+  Sem r (UpdateResult Event)
+updateChannelAddPermission lusr zcon qcnv update =
+  foldQualified
+    lusr
+    ( \lcnv ->
+        getUpdateResult $
+          lcuEvent
+            <$> updateLocalConversation
+              @'ConversationUpdateAddPermissionTag
+              lcnv
+              (tUntagged lusr)
+              (Just zcon)
+              update
+    )
+    (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr zcon update)
+    qcnv
 
 joinConversationByReusableCode ::
   forall r.
