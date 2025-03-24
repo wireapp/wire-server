@@ -72,8 +72,11 @@ vendorCompatibility filePath ssoURI = testAuthRespApp ssoURI $ do
             -- makes perfect sense given the information is available in the header.  if it is
             -- not, just dig into the assertions and take the information from there.
             -- authnresp inResponseTo, with comfortable end of life.
-            reqstore :: Map.Map (ID AuthnRequest) Time
-            reqstore = Map.singleton (fromJust $ authnresp ^. rspInRespTo) timeInALongTime
+            reqstore :: Map.Map (ID AuthnRequest) (Issuer, Time)
+            reqstore = Map.singleton (fromJust $ authnresp ^. rspInRespTo) (idpIssuer, timeInALongTime)
+
+            -- The issuer we expect in the SAML response (IdP -> SP)
+            idpIssuer = idpcfg ^. idpMetadata . edIssuer
             -- 1 second after authnresp IssueInstant
             now :: Time
             now = addTime 1 $ authnresp ^. rspIssueInstant

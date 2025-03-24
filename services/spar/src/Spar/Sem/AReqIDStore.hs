@@ -22,16 +22,19 @@ module Spar.Sem.AReqIDStore
     store,
     unStore,
     isAlive,
+    getIssuer,
   )
 where
 
 import Imports
 import Polysemy
+import SAML2.WebSSO.Types (Issuer)
 import qualified SAML2.WebSSO.Types as SAML
 import Wire.API.User.Saml (AReqId)
 
 data AReqIDStore m a where
-  Store :: AReqId -> SAML.Time -> AReqIDStore m ()
+  Store :: AReqId -> Issuer -> SAML.Time -> AReqIDStore m ()
+  GetIssuer :: AReqId -> AReqIDStore m (Maybe Issuer)
   UnStore :: AReqId -> AReqIDStore m ()
   IsAlive :: AReqId -> AReqIDStore m Bool
 

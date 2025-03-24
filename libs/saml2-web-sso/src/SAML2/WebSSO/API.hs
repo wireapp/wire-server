@@ -136,16 +136,18 @@ parseAuthnResponseBody mbSPId base64 = do
       respIssuer :: Issuer <-
         -- this issuer is not signed!!
         maybe (throwError BadSamlResponseIssuerMissing) pure (resp ^. rspIssuer)
-      issuerFromAuthnRequest :: Issuer <-
-        -- we have a matching authentication *request* for this response, and we need to pull
-        -- the issuer from that.  anything we just pull from the response can be changed by
-        -- an attacker with access to the idp.
-        _ -- TODO: we first need to store the issuer with the request id.
+      {-
+            issuerFromAuthnRequest :: Issuer <-
+              -- we have a matching authentication *request* for this response, and we need to pull
+              -- the issuer from that.  anything we just pull from the response can be changed by
+              -- an attacker with access to the idp.
+              _ -- TODO: we first need to store the issuer with the request id.
+      -}
       signedIssuers :: NonEmpty Issuer <-
         -- these are *possibly* signed, but we collect all of them, and if none of them are
         -- signed, signature validation will fail later.
         pure (view assIssuer <$> resp ^. rspPayload)
-      case L.nub (respIssuer : issuerFromAuthnRequest : toList signedIssuers) of
+      case L.nub (respIssuer : {- issuerFromAuthnRequest : -} toList signedIssuers) of
         [i] -> pure i
         _ -> throwError BadSamlResponseIssuerMissing
     idp :: IdPConfig extra <-
@@ -343,7 +345,7 @@ defReqTTL = 15 * 60 -- seconds
 -- handler takes a response and a verdict (provided by this package), and can cause any effects in
 -- 'm' and return anything it likes.
 authresp ::
-  (SP m, SPStoreIdP (Error err) m, extra ~ IdPConfigExtra m, SPStoreID Assertion m, SPStoreID AuthnRequest m) =>
+  (SPStoreIdP (Error err) m, extra ~ IdPConfigExtra m, SPStore m) =>
   Maybe (IdPConfigSPId m) ->
   m Issuer ->
   m URI ->
@@ -361,7 +363,7 @@ authresp mbSPId getSPIssuer getResponseURI handleVerdictAction body = do
 
 -- | a variant of 'authresp' with a less general verdict handler.
 authresp' ::
-  (SP m, SPStoreIdP (Error err) m, SPStoreID Assertion m, SPStoreID AuthnRequest m) =>
+  (SPStoreIdP (Error err) m, SPStore m) =>
   Maybe (IdPConfigSPId m) ->
   m Issuer ->
   m URI ->

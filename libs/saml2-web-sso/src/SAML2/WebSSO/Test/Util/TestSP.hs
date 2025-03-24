@@ -19,7 +19,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.Void (Void)
 import SAML2.WebSSO as SAML
-import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIsAliveID', simpleStoreID', simpleUnStoreID')
+import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIsAliveID', simpleIsAliveRequest', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
 import SAML2.WebSSO.Test.Util.Types
 import Servant
 import System.IO
@@ -83,15 +83,46 @@ simpleIsAliveID sel item = do
   items <- liftIO $ readMVar store
   pure $ simpleIsAliveID' now item (items ^. sel)
 
-instance SPStoreID AuthnRequest TestSP where
-  storeID = simpleStoreID ctxRequestStore
-  unStoreID = simpleUnStoreID ctxRequestStore
-  isAliveID = simpleIsAliveID ctxRequestStore
+simpleStoreRequest ::
+  (MonadIO m, MonadReader (MVar ctx) m) =>
+  Lens' ctx (Map.Map (ID a) (Issuer, Time)) ->
+  ID a ->
+  Issuer ->
+  Time ->
+  m ()
+simpleStoreRequest sel item issuer endOfLife = do
+  store <- ask
+  liftIO $ modifyMVar_ store (pure . (sel %~ simpleStoreRequest' item (issuer, endOfLife)))
 
-instance SPStoreID Assertion TestSP where
-  storeID = simpleStoreID ctxAssertionStore
-  unStoreID = simpleUnStoreID ctxAssertionStore
-  isAliveID = simpleIsAliveID ctxAssertionStore
+simpleUnStoreRequest ::
+  (MonadIO m, MonadReader (MVar ctx) m) =>
+  Lens' ctx (Map.Map (ID a) (Issuer, Time)) ->
+  ID a ->
+  m ()
+simpleUnStoreRequest sel item = do
+  store <- ask
+  liftIO $ modifyMVar_ store (pure . (sel %~ simpleUnStoreRequest' item))
+
+simpleIsAliveRequest ::
+  (MonadIO m, MonadReader (MVar ctx) m, SP m) =>
+  Lens' ctx (Map.Map (ID a) (Issuer, Time)) ->
+  ID a ->
+  m Bool
+simpleIsAliveRequest sel item = do
+  now <- getNow
+  store <- ask
+  items <- liftIO $ readMVar store
+  pure $ simpleIsAliveRequest' now item (items ^. sel)
+
+instance SPStoreRequest AuthnRequest TestSP where
+  storeRequest = simpleStoreRequest ctxRequestStore
+  unStoreRequest = simpleUnStoreRequest ctxRequestStore
+  isAliveRequest = simpleIsAliveRequest ctxRequestStore
+
+instance SPStoreAssertion Assertion TestSP where
+  storeAssertionInternal = simpleStoreID ctxAssertionStore
+  unStoreAssertion = simpleUnStoreID ctxAssertionStore
+  isAliveAssertion = simpleIsAliveID ctxAssertionStore
 
 instance SPStoreIdP SimpleError TestSP where
   type IdPConfigExtra TestSP = ()

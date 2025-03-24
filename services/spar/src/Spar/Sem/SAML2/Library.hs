@@ -97,22 +97,22 @@ instance
     Member (Final IO) r,
     Member AReqIDStore r
   ) =>
-  SPStoreID AuthnRequest (SPImpl r)
+  SPStoreRequest AuthnRequest (SPImpl r)
   where
-  storeID = (wrapMonadClientSPImpl .) . AReqIDStore.store
-  unStoreID = wrapMonadClientSPImpl . AReqIDStore.unStore
-  isAliveID = wrapMonadClientSPImpl . AReqIDStore.isAlive
+  storeRequest issuer timestamp = wrapMonadClientSPImpl . (AReqIDStore.store issuer timestamp)
+  unStoreRequest = wrapMonadClientSPImpl . AReqIDStore.unStore
+  isAliveRequest = wrapMonadClientSPImpl . AReqIDStore.isAlive
 
 instance
   ( Member (Error SparError) r,
     Member (Final IO) r,
     Member AssIDStore r
   ) =>
-  SPStoreID Assertion (SPImpl r)
+  SPStoreAssertion Assertion (SPImpl r)
   where
-  storeID = (wrapMonadClientSPImpl .) . AssIDStore.store
-  unStoreID = wrapMonadClientSPImpl . AssIDStore.unStore
-  isAliveID = wrapMonadClientSPImpl . AssIDStore.isAlive
+  storeAssertionInternal = (wrapMonadClientSPImpl .) . AssIDStore.store
+  unStoreAssertion = wrapMonadClientSPImpl . AssIDStore.unStore
+  isAliveAssertion = wrapMonadClientSPImpl . AssIDStore.isAlive
 
 instance
   ( Member (Error SparError) r,

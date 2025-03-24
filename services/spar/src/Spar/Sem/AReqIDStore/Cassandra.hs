@@ -52,27 +52,39 @@ aReqIDStoreToCassandra ::
   Sem (AReqIDStore ': r) a ->
   Sem r a
 aReqIDStoreToCassandra = interpret $ \case
-  Store itla t -> do
+  Store itla issuer t -> do
     denv <- Data.mkEnv <$> input <*> Now.get
-    a <- embed @m $ runExceptT $ runReaderT (storeAReqID itla t) denv
+    a <- embed @m $ runExceptT $ runReaderT (storeAReqID itla issuer t) denv
     case a of
       Left err -> throw err
       Right () -> pure ()
+  GetIssuer itla -> embed @m $ getAReqID itla
   UnStore itla -> embed @m $ unStoreAReqID itla
   IsAlive itla -> embed @m $ isAliveAReqID itla
 
 storeAReqID ::
   (HasCallStack, MonadReader Data.Env m, MonadClient m, MonadError TTLError m) =>
   AReqId ->
+  SAML.Issuer ->
   SAML.Time ->
   m ()
-storeAReqID (SAML.ID rid) (SAML.Time endOfLife) = do
+storeAReqID (SAML.ID rid) issuer (SAML.Time endOfLife) = do
   env <- ask
   TTL ttl <- Data.mkTTLAuthnRequests env endOfLife
-  retry x5 . write ins $ params LocalQuorum (rid, ttl)
+  retry x5 . write ins $ params LocalQuorum (rid, issuer, ttl)
   where
-    ins :: PrepQuery W (SAML.XmlText, Int32) ()
-    ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
+    ins :: PrepQuery W (SAML.XmlText, SAML.Issuer, Int32) ()
+    ins = "INSERT INTO authreq (req, issuer) VALUES (?) USING TTL ?"
+
+getAReqID ::
+  (HasCallStack, MonadClient m) =>
+  AReqId ->
+  m (Maybe SAML.Issuer)
+getAReqID (SAML.ID rid) =
+  listToMaybe <$> (runIdentity <$$> (retry x1 . query sel . params LocalQuorum $ Identity rid))
+  where
+    sel :: PrepQuery R (Identity SAML.XmlText) (Identity SAML.Issuer)
+    sel = "SELECT idp_issuer FROM authreq WHERE req = ?"
 
 unStoreAReqID ::
   (HasCallStack, MonadClient m) =>

@@ -47,12 +47,20 @@ class HasNow m where
   default getNow :: (MonadIO m) => m Time
   getNow = getNowIO
 
-type SPStore m = (SP m, SPStoreID AuthnRequest m, SPStoreID Assertion m)
+type SPStore m = (SP m, SPStoreRequest AuthnRequest m, SPStoreAssertion Assertion m)
 
-class SPStoreID i m where
-  storeID :: ID i -> Time -> m ()
-  unStoreID :: ID i -> m ()
-  isAliveID ::
+class SPStoreAssertion i m where
+  storeAssertionInternal :: ID i -> Time -> m ()
+  unStoreAssertion :: ID i -> m ()
+  isAliveAssertion ::
+    ID i ->
+    -- | stored and not timed out.
+    m Bool
+
+class SPStoreRequest i m where
+  storeRequest :: ID i -> Issuer -> Time -> m ()
+  unStoreRequest :: ID i -> m ()
+  isAliveRequest ::
     ID i ->
     -- | stored and not timed out.
     m Bool
@@ -80,9 +88,9 @@ class (SP m, SPStore m, SPStoreIdP err m, MonadError err m) => SPHandler err m w
 storeAssertion :: (Monad m, SPStore m) => ID Assertion -> Time -> m Bool
 storeAssertion item endOfLife =
   ifM
-    (isAliveID item)
+    (isAliveAssertion item)
     (pure False)
-    (True <$ storeID item endOfLife)
+    (True <$ storeAssertionInternal item endOfLife)
 
 loggerConfIO :: (HasConfig m, MonadIO m) => Level -> String -> m ()
 loggerConfIO level msg = do
@@ -125,7 +133,7 @@ createAuthnRequest lifeExpectancySecs getIssuer = do
   _rqIssueInstant <- getNow
   _rqIssuer <- getIssuer
   let _rqNameIDPolicy = Just $ NameIdPolicy NameIDFUnspecified Nothing True
-  storeID _rqID (addTime lifeExpectancySecs _rqIssueInstant)
+  storeRequest _rqID _rqIssuer (addTime lifeExpectancySecs _rqIssueInstant)
   pure AuthnRequest {..}
 
 -- | The clock drift between IdP and us that we allow for.
@@ -255,10 +263,15 @@ instance (Monad m, HasCreateUUID m) => HasCreateUUID (JudgeT m) where
 instance (Monad m, HasNow m) => HasNow (JudgeT m) where
   getNow = JudgeT . lift . lift . lift $ getNow
 
-instance (Monad m, SPStoreID i m) => SPStoreID i (JudgeT m) where
-  storeID item = JudgeT . lift . lift . lift . storeID item
-  unStoreID = JudgeT . lift . lift . lift . unStoreID
-  isAliveID = JudgeT . lift . lift . lift . isAliveID
+instance (Monad m, SPStoreAssertion i m) => SPStoreAssertion i (JudgeT m) where
+  storeAssertionInternal item = JudgeT . lift . lift . lift . storeAssertionInternal item
+  unStoreAssertion = JudgeT . lift . lift . lift . unStoreAssertion
+  isAliveAssertion = JudgeT . lift . lift . lift . isAliveAssertion
+
+instance (Monad m, SPStoreRequest i m) => SPStoreRequest i (JudgeT m) where
+  storeRequest item issuer = JudgeT . lift . lift . lift . storeRequest item issuer
+  unStoreRequest = JudgeT . lift . lift . lift . unStoreRequest
+  isAliveRequest = JudgeT . lift . lift . lift . isAliveRequest
 
 -- | [3/4.1.4.2], [3/4.1.4.3]; specific to active-directory:
 -- <https://docs.microsoft.com/en-us/azure/active-directory/develop/active-directory-single-sign-on-protocol-reference>
@@ -299,14 +312,14 @@ judge1 assertion = do
   inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ assertionToInResponseTo assertion
   checkInResponseTo "response" inRespTo
   verdict <- checkAssertion assertion
-  unStoreID inRespTo
+  unStoreRequest inRespTo
   pure verdict
 
 -- | If this fails, we could continue ('deny'), but we stop processing ('giveup') to make DOS
 -- attacks harder.
 checkInResponseTo :: (SPStore m, MonadJudge m) => String -> ID AuthnRequest -> m ()
 checkInResponseTo loc req = do
-  ok <- isAliveID req
+  ok <- isAliveRequest req
   unless ok . giveup . DeniedBadInResponseTos $ loc <> ": " <> show req
 
 checkIsInPast :: (SP m, MonadJudge m) => (Time -> Time -> DeniedReason) -> Time -> m ()

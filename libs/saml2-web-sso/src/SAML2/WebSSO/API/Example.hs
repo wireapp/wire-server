@@ -41,7 +41,7 @@ data SimpleSPCtx = SimpleSPCtx
     _spctxAss :: MVar AssertionStore
   }
 
-type RequestStore = Map.Map (ID AuthnRequest) Time
+type RequestStore = Map.Map (ID AuthnRequest) (Issuer, Time)
 
 type AssertionStore = Map.Map (ID Assertion) Time
 
@@ -109,15 +109,55 @@ simpleIsAliveID sel item = do
 simpleIsAliveID' :: Time -> ID a -> Map (ID a) Time -> Bool
 simpleIsAliveID' now item items = maybe False (>= now) (Map.lookup item items)
 
-instance SPStoreID AuthnRequest SimpleSP where
-  storeID = simpleStoreID spctxReq
-  unStoreID = simpleUnStoreID spctxReq
-  isAliveID = simpleIsAliveID spctxReq
+simpleStoreRequest ::
+  (MonadIO m, MonadReader ctx m) =>
+  Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
+  ID a ->
+  Issuer ->
+  Time ->
+  m ()
+simpleStoreRequest sel item issuer endOfLife = do
+  store <- asks (^. sel)
+  liftIO $ modifyMVar_ store (pure . simpleStoreRequest' item (issuer, endOfLife))
 
-instance SPStoreID Assertion SimpleSP where
-  storeID = simpleStoreID spctxAss
-  unStoreID = simpleUnStoreID spctxAss
-  isAliveID = simpleIsAliveID spctxAss
+simpleStoreRequest' :: ID a -> (Issuer, Time) -> Map (ID a) (Issuer, Time) -> Map (ID a) (Issuer, Time)
+simpleStoreRequest' = Map.insert
+
+simpleUnStoreRequest ::
+  (MonadIO m, MonadReader ctx m) =>
+  Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
+  (ID a) ->
+  m ()
+simpleUnStoreRequest sel item = do
+  store <- asks (^. sel)
+  liftIO $ modifyMVar_ store (pure . simpleUnStoreRequest' item)
+
+simpleUnStoreRequest' :: ID a -> Map (ID a) (Issuer, Time) -> Map (ID a) (Issuer, Time)
+simpleUnStoreRequest' = Map.delete
+
+simpleIsAliveRequest ::
+  (MonadIO m, MonadReader ctx m, SP m) =>
+  Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
+  ID a ->
+  m Bool
+simpleIsAliveRequest sel item = do
+  now <- getNow
+  store <- asks (^. sel)
+  items <- liftIO $ readMVar store
+  pure $ simpleIsAliveRequest' now item items
+
+simpleIsAliveRequest' :: Time -> ID a -> Map (ID a) (Issuer, Time) -> Bool
+simpleIsAliveRequest' now item items = maybe False ((>= now) . snd) (Map.lookup item items)
+
+instance SPStoreRequest AuthnRequest SimpleSP where
+  storeRequest = simpleStoreRequest spctxReq
+  unStoreRequest = simpleUnStoreRequest spctxReq
+  isAliveRequest = simpleIsAliveRequest spctxReq
+
+instance SPStoreAssertion Assertion SimpleSP where
+  storeAssertionInternal = simpleStoreID spctxAss
+  unStoreAssertion = simpleUnStoreID spctxAss
+  isAliveAssertion = simpleIsAliveID spctxAss
 
 instance HasConfig SimpleSP where
   getConfig = (^. spctxConfig) <$> SimpleSP ask
