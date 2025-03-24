@@ -112,22 +112,22 @@ specJudgeT = do
           it "grants" $ do
             ctxv <- mkTestCtxSimple
             modifyMVar_ ctxv $ \ctx ->
-              pure
-                $ ctx
-                & ctxNow .~ timeIn10seconds
-                & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
-                & updctx
+              pure $
+                ctx
+                  & ctxNow .~ timeIn10seconds
+                  & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
+                  & updctx
             (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) jctx)
         denies :: (HasCallStack) => (Ctx -> Ctx) -> AuthnResponse -> Spec
         denies updctx aresp = do
           it "denies" $ do
             ctxv <- mkTestCtxSimple
             modifyMVar_ ctxv $ \ctx ->
-              pure
-                $ ctx
-                & ctxNow .~ timeIn10seconds
-                & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
-                & updctx
+              pure $
+                ctx
+                  & ctxNow .~ timeIn10seconds
+                  & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
+                  & updctx
             (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) jctx)
         jctx :: JudgeCtx
         jctx = JudgeCtx (Issuer [uri|https://sp.net/sso/authnresp|]) [uri|https://sp.net/sso/authnresp|]
@@ -203,12 +203,12 @@ specJudgeT = do
         -- wire does not parse unsigned data from the authentication response, so this will
         -- pass (but the mandatory inResponseTo field in the *signed* assertion will be
         -- considered).
-        grants id
-          $ authnresp
-          & rspInRespTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
-        denies id
-          $ authnresp
-          & scdataL . scdInResponseTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
+        grants id $
+          authnresp
+            & rspInRespTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
+        denies id $
+          authnresp
+            & scdataL . scdInResponseTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
       context "issue instant in the future" $ do
         let violations :: [AuthnResponse -> AuthnResponse]
             violations =
