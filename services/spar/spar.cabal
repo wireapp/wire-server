@@ -42,6 +42,7 @@ library
     Spar.Schema.V18
     Spar.Schema.V19
     Spar.Schema.V2
+    Spar.Schema.V20
     Spar.Schema.V3
     Spar.Schema.V4
     Spar.Schema.V5
