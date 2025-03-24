@@ -252,3 +252,4 @@ data:
         port: 8080
 
     integrationTestHostName: integration-headless.{{ .Release.Namespace }}.svc.cluster.local
+    cellsEventQueue: cells_events
