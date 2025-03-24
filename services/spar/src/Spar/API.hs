@@ -66,7 +66,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.App
