@@ -145,11 +145,15 @@ parseAuthnResponseBody mbSPId base64 = do
         -- these are *possibly* signed, but we collect all of them, and if none of them are
         -- signed, signature validation will fail later.
         pure (view assIssuer <$> resp ^. rspPayload)
-      -- TODO: explain why it worked before!
       case L.nub (respIssuer : issuerFromAuthnRequest : toList signedIssuers) of
         [i] -> pure i
         _ -> throwError BadSamlResponseIssuerMissing
-    idp :: IdPConfig extra <- getIdPConfigByIssuerOptionalSPId issuer mbSPId
+    idp :: IdPConfig extra <-
+      -- this is convoluted, but secure against signatures from rogue idps: this idp config is
+      -- (a) is signed by the given in the authentiation response issuer, and
+      -- (b) authorized/created by admin of the correct team.  we're using the team id from
+      -- this to create the user ref (see verdictHandlerResultCore).
+      getIdPConfigByIssuerOptionalSPId issuer mbSPId
     creds <- idpToCreds issuer idp
     (,idp) <$> simpleVerifyAuthnResponse creds xmltxt
   pure (signedAssertions, idp)
