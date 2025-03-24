@@ -60,7 +60,7 @@ testDomainVerificationOnPremFlow = do
 
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
-  setup <- setupOwnershipToken OwnDomain domain
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
   let ownershipToken = setup.ownershipToken
 
   -- post config without ownership token (this is not allowed)
@@ -137,9 +137,9 @@ testDomainVerificationWrongAuth = do
   domain <- randomDomain
   wrongDomain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-  void $ setupOwnershipToken OwnDomain domain
+  void $ setupOwnershipTokenForBackend OwnDomain domain
   domainRegistrationPreAuthorize OwnDomain wrongDomain >>= assertStatus 204
-  wrongSetup <- setupOwnershipToken OwnDomain wrongDomain
+  wrongSetup <- setupOwnershipTokenForBackend OwnDomain wrongDomain
   let wrongToken = wrongSetup.ownershipToken
 
   -- [customer admin] post config with wrong token
@@ -158,7 +158,7 @@ testDomainVerificationOnPremFlowNoRegistration :: (HasCallStack) => App ()
 testDomainVerificationOnPremFlowNoRegistration = do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-  setup <- setupOwnershipToken OwnDomain domain
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
 
   -- [customer admin] post no-registration config
   updateDomainRedirect
@@ -176,7 +176,7 @@ testDomainVerificationRemoveFailure :: (HasCallStack) => App ()
 testDomainVerificationRemoveFailure = do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-  setup <- setupOwnershipToken OwnDomain domain
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
 
   bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
@@ -213,7 +213,7 @@ testDomainVerificationLockedState :: (HasCallStack) => App ()
 testDomainVerificationLockedState = do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
-  setup <- setupOwnershipToken OwnDomain domain
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
   domainRegistrationLock OwnDomain domain >>= assertStatus 204
 
   -- domain redirect cannot be updated
@@ -420,7 +420,7 @@ testOverwriteOwnershipToken = do
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
   -- get an ownership token
-  setup1 <- setupOwnershipToken OwnDomain domain
+  setup1 <- setupOwnershipTokenForBackend OwnDomain domain
   updateDomainRedirect
     OwnDomain
     domain
@@ -429,7 +429,7 @@ testOverwriteOwnershipToken = do
     >>= assertStatus 200
 
   -- get a second ownership token
-  setup2 <- setupOwnershipToken OwnDomain domain
+  setup2 <- setupOwnershipTokenForBackend OwnDomain domain
   updateDomainRedirect
     OwnDomain
     domain
@@ -516,7 +516,7 @@ testGetDomainRegistrationUserExistsBackend = do
   -- create a user with email on this domain
   void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
 
-  setup <- setupOwnershipToken OwnDomain domain
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
   updateDomainRedirect
     OwnDomain
     domain
