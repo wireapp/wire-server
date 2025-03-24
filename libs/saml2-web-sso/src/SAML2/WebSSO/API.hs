@@ -27,6 +27,7 @@ import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive qualified as CI
 import Data.EitherR
+import Data.List qualified as L
 import Data.List.NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
@@ -131,7 +132,23 @@ parseAuthnResponseBody mbSPId base64 = do
       -- from `simpleVerifyAuthnResponse`!
       either (throwError . BadSamlResponseXmlError . cs) pure $
         decode @_ @AuthnResponse (cs xmltxt)
-    issuer <- maybe (throwError BadSamlResponseIssuerMissing) pure (resp ^. rspIssuer)
+    issuer <- do
+      respIssuer :: Issuer <-
+        -- this issuer is not signed!!
+        maybe (throwError BadSamlResponseIssuerMissing) pure (resp ^. rspIssuer)
+      issuerFromAuthnRequest :: Issuer <-
+        -- we have a matching authentication *request* for this response, and we need to pull
+        -- the issuer from that.  anything we just pull from the response can be changed by
+        -- an attacker with access to the idp.
+        _ -- TODO: we first need to store the issuer with the request id.
+      signedIssuers :: NonEmpty Issuer <-
+        -- these are *possibly* signed, but we collect all of them, and if none of them are
+        -- signed, signature validation will fail later.
+        pure (view assIssuer <$> resp ^. rspPayload)
+      -- TODO: explain why it worked before!
+      case L.nub (respIssuer : issuerFromAuthnRequest : toList signedIssuers) of
+        [i] -> pure i
+        _ -> throwError BadSamlResponseIssuerMissing
     idp :: IdPConfig extra <- getIdPConfigByIssuerOptionalSPId issuer mbSPId
     creds <- idpToCreds issuer idp
     (,idp) <$> simpleVerifyAuthnResponse creds xmltxt
