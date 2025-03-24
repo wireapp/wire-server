@@ -4,30 +4,30 @@
 module SAML2.WebSSO.Test.Arbitrary where
 
 import Control.Lens
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Fixed
 import Data.List.NonEmpty as NL
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.String.Conversions
-import qualified Data.Text as ST
+import Data.Text qualified as ST
 import Data.Time
-import qualified Data.UUID as UUID
-import qualified Data.X509 as X509
+import Data.UUID qualified as UUID
+import Data.X509 qualified as X509
 import GHC.Stack
 import GHC.TypeLits
 import Hedgehog
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Gen.QuickCheck as THQ
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Gen.QuickCheck qualified as THQ
+import Hedgehog.Range qualified as Range
 import SAML2.WebSSO
-import qualified SAML2.WebSSO.Types.Email as Email
+import SAML2.WebSSO.Types.Email qualified as Email
 import Servant.Multipart
 import Test.QuickCheck (Arbitrary (arbitrary, shrink))
-import qualified Test.QuickCheck.Hedgehog as TQH
+import Test.QuickCheck.Hedgehog qualified as TQH
 import Test.QuickCheck.Instances ()
 import Text.XML
-import qualified Text.XML.DSig as DSig
+import Text.XML.DSig qualified as DSig
 import URI.ByteString
 import Web.Cookie
 

@@ -7,7 +7,7 @@ module SAML2.WebSSO.Orphans where
 import Control.Monad ((<=<))
 import Data.Aeson
 import Data.String.Conversions
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.X509 as X509
 import SAML2.Util (normURI, parseURI', renderURI)
 import Servant hiding (URI)

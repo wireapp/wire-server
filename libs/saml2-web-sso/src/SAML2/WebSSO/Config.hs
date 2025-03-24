@@ -10,7 +10,7 @@ import Control.Lens hiding (Level, (.=))
 import Control.Monad (when)
 import Data.Aeson
 import Data.String.Conversions
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import GHC.Generics
 import SAML2.WebSSO.Types
 import System.Environment

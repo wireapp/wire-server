@@ -5,13 +5,13 @@ module SAML2.WebSSO.Test.Util.Misc where
 
 import Control.Monad
 import Control.Monad.IO.Class
-import qualified Data.ByteString.Base64.Lazy as EL (encode)
+import Data.ByteString.Base64.Lazy qualified as EL (encode)
 import Data.EitherR
 import Data.Generics.Uniplate.Data
 import Data.List (sort)
 import Data.String
 import Data.String.Conversions
-import qualified Data.Text.Lazy.IO as LT
+import Data.Text.Lazy.IO qualified as LT
 import Data.Typeable
 import Data.UUID as UUID
 import GHC.Stack
