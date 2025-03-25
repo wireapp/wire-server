@@ -231,3 +231,40 @@ testUpdateAddPermissions = do
   void $ withWebSockets [alice, bob, chaz] $ \wss -> do
     updateChannelAddPermission alice conv "admins" >>= assertSuccess
     for_ wss $ \ws -> awaitMatch isChannelAddPermissionUpdate ws
+
+testAddPermissionEveryone :: (HasCallStack) => App ()
+testAddPermissionEveryone = do
+  (alice, tid, bob : chaz : eric : _) <- createTeam OwnDomain 4
+  clients@(aliceClient : bobClient : chazClient : _) <- for [alice, bob, chaz, eric] $ createMLSClient def def
+  for_ clients (uploadNewKeyPackage def)
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "everyone")
+  conv <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def aliceClient convId
+  void $ createAddCommit aliceClient convId [bob] >>= sendAndConsumeCommitBundle
+
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "add_permission" `shouldMatch` "everyone"
+    members <- resp.json %. "members" %. "others" & asList
+    for members (\m -> m %. "id") `shouldMatchSet` (for [bob] (\m -> m %. "id"))
+    for_ members $ \m -> do
+      m %. "conversation_role" `shouldMatch` "wire_member"
+
+  assertNonAdminCanAdd convId bobClient (chaz, chazClient)
+  updateChannelAddPermission alice conv "admins" >>= assertSuccess
+  assertNonAdminCantAdd convId bobClient eric
+  where
+    assertNonAdminCanAdd :: (HasCallStack) => ConvId -> ClientIdentity -> (Value, ClientIdentity) -> App ()
+    assertNonAdminCanAdd convId userClient (userToAdd, userToAddClient) = do
+      void $ createAddCommit userClient convId [userToAdd] >>= sendAndConsumeCommitBundle
+      mlsState <- getMLSState
+      modifyMLSState (const mlsState)
+      -- they cant remove, though
+      createRemoveCommit userClient convId [userToAddClient] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
+      modifyMLSState (const mlsState)
+
+    assertNonAdminCantAdd :: (HasCallStack) => ConvId -> ClientIdentity -> Value -> App ()
+    assertNonAdminCantAdd convId userClient userToAdd = do
+      createAddCommit userClient convId [userToAdd] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403

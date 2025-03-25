@@ -102,6 +102,7 @@ import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
 import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation qualified as AddPermission
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -848,7 +849,9 @@ ensureConversationActionAllowed ::
   Sem r ()
 ensureConversationActionAllowed tag loc action conv self = do
   -- general action check
-  ensureActionAllowed (sConversationActionPermission tag) self
+  case (tag, conv.convMetadata.cnvmChannelAddPermission) of
+    (SConversationJoinTag, Just AddPermission.Everyone) -> pure ()
+    _ -> ensureActionAllowed (sConversationActionPermission tag) self
 
   -- check if it is a group conversation (except for rename actions)
   when (fromSing tag /= ConversationRenameTag) $
