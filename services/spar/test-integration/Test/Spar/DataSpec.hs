@@ -25,9 +25,7 @@ where
 
 import Cassandra
 import Control.Lens
-import Data.Kind (Type)
 import Imports
-import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Error (IdpDbError (IdpNotFound), SparCustomError (IdpDbError))
@@ -82,10 +80,54 @@ spec = do
       p3 <- probe
       liftIO $ p3 `shouldBe` False -- 1.5 lifetimes after birth
   describe "cql binding" $ do
-    describe "AuthnRequest" $ do
-      testSPStoreID AReqIDStore.store AReqIDStore.unStore AReqIDStore.isAlive
-    describe "Assertion" $ do
-      testSPStoreID AssIDStore.store AssIDStore.unStore AssIDStore.isAlive
+    describe "SPStoreRequest" $ do
+      context "within TTL" $ do
+        it "isAliveID is True" $ do
+          xid :: SAML.ID a <- nextSAMLID
+          eol :: Time <- addTime 5 <$> runSimpleSP getNow
+          () <- runSpar $ AReqIDStore.store xid undefined eol
+          isit <- runSpar $ AReqIDStore.isAlive xid
+          liftIO $ isit `shouldBe` True
+      context "after TTL" $ do
+        it "isAliveID returns False" $ do
+          xid :: SAML.ID a <- nextSAMLID
+          eol :: Time <- addTime 2 <$> runSimpleSP getNow
+          () <- runSpar $ AReqIDStore.store xid undefined eol
+          liftIO $ threadDelay 3000000
+          isit <- runSpar $ AReqIDStore.isAlive xid
+          liftIO $ isit `shouldBe` False
+      context "after call to unstore" $ do
+        it "isAliveID returns False" $ do
+          xid :: SAML.ID a <- nextSAMLID
+          eol :: Time <- addTime 5 <$> runSimpleSP getNow
+          () <- runSpar $ AReqIDStore.store xid undefined eol
+          () <- runSpar $ AReqIDStore.unStore xid
+          isit <- runSpar $ AReqIDStore.isAlive xid
+          liftIO $ isit `shouldBe` False
+    describe "SPStoreAssertion" $ do
+      context "within TTL" $ do
+        it "isAlive is True" $ do
+          xid :: SAML.ID a <- nextSAMLID
+          eol :: Time <- addTime 5 <$> runSimpleSP getNow
+          () <- runSpar $ AssIDStore.store xid eol
+          isit <- runSpar $ AssIDStore.isAlive xid
+          liftIO $ isit `shouldBe` True
+      context "after TTL" $ do
+        it "isAlive returns False" $ do
+          xid :: SAML.ID a <- nextSAMLID
+          eol :: Time <- addTime 2 <$> runSimpleSP getNow
+          () <- runSpar $ AssIDStore.store xid eol
+          liftIO $ threadDelay 3000000
+          isit <- runSpar $ AssIDStore.isAlive xid
+          liftIO $ isit `shouldBe` False
+      context "after call to unstore" $ do
+        it "isAlive returns False" $ do
+          xid :: SAML.ID a <- nextSAMLID
+          eol :: Time <- addTime 5 <$> runSimpleSP getNow
+          () <- runSpar $ AssIDStore.store xid eol
+          () <- runSpar $ AssIDStore.unStore xid
+          isit <- runSpar $ AssIDStore.isAlive xid
+          liftIO $ isit `shouldBe` False
     describe "VerdictFormat" $ do
       context "insert and get are \"inverses\"" $ do
         let check vf = it (show vf) $ do
@@ -183,41 +225,6 @@ spec = do
         do
           idps <- runSpar $ IdPEffect.getConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
-
--- TODO(sandy): This function should be more polymorphic over it's polysemy
--- constraints than using 'RealInterpretation' in full anger.
-testSPStoreID ::
-  forall (a :: Type).
-  (Typeable a) =>
-  (SAML.ID a -> SAML.Time -> Sem CanonicalEffs ()) ->
-  (SAML.ID a -> Sem CanonicalEffs ()) ->
-  (SAML.ID a -> Sem CanonicalEffs Bool) ->
-  SpecWith TestEnv
-testSPStoreID store unstore isalive = do
-  describe ("SPStoreID @" <> show (typeRep @a)) $ do
-    context "within TTL" $ do
-      it "isAliveID is True" $ do
-        xid :: SAML.ID a <- nextSAMLID
-        eol :: Time <- addTime 5 <$> runSimpleSP getNow
-        () <- runSpar $ store xid eol
-        isit <- runSpar $ isalive xid
-        liftIO $ isit `shouldBe` True
-    context "after TTL" $ do
-      it "isAliveID returns False" $ do
-        xid :: SAML.ID a <- nextSAMLID
-        eol :: Time <- addTime 2 <$> runSimpleSP getNow
-        () <- runSpar $ store xid eol
-        liftIO $ threadDelay 3000000
-        isit <- runSpar $ isalive xid
-        liftIO $ isit `shouldBe` False
-    context "after call to unstore" $ do
-      it "isAliveID returns False" $ do
-        xid :: SAML.ID a <- nextSAMLID
-        eol :: Time <- addTime 5 <$> runSimpleSP getNow
-        () <- runSpar $ store xid eol
-        () <- runSpar $ unstore xid
-        isit <- runSpar $ isalive xid
-        liftIO $ isit `shouldBe` False
 
 -- | Test that when a team is deleted, all relevant data is pruned from the
 -- Spar database.
