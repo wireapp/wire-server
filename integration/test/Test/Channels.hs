@@ -166,6 +166,7 @@ testTeamAdminPermissions = do
       postConversationCode user conv Nothing Nothing >>= assertSuccess
       getConversationCode user conv Nothing >>= assertSuccess
       deleteConversationCode user conv >>= assertSuccess
+      updateChannelAddPermission user conv "everyone" >>= assertSuccess
       bindResponse (getConversation user conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "name" `shouldMatch` newName
@@ -173,6 +174,9 @@ testTeamAdminPermissions = do
         resp.json %. "message_timer" `shouldMatchInt` 1000
         asList (resp.json %. "access_role") `shouldMatchSet` ["team_member", "guest"]
         resp.json %. "members.self.otr_archived" `shouldMatch` True
+        resp.json %. "add_permission" `shouldMatch` "everyone"
+      -- we need to reset the add permission to admins for the next assertions to be meaningful
+      updateChannelAddPermission user conv "admins" >>= assertSuccess
       void $ createAddCommit userClient convId [userToAdd] >>= sendAndConsumeCommitBundle
       void $ createRemoveCommit userClient convId [userToAddClient] >>= sendAndConsumeCommitBundle
 

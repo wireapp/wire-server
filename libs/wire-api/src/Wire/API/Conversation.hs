@@ -1064,9 +1064,9 @@ instance ToSchema AddPermissionUpdate where
   schema =
     objectWithDocModifier
       "AddPermissionUpdate"
-      (description ?~ "The action of changing the permission to add members to a conversation")
+      (description ?~ "The action of changing the permission to add members to a channel")
       $ AddPermissionUpdate
-        <$> addPermission .= field "permission" schema
+        <$> addPermission .= field "add_permission" schema
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

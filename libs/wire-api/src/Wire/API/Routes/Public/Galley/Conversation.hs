@@ -1341,7 +1341,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
-               :> "message-timer"
+               :> "add-permission"
                :> ReqBody '[JSON] AddPermissionUpdate
                :> MultiVerb
                     'PUT
