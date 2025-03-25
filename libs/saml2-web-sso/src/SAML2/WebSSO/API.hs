@@ -36,6 +36,8 @@ import Data.String.Conversions
 import Data.Text qualified as ST
 import Data.Text.Lazy qualified as LT
 import Data.Time
+-- TODO: Remove this trace
+import Debug.Trace
 import GHC.Generics
 import SAML2.Util
 import SAML2.WebSSO.Config
@@ -102,7 +104,7 @@ defResponseURI = getSsoURI (Proxy @API) (Proxy @APIAuthResp')
 data AuthnResponseBody = AuthnResponseBody
   { authnResponseBodyAction ::
       forall m err spid extra.
-      (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
+      (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
       Maybe spid ->
       m (NonEmpty Assertion, IdPConfig extra),
     authnResponseBodyRaw :: MultipartData Mem -- TODO: this is only for error logging.  we should remove it and log something else, that's safer!
@@ -114,7 +116,7 @@ renderAuthnResponseBody = EL.encode . cs . encode
 -- | Implies verification, hence the constraints and the optional service provider ID (needed for IdP lookup).
 parseAuthnResponseBody ::
   forall m err spid extra.
-  (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
+  (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
   Maybe spid ->
   ST ->
   m (NonEmpty Assertion, IdPConfig extra)
@@ -137,11 +139,9 @@ parseAuthnResponseBody mbSPId base64 = do
         -- this issuer is not signed!!
         maybe (throwError BadSamlResponseIssuerMissing) pure (resp ^. rspIssuer)
       {-
-            issuerFromAuthnRequest :: Issuer <-
               -- we have a matching authentication *request* for this response, and we need to pull
               -- the issuer from that.  anything we just pull from the response can be changed by
               -- an attacker with access to the idp.
-              _ -- TODO: we first need to store the issuer with the request id.
       -}
       signedIssuers :: NonEmpty Issuer <-
         -- these are *possibly* signed, but we collect all of them, and if none of them are
@@ -150,6 +150,17 @@ parseAuthnResponseBody mbSPId base64 = do
       case L.nub (respIssuer : {- issuerFromAuthnRequest : -} toList signedIssuers) of
         [i] -> pure i
         _ -> throwError BadSamlResponseIssuerMissing
+    -- TODO: Better error type?
+    reqId :: ID AuthnRequest <- maybe (throwError $ Forbidden "Authentication flow was not initiated by Wire.") pure (resp ^. rspInRespTo)
+    mbStoredReq :: Maybe (Issuer, Time) <- getRequest reqId
+    storedIssuer <- case mbStoredReq of
+      Nothing -> throwError $ Forbidden "Authentication flow was not initiated by Wire."
+      Just (iss, _) -> pure iss
+    traceM $ "XXX issuer " ++ show issuer ++ " storedIssuer " ++ show storedIssuer
+    unless (issuer == storedIssuer) $
+      -- TODO: Create more specific error
+      throwError BadSamlResponseIssuerMissing
+
     idp :: IdPConfig extra <-
       -- this is convoluted, but secure against signatures from rogue idps: this idp config is
       -- (a) is signed by the given in the authentiation response issuer, and
@@ -168,7 +179,7 @@ instance FromMultipart Mem AuthnResponseBody where
     where
       eval ::
         forall m err spid extra.
-        (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
+        (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
         Maybe spid ->
         m (NonEmpty Assertion, IdPConfig extra)
       eval mbSPId = do

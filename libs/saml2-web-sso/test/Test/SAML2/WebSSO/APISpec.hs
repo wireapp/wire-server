@@ -236,7 +236,8 @@ spec = describe "API" $ do
       it "responds with 403" . runtest $ \ctx -> do
         postTestAuthnResp ctx False True
           `shouldRespondWith` 403 {matchBody = bodyContains "IssueInstant"}
-    context "known idp, good timestamp" . testAuthRespApp mkTestCtxWithIdP $ do
+    -- TODO: Don't forget to un-focus
+    focus . context "known idp, good timestamp" . testAuthRespApp mkTestCtxWithIdP $ do
       it "responds with 303" . runtest $ \ctx -> do
         postTestAuthnResp ctx False False
           `shouldRespondWith` 303 {matchBody = bodyContains "<body><p>SSO successful, redirecting to"}
@@ -256,7 +257,7 @@ spec = describe "API" $ do
         ( \reqId _issuer timestamp ->
             Map.singleton reqId ((Issuer [uri|https://anything.example/|]), 10 `addTime` timestamp)
         )
-        (\resp -> (statusCode . simpleStatus) resp `shouldBe` 303)
+        (\resp -> (statusCode . simpleStatus) resp `shouldBe` 403)
 
   describe "mkAuthnResponse (this is testing the test helpers)" $ do
     it "Produces output that decodes into 'AuthnResponse'" $ do
