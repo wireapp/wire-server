@@ -532,6 +532,9 @@ nginx_conf:
     - path: /conversations/([^/]*)/([^/]*)/protocol
       envs:
       - all
+    - path: /conversations/([^/]*)/([^/]*)/add-permission
+      envs:
+      - all
     - path: /broadcast
       envs:
       - all
