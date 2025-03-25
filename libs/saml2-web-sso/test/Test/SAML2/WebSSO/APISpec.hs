@@ -15,9 +15,11 @@ import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.Either
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Map qualified as Map
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
 import Data.Yaml qualified as Yaml
+import Network.HTTP.Types
 import Network.Wai.Test
 import SAML2.Util
 import SAML2.WebSSO
@@ -91,39 +93,6 @@ spec = describe "API" $ do
           Right (SomeSAMLRequest -> doc) = XML.parseText XML.def have
           spuri = [uri|https://ServiceProvider.com/SAML/SLO/Browser/%%|]
       Right want `shouldBe` (fmapL show . parseText def . cs $ mimeRender (Proxy @HTML) (FormRedirect spuri doc))
-  describe "parseAuthnResponseBody" $ do
-    it "does the happy flow" $ do
-      resp :: ST <- cs <$> readSampleIO "microsoft-authnresponse-2.xml"
-      idpcfg :: (IdPConfig_, SampleIdP) <- liftIO makeTestIdPConfig
-
-      let issuer = "https://sts.windows.net/682febe8-021b-4fde-ac09-e60085f05181/"
-          reqId = "idcf2299ac551b42f1aa9b88804ed308c2"
-          mbspid = Nothing
-
-      let       run :: TestSP a -> IO a
-                run action = do
-                  ctx :: CtxV <- mkTestCtxSimple
-                  modifyMVar_ ctx (pure . (ctxIdPs .~ [idpcfg]))
-                  ioFromTestSP ctx action
-
-                go :: TestSP (NonEmpty Assertion, IdPConfig_)
-                go = do
-                  parseAuthnResponseBody mbspid resp
-
-      result <- run go
-      () <- error $ "***********" <> show result -- this isn't reached.
-
-      False `shouldBe` True
-
-    it "fails if response issuer does not match the recorded response issuer in the associated auth req" $ do
-      False `shouldBe` True
-  {-
-    forall m err spid extra.
-    (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
-    Maybe spid ->
-    ST ->
-    m (NonEmpty Assertion, IdPConfig extra)
-  -}
 
   describe "simpleVerifyAuthnResponse" $ do
     let check :: Bool -> Maybe Bool -> Bool -> Spec
@@ -246,25 +215,24 @@ spec = describe "API" $ do
       it "responds with 303" . runtest $ \ctx -> do
         postTestAuthnResp ctx False False
           `shouldRespondWith` 303 {matchBody = bodyContains "<body><p>SSO successful, redirecting to"}
-    context ""  . testAuthRespApp mkTestCtxWithIdP $ do
-     focus . it "known idp, good timestamp, idp issuer stored with authn req on sp doesn't match the one in resp" . runtest $ \ctxv -> do
-          -- we inline `postTestAuthnResp` here to avoid making it more branchy.
-          aresp :: Document <- liftIO . ioFromTestSP ctxv $ do
-            (testIdPConfig, SampleIdP _ privkey _ _) <- liftIO makeTestIdPConfig
-            spmeta :: SPMetadata <- mkTestSPMetadata
-            authnreq :: AuthnRequest <- createAuthnRequest 3600 defSPIssuer
-            fromSignedAuthnResponse <$> mkAuthnResponse privkey testIdPConfig spmeta authnreq True
+      it "responds with 303 if authnrequest is stored in SP" . runtest $ \ctxv -> do
+        -- we inline `postTestAuthnResp` here to avoid making it more branchy.
+        (aresp, authnreq, (idpConfig, sampleIdP), timestamp) <- liftIO . ioFromTestSP ctxv $ do
+          idpEntry@(testIdPConfig, SampleIdP _ privkey _ _) <- liftIO makeTestIdPConfig
+          spmeta :: SPMetadata <- mkTestSPMetadata
+          authnreq :: AuthnRequest <- createAuthnRequest 3600 defSPIssuer
+          aresp <- fromSignedAuthnResponse <$> mkAuthnResponse privkey testIdPConfig spmeta authnreq True
+          timestamp <- getNow
+          pure (aresp, authnreq, idpEntry, timestamp)
 
-          let hack :: Ctx -> Ctx
-              hack = undefined -- ctxRequestStore
-          -- liftIO $ modifyMVar_ ctxv $ pure . hack
-
-          resp <- postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
-          () <- error $ show resp
-          liftIO $ False `shouldBe` True
-
-
-
+        let iss = idpConfig ^. idpMetadata . edIssuer
+            loadCtx :: Ctx -> Ctx
+            loadCtx =
+              (ctxIdPs .~ [(idpConfig, sampleIdP)])
+                . (ctxRequestStore .~ Map.singleton (authnreq ^. rqID) (iss, 10 `addTime` timestamp))
+        liftIO $ modifyMVar_ ctxv $ pure . loadCtx
+        resp <- postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
+        liftIO $ (statusCode . simpleStatus) resp `shouldBe` 303
 
   describe "mkAuthnResponse (this is testing the test helpers)" $ do
     it "Produces output that decodes into 'AuthnResponse'" $ do
