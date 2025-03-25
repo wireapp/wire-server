@@ -24,6 +24,7 @@ import API.Galley
 import API.GalleyInternal hiding (setTeamFeatureConfig)
 import GHC.Stack
 import MLS.Util
+import Notifications (isChannelAddPermissionUpdate)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -209,3 +210,24 @@ testTeamAdminPermissions = do
       modifyMLSState (const mlsState)
       createRemoveCommit userClient convId [userToUpdate] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
       modifyMLSState (const mlsState)
+
+testUpdateAddPermissions :: (HasCallStack) => App ()
+testUpdateAddPermissions = do
+  (alice, tid, bob : chaz : _) <- createTeam OwnDomain 3
+  clients@(aliceClient : _) <- for [alice, bob, chaz] $ createMLSClient def def
+  for_ clients (uploadNewKeyPackage def)
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "everyone")
+
+  conv <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def aliceClient convId
+
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "add_permission" `shouldMatch` "everyone"
+
+  void $ createAddCommit aliceClient convId [bob, chaz] >>= sendAndConsumeCommitBundle
+  void $ withWebSockets [alice, bob, chaz] $ \wss -> do
+    updateChannelAddPermission alice conv "admins" >>= assertSuccess
+    for_ wss $ \ws -> awaitMatch isChannelAddPermissionUpdate ws

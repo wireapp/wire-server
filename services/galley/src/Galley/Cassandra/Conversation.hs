@@ -144,6 +144,7 @@ createConversation lcnv nc = do
         baseProtocolToProtocol (ncProtocol nc),
         mgid,
         meta.cnvmGroupConvType,
+        meta.cnvmChannelAddPermission,
         meta.cnvmCellsState
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)

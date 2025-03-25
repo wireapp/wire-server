@@ -685,11 +685,11 @@ newRegularConversation lusr newConv = do
                   cnvmReceiptMode = newConvReceiptMode newConv,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
                   cnvmGroupConvType = Just newConv.newConvGroupConvType,
+                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then Just AddPermission.Everyone else Nothing,
                   cnvmCellsState =
                     if newConv.newConvCells
                       then CellsPending
-                      else CellsDisabled,
-                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then Just AddPermission.Admins else Nothing
+                      else CellsDisabled
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv
