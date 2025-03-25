@@ -23,6 +23,7 @@ import Network.HTTP.Types
 import Network.Wai.Test
 import SAML2.Util
 import SAML2.WebSSO
+import SAML2.WebSSO.API.Example (RequestStore)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
 import Servant
@@ -203,6 +204,30 @@ spec = describe "API" $ do
             (Proxy @APIAuthResp')
             (authresp' Nothing defSPIssuer defResponseURI (HandleVerdictRedirect (simpleOnSuccess SubjectFoldCase)))
 
+    let testAuthnRespWithCtx ::
+          String ->
+          (ID AuthnRequest -> Issuer -> Time -> RequestStore) ->
+          (SResponse -> Expectation) ->
+          SpecWith (CtxV, Application)
+        testAuthnRespWithCtx name createRequestStore expectation =
+          it name . runtest $ \ctxv -> do
+            -- we inline `postTestAuthnResp` here to avoid making it more branchy.
+            (aresp, authnreq, (idpConfig, sampleIdP), timestamp) <- liftIO . ioFromTestSP ctxv $ do
+              idpEntry@(testIdPConfig, SampleIdP _ privkey _ _) <- liftIO makeTestIdPConfig
+              spmeta :: SPMetadata <- mkTestSPMetadata
+              authnreq :: AuthnRequest <- createAuthnRequest 3600 defSPIssuer
+              aresp <- fromSignedAuthnResponse <$> mkAuthnResponse privkey testIdPConfig spmeta authnreq True
+              timestamp <- getNow
+              pure (aresp, authnreq, idpEntry, timestamp)
+
+            let iss = idpConfig ^. idpMetadata . edIssuer
+                loadCtx :: Ctx -> Ctx
+                loadCtx =
+                  (ctxIdPs .~ [(idpConfig, sampleIdP)])
+                    . (ctxRequestStore .~ createRequestStore (authnreq ^. rqID) iss timestamp)
+            liftIO $ modifyMVar_ ctxv $ pure . loadCtx
+            resp <- postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
+            liftIO $ expectation resp
     context "unknown idp" . testAuthRespApp mkTestCtxSimple $ do
       it "responds with 404" . runtest $ \ctx -> do
         postTestAuthnResp ctx True False
@@ -215,24 +240,23 @@ spec = describe "API" $ do
       it "responds with 303" . runtest $ \ctx -> do
         postTestAuthnResp ctx False False
           `shouldRespondWith` 303 {matchBody = bodyContains "<body><p>SSO successful, redirecting to"}
-      it "responds with 303 if authnrequest is stored in SP" . runtest $ \ctxv -> do
-        -- we inline `postTestAuthnResp` here to avoid making it more branchy.
-        (aresp, authnreq, (idpConfig, sampleIdP), timestamp) <- liftIO . ioFromTestSP ctxv $ do
-          idpEntry@(testIdPConfig, SampleIdP _ privkey _ _) <- liftIO makeTestIdPConfig
-          spmeta :: SPMetadata <- mkTestSPMetadata
-          authnreq :: AuthnRequest <- createAuthnRequest 3600 defSPIssuer
-          aresp <- fromSignedAuthnResponse <$> mkAuthnResponse privkey testIdPConfig spmeta authnreq True
-          timestamp <- getNow
-          pure (aresp, authnreq, idpEntry, timestamp)
 
-        let iss = idpConfig ^. idpMetadata . edIssuer
-            loadCtx :: Ctx -> Ctx
-            loadCtx =
-              (ctxIdPs .~ [(idpConfig, sampleIdP)])
-                . (ctxRequestStore .~ Map.singleton (authnreq ^. rqID) (iss, 10 `addTime` timestamp))
-        liftIO $ modifyMVar_ ctxv $ pure . loadCtx
-        resp <- postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
-        liftIO $ (statusCode . simpleStatus) resp `shouldBe` 303
+      testAuthnRespWithCtx
+        "responds with 303 if authnrequest is stored in SP"
+        (\reqId issuer timestamp -> Map.singleton reqId (issuer, 10 `addTime` timestamp))
+        (\resp -> (statusCode . simpleStatus) resp `shouldBe` 303)
+
+      testAuthnRespWithCtx
+        "no authn req matching response is stored on sp"
+        (\_reqId _issuer _timestamp -> Map.empty)
+        (\resp -> (statusCode . simpleStatus) resp `shouldBe` 403)
+
+      testAuthnRespWithCtx
+        "idp issuer stored with authn req on sp doesn't match the one in resp"
+        ( \reqId _issuer timestamp ->
+            Map.singleton reqId ((Issuer [uri|https://anything.example/|]), 10 `addTime` timestamp)
+        )
+        (\resp -> (statusCode . simpleStatus) resp `shouldBe` 303)
 
   describe "mkAuthnResponse (this is testing the test helpers)" $ do
     it "Produces output that decodes into 'AuthnResponse'" $ do
