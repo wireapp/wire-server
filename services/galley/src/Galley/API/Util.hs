@@ -782,7 +782,8 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
       protocol = convProtocol,
-      groupConvType = cnvmGroupConvType
+      groupConvType = cnvmGroupConvType,
+      channelAddPermission = cnvmChannelAddPermission
     }
 
 -- | The function converts a 'ConversationCreated' value to a

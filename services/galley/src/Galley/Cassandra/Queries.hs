@@ -235,7 +235,7 @@ type ConvRow =
   )
 
 selectConv :: PrepQuery R (Identity ConvId) ConvRow
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, cells_state from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, channel_add_permission, cells_state  from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
@@ -312,6 +312,9 @@ selectGroupInfo = "select public_group_state from conversation where conv = ?"
 
 updateGroupInfo :: PrepQuery W (GroupInfoData, ConvId) ()
 updateGroupInfo = "update conversation set public_group_state = ? where conv = ?"
+
+updateChannelAddPermission :: PrepQuery W (AddPermission, ConvId) ()
+updateChannelAddPermission = "update conversation set channel_add_permission = ? where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 

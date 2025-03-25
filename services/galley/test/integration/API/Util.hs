@@ -1567,7 +1567,8 @@ registerRemoteConv convId originUser name othMembers = do
           messageTimer = Nothing,
           receiptMode = Nothing,
           protocol = ProtocolProteus,
-          groupConvType = Nothing
+          groupConvType = Nothing,
+          channelAddPermission = Nothing
         }
 
 -------------------------------------------------------------------------------

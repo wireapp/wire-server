@@ -1336,6 +1336,7 @@ type ConversationAPI =
                :> CanThrow 'NotConnected
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
+               :> CanThrow 'InvalidTargetAccess
                :> ZLocalUser
                :> ZConn
                :> "conversations"

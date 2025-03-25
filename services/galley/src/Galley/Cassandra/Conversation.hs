@@ -418,6 +418,9 @@ updateToMLSProtocol lcnv =
   embedClient . retry x5 $
     write Cql.updateToMLSConv (params LocalQuorum (tUnqualified lcnv, ProtocolMLSTag))
 
+updateChannelAddPermissions :: ConvId -> AddPermission -> Client ()
+updateChannelAddPermissions cid cap = retry x5 $ write Cql.updateChannelAddPermission (params LocalQuorum (cap, cid))
+
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
@@ -501,3 +504,6 @@ interpretConversationStoreToCassandra = interpret $ \case
   UpdateToMLSProtocol cid -> do
     logEffect "ConversationStore.UpdateToMLSProtocol"
     updateToMLSProtocol cid
+  UpdateChannelAddPermissions cid cap -> do
+    logEffect "ConversationStore.UpdateChannelAddPermissions"
+    embedClient $ updateChannelAddPermissions cid cap

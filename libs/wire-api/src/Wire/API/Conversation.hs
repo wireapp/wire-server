@@ -1054,7 +1054,7 @@ instance ToSchema AddPermission where
         ]
 
 newtype AddPermissionUpdate = AddPermissionUpdate
-  { apuPermission :: AddPermission
+  { addPermission :: AddPermission
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AddPermissionUpdate)
@@ -1066,7 +1066,7 @@ instance ToSchema AddPermissionUpdate where
       "AddPermissionUpdate"
       (description ?~ "The action of changing the permission to add members to a conversation")
       $ AddPermissionUpdate
-        <$> apuPermission .= field "permission" schema
+        <$> addPermission .= field "permission" schema
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

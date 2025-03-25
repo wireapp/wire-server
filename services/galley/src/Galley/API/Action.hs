@@ -261,7 +261,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member TinyLog r
     )
   HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
-    (
+    ( Member (Error NoChanges) r,
+      Member ConversationStore r,
+      Member (ErrorS 'InvalidTargetAccess) r
     )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
@@ -336,7 +338,8 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'ConvNotFound,
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
-       ErrorS 'TeamNotFound
+       ErrorS 'TeamNotFound,
+       ErrorS 'InvalidTargetAccess
      ]
 
 enforceFederationProtocol ::
@@ -432,6 +435,8 @@ ensureAllowed tag loc action conv origUser = do
           -- not a team conv, so one of the other access roles has to allow this.
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
             throwS @'InvalidTargetAccess
+    SConversationUpdateAddPermissionTag -> do
+      unless (conv.convMetadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
     _ -> pure ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
@@ -530,7 +535,9 @@ performAction tag origUser lconv action = do
           noChanges
         (_, _, _) -> throwS @'ConvInvalidProtocolTransition
     SConversationUpdateAddPermissionTag -> do
-      todo
+      when (conv.convMetadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
+      E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
+      pure (mempty, action)
 
 performConversationJoin ::
   forall r.

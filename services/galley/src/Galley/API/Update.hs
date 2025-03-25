@@ -775,7 +775,8 @@ updateChannelAddPermission ::
     Member (Error UnreachableBackends) r,
     Member BrigAccess r,
     Member FederatorAccess r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (ErrorS 'InvalidTargetAccess) r
   ) =>
   Local UserId ->
   ConnId ->
