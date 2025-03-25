@@ -19,7 +19,7 @@ data:
   nginx.conf: |2
     {{- include "nginz_nginx.conf" . | indent 4 }}
   upstreams.txt: "{{- include "nginz_upstreams.txt" . | trim }}"
-  
+
 {{ (.Files.Glob "static/conf/*").AsConfig | indent 2 }}
 ---
 apiVersion: v1
@@ -28,7 +28,10 @@ metadata:
   name: nginz-deeplink
 data:
   {{- if and (hasKey .Values.nginx_conf "deeplink") (hasKey .Values.nginx_conf "external_env_domain") }}
-  deeplink.json: |
+  {{- $backendURL := .Values.nginx_conf.deeplink.endpoints.backendURL }}
+  {{- $deeplink_json := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplink_html := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
+  {{ $deeplink_json }}: |
     {{- $deeplink := dict
       "endpoints" (dict
         "backendURL" .Values.nginx_conf.deeplink.endpoints.backendURL
@@ -48,7 +51,7 @@ data:
     ) }}
     {{- end }}
     {{ toJson $deeplink | indent 4 }}
-  deeplink.html: |
+  {{ $deeplink_html }}: |
     <html>
       <head></head>
       <body>
@@ -60,8 +63,9 @@ data:
   {{- if (hasKey $nginx_conf "additional_external_env_domains") }}
     {{- range $domain, $config := $nginx_conf.multi_ingress_deeplink }}
       {{- if (has $domain $nginx_conf.additional_external_env_domains) }}
-  {{- $deeplink_json := printf "%s-deeplink.json" $domain }}
-  {{- $deeplink_html := printf "%s-deeplink.html" $domain }}
+        {{- $backendURL := $config.endpoints.backendURL }}
+  {{- $deeplink_json := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplink_html := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
   {{ $deeplink_json }}: |
     {{- $deeplink := dict
       "endpoints" (dict
