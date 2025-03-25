@@ -128,7 +128,7 @@ parseAuthnResponseBody mbSPId base64 = do
 
   (signedAssertions, idp) <- do
     resp <-
-      -- do not use this as a result of `parseAuthnResponseBody`!  only use what comes back
+      -- do not use `resp` as a result of `parseAuthnResponseBody`!  only use what comes back
       -- from `simpleVerifyAuthnResponse`!
       either (throwError . BadSamlResponseXmlError . cs) pure $
         decode @_ @AuthnResponse (cs xmltxt)
