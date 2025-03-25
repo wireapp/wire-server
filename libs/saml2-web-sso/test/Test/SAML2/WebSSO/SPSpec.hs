@@ -116,7 +116,7 @@ specJudgeT = do
               pure $
                 ctx
                   & ctxNow .~ timeIn10seconds
-                  & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
+                  & ctxRequestStore .~ Map.singleton reqid (undefined, timeIn10minutes)
                   & updctx
             (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) jctx)
         denies :: (HasCallStack) => (Ctx -> Ctx) -> AuthnResponse -> Spec
@@ -127,7 +127,7 @@ specJudgeT = do
               pure $
                 ctx
                   & ctxNow .~ timeIn10seconds
-                  & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
+                  & ctxRequestStore .~ Map.singleton reqid (undefined, timeIn10minutes)
                   & updctx
             (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) jctx)
         jctx :: JudgeCtx
