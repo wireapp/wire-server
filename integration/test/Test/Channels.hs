@@ -268,3 +268,43 @@ testAddPermissionEveryone = do
     assertNonAdminCantAdd :: (HasCallStack) => ConvId -> ClientIdentity -> Value -> App ()
     assertNonAdminCantAdd convId userClient userToAdd = do
       createAddCommit userClient convId [userToAdd] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
+
+testFederatedChannel :: (HasCallStack) => App ()
+testFederatedChannel = do
+  (alice, teamAlice, anton : _) <- createTeam OwnDomain 2
+  (bärbel, _, bob : _) <- createTeam OtherDomain 2
+  connectTwoUsers alice bärbel
+  connectTwoUsers alice bob
+  clients@(aliceClient : _ : bärbelClient : _) <- for [alice, anton, bärbel, bob] $ createMLSClient def def
+  for_ clients (uploadNewKeyPackage def)
+
+  setTeamFeatureLockStatus alice teamAlice "channels" "unlocked"
+  void $ setTeamFeatureConfig alice teamAlice "channels" (config "everyone")
+  conv <- postConversation alice defMLS {groupConvType = Just "channel", team = Just teamAlice} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def aliceClient convId
+  void $ createAddCommit aliceClient convId [anton, bärbel] >>= sendAndConsumeCommitBundle
+
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "add_permission" `shouldMatch` "everyone"
+    members <- resp.json %. "members" %. "others" & asList
+    for members (\m -> m %. "id") `shouldMatchSet` (for [anton, bärbel] (\m -> m %. "id"))
+    for_ members $ \m -> do
+      m %. "conversation_role" `shouldMatch` "wire_member"
+
+  -- remote user gets the event
+  void $ withWebSockets [bärbel] $ \wss -> do
+    updateChannelAddPermission alice conv "admins" >>= assertSuccess
+    for_ wss $ \ws -> awaitMatch isChannelAddPermissionUpdate ws
+
+  -- even when the remote member is promoted to a conversation admin they can cant add other members, because this is not implemented yet
+  updateConversationMember alice conv bärbel "wire_admin" >>= assertSuccess
+  assertAddFails convId bärbelClient bob
+  where
+    assertAddFails :: (HasCallStack) => ConvId -> ClientIdentity -> Value -> App ()
+    assertAddFails convId userClient userToAdd = do
+      mp <- createAddCommit userClient convId [userToAdd]
+      postMLSCommitBundle userClient (mkBundle mp) `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 500
+        resp.json %. "label" `shouldMatch` "federation-not-implemented"
