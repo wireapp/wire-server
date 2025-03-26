@@ -18,8 +18,6 @@ import Data.Time
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.Void (Void)
--- TODO: Remove this trace
-import Debug.Trace
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIsAliveID', simpleIsAliveRequest', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
 import SAML2.WebSSO.Test.Util.Types
@@ -124,7 +122,6 @@ simpleGetRequest ::
 simpleGetRequest sel item = do
   store <- ask
   items <- liftIO $ readMVar store
-  traceM $ "XXX simpleGetRequest items " ++ show (items ^. sel) ++ "\n item " ++ show item
   pure $ Map.lookup item (items ^. sel)
 
 instance SPStoreRequest AuthnRequest TestSP where

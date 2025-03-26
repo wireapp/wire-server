@@ -36,8 +36,6 @@ import Data.String.Conversions
 import Data.Text qualified as ST
 import Data.Text.Lazy qualified as LT
 import Data.Time
--- TODO: Remove this trace
-import Debug.Trace
 import GHC.Generics
 import SAML2.Util
 import SAML2.WebSSO.Config
@@ -136,30 +134,23 @@ parseAuthnResponseBody mbSPId base64 = do
         decode @_ @AuthnResponse (cs xmltxt)
     issuer <- do
       respIssuer :: Issuer <-
-        -- this issuer is not signed!!
+        -- this issuer is not signed!!  but we'll check it anyway, just for good measure and
+        -- because the standard says so.
         maybe (throwError BadSamlResponseIssuerMissing) pure (resp ^. rspIssuer)
-      {-
-              -- we have a matching authentication *request* for this response, and we need to pull
-              -- the issuer from that.  anything we just pull from the response can be changed by
-              -- an attacker with access to the idp.
-      -}
+      issuerFromAuthnRequest :: Issuer <- do
+        -- we have a matching authentication *request* for this response, and we need to pull
+        -- the issuer from that.  anything we just pull from the response can be changed by
+        -- an attacker with access to the idp.
+        let err = throwError $ Forbidden "Authentication flow was not initiated by Wire."
+        reqId :: ID AuthnRequest <- maybe err pure (resp ^. rspInRespTo)
+        maybe err (pure . fst) =<< getRequest reqId
       signedIssuers :: NonEmpty Issuer <-
         -- these are *possibly* signed, but we collect all of them, and if none of them are
         -- signed, signature validation will fail later.
         pure (view assIssuer <$> resp ^. rspPayload)
-      case L.nub (respIssuer : {- issuerFromAuthnRequest : -} toList signedIssuers) of
+      case L.nub (respIssuer : issuerFromAuthnRequest : toList signedIssuers) of
         [i] -> pure i
-        _ -> throwError BadSamlResponseIssuerMissing
-    -- TODO: Better error type?
-    reqId :: ID AuthnRequest <- maybe (throwError $ Forbidden "Authentication flow was not initiated by Wire.") pure (resp ^. rspInRespTo)
-    mbStoredReq :: Maybe (Issuer, Time) <- getRequest reqId
-    storedIssuer <- case mbStoredReq of
-      Nothing -> throwError $ Forbidden "Authentication flow was not initiated by Wire."
-      Just (iss, _) -> pure iss
-    traceM $ "XXX issuer " ++ show issuer ++ " storedIssuer " ++ show storedIssuer
-    unless (issuer == storedIssuer) $
-      -- TODO: Create more specific error
-      throwError BadSamlResponseIssuerMissing
+        _ -> throwError BadSamlResponseInconsistentIdPIssuerInfo
 
     idp :: IdPConfig extra <-
       -- this is convoluted, but secure against signatures from rogue idps: this idp config is

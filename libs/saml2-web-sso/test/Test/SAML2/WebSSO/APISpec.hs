@@ -253,7 +253,7 @@ spec = describe "API" $ do
         ( \reqId _issuer timestamp ->
             Map.singleton reqId ((Issuer [uri|https://anything.example/|]), 10 `addTime` timestamp)
         )
-        (`shouldRespondWith` 403 {matchBody = bodyContains "IdP Issuer in AuthnResponse does not match AuthnRequest."})
+        (`shouldRespondWith` 403 {matchBody = bodyContains "IdP Issuer in AuthnResponse does not match AuthnRequest"})
 
   describe "mkAuthnResponse (this is testing the test helpers)" $ do
     it "Produces output that decodes into 'AuthnResponse'" $ do

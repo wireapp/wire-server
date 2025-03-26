@@ -14,6 +14,7 @@ data Error err
   | BadSamlResponseSamlError LT
   | BadSamlResponseFormFieldMissing
   | BadSamlResponseIssuerMissing
+  | BadSamlResponseInconsistentIdPIssuerInfo
   | BadSamlResponseNoAssertions
   | BadSamlResponseAssertionWithoutID
   | BadSamlResponseInvalidSignature LT
@@ -37,6 +38,7 @@ toServerError (BadSamlResponseXmlError msg) = err400 {errBody = "Bad response: x
 toServerError (BadSamlResponseSamlError msg) = err400 {errBody = "Bad response: saml parse error: " <> cs msg}
 toServerError BadSamlResponseFormFieldMissing = err400 {errBody = "Bad response: SAMLResponse form field missing from HTTP body"}
 toServerError BadSamlResponseIssuerMissing = err400 {errBody = "Bad response: no Issuer in AuthnResponse"}
+toServerError BadSamlResponseInconsistentIdPIssuerInfo = err403 {errBody = "Bad response: IdP Issuer in AuthnResponse does not match AuthnRequest"}
 toServerError BadSamlResponseNoAssertions = err400 {errBody = "Bad response: no assertions in AuthnResponse"}
 toServerError BadSamlResponseAssertionWithoutID = err400 {errBody = "Bad response: assertion without ID"}
 toServerError (BadSamlResponseInvalidSignature msg) = err400 {errBody = cs msg}
