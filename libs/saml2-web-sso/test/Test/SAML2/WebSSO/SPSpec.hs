@@ -118,7 +118,7 @@ specJudgeT = do
                   & ctxNow .~ timeIn10seconds
                   & ctxRequestStore .~ Map.singleton reqid (aresp ^. assertionL . assIssuer, timeIn10minutes)
                   & updctx
-            (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) StatusSuccess jctx)
+            (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) (aresp ^. rspStatus) jctx)
         denies :: (HasCallStack) => (Ctx -> Ctx) -> AuthnResponse -> Spec
         denies updctx aresp = do
           it "denies" $ do
@@ -129,7 +129,7 @@ specJudgeT = do
                   & ctxNow .~ timeIn10seconds
                   & ctxRequestStore .~ Map.singleton reqid (aresp ^. assertionL . assIssuer, timeIn10minutes)
                   & updctx
-            (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) StatusSuccess jctx)
+            (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) (aresp ^. rspStatus) jctx)
         jctx :: JudgeCtx
         jctx = JudgeCtx (Issuer [uri|https://sp.net/sso/authnresp|]) [uri|https://sp.net/sso/authnresp|]
         authnresp :: AuthnResponse
@@ -258,9 +258,7 @@ specJudgeT = do
         grants id `mapM_` (($ authnresp) <$> good)
         denies id `mapM_` (($ authnresp) <$> bad)
       context "status failure" $ do
-        -- wire does not test unsigned data in the authentication response, so the global
-        -- status will be ignored in favor of the more fine-grained data in the assertion(s).
-        grants id (authnresp & rspStatus .~ StatusFailure)
+        denies id (authnresp & rspStatus .~ StatusFailure)
       context "time constraint violation" $ do
         let violations :: [AuthnResponse -> AuthnResponse]
             violations =
