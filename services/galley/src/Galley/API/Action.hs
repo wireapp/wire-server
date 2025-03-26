@@ -807,17 +807,14 @@ updateLocalConversationUnchecked lconv qusr con action = do
       lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
 
-  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
-
-  -- retrieve member
-  self <- noteS @'ConvNotFound $ getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember)
-
   -- perform checks
-  ensureConversationActionAllowed (sing @tag) lcnv action conv self
+  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
+  ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
 
   -- perform action
   (extraTargets, action') <- performAction tag qusr lconv action
 
+  -- notify participants
   notifyConversationAction
     (sing @tag)
     qusr
@@ -830,35 +827,25 @@ updateLocalConversationUnchecked lconv qusr con action = do
     getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
     getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
 
+    ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
+    ensureConversationActionAllowed tag loc conv mTeamMember = do
+      -- retrieve member
+      self <- noteS @'ConvNotFound $ getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember)
+
+      -- general action check
+      case (tag, conv.convMetadata.cnvmChannelAddPermission, mTeamMember) of
+        (SConversationJoinTag, Just AddPermission.Everyone, Just _) -> pure ()
+        _ -> ensureActionAllowed (sConversationActionPermission tag) self
+
+      -- check if it is a group conversation (except for rename actions)
+      when (fromSing tag /= ConversationRenameTag) $
+        ensureGroupConversation conv
+
+      -- extra action-specific checks
+      ensureAllowed tag loc action conv self
+
 -- --------------------------------------------------------------------------------
 -- -- Utilities
-
-ensureConversationActionAllowed ::
-  forall tag mem x r.
-  ( IsConvMember mem,
-    HasConversationActionEffects tag r,
-    ( Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
-      Member (ErrorS 'InvalidOperation) r
-    )
-  ) =>
-  Sing tag ->
-  Local x ->
-  ConversationAction (tag :: ConversationActionTag) ->
-  Conversation ->
-  mem ->
-  Sem r ()
-ensureConversationActionAllowed tag loc action conv self = do
-  -- general action check
-  case (tag, conv.convMetadata.cnvmChannelAddPermission) of
-    (SConversationJoinTag, Just AddPermission.Everyone) -> pure ()
-    _ -> ensureActionAllowed (sConversationActionPermission tag) self
-
-  -- check if it is a group conversation (except for rename actions)
-  when (fromSing tag /= ConversationRenameTag) $
-    ensureGroupConversation conv
-
-  -- extra action-specific checks
-  ensureAllowed tag loc action conv self
 
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.

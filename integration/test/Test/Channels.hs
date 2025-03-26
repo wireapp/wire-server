@@ -203,6 +203,9 @@ testTeamAdminPermissions = do
       deleteTeamConv tid conv user `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "action-denied"
+      updateChannelAddPermission user conv "everyone" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "action-denied"
       updateConversationSelf user conv (object ["otr_archived" .= True]) >>= assertSuccess
       -- since the mls test client cannot handle failed commits, we need to restore the state manually
       mlsState <- getMLSState
@@ -234,8 +237,11 @@ testUpdateAddPermissions = do
 
 testAddPermissionEveryone :: (HasCallStack) => App ()
 testAddPermissionEveryone = do
-  (alice, tid, bob : chaz : eric : _) <- createTeam OwnDomain 4
-  clients@(aliceClient : bobClient : chazClient : _) <- for [alice, bob, chaz, eric] $ createMLSClient def def
+  (alice, tid, bob : chaz : delia : eric : _) <- createTeam OwnDomain 5
+  gunther <- randomUser OwnDomain def
+  clients@(aliceClient : bobClient : chazClient : _ : _ : guntherClient : _) <- for [alice, bob, chaz, delia, eric, gunther] $ createMLSClient def def
+  connectTwoUsers bob gunther
+  connectTwoUsers gunther eric
   for_ clients (uploadNewKeyPackage def)
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
   void $ setTeamFeatureConfig alice tid "channels" (config "everyone")
@@ -252,22 +258,28 @@ testAddPermissionEveryone = do
     for_ members $ \m -> do
       m %. "conversation_role" `shouldMatch` "wire_member"
 
-  assertNonAdminCanAdd convId bobClient (chaz, chazClient)
+  assertAddSuccess convId bobClient (chaz, chazClient)
+  -- guests can be added
+  assertAddSuccess convId bobClient (gunther, guntherClient)
+  -- but guests are not allowed to add other members even when the add permission is set to everyone
+  assertAddFailure convId guntherClient eric
+  -- set permissions back to admins
   updateChannelAddPermission alice conv "admins" >>= assertSuccess
-  assertNonAdminCantAdd convId bobClient eric
+  assertAddFailure convId bobClient delia
   where
-    assertNonAdminCanAdd :: (HasCallStack) => ConvId -> ClientIdentity -> (Value, ClientIdentity) -> App ()
-    assertNonAdminCanAdd convId userClient (userToAdd, userToAddClient) = do
+    assertAddSuccess :: (HasCallStack) => ConvId -> ClientIdentity -> (Value, ClientIdentity) -> App ()
+    assertAddSuccess convId userClient (userToAdd, userToAddClient) = do
       void $ createAddCommit userClient convId [userToAdd] >>= sendAndConsumeCommitBundle
       mlsState <- getMLSState
-      modifyMLSState (const mlsState)
       -- they cant remove, though
       createRemoveCommit userClient convId [userToAddClient] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
       modifyMLSState (const mlsState)
 
-    assertNonAdminCantAdd :: (HasCallStack) => ConvId -> ClientIdentity -> Value -> App ()
-    assertNonAdminCantAdd convId userClient userToAdd = do
+    assertAddFailure :: (HasCallStack) => ConvId -> ClientIdentity -> Value -> App ()
+    assertAddFailure convId userClient userToAdd = do
+      mlsState <- getMLSState
       createAddCommit userClient convId [userToAdd] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
+      modifyMLSState (const mlsState)
 
 testFederatedChannel :: (HasCallStack) => App ()
 testFederatedChannel = do
