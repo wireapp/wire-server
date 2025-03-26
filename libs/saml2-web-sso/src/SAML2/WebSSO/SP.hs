@@ -13,12 +13,12 @@ import Data.Foldable (toList)
 import Data.Kind (Type)
 import Data.List (nub, partition)
 import Data.List.NonEmpty (NonEmpty)
+import Data.Maybe (isJust)
 import Data.String.Conversions
 import Data.Time
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
-import Data.Maybe (isJust)
 import GHC.Stack
 import SAML2.Util
 import SAML2.WebSSO.Config
@@ -285,8 +285,12 @@ instance (Monad m, SPStoreRequest i m) => SPStoreRequest i (JudgeT m) where
 -- those are not signed!  the standard doesn't seem to worry about that, but wire does.  this
 -- affects `rspStatus`, `inRespTo`, `rspIssueInstant`, `rspDestination`.  those are inferred
 -- from the *signed* information available.
-judge :: (Monad m, SP m, SPStore m) => NonEmpty Assertion -> JudgeCtx -> m AccessVerdict
-judge assertions ctx = runJudgeT ctx (foldJudge assertions)
+judge :: (Monad m, SP m, SPStore m) => NonEmpty Assertion -> Status -> JudgeCtx -> m AccessVerdict
+judge assertions status ctx = runJudgeT ctx $ do
+  unless
+    (status == StatusSuccess)
+    (deny DeniedStatusFailure)
+  foldJudge assertions
 
 foldJudge :: (HasCallStack, MonadJudge m, SP m, SPStore m) => NonEmpty Assertion -> m AccessVerdict
 foldJudge (toList -> assertions) = do

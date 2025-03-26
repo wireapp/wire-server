@@ -118,7 +118,7 @@ specJudgeT = do
                   & ctxNow .~ timeIn10seconds
                   & ctxRequestStore .~ Map.singleton reqid (aresp ^. assertionL . assIssuer, timeIn10minutes)
                   & updctx
-            (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) jctx)
+            (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) StatusSuccess jctx)
         denies :: (HasCallStack) => (Ctx -> Ctx) -> AuthnResponse -> Spec
         denies updctx aresp = do
           it "denies" $ do
@@ -129,7 +129,7 @@ specJudgeT = do
                   & ctxNow .~ timeIn10seconds
                   & ctxRequestStore .~ Map.singleton reqid (aresp ^. assertionL . assIssuer, timeIn10minutes)
                   & updctx
-            (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) jctx)
+            (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) StatusSuccess jctx)
         jctx :: JudgeCtx
         jctx = JudgeCtx (Issuer [uri|https://sp.net/sso/authnresp|]) [uri|https://sp.net/sso/authnresp|]
         authnresp :: AuthnResponse

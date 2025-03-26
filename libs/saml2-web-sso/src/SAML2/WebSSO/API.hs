@@ -104,7 +104,7 @@ data AuthnResponseBody = AuthnResponseBody
       forall m err spid extra.
       (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
       Maybe spid ->
-      m (NonEmpty Assertion, IdPConfig extra),
+      m (NonEmpty Assertion, IdPConfig extra, Status),
     authnResponseBodyRaw :: MultipartData Mem -- TODO: this is only for error logging.  we should remove it and log something else, that's safer!
   }
 
@@ -117,7 +117,7 @@ parseAuthnResponseBody ::
   (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
   Maybe spid ->
   ST ->
-  m (NonEmpty Assertion, IdPConfig extra)
+  m (NonEmpty Assertion, IdPConfig extra, Status)
 parseAuthnResponseBody mbSPId base64 = do
   -- https://www.ietf.org/rfc/rfc4648.txt states that all "noise" characters should be rejected
   -- unless another standard says they should be ignored.  'EL.decodeLenient' chooses the radical
@@ -126,7 +126,7 @@ parseAuthnResponseBody mbSPId base64 = do
   -- rejecting some noise characters and ignoring others.
   let xmltxt :: LBS = EL.decodeLenient (cs base64 :: LBS)
 
-  (signedAssertions, idp) <- do
+  (signedAssertions, idp, resp) <- do
     resp <-
       -- do not use `resp` as a result of `parseAuthnResponseBody`!  only use what comes back
       -- from `simpleVerifyAuthnResponse`!
@@ -152,8 +152,8 @@ parseAuthnResponseBody mbSPId base64 = do
       -- this to create the user ref (see verdictHandlerResultCore).
       getIdPConfigByIssuerOptionalSPId issuer mbSPId
     creds <- idpToCreds issuer idp
-    (,idp) <$> simpleVerifyAuthnResponse creds xmltxt
-  pure (signedAssertions, idp)
+    (,idp,resp) <$> simpleVerifyAuthnResponse creds xmltxt
+  pure (signedAssertions, idp, resp ^. rspStatus)
 
 authnResponseBodyToMultipart :: AuthnResponse -> MultipartData tag
 authnResponseBodyToMultipart resp = MultipartData [Input "SAMLResponse" (cs $ renderAuthnResponseBody resp)] []
@@ -165,7 +165,7 @@ instance FromMultipart Mem AuthnResponseBody where
         forall m err spid extra.
         (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
         Maybe spid ->
-        m (NonEmpty Assertion, IdPConfig extra)
+        m (NonEmpty Assertion, IdPConfig extra, Status)
       eval mbSPId = do
         base64 <-
           either (const $ throwError BadSamlResponseFormFieldMissing) pure $
@@ -354,9 +354,9 @@ authresp ::
 authresp mbSPId getSPIssuer getResponseURI handleVerdictAction body = do
   enterH "authresp: entering"
   jctx :: JudgeCtx <- JudgeCtx <$> getSPIssuer <*> getResponseURI
-  (assertions :: NonEmpty Assertion, idp :: IdPConfig extra) <- authnResponseBodyAction body mbSPId
+  (assertions :: NonEmpty Assertion, idp :: IdPConfig extra, status :: Status) <- authnResponseBodyAction body mbSPId
   logger Debug $ "authresp: " <> ppShow (jctx, assertions)
-  verdict <- judge assertions jctx
+  verdict <- judge assertions status jctx
   logger Debug $ "authresp: " <> show verdict
   handleVerdictAction assertions idp verdict
 
