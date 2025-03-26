@@ -66,7 +66,7 @@ class SPStoreRequest i m where
     m Bool
 
   -- TODO: Rename this function to `getIssuer` and only return that
-  getRequest :: ID i -> m (Maybe (Issuer, Time))
+  getIssuer :: ID i -> m (Maybe Issuer)
 
 class (MonadError err m) => SPStoreIdP err m where
   type IdPConfigExtra m :: Type
@@ -274,7 +274,7 @@ instance (Monad m, SPStoreRequest i m) => SPStoreRequest i (JudgeT m) where
   storeRequest item issuer = JudgeT . lift . lift . lift . storeRequest item issuer
   unStoreRequest = JudgeT . lift . lift . lift . unStoreRequest
   isAliveRequest = JudgeT . lift . lift . lift . isAliveRequest
-  getRequest = JudgeT . lift . lift . lift . getRequest
+  getIssuer = JudgeT . lift . lift . lift . getIssuer
 
 -- | [3/4.1.4.2], [3/4.1.4.3]; specific to active-directory:
 -- <https://docs.microsoft.com/en-us/azure/active-directory/develop/active-directory-single-sign-on-protocol-reference>

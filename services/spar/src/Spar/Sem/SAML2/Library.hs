@@ -102,7 +102,7 @@ instance
   storeRequest issuer timestamp = wrapMonadClientSPImpl . (AReqIDStore.store issuer timestamp)
   unStoreRequest = wrapMonadClientSPImpl . AReqIDStore.unStore
   isAliveRequest = wrapMonadClientSPImpl . AReqIDStore.isAlive
-  getRequest = wrapMonadClientSPImpl . AReqIDStore.getRequest
+  getIssuer = wrapMonadClientSPImpl . AReqIDStore.getIssuer
 
 instance
   ( Member (Error SparError) r,

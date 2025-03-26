@@ -143,7 +143,7 @@ parseAuthnResponseBody mbSPId base64 = do
         -- an attacker with access to the idp.
         let err = throwError $ Forbidden "Authentication flow was not initiated by Wire."
         reqId :: ID AuthnRequest <- maybe err pure (resp ^. rspInRespTo)
-        maybe err (pure . fst) =<< getRequest reqId
+        maybe err pure =<< getIssuer reqId
       signedIssuers :: NonEmpty Issuer <-
         -- these are *possibly* signed, but we collect all of them, and if none of them are
         -- signed, signature validation will fail later.
@@ -324,14 +324,14 @@ authreq ::
   m Issuer ->
   IdPId ->
   m (FormRedirect AuthnRequest)
-authreq lifeExpectancySecs getIssuer idpid = do
+authreq lifeExpectancySecs getSPIssuer idpid = do
   enterH "authreq"
   idp <- getIdPConfig idpid
   let uri = idp ^. idpMetadata . edRequestURI
       idpiss = idp ^. idpMetadata . edIssuer
   logger Debug $ "authreq uri: " <> cs (renderURI uri)
   req <- do
-    spiss <- getIssuer
+    spiss <- getSPIssuer
     createAuthnRequest lifeExpectancySecs spiss idpiss
   logger Debug $ "authreq req: " <> cs (encode req)
   leaveH $ FormRedirect uri req

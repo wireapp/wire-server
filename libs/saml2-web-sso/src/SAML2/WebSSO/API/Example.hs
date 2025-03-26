@@ -149,21 +149,21 @@ simpleIsAliveRequest sel item = do
 simpleIsAliveRequest' :: Time -> ID a -> Map (ID a) (Issuer, Time) -> Bool
 simpleIsAliveRequest' now item items = maybe False ((>= now) . snd) (Map.lookup item items)
 
-simpleGetRequest ::
+simpleGetIssuer ::
   (MonadIO m, MonadReader ctx m, SP m) =>
   Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
   ID a ->
-  m (Maybe (Issuer, Time))
-simpleGetRequest sel item = do
+  m (Maybe Issuer)
+simpleGetIssuer sel item = do
   store <- asks (^. sel)
   items <- liftIO $ readMVar store
-  pure $ Map.lookup item items
+  pure . fmap fst $ Map.lookup item items
 
 instance SPStoreRequest AuthnRequest SimpleSP where
   storeRequest = simpleStoreRequest spctxReq
   unStoreRequest = simpleUnStoreRequest spctxReq
   isAliveRequest = simpleIsAliveRequest spctxReq
-  getRequest = simpleGetRequest spctxReq
+  getIssuer = simpleGetIssuer spctxReq
 
 instance SPStoreAssertion Assertion SimpleSP where
   storeAssertionInternal = simpleStoreID spctxAss
