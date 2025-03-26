@@ -326,9 +326,13 @@ authreq ::
   m (FormRedirect AuthnRequest)
 authreq lifeExpectancySecs getIssuer idpid = do
   enterH "authreq"
-  uri <- (^. idpMetadata . edRequestURI) <$> getIdPConfig idpid
+  idp <- getIdPConfig idpid
+  let uri = idp ^. idpMetadata . edRequestURI
+      idpiss = idp ^. idpMetadata . edIssuer
   logger Debug $ "authreq uri: " <> cs (renderURI uri)
-  req <- createAuthnRequest lifeExpectancySecs getIssuer
+  req <- do
+    spiss <- getIssuer
+    createAuthnRequest lifeExpectancySecs spiss idpiss
   logger Debug $ "authreq req: " <> cs (encode req)
   leaveH $ FormRedirect uri req
 

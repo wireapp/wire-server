@@ -58,7 +58,7 @@ class SPStoreAssertion i m where
     m Bool
 
 class SPStoreRequest i m where
-  storeRequest :: ID i -> Issuer -> Time -> m ()
+  storeRequest :: ID i -> Issuer {- NB: idp! -} -> Time -> m ()
   unStoreRequest :: ID i -> m ()
   isAliveRequest ::
     ID i ->
@@ -130,13 +130,12 @@ createID = mkID . ("_" <>) . UUID.toText <$> createUUID
 -- rejected by us.  (3) The nameID policy is expected to be configured on the IdP side to not
 -- support any set of name spaces that overlap (e.g. because user A has an email that is the account
 -- name of user B).
-createAuthnRequest :: (Monad m, SP m, SPStore m) => NominalDiffTime -> m Issuer -> m AuthnRequest
-createAuthnRequest lifeExpectancySecs getIssuer = do
+createAuthnRequest :: (Monad m, SP m, SPStore m) => NominalDiffTime -> Issuer {- sp -} -> Issuer {- idp -} -> m AuthnRequest
+createAuthnRequest lifeExpectancySecs _rqIssuer idpIssuer = do
   _rqID <- createID
   _rqIssueInstant <- getNow
-  _rqIssuer <- getIssuer
   let _rqNameIDPolicy = Just $ NameIdPolicy NameIDFUnspecified Nothing True
-  storeRequest _rqID _rqIssuer (addTime lifeExpectancySecs _rqIssueInstant)
+  storeRequest _rqID idpIssuer (addTime lifeExpectancySecs _rqIssueInstant)
   pure AuthnRequest {..}
 
 -- | The clock drift between IdP and us that we allow for.

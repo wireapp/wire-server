@@ -192,7 +192,8 @@ spec = describe "API" $ do
                 liftIO $ modifyMVar_ ctxv (pure . (ctxIdPs %~ (idpctx :)))
               pure idpctx
             spmeta :: SPMetadata <- mkTestSPMetadata
-            authnreq :: AuthnRequest <- createAuthnRequest 3600 defSPIssuer
+            spiss <- defSPIssuer
+            authnreq :: AuthnRequest <- createAuthnRequest 3600 spiss (testIdPConfig ^. idpMetadata . edIssuer)
             fromSignedAuthnResponse
               <$> (if badTimeStamp then timeTravel 1800 else id) (mkAuthnResponse privkey testIdPConfig spmeta authnreq True)
           postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
@@ -214,7 +215,8 @@ spec = describe "API" $ do
             (aresp, authnreq, (idpConfig, sampleIdP), timestamp) <- liftIO . ioFromTestSP ctxv $ do
               idpEntry@(testIdPConfig, SampleIdP _ privkey _ _) <- liftIO makeTestIdPConfig
               spmeta :: SPMetadata <- mkTestSPMetadata
-              authnreq :: AuthnRequest <- createAuthnRequest 3600 defSPIssuer
+              spiss <- defSPIssuer
+              authnreq :: AuthnRequest <- createAuthnRequest 3600 spiss (testIdPConfig ^. idpMetadata . edIssuer)
               aresp <- fromSignedAuthnResponse <$> mkAuthnResponse privkey testIdPConfig spmeta authnreq True
               timestamp <- getNow
               pure (aresp, authnreq, idpEntry, timestamp)
@@ -231,7 +233,7 @@ spec = describe "API" $ do
     context "unknown idp" . testAuthRespApp mkTestCtxSimple $ do
       it "responds with 404" . runtest $ \ctx -> do
         postTestAuthnResp ctx True False
-          `shouldRespondWith` 404
+          `shouldRespondWith` 404 {matchBody = bodyContains "Unknown IdP"}
     context "known idp, bad timestamp" . testAuthRespApp mkTestCtxWithIdP $ do
       it "responds with 403" . runtest $ \ctx -> do
         postTestAuthnResp ctx False True
@@ -260,8 +262,11 @@ spec = describe "API" $ do
       ctx <- mkTestCtxWithIdP
       spmeta <- ioFromTestSP ctx mkTestSPMetadata
       (testIdPConfig, SampleIdP _ privcert _ _) <- makeTestIdPConfig
-      Right authnreq :: Either SomeException AuthnRequest <-
-        try . ioFromTestSP ctx $ createAuthnRequest 3600 defSPIssuer
+      Right authnreq :: Either SomeException AuthnRequest <- do
+        let idpiss = testIdPConfig ^. idpMetadata . edIssuer
+        try . ioFromTestSP ctx $ do
+          spiss <- defSPIssuer
+          createAuthnRequest 3600 spiss idpiss
       SignedAuthnResponse authnrespDoc <-
         ioFromTestSP ctx $ mkAuthnResponse privcert testIdPConfig spmeta authnreq True
       parseFromDocument @AuthnResponse authnrespDoc `shouldSatisfy` isRight
@@ -275,9 +280,9 @@ spec = describe "API" $ do
           modifyMVar_ ctx $ pure . (ctxIdPs .~ [idpcfg])
           spmeta <- ioFromTestSP ctx mkTestSPMetadata
           let idpissuer :: Issuer = idpcfg ^. _1 . idpMetadata . edIssuer
-              spissuer :: TestSP Issuer = defSPIssuer
           result :: Either SomeException () <- try . ioFromTestSP ctx $ do
-            authnreq <- createAuthnRequest 3600 spissuer
+            spissuer :: Issuer <- defSPIssuer
+            authnreq <- createAuthnRequest 3600 spissuer idpissuer
             SignedAuthnResponse authnrespDoc <-
               liftIO . ioFromTestSP ctx $ mkAuthnResponse privkey (idpcfg ^. _1) spmeta authnreq True
             let authnrespLBS = renderLBS def authnrespDoc

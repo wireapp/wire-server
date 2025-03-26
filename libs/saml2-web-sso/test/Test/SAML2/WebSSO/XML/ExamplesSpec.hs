@@ -80,7 +80,10 @@ spec = describe "XML serialization" $ do
           ctx :: CtxV <- mkTestCtxSimple
           spmeta :: SPMetadata <- ioFromTestSP ctx mkTestSPMetadata
           (testIdPConfig, SampleIdP _ sampleIdPPrivkey _ _) <- makeTestIdPConfig
-          authnreq :: AuthnRequest <- ioFromTestSP ctx $ createAuthnRequest 3600 defSPIssuer
+          authnreq :: AuthnRequest <- ioFromTestSP ctx $ do
+            spiss <- defSPIssuer
+            let idpiss = testIdPConfig ^. idpMetadata . edIssuer
+            createAuthnRequest 3600 spiss idpiss
           SignedAuthnResponse doc <-
             ioFromTestSP ctx $
               mkAuthnResponseWithRawSubj nameId sampleIdPPrivkey testIdPConfig spmeta authnreq True

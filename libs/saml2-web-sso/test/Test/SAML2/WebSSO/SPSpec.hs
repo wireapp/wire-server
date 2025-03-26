@@ -74,7 +74,7 @@ specCreateAuthnRequest = do
       ctxv <- mkTestCtxSimple
       modifyMVar_ ctxv $ \ctx -> pure $ ctx & ctxRequestStore .~ Map.singleton reqid (idpIssuer, timeIn10minutes)
       (req, isalive) <- ioFromTestSP ctxv $ do
-        req <- createAuthnRequest 30 (pure (Issuer [uri|https://sp.net/|]))
+        req <- createAuthnRequest 30 (Issuer [uri|https://sp.net/|]) (Issuer [uri|https://idp.net/|])
         (req,) <$> isAliveRequest (req ^. rqID)
       isalive `shouldBe` True
       req ^. rqIssueInstant `shouldBe` timeNow
