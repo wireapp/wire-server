@@ -248,14 +248,14 @@ spec = describe "API" $ do
       testAuthnRespWithCtx
         "no authn req matching response is stored on sp"
         (\_reqId _issuer _timestamp -> Map.empty)
-        (`shouldRespondWith` 403 {matchBody = bodyContains "Authentication flow was not initiated by Wire."})
+        (`shouldRespondWith` 403 {matchBody = bodyContains "bad InResponseTo attribute(s)"})
 
       testAuthnRespWithCtx
         "idp issuer stored with authn req on sp doesn't match the one in resp"
         ( \reqId _issuer timestamp ->
             Map.singleton reqId ((Issuer [uri|https://anything.example/|]), 10 `addTime` timestamp)
         )
-        (`shouldRespondWith` 403 {matchBody = bodyContains "IdP Issuer in AuthnResponse does not match AuthnRequest"})
+        (`shouldRespondWith` 403 {matchBody = bodyContains "mismatching Issuers"})
 
   describe "mkAuthnResponse (this is testing the test helpers)" $ do
     it "Produces output that decodes into 'AuthnResponse'" $ do

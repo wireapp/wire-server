@@ -137,18 +137,11 @@ parseAuthnResponseBody mbSPId base64 = do
         -- this issuer is not signed!!  but we'll check it anyway, just for good measure and
         -- because the standard says so.
         maybe (throwError BadSamlResponseIssuerMissing) pure (resp ^. rspIssuer)
-      issuerFromAuthnRequest :: Issuer <- do
-        -- we have a matching authentication *request* for this response, and we need to pull
-        -- the issuer from that.  anything we just pull from the response can be changed by
-        -- an attacker with access to the idp.
-        let err = throwError $ Forbidden "Authentication flow was not initiated by Wire."
-        reqId :: ID AuthnRequest <- maybe err pure (resp ^. rspInRespTo)
-        maybe err pure =<< getIssuer reqId
       signedIssuers :: NonEmpty Issuer <-
         -- these are *possibly* signed, but we collect all of them, and if none of them are
         -- signed, signature validation will fail later.
         pure (view assIssuer <$> resp ^. rspPayload)
-      case L.nub (respIssuer : issuerFromAuthnRequest : toList signedIssuers) of
+      case L.nub (respIssuer : toList signedIssuers) of
         [i] -> pure i
         _ -> throwError BadSamlResponseInconsistentIdPIssuerInfo
 
@@ -351,7 +344,7 @@ defReqTTL = 15 * 60 -- seconds
 -- handler takes a response and a verdict (provided by this package), and can cause any effects in
 -- 'm' and return anything it likes.
 authresp ::
-  (SPStoreIdP (Error err) m, extra ~ IdPConfigExtra m, SPStore m) =>
+  (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, extra ~ IdPConfigExtra m, SPStore m) =>
   Maybe (IdPConfigSPId m) ->
   m Issuer ->
   m URI ->

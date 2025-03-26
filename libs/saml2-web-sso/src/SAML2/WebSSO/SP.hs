@@ -313,17 +313,23 @@ foldJudge (toList -> assertions) = do
 judge1 :: (HasCallStack, MonadJudge m, SP m, SPStore m) => Assertion -> m AccessVerdict
 judge1 assertion = do
   inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ assertionToInResponseTo assertion
-  checkInResponseTo "response" inRespTo
+  checkInResponseTo "response" (assertion ^. assIssuer) inRespTo
   verdict <- checkAssertion assertion
   unStoreRequest inRespTo
   pure verdict
 
 -- | If this fails, we could continue ('deny'), but we stop processing ('giveup') to make DOS
 -- attacks harder.
-checkInResponseTo :: (SPStore m, MonadJudge m) => String -> ID AuthnRequest -> m ()
-checkInResponseTo loc req = do
+checkInResponseTo :: (SPStore m, MonadJudge m) => String -> Issuer -> ID AuthnRequest -> m ()
+checkInResponseTo loc issuerFromRes req = do
+  -- TODO: This should be superseded by a check in the getter function (to be implemented)
   ok <- isAliveRequest req
   unless ok . giveup . DeniedBadInResponseTos $ loc <> ": " <> show req
+
+  mbIssuerFromReq <- getIssuer req
+  unless
+    (Just issuerFromRes == mbIssuerFromReq)
+    (giveup (DeniedIssuerMismatch mbIssuerFromReq issuerFromRes))
 
 checkIsInPast :: (SP m, MonadJudge m) => (Time -> Time -> DeniedReason) -> Time -> m ()
 checkIsInPast err tim = do
@@ -400,8 +406,6 @@ checkSubjectConfirmationData confdat = do
   case confdat ^. scdNotBefore of
     Just notbef -> unless (notbef `noLater` now) . deny $ DeniedNotBeforeSubjectConfirmation notbef
     _ -> pure ()
-  -- double-check the result of the call to 'rspInResponseTo' in 'judge'' above.
-  checkInResponseTo "assertion" `mapM_` (confdat ^. scdInResponseTo)
 
 checkConditions :: forall m. (HasCallStack, MonadJudge m, SP m) => Conditions -> m ()
 checkConditions (Conditions lowlimit uplimit _onetimeuse {- TODO: what checks are we missing for onetimeuse? -} audiences) = do
