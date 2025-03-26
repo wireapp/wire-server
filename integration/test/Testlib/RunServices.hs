@@ -8,8 +8,8 @@ import System.Exit
 import System.FilePath
 import System.Posix (getWorkingDirectory)
 import System.Process
+import Testlib.Ports
 import Testlib.Prelude
-import Testlib.ResourcePool
 
 parentDir :: FilePath -> Maybe FilePath
 parentDir path =
@@ -75,8 +75,8 @@ main = do
     runAppWithEnv env
       $ lowerCodensity
       $ do
-        _modifyEnv <-
-          traverseConcurrentlyCodensity
+        void
+          $ traverseConcurrentlyCodensity
             ( \r ->
                 void
                   $ if opts.withManualTestingOverrides
@@ -85,6 +85,85 @@ main = do
             )
             [backendA, backendB]
         liftIO run
+
+backendA :: BackendResource
+backendA =
+  BackendResource
+    { berName = BackendA,
+      berBrigKeyspace = "brig_test",
+      berGalleyKeyspace = "galley_test",
+      berSparKeyspace = "spar_test",
+      berGundeckKeyspace = "gundeck_test",
+      berElasticsearchIndex = "directory_test",
+      berFederatorInternal = servicePort (ServiceInternal FederatorInternal) BackendA,
+      berFederatorExternal = servicePort FederatorExternal BackendA,
+      berDomain = "example.com",
+      berAwsUserJournalQueue = "integration-user-events.fifo",
+      berAwsPrekeyTable = "integration-brig-prekeys",
+      berAwsS3Bucket = "dummy-bucket",
+      berAwsQueueName = "integration-gundeck-events",
+      berBrigInternalEvents = "integration-brig-events-internal",
+      berEmailSMSSesQueue = "integration-brig-events",
+      berEmailSMSEmailSender = "backend-integration@wire.com",
+      berGalleyJournal = "integration-team-events.fifo",
+      berVHost = "backendA",
+      berNginzSslPort = servicePort NginzSSL BackendA,
+      berInternalServicePorts = internalServicePorts BackendA,
+      berEnableService = const True,
+      berNginzHttp2Port = servicePort NginzHttp2 BackendA,
+      berMlsPrivateKeyPaths =
+        object
+          [ fromString "removal"
+              .= object
+                [ fromString "ed25519" .= "test/resources/backendA/ed25519.pem",
+                  fromString "ecdsa_secp256r1_sha256" .= "test/resources/backendA/ecdsa_secp256r1_sha256.pem",
+                  fromString "ecdsa_secp384r1_sha384" .= "test/resources/backendA/ecdsa_secp384r1_sha384.pem",
+                  fromString "ecdsa_secp521r1_sha512" .= "test/resources/backendA/ecdsa_secp521r1_sha512.pem"
+                ]
+          ]
+    }
+
+backendB :: BackendResource
+backendB =
+  BackendResource
+    { berName = BackendB,
+      berBrigKeyspace = "brig_test2",
+      berGalleyKeyspace = "galley_test2",
+      berSparKeyspace = "spar_test2",
+      berGundeckKeyspace = "gundeck_test2",
+      berElasticsearchIndex = "directory2_test",
+      berFederatorInternal = servicePort (ServiceInternal FederatorInternal) BackendB,
+      berFederatorExternal = servicePort FederatorExternal BackendB,
+      berDomain = "b.example.com",
+      berAwsUserJournalQueue = "integration-user-events2.fifo",
+      berAwsPrekeyTable = "integration-brig-prekeys2",
+      berAwsS3Bucket = "dummy-bucket2",
+      berAwsQueueName = "integration-gundeck-events2",
+      berBrigInternalEvents = "integration-brig-events-internal2",
+      berEmailSMSSesQueue = "integration-brig-events2",
+      berEmailSMSEmailSender = "backend-integration2@wire.com",
+      berGalleyJournal = "integration-team-events2.fifo",
+      -- FUTUREWORK: set up vhosts in dev/ci for example.com and b.example.com
+      -- in case we want backendA and backendB to federate with a third backend
+      -- (because otherwise both queues will overlap)
+      berVHost = "backendB",
+      berNginzSslPort = servicePort NginzSSL BackendB,
+      berInternalServicePorts = internalServicePorts BackendB,
+      berEnableService = \case
+        WireServerEnterprise -> False
+        _ -> True,
+      berNginzHttp2Port = servicePort NginzHttp2 BackendB,
+      berMlsPrivateKeyPaths =
+        object
+          [ fromString "removal"
+              .= object
+                [ fromString "ed25519" .= "test/resources/backendB/ed25519.pem",
+                  fromString "ecdsa_secp256r1_sha256" .= "test/resources/backendB/ecdsa_secp256r1_sha256.pem",
+                  fromString "ecdsa_secp384r1_sha384" .= "test/resources/backendB/ecdsa_secp384r1_sha384.pem",
+                  fromString "ecdsa_secp521r1_sha512" .= "test/resources/backendB/ecdsa_secp521r1_sha512.pem"
+                ]
+          ]
+    }
 
 manualTestingOverrides :: ServiceOverrides
 manualTestingOverrides =

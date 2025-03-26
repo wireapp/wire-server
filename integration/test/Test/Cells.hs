@@ -20,7 +20,6 @@ import Notifications
 import SetupHelpers
 import System.Timeout
 import Testlib.Prelude
-import Testlib.ResourcePool
 
 testCellsEvent :: (HasCallStack) => App ()
 testCellsEvent = do
@@ -82,11 +81,12 @@ testCellsIgnoredEvents = do
 --------------------------------------------------------------------------------
 -- Utilities
 
-connectToCellsQueue :: BackendResource -> TChan Message -> Codensity App ()
-connectToCellsQueue resource messages = do
+connectToCellsQueue :: ServiceMap -> TChan Message -> Codensity App ()
+connectToCellsQueue sm messages = do
   queueName <- lift $ asks (.cellsEventQueue)
 
   env <- lift ask
+  let opts = (demoteOpts env.rabbitMQConfig :: AmqpEndpoint) {vHost = sm.rabbitMqVHost}
   let createConnection :: IO Connection
       createConnection =
         recovering
@@ -94,10 +94,7 @@ connectToCellsQueue resource messages = do
           skipAsyncExceptions
           ( const $ do
               connOpts <-
-                mkConnectionOpts
-                  (demoteOpts env.rabbitMQConfig)
-                    { vHost = fromString resource.berVHost
-                    }
+                mkConnectionOpts opts
               liftIO $ openConnection'' connOpts
           )
   conn <-
@@ -155,14 +152,14 @@ data QueueConsumer = QueueConsumer
     filter :: Value -> App Bool
   }
 
-startQueueWatcher :: BackendResource -> App QueueWatcher
-startQueueWatcher resource = do
+startQueueWatcher :: ServiceMap -> App QueueWatcher
+startQueueWatcher sm = do
   broadcast <- liftIO newBroadcastTChanIO
   readyVar <- liftIO $ newEmptyMVar
   doneVar <- liftIO $ newEmptyMVar
 
   startIO <- appToIO $ lowerCodensity $ do
-    void $ connectToCellsQueue resource broadcast
+    void $ connectToCellsQueue sm broadcast
     liftIO $ putMVar readyVar ()
     liftIO $ takeMVar doneVar
 
@@ -171,11 +168,14 @@ startQueueWatcher resource = do
 
   pure QueueWatcher {doneVar, broadcast}
 
-ensureWatcher :: BackendResource -> App QueueWatcher
-ensureWatcher resource = do
+ensureWatcher :: String -> App QueueWatcher
+ensureWatcher domain = do
   watchersLock <- asks (.cellsEventWatchersLock)
   watchersRef <- asks (.cellsEventWatchers)
-  start <- appToIO (startQueueWatcher resource)
+  serviceMaps <- asks (.serviceMap)
+  sm <- assertOne $ Map.lookup domain serviceMaps
+
+  start <- appToIO (startQueueWatcher sm)
 
   liftIO
     $ E.bracket
@@ -183,23 +183,23 @@ ensureWatcher resource = do
       (\_ -> tryTakeMVar watchersLock)
     $ \_ -> do
       watchers <- liftIO $ readIORef watchersRef
-      case Map.lookup resource watchers of
+      case Map.lookup domain watchers of
         Nothing -> do
           watcher <- start
-          let watchers' = Map.insert resource watcher watchers
+          let watchers' = Map.insert domain watcher watchers
           writeIORef watchersRef watchers'
           pure watcher
         Just watcher -> pure watcher
 
 data WatchCellsEvents = WatchCellsEvents
-  { backend :: BackendResource,
+  { domain :: Either Domain String,
     filter :: Value -> App Bool
   }
 
 instance Default WatchCellsEvents where
   def =
     WatchCellsEvents
-      { backend = backendA,
+      { domain = Left OwnDomain,
         filter = const (pure True)
       }
 
@@ -208,6 +208,7 @@ convEvents conv = def {filter = isNotifConv conv}
 
 watchCellsEvents :: WatchCellsEvents -> App QueueConsumer
 watchCellsEvents opts = do
-  watcher <- ensureWatcher opts.backend
+  domain <- either (asString . make) pure opts.domain
+  watcher <- ensureWatcher domain
   chan <- liftIO $ atomically $ dupTChan watcher.broadcast
   pure QueueConsumer {filter = opts.filter, chan}

@@ -125,7 +125,7 @@ data GlobalEnv = GlobalEnv
     gDNSMockServerConfig :: DNSMockServerConfig,
     gCellsEventQueue :: String,
     gCellsEventWatchersLock :: MVar (),
-    gCellsEventWatchers :: IORef (Map BackendResource QueueWatcher)
+    gCellsEventWatchers :: IORef (Map String QueueWatcher)
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -174,7 +174,8 @@ data ServiceMap = ServiceMap
     spar :: HostPort,
     proxy :: HostPort,
     stern :: HostPort,
-    wireServerEnterprise :: HostPort
+    wireServerEnterprise :: HostPort,
+    rabbitMqVHost :: T.Text
   }
   deriving (Show, Generic)
 
@@ -248,7 +249,7 @@ data Env = Env
     dnsMockServerConfig :: DNSMockServerConfig,
     cellsEventQueue :: String,
     cellsEventWatchersLock :: MVar (),
-    cellsEventWatchers :: IORef (Map BackendResource QueueWatcher)
+    cellsEventWatchers :: IORef (Map String QueueWatcher)
   }
 
 data Response = Response
