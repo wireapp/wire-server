@@ -74,7 +74,7 @@ storeAReqID (SAML.ID rid) issuer (SAML.Time endOfLife) = do
   retry x5 . write ins $ params LocalQuorum (rid, issuer, ttl)
   where
     ins :: PrepQuery W (SAML.XmlText, SAML.Issuer, Int32) ()
-    ins = "INSERT INTO authreq (req, issuer) VALUES (?) USING TTL ?"
+    ins = "INSERT INTO authreq (req, idp_issuer) VALUES (?,?) USING TTL ?"
 
 getAReqID ::
   (HasCallStack, MonadClient m) =>
