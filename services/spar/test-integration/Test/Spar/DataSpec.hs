@@ -81,18 +81,19 @@ spec = do
       liftIO $ p3 `shouldBe` False -- 1.5 lifetimes after birth
   describe "cql binding" $ do
     describe "SPStoreRequest" $ do
+      let idpiss = Issuer [uri|https://idp.io/|]
       context "within TTL" $ do
         it "isAliveID is True" $ do
           xid :: SAML.ID a <- nextSAMLID
           eol :: Time <- addTime 5 <$> runSimpleSP getNow
-          () <- runSpar $ AReqIDStore.store xid undefined eol
+          () <- runSpar $ AReqIDStore.store xid idpiss eol
           isit <- runSpar $ AReqIDStore.isAlive xid
           liftIO $ isit `shouldBe` True
       context "after TTL" $ do
         it "isAliveID returns False" $ do
           xid :: SAML.ID a <- nextSAMLID
           eol :: Time <- addTime 2 <$> runSimpleSP getNow
-          () <- runSpar $ AReqIDStore.store xid undefined eol
+          () <- runSpar $ AReqIDStore.store xid idpiss eol
           liftIO $ threadDelay 3000000
           isit <- runSpar $ AReqIDStore.isAlive xid
           liftIO $ isit `shouldBe` False
@@ -100,7 +101,7 @@ spec = do
         it "isAliveID returns False" $ do
           xid :: SAML.ID a <- nextSAMLID
           eol :: Time <- addTime 5 <$> runSimpleSP getNow
-          () <- runSpar $ AReqIDStore.store xid undefined eol
+          () <- runSpar $ AReqIDStore.store xid idpiss eol
           () <- runSpar $ AReqIDStore.unStore xid
           isit <- runSpar $ AReqIDStore.isAlive xid
           liftIO $ isit `shouldBe` False

@@ -1704,7 +1704,7 @@ testRejectsSAMLResponseSayingAccessNotGranted = do
 -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
 --
 -- Do not authenticate if SSO IdP response is for unknown issuer
-testRejectsSAMLResponseFromWrongIssuer :: TestSpar ()
+testRejectsSAMLResponseFromWrongIssuer :: (HasCallStack) => TestSpar ()
 testRejectsSAMLResponseFromWrongIssuer = do
   let mkareq = negotiateAuthnRequest
       mkaresp privcreds idp spmeta authnreq =
@@ -1716,10 +1716,10 @@ testRejectsSAMLResponseFromWrongIssuer = do
           True
       submitaresp = submitAuthnResponse
       checkresp sparresp = do
-        statusCode sparresp `shouldBe` 404
+        statusCode sparresp `shouldBe` 403
         -- body should contain the error label in the title, the verbatim haskell error, and the request:
-        (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
-        (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "(CustomError (IdpDbError IdpNotFound)"
+        (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:bad-response-saml</title>"
+        (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "BadSamlResponseInconsistentIdPIssuerInfo"
         (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
   checkSamlFlow
     mkareq
@@ -1804,6 +1804,7 @@ shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
         g "" = ""
 
 checkSamlFlow ::
+  (HasCallStack) =>
   (IdP -> TestSpar SAML.AuthnRequest) ->
   (SignPrivCreds -> IdP -> SAML.SPMetadata -> SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
   (TeamId -> SignedAuthnResponse -> TestSpar (Response (Maybe LByteString))) ->
