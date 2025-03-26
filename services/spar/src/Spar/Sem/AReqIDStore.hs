@@ -21,8 +21,7 @@ module Spar.Sem.AReqIDStore
   ( AReqIDStore (..),
     store,
     unStore,
-    isAlive,
-    getIssuer,
+    getIdpIssuer,
   )
 where
 
@@ -34,8 +33,7 @@ import Wire.API.User.Saml (AReqId)
 
 data AReqIDStore m a where
   Store :: AReqId -> Issuer -> SAML.Time -> AReqIDStore m ()
-  GetIssuer :: AReqId -> AReqIDStore m (Maybe Issuer)
+  GetIdpIssuer :: AReqId -> AReqIDStore m (Maybe Issuer)
   UnStore :: AReqId -> AReqIDStore m ()
-  IsAlive :: AReqId -> AReqIDStore m Bool
 
 makeSem ''AReqIDStore

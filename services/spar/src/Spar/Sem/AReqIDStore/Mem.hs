@@ -40,12 +40,7 @@ aReqIDStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Store areqid issuer ti -> modify $ M.insert areqid (issuer, ti)
     UnStore areqid -> modify $ M.delete areqid
-    IsAlive areqid ->
-      gets (M.lookup areqid) >>= \case
-        Just (_issuer, time) -> do
-          boolTTL False True time
-        Nothing -> pure False
-    GetIssuer areqid ->
+    GetIdpIssuer areqid ->
       gets (M.lookup areqid) >>= \case
         Just (issuer, time) -> do
           boolTTL Nothing (Just issuer) time

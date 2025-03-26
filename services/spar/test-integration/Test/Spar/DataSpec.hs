@@ -67,7 +67,7 @@ spec = do
       ((^. SAML.idpId) -> idpid) <- registerTestIdP owner
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
       let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool
-          probe = runSpar $ AReqIDStore.isAlive (req ^. SAML.rqID)
+          probe = runSpar $ isJust <$> AReqIDStore.getIdpIssuer (req ^. SAML.rqID)
           maxttl :: Int -- musec
           maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
       liftIO $ maxttl `shouldSatisfy` (< 60 * 1000 * 1000) -- otherwise the test will be really slow.
@@ -87,7 +87,7 @@ spec = do
           xid :: SAML.ID a <- nextSAMLID
           eol :: Time <- addTime 5 <$> runSimpleSP getNow
           () <- runSpar $ AReqIDStore.store xid idpiss eol
-          isit <- runSpar $ AReqIDStore.isAlive xid
+          isit <- runSpar $ isJust <$> AReqIDStore.getIdpIssuer xid
           liftIO $ isit `shouldBe` True
       context "after TTL" $ do
         it "isAliveID returns False" $ do
@@ -95,7 +95,7 @@ spec = do
           eol :: Time <- addTime 2 <$> runSimpleSP getNow
           () <- runSpar $ AReqIDStore.store xid idpiss eol
           liftIO $ threadDelay 3000000
-          isit <- runSpar $ AReqIDStore.isAlive xid
+          isit <- runSpar $ isJust <$> AReqIDStore.getIdpIssuer xid
           liftIO $ isit `shouldBe` False
       context "after call to unstore" $ do
         it "isAliveID returns False" $ do
@@ -103,7 +103,7 @@ spec = do
           eol :: Time <- addTime 5 <$> runSimpleSP getNow
           () <- runSpar $ AReqIDStore.store xid idpiss eol
           () <- runSpar $ AReqIDStore.unStore xid
-          isit <- runSpar $ AReqIDStore.isAlive xid
+          isit <- runSpar $ isJust <$> AReqIDStore.getIdpIssuer xid
           liftIO $ isit `shouldBe` False
     describe "SPStoreAssertion" $ do
       context "within TTL" $ do

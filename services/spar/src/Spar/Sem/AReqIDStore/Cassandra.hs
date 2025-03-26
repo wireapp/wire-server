@@ -58,9 +58,8 @@ aReqIDStoreToCassandra = interpret $ \case
     case a of
       Left err -> throw err
       Right () -> pure ()
-  GetIssuer itla -> embed @m $ getAReqID itla
+  GetIdpIssuer itla -> embed @m $ getAReqID itla
   UnStore itla -> embed @m $ unStoreAReqID itla
-  IsAlive itla -> embed @m $ isAliveAReqID itla
 
 storeAReqID ::
   (HasCallStack, MonadReader Data.Env m, MonadClient m, MonadError TTLError m) =>
@@ -94,13 +93,3 @@ unStoreAReqID (SAML.ID rid) = retry x5 . write del . params LocalQuorum $ Identi
   where
     del :: PrepQuery W (Identity SAML.XmlText) ()
     del = "DELETE FROM authreq WHERE req = ?"
-
-isAliveAReqID ::
-  (HasCallStack, MonadClient m) =>
-  AReqId ->
-  m Bool
-isAliveAReqID (SAML.ID rid) =
-  (==) (Just 1) <$> (retry x1 . query1 sel . params LocalQuorum $ Identity rid)
-  where
-    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
-    sel = "SELECT COUNT(*) FROM authreq WHERE req = ?"
