@@ -2140,8 +2140,8 @@ CREATE TABLE spar_test.verdict (
 
 CREATE TABLE spar_test.authreq (
     req text PRIMARY KEY,
-    idp_issuer text,
-    end_of_life timestamp -- TODO: this is ignored, we use TTL instead.  safe to remove?
+    end_of_life timestamp,
+    idp_issuer text
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
