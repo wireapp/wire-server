@@ -28,6 +28,7 @@ import Notifications (isChannelAddPermissionUpdate)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
+import Testlib.VersionedFed (FedDomain (FedDomain))
 
 testCreateChannelEveryone :: (HasCallStack) => App ()
 testCreateChannelEveryone = do
@@ -320,3 +321,28 @@ testFederatedChannel = do
       postMLSCommitBundle userClient (mkBundle mp) `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 500
         resp.json %. "label" `shouldMatch` "federation-not-implemented"
+
+-- if the federation queue gets stuck, the second test run will fail
+-- therefore this test verifies that a notification that cannot be parsed by the remote
+-- backend does not block the queue
+testWithOldBackendVersion :: (HasCallStack) => App ()
+testWithOldBackendVersion = replicateM_ 2 do
+  let cs = Ciphersuite "0x0001"
+  (bärbel, tid, _) <- createTeam OwnDomain 2
+  horst <- randomUser (FedDomain @1) def
+  connectTwoUsers bärbel horst
+
+  bärbelClient <- createMLSClient cs def bärbel
+  void $ uploadNewKeyPackage cs bärbelClient
+  horstClient <- createMLSClient cs def horst
+  void $ uploadNewKeyPackage cs horstClient
+
+  setTeamFeatureLockStatus bärbel tid "channels" "unlocked"
+  void $ setTeamFeatureConfig bärbel tid "channels" (config "everyone")
+  conv <- postConversation bärbel defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup cs bärbelClient convId
+  void $ createAddCommit bärbelClient convId [horst] >>= sendAndConsumeCommitBundle
+
+  -- this will trigger a notification that the old backend cannot parse
+  updateChannelAddPermission bärbel conv "admins" >>= assertSuccess

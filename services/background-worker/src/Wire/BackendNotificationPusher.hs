@@ -19,6 +19,7 @@ import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
 import Network.RabbitMqAdmin hiding (adminClient)
 import Network.RabbitMqAdmin qualified as RabbitMqAdmin
+import Network.Wai.Utilities.Error
 import Prometheus
 import Servant.Client qualified as Servant
 import System.Logger.Class qualified as Log
@@ -61,9 +62,23 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         withLabel metrics.errorCounter (domainText targetDomain) incCounter
         withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 1)
       skipChanThreadKilled _ = Handler $ \(_ :: Q.ChanThreadKilledException) -> pure False
+      dropNotificationOnBadRequestClientError retryStatus = Handler $ \(e :: FederatorClientError) -> do
+        case e of
+          FederatorClientError err | retryStatus.rsIterNumber > 2 -> do
+            case err.innerError of
+              Just innerError -> do
+                if isBadRequest innerError && innerError.label == "bad-request"
+                  then do
+                    Log.err $ Log.msg (Log.val "Dropping notification due to bad request")
+                    lift $ ack envelope
+                    pure False
+                  else pure True
+              Nothing -> pure False
+          _ -> pure True
       handlers =
         skipAsyncExceptions
-          <> [ skipChanThreadKilled,
+          <> [ dropNotificationOnBadRequestClientError,
+               skipChanThreadKilled,
                logRetries (const $ pure True) logErrr
              ]
   -- The revcovering policy where it can loop forever effectively blocks the consumer thread.
