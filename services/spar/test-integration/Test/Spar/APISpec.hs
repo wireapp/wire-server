@@ -1716,10 +1716,10 @@ testRejectsSAMLResponseFromWrongIssuer = do
           True
       submitaresp = submitAuthnResponse
       checkresp sparresp = do
-        statusCode sparresp `shouldBe` 403
+        statusCode sparresp `shouldBe` 404
         -- body should contain the error label in the title, the verbatim haskell error, and the request:
-        (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:bad-response-saml</title>"
-        (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "BadSamlResponseInconsistentIdPIssuerInfo"
+        (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
+        (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "(CustomError (IdpDbError IdpNotFound)"
         (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
   checkSamlFlow
     mkareq
