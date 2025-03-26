@@ -135,35 +135,23 @@ simpleUnStoreRequest sel item = do
 simpleUnStoreRequest' :: ID a -> Map (ID a) (Issuer, Time) -> Map (ID a) (Issuer, Time)
 simpleUnStoreRequest' = Map.delete
 
-simpleIsAliveRequest ::
-  (MonadIO m, MonadReader ctx m, SP m) =>
-  Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
-  ID a ->
-  m Bool
-simpleIsAliveRequest sel item = do
-  now <- getNow
-  store <- asks (^. sel)
-  items <- liftIO $ readMVar store
-  pure $ simpleIsAliveRequest' now item items
-
-simpleIsAliveRequest' :: Time -> ID a -> Map (ID a) (Issuer, Time) -> Bool
-simpleIsAliveRequest' now item items = maybe False ((>= now) . snd) (Map.lookup item items)
-
-simpleGetIssuer ::
+simpleGetIdpIssuer ::
   (MonadIO m, MonadReader ctx m, SP m) =>
   Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
   ID a ->
   m (Maybe Issuer)
-simpleGetIssuer sel item = do
+simpleGetIdpIssuer sel item = do
   store <- asks (^. sel)
   items <- liftIO $ readMVar store
-  pure . fmap fst $ Map.lookup item items
+  now <- getNow
+  pure $ case Map.lookup item items of
+    Just (issuer, expiresAt) | expiresAt < now -> Just issuer
+    _ -> Nothing
 
 instance SPStoreRequest AuthnRequest SimpleSP where
   storeRequest = simpleStoreRequest spctxReq
   unStoreRequest = simpleUnStoreRequest spctxReq
-  isAliveRequest = simpleIsAliveRequest spctxReq
-  getIssuer = simpleGetIssuer spctxReq
+  getIdpIssuer = simpleGetIdpIssuer spctxReq
 
 instance SPStoreAssertion Assertion SimpleSP where
   storeAssertionInternal = simpleStoreID spctxAss

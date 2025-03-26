@@ -9,6 +9,7 @@ where
 import Control.Concurrent.MVar
 import Control.Lens
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Maybe
 import Data.Map qualified as Map
 import SAML2.WebSSO
 import SAML2.WebSSO.API.Example (AssertionStore)
@@ -73,10 +74,10 @@ specCreateAuthnRequest = do
           idpIssuer = Issuer [uri|https://sp.net/|]
       ctxv <- mkTestCtxSimple
       modifyMVar_ ctxv $ \ctx -> pure $ ctx & ctxRequestStore .~ Map.singleton reqid (idpIssuer, timeIn10minutes)
-      (req, isalive) <- ioFromTestSP ctxv $ do
+      (req, mbIdpIssuerFromReq) <- ioFromTestSP ctxv $ do
         req <- createAuthnRequest 30 (Issuer [uri|https://sp.net/|]) (Issuer [uri|https://idp.net/|])
-        (req,) <$> isAliveRequest (req ^. rqID)
-      isalive `shouldBe` True
+        (req,) <$> getIdpIssuer (req ^. rqID)
+      mbIdpIssuerFromReq `shouldBe` Just (Issuer [uri|https://idp.net/|])
       req ^. rqIssueInstant `shouldBe` timeNow
       req ^. rqIssuer `shouldBe` Issuer [uri|https://sp.net/|]
 

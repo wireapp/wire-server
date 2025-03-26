@@ -18,6 +18,7 @@ import Data.Time
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
+import Data.Maybe (isJust)
 import GHC.Stack
 import SAML2.Util
 import SAML2.WebSSO.Config
@@ -60,13 +61,7 @@ class SPStoreAssertion i m where
 class SPStoreRequest i m where
   storeRequest :: ID i -> Issuer {- NB: idp! -} -> Time -> m ()
   unStoreRequest :: ID i -> m ()
-  isAliveRequest ::
-    ID i ->
-    -- | stored and not timed out.
-    m Bool
-
-  -- TODO: Rename this function to `getIssuer` and only return that
-  getIssuer :: ID i -> m (Maybe Issuer)
+  getIdpIssuer :: ID i -> m (Maybe Issuer)
 
 class (MonadError err m) => SPStoreIdP err m where
   type IdPConfigExtra m :: Type
@@ -273,8 +268,7 @@ instance (Monad m, SPStoreAssertion i m) => SPStoreAssertion i (JudgeT m) where
 instance (Monad m, SPStoreRequest i m) => SPStoreRequest i (JudgeT m) where
   storeRequest item issuer = JudgeT . lift . lift . lift . storeRequest item issuer
   unStoreRequest = JudgeT . lift . lift . lift . unStoreRequest
-  isAliveRequest = JudgeT . lift . lift . lift . isAliveRequest
-  getIssuer = JudgeT . lift . lift . lift . getIssuer
+  getIdpIssuer = JudgeT . lift . lift . lift . getIdpIssuer
 
 -- | [3/4.1.4.2], [3/4.1.4.3]; specific to active-directory:
 -- <https://docs.microsoft.com/en-us/azure/active-directory/develop/active-directory-single-sign-on-protocol-reference>
@@ -322,11 +316,10 @@ judge1 assertion = do
 -- attacks harder.
 checkInResponseTo :: (SPStore m, MonadJudge m) => String -> Issuer -> ID AuthnRequest -> m ()
 checkInResponseTo loc issuerFromRes req = do
-  -- TODO: This should be superseded by a check in the getter function (to be implemented)
-  ok <- isAliveRequest req
-  unless ok . giveup . DeniedBadInResponseTos $ loc <> ": " <> show req
-
-  mbIssuerFromReq <- getIssuer req
+  mbIssuerFromReq <- getIdpIssuer req
+  unless
+    (isJust mbIssuerFromReq)
+    (giveup . DeniedBadInResponseTos $ loc <> ": " <> show req)
   unless
     (Just issuerFromRes == mbIssuerFromReq)
     (giveup (DeniedIssuerMismatch mbIssuerFromReq issuerFromRes))

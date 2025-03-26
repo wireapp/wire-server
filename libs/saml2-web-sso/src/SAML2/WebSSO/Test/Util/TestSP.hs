@@ -19,7 +19,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.Void (Void)
 import SAML2.WebSSO as SAML
-import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIsAliveID', simpleIsAliveRequest', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
+import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIsAliveID', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
 import SAML2.WebSSO.Test.Util.Types
 import Servant
 import System.IO
@@ -103,23 +103,12 @@ simpleUnStoreRequest sel item = do
   store <- ask
   liftIO $ modifyMVar_ store (pure . (sel %~ simpleUnStoreRequest' item))
 
-simpleIsAliveRequest ::
-  (MonadIO m, MonadReader (MVar ctx) m, SP m) =>
-  Lens' ctx (Map.Map (ID a) (Issuer, Time)) ->
-  ID a ->
-  m Bool
-simpleIsAliveRequest sel item = do
-  now <- getNow
-  store <- ask
-  items <- liftIO $ readMVar store
-  pure $ simpleIsAliveRequest' now item (items ^. sel)
-
-simpleGetIssuer ::
+simpleGetIdpIssuer ::
   (MonadIO m, MonadReader (MVar ctx) m, SP m) =>
   Lens' ctx (Map.Map (ID a) (Issuer, Time)) ->
   ID a ->
   m (Maybe Issuer)
-simpleGetIssuer sel item = do
+simpleGetIdpIssuer sel item = do
   store <- ask
   items <- liftIO $ readMVar store
   pure . fmap fst $ Map.lookup item (items ^. sel)
@@ -127,8 +116,7 @@ simpleGetIssuer sel item = do
 instance SPStoreRequest AuthnRequest TestSP where
   storeRequest = simpleStoreRequest ctxRequestStore
   unStoreRequest = simpleUnStoreRequest ctxRequestStore
-  isAliveRequest = simpleIsAliveRequest ctxRequestStore
-  getIssuer = simpleGetIssuer ctxRequestStore
+  getIdpIssuer = simpleGetIdpIssuer ctxRequestStore
 
 instance SPStoreAssertion Assertion TestSP where
   storeAssertionInternal = simpleStoreID ctxAssertionStore
