@@ -19,7 +19,6 @@ import Data.Map qualified as Map
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
 import Data.Yaml qualified as Yaml
-import Network.HTTP.Types
 import Network.Wai.Test
 import SAML2.Util
 import SAML2.WebSSO
@@ -207,9 +206,9 @@ spec = describe "API" $ do
     let testAuthnRespWithCtx ::
           String ->
           (ID AuthnRequest -> Issuer -> Time -> RequestStore) ->
-          (SResponse -> Expectation) ->
+          (WaiSession st SResponse -> WaiExpectation ()) ->
           SpecWith (CtxV, Application)
-        testAuthnRespWithCtx name createRequestStore expectation =
+        testAuthnRespWithCtx name createRequestStore checkPostCondition =
           it name . runtest $ \ctxv -> do
             -- we inline `postTestAuthnResp` here to avoid making it more branchy.
             (aresp, authnreq, (idpConfig, sampleIdP), timestamp) <- liftIO . ioFromTestSP ctxv $ do
@@ -226,8 +225,9 @@ spec = describe "API" $ do
                   (ctxIdPs .~ [(idpConfig, sampleIdP)])
                     . (ctxRequestStore .~ createRequestStore (authnreq ^. rqID) iss timestamp)
             liftIO $ modifyMVar_ ctxv $ pure . loadCtx
-            resp <- postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
-            liftIO $ expectation resp
+            postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
+              & checkPostCondition
+
     context "unknown idp" . testAuthRespApp mkTestCtxSimple $ do
       it "responds with 404" . runtest $ \ctx -> do
         postTestAuthnResp ctx True False
@@ -236,28 +236,24 @@ spec = describe "API" $ do
       it "responds with 403" . runtest $ \ctx -> do
         postTestAuthnResp ctx False True
           `shouldRespondWith` 403 {matchBody = bodyContains "IssueInstant"}
-    -- TODO: Don't forget to un-focus
-    focus . context "known idp, good timestamp" . testAuthRespApp mkTestCtxWithIdP $ do
-      it "responds with 303" . runtest $ \ctx -> do
-        postTestAuthnResp ctx False False
-          `shouldRespondWith` 303 {matchBody = bodyContains "<body><p>SSO successful, redirecting to"}
 
+    context "known idp, good timestamp" . testAuthRespApp mkTestCtxWithIdP $ do
       testAuthnRespWithCtx
         "responds with 303 if authnrequest is stored in SP"
         (\reqId issuer timestamp -> Map.singleton reqId (issuer, 10 `addTime` timestamp))
-        (\resp -> (statusCode . simpleStatus) resp `shouldBe` 303)
+        (`shouldRespondWith` 303)
 
       testAuthnRespWithCtx
         "no authn req matching response is stored on sp"
         (\_reqId _issuer _timestamp -> Map.empty)
-        (\resp -> (statusCode . simpleStatus) resp `shouldBe` 403)
+        (`shouldRespondWith` 403 {matchBody = bodyContains "Authentication flow was not initiated by Wire."})
 
       testAuthnRespWithCtx
         "idp issuer stored with authn req on sp doesn't match the one in resp"
         ( \reqId _issuer timestamp ->
             Map.singleton reqId ((Issuer [uri|https://anything.example/|]), 10 `addTime` timestamp)
         )
-        (\resp -> (statusCode . simpleStatus) resp `shouldBe` 403)
+        (`shouldRespondWith` 403 {matchBody = bodyContains "IdP Issuer in AuthnResponse does not match AuthnRequest."})
 
   describe "mkAuthnResponse (this is testing the test helpers)" $ do
     it "Produces output that decodes into 'AuthnResponse'" $ do
