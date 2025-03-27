@@ -235,7 +235,7 @@ allVerifies creds raw nodeids = do
   (renderVerifyErrorHack . parseFromXmlTree) `mapM` xmls
   where
     -- (there must be a better way for this, but where?)
-    renderVerifyErrorHack :: forall m err a. (MonadError (Error err) m) => Either String a -> m a
+    renderVerifyErrorHack :: forall m' err' a. (MonadError (Error err') m') => Either String a -> m' a
     renderVerifyErrorHack = either throwError pure . fmapL (BadSamlResponseSamlError . LT.pack)
 
 -- | ADFS illegally breaks whitespace after signing documents; here we try to fix that.
