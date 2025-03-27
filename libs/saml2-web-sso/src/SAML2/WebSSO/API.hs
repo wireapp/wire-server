@@ -377,7 +377,7 @@ authresp' mbSPId getRequestIssuerURI getResponseURI handleVerdict body = do
   let handleVerdictAction :: NonEmpty Assertion -> IdPConfig extra -> AccessVerdict -> m (WithCookieAndLocation ST)
       handleVerdictAction resp _idp verdict = case handleVerdict of
         HandleVerdictRedirect onsuccess -> simpleHandleVerdict onsuccess verdict
-        HandleVerdictRaw action -> throwError . CustomServant =<< action resp verdict
+        HandleVerdictRaw action -> throwError . CustomServant . unResponseVerdict =<< action resp verdict
   authresp mbSPId getRequestIssuerURI getResponseURI handleVerdictAction body
 
 type OnSuccessRedirect m = UserRef -> m (Cky, URI)
@@ -415,11 +415,8 @@ data HandleVerdict m
   = HandleVerdictRedirect (OnSuccessRedirect m)
   | HandleVerdictRaw (NonEmpty Assertion -> AccessVerdict -> m ResponseVerdict)
 
-{- TODO:
-newtype ResponseVerdicts = ResponseVerdicts { unResponseVerdicts :: [ResponseVerdict] }
-data ResponseVerdict = ... | ...
--}
-type ResponseVerdict = ServerError
+newtype ResponseVerdict = ResponseVerdict { unResponseVerdict :: ServerError }
+  deriving (Eq, Show)
 
 simpleHandleVerdict ::
   (SP m, MonadError (Error err) m) =>
