@@ -150,10 +150,11 @@ parseAuthnResponseBody mbSPId base64 = do
         _ -> throwError BadSamlResponseInconsistentIdPIssuerInfo
 
     idp :: IdPConfig extra <-
-      -- this is convoluted, but secure against signatures from rogue idps: this idp config is
-      -- (a) is signed by the given in the authentiation response issuer, and
-      -- (b) authorized/created by admin of the correct team.  we're using the team id from
-      -- this to create the user ref (see verdictHandlerResultCore).
+      -- this is convoluted, but secure against signatures from rogue idps: this idp config
+      -- contains a public key Pub associated with private key Priv, and issuer Iss; it is
+      -- provided by the team admin and thus works as a trust root.  On the other hand, the
+      -- authentication response contains a mention of isuser Iss signed by Priv.
+      -- See also: 'verdictHandlerResultCore'
       getIdPConfigByIssuerOptionalSPId issuer mbSPId
     creds <- idpToCreds issuer idp
     (,idp,mkUnvalidatedSAMLStatus (resp ^. rspStatus)) <$> simpleVerifyAuthnResponse creds xmltxt
