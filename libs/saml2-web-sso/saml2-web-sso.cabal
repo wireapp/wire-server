@@ -25,7 +25,6 @@ library
     SAML2.WebSSO.Error
     SAML2.WebSSO.Orphans
     SAML2.WebSSO.Servant
-    SAML2.WebSSO.Servant.CPP
     SAML2.WebSSO.SP
     SAML2.WebSSO.Test.Arbitrary
     SAML2.WebSSO.Test.Lenses

@@ -23,9 +23,8 @@ import GHC.Stack
 import SAML2.Util
 import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import SAML2.WebSSO.Config
-import SAML2.WebSSO.Servant.CPP
 import SAML2.WebSSO.Types
-import Servant hiding (MkLink, URI (..))
+import Servant hiding (URI (..))
 import URI.ByteString
 
 ----------------------------------------------------------------------
@@ -164,7 +163,7 @@ getSsoURI ::
     HasConfig m,
     IsElem endpoint api,
     HasLink endpoint,
-    ToHttpApiData (MkLink endpoint)
+    ToHttpApiData (MkLink endpoint Link)
   ) =>
   Proxy api ->
   Proxy endpoint ->
@@ -182,7 +181,7 @@ getSsoURI' ::
   forall endpoint api a (f :: Type -> Type) t.
   ( Functor f,
     HasConfig f,
-    MkLink endpoint ~ (t -> a),
+    MkLink endpoint Link ~ (t -> a),
     HasLink endpoint,
     ToHttpApiData a,
     IsElem endpoint api
