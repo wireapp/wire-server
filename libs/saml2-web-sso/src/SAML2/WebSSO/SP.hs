@@ -409,7 +409,7 @@ checkSubjectConfirmationData confdat = do
     _ -> pure ()
 
 checkConditions :: forall m. (HasCallStack, MonadJudge m, SP m) => Conditions -> m ()
-checkConditions (Conditions lowlimit uplimit _onetimeuse {- TODO: what checks are we missing for onetimeuse? -} audiences) = do
+checkConditions (Conditions lowlimit uplimit _onetimeuse audiences) = do
   now <- getNow
   case lowlimit of
     Just lim -> unless (lim `noLater` now) . deny $ DeniedNotBeforeCondition lim

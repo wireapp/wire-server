@@ -597,7 +597,9 @@ data Assertion = Assertion
 data Conditions = Conditions
   { _condNotBefore :: Maybe Time,
     _condNotOnOrAfter :: Maybe Time,
-    -- | [1/2.5.1.5] (it's safe to ignore this)
+    -- | [1/2.5.1.5] (it's safe to ignore this: if true, we're asked to not keep the assertion
+    -- around for later authentication / authorization checks, but we don't do that in any
+    -- case.)
     _condOneTimeUse :: Bool,
     -- | [1/2.5.1.4] this is an and of ors ('[]' means
     -- do not restrict).
