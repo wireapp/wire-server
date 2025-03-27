@@ -38,7 +38,7 @@ toServerError (BadSamlResponseXmlError msg) = err400 {errBody = "Bad response: x
 toServerError (BadSamlResponseSamlError msg) = err400 {errBody = "Bad response: saml parse error: " <> cs msg}
 toServerError BadSamlResponseFormFieldMissing = err400 {errBody = "Bad response: SAMLResponse form field missing from HTTP body"}
 toServerError BadSamlResponseIssuerMissing = err400 {errBody = "Bad response: no Issuer in AuthnResponse"}
-toServerError BadSamlResponseInconsistentIdPIssuerInfo = err403 {errBody = "Bad response: IdP Issuer in AuthnResponse does not match AuthnRequest"}
+toServerError BadSamlResponseInconsistentIdPIssuerInfo = err403 {errBody = "Bad response: Inconsistent IdP Issuers (must be exactly one in the IdP response)"}
 toServerError BadSamlResponseNoAssertions = err400 {errBody = "Bad response: no assertions in AuthnResponse"}
 toServerError BadSamlResponseAssertionWithoutID = err400 {errBody = "Bad response: assertion without ID"}
 toServerError (BadSamlResponseInvalidSignature msg) = err400 {errBody = cs msg}
