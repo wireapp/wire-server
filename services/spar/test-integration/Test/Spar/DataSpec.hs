@@ -83,14 +83,14 @@ spec = do
     describe "SPStoreRequest" $ do
       let idpiss = Issuer [uri|https://idp.io/|]
       context "within TTL" $ do
-        it "isAliveID is True" $ do
+        it "issuer can be found" $ do
           xid :: SAML.ID a <- nextSAMLID
           eol :: Time <- addTime 5 <$> runSimpleSP getNow
           () <- runSpar $ AReqIDStore.store xid idpiss eol
           isit <- runSpar $ isJust <$> AReqIDStore.getIdpIssuer xid
           liftIO $ isit `shouldBe` True
       context "after TTL" $ do
-        it "isAliveID returns False" $ do
+        it "issuer cannot be found" $ do
           xid :: SAML.ID a <- nextSAMLID
           eol :: Time <- addTime 2 <$> runSimpleSP getNow
           () <- runSpar $ AReqIDStore.store xid idpiss eol
@@ -98,7 +98,7 @@ spec = do
           isit <- runSpar $ isJust <$> AReqIDStore.getIdpIssuer xid
           liftIO $ isit `shouldBe` False
       context "after call to unstore" $ do
-        it "isAliveID returns False" $ do
+        it "issuer cannot be found" $ do
           xid :: SAML.ID a <- nextSAMLID
           eol :: Time <- addTime 5 <$> runSimpleSP getNow
           () <- runSpar $ AReqIDStore.store xid idpiss eol
