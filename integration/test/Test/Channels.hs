@@ -28,7 +28,7 @@ import Notifications (isChannelAddPermissionUpdate)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
-import Testlib.VersionedFed (FedDomain (FedDomain))
+import Testlib.VersionedFed (FedDomain)
 
 testCreateChannelEveryone :: (HasCallStack) => App ()
 testCreateChannelEveryone = do
@@ -325,11 +325,11 @@ testFederatedChannel = do
 -- if the federation queue gets stuck, the second test run will fail
 -- therefore this test verifies that a notification that cannot be parsed by the remote
 -- backend does not block the queue
-testWithOldBackendVersion :: (HasCallStack) => App ()
-testWithOldBackendVersion = replicateM_ 2 do
+testWithOldBackendVersion :: (HasCallStack) => FedDomain 1 -> App ()
+testWithOldBackendVersion fedDomain = replicateM_ 2 do
   let cs = Ciphersuite "0x0001"
   (bärbel, tid, _) <- createTeam OwnDomain 2
-  horst <- randomUser (FedDomain @1) def
+  horst <- randomUser fedDomain def
   connectTwoUsers bärbel horst
 
   bärbelClient <- createMLSClient cs def bärbel
