@@ -415,7 +415,7 @@ data HandleVerdict m
   = HandleVerdictRedirect (OnSuccessRedirect m)
   | HandleVerdictRaw (NonEmpty Assertion -> AccessVerdict -> m ResponseVerdict)
 
-newtype ResponseVerdict = ResponseVerdict { unResponseVerdict :: ServerError }
+newtype ResponseVerdict = ResponseVerdict {unResponseVerdict :: ServerError}
   deriving (Eq, Show)
 
 simpleHandleVerdict ::
