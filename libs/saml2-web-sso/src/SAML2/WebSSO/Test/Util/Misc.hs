@@ -16,7 +16,6 @@ import Data.Typeable
 import Data.UUID as UUID
 import GHC.Stack
 import SAML2.WebSSO
-import Servant
 import Shelly (run, setStdin, shelly, silently)
 import System.Directory (doesFileExist)
 import System.FilePath
