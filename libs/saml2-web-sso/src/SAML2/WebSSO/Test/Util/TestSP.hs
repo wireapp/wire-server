@@ -19,7 +19,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.Void (Void)
 import SAML2.WebSSO as SAML
-import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIsAliveID', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
+import SAML2.WebSSO.API.Example (GetAllIdPs (..), RequestStore, simpleGetIdPConfigBy, simpleIsAliveID', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
 import SAML2.WebSSO.Test.Util.Types
 import Servant
 import System.IO
@@ -84,8 +84,8 @@ simpleIsAliveID sel item = do
 
 simpleStoreRequest ::
   (MonadIO m, MonadReader (MVar ctx) m) =>
-  Lens' ctx (Map.Map (ID a) (Issuer, Time)) ->
-  ID a ->
+  Lens' ctx RequestStore ->
+  ID AuthnRequest ->
   Issuer ->
   Time ->
   m ()
@@ -95,8 +95,8 @@ simpleStoreRequest sel item issuer endOfLife = do
 
 simpleUnStoreRequest ::
   (MonadIO m, MonadReader (MVar ctx) m) =>
-  Lens' ctx (Map.Map (ID a) (Issuer, Time)) ->
-  ID a ->
+  Lens' ctx RequestStore ->
+  ID AuthnRequest ->
   m ()
 simpleUnStoreRequest sel item = do
   store <- ask
@@ -104,8 +104,8 @@ simpleUnStoreRequest sel item = do
 
 simpleGetIdpIssuer ::
   (MonadIO m, MonadReader (MVar ctx) m, SP m) =>
-  Lens' ctx (Map.Map (ID a) (Issuer, Time)) ->
-  ID a ->
+  Lens' ctx RequestStore ->
+  ID AuthnRequest ->
   m (Maybe Issuer)
 simpleGetIdpIssuer sel item = do
   store <- ask

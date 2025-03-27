@@ -111,8 +111,8 @@ simpleIsAliveID' now item items = maybe False (>= now) (Map.lookup item items)
 
 simpleStoreRequest ::
   (MonadIO m, MonadReader ctx m) =>
-  Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
-  ID a ->
+  Lens' ctx (MVar RequestStore) ->
+  ID AuthnRequest ->
   Issuer ->
   Time ->
   m ()
@@ -120,25 +120,25 @@ simpleStoreRequest sel item issuer endOfLife = do
   store <- asks (^. sel)
   liftIO $ modifyMVar_ store (pure . simpleStoreRequest' item (issuer, endOfLife))
 
-simpleStoreRequest' :: ID a -> (Issuer, Time) -> Map (ID a) (Issuer, Time) -> Map (ID a) (Issuer, Time)
+simpleStoreRequest' :: ID AuthnRequest -> (Issuer, Time) -> RequestStore -> RequestStore
 simpleStoreRequest' = Map.insert
 
 simpleUnStoreRequest ::
   (MonadIO m, MonadReader ctx m) =>
-  Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
-  (ID a) ->
+  Lens' ctx (MVar RequestStore) ->
+  (ID AuthnRequest) ->
   m ()
 simpleUnStoreRequest sel item = do
   store <- asks (^. sel)
   liftIO $ modifyMVar_ store (pure . simpleUnStoreRequest' item)
 
-simpleUnStoreRequest' :: ID a -> Map (ID a) (Issuer, Time) -> Map (ID a) (Issuer, Time)
+simpleUnStoreRequest' :: ID AuthnRequest -> RequestStore -> RequestStore
 simpleUnStoreRequest' = Map.delete
 
 simpleGetIdpIssuer ::
   (MonadIO m, MonadReader ctx m, SP m) =>
-  Lens' ctx (MVar (Map (ID a) (Issuer, Time))) ->
-  ID a ->
+  Lens' ctx (MVar RequestStore) ->
+  ID AuthnRequest ->
   m (Maybe Issuer)
 simpleGetIdpIssuer sel item = do
   store <- asks (^. sel)
