@@ -358,7 +358,7 @@ authresp mbSPId getSPIssuer getResponseURI handleVerdictAction body = do
   enterH "authresp: entering"
   jctx :: JudgeCtx <- JudgeCtx <$> getSPIssuer <*> getResponseURI
   (assertions :: NonEmpty Assertion, idp :: IdPConfig extra, status :: UnvalidatedSAMLStatus) <- authnResponseBodyAction body mbSPId
-  logger Debug $ "authresp: " <> ppShow (jctx, assertions)
+  logger Debug $ "authresp: " <> ppShow (jctx, assertions, idp, status)
   verdict <- judge assertions status jctx
   logger Debug $ "authresp: " <> show verdict
   handleVerdictAction assertions idp verdict

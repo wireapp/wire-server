@@ -63,7 +63,7 @@ class SPStoreRequest i m where
   unStoreRequest :: ID i -> m ()
   getIdpIssuer :: ID i -> m (Maybe Issuer)
 
-class (MonadError err m) => SPStoreIdP err m where
+class (MonadError err m, Show (IdPConfigExtra m)) => SPStoreIdP err m where
   type IdPConfigExtra m :: Type
   type IdPConfigSPId m :: Type
   storeIdPConfig :: IdPConfig (IdPConfigExtra m) -> m ()
