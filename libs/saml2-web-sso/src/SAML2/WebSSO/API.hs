@@ -30,7 +30,6 @@ import Data.EitherR
 import Data.List qualified as L
 import Data.List.NonEmpty
 import Data.Map qualified as Map
-import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import Data.Maybe (mapMaybe)
 import Data.Proxy
 import Data.String.Conversions
@@ -39,6 +38,7 @@ import Data.Text.Lazy qualified as LT
 import Data.Time
 import GHC.Generics
 import SAML2.Util
+import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import SAML2.WebSSO.Config
 import SAML2.WebSSO.Cookie qualified as Cky
 import SAML2.WebSSO.Error as SamlErr

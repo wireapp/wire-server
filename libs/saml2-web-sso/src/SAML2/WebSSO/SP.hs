@@ -21,10 +21,10 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import GHC.Stack
 import SAML2.Util
+import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import SAML2.WebSSO.Config
 import SAML2.WebSSO.Servant.CPP
 import SAML2.WebSSO.Types
-import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import Servant hiding (MkLink, URI (..))
 import URI.ByteString
 
