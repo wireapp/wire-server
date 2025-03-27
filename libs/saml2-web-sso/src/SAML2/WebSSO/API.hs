@@ -98,15 +98,18 @@ defResponseURI = getSsoURI (Proxy @API) (Proxy @APIAuthResp')
 -- authentication response body processing
 
 -- | An 'AuthnResponseBody' contains a 'AuthnResponse', but you need to give it an SPId for
--- IdP lookup and trust base for signature verification first, plus you may get an error when
--- you're looking at it.
+-- IdP lookup and trust base for signature verification first.  As a consequence, you will get
+-- the signature validation error when looking at it, but the type still guarantees that the
+-- signature verification cannot be circumvented.
 data AuthnResponseBody = AuthnResponseBody
   { authnResponseBodyAction ::
       forall m err spid extra.
       (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
       Maybe spid ->
       m (NonEmpty Assertion, IdPConfig extra, UnvalidatedSAMLStatus),
-    authnResponseBodyRaw :: MultipartData Mem -- TODO: this is only for error logging.  we should remove it and log something else, that's safer!
+    authnResponseBodyRaw :: MultipartData Mem
+    -- FUTUREWORK: this is only for dumping the error on the "something went wrong" page.  we
+    -- should find a better solution there and remove it here.
   }
 
 renderAuthnResponseBody :: AuthnResponse -> LBS
