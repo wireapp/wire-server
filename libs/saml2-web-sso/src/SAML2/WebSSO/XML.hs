@@ -196,12 +196,6 @@ explainDeniedReason = \case
   DeniedStatusFailure -> "status: failure"
   DeniedBadUserRefs msg -> "bad user refs: " <> cs msg
   DeniedBadInResponseTos msg -> "bad InResponseTo attribute(s): " <> cs msg
-  DeniedIssueInstantNotInPast ts now ->
-    cs $
-      "IssueInstant in Header must be older than "
-        <> renderTime now
-        <> ", but is "
-        <> renderTime ts
   DeniedAssertionIssueInstantNotInPast ts now ->
     "IssueInstant in Assertion must be older than "
       <> renderTime now
@@ -212,7 +206,6 @@ explainDeniedReason = \case
       <> renderTime now
       <> ", but is "
       <> renderTime ts
-  DeniedBadDestination weare theywant -> cs $ "bad Destination: we are " <> weare <> ", they expected " <> theywant
   DeniedBadRecipient weare theywant -> cs $ "bad Recipient: we are " <> weare <> ", they expected " <> theywant
   DeniedIssuerMismatch inh inass ->
     cs $
