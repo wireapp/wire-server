@@ -104,7 +104,7 @@ defResponseURI = getSsoURI (Proxy @API) (Proxy @APIAuthResp')
 data AuthnResponseBody = AuthnResponseBody
   { authnResponseBodyAction ::
       forall m err spid extra.
-      (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
+      (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
       Maybe spid ->
       m (NonEmpty Assertion, IdPConfig extra, UnvalidatedSAMLStatus),
     authnResponseBodyRaw :: MultipartData Mem
@@ -118,7 +118,7 @@ renderAuthnResponseBody = EL.encode . cs . encode
 -- | Implies verification, hence the constraints and the optional service provider ID (needed for IdP lookup).
 parseAuthnResponseBody ::
   forall m err spid extra.
-  (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
+  (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
   Maybe spid ->
   ST ->
   m (NonEmpty Assertion, IdPConfig extra, UnvalidatedSAMLStatus)
@@ -167,7 +167,7 @@ instance FromMultipart Mem AuthnResponseBody where
     where
       eval ::
         forall m err spid extra.
-        (SPStoreIdP (Error err) m, SPStoreRequest AuthnRequest m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
+        (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
         Maybe spid ->
         m (NonEmpty Assertion, IdPConfig extra, UnvalidatedSAMLStatus)
       eval mbSPId = do
