@@ -153,9 +153,6 @@ genNiceText rng = ST.unwords <$> Gen.list rng word
 genNiceWord :: Gen ST
 genNiceWord = genNiceText (Range.singleton 1)
 
-genUserRef :: Gen UserRef
-genUserRef = THQ.quickcheck arbitrary
-
 genConfig :: Gen Config
 genConfig = do
   _cfgLogLevel <- Gen.enumBounded

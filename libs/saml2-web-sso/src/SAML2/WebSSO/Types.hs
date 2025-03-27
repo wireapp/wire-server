@@ -149,12 +149,10 @@ module SAML2.WebSSO.Types
     normalizeAssertion,
     idPIdToST,
     assEndOfLife,
-    rspInResponseTo,
     assertionToInResponseTo,
     assertionsToUserRef,
     assertionToUserRef,
     nelConcat,
-    (<$$>),
   )
 where
 
@@ -835,24 +833,6 @@ assEndOfLife = lens gt st
 
 -- | [3/4.1.4.2] SubjectConfirmation [...] If the containing message is in response to an
 -- AuthnRequest, then the InResponseTo attribute MUST match the request's ID.
-rspInResponseTo :: (MonadError String m) => AuthnResponse -> m (ID AuthnRequest)
-rspInResponseTo aresp = do
-  let inResp :: Maybe (ID AuthnRequest)
-      inResp = aresp ^. rspInRespTo
-  inSubjectConf :: [ID AuthnRequest] <-
-    assertionToInResponseTo `mapM` NL.toList (aresp ^. rspPayload)
-  case (inResp, inSubjectConf) of
-    (_, []) ->
-      throwError "not found" -- the inSubjectConf is required!
-    (Nothing, js@(_ : _))
-      | L.length (L.nub js) /= 1 ->
-          throwError $ "mismatching inResponseTo attributes in subject confirmation data: " <> show js
-    (Just i, js@(_ : _))
-      | L.length (L.nub (i : js)) /= 1 ->
-          throwError $ "mismatching inResponseTo attributes in response header, subject confirmation data: " <> show (i, js)
-    (_, (j : _)) ->
-      pure j
-
 assertionToInResponseTo :: forall m. (MonadError String m) => Assertion -> m (ID AuthnRequest)
 assertionToInResponseTo assertion = do
   case L.nub (catMaybes is) of
@@ -881,6 +861,3 @@ assertionToUserRef assertion =
 
 nelConcat :: NonEmpty (NonEmpty a) -> NonEmpty a
 nelConcat ((x :| xs) :| ys) = x :| mconcat (xs : (NL.toList <$> ys))
-
-(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
-(<$$>) = fmap . fmap

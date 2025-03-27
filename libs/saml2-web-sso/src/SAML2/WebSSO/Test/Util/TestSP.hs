@@ -160,15 +160,6 @@ withapp proxy handler mkctx = withState (mkctx <&> \ctx -> (ctx, app ctx))
   where
     app ctx = serve proxy (hoistServer (Proxy @api) (nt @SimpleError @TestSP ctx) handler :: Server api)
 
-capture' :: (HasCallStack) => IO a -> IO a
-capture' action =
-  hCapture [stdout, stderr] action >>= \case
-    ("", out) -> pure out
-    (noise, _) -> error $ show noise
-
-captureApplication :: (HasCallStack) => Application -> Application
-captureApplication app req cont = capture' (app req cont)
-
 runtest :: (CtxV -> WaiSession () a) -> (CtxV, Application) -> IO a
 runtest test (ctx, app) = runWaiSession (test ctx) app
 
@@ -231,10 +222,6 @@ mkTestSPMetadata = do
   _spOrgURL <- (^. fromIssuer) <$> defSPIssuer
   _spResponseURL <- defResponseURI
   pure SPMetadata {..}
-
--- | Use this to see more output on a per-test basis.
-verbose :: Ctx -> Ctx
-verbose = ctxConfig . cfgLogLevel .~ Debug
 
 timeLongAgo :: Time
 timeLongAgo = unsafeReadTime "1918-04-14T09:58:58.457Z"

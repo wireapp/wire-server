@@ -27,34 +27,6 @@ import Test.Hspec
 import Text.Show.Pretty
 import Text.XML as XML
 
--- | pipe the output of `curl https://.../initiate-login/...` into this to take a look.
-readAuthReq :: String -> IO ()
-readAuthReq raw = do
-  print $ mimeUnrender @HTML @(FormRedirect Document) Proxy (cs raw)
-
-render' :: Document -> LT
-render' =
-  renderText $
-    def
-      { rsPretty = True
-      --  , rsNamespaces :: [(Text, Text)]
-      --  , rsAttrOrder :: Name -> Map.Map Name Text -> [(Name, Text)]
-      --  , rsUseCDATA :: Content -> Bool
-      --  , rsXMLDeclaration :: Bool
-      }
-
-rerender' :: LT -> LT
-rerender' = render' . parseText_ def
-
-showFile :: FilePath -> IO String
-showFile fp = cs . rerender' . cs . dropWhile (/= '<') <$> Prelude.readFile fp
-
-dumpFile :: FilePath -> IO ()
-dumpFile = showFile >=> putStrLn
-
-rerenderFile :: FilePath -> IO ()
-rerenderFile fp = showFile fp >>= Prelude.writeFile (fp <> "-")
-
 hedgehog :: IO Bool -> Spec
 hedgehog = it "hedgehog tests" . (`shouldReturn` True)
 
@@ -132,9 +104,6 @@ isSignature _ = False
 
 ----------------------------------------------------------------------
 -- helpers
-
-passes :: (MonadIO m) => m ()
-passes = liftIO $ True `shouldBe` True
 
 newtype SomeSAMLRequest = SomeSAMLRequest {fromSomeSAMLRequest :: XML.Document}
   deriving (Eq, Show)

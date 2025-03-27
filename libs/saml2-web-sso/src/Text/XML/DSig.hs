@@ -21,7 +21,6 @@ module Text.XML.DSig
     renderKeyInfo,
     certToCreds,
     certToPublicKey,
-    mkSignCreds,
     mkSignCredsWithCert,
 
     -- * signature verification
@@ -29,14 +28,12 @@ module Text.XML.DSig
     verifyIO,
 
     -- * signature creation
-    signRoot,
     signRootAt,
 
     -- * testing
     HasMonadSign,
     MonadSign (MonadSign),
     runMonadSign,
-    signElementIO,
     signElementIOAt,
     verifyIO',
     verifySignatureUnenvelopedSigs,
@@ -166,9 +163,6 @@ certToCreds cert = do
 
 certToPublicKey :: (HasCallStack, MonadError String m) => X509.SignedCertificate -> m RSA.PublicKey
 certToPublicKey cert = certToCreds cert <&> \(SignCreds _ (SignKeyRSA key)) -> key
-
-mkSignCreds :: (Crypto.MonadRandom m, MonadIO m) => Int -> m (SignPrivCreds, SignCreds)
-mkSignCreds size = mkSignCredsWithCert Nothing size <&> \(priv, pub, _) -> (priv, pub)
 
 -- | If first argument @validSince@ is @Nothing@, use cucrent system time.
 mkSignCredsWithCert ::
@@ -374,11 +368,6 @@ verifyReference r doc = case HS.referenceURI r of
 ----------------------------------------------------------------------
 -- signature creation
 
--- | Make sure that root node node has ID attribute and sign it.  This is similar to the more
--- primitive 'HS.generateSignature'.  Cons signature to the children list (left-most position).
-signRoot :: (Crypto.MonadRandom m, MonadError String m) => SignPrivCreds -> XML.Document -> m XML.Document
-signRoot = signRootAt 0
-
 -- | Like 'signRoot', but insert signature at any given position in the children list.  If the list
 -- is too short for this position, throw an error.
 signRootAt :: (Crypto.MonadRandom m, MonadError String m) => Int -> SignPrivCreds -> XML.Document -> m XML.Document
@@ -496,9 +485,6 @@ instance MonadError String MonadSign where
   catchError (MonadSign m) handler = MonadSign $ m `catchError` (runMonadSign' . handler)
 
 type HasMonadSign = MonadIO
-
-signElementIO :: (HasCallStack, HasMonadSign m) => SignPrivCreds -> [XML.Node] -> m [XML.Node]
-signElementIO = signElementIOAt 0
 
 signElementIOAt :: (HasCallStack, HasMonadSign m) => Int -> SignPrivCreds -> [XML.Node] -> m [XML.Node]
 signElementIOAt sigPos creds [NodeElement el] = do

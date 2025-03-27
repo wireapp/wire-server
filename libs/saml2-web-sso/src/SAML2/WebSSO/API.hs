@@ -431,10 +431,6 @@ simpleHandleVerdict onsuccess = \case
 ----------------------------------------------------------------------
 -- handler combinators
 
--- | Write error info to log, and apologise to client.
-crash :: (SP m, MonadError (Error err) m) => String -> m a
-crash msg = logger Fatal msg >> throwError UnknownError
-
 enterH :: (SP m) => String -> m ()
 enterH msg =
   logger Debug $ "entering handler: " <> msg

@@ -50,7 +50,7 @@ tests =
       mkpropHasXML' canonicalizeConditions . Gen.prune $ genConditions
     ),
     ( "instance HasXMLImport Conditions",
-      mkpropHasXMLImport' canonicalizeConditions (Proxy @HS.Conditions) . Gen.prune $ genConditions
+      mkpropHasXMLImport canonicalizeConditions (Proxy @HS.Conditions) . Gen.prune $ genConditions
     ),
     ( "instance HasXML AuthnResponse",
       mkpropHasXML' canonicalizeAuthnResponse . Gen.prune $ genAuthnResponse
@@ -113,19 +113,11 @@ mkpropHasXML' canon gen = scaledprop $ do
 mkpropHasXMLImport ::
   forall them us.
   (Eq us, Show us, Show them, HasXMLImport us them) =>
-  Proxy them ->
-  Gen us ->
-  Property
-mkpropHasXMLImport = mkpropHasXMLImport' id
-
-mkpropHasXMLImport' ::
-  forall them us.
-  (Eq us, Show us, Show them, HasXMLImport us them) =>
   (us -> us) ->
   Proxy them ->
   Gen us ->
   Property
-mkpropHasXMLImport' canon _ gen = scaledprop $ do
+mkpropHasXMLImport canon _ gen = scaledprop $ do
   v <- forAll (canon <$> gen)
   tripping v exportXml (fmap canon . importXml @us @them @(Either String))
 
