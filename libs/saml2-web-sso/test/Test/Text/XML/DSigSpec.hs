@@ -9,7 +9,9 @@ where
 import Data.ByteString.Base64.Lazy qualified as EL
 import Data.Either
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Map qualified as Map
 import Data.String.Conversions
+import Data.UUID qualified as UUID
 import Data.X509 qualified as X509
 import Imports
 import SAML2.WebSSO.Test.Util
@@ -17,7 +19,10 @@ import SAML2.XML
 import SAML2.XML.Signature qualified as HS
 import Samples qualified
 import Test.Hspec
+import Text.Hamlet.XML (xml)
+import Text.XML
 import Text.XML.DSig
+import Text.XML.HXT.DOM.TypeDefs qualified as HXTC
 
 spec :: Spec
 spec = describe "xml:dsig" $ do
@@ -34,6 +39,7 @@ spec = describe "xml:dsig" $ do
       (_privcreds, creds, cert) <- mkSignCredsWithCert Nothing 192
       verifySelfSignature cert `shouldBe` Right ()
       certToCreds cert `shouldBe` Right creds
+
   describe "parseKeyInfo / renderKeyInfo roundtrip" $ do
     let check :: (HasCallStack) => Int -> Expectation
         check size = do
@@ -45,6 +51,7 @@ spec = describe "xml:dsig" $ do
     it "works (128 bytes)" $ check 128
     it "works (256 bytes)" $ check 256
     it "works (512 bytes)" $ check 512
+
   describe "verify" $ do
     it "works" $ do
       Right keyinfo <- (parseKeyInfo True >=> certToCreds) <$> readSampleIO "microsoft-idp-keyinfo.xml"
@@ -55,6 +62,63 @@ spec = describe "xml:dsig" $ do
       Right keyinfo <- (parseKeyInfo True >=> certToCreds) <$> readSampleIO "microsoft-idp-keyinfo.xml"
       raw <- cs <$> readSampleIO "microsoft-authnresponse-2.xml"
       verify (keyinfo :| [cert]) raw "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6" `shouldSatisfy` isRight
+
+  describe "verifyRoot (verify without the subtree picker)" $ do
+    it "works" $ do
+      Right keyinfo <- (parseKeyInfo True >=> certToCreds) <$> readSampleIO "microsoft-idp-keyinfo.xml"
+      raw <- cs <$> readSampleIO "microsoft-meta-2.xml"
+      verifyRoot (keyinfo :| []) raw `shouldSatisfy` isRight
+
+  describe "verifyRoot vs. signRoot" $ do
+    let check :: (HasCallStack) => Bool -> Bool -> (Either String HXTC.XmlTree -> Bool) -> Spec
+        check withMatchingCreds withID expected =
+          it (show (withMatchingCreds, withID)) $ do
+            (privCreds, pubCreds) <- mkcrds withMatchingCreds
+            signature <- runMonadSign $ renderLBS def <$> signRootAt 0 privCreds (doc withID)
+            (verifyRoot (pubCreds :| []) =<< signature) `shouldSatisfy` expected
+        mkcrds :: Bool -> IO (SignPrivCreds, SignCreds)
+        mkcrds = \case
+          True -> mkSignCreds keysize
+          False -> (,) <$> (fst <$> mkSignCreds keysize) <*> (snd <$> mkSignCreds keysize)
+        keysize = 192 -- not long enough for security, but hopefully long enough for swift testing
+        someID withID = Map.fromList [("ID", UUID.toText UUID.nil) | withID]
+        doc withID = Document (Prologue [] Nothing []) (Element "root" (someID withID) root) []
+        root =
+          [xml|
+                  <bloo hign="___">
+                    <ack hoghn="true">
+                      <nonack>
+                    hackach
+                |]
+    check True True isRight
+    check True False isRight
+    check False True isLeft
+    check False False isLeft
+    it "keeps data intact" $ do
+      (privCreds, _pubCreds) <- mkcrds True
+      Right outcome <- runMonadSign (cs . renderLBS def <$> signRootAt 0 privCreds (doc False))
+      (outcome `shouldContain`) `mapM_` ["bloo", "ack", "hackach", "hackach"]
+    it "honors non-0 signature position." $ do
+      (privCreds, _pubCreds) <- mkcrds True
+      Right signed <- runMonadSign $ signRootAt 1 privCreds (doc False)
+      case signed of
+        Document
+          _
+          ( Element
+              "root"
+              _
+              [ NodeElement (Element "bloo" _ _),
+                NodeElement (Element "{http://www.w3.org/2000/09/xmldsig#}Signature" _ _)
+                ]
+            )
+          _ ->
+            pure ()
+        bad -> error $ show bad
+    it "throws an error is signature position points outside the children list." $ do
+      (privCreds, _pubCreds) <- mkcrds True
+      outcome <- runMonadSign $ signRootAt 2 privCreds (doc False)
+      outcome `shouldSatisfy` isLeft
+
   describe "signature verification helpers cloned from hsaml2" $ do
     runVerifyExample `mapM_` examples
 

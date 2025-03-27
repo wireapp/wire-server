@@ -23,7 +23,6 @@ import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIs
 import SAML2.WebSSO.Test.Util.Types
 import Servant
 import System.IO
-import System.IO.Silently (hCapture)
 import Test.Hspec
 import Test.Hspec.Wai
 import Test.Hspec.Wai.Internal (runWaiSession)

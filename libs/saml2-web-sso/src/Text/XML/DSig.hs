@@ -21,10 +21,12 @@ module Text.XML.DSig
     renderKeyInfo,
     certToCreds,
     certToPublicKey,
+    mkSignCreds,
     mkSignCredsWithCert,
 
     -- * signature verification
     verify,
+    verifyRoot,
     verifyIO,
 
     -- * signature creation
@@ -164,6 +166,9 @@ certToCreds cert = do
 certToPublicKey :: (HasCallStack, MonadError String m) => X509.SignedCertificate -> m RSA.PublicKey
 certToPublicKey cert = certToCreds cert <&> \(SignCreds _ (SignKeyRSA key)) -> key
 
+mkSignCreds :: (Crypto.MonadRandom m, MonadIO m) => Int -> m (SignPrivCreds, SignCreds)
+mkSignCreds size = mkSignCredsWithCert Nothing size <&> \(priv, pub, _) -> (priv, pub)
+
 -- | If first argument @validSince@ is @Nothing@, use cucrent system time.
 mkSignCredsWithCert ::
   forall m.
@@ -227,6 +232,21 @@ verify creds el sid = case unsafePerformIO (try @SomeException $ verifyIO creds 
   Right (_, Right xml) -> pure xml
   Right (_, Left exc) -> throwError $ show exc
   Left exc -> throwError $ show exc
+
+-- | Convenient wrapper that picks the ID of the root element node and passes it to `verify`.
+verifyRoot :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> m HXTC.XmlTree
+verifyRoot creds el = do
+  signedID <- do
+    XML.Document _ (XML.Element _ attrs _) _ <-
+      either
+        (throwError . ("Could not parse signed document: " <>) . cs . show)
+        pure
+        (XML.parseLBS XML.def el)
+    maybe
+      (throwError $ "Could not parse signed document: no ID attribute in root element." <> show el)
+      (pure . cs)
+      (Map.lookup "ID" attrs)
+  verify creds el signedID
 
 -- | Try a list of creds against a document.  If all fail, return a list of errors for each cert; if
 -- *any* succeed, return the empty list.
