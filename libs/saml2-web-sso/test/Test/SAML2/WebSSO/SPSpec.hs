@@ -193,102 +193,102 @@ specJudgeT = do
               _astSubjectLocality = Nothing
             }
     context "vanilla response, matching request found" $ do
-      --   grants id authnresp
-      context "no matching request" $ do
-        let updctx = ctxRequestStore .~ mempty
-        denies updctx authnresp
-      context "global inResponseTo missing" $ do
-        grants id $ authnresp & rspInRespTo .~ Nothing
-      context "inResponseTo in subject confirmation missing" $ do
-        denies id $ authnresp & scdataL . scdInResponseTo .~ Nothing
-      context "mismatch between global and subject confirmation inResponseTo" $ do
-        -- wire does not parse unsigned data from the authentication response, so this will
-        -- pass (but the mandatory inResponseTo field in the *signed* assertion will be
-        -- considered).
-        grants id $
-          authnresp
-            & rspInRespTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
-        denies id $
-          authnresp
-            & scdataL . scdInResponseTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
-      context "issue instant in the future" $ do
-        let violations :: [AuthnResponse -> AuthnResponse]
-            violations =
-              [ assertionL . assIssueInstant .~ timeInALongTime,
-                statementL . astAuthnInstant .~ timeInALongTime
-              ]
-        let meh :: [AuthnResponse -> AuthnResponse]
-            meh =
-              [ rspIssueInstant .~ timeInALongTime
-              ]
-        denies id `mapM_` (($ authnresp) <$> violations)
-        -- wire does not test unsigned data in the authentication response, so issue instant
-        -- will be ignored
-        grants id `mapM_` (($ authnresp) <$> meh)
-      context "SSO URL, recipient URL, destination URL, audience" $ do
-        -- wire does not test unsigned data in the authentication response, so response
-        -- destination will be ignored (in favor of the redundant info in the signed
-        -- assertion)
-        let good :: [AuthnResponse -> AuthnResponse]
-            good =
-              [ conditionsL . condAudienceRestriction
-                  .~ [ {- (inner "or" succeeding) -} ([uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]])
-                     ],
-                conditionsL . condAudienceRestriction
-                  .~ [ {- (outer "and" succeeding) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
-                       [uri|https://sp.net/sso/authnresp|] :| []
-                     ]
-              ]
-            bad :: [AuthnResponse -> AuthnResponse]
-            bad =
-              -- wire does not test unsigned data in the authentication response, so response
-              -- destination will be ignored (in favor of the redundant info in the signed
-              [ conditionsL . condAudienceRestriction .~ [[uri|https://other.io/sso|] :| []],
-                scdataL . scdRecipient .~ [uri|https://other.io/sso|],
-                conditionsL . condAudienceRestriction .~ [],
-                -- "The resulting assertion(s) MUST contain a <saml:AudienceRestriction> element
-                -- referencing the requester as an acceptable relying party." [1/3.4.1.4]
-                conditionsL . condAudienceRestriction
-                  .~ [ {- (inner "or" failing) -} [uri|https://other.io/sso|] :| [[uri|https://yetanother.net/stillwrong|]]
-                     ],
-                conditionsL . condAudienceRestriction
-                  .~ [ {- (outer "and" failing) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
-                       [uri|https://yetanother.net/stillwrong|] :| []
-                     ]
-              ]
-        grants id `mapM_` (($ authnresp) <$> good)
-        denies id `mapM_` (($ authnresp) <$> bad)
-      context "status failure" $ do
-        denies id (authnresp & rspStatus .~ StatusFailure)
-      context "time constraint violation" $ do
-        let violations :: [AuthnResponse -> AuthnResponse]
-            violations =
-              [ conditionsL . condNotBefore ?~ timeInALongTime,
-                conditionsL . condNotOnOrAfter ?~ timeLongAgo,
-                scdataL . scdNotBefore ?~ timeInALongTime,
-                scdataL . scdNotOnOrAfter .~ timeLongAgo
-              ]
-        denies id `mapM_` (($ authnresp) <$> violations)
-      context "time constraint violation within tolerance" $ do
-        let okviolations :: [AuthnResponse -> AuthnResponse]
-            okviolations =
-              [ conditionsL . condNotBefore ?~ (addTime (1 - tolerance) timeNow),
-                conditionsL . condNotOnOrAfter ?~ (addTime (tolerance - 1) timeNow),
-                scdataL . scdNotBefore ?~ (addTime (1 - tolerance) timeNow),
-                scdataL . scdNotOnOrAfter .~ (addTime (tolerance - 1) timeNow)
-              ]
-        grants id `mapM_` (($ authnresp) <$> okviolations)
-      context "response, assertion issuer" $ do
-        let good :: [AuthnResponse -> AuthnResponse]
-            good =
-              [ rspIssuer .~ Nothing
-              ]
-            bad :: [AuthnResponse -> AuthnResponse]
-            bad =
-              [ rspIssuer ?~ (Issuer [uri|http://other.io/sso|]),
-                assertionL . assIssuer .~ Issuer [uri|http://other.io/sso|]
-              ]
-        grants id `mapM_` (($ authnresp) <$> good)
-        -- wire does not test unsigned data in the authentication response, so a mismatch
-        -- between that and the assertion will be ignored.
-        grants id `mapM_` (($ authnresp) <$> bad)
+      grants id authnresp
+    context "no matching request" $ do
+      let updctx = ctxRequestStore .~ mempty
+      denies updctx authnresp
+    context "global inResponseTo missing" $ do
+      grants id $ authnresp & rspInRespTo .~ Nothing
+    context "inResponseTo in subject confirmation missing" $ do
+      denies id $ authnresp & scdataL . scdInResponseTo .~ Nothing
+    context "mismatch between global and subject confirmation inResponseTo" $ do
+      -- wire does not parse unsigned data from the authentication response, so this will
+      -- pass (but the mandatory inResponseTo field in the *signed* assertion will be
+      -- considered).
+      grants id $
+        authnresp
+          & rspInRespTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
+      denies id $
+        authnresp
+          & scdataL . scdInResponseTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
+    context "issue instant in the future" $ do
+      let violations :: [AuthnResponse -> AuthnResponse]
+          violations =
+            [ assertionL . assIssueInstant .~ timeInALongTime,
+              statementL . astAuthnInstant .~ timeInALongTime
+            ]
+      let meh :: [AuthnResponse -> AuthnResponse]
+          meh =
+            [ rspIssueInstant .~ timeInALongTime
+            ]
+      denies id `mapM_` (($ authnresp) <$> violations)
+      -- wire does not test unsigned data in the authentication response, so issue instant
+      -- will be ignored
+      grants id `mapM_` (($ authnresp) <$> meh)
+    context "SSO URL, recipient URL, destination URL, audience" $ do
+      -- wire does not test unsigned data in the authentication response, so response
+      -- destination will be ignored (in favor of the redundant info in the signed
+      -- assertion)
+      let good :: [AuthnResponse -> AuthnResponse]
+          good =
+            [ conditionsL . condAudienceRestriction
+                .~ [ {- (inner "or" succeeding) -} ([uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]])
+                   ],
+              conditionsL . condAudienceRestriction
+                .~ [ {- (outer "and" succeeding) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
+                     [uri|https://sp.net/sso/authnresp|] :| []
+                   ]
+            ]
+          bad :: [AuthnResponse -> AuthnResponse]
+          bad =
+            -- wire does not test unsigned data in the authentication response, so response
+            -- destination will be ignored (in favor of the redundant info in the signed
+            [ conditionsL . condAudienceRestriction .~ [[uri|https://other.io/sso|] :| []],
+              scdataL . scdRecipient .~ [uri|https://other.io/sso|],
+              conditionsL . condAudienceRestriction .~ [],
+              -- "The resulting assertion(s) MUST contain a <saml:AudienceRestriction> element
+              -- referencing the requester as an acceptable relying party." [1/3.4.1.4]
+              conditionsL . condAudienceRestriction
+                .~ [ {- (inner "or" failing) -} [uri|https://other.io/sso|] :| [[uri|https://yetanother.net/stillwrong|]]
+                   ],
+              conditionsL . condAudienceRestriction
+                .~ [ {- (outer "and" failing) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
+                     [uri|https://yetanother.net/stillwrong|] :| []
+                   ]
+            ]
+      grants id `mapM_` (($ authnresp) <$> good)
+      denies id `mapM_` (($ authnresp) <$> bad)
+    context "status failure" $ do
+      denies id (authnresp & rspStatus .~ StatusFailure)
+    context "time constraint violation" $ do
+      let violations :: [AuthnResponse -> AuthnResponse]
+          violations =
+            [ conditionsL . condNotBefore ?~ timeInALongTime,
+              conditionsL . condNotOnOrAfter ?~ timeLongAgo,
+              scdataL . scdNotBefore ?~ timeInALongTime,
+              scdataL . scdNotOnOrAfter .~ timeLongAgo
+            ]
+      denies id `mapM_` (($ authnresp) <$> violations)
+    context "time constraint violation within tolerance" $ do
+      let okviolations :: [AuthnResponse -> AuthnResponse]
+          okviolations =
+            [ conditionsL . condNotBefore ?~ (addTime (1 - tolerance) timeNow),
+              conditionsL . condNotOnOrAfter ?~ (addTime (tolerance - 1) timeNow),
+              scdataL . scdNotBefore ?~ (addTime (1 - tolerance) timeNow),
+              scdataL . scdNotOnOrAfter .~ (addTime (tolerance - 1) timeNow)
+            ]
+      grants id `mapM_` (($ authnresp) <$> okviolations)
+    context "response, assertion issuer" $ do
+      let good :: [AuthnResponse -> AuthnResponse]
+          good =
+            [ rspIssuer .~ Nothing
+            ]
+          bad :: [AuthnResponse -> AuthnResponse]
+          bad =
+            [ rspIssuer ?~ (Issuer [uri|http://other.io/sso|]),
+              assertionL . assIssuer .~ Issuer [uri|http://other.io/sso|]
+            ]
+      grants id `mapM_` (($ authnresp) <$> good)
+      -- wire does not test unsigned data in the authentication response, so a mismatch
+      -- between that and the assertion will be ignored.
+      grants id `mapM_` (($ authnresp) <$> bad)
