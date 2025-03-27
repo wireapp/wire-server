@@ -24,6 +24,7 @@ import SAML2.Util
 import SAML2.WebSSO.Config
 import SAML2.WebSSO.Servant.CPP
 import SAML2.WebSSO.Types
+import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import Servant hiding (MkLink, URI (..))
 import URI.ByteString
 
@@ -285,10 +286,10 @@ instance (Monad m, SPStoreRequest i m) => SPStoreRequest i (JudgeT m) where
 -- those are not signed!  the standard doesn't seem to worry about that, but wire does.  this
 -- affects `rspStatus`, `inRespTo`, `rspIssueInstant`, `rspDestination`.  those are inferred
 -- from the *signed* information available.
-judge :: (Monad m, SP m, SPStore m) => NonEmpty Assertion -> Status -> JudgeCtx -> m AccessVerdict
+judge :: (Monad m, SP m, SPStore m) => NonEmpty Assertion -> UnvalidatedSAMLStatus -> JudgeCtx -> m AccessVerdict
 judge assertions status ctx = runJudgeT ctx $ do
   unless
-    (status == StatusSuccess)
+    (eqUnvalidatedSAMLStatus status StatusSuccess)
     (deny DeniedStatusFailure)
   foldJudge assertions
 

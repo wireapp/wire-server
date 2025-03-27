@@ -19,6 +19,7 @@ library
     SAML2.WebSSO
     SAML2.WebSSO.API
     SAML2.WebSSO.API.Example
+    SAML2.WebSSO.API.UnvalidatedSAMLStatus
     SAML2.WebSSO.Config
     SAML2.WebSSO.Cookie
     SAML2.WebSSO.Error

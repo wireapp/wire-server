@@ -12,6 +12,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import SAML2.WebSSO
 import SAML2.WebSSO.API.Example (AssertionStore)
+import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.Util
 import Test.Hspec
@@ -118,7 +119,7 @@ specJudgeT = do
                   & ctxNow .~ timeIn10seconds
                   & ctxRequestStore .~ Map.singleton reqid (aresp ^. assertionL . assIssuer, timeIn10minutes)
                   & updctx
-            (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) (aresp ^. rspStatus) jctx)
+            (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) (mkUnvalidatedSAMLStatus $ aresp ^. rspStatus) jctx)
         denies :: (HasCallStack) => (Ctx -> Ctx) -> AuthnResponse -> Spec
         denies updctx aresp = do
           it "denies" $ do
@@ -129,7 +130,7 @@ specJudgeT = do
                   & ctxNow .~ timeIn10seconds
                   & ctxRequestStore .~ Map.singleton reqid (aresp ^. assertionL . assIssuer, timeIn10minutes)
                   & updctx
-            (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) (aresp ^. rspStatus) jctx)
+            (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) (mkUnvalidatedSAMLStatus $ aresp ^. rspStatus) jctx)
         jctx :: JudgeCtx
         jctx = JudgeCtx (Issuer [uri|https://sp.net/sso/authnresp|]) [uri|https://sp.net/sso/authnresp|]
         authnresp :: AuthnResponse
