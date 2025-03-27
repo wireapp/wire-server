@@ -7,7 +7,7 @@
 -- There are other scenarios, e.g. all resources on the page could be guarded with an authentication
 -- check and redirect the client to the IdP, and make sure that the client lands on the initally
 -- requested resource after successful authentication.  With the building blocks provided by this
--- module, it should be straight-forward to implemented all of these scenarios.
+-- module, it should be straight-forward to implement all of these scenarios.
 --
 -- This module works best if imported qualified.
 --
