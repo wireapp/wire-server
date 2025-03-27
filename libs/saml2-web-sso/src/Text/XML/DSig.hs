@@ -268,6 +268,9 @@ verifyIO' (SignCreds SignDigestSha256 (SignKeyRSA key)) el sid = runExceptT $ do
   el' <- either (throwError . HS.SignatureParseError) pure $ HS.xmlToDocE el
   ExceptT $ verifySignatureUnenvelopedSigs (HS.PublicKeys Nothing . Just $ key) sid el'
 
+----------------------------------------------------------------------------------------------------
+-- the following is copied from hsaml2 and patched to fit our API
+
 -- | It turns out sometimes we don't get envelopped signatures, but signatures that are
 -- located outside the signed sub-tree.  Since 'verifySignature' doesn't support this case, if
 -- you encounter it you should fall back to 'verifySignatureUnenvelopedSigs'.
@@ -384,6 +387,9 @@ verifyReference r doc = case HS.referenceURI r of
             else Left $ "#" <> xid <> ": digest mismatch"
       bad -> pure . Left $ "#" <> xid <> ": has " <> show (length bad) <> " matches, should have 1."
   bad -> pure . Left $ "unexpected referenceURI: " <> show bad
+
+-- the above is copied from hsaml2 and patched to fit our API
+----------------------------------------------------------------------------------------------------
 
 ----------------------------------------------------------------------
 -- signature creation
