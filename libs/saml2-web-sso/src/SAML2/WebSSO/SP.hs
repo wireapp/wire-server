@@ -305,9 +305,13 @@ foldJudge (toList -> assertions) = do
             )
 
   pure $ case (granteds, denieds) of
+    -- granted
     (nub -> [result@(AccessGranted _)], []) -> result
-    (_, denied : _) -> denied
-    (bad, _) -> AccessDenied (DeniedBadUserRefs (show bad) : (view avReasons =<< denieds))
+    -- denied
+    ([], _ : _) -> AccessDenied (view avReasons =<< denieds)
+    -- weird corner cases
+    (bad@(_ : _), _) -> AccessDenied (DeniedBadUserRefs (show bad) : (view avReasons =<< denieds))
+    ([], []) -> AccessDenied [DeniedBadUserRefs "there are no assertions"]
 
 judge1 :: (HasCallStack, MonadJudge m, SP m, SPStore m) => Assertion -> m AccessVerdict
 judge1 assertion = do
