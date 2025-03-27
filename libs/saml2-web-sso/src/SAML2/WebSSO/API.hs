@@ -227,25 +227,24 @@ simpleVerifyAuthnResponse creds raw = do
 allVerifies :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> NonEmpty String -> m (NonEmpty Assertion)
 allVerifies creds raw nodeids = do
   let workArounds = verifyADFS creds raw nodeids
-  case verify creds raw `mapM` nodeids of
-    Right assertions -> (renderVerifyErrorHack . parseFromXmlTree) `mapM` assertions
+  xmls <- case verify creds raw `mapM` nodeids of
+    Right assertions -> pure assertions
     Left err -> case workArounds of
       Right ws -> pure ws
       Left _ -> throwError . BadSamlResponseInvalidSignature $ cs err
-
--- (there must be a better way for this, but where?)
-renderVerifyErrorHack :: forall m err a. (MonadError (Error err) m) => Either String a -> m a
-renderVerifyErrorHack = either throwError pure . fmapL (BadSamlResponseSamlError . LT.pack)
+  (renderVerifyErrorHack . parseFromXmlTree) `mapM` xmls
+  where
+    -- (there must be a better way for this, but where?)
+    renderVerifyErrorHack :: forall m err a. (MonadError (Error err) m) => Either String a -> m a
+    renderVerifyErrorHack = either throwError pure . fmapL (BadSamlResponseSamlError . LT.pack)
 
 -- | ADFS illegally breaks whitespace after signing documents; here we try to fix that.
 -- https://github.com/wireapp/wire-server/issues/656
 -- (This may also have been a copy&paste issue in customer support, but let's just leave it in just in case.)
-verifyADFS :: (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> NonEmpty String -> m (NonEmpty Assertion)
+verifyADFS :: (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> NonEmpty String -> m (NonEmpty XmlTree)
 verifyADFS creds raw nodeids = do
-  xmls :: NonEmpty XmlTree <-
-    either throwError pure . fmapL (BadSamlResponseXmlError . LT.pack) $
-      verify creds (tweak raw) `mapM` nodeids
-  (renderVerifyErrorHack . parseFromXmlTree) `mapM` xmls
+  either throwError pure . fmapL (BadSamlResponseXmlError . LT.pack) $
+    verify creds (tweak raw) `mapM` nodeids
   where
     tweak :: LBS -> LBS
     tweak "" = ""
