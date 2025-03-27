@@ -11,7 +11,6 @@
 --
 -- This module works best if imported qualified.
 --
--- FUTUREWORK: servant-server is quite heavy.  we should have a cabal flag to exclude it.
 module SAML2.WebSSO.API.UnvalidatedSAMLStatus
   ( UnvalidatedSAMLStatus,
     mkUnvalidatedSAMLStatus,
