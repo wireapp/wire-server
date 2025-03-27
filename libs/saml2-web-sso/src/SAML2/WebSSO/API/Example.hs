@@ -143,10 +143,16 @@ simpleGetIdpIssuer ::
 simpleGetIdpIssuer sel item = do
   store <- asks (^. sel)
   items <- liftIO $ readMVar store
-  now <- getNow
-  pure $ case Map.lookup item items of
-    Just (issuer, expiresAt) | expiresAt < now -> Just issuer
-    _ -> Nothing
+  simpleGetIdpIssuer' item items <$> getNow
+
+simpleGetIdpIssuer' ::
+  ID AuthnRequest ->
+  RequestStore ->
+  Time ->
+  (Maybe Issuer)
+simpleGetIdpIssuer' item items now = case Map.lookup item items of
+  Just (issuer, expiresAt) | expiresAt < now -> Just issuer
+  _ -> Nothing
 
 instance SPStoreRequest AuthnRequest SimpleSP where
   storeRequest = simpleStoreRequest spctxReq

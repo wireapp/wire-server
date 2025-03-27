@@ -19,7 +19,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.Void (Void)
 import SAML2.WebSSO as SAML
-import SAML2.WebSSO.API.Example (GetAllIdPs (..), RequestStore, simpleGetIdPConfigBy, simpleIsAliveID', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
+import SAML2.WebSSO.API.Example (GetAllIdPs (..), RequestStore, simpleGetIdPConfigBy, simpleGetIdpIssuer', simpleIsAliveID', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
 import SAML2.WebSSO.Test.Util.Types
 import Servant
 import System.IO
@@ -110,7 +110,7 @@ simpleGetIdpIssuer ::
 simpleGetIdpIssuer sel item = do
   store <- ask
   items <- liftIO $ readMVar store
-  pure . fmap fst $ Map.lookup item (items ^. sel)
+  simpleGetIdpIssuer' item (items ^. sel) <$> getNow
 
 instance SPStoreRequest AuthnRequest TestSP where
   storeRequest = simpleStoreRequest ctxRequestStore
