@@ -365,7 +365,8 @@ authresp mbSPId getSPIssuer getResponseURI handleVerdictAction body = do
 
 -- | a variant of 'authresp' with a less general verdict handler.
 authresp' ::
-  (SPStoreIdP (Error err) m, SPStore m) =>
+  forall m err extra.
+  (SPStoreIdP (Error err) m, SP m, MonadError (Error err) m, SPStore m, extra ~ IdPConfigExtra m) =>
   Maybe (IdPConfigSPId m) ->
   m Issuer ->
   m URI ->
@@ -373,9 +374,10 @@ authresp' ::
   AuthnResponseBody ->
   m (WithCookieAndLocation ST)
 authresp' mbSPId getRequestIssuerURI getResponseURI handleVerdict body = do
-  let handleVerdictAction resp _idp verdict = case handleVerdict of
+  let handleVerdictAction :: NonEmpty Assertion -> IdPConfig extra -> AccessVerdict -> m (WithCookieAndLocation ST)
+      handleVerdictAction resp _idp verdict = case handleVerdict of
         HandleVerdictRedirect onsuccess -> simpleHandleVerdict onsuccess verdict
-        HandleVerdictRaw action -> throwError . CustomServant =<< undefined action resp verdict
+        HandleVerdictRaw action -> throwError . CustomServant =<< action resp verdict
   authresp mbSPId getRequestIssuerURI getResponseURI handleVerdictAction body
 
 type OnSuccessRedirect m = UserRef -> m (Cky, URI)
@@ -411,7 +413,7 @@ simpleOnSuccess foldCase uid = do
 -- suitable name here.
 data HandleVerdict m
   = HandleVerdictRedirect (OnSuccessRedirect m)
-  | HandleVerdictRaw (AuthnResponse -> AccessVerdict -> m ResponseVerdict)
+  | HandleVerdictRaw (NonEmpty Assertion -> AccessVerdict -> m ResponseVerdict)
 
 {- TODO:
 newtype ResponseVerdicts = ResponseVerdicts { unResponseVerdicts :: [ResponseVerdict] }
