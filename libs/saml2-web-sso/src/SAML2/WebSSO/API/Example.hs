@@ -151,7 +151,7 @@ simpleGetIdpIssuer' ::
   Time ->
   (Maybe Issuer)
 simpleGetIdpIssuer' item items now = case Map.lookup item items of
-  Just (issuer, expiresAt) | expiresAt < now -> Just issuer
+  Just (issuer, expiresAt) | now < expiresAt -> Just issuer
   _ -> Nothing
 
 instance SPStoreRequest AuthnRequest SimpleSP where
