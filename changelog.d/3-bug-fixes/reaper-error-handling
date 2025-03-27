@@ -1,0 +1,1 @@
+Fix issue with the (redis/cannon) reaper chart, which was sometimes killing cannon pods for no good reasons during transient networking errors.

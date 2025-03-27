@@ -56,3 +56,4 @@ ingress-nginx:
       # Also add ssl/tls protocol/cipher to gain some observability here (can we turn off TLS 1.2?)
       log-format-escape-json: true
       log-format-upstream: '{"bytes_sent": "$bytes_sent", "duration": "$request_time", "http_referrer": "$http_referer", "http_user_agent": "$http_user_agent", "method": "$request_method", "path": "$uri", "remote_addr": "$proxy_protocol_addr", "remote_user": "$remote_user", "request_id": "$req_id", "request_length": "$request_length", "request_proto": "$server_protocol", "request_time": "$request_time", "status": "$status", "time": "$time_iso8601", "tls_cipher": "$ssl_cipher", "tls_protocol": "$ssl_protocol", "vhost": "$host", "x_forwarded_for": "$proxy_add_x_forwarded_for"}'
+    allowSnippetAnnotations: true
