@@ -1045,6 +1045,9 @@ data AddPermission = Admins | Everyone
   deriving (Arbitrary) via (GenericUniform AddPermission)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddPermission
 
+instance Default AddPermission where
+  def = Everyone
+
 instance ToSchema AddPermission where
   schema =
     enum @Text "AddPermission" $

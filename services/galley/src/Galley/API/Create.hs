@@ -71,7 +71,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
-import Wire.API.Conversation qualified as AddPermission
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
 import Wire.API.Error
@@ -685,7 +684,7 @@ newRegularConversation lusr newConv = do
                   cnvmReceiptMode = newConvReceiptMode newConv,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
                   cnvmGroupConvType = Just newConv.newConvGroupConvType,
-                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then Just AddPermission.Everyone else Nothing,
+                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then Just def else Nothing,
                   cnvmCellsState =
                     if newConv.newConvCells
                       then CellsPending
