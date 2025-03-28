@@ -66,7 +66,7 @@ import Data.Text qualified as T
 import Data.Text.Ascii qualified as Ascii
 import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
-import Federator.MockServer
+import Federator.MockServer hiding (status)
 import Galley.API.Mapping
 import Galley.Options (federator, rabbitmq)
 import Galley.Types.Conversations.Members

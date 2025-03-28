@@ -80,7 +80,7 @@ import Wire.API.User.Client.Prekey
 withTempMockFederator :: Opt.Opts -> LByteString -> Session a -> IO (a, [Mock.FederatedRequest])
 withTempMockFederator opts resp action =
   Mock.withTempMockFederator
-    def {Mock.handler = const (pure ("application" // "json", resp))}
+    def {Mock.handler = const (pure def {Mock.body = resp})}
     $ \mockPort -> do
       let opts' =
             opts

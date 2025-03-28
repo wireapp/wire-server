@@ -51,7 +51,9 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
   --
   -- FUTUREWORK: Pull these numbers into config.s
   let policy = capDelay cfg.pushBackoffMaxWait $ fullJitterBackoff cfg.pushBackoffMinWait
-      logErrr willRetry (SomeException e) rs = do
+
+      logErr :: Bool -> SomeException -> RetryStatus -> AppT IO ()
+      logErr willRetry (SomeException e) rs = do
         Log.err $
           Log.msg (Log.val "Exception occurred while pushing notification")
             . Log.field "error" (displayException e)
@@ -60,26 +62,28 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             . Log.field "retryCount" rs.rsIterNumber
         metrics <- asks backendNotificationMetrics
         withLabel metrics.errorCounter (domainText targetDomain) incCounter
-        withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 1)
+        withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge (if willRetry then 1 else 0))
+
+      skipChanThreadKilled :: RetryStatus -> Handler (AppT IO) Bool
       skipChanThreadKilled _ = Handler $ \(_ :: Q.ChanThreadKilledException) -> pure False
-      dropNotificationOnBadRequestClientError retryStatus = Handler $ \(e :: FederatorClientError) -> do
-        case e of
-          FederatorClientError err | retryStatus.rsIterNumber > 2 -> do
+
+      shouldRetry :: SomeException -> AppT IO Bool
+      shouldRetry e = do
+        case fromException @FederatorClientError e of
+          Just (FederatorClientError err) -> do
             case err.innerError of
-              Just innerError -> do
-                if isBadRequest innerError && innerError.label == "bad-request"
-                  then do
-                    Log.err $ Log.msg (Log.val "Dropping notification due to bad request")
-                    lift $ ack envelope
-                    pure False
-                  else pure True
-              Nothing -> pure False
+              -- if a message cannot be parsed by the receiving backend, we should not retry because we cannot recover from this
+              Just innerError | isBadRequest innerError && innerError.label == "bad-request" -> do
+                Log.err $ Log.msg (Log.val "Dropping notification due to bad request")
+                lift $ reject envelope False
+                pure False
+              _ -> pure True
           _ -> pure True
+
       handlers =
         skipAsyncExceptions
-          <> [ dropNotificationOnBadRequestClientError,
-               skipChanThreadKilled,
-               logRetries (const $ pure True) logErrr
+          <> [ skipChanThreadKilled,
+               logRetries shouldRetry logErr
              ]
   -- The revcovering policy where it can loop forever effectively blocks the consumer thread.
   -- This isn't a problem for single active consumer with single message delivery, however it

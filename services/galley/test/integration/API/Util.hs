@@ -65,7 +65,7 @@ import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
 import Data.UUID qualified as UUID
 import Data.UUID.V4
-import Federator.MockServer
+import Federator.MockServer hiding (body)
 import Federator.MockServer qualified as Mock
 import GHC.TypeNats
 import Galley.Options qualified as Opts
@@ -74,7 +74,6 @@ import Galley.Types.Conversations.One2One
 import Galley.Types.UserList
 import Imports
 import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Media.MediaType
 import Network.URI (pathSegments)
 import Network.Wai.Utilities.MockServer (withMockServer)
 import Servant
@@ -2530,7 +2529,7 @@ withTempMockFederator' resp action = do
         def
           { handler = runMock (assertFailure . Text.unpack) $ do
               r <- resp
-              pure ("application" // "json", r)
+              pure (def {Mock.body = r})
           }
   Mock.withTempMockFederator
     mock
