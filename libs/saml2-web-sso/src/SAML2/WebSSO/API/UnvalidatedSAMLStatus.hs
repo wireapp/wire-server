@@ -10,7 +10,6 @@
 -- module, it should be straight-forward to implement all of these scenarios.
 --
 -- This module works best if imported qualified.
---
 module SAML2.WebSSO.API.UnvalidatedSAMLStatus
   ( UnvalidatedSAMLStatus,
     mkUnvalidatedSAMLStatus,
