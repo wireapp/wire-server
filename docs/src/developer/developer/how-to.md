@@ -1,29 +1,31 @@
-# Developer how-to's
+# Developer how-to’s
 
-The following assume you have a working developer environment with all the dependencies listed in [./dependencies.md](./dependencies.md) available to you.
+The following assume you have a working developer environment with all the dependencies listed in [./dependencies.md](dependencies.md) available to you.
 
 If you want to deploy to the CI kubernetes cluster (how-tos below), you need to set the `KUBECONFIG` env var, where `$cailleach_repo` is replaced by your local checkout of the `cailleach` repository.
-```
+
+```default
 export KUBECONFIG=$cailleach_repo/environments/kube-ci/kubeconfig.dec
 ```
-Check that this file exists by running `ls $KUBECONFIG`.
 
+Check that this file exists by running `ls $KUBECONFIG`.
 
 ## How to look at the swagger docs / UI locally
 
 Terminal 1:
+
 * Set up backing services: `./deploy/dockerephemeral/run.sh`
 
 Terminal 2:
+
 * Build and start wire-server services: ` make c && ./dist/run-services`
 
 Open your browser at:
 [http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for a list of API verions.
 
 Also check out the docs for swagger in our staging environment:
-{ref}`swagger-api-docs`.  Replace the staging domain by
+[Swagger / OpenAPI documentation](../../understand/api-client-perspective/swagger.md#swagger-api-docs).  Replace the staging domain by
 `localhost:8080` to get to your local build.
-
 
 ## How to run federation tests across two backends
 
@@ -57,14 +59,14 @@ Decide which code you would like to deploy. The following options are detailed i
 
 First, find the latest CI-compiled code made available as docker images:
 
-```
+```default
 # Run all commands from the top directory of wire-server
 make latest-tag
 ```
 
 Output might be
 
-```
+```default
 ./hack/bin/find-latest-docker-tag.sh
 latest tag for brig:
 2.104.11
@@ -72,22 +74,21 @@ latest tag for nginz:
 2.104.11
 ```
 
-Let's assume the tags are the same(*) for both, then export an environment variable:
+Let’s assume the tags are the same(\*) for both, then export an environment variable:
 
-```
+```default
 export DOCKER_TAG=2.104.11
 export NAMESPACE="myname"
 make kube-integration-setup
 ```
 
-This will create two full installations of wire-server on the kubernetes cluster you've configured to connect to, and should take ~10 minutes. The namespaces will be `$NAMESPACE` and `$NAMESPACE-fed2`.
-
+This will create two full installations of wire-server on the kubernetes cluster you’ve configured to connect to, and should take ~10 minutes. The namespaces will be `$NAMESPACE` and `$NAMESPACE-fed2`.
 
 ##### Troubleshooting
 
 `make latest-tag` gives different tags for brig and nginz:
 
-* maybe CI hasn't finished, or failed. Look at concourse (`kubernetes-dev` pipeline)
+* maybe CI hasn’t finished, or failed. Look at concourse (`kubernetes-dev` pipeline)
 
 #### Deploy code from your pull request
 
@@ -99,7 +100,7 @@ Look at a successful job in the `wire-server-pr` pipeline from a job bruild matc
 
 ![concourse-pr-version-circled](https://user-images.githubusercontent.com/2112744/114410146-69b34000-9bab-11eb-863c-106fb661ca82.png)
 
-```
+```default
 # PR 1438 commit 7a183b2dbcf019df1af3d3b97604edac72eca762 translates to
 export DOCKER_TAG=0.0.1-pr.3684
 export NAMESPACE="myname"
@@ -110,21 +111,19 @@ make kube-integration-setup
 
 This can be useful to get quicker feedback while working on multi-backend code or configuration (e.g. helm charts) than to wait an hour for CI. This allows you to test code without uploading it to github and waiting an hour for CI.
 
-FUTUREWORK: this process is in development (update this section after it's confirmed to work):
+FUTUREWORK: this process is in development (update this section after it’s confirmed to work):
 
 ##### Run tests in kind
 
-0. Create a local kind cluster with `make kind-cluster`
-1. Upload images in docker-daemon running inside kind with `make kind-upload-images`
+1. Create a local kind cluster with `make kind-cluster`
+2. Upload images in docker-daemon running inside kind with `make kind-upload-images`
 
    *Note:* First time all the images need to be uploaded. When working on one
    service it can be selectively uploaded using `make kind-upload-image-<name>`
    (e.g. `make kind-upload-image-brig`).
-2. Install wire-server using `make kind-integration-setup`.
-3. Run tests using `make kind-integration-test`.
-4. Run end2end integration tests: `make kind-integration-e2e`.
-
-
+3. Install wire-server using `make kind-integration-setup`.
+4. Run tests using `make kind-integration-test`.
+5. Run end2end integration tests: `make kind-integration-e2e`.
 
 #### Deploy your local code to a kubernetes cluster
 
@@ -132,7 +131,7 @@ This sections describes how partially update a release with a local build of a s
 
 Start by deploying a published release (see 2.1 or 2.2).
 
-```
+```default
 export NAMESPACE=$USER
 export DOCKER_TAG=2.116.32
 export ENTERPRISE_IMAGE_PULL_SECRET=... # .dockerconfigjson of wire+wire_server_enterprise quay.io robot
@@ -144,16 +143,16 @@ well.)
 
 Then build and push the `brig` image by running
 
-```
+```default
 #FUTUREWORK
 ```
 
-To update the release with brig's local image run
-```
+To update the release with brig’s local image run
+
+```default
 ./hack/bin/set-chart-image-version.sh "$DOCKER_TAG_LOCAL_BUILD" brig
 ./hack/bin/integration-setup-federation.sh
 ```
-
 
 ### Run multi-backend tests
 
@@ -164,7 +163,7 @@ To update the release with brig's local image run
 * tests run entirely on kubernetes.
 * includes running the federation multi-backend tests by default (see also section (1))
 
-```
+```default
 make kube-integration-test
 ```
 
@@ -178,7 +177,7 @@ make kube-integration-test
 2. ensure you have `telepresence` installed (see developer dependencies documentation)
 3. Run the actual tests, (takes half a minute):
 
-```
+```default
 ./services/brig/federation-tests.sh "$NAMESPACE"
 ```
 
@@ -192,7 +191,7 @@ Note that this runs your *locally* compiled `brig-integration`, so this allows t
 
 To run selective tests from brig-integration:
 
-```
+```default
 helm -n $NAMESPACE get hooks $NAMESPACE-wire-server | yq '.' | jq -r 'select(.metadata.name | contains("brig-integration"))' > /tmp/integration-pod
 
 # optional: edit the test pattern /tmp/integration-pod
@@ -204,7 +203,7 @@ kubectl apply -n $NAMESPACE -f /tmp/integration-pod
 
 To destroy all the resources on the kubernetes cluster that have been created run
 
-```
+```default
 ./hack/bin/integration-teardown-federation.sh
 ```
 
@@ -213,6 +212,7 @@ Note: Simply deleting the namespaces is insufficient, because it leaves some res
 ## How to manage RabbitMQ
 
 We support two different ways of managing the docker-compose instance of rabbitmq:
+
 * A web console interface is available [here](http://localhost:15672)
 * `rabbitmqadmin` CLI is made available in the dev environment
 
@@ -224,13 +224,13 @@ Concourse tasks require them (cannot clone with SSH.)
 
 A hacky workaround is to rewrite the URLs in the `~/.gitconfig`:
 
-```
+```default
 git config --global url."git@github.com:".insteadOf "https://github.com/"
 ```
 
 This leads to such entry:
 
-```
+```default
 [url "git@github.com:"]
         insteadOf = https://github.com/
 ```

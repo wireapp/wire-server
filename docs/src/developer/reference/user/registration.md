@@ -1,30 +1,33 @@
 # User Registration
-(RefRegistration)=
 
-_Authors: Artyom Kazak, Matthias Fischmann_
+<a id="refregistration"></a>
+
+*Authors: Artyom Kazak, Matthias Fischmann*
 
 ---
 
-This page describes the "normal" user registration flow. Autoprovisioning is covered separately.
+This page describes the “normal” user registration flow. Autoprovisioning is covered separately.
 
 ## Summary
-(RefRegistrationSummary)=
+
+<a id="refregistrationsummary"></a>
 
 The vast majority of our API is only available to Wire users. Unless a user is autoprovisioned, they have to register an account by calling the `POST /register` endpoint.
 
-Most users also go through [activation](activation.md) -- sharing and verifying
+Most users also go through [activation](activation.md) – sharing and verifying
 an email address with Wire. This can happen either before or after registration.
-[Certain functionality](RefActivationBenefits) is only available to activated
+[Certain functionality](activation.md#refactivationbenefits) is only available to activated
 users.
 
 ## Standard registration flow
-(RefRegistrationStandard)=
 
-During the standard registration flow, the user first calls [`POST /activate/send`](RefActivationRequest) to pre-verify their email address.
+<a id="refregistrationstandard"></a>
+
+During the standard registration flow, the user first calls [`POST /activate/send`](activation.md#refactivationrequest) to pre-verify their email address.
 
 After receiving a six-digit activation code via email message, it can be submitted with the registration request via `POST /register`. If the code is correct, the account will be activated immediately. Here is a sample request and response:
 
-```
+```default
 POST /register
 
 {
@@ -42,7 +45,7 @@ POST /register
 }
 ```
 
-```
+```default
 201 Created
 Set-Cookie: zuid=...
 
@@ -62,7 +65,7 @@ The response contains an access cookie that can be used to access the rest of th
 
 If the code is incorrect or if an incorrect code has been tried enough times, the response will be as follows:
 
-```
+```default
 404 Not Found
 
 {
@@ -73,15 +76,16 @@ If the code is incorrect or if an incorrect code has been tried enough times, th
 ```
 
 ## Registration without pre-verification
-(RefRegistrationNoPreverification)=
 
-_NOTE: This flow is currently not used by any clients. At least this was the state on 2020-05-28_
+<a id="refregistrationnopreverification"></a>
+
+*NOTE: This flow is currently not used by any clients. At least this was the state on 2020-05-28*
 
 It is also possible to call `POST /register` without verifying the email
 address, in which case the account will have to be activated later by calling
-[`POST /activate`](RefActivationSubmit). Sample API request and response:
+[`POST /activate`](activation.md#refactivationsubmit). Sample API request and response:
 
-```
+```default
 POST /register
 
 {
@@ -96,7 +100,7 @@ POST /register
 }
 ```
 
-```
+```default
 201 Created
 Set-Cookie: zuid=...
 
@@ -114,9 +118,9 @@ Set-Cookie: zuid=...
 
 A verification email will be sent to the email address (if provided).
 
-## Anonymous registration, aka "Wireless"
-(RefRegistrationWireless)=
+## Anonymous registration, aka “Wireless”
 
+<a id="refregistrationwireless"></a>
 
 A user can be created without email, in which case only `"name"` is required.
 The `"name"` does not have to be unique. This feature is used for [guest
@@ -126,7 +130,7 @@ An anonymous, non-activated account is only usable for a period of time specifie
 
 Sample API request and response:
 
-```
+```default
 POST /register
 
 {
@@ -134,7 +138,7 @@ POST /register
 }
 ```
 
-```
+```default
 201 Created
 Set-Cookie: zuid=...
 
@@ -152,7 +156,7 @@ Set-Cookie: zuid=...
 
 ## Blocking creation of personal users, new teams {#RefRestrictRegistration}
 
-[moved here](https://docs.wire.com/how-to/install/configuration-options.html#blocking-creation-of-personal-users-new-teams)
+[moved here](../../../how-to/install/infrastructure-configuration.md#blocking-creation-of-personal-users-new-teams)
 
 ### Details
 
@@ -177,14 +181,14 @@ These end-points support 5 flows:
 
 We need an option to block 1, 2, 5 on-prem; 3, 4 should remain available (no block option).  There are also provisioning flows via SAML or SCIM, which are not critical. In short, this could refactored into:
 
- * Allow team members to register (via email or SSO)
- * Allow ephemeral users
+* Allow team members to register (via email or SSO)
+* Allow ephemeral users
 
-During registration, we can take advantage of [NewUserOrigin](https://github.com/wireapp/wire-server/blob/a89b9cd818997e7837e5d0938ecfd90cf8dd9e52/libs/wire-api/src/Wire/API/User.hs#L625); we're particularly interested in `NewUserOriginTeamUser` --> only `NewTeamMember` or `NewTeamMemberSSO` should be accepted. In case this is a `Nothing`, we need to check if the user expires, i.e., if the user has no identity (and thus `Ephemeral`).
+During registration, we can take advantage of [NewUserOrigin](https://github.com/wireapp/wire-server/blob/a89b9cd818997e7837e5d0938ecfd90cf8dd9e52/libs/wire-api/src/Wire/API/User.hs#L625); we’re particularly interested in `NewUserOriginTeamUser` –> only `NewTeamMember` or `NewTeamMemberSSO` should be accepted. In case this is a `Nothing`, we need to check if the user expires, i.e., if the user has no identity (and thus `Ephemeral`).
 
 So `/register` should only succeed iff at least one of these conditions is true:
 
-```
+```default
 import Brig.Types.User
 isNewUserTeamMember || isNewUserEphemeral
 ```

@@ -1,10 +1,10 @@
 # API versioning
 
-This document details the versioning scheme used for wire-server's HTTP APIs.
+This document details the versioning scheme used for wire-server’s HTTP APIs.
 This applies equally to:
 
- - the public-facing API (defined in `wire-api`)
- - the federation API (defined in `wire-api-federation`).
+- the public-facing API (defined in `wire-api`)
+- the federation API (defined in `wire-api-federation`).
 
 ## Supported and development versions
 
@@ -16,7 +16,7 @@ A backend advertises a set of *supported* API versions, divided into a set of
 be discovered via the `GET /api-version` endpoint, which returns a JSON object
 of the form:
 
-```
+```default
 { "supported": [0, 1, 2, 3, 4],
   "development": [4],
   ...
@@ -63,12 +63,12 @@ Some endpoints are unversioned. The backend will also accept versioned requests
 to them, but they all behave identically regardless of the version prefix. The
 unversioned endpoints are:
 
- - the `/api-version` endpoint itself; this is so that a client can dynamically
-   determine which version to use based on the information returned by the
-   backend;
- - the `/access` endpoint; this is so that access cookie paths can be set to
-   the same value regardless of the version, which avoids invalidating logins
-   across version upgrades.
+- the `/api-version` endpoint itself; this is so that a client can dynamically
+  determine which version to use based on the information returned by the
+  backend;
+- the `/access` endpoint; this is so that access cookie paths can be set to
+  the same value regardless of the version, which avoids invalidating logins
+  across version upgrades.
 
 ## Server implementation
 
@@ -80,10 +80,10 @@ However, the development version is disabled in production, so whenever we need
 those changes to actually be deployed, we have to perform a version bump. That
 means a few things:
 
- - freezing the current contract of the development version (see below);
- - turning the development version into a stable version;
- - creating a new development version, which is an exact copy of the previous
-   development version at the time of the bump.
+- freezing the current contract of the development version (see below);
+- turning the development version into a stable version;
+- creating a new development version, which is an exact copy of the previous
+  development version at the time of the bump.
 
 To make this process easier, and to avoid unreasonable code duplication in the
 definition of the endpoints, API versions are maintained as a single routing
@@ -118,8 +118,7 @@ the version. In these example we assume that version `V6` should be finalized an
   - update `versionedSwaggerDocsAPI` so that the finalized version points to the pregenerated swagger, and the dynamically generated swagger spits out swagger for the new `V7`.
 - Set the version for `gDefaultAPIVersion` in `integration/test/Testlib/Env.hs` to 7.
 - Consider updating the `backendApiVersion` value in Stern, which is
-  unit-tested by checking if it is listed as supported in the response to `GET
-  /api-version`.
+  unit-tested by checking if it is listed as supported in the response to `GET /api-version`.
 
 ### Examples of endpoint evolution
 
@@ -215,14 +214,14 @@ production.
 Before making a request to the server, the client needs to have negotiated
 which version to use. The recommended flow is as follows:
 
- - query `GET /api-version` and retrieve the set of supported and development
-   versions;
- - decide whether using a development version is unacceptable, and
-   if so, take it out of consideration;
- - use the latest (i.e. numerically largest) version that the client supports;
- - if no backend-supported version is supported by the client, return a
-   versioning error (either ask the user or the backend administrator to
-   upgrade, depending on which versions are higher).
+- query `GET /api-version` and retrieve the set of supported and development
+  versions;
+- decide whether using a development version is unacceptable, and
+  if so, take it out of consideration;
+- use the latest (i.e. numerically largest) version that the client supports;
+- if no backend-supported version is supported by the client, return a
+  versioning error (either ask the user or the backend administrator to
+  upgrade, depending on which versions are higher).
 
 ### Examples of endpoint evolution
 
@@ -329,7 +328,7 @@ format. Therefore, this has to be worked out on a case by case basis.
 
 More precisely: When a new version Q of a backend is released, *if* we can
 ensure that no version lower than N is running anywhere in production, and
-hasn't been for a time at least as long as the maximum event retention time,
+hasn’t been for a time at least as long as the maximum event retention time,
 *then* we can drop the requirement for clients to be able to read events in the
 legacy format, *as long as they support only versions larger or equal to Q*.
 

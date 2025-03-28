@@ -2,36 +2,39 @@
 
 Reference: {#RefActivation}
 
-_Author: Artyom Kazak_
+*Author: Artyom Kazak*
 
 ---
 
-A user is called _activated_ when they have a verified identity -- an email
+A user is called *activated* when they have a verified identity – an email
 address that has been verified by sending an activation code to it.
 
 A user that has been provisioned via single sign-on is always considered to be activated.
 
 ## Activated vs. non-activated users
-(RefActivationBenefits)=
+
+<a id="refactivationbenefits"></a>
 
 Non-activated users can not [connect](connection.md) to others, nor can connection requests be made to anonymous accounts from verified accounts. As a result:
 
 * A non-activated user cannot add other users to conversations. The only way to participate in a conversation is to either create a new conversation with link access or to use a link provided by another user.
 
-The only flow where it makes sense for non-activated users to exist is the [wireless flow](RefRegistrationWireless) used for [guest rooms](https://wire.com/en/features/encrypted-guest-rooms/)
+The only flow where it makes sense for non-activated users to exist is the [wireless flow](registration.md#refregistrationwireless) used for [guest rooms](https://wire.com/en/features/encrypted-guest-rooms/)
 
 ## API
-(RefActivationApi)=
+
+<a id="refactivationapi"></a>
 
 ### Requesting an activation code
-(RefActivationRequest)=
 
-During the [standard registration flow](RefRegistrationStandard), the user
+<a id="refactivationrequest"></a>
+
+During the [standard registration flow](registration.md#refregistrationstandard), the user
 submits an email address by making a request to `POST /activate/send`. A
 six-digit activation code will be sent to that email address. Sample request and
 response:
 
-```
+```default
 POST /activate/send
 
 {
@@ -40,7 +43,7 @@ POST /activate/send
 }
 ```
 
-```
+```default
 200 OK
 ```
 
@@ -53,11 +56,12 @@ requests, users should be warned that it might take up to a few minutes for an
 email to arrive.
 
 ### Activating an existing account
-(RefActivationSubmit)=
 
-If the account [has not been activated during verification](RefRegistrationNoPreverification), it can be activated afterwards by submitting an activation code to `POST /activate`. Sample request and response:
+<a id="refactivationsubmit"></a>
 
-```
+If the account [has not been activated during verification](registration.md#refregistrationnopreverification), it can be activated afterwards by submitting an activation code to `POST /activate`. Sample request and response:
+
+```default
 POST /activate
 
 {
@@ -73,7 +77,7 @@ POST /activate
 }
 ```
 
-```
+```default
 200 OK
 
 {
@@ -91,11 +95,12 @@ code `404 Not Found` with `"label": "invalid-code"`.
 There is a maximum of 3 activation attempts per activation code. On the third failed attempt the code is invalidated and a new one must be requested.
 
 ### Activation event
-(RefActivationEvent)=
+
+<a id="refactivationevent"></a>
 
 When the user becomes activated, they receive an event:
 
-```
+```default
 {
     "type": "user.activate",
     "user": <self profile>
@@ -103,11 +108,12 @@ When the user becomes activated, they receive an event:
 ```
 
 ### Detecting activation in the self profile
-(RefActivationProfile)=
 
-In addition to the [activation event](RefActivationEvent), activation can be detected by polling the self profile:
+<a id="refactivationprofile"></a>
 
-```
+In addition to the [activation event](#refactivationevent), activation can be detected by polling the self profile:
+
+```default
 GET /self
 
 {
@@ -125,27 +131,29 @@ GET /self
 If the profile includes `"email"`, the account is activated.
 
 ## Automating activation via email
-(RefActivationEmailHeaders)=
+
+<a id="refactivationemailheaders"></a>
 
 Our email verification messages contain headers that can be used to automate the activation process.
 
 An email caused by `POST /activate/send` will contain this set of headers:
 
-```
+```default
 X-Zeta-Purpose: Verification
 X-Zeta-Code: 123456
 ```
 
 An email caused by `POST /register` will contain this set of headers (the opaque `"key"` might be used instead of `"email"` in the `POST /activate` request):
 
-```
+```default
 X-Zeta-Purpose: Activation
 X-Zeta-Key: ...
 X-Zeta-Code: 123456
 ```
 
 ## Email whitelist
-(RefActivationAllowlist)=
+
+<a id="refactivationallowlist"></a>
 
 The backend can be configured to only allow specific email address domains to register. The following option has to be set in `brig.yaml`:
 

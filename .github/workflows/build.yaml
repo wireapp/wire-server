@@ -1,0 +1,42 @@
+name: CI Build
+
+on:
+  pull_request:
+    branches:
+      - develop
+  push:
+    paths:
+      - 'docs/**'
+      - cassandra-schema.cql
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: cachix/install-nix-action@v16
+
+      - name: Clone wire-docs and build
+        run: |
+          git clone --branch main https://github.com/wireapp/wire-docs.git wire-docs
+          cd wire-docs
+          
+          CURRENT_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
+
+          if [ -n "$GITHUB_HEAD_REF" ]; then
+              CURRENT_BRANCH="$GITHUB_HEAD_REF"
+          else
+              CURRENT_BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+
+          sed -i "s|url = https://github.com/mohitrajain/wire-server.git|url = ${CURRENT_REPO_URL}|g" .gitmodules
+          sed -i "s|branch = clean-wire-server-docs|branch = ${CURRENT_BRANCH}|g" .gitmodules
+          
+          cat .gitmodules
+          make build
+
+# tasks to update the submodule reference in wire-docs repo are yet to be added
