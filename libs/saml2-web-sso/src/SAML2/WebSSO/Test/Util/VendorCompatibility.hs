@@ -10,11 +10,11 @@ where
 import Control.Concurrent.MVar
 import Control.Lens
 import Control.Monad
-import qualified Data.ByteString.Base64.Lazy as EL (encode)
-import qualified Data.Map as Map
+import Data.ByteString.Base64.Lazy qualified as EL (encode)
+import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.String.Conversions
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Network.HTTP.Types.Status (statusCode)
 import Network.Wai.Test
 import SAML2.WebSSO
@@ -72,8 +72,11 @@ vendorCompatibility filePath ssoURI = testAuthRespApp ssoURI $ do
             -- makes perfect sense given the information is available in the header.  if it is
             -- not, just dig into the assertions and take the information from there.
             -- authnresp inResponseTo, with comfortable end of life.
-            reqstore :: Map.Map (ID AuthnRequest) Time
-            reqstore = Map.singleton (fromJust $ authnresp ^. rspInRespTo) timeInALongTime
+            reqstore :: Map.Map (ID AuthnRequest) (Issuer, Time)
+            reqstore = Map.singleton (fromJust $ authnresp ^. rspInRespTo) (idpIssuer, timeInALongTime)
+
+            -- The issuer we expect in the SAML response (IdP -> SP)
+            idpIssuer = idpcfg ^. idpMetadata . edIssuer
             -- 1 second after authnresp IssueInstant
             now :: Time
             now = addTime 1 $ authnresp ^. rspIssueInstant

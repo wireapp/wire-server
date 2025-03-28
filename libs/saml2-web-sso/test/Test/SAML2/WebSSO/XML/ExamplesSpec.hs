@@ -11,19 +11,19 @@ import Control.Lens
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader
-import qualified Data.ByteString.Base64.Lazy as EL (decodeLenient)
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient)
+import Data.CaseInsensitive qualified as CI
 import Data.Either
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.NonEmpty as NL
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.String.Conversions
 import SAML2.Util
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
-import qualified Samples
+import Samples qualified
 import System.Environment (setEnv)
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
@@ -80,7 +80,10 @@ spec = describe "XML serialization" $ do
           ctx :: CtxV <- mkTestCtxSimple
           spmeta :: SPMetadata <- ioFromTestSP ctx mkTestSPMetadata
           (testIdPConfig, SampleIdP _ sampleIdPPrivkey _ _) <- makeTestIdPConfig
-          authnreq :: AuthnRequest <- ioFromTestSP ctx $ createAuthnRequest 3600 defSPIssuer
+          authnreq :: AuthnRequest <- ioFromTestSP ctx $ do
+            spiss <- defSPIssuer
+            let idpiss = testIdPConfig ^. idpMetadata . edIssuer
+            createAuthnRequest 3600 spiss idpiss
           SignedAuthnResponse doc <-
             ioFromTestSP ctx $
               mkAuthnResponseWithRawSubj nameId sampleIdPPrivkey testIdPConfig spmeta authnreq True

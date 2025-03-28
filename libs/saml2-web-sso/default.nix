@@ -39,6 +39,8 @@
 , http-media
 , http-types
 , hxt
+, imports
+, invertible-hxt
 , lens
 , lens-datetime
 , lib
@@ -114,6 +116,8 @@ mkDerivation {
     http-media
     http-types
     hxt
+    imports
+    invertible-hxt
     lens
     lens-datetime
     memory
@@ -180,6 +184,7 @@ mkDerivation {
     http-media
     http-types
     hxt
+    imports
     lens
     lens-datetime
     memory
@@ -249,6 +254,7 @@ mkDerivation {
     http-media
     http-types
     hxt
+    imports
     lens
     lens-datetime
     memory

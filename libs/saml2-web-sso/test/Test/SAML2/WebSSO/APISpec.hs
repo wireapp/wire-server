@@ -11,16 +11,18 @@ import Control.Exception (SomeException, try)
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
-import qualified Data.ByteString.Base64.Lazy as EL (decodeLenient, encode)
+import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.Either
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Map qualified as Map
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Network.Wai.Test
 import SAML2.Util
 import SAML2.WebSSO
+import SAML2.WebSSO.API.Example (RequestStore)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
 import Servant
@@ -91,6 +93,7 @@ spec = describe "API" $ do
           Right (SomeSAMLRequest -> doc) = XML.parseText XML.def have
           spuri = [uri|https://ServiceProvider.com/SAML/SLO/Browser/%%|]
       Right want `shouldBe` (fmapL show . parseText def . cs $ mimeRender (Proxy @HTML) (FormRedirect spuri doc))
+
   describe "simpleVerifyAuthnResponse" $ do
     let check :: Bool -> Maybe Bool -> Bool -> Spec
         check goodsig mgoodkey expectOutcome =
@@ -116,12 +119,12 @@ spec = describe "API" $ do
                   modifyMVar_ ctx (pure . (ctxIdPs .~ maybeToList midpcfg))
                   ioFromTestSP ctx action
                 missuer = (^. _1 . idpMetadata . edIssuer) <$> midpcfg
-                go :: TestSP ()
+                go :: TestSP Assertion
                 go = do
                   creds <- issuerToCreds missuer Nothing
-                  simpleVerifyAuthnResponse creds resp
+                  simpleVerifyAuthnResponse creds resp >>= \case a :| [] -> pure a
             if expectOutcome
-              then run go `shouldReturn` ()
+              then fmap _assID (run go) `shouldReturn` ID (mkXmlText "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6")
               else run go `shouldThrow` anyException
     context "good signature" $ do
       context "known key" $ check True (Just True) True
@@ -131,6 +134,12 @@ spec = describe "API" $ do
       context "known key" $ check False (Just True) False
       context "bad key" $ check False (Just False) False
       context "unknown key" $ check False Nothing False
+    describe "counter-examples" $ do
+      it "1" $ do
+        rawResp <- readSampleIO "authnresponse-3.xml"
+        xmlResp <- either (error . show) pure $ decode @_ @AuthnResponse (cs rawResp)
+        let respId = unsafeFromXmlText . fromID $ xmlResp ^. rspID
+        respId `shouldBe` "_5ae4ec37-8e91-4f15-9170-655941b42b8e"
   describe "cookies" $ do
     let rndtrip =
           parseUrlPiece @Cky
@@ -183,7 +192,8 @@ spec = describe "API" $ do
                 liftIO $ modifyMVar_ ctxv (pure . (ctxIdPs %~ (idpctx :)))
               pure idpctx
             spmeta :: SPMetadata <- mkTestSPMetadata
-            authnreq :: AuthnRequest <- createAuthnRequest 3600 defSPIssuer
+            spiss <- defSPIssuer
+            authnreq :: AuthnRequest <- createAuthnRequest 3600 spiss (testIdPConfig ^. idpMetadata . edIssuer)
             fromSignedAuthnResponse
               <$> (if badTimeStamp then timeTravel 1800 else id) (mkAuthnResponse privkey testIdPConfig spmeta authnreq True)
           postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
@@ -194,30 +204,73 @@ spec = describe "API" $ do
             (Proxy @APIAuthResp')
             (authresp' Nothing defSPIssuer defResponseURI (HandleVerdictRedirect (simpleOnSuccess SubjectFoldCase)))
 
+    let testAuthnRespWithCtx ::
+          String ->
+          (ID AuthnRequest -> Issuer -> Time -> RequestStore) ->
+          (WaiSession st SResponse -> WaiExpectation ()) ->
+          SpecWith (CtxV, Application)
+        testAuthnRespWithCtx name createRequestStore checkPostCondition =
+          it name . runtest $ \ctxv -> do
+            -- we inline `postTestAuthnResp` here to avoid making it more branchy.
+            (aresp, authnreq, (idpConfig, sampleIdP), timestamp) <- liftIO . ioFromTestSP ctxv $ do
+              idpEntry@(testIdPConfig, SampleIdP _ privkey _ _) <- liftIO makeTestIdPConfig
+              spmeta :: SPMetadata <- mkTestSPMetadata
+              spiss <- defSPIssuer
+              authnreq :: AuthnRequest <- createAuthnRequest 3600 spiss (testIdPConfig ^. idpMetadata . edIssuer)
+              aresp <- fromSignedAuthnResponse <$> mkAuthnResponse privkey testIdPConfig spmeta authnreq True
+              timestamp <- getNow
+              pure (aresp, authnreq, idpEntry, timestamp)
+
+            let iss = idpConfig ^. idpMetadata . edIssuer
+                loadCtx :: Ctx -> Ctx
+                loadCtx =
+                  (ctxIdPs .~ [(idpConfig, sampleIdP)])
+                    . (ctxRequestStore .~ createRequestStore (authnreq ^. rqID) iss timestamp)
+            liftIO $ modifyMVar_ ctxv $ pure . loadCtx
+            postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
+              & checkPostCondition
+
     context "unknown idp" . testAuthRespApp mkTestCtxSimple $ do
       it "responds with 404" . runtest $ \ctx -> do
         postTestAuthnResp ctx True False
-          `shouldRespondWith` 404
+          `shouldRespondWith` 404 {matchBody = bodyContains "Unknown IdP"}
     context "known idp, bad timestamp" . testAuthRespApp mkTestCtxWithIdP $ do
       it "responds with 403" . runtest $ \ctx -> do
         postTestAuthnResp ctx False True
           `shouldRespondWith` 403 {matchBody = bodyContains "IssueInstant"}
+
     context "known idp, good timestamp" . testAuthRespApp mkTestCtxWithIdP $ do
-      it "responds with 303" . runtest $ \ctx -> do
-        postTestAuthnResp ctx False False
-          `shouldRespondWith` 303 {matchBody = bodyContains "<body><p>SSO successful, redirecting to"}
+      testAuthnRespWithCtx
+        "responds with 303 if authnrequest is stored in SP"
+        (\reqId issuer timestamp -> Map.singleton reqId (issuer, 10 `addTime` timestamp))
+        (`shouldRespondWith` 303)
+
+      testAuthnRespWithCtx
+        "no authn req matching response is stored on sp"
+        (\_reqId _issuer _timestamp -> Map.empty)
+        (`shouldRespondWith` 403 {matchBody = bodyContains "bad InResponseTo attribute(s)"})
+
+      testAuthnRespWithCtx
+        "idp issuer stored with authn req on sp doesn't match the one in resp"
+        ( \reqId _issuer timestamp ->
+            Map.singleton reqId ((Issuer [uri|https://anything.example/|]), 10 `addTime` timestamp)
+        )
+        (`shouldRespondWith` 403 {matchBody = bodyContains "mismatching Issuers"})
 
   describe "mkAuthnResponse (this is testing the test helpers)" $ do
     it "Produces output that decodes into 'AuthnResponse'" $ do
       ctx <- mkTestCtxWithIdP
       spmeta <- ioFromTestSP ctx mkTestSPMetadata
       (testIdPConfig, SampleIdP _ privcert _ _) <- makeTestIdPConfig
-      Right authnreq :: Either SomeException AuthnRequest <-
-        try . ioFromTestSP ctx $ createAuthnRequest 3600 defSPIssuer
+      Right authnreq :: Either SomeException AuthnRequest <- do
+        let idpiss = testIdPConfig ^. idpMetadata . edIssuer
+        try . ioFromTestSP ctx $ do
+          spiss <- defSPIssuer
+          createAuthnRequest 3600 spiss idpiss
       SignedAuthnResponse authnrespDoc <-
         ioFromTestSP ctx $ mkAuthnResponse privcert testIdPConfig spmeta authnreq True
       parseFromDocument @AuthnResponse authnrespDoc `shouldSatisfy` isRight
-    let check :: Bool -> (Either SomeException () -> Bool) -> IO ()
+    let check :: (HasCallStack) => Bool -> (Either SomeException () -> Bool) -> IO ()
         check certIsGood expectation = do
           testIdPConfig@(_, SampleIdP _ privkey _ goodCert) <- makeTestIdPConfig
           (_, SampleIdP _ _ _ badCert) <- makeTestIdPConfig
@@ -227,14 +280,14 @@ spec = describe "API" $ do
           modifyMVar_ ctx $ pure . (ctxIdPs .~ [idpcfg])
           spmeta <- ioFromTestSP ctx mkTestSPMetadata
           let idpissuer :: Issuer = idpcfg ^. _1 . idpMetadata . edIssuer
-              spissuer :: TestSP Issuer = defSPIssuer
           result :: Either SomeException () <- try . ioFromTestSP ctx $ do
-            authnreq <- createAuthnRequest 3600 spissuer
+            spissuer :: Issuer <- defSPIssuer
+            authnreq <- createAuthnRequest 3600 spissuer idpissuer
             SignedAuthnResponse authnrespDoc <-
               liftIO . ioFromTestSP ctx $ mkAuthnResponse privkey (idpcfg ^. _1) spmeta authnreq True
             let authnrespLBS = renderLBS def authnrespDoc
             creds <- issuerToCreds (Just idpissuer) Nothing
-            simpleVerifyAuthnResponse creds authnrespLBS
+            void $ simpleVerifyAuthnResponse creds authnrespLBS
           result `shouldSatisfy` expectation
     it "Produces output that passes 'simpleVerifyAuthnResponse'" $ do
       check True isRight
@@ -251,6 +304,13 @@ spec = describe "API" $ do
 
     it "succeeds with HTTP-Post (not all caps)" $ do
       res <- parseSample "authnresponse-case-insensitive.xml"
+      res `shouldSatisfy` isRight
+
+  describe "AuthnResponse parsing" $ do
+    let parseSample :: FilePath -> IO (Either String AuthnResponse)
+        parseSample samplePath = decode <$> readSampleIO samplePath
+    it "works" $ do
+      res <- parseSample "authnresponse-1.xml"
       res `shouldSatisfy` isRight
 
   describe "vendor compatibility tests" $ do

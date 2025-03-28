@@ -15,6 +15,7 @@ module SAML2.WebSSO.XML
     decodeElem,
     renderToDocument,
     parseFromDocument,
+    parseFromXmlTree,
     unsafeReadTime,
     decodeTime,
     renderTime,
@@ -30,39 +31,41 @@ import Control.Lens hiding (element)
 import Control.Monad
 import Control.Monad.Except
 import Data.CaseInsensitive (CI)
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.EitherR
 import Data.Foldable (toList)
 import Data.Kind (Type)
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.NonEmpty as NL (NonEmpty ((:|)), nonEmpty)
-import qualified Data.List.NonEmpty as NL
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NL
+import Data.Map qualified as Map
 import Data.Maybe
 import Data.String.Conversions
-import qualified Data.Text as ST
+import Data.Text qualified as ST
+import Data.Text.Lazy.Encoding
 import Data.Time
 import Data.Typeable (Proxy (Proxy), Typeable)
-import qualified Data.X509 as X509
+import Data.X509 qualified as X509
 import GHC.Stack
-import qualified Network.URI as HS
-import qualified SAML2.Bindings.Identifiers as HS
-import qualified SAML2.Core as HS
-import qualified SAML2.Metadata.Metadata as HS
-import qualified SAML2.Profiles as HS
+import Network.URI qualified as HS
+import SAML2.Bindings.Identifiers qualified as HS
+import SAML2.Core qualified as HS
+import SAML2.Metadata.Metadata qualified as HS
+import SAML2.Profiles qualified as HS
 import SAML2.Util
 import SAML2.WebSSO.SP
 import SAML2.WebSSO.Types
-import qualified SAML2.WebSSO.Types.Email as Email
-import qualified SAML2.XML as HS
-import qualified SAML2.XML as HX
-import qualified SAML2.XML.Schema.Datatypes as HX (Boolean, Duration, UnsignedShort)
-import qualified SAML2.XML.Signature.Types as HX (Signature)
+import SAML2.WebSSO.Types.Email qualified as Email
+import SAML2.XML qualified as HS
+import SAML2.XML qualified as HX
+import SAML2.XML.Schema.Datatypes qualified as HX (Boolean, Duration, UnsignedShort)
+import SAML2.XML.Signature.Types qualified as HX (Signature)
 import Text.Hamlet.XML
 import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
-import qualified Text.XML.HXT.Arrow.Pickle.Xml as HS
+import Text.XML.HXT.Arrow.Pickle.Xml qualified as HS
+import Text.XML.HXT.DOM.TypeDefs (XmlTree)
 import URI.ByteString as U
 import Prelude hiding (id, (.))
 
@@ -100,6 +103,11 @@ renderToDocument = mkDocument . renderRoot
 
 parseFromDocument :: (HasXML a, MonadError String m) => Document -> m a
 parseFromDocument doc = parse [NodeElement $ documentRoot doc]
+
+parseFromXmlTree :: (MonadError String m, HasXML a) => XmlTree -> m a
+parseFromXmlTree raw = do
+  doc <- decode . decodeUtf8 $ HX.docToXMLWithRoot raw
+  parseFromDocument doc
 
 -- FUTUREWORK: perhaps we want to split this up: HasXML (for nameSpaces), and HasXMLParse, HasXMLRender,
 -- and drop the assymetric, little used render function from HasXML?
@@ -188,12 +196,6 @@ explainDeniedReason = \case
   DeniedStatusFailure -> "status: failure"
   DeniedBadUserRefs msg -> "bad user refs: " <> cs msg
   DeniedBadInResponseTos msg -> "bad InResponseTo attribute(s): " <> cs msg
-  DeniedIssueInstantNotInPast ts now ->
-    cs $
-      "IssueInstant in Header must be older than "
-        <> renderTime now
-        <> ", but is "
-        <> renderTime ts
   DeniedAssertionIssueInstantNotInPast ts now ->
     "IssueInstant in Assertion must be older than "
       <> renderTime now
@@ -204,7 +206,6 @@ explainDeniedReason = \case
       <> renderTime now
       <> ", but is "
       <> renderTime ts
-  DeniedBadDestination weare theywant -> cs $ "bad Destination: we are " <> weare <> ", they expected " <> theywant
   DeniedBadRecipient weare theywant -> cs $ "bad Recipient: we are " <> weare <> ", they expected " <> theywant
   DeniedIssuerMismatch inh inass ->
     cs $
@@ -349,7 +350,7 @@ importAuthnResponse rsp = do
   _rspDestination <- traverse importURI $ HS.protocolDestination proto
   _rspIssuer <- traverse importIssuer $ HS.protocolIssuer proto
   _rspStatus <- importStatus $ HS.status rsptyp
-  _rspPayload <- maybe (throwError "no assertions") pure . NL.nonEmpty =<< (importAssertion `mapM` HS.responseAssertions rsp)
+  _rspPayload <- maybe (throwError "no assertions") pure . NL.nonEmpty =<< (importPossiblyEncryptedAssertion `mapM` HS.responseAssertions rsp)
   -- ignore: @HS.protocolSignature proto :: Maybe SAML2.XML.Signature.Types.Signature@
   -- ignore: @HS.relayState proto :: Maybe SAML2.Bindings.General.RelayState@
 
@@ -375,12 +376,15 @@ exportAuthnResponse rsp =
             HS.statusInResponseTo = exportID <$> (rsp ^. rspInRespTo),
             HS.status = exportStatus (rsp ^. rspStatus)
           },
-      HS.responseAssertions = toList $ exportAssertion <$> (rsp ^. rspPayload)
+      HS.responseAssertions = toList $ exportPossiblyEncryptedAssertion <$> (rsp ^. rspPayload)
     }
 
-importAssertion :: (HasCallStack, MonadError String m) => HS.PossiblyEncrypted HS.Assertion -> m Assertion
-importAssertion bad@(HS.SoEncrypted _) = die (Proxy @Assertion) bad
-importAssertion (HS.NotEncrypted ass) = do
+importPossiblyEncryptedAssertion :: (HasCallStack, MonadError String m) => HS.PossiblyEncrypted HS.Assertion -> m Assertion
+importPossiblyEncryptedAssertion bad@(HS.SoEncrypted _) = die (Proxy @Assertion) bad
+importPossiblyEncryptedAssertion (HS.NotEncrypted ass) = importAssertion ass
+
+importAssertion :: (HasCallStack, MonadError String m) => HS.Assertion -> m Assertion
+importAssertion ass = do
   () <- importVersion $ HS.assertionVersion ass
   _assID <- importID $ HS.assertionID ass
   _assIssueInstant <- importTime $ HS.assertionIssueInstant ass
@@ -398,20 +402,22 @@ importAssertion (HS.NotEncrypted ass) = do
     die (Proxy @Assertion) (HS.assertionAdvice ass)
   pure Assertion {..}
 
-exportAssertion :: (HasCallStack) => Assertion -> HS.PossiblyEncrypted HS.Assertion
+exportPossiblyEncryptedAssertion :: (HasCallStack) => Assertion -> HS.PossiblyEncrypted HS.Assertion
+exportPossiblyEncryptedAssertion = HS.NotEncrypted . exportAssertion
+
+exportAssertion :: (HasCallStack) => Assertion -> HS.Assertion
 exportAssertion ass =
-  HS.NotEncrypted
-    HS.Assertion
-      { HS.assertionVersion = exportVersion,
-        HS.assertionID = exportID (ass ^. assID),
-        HS.assertionIssueInstant = exportTime (ass ^. assIssueInstant),
-        HS.assertionIssuer = exportIssuer (ass ^. assIssuer),
-        HS.assertionSignature = Nothing, -- signatures are handled before parsing.
-        HS.assertionSubject = exportSubject $ ass ^. assContents . sasSubject,
-        HS.assertionConditions = exportConditions <$> (ass ^. assConditions),
-        HS.assertionAdvice = Nothing,
-        HS.assertionStatement = exportStatement <$> (ass ^. assContents . sasStatements . to toList)
-      }
+  HS.Assertion
+    { HS.assertionVersion = exportVersion,
+      HS.assertionID = exportID (ass ^. assID),
+      HS.assertionIssueInstant = exportTime (ass ^. assIssueInstant),
+      HS.assertionIssuer = exportIssuer (ass ^. assIssuer),
+      HS.assertionSignature = Nothing, -- signatures are handled before parsing.
+      HS.assertionSubject = exportSubject $ ass ^. assContents . sasSubject,
+      HS.assertionConditions = exportConditions <$> (ass ^. assConditions),
+      HS.assertionAdvice = Nothing,
+      HS.assertionStatement = exportStatement <$> (ass ^. assContents . sasStatements . to toList)
+    }
 
 importSubject :: (HasCallStack, MonadError String m) => HS.Subject -> m Subject
 importSubject (HS.Subject Nothing _) = die (Proxy @Subject) ("Subject NameID is missing" :: String)
@@ -986,8 +992,14 @@ instance HasXMLRoot AuthnResponse where
   renderRoot = wrapRenderRoot exportAuthnResponse
 
 instance HasXMLImport Assertion (HS.PossiblyEncrypted HS.Assertion) where
-  importXml = importAssertion
-  exportXml = exportAssertion
+  importXml = importPossiblyEncryptedAssertion
+  exportXml = exportPossiblyEncryptedAssertion
+
+instance HasXML Assertion where
+  parse = wrapParse importAssertion
+
+instance HasXMLRoot Assertion where
+  renderRoot = wrapRenderRoot exportAssertion
 
 instance HasXML Subject where
   parse = wrapParse importSubject

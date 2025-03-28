@@ -1,8 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,23 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.AReqIDStore
-  ( AReqIDStore (..),
-    store,
-    unStore,
-    getIdpIssuer,
+module Spar.Schema.V20
+  ( migration,
   )
 where
 
+import Cassandra.Schema
 import Imports
-import Polysemy
-import SAML2.WebSSO.Types (Issuer)
-import qualified SAML2.WebSSO.Types as SAML
-import Wire.API.User.Saml (AReqId)
+import Text.RawString.QQ
 
-data AReqIDStore m a where
-  Store :: AReqId -> Issuer -> SAML.Time -> AReqIDStore m ()
-  GetIdpIssuer :: AReqId -> AReqIDStore m (Maybe Issuer)
-  UnStore :: AReqId -> AReqIDStore m ()
-
-makeSem ''AReqIDStore
+migration :: Migration
+migration = Migration 20 "Add issuer column to saml auth request table" $ do
+  schema'
+    [r|
+        ALTER TABLE authreq ADD (idp_issuer text);
+      |]

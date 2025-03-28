@@ -11,20 +11,20 @@ import Control.Monad.Reader
 import Control.Monad.Writer
 import Data.Foldable (toList)
 import Data.Kind (Type)
+import Data.List (nub, partition)
 import Data.List.NonEmpty (NonEmpty)
-import Data.Maybe
-import qualified Data.Semigroup
+import Data.Maybe (isJust)
 import Data.String.Conversions
 import Data.Time
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import GHC.Stack
 import SAML2.Util
+import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import SAML2.WebSSO.Config
-import SAML2.WebSSO.Servant.CPP
 import SAML2.WebSSO.Types
-import Servant hiding (MkLink, URI (..))
+import Servant hiding (URI (..))
 import URI.ByteString
 
 ----------------------------------------------------------------------
@@ -48,17 +48,22 @@ class HasNow m where
   default getNow :: (MonadIO m) => m Time
   getNow = getNowIO
 
-type SPStore m = (SP m, SPStoreID AuthnRequest m, SPStoreID Assertion m)
+type SPStore m = (SP m, SPStoreRequest AuthnRequest m, SPStoreAssertion Assertion m)
 
-class SPStoreID i m where
-  storeID :: ID i -> Time -> m ()
-  unStoreID :: ID i -> m ()
-  isAliveID ::
+class SPStoreAssertion i m where
+  storeAssertionInternal :: ID i -> Time -> m ()
+  unStoreAssertion :: ID i -> m ()
+  isAliveAssertion ::
     ID i ->
     -- | stored and not timed out.
     m Bool
 
-class (MonadError err m) => SPStoreIdP err m where
+class SPStoreRequest i m where
+  storeRequest :: ID i -> Issuer {- NB: idp! -} -> Time -> m ()
+  unStoreRequest :: ID i -> m ()
+  getIdpIssuer :: ID i -> m (Maybe Issuer)
+
+class (MonadError err m, Show (IdPConfigExtra m)) => SPStoreIdP err m where
   type IdPConfigExtra m :: Type
   type IdPConfigSPId m :: Type
   storeIdPConfig :: IdPConfig (IdPConfigExtra m) -> m ()
@@ -81,9 +86,9 @@ class (SP m, SPStore m, SPStoreIdP err m, MonadError err m) => SPHandler err m w
 storeAssertion :: (Monad m, SPStore m) => ID Assertion -> Time -> m Bool
 storeAssertion item endOfLife =
   ifM
-    (isAliveID item)
+    (isAliveAssertion item)
     (pure False)
-    (True <$ storeID item endOfLife)
+    (True <$ storeAssertionInternal item endOfLife)
 
 loggerConfIO :: (HasConfig m, MonadIO m) => Level -> String -> m ()
 loggerConfIO level msg = do
@@ -120,13 +125,12 @@ createID = mkID . ("_" <>) . UUID.toText <$> createUUID
 -- rejected by us.  (3) The nameID policy is expected to be configured on the IdP side to not
 -- support any set of name spaces that overlap (e.g. because user A has an email that is the account
 -- name of user B).
-createAuthnRequest :: (Monad m, SP m, SPStore m) => NominalDiffTime -> m Issuer -> m AuthnRequest
-createAuthnRequest lifeExpectancySecs getIssuer = do
+createAuthnRequest :: (Monad m, SP m, SPStore m) => NominalDiffTime -> Issuer {- sp -} -> Issuer {- idp -} -> m AuthnRequest
+createAuthnRequest lifeExpectancySecs _rqIssuer idpIssuer = do
   _rqID <- createID
   _rqIssueInstant <- getNow
-  _rqIssuer <- getIssuer
   let _rqNameIDPolicy = Just $ NameIdPolicy NameIDFUnspecified Nothing True
-  storeID _rqID (addTime lifeExpectancySecs _rqIssueInstant)
+  storeRequest _rqID idpIssuer (addTime lifeExpectancySecs _rqIssueInstant)
   pure AuthnRequest {..}
 
 -- | The clock drift between IdP and us that we allow for.
@@ -159,7 +163,7 @@ getSsoURI ::
     HasConfig m,
     IsElem endpoint api,
     HasLink endpoint,
-    ToHttpApiData (MkLink endpoint)
+    ToHttpApiData (MkLink endpoint Link)
   ) =>
   Proxy api ->
   Proxy endpoint ->
@@ -177,7 +181,7 @@ getSsoURI' ::
   forall endpoint api a (f :: Type -> Type) t.
   ( Functor f,
     HasConfig f,
-    MkLink endpoint ~ (t -> a),
+    MkLink endpoint Link ~ (t -> a),
     HasLink endpoint,
     ToHttpApiData a,
     IsElem endpoint api
@@ -256,10 +260,15 @@ instance (Monad m, HasCreateUUID m) => HasCreateUUID (JudgeT m) where
 instance (Monad m, HasNow m) => HasNow (JudgeT m) where
   getNow = JudgeT . lift . lift . lift $ getNow
 
-instance (Monad m, SPStoreID i m) => SPStoreID i (JudgeT m) where
-  storeID item = JudgeT . lift . lift . lift . storeID item
-  unStoreID = JudgeT . lift . lift . lift . unStoreID
-  isAliveID = JudgeT . lift . lift . lift . isAliveID
+instance (Monad m, SPStoreAssertion i m) => SPStoreAssertion i (JudgeT m) where
+  storeAssertionInternal item = JudgeT . lift . lift . lift . storeAssertionInternal item
+  unStoreAssertion = JudgeT . lift . lift . lift . unStoreAssertion
+  isAliveAssertion = JudgeT . lift . lift . lift . isAliveAssertion
+
+instance (Monad m, SPStoreRequest i m) => SPStoreRequest i (JudgeT m) where
+  storeRequest item issuer = JudgeT . lift . lift . lift . storeRequest item issuer
+  unStoreRequest = JudgeT . lift . lift . lift . unStoreRequest
+  getIdpIssuer = JudgeT . lift . lift . lift . getIdpIssuer
 
 -- | [3/4.1.4.2], [3/4.1.4.3]; specific to active-directory:
 -- <https://docs.microsoft.com/en-us/azure/active-directory/develop/active-directory-single-sign-on-protocol-reference>
@@ -272,33 +281,56 @@ instance (Monad m, SPStoreID i m) => SPStoreID i (JudgeT m) where
 --  * 'astSubjectLocality' ("This element is entirely advisory, since both of these fields are
 --    quite easily “spoofed,” but may be useful information in some applications." [1/2.7.2.1])
 --
--- 'judge' does check the 'rspStatus' field, even though that makes no sense: most IdPs encrypt the
--- 'Assertion's, but not the entire response, and we make taht an assumption when validating
--- signatures.  So the status info is not signed, and could easily be changed by an attacker
--- attempting to authenticate.
-judge :: (Monad m, SP m, SPStore m) => AuthnResponse -> JudgeCtx -> m AccessVerdict
-judge resp ctx = runJudgeT ctx (judge' resp)
+-- 'judge' does *not* check any of the *unsigned* parts of the AuthnResponse body because...
+-- those are not signed!  the standard doesn't seem to worry about that, but wire does.  this
+-- affects `rspStatus`, `inRespTo`, `rspIssueInstant`, `rspDestination`.  those are inferred
+-- from the *signed* information available.
+judge :: (Monad m, SP m, SPStore m) => NonEmpty Assertion -> UnvalidatedSAMLStatus -> JudgeCtx -> m AccessVerdict
+judge assertions status ctx = runJudgeT ctx $ do
+  unless
+    (eqUnvalidatedSAMLStatus status StatusSuccess)
+    (deny DeniedStatusFailure)
+  foldJudge assertions
 
-judge' :: (HasCallStack, MonadJudge m, SP m, SPStore m) => AuthnResponse -> m AccessVerdict
-judge' resp = do
-  case resp ^. rspStatus of
-    StatusSuccess -> pure ()
-    StatusFailure -> deny DeniedStatusFailure
-  uref <- either (giveup . DeniedBadUserRefs) pure $ getUserRef resp
-  inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ rspInResponseTo resp
-  checkInResponseTo "response" inRespTo
-  checkIsInPast DeniedIssueInstantNotInPast $ resp ^. rspIssueInstant
-  maybe (pure ()) (checkDestination DeniedBadDestination) (resp ^. rspDestination)
-  verdict <- checkAssertions (resp ^. rspIssuer) (resp ^. rspPayload) uref
-  unStoreID inRespTo
+foldJudge :: (HasCallStack, MonadJudge m, SP m, SPStore m) => NonEmpty Assertion -> m AccessVerdict
+foldJudge (toList -> assertions) = do
+  verdicts <- judge1 `mapM` assertions
+  let (granteds, denieds) =
+        verdicts
+          & partition
+            ( \case
+                AccessDenied _ -> False
+                AccessGranted _ -> True
+            )
+
+  pure $ case (granteds, denieds) of
+    -- granted
+    (nub -> [result@(AccessGranted _)], []) -> result
+    -- denied
+    ([], _ : _) -> AccessDenied (view avReasons =<< denieds)
+    -- weird corner cases
+    (bad@(_ : _), _) -> AccessDenied (DeniedBadUserRefs (show bad) : (view avReasons =<< denieds))
+    ([], []) -> AccessDenied [DeniedBadUserRefs "there are no assertions"]
+
+judge1 :: (HasCallStack, MonadJudge m, SP m, SPStore m) => Assertion -> m AccessVerdict
+judge1 assertion = do
+  inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ assertionToInResponseTo assertion
+  checkInResponseTo "response" (assertion ^. assIssuer) inRespTo
+  verdict <- checkAssertion assertion
+  unStoreRequest inRespTo
   pure verdict
 
 -- | If this fails, we could continue ('deny'), but we stop processing ('giveup') to make DOS
 -- attacks harder.
-checkInResponseTo :: (SPStore m, MonadJudge m) => String -> ID AuthnRequest -> m ()
-checkInResponseTo loc req = do
-  ok <- isAliveID req
-  unless ok . giveup . DeniedBadInResponseTos $ loc <> ": " <> show req
+checkInResponseTo :: (SPStore m, MonadJudge m) => String -> Issuer -> ID AuthnRequest -> m ()
+checkInResponseTo loc issuerFromRes req = do
+  mbIssuerFromReq <- getIdpIssuer req
+  unless
+    (isJust mbIssuerFromReq)
+    (giveup . DeniedBadInResponseTos $ loc <> ": " <> show req)
+  unless
+    (Just issuerFromRes == mbIssuerFromReq)
+    (giveup (DeniedIssuerMismatch mbIssuerFromReq issuerFromRes))
 
 checkIsInPast :: (SP m, MonadJudge m) => (Time -> Time -> DeniedReason) -> Time -> m ()
 checkIsInPast err tim = do
@@ -312,22 +344,18 @@ checkDestination err (renderURI -> expectedByIdp) = do
   (renderURI -> expectedByUs) <- (^. judgeCtxResponseURI) <$> getJudgeCtx
   unless (expectedByUs == expectedByIdp) . deny $ err (cs expectedByUs) (cs expectedByIdp)
 
-checkAssertions :: (SP m, SPStore m, MonadJudge m) => Maybe Issuer -> NonEmpty Assertion -> UserRef -> m AccessVerdict
-checkAssertions missuer (toList -> assertions) uref@(UserRef issuer _) = do
-  forM_ assertions $ \ass -> do
-    checkIsInPast DeniedAssertionIssueInstantNotInPast (ass ^. assIssueInstant)
-    storeAssertion (ass ^. assID) (ass ^. assEndOfLife)
-  checkConditions `mapM_` mapMaybe (^. assConditions) assertions
-  unless (maybe True (issuer ==) missuer) . deny $ DeniedIssuerMismatch missuer issuer
-  checkSubjectConfirmations assertions
-  let statements :: [Statement]
-      statements = mconcat $ (^. assContents . sasStatements . to toList) <$> assertions
-  when (null statements) $
-    deny DeniedNoStatements -- (not sure this is even possible?)
-  unless (any isAuthnStatement statements) $
-    deny DeniedNoAuthnStatement
-  checkStatement `mapM_` statements
-  pure $ AccessGranted uref
+checkAssertion :: (SP m, SPStore m, MonadJudge m) => Assertion -> m AccessVerdict
+checkAssertion ass = do
+  checkIsInPast DeniedAssertionIssueInstantNotInPast (ass ^. assIssueInstant)
+  storeAssertion (ass ^. assID) (ass ^. assEndOfLife) >>= \case
+    True -> pure ()
+    False -> deny DeniedStatusFailure
+  checkConditions `mapM_` (ass ^. assConditions)
+  checkSubjectConfirmations ass
+  let statements = ass ^. assContents . sasStatements
+  unless (any isAuthnStatement statements) (deny DeniedNoAuthnStatement)
+  checkStatement `mapM_` toList statements
+  pure $ AccessGranted (assertionToUserRef ass)
 
 checkStatement :: (SP m, MonadJudge m) => Statement -> m ()
 checkStatement stm =
@@ -341,23 +369,15 @@ checkStatement stm =
 
 -- | Check all 'SubjectConfirmation's and 'Subject's in all 'Assertion'.  Deny if not at least one
 -- confirmation has method "bearer".
-checkSubjectConfirmations :: (SP m, SPStore m, MonadJudge m) => [Assertion] -> m ()
-checkSubjectConfirmations assertions = do
-  bearerFlags :: [[HasBearerConfirmation]] <- forM assertions $
-    \assertion -> case assertion ^. assContents . sasSubject of
-      Subject _ confs -> checkSubjectConfirmation assertion `mapM` confs
-  unless (mconcat (mconcat bearerFlags) == HasBearerConfirmation) $
+checkSubjectConfirmations :: (SP m, SPStore m, MonadJudge m) => Assertion -> m ()
+checkSubjectConfirmations assertion = do
+  bearerFlags :: [HasBearerConfirmation] <- case assertion ^. assContents . sasSubject of
+    Subject _ confs -> checkSubjectConfirmation assertion `mapM` confs
+  unless (nub bearerFlags == [HasBearerConfirmation]) $
     deny DeniedNoBearerConfSubj
 
 data HasBearerConfirmation = HasBearerConfirmation | NoBearerConfirmation
   deriving (Eq, Ord, Bounded, Enum)
-
-instance Monoid HasBearerConfirmation where
-  mappend = (Data.Semigroup.<>)
-  mempty = maxBound
-
-instance Data.Semigroup.Semigroup HasBearerConfirmation where
-  (<>) = min
 
 -- | Locally check one 'SubjectConfirmation' and deny if there is a problem.  If this is a
 -- confirmation of method "bearer", return 'HasBearerConfirmation'.
@@ -387,8 +407,6 @@ checkSubjectConfirmationData confdat = do
   case confdat ^. scdNotBefore of
     Just notbef -> unless (notbef `noLater` now) . deny $ DeniedNotBeforeSubjectConfirmation notbef
     _ -> pure ()
-  -- double-check the result of the call to 'rspInResponseTo' in 'judge'' above.
-  checkInResponseTo "assertion" `mapM_` (confdat ^. scdInResponseTo)
 
 checkConditions :: forall m. (HasCallStack, MonadJudge m, SP m) => Conditions -> m ()
 checkConditions (Conditions lowlimit uplimit _onetimeuse audiences) = do

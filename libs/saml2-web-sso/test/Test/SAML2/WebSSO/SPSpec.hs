@@ -9,9 +9,10 @@ where
 import Control.Concurrent.MVar
 import Control.Lens
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import SAML2.WebSSO
 import SAML2.WebSSO.API.Example (AssertionStore)
+import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.Util
 import Test.Hspec
@@ -70,12 +71,13 @@ specCreateAuthnRequest = do
     it "works" $ do
       let reqid :: ID AuthnRequest
           reqid = mkID "66aaea58-db59-11e8-ba03-2bb52c9e2973"
+          idpIssuer = Issuer [uri|https://sp.net/|]
       ctxv <- mkTestCtxSimple
-      modifyMVar_ ctxv $ \ctx -> pure $ ctx & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
-      (req, isalive) <- ioFromTestSP ctxv $ do
-        req <- createAuthnRequest 30 (pure (Issuer [uri|https://sp.net/|]))
-        (req,) <$> isAliveID (req ^. rqID)
-      isalive `shouldBe` True
+      modifyMVar_ ctxv $ \ctx -> pure $ ctx & ctxRequestStore .~ Map.singleton reqid (idpIssuer, timeIn10minutes)
+      (req, mbIdpIssuerFromReq) <- ioFromTestSP ctxv $ do
+        req <- createAuthnRequest 30 (Issuer [uri|https://sp.net/|]) (Issuer [uri|https://idp.net/|])
+        (req,) <$> getIdpIssuer (req ^. rqID)
+      mbIdpIssuerFromReq `shouldBe` Just (Issuer [uri|https://idp.net/|])
       req ^. rqIssueInstant `shouldBe` timeNow
       req ^. rqIssuer `shouldBe` Issuer [uri|https://sp.net/|]
 
@@ -115,9 +117,9 @@ specJudgeT = do
               pure $
                 ctx
                   & ctxNow .~ timeIn10seconds
-                  & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
+                  & ctxRequestStore .~ Map.singleton reqid (aresp ^. assertionL . assIssuer, timeIn10minutes)
                   & updctx
-            (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge aresp jctx)
+            (`shouldSatisfy` has _AccessGranted) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) (mkUnvalidatedSAMLStatus $ aresp ^. rspStatus) jctx)
         denies :: (HasCallStack) => (Ctx -> Ctx) -> AuthnResponse -> Spec
         denies updctx aresp = do
           it "denies" $ do
@@ -126,9 +128,9 @@ specJudgeT = do
               pure $
                 ctx
                   & ctxNow .~ timeIn10seconds
-                  & ctxRequestStore .~ Map.singleton reqid timeIn10minutes
+                  & ctxRequestStore .~ Map.singleton reqid (aresp ^. assertionL . assIssuer, timeIn10minutes)
                   & updctx
-            (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge aresp jctx)
+            (`shouldSatisfy` has _AccessDenied) =<< ioFromTestSP ctxv (judge (aresp ^. rspPayload) (mkUnvalidatedSAMLStatus $ aresp ^. rspStatus) jctx)
         jctx :: JudgeCtx
         jctx = JudgeCtx (Issuer [uri|https://sp.net/sso/authnresp|]) [uri|https://sp.net/sso/authnresp|]
         authnresp :: AuthnResponse
@@ -200,7 +202,10 @@ specJudgeT = do
     context "inResponseTo in subject confirmation missing" $ do
       denies id $ authnresp & scdataL . scdInResponseTo .~ Nothing
     context "mismatch between global and subject confirmation inResponseTo" $ do
-      denies id $
+      -- wire does not parse unsigned data from the authentication response, so this will
+      -- pass (but the mandatory inResponseTo field in the *signed* assertion will be
+      -- considered).
+      grants id $
         authnresp
           & rspInRespTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
       denies id $
@@ -209,16 +214,24 @@ specJudgeT = do
     context "issue instant in the future" $ do
       let violations :: [AuthnResponse -> AuthnResponse]
           violations =
-            [ rspIssueInstant .~ timeInALongTime,
-              assertionL . assIssueInstant .~ timeInALongTime,
+            [ assertionL . assIssueInstant .~ timeInALongTime,
               statementL . astAuthnInstant .~ timeInALongTime
             ]
+      let meh :: [AuthnResponse -> AuthnResponse]
+          meh =
+            [ rspIssueInstant .~ timeInALongTime
+            ]
       denies id `mapM_` (($ authnresp) <$> violations)
+      -- wire does not test unsigned data in the authentication response, so issue instant
+      -- will be ignored
+      grants id `mapM_` (($ authnresp) <$> meh)
     context "SSO URL, recipient URL, destination URL, audience" $ do
+      -- wire does not test unsigned data in the authentication response, so response
+      -- destination will be ignored (in favor of the redundant info in the signed
+      -- assertion)
       let good :: [AuthnResponse -> AuthnResponse]
           good =
-            [ rspDestination .~ Nothing,
-              conditionsL . condAudienceRestriction
+            [ conditionsL . condAudienceRestriction
                 .~ [ {- (inner "or" succeeding) -} ([uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]])
                    ],
               conditionsL . condAudienceRestriction
@@ -228,8 +241,9 @@ specJudgeT = do
             ]
           bad :: [AuthnResponse -> AuthnResponse]
           bad =
-            [ rspDestination ?~ [uri|https://other.io/sso|],
-              conditionsL . condAudienceRestriction .~ [[uri|https://other.io/sso|] :| []],
+            -- wire does not test unsigned data in the authentication response, so response
+            -- destination will be ignored (in favor of the redundant info in the signed
+            [ conditionsL . condAudienceRestriction .~ [[uri|https://other.io/sso|] :| []],
               scdataL . scdRecipient .~ [uri|https://other.io/sso|],
               conditionsL . condAudienceRestriction .~ [],
               -- "The resulting assertion(s) MUST contain a <saml:AudienceRestriction> element
@@ -275,4 +289,6 @@ specJudgeT = do
               assertionL . assIssuer .~ Issuer [uri|http://other.io/sso|]
             ]
       grants id `mapM_` (($ authnresp) <$> good)
-      denies id `mapM_` (($ authnresp) <$> bad)
+      -- wire does not test unsigned data in the authentication response, so a mismatch
+      -- between that and the assertion will be ignored.
+      grants id `mapM_` (($ authnresp) <$> bad)

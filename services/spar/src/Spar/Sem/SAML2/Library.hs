@@ -97,22 +97,22 @@ instance
     Member (Final IO) r,
     Member AReqIDStore r
   ) =>
-  SPStoreID AuthnRequest (SPImpl r)
+  SPStoreRequest AuthnRequest (SPImpl r)
   where
-  storeID = (wrapMonadClientSPImpl .) . AReqIDStore.store
-  unStoreID = wrapMonadClientSPImpl . AReqIDStore.unStore
-  isAliveID = wrapMonadClientSPImpl . AReqIDStore.isAlive
+  storeRequest issuer timestamp = wrapMonadClientSPImpl . (AReqIDStore.store issuer timestamp)
+  unStoreRequest = wrapMonadClientSPImpl . AReqIDStore.unStore
+  getIdpIssuer = wrapMonadClientSPImpl . AReqIDStore.getIdpIssuer
 
 instance
   ( Member (Error SparError) r,
     Member (Final IO) r,
     Member AssIDStore r
   ) =>
-  SPStoreID Assertion (SPImpl r)
+  SPStoreAssertion Assertion (SPImpl r)
   where
-  storeID = (wrapMonadClientSPImpl .) . AssIDStore.store
-  unStoreID = wrapMonadClientSPImpl . AssIDStore.unStore
-  isAliveID = wrapMonadClientSPImpl . AssIDStore.isAlive
+  storeAssertionInternal = (wrapMonadClientSPImpl .) . AssIDStore.store
+  unStoreAssertion = wrapMonadClientSPImpl . AssIDStore.unStore
+  isAliveAssertion = wrapMonadClientSPImpl . AssIDStore.isAlive
 
 instance
   ( Member (Error SparError) r,
@@ -164,7 +164,15 @@ saml2ToSaml2WebSso =
       get_c <- bindT $ \(a, (b, c)) -> mc a b c
       ins <- getInspectorT
       s <- getInitialStateT
-      x <- raise $ unSPImpl $ SAML.authresp mitlt (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (\x y z -> inspectOrBomb ins $ get_c $ (x, (y, z)) <$ s) ab
+      x <-
+        raise $
+          unSPImpl $
+            SAML.authresp
+              mitlt
+              (inspectOrBomb ins get_a)
+              (inspectOrBomb ins get_b)
+              (\x y z -> inspectOrBomb ins $ get_c $ (x, (y, z)) <$ s)
+              ab
       pure $ x <$ s
     Meta t ma mb -> do
       get_a <- runT ma

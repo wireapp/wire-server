@@ -5,18 +5,17 @@ module SAML2.WebSSO.Test.Util.Misc where
 
 import Control.Monad
 import Control.Monad.IO.Class
-import qualified Data.ByteString.Base64.Lazy as EL (encode)
+import Data.ByteString.Base64.Lazy qualified as EL (encode)
 import Data.EitherR
 import Data.Generics.Uniplate.Data
 import Data.List (sort)
 import Data.String
 import Data.String.Conversions
-import qualified Data.Text.Lazy.IO as LT
+import Data.Text.Lazy.IO qualified as LT
 import Data.Typeable
 import Data.UUID as UUID
 import GHC.Stack
 import SAML2.WebSSO
-import Servant
 import Shelly (run, setStdin, shelly, silently)
 import System.Directory (doesFileExist)
 import System.FilePath
@@ -26,34 +25,6 @@ import System.Process (system)
 import Test.Hspec
 import Text.Show.Pretty
 import Text.XML as XML
-
--- | pipe the output of `curl https://.../initiate-login/...` into this to take a look.
-readAuthReq :: String -> IO ()
-readAuthReq raw = do
-  print $ mimeUnrender @HTML @(FormRedirect Document) Proxy (cs raw)
-
-render' :: Document -> LT
-render' =
-  renderText $
-    def
-      { rsPretty = True
-      --  , rsNamespaces :: [(Text, Text)]
-      --  , rsAttrOrder :: Name -> Map.Map Name Text -> [(Name, Text)]
-      --  , rsUseCDATA :: Content -> Bool
-      --  , rsXMLDeclaration :: Bool
-      }
-
-rerender' :: LT -> LT
-rerender' = render' . parseText_ def
-
-showFile :: FilePath -> IO String
-showFile fp = cs . rerender' . cs . dropWhile (/= '<') <$> Prelude.readFile fp
-
-dumpFile :: FilePath -> IO ()
-dumpFile = showFile >=> putStrLn
-
-rerenderFile :: FilePath -> IO ()
-rerenderFile fp = showFile fp >>= Prelude.writeFile (fp <> "-")
 
 hedgehog :: IO Bool -> Spec
 hedgehog = it "hedgehog tests" . (`shouldReturn` True)
@@ -132,9 +103,6 @@ isSignature _ = False
 
 ----------------------------------------------------------------------
 -- helpers
-
-passes :: (MonadIO m) => m ()
-passes = liftIO $ True `shouldBe` True
 
 newtype SomeSAMLRequest = SomeSAMLRequest {fromSomeSAMLRequest :: XML.Document}
   deriving (Eq, Show)

@@ -12,18 +12,17 @@ import Crypto.Random.Types (MonadRandom (..))
 import Data.EitherR
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe
 import Data.Time
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import Data.Void (Void)
 import SAML2.WebSSO as SAML
-import SAML2.WebSSO.API.Example (GetAllIdPs (..), simpleGetIdPConfigBy, simpleIsAliveID', simpleStoreID', simpleUnStoreID')
+import SAML2.WebSSO.API.Example (GetAllIdPs (..), RequestStore, simpleGetIdPConfigBy, simpleGetIdpIssuer', simpleIsAliveID', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
 import SAML2.WebSSO.Test.Util.Types
 import Servant
 import System.IO
-import System.IO.Silently (hCapture)
 import Test.Hspec
 import Test.Hspec.Wai
 import Test.Hspec.Wai.Internal (runWaiSession)
@@ -83,15 +82,45 @@ simpleIsAliveID sel item = do
   items <- liftIO $ readMVar store
   pure $ simpleIsAliveID' now item (items ^. sel)
 
-instance SPStoreID AuthnRequest TestSP where
-  storeID = simpleStoreID ctxRequestStore
-  unStoreID = simpleUnStoreID ctxRequestStore
-  isAliveID = simpleIsAliveID ctxRequestStore
+simpleStoreRequest ::
+  (MonadIO m, MonadReader (MVar ctx) m) =>
+  Lens' ctx RequestStore ->
+  ID AuthnRequest ->
+  Issuer ->
+  Time ->
+  m ()
+simpleStoreRequest sel item issuer endOfLife = do
+  store <- ask
+  liftIO $ modifyMVar_ store (pure . (sel %~ simpleStoreRequest' item (issuer, endOfLife)))
 
-instance SPStoreID Assertion TestSP where
-  storeID = simpleStoreID ctxAssertionStore
-  unStoreID = simpleUnStoreID ctxAssertionStore
-  isAliveID = simpleIsAliveID ctxAssertionStore
+simpleUnStoreRequest ::
+  (MonadIO m, MonadReader (MVar ctx) m) =>
+  Lens' ctx RequestStore ->
+  ID AuthnRequest ->
+  m ()
+simpleUnStoreRequest sel item = do
+  store <- ask
+  liftIO $ modifyMVar_ store (pure . (sel %~ simpleUnStoreRequest' item))
+
+simpleGetIdpIssuer ::
+  (MonadIO m, MonadReader (MVar ctx) m, SP m) =>
+  Lens' ctx RequestStore ->
+  ID AuthnRequest ->
+  m (Maybe Issuer)
+simpleGetIdpIssuer sel item = do
+  store <- ask
+  items <- liftIO $ readMVar store
+  simpleGetIdpIssuer' item (items ^. sel) <$> getNow
+
+instance SPStoreRequest AuthnRequest TestSP where
+  storeRequest = simpleStoreRequest ctxRequestStore
+  unStoreRequest = simpleUnStoreRequest ctxRequestStore
+  getIdpIssuer = simpleGetIdpIssuer ctxRequestStore
+
+instance SPStoreAssertion Assertion TestSP where
+  storeAssertionInternal = simpleStoreID ctxAssertionStore
+  unStoreAssertion = simpleUnStoreID ctxAssertionStore
+  isAliveAssertion = simpleIsAliveID ctxAssertionStore
 
 instance SPStoreIdP SimpleError TestSP where
   type IdPConfigExtra TestSP = ()
@@ -129,15 +158,6 @@ withapp ::
 withapp proxy handler mkctx = withState (mkctx <&> \ctx -> (ctx, app ctx))
   where
     app ctx = serve proxy (hoistServer (Proxy @api) (nt @SimpleError @TestSP ctx) handler :: Server api)
-
-capture' :: (HasCallStack) => IO a -> IO a
-capture' action =
-  hCapture [stdout, stderr] action >>= \case
-    ("", out) -> pure out
-    (noise, _) -> error $ show noise
-
-captureApplication :: (HasCallStack) => Application -> Application
-captureApplication app req cont = capture' (app req cont)
 
 runtest :: (CtxV -> WaiSession () a) -> (CtxV, Application) -> IO a
 runtest test (ctx, app) = runWaiSession (test ctx) app
@@ -201,10 +221,6 @@ mkTestSPMetadata = do
   _spOrgURL <- (^. fromIssuer) <$> defSPIssuer
   _spResponseURL <- defResponseURI
   pure SPMetadata {..}
-
--- | Use this to see more output on a per-test basis.
-verbose :: Ctx -> Ctx
-verbose = ctxConfig . cfgLogLevel .~ Debug
 
 timeLongAgo :: Time
 timeLongAgo = unsafeReadTime "1918-04-14T09:58:58.457Z"

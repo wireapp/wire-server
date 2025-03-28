@@ -149,10 +149,10 @@ module SAML2.WebSSO.Types
     normalizeAssertion,
     idPIdToST,
     assEndOfLife,
-    rspInResponseTo,
-    getUserRef,
+    assertionToInResponseTo,
+    assertionsToUserRef,
+    assertionToUserRef,
     nelConcat,
-    (<$$>),
   )
 where
 
@@ -162,26 +162,27 @@ import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Bifunctor (first)
-import qualified Data.CaseInsensitive as CI
-import qualified Data.List as L
-import Data.List.NonEmpty
+import Data.CaseInsensitive qualified as CI
+import Data.List qualified as L
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NL
 import Data.Maybe
 import Data.String.Conversions (ST, cs)
-import qualified Data.Text as ST
+import Data.Text qualified as ST
 import Data.Time (NominalDiffTime, UTCTime (..), addUTCTime, defaultTimeLocale, formatTime, parseTimeM)
 import Data.UUID as UUID
-import qualified Data.X509 as X509
-import qualified Foundation.Network.IPv4 as IPv4
-import qualified Foundation.Network.IPv6 as IPv6
-import qualified Foundation.Parser as IP
+import Data.X509 qualified as X509
+import Foundation.Network.IPv4 qualified as IPv4
+import Foundation.Network.IPv6 qualified as IPv6
+import Foundation.Parser qualified as IP
 import GHC.Generics (Generic)
 import GHC.Stack
-import qualified Network.DNS.Utils as DNS
+import Network.DNS.Utils qualified as DNS
 import SAML2.Util
 import SAML2.WebSSO.Orphans ()
-import qualified SAML2.WebSSO.Types.Email as Email
+import SAML2.WebSSO.Types.Email qualified as Email
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
-import qualified Servant
+import Servant qualified
 import URI.ByteString
 
 -- | Text that needs to be escaped when rendered into XML.  See 'mkXmlText', 'escapeXmlText'.
@@ -223,10 +224,8 @@ data DeniedReason
   = DeniedStatusFailure
   | DeniedBadUserRefs {deniedDetails :: String}
   | DeniedBadInResponseTos {deniedDetails :: String}
-  | DeniedIssueInstantNotInPast {deniedTimestamp :: Time, deniedNow :: Time}
   | DeniedAssertionIssueInstantNotInPast {deniedTimestamp :: Time, deniedNow :: Time}
   | DeniedAuthnStatementIssueInstantNotInPast {deniedTimestamp :: Time, deniedNow :: Time}
-  | DeniedBadDestination {deniedWeExpected :: String, deniedTheyExpected :: String}
   | DeniedBadRecipient {deniedWeExpected :: String, deniedTheyExpected :: String}
   | DeniedIssuerMismatch {deniedInHeader :: Maybe Issuer, deniedInAssertion :: Issuer}
   | DeniedNoStatements
@@ -596,7 +595,9 @@ data Assertion = Assertion
 data Conditions = Conditions
   { _condNotBefore :: Maybe Time,
     _condNotOnOrAfter :: Maybe Time,
-    -- | [1/2.5.1.5] (it's safe to ignore this)
+    -- | [1/2.5.1.5] (it's safe to ignore this: if true, we're asked to not keep the assertion
+    -- around for later authentication / authorization checks, but we don't do that in any
+    -- case.)
     _condOneTimeUse :: Bool,
     -- | [1/2.5.1.4] this is an and of ors ('[]' means
     -- do not restrict).
@@ -832,46 +833,31 @@ assEndOfLife = lens gt st
 
 -- | [3/4.1.4.2] SubjectConfirmation [...] If the containing message is in response to an
 -- AuthnRequest, then the InResponseTo attribute MUST match the request's ID.
-rspInResponseTo :: (MonadError String m) => AuthnResponse -> m (ID AuthnRequest)
-rspInResponseTo aresp = case (inResp, inSubjectConf) of
-  (_, []) ->
-    throwError "not found" -- the inSubjectConf is required!
-  (Nothing, js@(_ : _))
-    | L.length (L.nub js) /= 1 ->
-        throwError $ "mismatching inResponseTo attributes in subject confirmation data: " <> show js
-  (Just i, js@(_ : _))
-    | L.length (L.nub (i : js)) /= 1 ->
-        throwError $ "mismatching inResponseTo attributes in response header, subject confirmation data: " <> show (i, js)
-  (_, (j : _)) ->
-    pure j
+assertionToInResponseTo :: forall m. (MonadError String m) => Assertion -> m (ID AuthnRequest)
+assertionToInResponseTo assertion = do
+  case L.nub (catMaybes is) of
+    [i] -> pure i
+    _ -> throwError $ "missing or incoherent inResponseTo information in assertion: " <> show assertion
   where
-    inSubjectConf :: [ID AuthnRequest]
-    inSubjectConf =
-      maybeToList
-        . (^. scdInResponseTo)
-        =<< maybeToList
-          . (^. scData)
-        =<< (^. assContents . sasSubject . subjectConfirmations)
-        =<< toList (aresp ^. rspPayload)
-    inResp :: Maybe (ID AuthnRequest)
-    inResp = aresp ^. rspInRespTo
+    ss :: [SubjectConfirmation]
+    ss = assertion ^. assContents . sasSubject . subjectConfirmations
 
-getUserRef :: (HasCallStack, MonadError String m) => AuthnResponse -> m UserRef
-getUserRef resp = do
-  let assertions = resp ^. rspPayload
-  issuer :: Issuer <- case nub $ (^. assIssuer) <$> assertions of
-    i :| [] -> pure i
-    bad -> throwError $ "bad issuers: " <> show bad
-  subject :: NameID <- case nub $ (^. assContents . sasSubject) <$> assertions of
-    Subject s _ :| [] -> pure s
-    bad -> throwError $ "bad subjects: " <> show bad
-  pure $ UserRef issuer subject
+    is :: [Maybe (ID AuthnRequest)]
+    is = ss <&> (^? scData . _Just . scdInResponseTo . _Just)
+
+assertionsToUserRef :: NonEmpty Assertion -> Either [UserRef] UserRef
+assertionsToUserRef assertions = case NL.nub $ assertionToUserRef <$> assertions of
+  u :| [] -> pure u
+  bad -> throwError (NL.toList bad)
+
+assertionToUserRef :: Assertion -> UserRef
+assertionToUserRef assertion =
+  let issuer = assertion ^. assIssuer
+      Subject subject _ = assertion ^. assContents . sasSubject
+   in UserRef issuer subject
 
 ----------------------------------------------------------------------
 -- why is this not in the resp. packages?
 
 nelConcat :: NonEmpty (NonEmpty a) -> NonEmpty a
-nelConcat ((x :| xs) :| ys) = x :| mconcat (xs : (toList <$> ys))
-
-(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
-(<$$>) = fmap . fmap
+nelConcat ((x :| xs) :| ys) = x :| mconcat (xs : (NL.toList <$> ys))

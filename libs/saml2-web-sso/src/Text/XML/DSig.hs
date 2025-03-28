@@ -30,53 +30,66 @@ module Text.XML.DSig
     verifyIO,
 
     -- * signature creation
-    signRoot,
     signRootAt,
 
     -- * testing
     HasMonadSign,
     MonadSign (MonadSign),
     runMonadSign,
-    signElementIO,
     signElementIOAt,
+    verifyIO',
+    verifySignatureUnenvelopedSigs,
   )
 where
 
-import Control.Exception (ErrorCall (ErrorCall), SomeException, throwIO, try)
+import Control.Arrow.ArrowTree qualified as Arr
+import Control.Exception (ErrorCall (ErrorCall), SomeException, handle, throwIO, try)
 import Control.Lens
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.IO.Class
-import qualified Crypto.Hash as Crypto
-import qualified Crypto.PubKey.RSA as RSA
-import qualified Crypto.PubKey.RSA.PKCS15 as RSA
-import qualified Crypto.PubKey.RSA.Types as RSA
-import qualified Crypto.Random.Types as Crypto
-import qualified Data.ByteArray as ByteArray
+import Crypto.Hash (RIPEMD160 (..), SHA1 (..), SHA256 (..), SHA512 (..), hashlazy)
+import Crypto.Hash qualified as Crypto
+import Crypto.Number.Serialize (os2ip)
+import Crypto.PubKey.DSA qualified as DSA
+import Crypto.PubKey.RSA qualified as RSA
+import Crypto.PubKey.RSA.PKCS15 qualified as RSA
+import Crypto.PubKey.RSA.Types qualified as RSA
+import Crypto.Random.Types qualified as Crypto
+import Data.ByteArray qualified as BA
+import Data.ByteArray qualified as ByteArray
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BSL
 import Data.Either (isRight)
 import Data.EitherR (fmapL)
 import Data.Foldable (toList)
-import qualified Data.Hourglass as Hourglass
+import Data.Hourglass qualified as Hourglass
 import Data.List (foldl')
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NL
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NL
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.String.Conversions
 import Data.UUID as UUID
-import qualified Data.X509 as X509
+import Data.X509 qualified as X509
 import GHC.Stack
-import Network.URI (URI, parseRelativeReference)
-import qualified SAML2.XML as HS hiding (Node, URI)
-import qualified SAML2.XML.Canonical as HS
-import qualified SAML2.XML.Signature as HS
+import Network.URI (URI (..), parseRelativeReference)
+import SAML2.XML qualified as HS hiding (Node, URI)
+import SAML2.XML.Canonical qualified as HS
+import SAML2.XML.Signature qualified as HS
 import System.IO (stderr, stdout)
 import System.IO.Silently (hCapture)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (mkStdGen, random)
 import Text.XML as XML
-import qualified Text.XML.HXT.DOM.XmlNode as HXT
+import Text.XML.HXT.Arrow.Pickle.Xml.Invertible qualified as XP
+import Text.XML.HXT.Core qualified as HXTC
+import Text.XML.HXT.DOM.QualifiedName qualified as DOM
+import Text.XML.HXT.DOM.ShowXml qualified as DOM
+import Text.XML.HXT.DOM.XmlNode qualified as DOM
+import Text.XML.HXT.DOM.XmlNode qualified as HXT
 import Text.XML.Util
-import qualified Time.System as Hourglass
+import Time.System qualified as Hourglass
 
 ----------------------------------------------------------------------
 -- types
@@ -214,13 +227,14 @@ mkSignCredsWithCert mValidSince size = do
 -- same arguments and return the same result value, or not be called a second time with the
 -- same arguments, in which case that same value will be used.
 {-# NOINLINE verify #-}
-verify :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> String -> m ()
-verify creds el signedID = case unsafePerformIO (try @SomeException $ verifyIO creds el signedID) of
-  Right [] -> pure ()
-  Right errs -> throwError $ show (snd <$> errs)
+verify :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> String -> m HXTC.XmlTree
+verify creds el sid = case unsafePerformIO (try @SomeException $ verifyIO creds el sid) of
+  Right (_, Right xml) -> pure xml
+  Right (_, Left exc) -> throwError $ show exc
   Left exc -> throwError $ show exc
 
-verifyRoot :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> m ()
+-- | Convenient wrapper that picks the ID of the root element node and passes it to `verify`.
+verifyRoot :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> m HXTC.XmlTree
 verifyRoot creds el = do
   signedID <- do
     XML.Document _ (XML.Element _ attrs _) _ <-
@@ -236,12 +250,12 @@ verifyRoot creds el = do
 
 -- | Try a list of creds against a document.  If all fail, return a list of errors for each cert; if
 -- *any* succeed, return the empty list.
-verifyIO :: NonEmpty SignCreds -> LBS -> String -> IO [(SignCreds, Either HS.SignatureError ())]
-verifyIO creds el signedID = capture' $ do
-  results <- NL.zip creds <$> forM creds (\cred -> verifyIO' cred el signedID)
+verifyIO :: NonEmpty SignCreds -> LBS -> String -> IO (SignCreds, Either HS.SignatureError HXTC.XmlTree)
+verifyIO creds el sid = capture' $ do
+  results <- NL.zip creds <$> forM creds (\cred -> verifyIO' cred el sid)
   case NL.filter (isRight . snd) results of
-    (_ : _) -> pure []
-    [] -> pure $ NL.toList results
+    [result] -> pure result
+    _ -> throwIO . ErrorCall $ "all credentials failed to verify signature"
   where
     capture' :: IO a -> IO a
     capture' action =
@@ -249,18 +263,136 @@ verifyIO creds el signedID = capture' $ do
         ("", out) -> pure out
         (noise, _) -> throwIO . ErrorCall $ "noise on stdout/stderr from hsaml2 package: " <> noise
 
-verifyIO' :: SignCreds -> LBS -> String -> IO (Either HS.SignatureError ())
-verifyIO' (SignCreds SignDigestSha256 (SignKeyRSA key)) el signedID = runExceptT $ do
+verifyIO' :: SignCreds -> LBS -> String -> IO (Either HS.SignatureError HXTC.XmlTree)
+verifyIO' (SignCreds SignDigestSha256 (SignKeyRSA key)) el sid = runExceptT $ do
   el' <- either (throwError . HS.SignatureParseError) pure $ HS.xmlToDocE el
-  ExceptT $ HS.verifySignatureUnenvelopedSigs (HS.PublicKeys Nothing . Just $ key) signedID el'
+  ExceptT $ verifySignatureUnenvelopedSigs (HS.PublicKeys Nothing . Just $ key) sid el'
+
+----------------------------------------------------------------------------------------------------
+-- the following is copied from hsaml2 and patched to fit our API
+
+-- | It turns out sometimes we don't get envelopped signatures, but signatures that are
+-- located outside the signed sub-tree.  Since 'verifySignature' doesn't support this case, if
+-- you encounter it you should fall back to 'verifySignatureUnenvelopedSigs'.
+verifySignatureUnenvelopedSigs :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO (Either HS.SignatureError HXTC.XmlTree)
+verifySignatureUnenvelopedSigs pks xid doc = catchAll $ warpResult <$> verifySignature pks xid doc
+  where
+    catchAll :: IO (Either HS.SignatureError a) -> IO (Either HS.SignatureError a)
+    catchAll = handle $ pure . Left . HS.SignatureVerificationLegacyFailure . Left . (show @SomeException)
+
+    warpResult :: Maybe HXTC.XmlTree -> Either HS.SignatureError HXTC.XmlTree
+    warpResult (Just xml) = Right xml
+    warpResult Nothing = Left (HS.SignatureVerificationLegacyFailure (Right Nothing))
+
+-- | Returns the xml sub-trees of the input that have valid signatures signatures.  May throw
+-- exceptions in IO.
+verifySignature :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO (Maybe HXTC.XmlTree)
+verifySignature pks xid doc = do
+  let namespaces = DOM.toNsEnv $ HXTC.runLA HXTC.collectNamespaceDecl doc
+  x <- case HXTC.runLA (getID xid HXTC.>>> HXTC.attachNsEnv namespaces) doc of
+    [x] -> pure x
+    _ -> fail "verifySignature: element not found"
+  sx <- case child "Signature" x of
+    [sx] -> pure sx
+    _ -> fail "verifySignature: Signature not found"
+  s@HS.Signature {signatureSignedInfo = si} <- either fail pure $ HS.docToSAML sx
+  six <- applyCanonicalization (HS.signedInfoCanonicalizationMethod si) (Just xpath) $ DOM.mkRoot [] [x]
+  results <- mapM (`verifyReference` x) (HS.signedInfoReference si)
+  let mResult = case filter matchingId (toList results) of
+        [(Right (_, xml))] -> Just xml
+        _ -> Nothing
+  let isSignatureValid = verifyBytes pks (HS.signatureMethodAlgorithm $ HS.signedInfoSignatureMethod si) (HS.signatureValue $ HS.signatureSignatureValue s) six
+  pure $ case isSignatureValid of
+    Just True -> mResult
+    _ -> Nothing
+  where
+    matchingId :: Either String (String, HXTC.XmlTree) -> Bool
+    matchingId (Right (xid', _)) = xid == xid'
+    matchingId (Left _) = False
+
+    child n = HXTC.runLA $ Arr.getChildren HXTC.>>> isDSElem n HXTC.>>> HXTC.cleanupNamespaces HXTC.collectPrefixUriPairs
+    xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ HS.namespaceURIString HS.ns ++ "']"
+    xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
+    xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
+
+-- | indicate verification result; return 'Nothing' if no matching key/alg pair is found
+verifyBytes :: HS.PublicKeys -> HS.IdentifiedURI HS.SignatureAlgorithm -> BS.ByteString -> BS.ByteString -> Maybe Bool
+verifyBytes HS.PublicKeys {publicKeyDSA = Just k} (HS.Identified HS.SignatureDSA_SHA1) sig m =
+  Just $
+    BS.length sig == 40
+      && DSA.verify SHA1 k DSA.Signature {DSA.sign_r = os2ip r, DSA.sign_s = os2ip s} m
+  where
+    (r, s) = BS.splitAt 20 sig
+verifyBytes HS.PublicKeys {publicKeyRSA = Just k} (HS.Identified HS.SignatureRSA_SHA1) sig m =
+  Just $
+    RSA.verify (Just SHA1) k m sig
+verifyBytes HS.PublicKeys {publicKeyRSA = Just k} (HS.Identified HS.SignatureRSA_SHA256) sig m =
+  Just $
+    RSA.verify (Just SHA256) k m sig
+verifyBytes _ _ _ _ = Nothing
+
+isDSElem :: (HXTC.ArrowXml a) => String -> a HXTC.XmlTree HXTC.XmlTree
+isDSElem n = HXTC.isElem HXTC.>>> HXTC.hasQName (HS.mkNName HS.ns n)
+
+getID :: (HXTC.ArrowXml a) => String -> a HXTC.XmlTree HXTC.XmlTree
+getID = HXTC.deep . HXTC.hasAttrValue "ID" . (==)
+
+applyCanonicalization :: HS.CanonicalizationMethod -> Maybe String -> HXTC.XmlTree -> IO BS.ByteString
+applyCanonicalization (HS.CanonicalizationMethod (HS.Identified a) ins []) x y = HS.canonicalize a ins x y
+applyCanonicalization m _ _ = fail $ "applyCanonicalization: unsupported " ++ show m
+
+applyTransformsBytes :: [HS.Transform] -> BSL.ByteString -> IO BSL.ByteString
+applyTransformsBytes [] v = pure v
+applyTransformsBytes (t : _) _ = fail ("applyTransforms: unsupported Signature " ++ show t)
+
+applyTransformsXML :: [HS.Transform] -> HXTC.XmlTree -> IO BSL.ByteString
+applyTransformsXML (HS.Transform (HS.Identified (HS.TransformCanonicalization a)) ins x : tl) =
+  applyTransformsBytes tl . BSL.fromStrict
+    <=< applyCanonicalization (HS.CanonicalizationMethod (HS.Identified a) ins (map (XP.pickleDoc XP.xpickle) x)) Nothing
+applyTransformsXML (HS.Transform (HS.Identified HS.TransformEnvelopedSignature) Nothing [] : tl) =
+  -- XXX assumes "this" signature in top-level
+  applyTransformsXML tl
+    . head
+    . HXTC.runLA
+      ( HXTC.processChildren $
+          HXTC.processChildren $
+            HXTC.neg (isDSElem "Signature")
+      )
+applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . pure
+
+applyTransforms :: Maybe HS.Transforms -> HXTC.XmlTree -> IO BSL.ByteString
+applyTransforms = applyTransformsXML . maybe [] (NonEmpty.toList . HS.transforms)
+
+applyDigest :: HS.DigestMethod -> BSL.ByteString -> BS.ByteString
+applyDigest (HS.DigestMethod (HS.Identified HS.DigestSHA1) []) = BA.convert . hashlazy @SHA1
+applyDigest (HS.DigestMethod (HS.Identified HS.DigestSHA256) []) = BA.convert . hashlazy @SHA256
+applyDigest (HS.DigestMethod (HS.Identified HS.DigestSHA512) []) = BA.convert . hashlazy @SHA512
+applyDigest (HS.DigestMethod (HS.Identified HS.DigestRIPEMD160) []) = BA.convert . hashlazy @RIPEMD160
+applyDigest d = error $ "unsupported " ++ show d
+
+-- | Re-compute the digest (after transforms) of a 'Reference'd subtree of an xml document and
+-- compare it against the one given in the 'Reference'.  If it matches, return the xml ID;
+-- otherwise, return an error string.
+verifyReference :: (HasCallStack) => HS.Reference -> HXTC.XmlTree -> IO (Either String (String, HXTC.XmlTree))
+verifyReference r doc = case HS.referenceURI r of
+  Just URI {uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#' : xid} ->
+    case HXTC.runLA (getID xid) doc of
+      x@[result] -> do
+        t :: BSL.ByteString <- applyTransforms (HS.referenceTransforms r) $ DOM.mkRoot [] x
+        let have = applyDigest (HS.referenceDigestMethod r) t
+            want = HS.referenceDigestValue r
+        pure $
+          if have == want
+            then Right (xid, result)
+            else Left $ "#" <> xid <> ": digest mismatch"
+      bad -> pure . Left $ "#" <> xid <> ": has " <> show (length bad) <> " matches, should have 1."
+  bad -> pure . Left $ "unexpected referenceURI: " <> show bad
+
+-- the above is copied from hsaml2 and patched to fit our API
+----------------------------------------------------------------------------------------------------
 
 ----------------------------------------------------------------------
 -- signature creation
-
--- | Make sure that root node node has ID attribute and sign it.  This is similar to the more
--- primitive 'HS.generateSignature'.  Cons signature to the children list (left-most position).
-signRoot :: (Crypto.MonadRandom m, MonadError String m) => SignPrivCreds -> XML.Document -> m XML.Document
-signRoot = signRootAt 0
 
 -- | Like 'signRoot', but insert signature at any given position in the children list.  If the list
 -- is too short for this position, throw an error.
@@ -380,12 +512,9 @@ instance MonadError String MonadSign where
 
 type HasMonadSign = MonadIO
 
-signElementIO :: (HasCallStack, HasMonadSign m) => SignPrivCreds -> [Node] -> m [Node]
-signElementIO = signElementIOAt 0
-
-signElementIOAt :: (HasCallStack, HasMonadSign m) => Int -> SignPrivCreds -> [Node] -> m [Node]
+signElementIOAt :: (HasCallStack, HasMonadSign m) => Int -> SignPrivCreds -> [XML.Node] -> m [XML.Node]
 signElementIOAt sigPos creds [NodeElement el] = do
-  eNodes :: Either String [Node] <-
+  eNodes :: Either String [XML.Node] <-
     liftIO . runMonadSign . fmap docToNodes . signRootAt sigPos creds . mkDocument $ el
   either error pure eNodes
 signElementIOAt _ _ bad = liftIO . throwIO . ErrorCall . show $ bad

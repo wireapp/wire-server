@@ -10,7 +10,7 @@ import Control.Lens
 import Data.Aeson
 import Data.Aeson.Types
 import Data.String.Conversions
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Hedgehog
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Arbitrary

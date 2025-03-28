@@ -142,13 +142,16 @@ devtest:
 	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
-sanitize-pr:
-	./hack/bin/check-weed.sh
+sanitize-pr: check-weed
 	make lint-all-shallow
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
 	make list-flaky-tests
+
+.PHONY: check-weed
+check-weed:
+	./hack/bin/check-weed.sh
 
 list-flaky-tests:
 	@echo -e "\n\nif you want to run these, set RUN_FLAKY_TESTS=1\n\n"

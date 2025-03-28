@@ -41,7 +41,7 @@ data SimpleSPCtx = SimpleSPCtx
     _spctxAss :: MVar AssertionStore
   }
 
-type RequestStore = Map.Map (ID AuthnRequest) Time
+type RequestStore = Map.Map (ID AuthnRequest) (Issuer, Time)
 
 type AssertionStore = Map.Map (ID Assertion) Time
 
@@ -109,15 +109,60 @@ simpleIsAliveID sel item = do
 simpleIsAliveID' :: Time -> ID a -> Map (ID a) Time -> Bool
 simpleIsAliveID' now item items = maybe False (>= now) (Map.lookup item items)
 
-instance SPStoreID AuthnRequest SimpleSP where
-  storeID = simpleStoreID spctxReq
-  unStoreID = simpleUnStoreID spctxReq
-  isAliveID = simpleIsAliveID spctxReq
+simpleStoreRequest ::
+  (MonadIO m, MonadReader ctx m) =>
+  Lens' ctx (MVar RequestStore) ->
+  ID AuthnRequest ->
+  Issuer ->
+  Time ->
+  m ()
+simpleStoreRequest sel item issuer endOfLife = do
+  store <- asks (^. sel)
+  liftIO $ modifyMVar_ store (pure . simpleStoreRequest' item (issuer, endOfLife))
 
-instance SPStoreID Assertion SimpleSP where
-  storeID = simpleStoreID spctxAss
-  unStoreID = simpleUnStoreID spctxAss
-  isAliveID = simpleIsAliveID spctxAss
+simpleStoreRequest' :: ID AuthnRequest -> (Issuer, Time) -> RequestStore -> RequestStore
+simpleStoreRequest' = Map.insert
+
+simpleUnStoreRequest ::
+  (MonadIO m, MonadReader ctx m) =>
+  Lens' ctx (MVar RequestStore) ->
+  (ID AuthnRequest) ->
+  m ()
+simpleUnStoreRequest sel item = do
+  store <- asks (^. sel)
+  liftIO $ modifyMVar_ store (pure . simpleUnStoreRequest' item)
+
+simpleUnStoreRequest' :: ID AuthnRequest -> RequestStore -> RequestStore
+simpleUnStoreRequest' = Map.delete
+
+simpleGetIdpIssuer ::
+  (MonadIO m, MonadReader ctx m, SP m) =>
+  Lens' ctx (MVar RequestStore) ->
+  ID AuthnRequest ->
+  m (Maybe Issuer)
+simpleGetIdpIssuer sel item = do
+  store <- asks (^. sel)
+  items <- liftIO $ readMVar store
+  simpleGetIdpIssuer' item items <$> getNow
+
+simpleGetIdpIssuer' ::
+  ID AuthnRequest ->
+  RequestStore ->
+  Time ->
+  (Maybe Issuer)
+simpleGetIdpIssuer' item items now = case Map.lookup item items of
+  Just (issuer, expiresAt) | now < expiresAt -> Just issuer
+  _ -> Nothing
+
+instance SPStoreRequest AuthnRequest SimpleSP where
+  storeRequest = simpleStoreRequest spctxReq
+  unStoreRequest = simpleUnStoreRequest spctxReq
+  getIdpIssuer = simpleGetIdpIssuer spctxReq
+
+instance SPStoreAssertion Assertion SimpleSP where
+  storeAssertionInternal = simpleStoreID spctxAss
+  unStoreAssertion = simpleUnStoreID spctxAss
+  isAliveAssertion = simpleIsAliveID spctxAss
 
 instance HasConfig SimpleSP where
   getConfig = (^. spctxConfig) <$> SimpleSP ask
