@@ -199,7 +199,7 @@ onConversationCreated domain rc = do
             (tUntagged (ccRemoteOrigUserId qrcConnected))
             qrcConnected.time
             (EdConversation c)
-    pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
+    pushConversationEvent Nothing () event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 
 getConversationsV1 ::
@@ -351,8 +351,8 @@ onMessageSent domain rmUnqualified = do
       msgMetadata =
         MessageMetadata
           { mmNativePush = rm.push,
-            mmTransient = transient rm,
-            mmNativePriority = priority rm,
+            mmTransient = rm.transient,
+            mmNativePriority = rm.priority,
             mmData = _data rm
           }
       recipientMap = userClientMap rm.recipients

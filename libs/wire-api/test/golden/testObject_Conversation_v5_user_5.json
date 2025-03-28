@@ -30,6 +30,7 @@
     "message_timer": null,
     "name": " 0",
     "protocol": "proteus",
+    "cells_state": "disabled",
     "qualified_id": {
         "domain": "golden.example.com",
         "id": "00000001-0000-0000-0000-000000000000"

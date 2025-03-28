@@ -97,6 +97,7 @@ import Galley.Schema.V93_ConferenceCallingSftForOneToOne qualified as V93_Confer
 import Galley.Schema.V94_DomainRegistrationConfig qualified as V94_DomainRegistrationConfig
 import Galley.Schema.V95_TeamFeatureDataMigrationState qualified as V95_TeamFeatureDataMigrationState
 import Galley.Schema.V96_GroupConversationType qualified as V96_GroupConversationType
+import Galley.Schema.V97_CellsConversation qualified as V97_CellsConversation
 import Imports
 import Options.Applicative
 import System.Logger.Extended qualified as Log
@@ -194,7 +195,8 @@ migrations =
     V93_ConferenceCallingSftForOneToOne.migration,
     V94_DomainRegistrationConfig.migration,
     V95_TeamFeatureDataMigrationState.migration,
-    V96_GroupConversationType.migration
+    V96_GroupConversationType.migration,
+    V97_CellsConversation.migration
     -- FUTUREWORK: once #1726 has made its way to master/production,
     -- the 'message' field in connections table can be dropped.
     -- See also https://github.com/wireapp/wire-server/pull/1747/files

@@ -48,6 +48,7 @@ import Control.Arrow ((&&&))
 import Control.Error (headMay)
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.Json.Util
@@ -871,6 +872,7 @@ notifyConversationAction ::
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap (.convId) lconv
+      conv = tUnqualified lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
       mkUpdate uids =
         ConversationUpdate
@@ -894,7 +896,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
             else pure (Just update)
 
   -- notify local participants and bots
-  pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
+  pushConversationEvent con conv e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
 
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
@@ -981,7 +983,7 @@ updateLocalStateOfRemoteConv rcu con = do
     let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
-    pushConversationEvent con event (qualifyAs loc targets) [] $> event
+    pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
 addLocalUsersToRemoteConv ::
   ( Member BrigAccess r,
@@ -1105,10 +1107,13 @@ pushTypingIndicatorEvents ::
   Sem r ()
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
   let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
-  for_ (newPushLocal (qUnqualified qusr) (toJSONObject e) (userRecipient <$> users)) $ \p ->
-    pushNotifications
-      [ p
-          & pushConn .~ mcon
-          & pushRoute .~ PushV2.RouteDirect
-          & pushTransient .~ True
-      ]
+  pushNotifications
+    [ def
+        { origin = Just (qUnqualified qusr),
+          json = toJSONObject e,
+          recipients = map userRecipient users,
+          conn = mcon,
+          route = PushV2.RouteDirect,
+          transient = True
+        }
+    ]

@@ -141,6 +141,7 @@ genConversationMetadata =
     <*> pure Nothing
     <*> pure Nothing
     <*> arbitrary
+    <*> arbitrary
 
 newtype RandomConversation = RandomConversation
   {unRandomConversation :: Data.Conversation}

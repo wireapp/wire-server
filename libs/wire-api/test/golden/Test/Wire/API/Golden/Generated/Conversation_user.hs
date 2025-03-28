@@ -36,6 +36,7 @@ import Data.Time.Clock
 import Data.UUID qualified as UUID (fromString)
 import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.MLS.CipherSuite
@@ -58,7 +59,8 @@ testObject_Conversation_user_1 =
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
-            cnvmGroupConvType = Nothing
+            cnvmGroupConvType = Nothing,
+            cnvmCellsState = CellsReady
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
@@ -106,7 +108,8 @@ testObject_Conversation_user_2 =
             cnvmTeam = Nothing,
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Nothing,
-            cnvmGroupConvType = Nothing
+            cnvmGroupConvType = Nothing,
+            cnvmCellsState = CellsPending
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
@@ -173,7 +176,8 @@ testObject_Conversation_user_3 =
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
-            cnvmGroupConvType = Nothing
+            cnvmGroupConvType = Nothing,
+            cnvmCellsState = CellsDisabled
           },
       cnvMembers =
         ConvMembers
@@ -236,7 +240,8 @@ testObject_Conversation_user_4 =
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
-            cnvmGroupConvType = Nothing
+            cnvmGroupConvType = Nothing,
+            cnvmCellsState = CellsDisabled
           },
       cnvMembers =
         ConvMembers
@@ -277,7 +282,8 @@ testObject_Conversation_user_5 =
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
-            cnvmGroupConvType = Nothing
+            cnvmGroupConvType = Nothing,
+            cnvmCellsState = CellsDisabled
           },
       cnvMembers =
         ConvMembers

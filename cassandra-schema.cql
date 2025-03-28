@@ -1611,6 +1611,7 @@ CREATE TABLE galley_test.conversation (
     access set<int>,
     access_role int,
     access_roles_v2 set<int>,
+    cells_state int,
     cipher_suite int,
     creator uuid,
     deleted boolean,

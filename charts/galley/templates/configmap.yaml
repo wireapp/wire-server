@@ -171,5 +171,9 @@ data:
         channels:
           {{- toYaml .settings.featureFlags.channels | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.cells }}
+        cells:
+          {{- toYaml .settings.featureFlags.cells | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

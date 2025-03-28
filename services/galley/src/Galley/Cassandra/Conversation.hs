@@ -28,6 +28,7 @@ import Cassandra.Util
 import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc
@@ -55,6 +56,7 @@ import Polysemy.TinyLog
 import System.Logger qualified as Log
 import UnliftIO qualified
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation
@@ -172,10 +174,10 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, mgct) = do
+    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, mgct, mcs) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm mgct
+      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm mgct (fromMaybe def mcs)
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
@@ -231,6 +233,13 @@ updateConvCipherSuite cid cs =
     write
       Cql.updateConvCipherSuite
       (params LocalQuorum (cs, cid))
+
+updateConvCellsState :: ConvId -> CellsState -> Client ()
+updateConvCellsState cid ps =
+  retry x5 $
+    write
+      Cql.updateConvCellsState
+      (params LocalQuorum (ps, cid))
 
 setGroupInfo :: ConvId -> GroupInfoData -> Client ()
 setGroupInfo conv gid =
@@ -346,27 +355,10 @@ toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe
-    ( ConvType,
-      Maybe UserId,
-      Maybe (Cql.Set Access),
-      Maybe AccessRoleLegacy,
-      Maybe (Cql.Set AccessRole),
-      Maybe Text,
-      Maybe TeamId,
-      Maybe Bool,
-      Maybe Milliseconds,
-      Maybe ReceiptMode,
-      Maybe ProtocolTag,
-      Maybe GroupId,
-      Maybe Epoch,
-      Maybe (Writetime Epoch),
-      Maybe CipherSuiteTag,
-      Maybe GroupConvType
-    ) ->
+  Maybe Cql.ConvRow ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct) <- mconv
+  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mcells) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
   proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
@@ -387,7 +379,8 @@ toConv cid ms remoteMems mconv = do
               cnvmTeam = ti,
               cnvmMessageTimer = timer,
               cnvmReceiptMode = rm,
-              cnvmGroupConvType = mgct
+              cnvmGroupConvType = mgct,
+              cnvmCellsState = fromMaybe def mcells
             }
       }
 
@@ -485,6 +478,9 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationCipherSuite cid cs -> do
     logEffect "ConversationStore.SetConversationCipherSuite"
     embedClient $ updateConvCipherSuite cid cs
+  SetConversationCellsState cid ps -> do
+    logEffect "ConversationStore.SetConversationCellsState"
+    embedClient $ updateConvCellsState cid ps
   DeleteConversation cid -> do
     logEffect "ConversationStore.DeleteConversation"
     embedClient $ deleteConversation cid

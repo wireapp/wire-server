@@ -29,6 +29,7 @@ import Servant.OpenApi
 import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
@@ -173,6 +174,7 @@ type InternalAPIBase =
     :<|> IFederationAPI
     :<|> IConversationAPI
     :<|> IEJPDAPI
+    :<|> ICellsAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -568,6 +570,21 @@ type IEJPDAPI =
         :> Capture "user" UserId
         :> "all-conversations"
         :> Get '[Servant.JSON] [EJPDConvInfo]
+    )
+
+type ICellsAPI =
+  Named
+    "set-cells-state"
+    ( CanThrow ConvNotFound
+        :> CanThrow InvalidOperation
+        :> "conversations"
+        :> Capture "conversation" ConvId
+        :> "cells-state"
+        :> ReqBody '[JSON] CellsState
+        :> MultiVerb1
+             'PUT
+             '[JSON]
+             (RespondEmpty 204 "OK")
     )
 
 swaggerDoc :: OpenApi
