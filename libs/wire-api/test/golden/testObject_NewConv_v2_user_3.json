@@ -9,6 +9,7 @@
         "team_member",
         "guest"
     ],
+    "cells": true,
     "conversation_role": "y3otpiwu615lvvccxsq0315jj75jquw01flhtuf49t6mzfurvwe3_sh51f4s257e2x47zo85rif_xyiyfldpan3g4r6zr35rbwnzm0k",
     "group_conv_type": "channel",
     "protocol": "mls",
