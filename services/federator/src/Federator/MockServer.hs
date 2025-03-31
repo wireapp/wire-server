@@ -73,7 +73,6 @@ import Servant.Server.Generic
 import Wire.API.Federation.API (Component)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
-import Wire.API.Federation.Error (FederatorClientError (FederatorClientError))
 import Wire.API.Federation.Version
 import Wire.Sem.Logger.TinyLog
 

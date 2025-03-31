@@ -175,7 +175,6 @@ mkDerivation {
     dns-util
     filepath
     HsOpenSSL
-    http-media
     http-types
     http2
     http2-manager
