@@ -4,6 +4,7 @@ import API.BrigInternal
 import API.Common
 import API.GalleyInternal
 import API.Spar
+import Control.Arrow ((>>>))
 import Data.ByteString.Base64
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
@@ -50,18 +51,8 @@ testMultiIngressSSO = do
       idpId <- asString $ idp.json %. "id"
 
       ernieEmail <- ("ernie@" <>) <$> randomDomain
-      checkSPIssuer domain ernieZHost tid
-
-      initiateSamlLoginWithZHost domain (Just ernieZHost) idpId `bindResponse` \authnreq -> do
-        authnreq.status `shouldMatchInt` 200
-        let root = XML.fromDocument $ XML.parseText_ XML.def (cs authnreq.body)
-            inputEl = head $ root XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing)
-            innerXml :: T.Text = head $ inputEl XML.$| XML.attribute (XML.Name (cs "value") Nothing Nothing)
-            innerXml' = either (error . show) id $ Data.ByteString.Base64.decode (cs innerXml)
-            innerRoot = XML.fromDocument $ XML.parseText_ XML.def (cs innerXml')
-            issuer = head $ innerRoot XML.$// XML.element (XML.Name (cs "Issuer") (Just (cs "urn:oasis:names:tc:SAML:2.0:assertion")) Nothing)
-            targetSPUrl = T.pack ("https://" <> ernieZHost <> "/sso/finalize-login/" <> tid)
-        (issuer XML.$// XML.content) `shouldMatch` [targetSPUrl]
+      checkMetadataSPIssuer domain ernieZHost tid
+      checkAuthnSPIssuer domain ernieZHost idpId tid
 
       void $ loginWithSamlWithZHost (Just ernieZHost) domain True tid ernieEmail (idpId, idpMeta)
       activateEmail domain ernieEmail
@@ -72,7 +63,8 @@ testMultiIngressSSO = do
         user %. "email" `shouldMatch` ernieEmail
 
       bertEmail <- ("bert@" <>) <$> randomDomain
-      checkSPIssuer domain bertZHost tid
+      checkMetadataSPIssuer domain bertZHost tid
+      checkAuthnSPIssuer domain bertZHost idpId tid
 
       void $ loginWithSamlWithZHost (Just bertZHost) domain True tid bertEmail (idpId, idpMeta)
       activateEmail domain bertEmail
@@ -87,19 +79,89 @@ testMultiIngressSSO = do
         resp.status `shouldMatchInt` 404
         resp.json %. "label" `shouldMatch` "not-found"
 
-checkSPIssuer :: (HasCallStack) => String -> String -> String -> App ()
-checkSPIssuer domain host tid =
+checkAuthnSPIssuer :: (HasCallStack) => String -> String -> String -> String -> App ()
+checkAuthnSPIssuer domain host idpId tid =
+  initiateSamlLoginWithZHost domain (Just host) idpId `bindResponse` \authnreq -> do
+    authnreq.status `shouldMatchInt` 200
+
+    let inputName = XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing
+        valueName = XML.Name (cs "value") Nothing Nothing
+        issuerName = XML.Name (cs "Issuer") (Just (cs "urn:oasis:names:tc:SAML:2.0:assertion")) Nothing
+
+    -- Kleisli components
+    let findElement :: XML.Name -> XML.Cursor -> Maybe XML.Cursor
+        findElement name = listToMaybe . (XML.$// XML.element name)
+
+        getAttribute :: XML.Name -> XML.Cursor -> Maybe T.Text
+        getAttribute name = listToMaybe . (XML.$| XML.attribute name)
+
+        getContent :: XML.Cursor -> Maybe T.Text
+        getContent = listToMaybe . (XML.$// XML.content)
+
+        parseXml :: ByteString -> XML.Cursor
+        parseXml = XML.fromDocument . XML.parseText_ XML.def . cs
+
+        decodeBase64 :: T.Text -> Maybe ByteString
+        decodeBase64 = either (const Nothing) Just . Data.ByteString.Base64.decode . cs
+
+    let targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
+
+    let getIssuerUrl :: ByteString -> Maybe T.Text
+        getIssuerUrl =
+          (pure . parseXml)
+            >=> findElement inputName
+            >=> getAttribute valueName
+            >=> (cs >>> decodeBase64)
+            >=> (cs >>> (pure . parseXml))
+            >=> findElement issuerName
+            >=> getContent
+
+    getIssuerUrl authnreq.body `shouldMatch` targetSPUrl
+
+checkMetadataSPIssuer :: (HasCallStack) => String -> String -> String -> App ()
+checkMetadataSPIssuer domain host tid =
   getSPMetadataWithZHost domain (Just host) tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    let root = XML.fromDocument $ XML.parseText_ XML.def (cs resp.body)
-        desc = head $ root XML.$// XML.element (XML.Name (cs "SPSSODescriptor") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md")))
-        assertionConsumerService = head $ desc XML.$// XML.element (XML.Name (cs "AssertionConsumerService") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md")))
-        organization = head $ desc XML.$// XML.element (XML.Name (cs "Organization") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md")))
-        organizationUrl = head $ organization XML.$// XML.element (XML.Name (cs "OrganizationURL") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md")))
-        entityID = XML.attribute (XML.Name (cs "entityID") Nothing Nothing) root
-        location = XML.attribute (XML.Name (cs "Location") Nothing Nothing) assertionConsumerService
-        targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
 
-    entityID `shouldMatch` [targetSPUrl]
-    location `shouldMatch` [targetSPUrl]
-    (organizationUrl XML.$// XML.content) `shouldMatch` [targetSPUrl]
+    let spSsoDescName = XML.Name (cs "SPSSODescriptor") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md"))
+        acsName = XML.Name (cs "AssertionConsumerService") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md"))
+        orgName = XML.Name (cs "Organization") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md"))
+        orgUrlName = XML.Name (cs "OrganizationURL") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md"))
+        entityIdName = XML.Name (cs "entityID") Nothing Nothing
+        locationName = XML.Name (cs "Location") Nothing Nothing
+
+    -- Kleisli components
+    let parseXml :: ByteString -> XML.Cursor
+        parseXml = XML.fromDocument . XML.parseText_ XML.def . cs
+
+        findElement :: XML.Name -> XML.Cursor -> Maybe XML.Cursor
+        findElement name = listToMaybe . (XML.$// XML.element name)
+
+        getAttribute :: XML.Name -> XML.Cursor -> Maybe T.Text
+        getAttribute name = listToMaybe . (XML.$| (XML.attribute name))
+
+        getContent :: XML.Cursor -> Maybe T.Text
+        getContent = listToMaybe . (XML.$// XML.content)
+
+    let targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
+
+    let root = parseXml resp.body
+
+        locationPipeline :: XML.Cursor -> Maybe T.Text
+        locationPipeline =
+          findElement spSsoDescName
+            >=> findElement acsName
+            >=> pure
+            >=> getAttribute locationName
+
+        orgUrlContentPipeline :: XML.Cursor -> Maybe T.Text
+        orgUrlContentPipeline =
+          findElement spSsoDescName
+            >=> findElement orgName
+            >=> findElement orgUrlName
+            >=> pure
+            >=> getContent
+
+    getAttribute entityIdName root `shouldMatch` Just targetSPUrl
+    locationPipeline root `shouldMatch` Just targetSPUrl
+    orgUrlContentPipeline root `shouldMatch` Just targetSPUrl
