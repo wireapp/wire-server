@@ -30,7 +30,8 @@ data CreateConv = CreateConv
     receiptMode :: Maybe Int,
     newUsersRole :: String,
     protocol :: String,
-    groupConvType :: Maybe String
+    groupConvType :: Maybe String,
+    cells :: Bool
   }
 
 defProteus :: CreateConv
@@ -45,7 +46,8 @@ defProteus =
       receiptMode = Nothing,
       newUsersRole = "wire_admin",
       protocol = "proteus",
-      groupConvType = Nothing
+      groupConvType = Nothing,
+      cells = False
     }
 
 defMLS :: CreateConv
@@ -65,7 +67,8 @@ instance MakesValue CreateConv where
       $ Aeson.object
       $ ( [ "qualified_users" .= quids,
             "conversation_role" .= cc.newUsersRole,
-            "protocol" .= cc.protocol
+            "protocol" .= cc.protocol,
+            "cells" .= cc.cells
           ]
             <> catMaybes
               [ "name" .=? cc.name,

@@ -695,7 +695,8 @@ data NewConv = NewConv
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
     newConvProtocol :: BaseProtocolTag,
-    newConvGroupConvType :: GroupConvType
+    newConvGroupConvType :: GroupConvType,
+    newConvCells :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -762,6 +763,7 @@ newConvSchema v sch =
           (fromMaybe BaseProtocolProteusTag)
           (optField "protocol" schema)
       <*> newConvGroupConvType .= (fromMaybe GroupConversation <$> optField "group_conv_type" schema)
+      <*> newConvCells .= (fromMaybe False <$> optField "cells" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \

@@ -276,13 +276,18 @@ pushViaRabbitMq p = do
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
 
-pushAllToCells :: (MonadPushAll m) => [Push] -> m ()
+pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [Push] -> m ()
 pushAllToCells ps = do
   mQueue <- mpaCellsEventQueue
-  for_ mQueue $ \queue -> for_ ps (pushToCells queue)
+
+  let cellPushes = filter (._pushIsCellsEvent) ps
+  unless (null cellPushes) $ case mQueue of
+    Nothing -> do
+      Log.err $ msg ("Cells events have been generated, but no Cells queue is configured in gundeck" :: ByteString)
+    Just queue -> traverse_ (pushToCells queue) cellPushes
 
 pushToCells :: (MonadPushAll m) => Text -> Push -> m ()
-pushToCells queue p = when p._pushIsCellsEvent $ do
+pushToCells queue p = do
   qMsg <- mkMessage p
   mpaPublishToRabbitMq "" queue qMsg
 

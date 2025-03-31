@@ -72,6 +72,7 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation qualified as Public
+import Wire.API.Conversation.CellsState
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -682,7 +683,10 @@ newRegularConversation lusr newConv = do
                   cnvmReceiptMode = newConvReceiptMode newConv,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
                   cnvmGroupConvType = Just newConv.newConvGroupConvType,
-                  cnvmCellsState = def
+                  cnvmCellsState =
+                    if newConv.newConvCells
+                      then CellsPending
+                      else CellsDisabled
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv

@@ -49,4 +49,7 @@ instance HasCellsState () where
 
 shouldPushToCells :: (HasCellsState a) => a -> EventType -> Bool
 shouldPushToCells st et =
-  isCellsConversationEvent et && getCellsState st == CellsReady
+  isCellsConversationEvent et && case getCellsState st of
+    CellsDisabled -> False
+    CellsPending -> True
+    CellsReady -> True

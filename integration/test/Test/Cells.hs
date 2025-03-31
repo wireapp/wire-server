@@ -37,20 +37,43 @@ testCellsEvent = do
   I.setCellsState alice conv "pending" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [chazId]} >>= assertSuccess
 
+  do
+    event <- getMessage q %. "payload.0"
+    event %. "type" `shouldMatch` "conversation.member-join"
+    event %. "conversation" `shouldMatch` (conv %. "id")
+    event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+    users <- event %. "data.users" & asList
+    assertOne users %. "qualified_id" `shouldMatch` chazId
+
   I.setCellsState alice conv "ready" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [deanId]} >>= assertSuccess
+
+  do
+    event <- getMessage q %. "payload.0"
+    event %. "type" `shouldMatch` "conversation.member-join"
+    event %. "conversation" `shouldMatch` (conv %. "id")
+    event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+    users <- event %. "data.users" & asList
+    assertOne users %. "qualified_id" `shouldMatch` deanId
 
   I.setCellsState alice conv "disabled" >>= assertSuccess
   addMembers alice conv def {role = Just "wire_member", users = [eveId]} >>= assertSuccess
 
+  assertNoMessage q
+
+testCellsCreationEvent :: (HasCallStack) => App ()
+testCellsCreationEvent = do
+  -- start watcher before creating conversation
+  q0 <- watchCellsEvents def
+  (alice, tid, _) <- createTeam OwnDomain 1
+  conv <- postConversation alice defProteus {team = Just tid, cells = True} >>= getJSON 201
+
+  let q = q0 {filter = isNotifConv conv} :: QueueConsumer
+
   event <- getMessage q %. "payload.0"
-  event %. "type" `shouldMatch` "conversation.member-join"
+  event %. "type" `shouldMatch` "conversation.create"
   event %. "conversation" `shouldMatch` (conv %. "id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
-  users <- event %. "data.users" & asList
-  assertOne users %. "qualified_id" `shouldMatch` deanId
-
-  assertNoMessage q
 
 testCellsFeatureCheck :: (HasCallStack) => App ()
 testCellsFeatureCheck = do
