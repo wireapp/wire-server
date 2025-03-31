@@ -100,12 +100,19 @@ spec = do
     it "bad request should not clog the queue" $ do
       let origDomain = Domain "origin.example.com"
           targetDomain = Domain "target.example.com"
-          badRequest = Wai.mkError status400 "bad-request" ""
-          fedError = (Wai.mkError status500 "boom" "") {Wai.innerError = Just badRequest}
+          badRequest = Wai.mkError status400 "bad-request" "Aeson parsing error"
+          fedError =
+            ( Wai.mkError
+                (mkStatus 533 "federation-remote-error")
+                "federation-remote-error"
+                "A remote federator failed with status code: 400"
+            )
+              { Wai.innerError = Just badRequest
+              }
 
           mockRemote :: p -> IO MockResponse
           mockRemote _ = do
-            pure $ MockResponse status500 "application/json" (Aeson.encode fedError)
+            pure $ MockResponse (mkStatus 533 "federation-remote-error") "application/json" (Aeson.encode fedError)
 
           notifContent = Aeson.object ["foo" .= ("bar" :: Text)]
           notif =
