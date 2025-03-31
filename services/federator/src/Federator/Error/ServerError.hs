@@ -23,6 +23,7 @@ import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Federation.Domain
+import Wire.Sem.Logger.Level qualified as Log
 
 data ServerError
   = InvalidRoute
@@ -33,6 +34,7 @@ data ServerError
 instance Exception ServerError
 
 instance AsWai ServerError where
+  errorLogLevel _ = Log.Error
   toWai e@InvalidRoute =
     Wai.mkError HTTP.status403 "invalid-endpoint" (LText.fromStrict (serverErrorDescription e))
   toWai e@(UnknownComponent _) =

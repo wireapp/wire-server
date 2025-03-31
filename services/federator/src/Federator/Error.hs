@@ -21,6 +21,8 @@ module Federator.Error
 where
 
 import Network.Wai.Utilities.Error qualified as Wai
+import Wire.Sem.Logger.Level as Log
 
 class AsWai e where
+  errorLogLevel :: e -> Log.Level
   toWai :: e -> Wai.Error

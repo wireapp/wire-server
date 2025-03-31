@@ -209,7 +209,7 @@ optSettings:
       defaultForNull:
         status: disabled
   setFederationDomainConfigsUpdateFreq: 1
-  setFederationStrategy: allowAll
+  setFederationStrategy: allowNone
   setFederationDomainConfigs:
     - domain: example.com
       search_policy: full_search
