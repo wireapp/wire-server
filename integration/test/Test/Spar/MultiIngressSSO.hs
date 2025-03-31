@@ -18,6 +18,7 @@ testMultiIngressSSO :: (HasCallStack) => App ()
 testMultiIngressSSO = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
+      kermitZHost = "nginz-https.kermit.example.com"
 
   withModifiedBackend
     def
@@ -75,9 +76,13 @@ testMultiIngressSSO = do
         user %. "email" `shouldMatch` bertEmail
 
       -- kermitEmail <- ("kermit@" <>) <$> randomDomain
-      getSPMetadataWithZHost domain (Just "nginz-https.kermit.example.com") tid `bindResponse` \resp -> do
+      getSPMetadataWithZHost domain (Just kermitZHost) tid `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
         resp.json %. "label" `shouldMatch` "not-found"
+
+      initiateSamlLoginWithZHost domain (Just kermitZHost) idpId `bindResponse` \authnreq -> do
+        authnreq.status `shouldMatchInt` 404
+        authnreq.json %. "label" `shouldMatch` "not-found"
 
 checkAuthnSPIssuer :: (HasCallStack) => String -> String -> String -> String -> App ()
 checkAuthnSPIssuer domain host idpId tid =
