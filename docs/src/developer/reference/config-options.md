@@ -1012,6 +1012,49 @@ assets. The Haddock of
 [`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
 provides a lot of useful information.
 
+## Settings in spar
+
+This section describes the common "single-ingress" (one backend is reachable by
+only one domain) case. The multi-ingress case is described in [Multi-Ingress
+setup](#multi-ingress-setup)
+
+### SAML
+
+In Helm:
+
+```yaml
+config:
+...
+  appUri: <webapp-uri> # E.g. https://webapp.<domain>
+  ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  contacts:
+    - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+      company: <company-name> # Optional
+      email: <contact-email-address> # Optional
+      givenName: <name> # Optional
+      surname: <name> # Optional
+      phone: <phone-number-string> # Optional
+...
+```
+
+`appUri` and `ssoUri` are mapped to `spAppUri` and `spSsoUri` in the `spar`
+configuration respectively.
+
+### SCIM
+
+In Helm:
+```yaml
+config:
+...
+    maxScimTokens: <number-of-allowed-scim-tokens>
+    scimBaseUri: <scim-endpoint-uri>
+```
+
+If not defined, `scimBaseUri` is automatically deduced from `ssoUri` (see
+[SAML](#saml).) E.g. `appUri: https://nginz-https.example.com/sso` would be
+translated to `scimBaseUri: https://nginz-https.example.com/scim/v2`.
+
+
 ## Multi-Ingress setup
 
 In a multi-ingress setup the backend is reachable via several domains, each
@@ -1019,7 +1062,11 @@ handled by a separate Kubernetes ingress. This is useful to obfuscate the
 relationship of clients to each other, as an attacker on TCP/IP-level could only
 see domains and IPs that do not obviously relate to each other.
 Each of these backend domains represents a virtual backend. N.B. these backend
-domains are *DNS domains* only, not to be confused of the “backend domain” term used for federation (see [Federation](../../understand/configure-federation.md#configure-federation)). In single-ingress setups the backend DNS domain and federation backend domain is usually be the same, but this is not true for multi-ingress setups.
+domains are *DNS domains* only, not to be confused of the “backend domain” term
+used for federation (see
+[Federation](../../understand/configure-federation.md#configure-federation)).
+In single-ingress setups the backend DNS domain and federation backend domain
+is usually be the same, but this is not true for multi-ingress setups.
 
 For a multi-ingress setup multiple services need to be configured:
 
@@ -1113,6 +1160,63 @@ multiIngress:
    red.example.com: https://accounts.red.example.com/conversation-join/
    green.example.com: https://accounts.green.example.net/conversation-join/
 ```
+
+### Spar
+
+To enable SSO via SAML spar needs to act as multiple *ServiceProvider*s
+(*SP*s); one per multi-ingress domain. The configuration is done with a map of
+domains to *SP* settings. It replaces the usual (single-domain) *SP*
+configuration.
+
+So, we go from single-domain *SP* configuration:
+
+```yaml
+config:
+...
+  appUri: <webapp-uri> # E.g. https://webapp.<domain>
+  ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+  contacts:
+    - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+      company: <company-name> # Optional
+      email: <contact-email-address> # Optional
+      givenName: <name> # Optional
+      surname: <name> # Optional
+      phone: <phone-number-string> # Optional
+... 
+```
+
+To the multi-domain *SP* configuration:
+
+```yaml
+config:
+...
+  domainConfigs:
+    <domain1>: # The domain of the incoming nginz-https host. E.g. nginz-https.<domain>
+      appUri: <webapp-uri> # E.g. https://webapp.<domain>
+      ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+      contacts:
+        - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+          company: <company-name> # Optional
+          email: <contact-email-address> # Optional
+          givenName: <name> # Optional
+          surname: <name> # Optional
+          phone: <phone-number-string> # Optional
+    <domain2>:
+      ...
+```
+(N.B. the structures in Helm values and spar's service YAML file are almost the
+same. Only the outer `config` object is added to the spar YAML config in Helm.)
+
+The inner data structure stays the same. The difference is that it's on
+`config`'s top level for single-ingress and in each `<domain>` entry in
+`domainConfigs` for multi-ingress.
+
+In a single-ingress setup the SCIM base URI can be deduced from `ssoUri` in
+Helm (see [SAML](#saml).) In a multi-ingress setup this relationship isn't that
+clear as there are multiple `ssoUri`s defined. So, the SCIM base URI needs to
+be set explicitly in `scimBaseUri`. In spar's YAML config file `scimBaseUri` is
+always required.
+
 
 ### Webapp
 
