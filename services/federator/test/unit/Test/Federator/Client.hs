@@ -34,7 +34,6 @@ import Data.Text.Encoding qualified as Text
 import Federator.MockServer
 import HTTP2.Client.Manager (defaultHttp2Manager, withHTTP2Request)
 import Imports
-import Network.HTTP.Media
 import Network.HTTP.Types as HTTP
 import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai qualified as Wai
@@ -110,7 +109,7 @@ testClientSuccess = do
 
   (actualResponse, sentRequests) <-
     withMockFederatorClient
-      def {handler = const (pure ("application/json", Aeson.encode (Just expectedResponse)))}
+      def {handler = const (pure def {body = Aeson.encode (Just expectedResponse)})}
       $ fedClient @'Brig @"get-user-by-handle" handle
 
   sentRequests
@@ -213,7 +212,7 @@ testResponseHeaders = do
   (r, _) <- withTempMockFederator
     def
       { headers = [("X-Foo", "bar")],
-        handler = const $ pure ("application" // "json", mempty)
+        handler = const $ pure def
       }
     $ \port -> do
       let req =

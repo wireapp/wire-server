@@ -49,6 +49,7 @@ module Galley.Effects.ConversationStore
     setGroupInfo,
     updateToMixedProtocol,
     updateToMLSProtocol,
+    updateChannelAddPermissions,
 
     -- * Delete conversation
     deleteConversation,
@@ -102,6 +103,7 @@ data ConversationStore m a where
   SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
   SetConversationCellsState :: ConvId -> CellsState -> ConversationStore m ()
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
+  UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()

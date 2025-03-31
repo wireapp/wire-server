@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cassandra &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Elasticsearch" href="elasticsearch.html" />
+    <link rel="prev" title="Backup and disaster recovery" href="backup-disaster-recovery.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Administration</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="kubernetes/index.html">Kubernetes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backup-disaster-recovery.html">Backup and disaster recovery</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Cassandra</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#check-the-health-of-a-cassandra-node">Check the health of a Cassandra node</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-inspect-tables-and-data-manually">How to inspect tables and data manually</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-rolling-restart-a-cassandra-cluster">How to rolling-restart a cassandra cluster</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="elasticsearch.html">Elasticsearch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="etcd.html">Etcd</a></li>
+<li class="toctree-l2"><a class="reference internal" href="general-linux.html">General - Linux</a></li>
+<li class="toctree-l2"><a class="reference internal" href="minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operations.html">Operational procedures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Restund (TURN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="users.html">Investigative tasks (e.g. searching for users as server admin)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Administration</a></li>
+      <li class="breadcrumb-item active">Cassandra</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/administrate/cassandra.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="cassandra">
+<h1>Cassandra<a class="headerlink" href="#cassandra" title="Permalink to this heading"></a></h1>
+<p>This section is about <strong>how to perform a specific task</strong>. If you want to <strong>understand how a certain component works, please see</strong> <a class="reference internal" href="../../understand/index.html#understand"><span class="std std-ref">Reference</span></a></p>
+<p>The rest of the page assumes you installed using the ansible playbooks from <a class="reference external" href="https://github.com/wireapp/wire-server-deploy/tree/master/ansible">wire-server-deploy</a></p>
+<p>For any command below, first ssh into the server:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span> <span class="o">&lt;</span><span class="n">name</span> <span class="ow">or</span> <span class="n">IP</span> <span class="n">of</span> <span class="n">the</span> <span class="n">VM</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>This section only covers the bare minimum, for more information, see the <a class="reference external" href="https://cassandra.apache.org/doc/latest/">cassandra
+documentation</a></p>
+<section id="check-the-health-of-a-cassandra-node">
+<span id="id1"></span><h2>Check the health of a Cassandra node<a class="headerlink" href="#check-the-health-of-a-cassandra-node" title="Permalink to this heading"></a></h2>
+<p>To check the health of a Cassandra node, run the following command:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>&lt;ip<span class="w"> </span>of<span class="w"> </span>cassandra<span class="w"> </span>node&gt;<span class="w"> </span>/opt/cassandra/bin/nodetool<span class="w"> </span>status
+</pre></div>
+</div>
+<p>or if you are running a newer version of wire-server (altough it should be backwards compatibile)</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>&lt;ip<span class="w"> </span>of<span class="w"> </span>cassandra<span class="w"> </span>node&gt;<span class="w"> </span>/opt/cassandra/bin/nodetool<span class="w"> </span>-h<span class="w"> </span>::FFFF:127.0.0.1<span class="w"> </span>status
+</pre></div>
+</div>
+<p>You should see a list of nodes like this:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>Datacenter:<span class="w"> </span><span class="nv">datacenter1</span>
+<span class="o">=======================</span>
+<span class="nv">Status</span><span class="o">=</span>Up/Down
+<span class="p">|</span>/<span class="w"> </span><span class="nv">State</span><span class="o">=</span>Normal/Leaving/Joining/Moving
+--<span class="w">  </span>Address<span class="w">         </span>Load<span class="w">       </span>Tokens<span class="w">          </span>Owns<span class="w"> </span><span class="o">(</span>effective<span class="o">)</span><span class="w">   </span>Host<span class="w"> </span>ID<span class="w">                                </span>Rack
+UN<span class="w">  </span><span class="m">192</span>.168.220.13<span class="w">  </span><span class="m">9</span>.51MiB<span class="w">    </span><span class="m">256</span><span class="w">             </span><span class="m">100</span>.0%<span class="w">             </span>3dba71c8-eea7-4e35-8f35-4386e7944894<span class="w">   </span>rack1
+UN<span class="w">  </span><span class="m">192</span>.168.220.23<span class="w">  </span><span class="m">9</span>.53MiB<span class="w">    </span><span class="m">256</span><span class="w">             </span><span class="m">100</span>.0%<span class="w">             </span>3af56f1f-7685-4b5b-b73f-efdaa371e96e<span class="w">   </span>rack1
+UN<span class="w">  </span><span class="m">192</span>.168.220.33<span class="w">  </span><span class="m">9</span>.55MiB<span class="w">    </span><span class="m">256</span><span class="w">             </span><span class="m">100</span>.0%<span class="w">             </span>RANDOMLY-MADE-UUID-GOES-INTHISPLACE!<span class="w">   </span>rack1
+</pre></div>
+</div>
+<p>A <code class="docutils literal notranslate"><span class="pre">UN</span></code> at the begginng of the line, refers to a node that is <code class="docutils literal notranslate"><span class="pre">Up</span></code> and <code class="docutils literal notranslate"><span class="pre">Normal</span></code>.</p>
+<p>You can also check the logs of the cassandra server with</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">journalctl</span> <span class="o">-</span><span class="n">u</span> <span class="n">cassandra</span><span class="o">.</span><span class="n">service</span> 
+</pre></div>
+</div>
+</section>
+<section id="how-to-inspect-tables-and-data-manually">
+<h2>How to inspect tables and data manually<a class="headerlink" href="#how-to-inspect-tables-and-data-manually" title="Permalink to this heading"></a></h2>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>cqlsh
+<span class="c1"># from the cqlsh shell</span>
+describe<span class="w"> </span>keyspaces
+use<span class="w"> </span>&lt;keyspace&gt;<span class="p">;</span>
+describe<span class="w"> </span>tables<span class="p">;</span>
+<span class="k">select</span><span class="w"> </span>*<span class="w"> </span>from<span class="w"> </span>&lt;tablename&gt;<span class="w"> </span>WHERE<span class="w"> </span>&lt;primarykey&gt;<span class="o">=</span>&lt;some-value&gt;<span class="w"> </span>LIMIT<span class="w"> </span><span class="m">10</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>If your local install does not have cqlsh available, you can use docker instead:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">docker</span> <span class="n">run</span> <span class="o">-</span><span class="n">it</span> <span class="o">--</span><span class="n">rm</span> <span class="n">cassandra</span><span class="p">:</span><span class="mf">3.11</span> <span class="n">cqlsh</span> <span class="mf">172.16.0.132</span> <span class="mi">9042</span>
+</pre></div>
+</div>
+</section>
+<section id="how-to-rolling-restart-a-cassandra-cluster">
+<h2>How to rolling-restart a cassandra cluster<a class="headerlink" href="#how-to-rolling-restart-a-cassandra-cluster" title="Permalink to this heading"></a></h2>
+<p>For maintenance you may need to restart the cluster.</p>
+<p>On each server one by one:</p>
+<ol class="arabic simple">
+<li><p>check your cluster is healthy: <code class="docutils literal notranslate"><span class="pre">nodetool</span> <span class="pre">status</span></code> or <code class="docutils literal notranslate"><span class="pre">nodetool</span> <span class="pre">-h</span> <span class="pre">::FFFF:127.0.0.1</span> <span class="pre">status</span></code> (in newer versions)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nodetool</span> <span class="pre">drain</span> <span class="pre">&amp;&amp;</span> <span class="pre">systemctl</span> <span class="pre">stop</span> <span class="pre">cassandra</span></code> (to stop accepting writes and flush data to disk; then stop the process)</p></li>
+<li><p>do any operation you need, if any</p></li>
+<li><p>Start the cassandra daemon process: <code class="docutils literal notranslate"><span class="pre">systemctl</span> <span class="pre">start</span> <span class="pre">cassandra</span></code></p></li>
+<li><p>Wait for your cluster to be healthy again.</p></li>
+<li><p>Do the same on the next server.</p></li>
+</ol>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="backup-disaster-recovery.html" class="btn btn-neutral float-left" title="Backup and disaster recovery" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="elasticsearch.html" class="btn btn-neutral float-right" title="Elasticsearch" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

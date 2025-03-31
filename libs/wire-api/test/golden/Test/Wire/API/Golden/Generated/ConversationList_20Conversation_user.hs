@@ -51,6 +51,7 @@ testObject_ConversationList_20Conversation_user_1 =
                     cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),
                     cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0}),
                     cnvmGroupConvType = Just GroupConversation,
+                    cnvmChannelAddPermission = Nothing,
                     cnvmCellsState = CellsReady
                   },
               cnvProtocol = ProtocolProteus,

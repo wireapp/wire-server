@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Implementation plan" href="planning.html" />
+    <link rel="prev" title="[2023-04-17] (Chart Release 4.35.0)" href="../../changelog/changelog.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="planning.html">How to plan an installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="version-requirements.html">Version requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html">How to install kubernetes (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html">How to install wire-server using Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html">Infrastructure configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html">Web app settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Installing Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Installing Restund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html">Configure TLS ciphers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html">Verifying your installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/install/index.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="planning.html">How to plan an installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="planning.html#demo-installation-trying-functionality-out">Demo installation (trying functionality out)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="planning.html#production-installation-persistent-data-high-availability">Production installation (persistent data, high-availability)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="version-requirements.html">Version requirements</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="version-requirements.html#persistence">Persistence</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html#alternative-installing-dependencies-using-direnv-and-nix">(Alternative) Installing dependencies using Direnv and Nix</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="kubernetes.html">How to install kubernetes (Demo)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html#how-to-set-up-your-hosts-ini-file">How to set up your hosts.ini file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html#passwordless-authentication">Passwordless authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html#minio-setup">Minio setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html#how-to-install-kubernetes">How to install kubernetes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="helm.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html#how-to-start-installing-charts-from-wire">How to start installing charts from wire</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html#watching-changes-as-they-happen">Watching changes as they happen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html#how-to-install-in-memory-databases-and-external-components">How to install in-memory databases and external components</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html#how-to-install-wire-server-itself">How to install wire-server itself</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prod-intro.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html#what-will-be-installed-by-following-these-parts">What will be installed by following these parts?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html#what-will-not-be-installed">What will not be installed?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html#what-will-not-be-installed-by-default">What will not be installed by default?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html#getting-support">Getting support</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html#next-steps-for-high-available-production-installation">Next steps for high-available production installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html#assumptions">Assumptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html#preparing-to-run-ansible">Preparing to run ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html#running-ansible-to-install-software-on-your-machines">Running ansible to install software on your machines</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html#using-real-aws-services-for-sns">Using real AWS services for SNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html#using-real-aws-services-for-ses-sqs">Using real AWS services for SES / SQS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html#using-real-aws-services-for-s3">Using real AWS services for S3</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="helm-prod.html">How to install wire-server using Helm</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#preparing-to-install-charts-from-the-internet-with-helm">Preparing to install charts from the internet with Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#watching-changes-as-they-happen">Watching changes as they happen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#general-installation-notes">General installation notes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#how-to-install-charts-that-provide-access-to-external-databases">How to install charts that provide access to external databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#how-to-install-fake-aws-services-for-sns-sqs">How to install fake AWS services for SNS / SQS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#preparing-to-install-wire-server">Preparing to install wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#how-to-install-rabbitmq">How to install RabbitMQ</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#how-to-configure-real-smtp-email-services">How to configure real SMTP (email) services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#how-to-install-fake-smtp-email-services">How to install fake SMTP (email) services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#how-to-install-wire-server-itself">How to install wire-server itself</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html#dns-records">DNS records</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="infrastructure-configuration.html">Infrastructure configuration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#redirect-some-traffic-through-a-http-s-proxy">Redirect some traffic through a http(s) proxy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#enable-push-notifications-using-the-public-appstore-playstore-mobile-wire-clients">Enable push notifications using the public appstore / playstore mobile Wire clients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#controlling-the-speed-of-websocket-draining-during-cannon-pod-replacement">Controlling the speed of websocket draining during cannon pod replacement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#control-nginz-upstreams-routes-into-the-kubernetes-cluster">Control nginz upstreams (routes) into the Kubernetes cluster</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#separate-incoming-websocket-network-traffic-from-the-rest-of-the-https-traffic">Separate incoming websocket network traffic from the rest of the https traffic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#you-may-want">You may want</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#metrics-logging">Metrics/logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#smtp-server">SMTP server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#load-balancer-on-bare-metal-servers">Load balancer on bare metal servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#load-balancer-on-cloud-provider">Load Balancer on cloud-provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#real-aws-services">Real AWS services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#persistence-and-high-availability">Persistence and high-availability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#security">Security</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#sign-up-with-a-phone-number-sending-sms">Sign up with a phone number (Sending SMS)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#rd-party-proxying">3rd-party proxying</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#routing-traffic-to-other-namespaces-via-nginz">Routing traffic to other namespaces via nginz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#marking-an-installation-as-self-hosted">Marking an installation as self-hosted</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#configuring-authentication-cookie-throttling">Configuring authentication cookie throttling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html#s3-addressing-style">S3 Addressing Style</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html#dashboards">Dashboards</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#status">Status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#installing-required-helm-charts">Installing required helm charts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#configuring-fluent-bit">Configuring fluent-bit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#post-install-kibana-setup">Post-install kibana setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#usage-after-installation">Usage after installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#nuking-it-all">Nuking it all.</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#debugging">Debugging</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html#installing-in-a-cloud-like-environment">Installing in a cloud-like environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html#installing-on-bare-metal-without-dynamic-load-balancer-support">Installing on bare-metal without dynamic load balancer support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="web-app-settings.html">Web app settings</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html#enforce-desktop-application-only">Enforce desktop application only</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html#enforce-constant-bit-rate">Enforce constant bit rate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html#disable-media-plugins">Disable media plugins</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html#enable-extra-entropy-only-on-windows">Enable extra entropy (only on Windows)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sft.html">Installing Conference Calling 2.0 (aka SFT)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="sft.html#background">Background</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="restund.html">Installing Restund</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="restund.html#background">Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html#installation-instructions">Installation instructions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="tls.html">Configure TLS ciphers</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tls.html#ingress-traffic-wire-server">Ingress Traffic (wire-server)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html#egress-traffic-wire-server-federation">Egress Traffic (wire-server/federation)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html#sftd-ansible">SFTD (ansible)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html#sftd-kubernetes">SFTD (kubernetes)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html#coturn-kubernetes">Coturn (kubernetes)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html#restund-ansible">Restund (ansible)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html#restund-kubernetes">Restund (kubernetes)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html#how-to-use-password-authentication-when-you-ssh-to-a-machine-with-ansible">How to use password authentication when you ssh to a machine with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html#configuring-ssh-keys">Configuring SSH keys</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html#sudo-without-password">Sudo without password</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#problems-with-cors-on-the-web-based-applications-webapp-team-settings-account-pages">Problems with CORS on the web based applications (webapp, team-settings, account-pages)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#problems-with-ansible-and-python-versions">Problems with ansible and python versions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#flaky-issues-with-cassandra-failed-quorums-etc">Flaky issues with Cassandra (failed QUORUMs, etc.)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#i-deployed-demo-smtp-but-i-m-not-receiving-any-verification-emails">I deployed <code class="docutils literal notranslate"><span class="pre">demo-smtp</span></code> but I’m not receiving any verification emails</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#i-deployed-demo-smtp-and-i-want-to-skip-email-configuration-and-retrieve-verification-codes-directly">I deployed <code class="docutils literal notranslate"><span class="pre">demo-smtp</span></code> and I want to skip email configuration and retrieve verification codes directly</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#obtaining-brig-logs-and-the-format-of-different-team-user-events">Obtaining Brig logs, and the format of different team/user events</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#diagnosing-and-addressing-bad-network-disconnect-issues">Diagnosing and addressing bad network/disconnect issues</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="post-install.html">Verifying your installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html#ntp-checks">NTP Checks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html#logs-and-data-protection-checks">Logs and Data Protection checks</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../../changelog/changelog.html" class="btn btn-neutral float-left" title="[2023-04-17] (Chart Release 4.35.0)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="planning.html" class="btn btn-neutral float-right" title="Implementation plan" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

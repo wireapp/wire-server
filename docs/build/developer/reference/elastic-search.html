@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3. Maintaining ElasticSearch &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="4. ElasticSearch migration instructions for release 2021-02-16" href="elasticsearch-migration-2021-02-16.html" />
+    <link rel="prev" title="2. Creating and populating conversations" href="conversation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../developer/index.html">Developer</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Reference</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="config-options.html">1. Config Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="conversation.html">2. Creating and populating conversations</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">3. Maintaining ElasticSearch</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#update-mapping">3.1. Update mapping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#migrate-data">3.2. Migrate Data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#refill-es-documents-from-cassandra">3.3. Refill ES documents from Cassandra</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#migrate-to-a-new-index">3.4. Migrate to a new index</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#migrate-to-a-new-cluster">3.5. Migrate to a new cluster</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#recreate-an-index-requires-downtime">3.6. Recreate an index (Requires downtime)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="elasticsearch-migration-2021-02-16.html">4. ElasticSearch migration instructions for release 2021-02-16</a></li>
+<li class="toctree-l3"><a class="reference internal" href="make-docker-and-qemu.html">5. Make docker and QEMU</a></li>
+<li class="toctree-l3"><a class="reference internal" href="oauth.html">6. OAuth</a></li>
+<li class="toctree-l3"><a class="reference internal" href="provisioning/scim-token.html">7. SCIM tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="spar-braindump.html">8. Spar braindump</a></li>
+<li class="toctree-l3"><a class="reference internal" href="team/legalhold.html">9. Legal hold</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/activation.html">10. User Activation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/connection.html">11. Connection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/connection.html#connection-backend-internals">12. Connection backend internals</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/registration.html">13. User Registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user/rich-info.html">14. User Rich info</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Reference</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">3. </span>Maintaining ElasticSearch</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/reference/elastic-search.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="maintaining-elasticsearch">
+<h1><span class="section-number">3. </span>Maintaining ElasticSearch<a class="headerlink" href="#maintaining-elasticsearch" title="Permalink to this heading"></a></h1>
+<section id="update-mapping">
+<h2><span class="section-number">3.1. </span>Update mapping<a class="headerlink" href="#update-mapping" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">ES_HOST</span><span class="o">=</span>&lt;YOUR_HOST&gt;
+<span class="nv">ES_PORT</span><span class="o">=</span>&lt;YOUR_PORT&gt;<span class="w"> </span><span class="c1"># default is 9200</span>
+<span class="nv">ES_INDEX</span><span class="o">=</span>&lt;YOUR_INDEX_NAME&gt;<span class="w"> </span><span class="c1"># default is directory</span>
+<span class="nv">WIRE_VERSION</span><span class="o">=</span>&lt;VERSION_YOU_ARE_DEPLOYING&gt;
+
+docker<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;quay.io/wire/brig-index:</span><span class="nv">$WIRE_VERSION</span><span class="s2">&quot;</span><span class="w"> </span>update-mapping<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_HOST</span><span class="s2">:</span><span class="nv">$ES_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--elasticsearch-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_INDEX</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Instead of running this in docker, this can also be done by building the <code class="docutils literal notranslate"><span class="pre">brig-index</span></code> binary from <code class="docutils literal notranslate"><span class="pre">services/brig</span></code> and executing it like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brig-index<span class="w"> </span>update-mapping<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_HOST</span><span class="s2">:</span><span class="nv">$ES_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--elasticsearch-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_INDEX</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="migrate-data">
+<h2><span class="section-number">3.2. </span>Migrate Data<a class="headerlink" href="#migrate-data" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">ES_HOST</span><span class="o">=</span>&lt;YOUR_HOST&gt;
+<span class="nv">ES_PORT</span><span class="o">=</span>&lt;YOUR_PORT&gt;<span class="w"> </span><span class="c1"># default is 9200</span>
+<span class="nv">ES_INDEX</span><span class="o">=</span>&lt;YOUR_INDEX_NAME&gt;<span class="w"> </span><span class="c1"># default is directory</span>
+<span class="nv">BRIG_CASSANDRA_HOST</span><span class="o">=</span>&lt;YOUR_C*_HOST&gt;
+<span class="nv">BRIG_CASSANDRA_PORT</span><span class="o">=</span>&lt;YOUR_C*_PORT&gt;
+<span class="nv">BRIG_CASSANDRA_KEYSPACE</span><span class="o">=</span>&lt;YOUR_C*_KEYSPACE&gt;
+<span class="nv">WIRE_VERSION</span><span class="o">=</span>&lt;VERSION_YOU_ARE_DEPLOYING&gt;
+<span class="nv">GALLEY_HOST</span><span class="o">=</span>&lt;HOSTNAME<span class="w"> </span>OF<span class="w"> </span>RUNNING<span class="w"> </span>GALLEY<span class="w"> </span>INSTANCE&gt;
+<span class="nv">GALLEY_PORT</span><span class="o">=</span>&lt;PORT<span class="w"> </span>NUMBER<span class="w"> </span>OF<span class="w"> </span>RUNNING<span class="w"> </span>GALLEY<span class="w"> </span>INSTANCE&gt;
+
+docker<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;quay.io/wire/brig-index:</span><span class="nv">$WIRE_VERSION</span><span class="s2">&quot;</span><span class="w"> </span>migrate-data<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_HOST</span><span class="s2">:</span><span class="nv">$ES_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--elasticsearch-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_INDEX</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cassandra-host<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_HOST</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cassandra-port<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cassandra-keyspace<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_KEYSPACE</span><span class="s2">&quot;</span>
+<span class="w">  </span>--galley-host<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$GALLEY_HOST</span><span class="s2">&quot;</span>
+<span class="w">  </span>--galley-port<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$GALLEY_PORT</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>(Or, as above, you can also do the same thing without docker.)</p>
+</section>
+<section id="refill-es-documents-from-cassandra">
+<h2><span class="section-number">3.3. </span>Refill ES documents from Cassandra<a class="headerlink" href="#refill-es-documents-from-cassandra" title="Permalink to this heading"></a></h2>
+<p>This is needed if the information we keep in elastic search increases.
+Also update the indices.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">ES_HOST</span><span class="o">=</span>&lt;YOUR_HOST&gt;
+<span class="nv">ES_PORT</span><span class="o">=</span>&lt;YOUR_PORT&gt;<span class="w"> </span><span class="c1"># default is 9200</span>
+<span class="nv">ES_INDEX</span><span class="o">=</span>&lt;YOUR_INDEX_NAME&gt;<span class="w"> </span><span class="c1"># default is directory</span>
+<span class="nv">BRIG_CASSANDRA_HOST</span><span class="o">=</span>&lt;YOUR_C*_HOST&gt;
+<span class="nv">BRIG_CASSANDRA_PORT</span><span class="o">=</span>&lt;YOUR_C*_PORT&gt;
+<span class="nv">BRIG_CASSANDRA_KEYSPACE</span><span class="o">=</span>&lt;YOUR_C*_KEYSPACE&gt;
+<span class="nv">WIRE_VERSION</span><span class="o">=</span>&lt;VERSION_YOU_ARE_DEPLOYING&gt;
+<span class="nv">GALLEY_HOST</span><span class="o">=</span>&lt;HOSTNAME<span class="w"> </span>OF<span class="w"> </span>RUNNING<span class="w"> </span>GALLEY<span class="w"> </span>INSTANCE&gt;
+<span class="nv">GALLEY_PORT</span><span class="o">=</span>&lt;PORT<span class="w"> </span>NUMBER<span class="w"> </span>OF<span class="w"> </span>RUNNING<span class="w"> </span>GALLEY<span class="w"> </span>INSTANCE&gt;
+
+docker<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;quay.io/wire/brig-index:</span><span class="nv">$WIRE_VERSION</span><span class="s2">&quot;</span><span class="w"> </span>reindex<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_HOST</span><span class="s2">:</span><span class="nv">$ES_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--elasticsearch-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_INDEX</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cassandra-host<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_HOST</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cassandra-port<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cassandra-keyspace<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_KEYSPACE</span><span class="s2">&quot;</span>
+<span class="w">  </span>--galley-host<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$GALLEY_HOST</span><span class="s2">&quot;</span>
+<span class="w">  </span>--galley-port<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$GALLEY_PORT</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Subcommand <code class="docutils literal notranslate"><span class="pre">reindex-if-same-or-newer</span></code> can be used instead of <code class="docutils literal notranslate"><span class="pre">reindex</span></code>, if you want to recreate the documents in elasticsearch regardless of their version.</p>
+<p>(Or, as above, you can also do the same thing without docker.)</p>
+</section>
+<section id="migrate-to-a-new-index">
+<h2><span class="section-number">3.4. </span>Migrate to a new index<a class="headerlink" href="#migrate-to-a-new-index" title="Permalink to this heading"></a></h2>
+<p>This is needed if we want to migrate to a new index. It could be for updating
+analysis settings or to change any other settings on the index which cannot be
+done without restarting the index. Analysis settings can also be updated by
+recreating the index. Recreating the index is simpler to do, but requires
+downtime, the process is documented <a class="reference internal" href="#recreate-an-index-requires-downtime">below</a></p>
+<p>This can be done in 4 steps:</p>
+<p>Before starting, please set these environment variables</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">ES_HOST</span><span class="o">=</span>&lt;YOUR_HOST&gt;
+<span class="nv">ES_PORT</span><span class="o">=</span>&lt;YOUR_PORT&gt;<span class="w"> </span><span class="c1"># default is 9200</span>
+<span class="nv">ES_SRC_INDEX</span><span class="o">=</span>&lt;INDEX_NAME_ALREADY_IN_USE&gt;
+<span class="nv">ES_DEST_INDEX</span><span class="o">=</span>&lt;NEW_INDEX_NAME&gt;
+<span class="nv">WIRE_VERSION</span><span class="o">=</span>&lt;VERSION_YOU_ARE_DEPLOYING&gt;
+<span class="nv">SHARDS</span><span class="o">=</span>&lt;NUMBER_OF_SHARDS_FOR_THE_INDEX&gt;
+<span class="nv">REPLICAS</span><span class="o">=</span>&lt;NUMBER_OF_REPLICAS_FOR_THE_INDEX&gt;
+<span class="nv">REFRESH_INTERVAL</span><span class="o">=</span>&lt;REFRESH_INTERVAL_IN_SECONDS&gt;
+</pre></div>
+</div>
+<ol class="arabic">
+<li><p>Create the new index</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;quay.io/wire/brig-index:</span><span class="nv">$WIRE_VERSION</span><span class="s2">&quot;</span><span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_HOST</span><span class="s2">:</span><span class="nv">$ES_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_DEST_INDEX</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-shards<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$SHARDS</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-replicas<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REPLICAS</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-refresh-interval<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REFRESH_INTERVAL</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>Redeploy brig with <code class="docutils literal notranslate"><span class="pre">elasticsearch.additionalWriteIndex</span></code> set to the name of new index. Make sure no old brigs are running.</p></li>
+<li><p>Reindex data to the new index</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;quay.io/wire/brig-index:</span><span class="nv">$WIRE_VERSION</span><span class="s2">&quot;</span><span class="w"> </span>reindex-from-another-index<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_HOST</span><span class="s2">:</span><span class="nv">$ES_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--source-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_SRC_INDEX</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--destination-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_DEST_INDEX</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Optionally, <code class="docutils literal notranslate"><span class="pre">--timeout</span> <span class="pre">&lt;NUMBER_OF_SECONDS&gt;</span></code> can be added to increase/decrease from the default timeout of 10 minutes.</p>
+</li>
+<li><p>Redeploy brig without <code class="docutils literal notranslate"><span class="pre">elasticsearch.additionalWriteIndex</span></code> and with <code class="docutils literal notranslate"><span class="pre">elasticsearch.index</span></code> set to the name of new index</p></li>
+</ol>
+<p>Now you can delete the old index.</p>
+<p><strong>NOTE</strong>: There is a bug hidden when using this way. Sometimes a user won’t get
+deleted from the index. Attempts at reproducing this issue in a simpler
+environment have failed. As a workaround, there is a tool in
+<a class="reference external" href="https://github.com/wireapp/wire-server/tree/develop/tools/db/find-undead">tools/db/find-undead</a> which can be used to find the
+undead users right after the migration. If they exist, please run refill the ES
+documents from cassandra as described <a class="reference internal" href="#refill-es-documents-from-cassandra">above</a></p>
+</section>
+<section id="migrate-to-a-new-cluster">
+<h2><span class="section-number">3.5. </span>Migrate to a new cluster<a class="headerlink" href="#migrate-to-a-new-cluster" title="Permalink to this heading"></a></h2>
+<p>If the ES cluster used by brig needs to be shutdown and data must be moved to a
+new cluser, these steps can be taken to ensure minimal disruption to the
+service.</p>
+<p>Before starting, please set these environment variables:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">ES_OLD_HOST</span><span class="o">=</span>&lt;YOUR_HOST&gt;
+<span class="nv">ES_OLD_PORT</span><span class="o">=</span>&lt;YOUR_PORT&gt;<span class="w"> </span><span class="c1"># usually 9200</span>
+<span class="nv">ES_OLD_INDEX</span><span class="o">=</span>&lt;INDEX_NAME_ALREADY_IN_USE&gt;
+<span class="nv">ES_NEW_HOST</span><span class="o">=</span>&lt;YOUR_HOST&gt;
+<span class="nv">ES_NEW_PORT</span><span class="o">=</span>&lt;YOUR_PORT&gt;<span class="w"> </span><span class="c1"># usually 9200</span>
+<span class="nv">ES_NEW_INDEX</span><span class="o">=</span>&lt;NEW_INDEX_NAME&gt;
+<span class="nv">WIRE_VERSION</span><span class="o">=</span>&lt;VERSION_YOU_ARE_DEPLOYING&gt;
+<span class="nv">GALLEY_HOST</span><span class="o">=</span>&lt;HOSTNAME<span class="w"> </span>OF<span class="w"> </span>RUNNING<span class="w"> </span>GALLEY<span class="w"> </span>INSTANCE&gt;
+<span class="nv">GALLEY_PORT</span><span class="o">=</span>&lt;PORT<span class="w"> </span>NUMBER<span class="w"> </span>OF<span class="w"> </span>RUNNING<span class="w"> </span>GALLEY<span class="w"> </span>INSTANCE&gt;
+
+<span class="c1"># Use curl http://$ES_OLD_HOST:$ES_OLD_PORT/$ES_OLD_INDEX/_settings</span>
+<span class="c1"># to know previous values of SHARDS, REPLICAS and REFRESH_INTERVAL</span>
+<span class="nv">SHARDS</span><span class="o">=</span>&lt;NUMBER_OF_SHARDS_FOR_THE_NEW_INDEX&gt;
+<span class="nv">REPLICAS</span><span class="o">=</span>&lt;NUMBER_OF_REPLICAS_FOR_THE_INDEX&gt;
+<span class="nv">REFRESH_INTERVAL</span><span class="o">=</span>&lt;REFRESH_INTERVAL_IN_SECONDS&gt;
+
+<span class="nv">BRIG_CASSANDRA_HOST</span><span class="o">=</span>&lt;YOUR_C*_HOST&gt;
+<span class="nv">BRIG_CASSANDRA_PORT</span><span class="o">=</span>&lt;YOUR_C*_PORT&gt;
+<span class="nv">BRIG_CASSANDRA_KEYSPACE</span><span class="o">=</span>&lt;YOUR_C*_KEYSPACE&gt;
+</pre></div>
+</div>
+<ol class="arabic">
+<li><p>Create the new index</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;quay.io/wire/brig-index:</span><span class="nv">$WIRE_VERSION</span><span class="s2">&quot;</span><span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_NEW_HOST</span><span class="s2">:</span><span class="nv">$ES_NEW_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_NEW_INDEX</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-shards<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$SHARDS</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-replicas<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REPLICAS</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-refresh-interval<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REFRESH_INTERVAL</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>Redeploy brig with <code class="docutils literal notranslate"><span class="pre">elasticsearch.additionalWriteIndexUrl</span></code> set to the URL of
+the new cluster and <code class="docutils literal notranslate"><span class="pre">elasticsearch.additionalWriteIndex</span></code> set to
+<code class="docutils literal notranslate"><span class="pre">$ES_NEW_INDEX</span></code>.</p></li>
+<li><p>Make sure no old instances of brig are running.</p></li>
+<li><p>Reindex data to the new index</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;quay.io/wire/brig-index:</span><span class="nv">$WIRE_VERSION</span><span class="s2">&quot;</span><span class="w"> </span>migrate-data<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_NEW_HOST</span><span class="s2">:</span><span class="nv">$ES_NEW_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_NEW_INDEX</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--cassandra-host<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_HOST</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--cassandra-port<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--cassandra-keyspace<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BRIG_CASSANDRA_KEYSPACE</span><span class="s2">&quot;</span>
+<span class="w">    </span>--galley-host<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$GALLEY_HOST</span><span class="s2">&quot;</span>
+<span class="w">    </span>--galley-port<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$GALLEY_PORT</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>Remove <code class="docutils literal notranslate"><span class="pre">elasticsearch.additionalWriteIndex</span></code> and
+<code class="docutils literal notranslate"><span class="pre">elasticsearch.additionalWriteIndexUrl</span></code> from brig config. Set
+<code class="docutils literal notranslate"><span class="pre">elasticsearch.url</span></code> to the URL of the new cluster and <code class="docutils literal notranslate"><span class="pre">elasticsearch.index</span></code>
+to the name of new index. Deploy brig with these settings.</p></li>
+</ol>
+</section>
+<section id="recreate-an-index-requires-downtime">
+<h2><span class="section-number">3.6. </span>Recreate an index (Requires downtime)<a class="headerlink" href="#recreate-an-index-requires-downtime" title="Permalink to this heading"></a></h2>
+<p>When analysis settings of an index need to be changed, e.g. for changes
+introduced in <a class="reference external" href="https://github.com/wireapp/wire-server/pull/1052">#1052</a>,
+it is not possible to keep the index running while the changes are applied.</p>
+<p>To tackle this, a wire-server operator must either migrate to a new index as
+documented <a class="reference internal" href="#migrate-to-a-new-index">above</a> or allow for some downtime. One
+might want to choose downtime for simplicity. These steps are especially simple
+to do when using <a class="reference external" href="https://github.com/wireapp/wire-server-deploy/">wire-server-deploy</a>.</p>
+<p>Here are the steps:</p>
+<p>Before starting, please set these environment variables</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">ES_HOST</span><span class="o">=</span>&lt;YOUR_HOST&gt;
+<span class="nv">ES_PORT</span><span class="o">=</span>&lt;YOUR_PORT&gt;<span class="w"> </span><span class="c1"># default is 9200</span>
+<span class="nv">ES_INDEX</span><span class="o">=</span>&lt;INDEX_NAME_ALREADY_IN_USE&gt;
+</pre></div>
+</div>
+<section id="step-1-delete-the-old-index">
+<h3><span class="section-number">3.6.1. </span>Step 1: Delete the old index<a class="headerlink" href="#step-1-delete-the-old-index" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-XDELETE<span class="w"> </span>http://<span class="nv">$ES_HOST</span>:<span class="nv">$ES_PORT</span>/<span class="nv">$ES_INDEX</span>
+curl<span class="w"> </span>-XDELETE<span class="w"> </span>http://<span class="nv">$ES_HOST</span>:<span class="nv">$ES_PORT</span>/wire_brig_migrations
+</pre></div>
+</div>
+</section>
+<section id="step-2-recreate-the-index">
+<h3><span class="section-number">3.6.2. </span>Step 2: Recreate the index<a class="headerlink" href="#step-2-recreate-the-index" title="Permalink to this heading"></a></h3>
+<section id="when-using-helm-charts-from-wire-server-deploy">
+<h4><span class="section-number">3.6.2.1. </span>When using helm charts from <a class="reference external" href="https://github.com/wireapp/wire-server-deploy">wire-server-deploy</a><a class="headerlink" href="#when-using-helm-charts-from-wire-server-deploy" title="Permalink to this heading"></a></h4>
+<p>Just redeploy the helm chart, new index will be created and after the deployment
+data migrations will refill the index with users.</p>
+</section>
+<section id="when-not-using-helm-charts-from-wire-server-deploy">
+<h4><span class="section-number">3.6.2.2. </span>When not using helm charts from <a class="reference external" href="https://github.com/wireapp/wire-server-deploy">wire-server-deploy</a><a class="headerlink" href="#when-not-using-helm-charts-from-wire-server-deploy" title="Permalink to this heading"></a></h4>
+<p>Set these extra environment variables:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">WIRE_VERSION</span><span class="o">=</span>&lt;VERSION_YOU_ARE_DEPLOYING&gt;
+<span class="nv">SHARDS</span><span class="o">=</span>&lt;NUMBER_OF_SHARDS_FOR_THE_INDEX&gt;
+<span class="nv">REPLICAS</span><span class="o">=</span>&lt;NUMBER_OF_REPLICAS_FOR_THE_INDEX&gt;
+<span class="nv">REFRESH_INTERVAL</span><span class="o">=</span>&lt;REFRESH_INTERVAL_FOR_THE_INDEX&gt;
+</pre></div>
+</div>
+<ol class="arabic">
+<li><p>Create the index</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;quay.io/wire/brig-index:</span><span class="nv">$WIRE_VERSION</span><span class="s2">&quot;</span><span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-server<span class="w"> </span><span class="s2">&quot;http://</span><span class="nv">$ES_HOST</span><span class="s2">:</span><span class="nv">$ES_PORT</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elasticsearch-index<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ES_INDEX</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elastcsearch-shards<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$SHARDS</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elastcsearch-replicas<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REPLICAS</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--elastcsearch-refresh-interval<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REFRESH_INTERVAL</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>Refill the index as documented <a class="reference internal" href="#refill-es-documents-from-cassandra">above</a></p></li>
+</ol>
+</section>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="conversation.html" class="btn btn-neutral float-left" title="2. Creating and populating conversations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="elasticsearch-migration-2021-02-16.html" class="btn btn-neutral float-right" title="4. ElasticSearch migration instructions for release 2021-02-16" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

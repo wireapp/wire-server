@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3. Writing code interacting with cassandra &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="4. Changelog" href="changelog.html" />
+    <link rel="prev" title="2. How to build wire-server" href="building.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Developer</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="api-versioning.html">1. API versioning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="building.html">2. How to build wire-server</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">3. Writing code interacting with cassandra</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#background-on-why-cassandra">3.1. Background on “why cassandra?”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#guidelines-for-designing-database-schemas">3.2. Guidelines for designing database schemas</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#guidelines-on-per-table-query-consistency-level-and-replication-level">3.3. Guidelines on per-table query consistency level and replication level</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#guidelines-for-across-table-atomic-consistency">3.4. Guidelines for across-table (atomic) consistency</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#the-case-for-more-batch-statement-usage">3.5. The case for more ‘batch’ statement usage</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lightweight-transactions">3.6. Lightweight transactions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#examples-of-code-design-for-optimal-user-level-consistency-in-complex-scenarios">3.7. Examples of code design for optimal user-level consistency in complex scenarios</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#guidelines-for-deciding-where-correctness-and-consistency-matters-most-and-where-it-s-okay-to-be-inconsistent">3.8. Guidelines for deciding where correctness and consistency matters most, and where it’s okay to be inconsistent</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#guidelines-for-taking-decisions-on-performance">3.9. Guidelines for taking decisions on performance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#we-made-a-mistake-how-to-detect-data-inconsistency-across-some-tables">3.10. We made a mistake. How to detect data inconsistency across some tables?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#anti-patterns-pain-points-and-gotchas">3.11. Anti-patterns, pain points and gotchas</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#understanding-more-about-cassandra">3.12. Understanding more about cassandra</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#cassandra-schema-migrations">3.13. Cassandra schema migrations</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="changelog.html">4. Changelog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="dependencies.html">5. Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="editor-setup.html">6. Editor setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="features.html">7. Features</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-api-conventions.html">8. Federation API Conventions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-design-aspects.html">9. Federation Design Aspects</a></li>
+<li class="toctree-l3"><a class="reference internal" href="how-to.html">10. Developer how-to’s</a></li>
+<li class="toctree-l3"><a class="reference internal" href="large-conversations.html">11. Refactoring galley to support large conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="linting.html">12. Linting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pr-guidelines.html">13. PR Guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="processes.html">14. Internal processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="scim/storage.html">15. Storing SCIM-related data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="servant.html">16. Servant</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html">17. Testing the wire-server Haskell code base</a></li>
+<li class="toctree-l3"><a class="reference internal" href="upgrading.html">18. Upgrading</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/index.html">Reference</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Developer</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">3. </span>Writing code interacting with cassandra</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/developer/cassandra-interaction.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="writing-code-interacting-with-cassandra">
+<h1><span class="section-number">3. </span>Writing code interacting with cassandra<a class="headerlink" href="#writing-code-interacting-with-cassandra" title="Permalink to this heading"></a></h1>
+<section id="background-on-why-cassandra">
+<h2><span class="section-number">3.1. </span>Background on “why cassandra?”<a class="headerlink" href="#background-on-why-cassandra" title="Permalink to this heading"></a></h2>
+<p>Cassandra was chosen back in ~2014 in the context of massive scalability (expectations of billions
+of users), as well as the wish for redundancy and cloud-always-on high-availability.</p>
+<p>From an operational standpoint, high-availability and redundancy are well served with this: any
+single node/VM can crash at any moment without data loss, and version upgrades, server maintenance,
+and server migrations can be done without stopping the system (and causing user-observable
+downtime).</p>
+<p>From a developer perspective, wishing for a mental model of strong consistency across multiple
+tables in multiple services to make easier assumptions when writing code makes working with
+cassandra sometimes a bit harder. (That said, this document has some sections below to make working
+with strong consistency within the same service easier).</p>
+<p>Questions have come up whether another technology may serve our needs better in the evolved
+technical and product context of 2023 and beyond. These questions are valid, and a change can always
+be discussed, if the time is at hand to put this effort in.</p>
+</section>
+<section id="guidelines-for-designing-database-schemas">
+<h2><span class="section-number">3.2. </span>Guidelines for designing database schemas<a class="headerlink" href="#guidelines-for-designing-database-schemas" title="Permalink to this heading"></a></h2>
+<p>In a lot of relational databases, you design tables with their relations, and think about the exact
+access patterns later, as you can always add an index on a certain column. In the cassandra world,
+you need to make some mental gymnastics and get used to design your tables <strong>by the access patterns
+to this data</strong>. You can only look up data by what’s in the primary key, and you always need the
+single partition key at hand to do this lookup.</p>
+<p>Therefore, you may need multiple tables that relate, such as a <code class="docutils literal notranslate"><span class="pre">conversation_by_user_id</span></code> and a
+<code class="docutils literal notranslate"><span class="pre">user_by_conversation_id</span></code> table (or even more of them). That’s perfectly fine and the correct
+pattern to use. Please read some online resources about data modeling with cassandra, such as the
+<a class="reference external" href="https://cassandra.apache.org/doc/latest/cassandra/data_modeling/index.html">datastax official data modelling documentation</a>.</p>
+</section>
+<section id="guidelines-on-per-table-query-consistency-level-and-replication-level">
+<h2><span class="section-number">3.3. </span>Guidelines on per-table query consistency level and replication level<a class="headerlink" href="#guidelines-on-per-table-query-consistency-level-and-replication-level" title="Permalink to this heading"></a></h2>
+<section id="background">
+<h3><span class="section-number">3.3.1. </span>Background<a class="headerlink" href="#background" title="Permalink to this heading"></a></h3>
+<p>We currently operate all our production and production-like environments with</p>
+<ul class="simple">
+<li><p>a <strong>replication factor of 3</strong> (per datacentre, but except for a brief phase of controlled
+datacentre migration there is only one datacentre in use)</p></li>
+<li><p>a number of cassandra nodes &gt;= 3 (depending on load and disk/machine size)</p></li>
+<li><p>Everywhere where some consistency matters, <strong>Quorum writes and Quorum reads</strong></p></li>
+</ul>
+<p>These three things together give us <strong>strong consistency on a per-table</strong> basis. <em>(well, actually,
+it’s monotonic read consistency we get here - concurrent requests may still see the old value until
+the quorum write finishes. In practice, you most likely do not need to care about that difference in
+the Wire context though.)</em>. A quorum write followed by a quorum read will guarantee that you see the
+data you inserted, even if one replica of cassandra that holds that partition key dies in the
+middle.</p>
+<p>The replication factor is specified when creating or migrating schemas, which is done in the
+<code class="docutils literal notranslate"><span class="pre">cassandra-migrations</span></code> subchart of the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> chart:</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">../charts/cassandra-migrations/values.yaml</span><a class="headerlink" href="#id1" title="Permalink to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Setting cassandra host name and replication is mandatory to specify.</span>
+<span class="c1">#</span>
+<span class="c1"># Example production case:</span>
+<span class="c1">#</span>
+<span class="c1"># cassandra:</span>
+<span class="c1">#   host: cassandra-external</span>
+<span class="c1">#   replicationFactor: 3</span>
+</pre></div>
+</div>
+</div>
+<p>The number of cassandra nodes in use is specified on the infrastructure level (k8ssandra on
+kubernetes, or the inventory list when using ansible-cassandra)</p>
+<p>Quorum consistency (or, in our case, <code class="docutils literal notranslate"><span class="pre">LocalQuorum</span></code> consistency) is specified in our code. Random
+example:</p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">../services/brig/src/Brig/Data/User.hs</span><a class="headerlink" href="#id2" title="Permalink to this code"></a></div>
+<div class="highlight-Haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">updateEmail</span><span class="w"> </span><span class="n">u</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">retry</span><span class="w"> </span><span class="n">x5</span><span class="w"> </span><span class="o">$</span><span class="w"> </span><span class="n">write</span><span class="w"> </span><span class="n">userEmailUpdate</span><span class="w"> </span><span class="p">(</span><span class="n">params</span><span class="w"> </span><span class="kt">LocalQuorum</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="w"> </span><span class="n">u</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">Quorum</span></code> and <code class="docutils literal notranslate"><span class="pre">LocalQuorum</span></code> behave exactly the same in the context of a single datacentre
+(each datacentre can have multiple racks or availability zones). We switched from <code class="docutils literal notranslate"><span class="pre">Quorum</span></code> to
+<code class="docutils literal notranslate"><span class="pre">LocalQuorum</span></code> in <a class="reference external" href="https://github.com/wireapp/wire-server/pull/1884">this PR</a> in preparation of a
+datacentre migration. As it doesn’t hurt, and more datacentre migrations may be done in the future
+by us or the people hosting on-premise, let’s stick to <code class="docutils literal notranslate"><span class="pre">LocalQuorum</span></code> for the time being.</p>
+<p><em><strong>To summarize: In case of doubt, just follow the examples and use <code class="docutils literal notranslate"><span class="pre">LocalQuorum</span></code> Writes and Reads
+in your queries, unless there is a very good reason not to.</strong></em></p>
+</section>
+</section>
+<section id="guidelines-for-across-table-atomic-consistency">
+<span id="batch-statements"></span><h2><span class="section-number">3.4. </span>Guidelines for across-table (atomic) consistency<a class="headerlink" href="#guidelines-for-across-table-atomic-consistency" title="Permalink to this heading"></a></h2>
+<p>Given that we have strong consistency for a single operation (see section above), in some cases your
+data access patterns mandate that you have multiple tables with seemingly duplicated data.</p>
+<p>Good ✅ example: For instance, a ‘teamInvitation’ needs to be queried</p>
+<ul class="simple">
+<li><p>by team ID (for the team admin- which pending invitations exist?)</p></li>
+<li><p>by email (during user registration), and</p></li>
+<li><p>by code (to check whether an invitation is valid before embarking on the user registration).</p></li>
+</ul>
+<p>Therefore, there are three tables holding similar data about a team invitation, but with different
+primary keys. This is a correct and recommended data design for cassandra.</p>
+<p>Now, any insert, update or delete of this data should either all work, or all fail, to not have
+weird data integrity issues. Now, cassandra provides for this, and it’s called <code class="docutils literal notranslate"><span class="pre">batch</span></code> statements.</p>
+<blockquote>
+<div><p>Batches are atomic by default. In the context of a Cassandra batch operation, atomic means that if
+any of the batch succeeds, all of it will.</p>
+</div></blockquote>
+<blockquote>
+<div><p>Statement order does not matter within a batch</p>
+</div></blockquote>
+<p><a class="reference external" href="https://docs.datastax.com/en/archived/cql/3.1/cql/cql_reference/batch_r.html">reference documentation of batch</a></p>
+<p>Here’s an example of this used in our code:</p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">../services/brig/src/Brig/Team/DB.hs</span><a class="headerlink" href="#id3" title="Permalink to this code"></a></div>
+<div class="highlight-Haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">insertInvitation</span><span class="w"> </span><span class="n">showUrl</span><span class="w"> </span><span class="n">iid</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">role</span><span class="w"> </span><span class="p">(</span><span class="n">toUTCTimeMillis</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">now</span><span class="p">)</span><span class="w"> </span><span class="n">minviter</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="n">inviteeName</span><span class="w"> </span><span class="n">phone</span><span class="w"> </span><span class="n">timeout</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">do</span>
+<span class="w">  </span><span class="n">code</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">liftIO</span><span class="w"> </span><span class="n">mkInvitationCode</span>
+<span class="w">  </span><span class="n">url</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">mkInviteUrl</span><span class="w"> </span><span class="n">showUrl</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">code</span>
+<span class="w">  </span><span class="kr">let</span><span class="w"> </span><span class="n">inv</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Invitation</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">role</span><span class="w"> </span><span class="n">iid</span><span class="w"> </span><span class="n">now</span><span class="w"> </span><span class="n">minviter</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="n">inviteeName</span><span class="w"> </span><span class="n">phone</span><span class="w"> </span><span class="n">url</span>
+<span class="w">  </span><span class="n">retry</span><span class="w"> </span><span class="n">x5</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="n">batch</span><span class="w"> </span><span class="o">$</span><span class="w"> </span><span class="kr">do</span>
+<span class="w">    </span><span class="n">setType</span><span class="w"> </span><span class="kt">BatchLogged</span>
+<span class="w">    </span><span class="n">setConsistency</span><span class="w"> </span><span class="kt">LocalQuorum</span>
+<span class="w">    </span><span class="n">addPrepQuery</span><span class="w"> </span><span class="n">cqlInvitation</span><span class="w"> </span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="w"> </span><span class="n">role</span><span class="p">,</span><span class="w"> </span><span class="n">iid</span><span class="p">,</span><span class="w"> </span><span class="n">code</span><span class="p">,</span><span class="w"> </span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">now</span><span class="p">,</span><span class="w"> </span><span class="n">minviter</span><span class="p">,</span><span class="w"> </span><span class="n">inviteeName</span><span class="p">,</span><span class="w"> </span><span class="n">phone</span><span class="p">,</span><span class="w"> </span><span class="n">round</span><span class="w"> </span><span class="n">timeout</span><span class="p">)</span>
+<span class="w">    </span><span class="n">addPrepQuery</span><span class="w"> </span><span class="n">cqlInvitationInfo</span><span class="w"> </span><span class="p">(</span><span class="n">code</span><span class="p">,</span><span class="w"> </span><span class="n">t</span><span class="p">,</span><span class="w"> </span><span class="n">iid</span><span class="p">,</span><span class="w"> </span><span class="n">round</span><span class="w"> </span><span class="n">timeout</span><span class="p">)</span>
+<span class="w">    </span><span class="n">addPrepQuery</span><span class="w"> </span><span class="n">cqlInvitationByEmail</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">t</span><span class="p">,</span><span class="w"> </span><span class="n">iid</span><span class="p">,</span><span class="w"> </span><span class="n">code</span><span class="p">,</span><span class="w"> </span><span class="n">round</span><span class="w"> </span><span class="n">timeout</span><span class="p">)</span>
+<span class="w">  </span><span class="n">pure</span><span class="w"> </span><span class="p">(</span><span class="n">inv</span><span class="p">,</span><span class="w"> </span><span class="n">code</span><span class="p">)</span>
+<span class="w">  </span><span class="kr">where</span>
+<span class="w">    </span><span class="n">cqlInvitationInfo</span><span class="w"> </span><span class="ow">::</span><span class="w"> </span><span class="kt">PrepQuery</span><span class="w"> </span><span class="kt">W</span><span class="w"> </span><span class="p">(</span><span class="kt">InvitationCode</span><span class="p">,</span><span class="w"> </span><span class="kt">TeamId</span><span class="p">,</span><span class="w"> </span><span class="kt">InvitationId</span><span class="p">,</span><span class="w"> </span><span class="kt">Int32</span><span class="p">)</span><span class="w"> </span><span class="nb">()</span>
+<span class="w">    </span><span class="n">cqlInvitationInfo</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="s">&quot;INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?&quot;</span>
+<span class="w">    </span><span class="n">cqlInvitation</span><span class="w"> </span><span class="ow">::</span><span class="w"> </span><span class="kt">PrepQuery</span><span class="w"> </span><span class="kt">W</span><span class="w"> </span><span class="p">(</span><span class="kt">TeamId</span><span class="p">,</span><span class="w"> </span><span class="kt">Role</span><span class="p">,</span><span class="w"> </span><span class="kt">InvitationId</span><span class="p">,</span><span class="w"> </span><span class="kt">InvitationCode</span><span class="p">,</span><span class="w"> </span><span class="kt">Email</span><span class="p">,</span><span class="w"> </span><span class="kt">UTCTimeMillis</span><span class="p">,</span><span class="w"> </span><span class="kt">Maybe</span><span class="w"> </span><span class="kt">UserId</span><span class="p">,</span><span class="w"> </span><span class="kt">Maybe</span><span class="w"> </span><span class="kt">Name</span><span class="p">,</span><span class="w"> </span><span class="kt">Maybe</span><span class="w"> </span><span class="kt">Phone</span><span class="p">,</span><span class="w"> </span><span class="kt">Int32</span><span class="p">)</span><span class="w"> </span><span class="nb">()</span>
+<span class="w">    </span><span class="n">cqlInvitation</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="s">&quot;INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by, name, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?&quot;</span>
+<span class="w">    </span><span class="c1">-- Note: the edge case of multiple invites to the same team by different admins from the same team results in last-invite-wins in the team_invitation_email table.</span>
+<span class="w">    </span><span class="n">cqlInvitationByEmail</span><span class="w"> </span><span class="ow">::</span><span class="w"> </span><span class="kt">PrepQuery</span><span class="w"> </span><span class="kt">W</span><span class="w"> </span><span class="p">(</span><span class="kt">Email</span><span class="p">,</span><span class="w"> </span><span class="kt">TeamId</span><span class="p">,</span><span class="w"> </span><span class="kt">InvitationId</span><span class="p">,</span><span class="w"> </span><span class="kt">InvitationCode</span><span class="p">,</span><span class="w"> </span><span class="kt">Int32</span><span class="p">)</span><span class="w"> </span><span class="nb">()</span>
+<span class="w">    </span><span class="n">cqlInvitationByEmail</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="s">&quot;INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?&quot;</span>
+</pre></div>
+</div>
+</div>
+<p>While writing this documentation, I grepped for batch across our codebase, and saw that the use of
+batch statements seems to have fallen into disuse over the past months and years. That’s a mistake!
+For related data, batch statements should be used to keep data integrity across multiple tables
+for related data.</p>
+<p><em>Sidenote:</em> Batch statements have a confusing name perhaps. They are not intended to speed up
+inserting multiple records into the same table; that is an antipattern, see <a class="reference external" href="https://docs.datastax.com/en/cql-oss/3.x/cql/cql_using/useBatchBadExample.html">this
+documentation</a>.</p>
+<p><em>Sidenote 2:</em>: Batch statements do not have the I for isolation of an ACID transaction. While
+writing to table A and B of a batch, another process might read table A and B and already see the
+update in A but not see the update in B yet. As this is a transient problem, and in practice in the
+wire-server codebase most lookups read only table A <em>or</em> table B and not both concurrently (as often
+only one primary key needed for a lookup is available in context of a http request leading to
+lookup), I propose to ignore this by default. At least so far using batch statements hasn’t bitten
+us / caused any bugs that I’m aware of. Don’t let this scare you off - <em>not</em> using batch statements
+is worse, as there you’re guaranteed to get long-lasting data inconsistencies across tables.</p>
+<p><em><strong>To summarize: When working on multiple tables with related data (e.g. user_by_conversation_id and
+conversation_by_user_id), use ‘batch’ statements to achieve atomicity! When inserting lots
+of data into the same table, do not use batch statements.</strong></em></p>
+</section>
+<section id="the-case-for-more-batch-statement-usage">
+<h2><span class="section-number">3.5. </span>The case for more ‘batch’ statement usage<a class="headerlink" href="#the-case-for-more-batch-statement-usage" title="Permalink to this heading"></a></h2>
+<p>Adding to the section before, an example taken out of thin air to argue for more usage of <code class="docutils literal notranslate"><span class="pre">batch</span></code>
+statements:</p>
+<p><em>Example: Let’s say there’s a new Wire chat, and I add you to this chat X. In the database we have
+one table users_by_conversation with primary key conversationId, and one table
+conversations_by_users with primary key userId.</em></p>
+<p>Then, there are two ways of writing code for that:</p>
+<ul class="simple">
+<li><p>way 1: use a batch statement to insert the user-&gt;conv and conv-&gt;user entries of chatX-User-A and
+User-A-chatX.</p></li>
+<li><p>way 2: insert these rows separately in some order of your choosing.</p></li>
+</ul>
+<p>Now, if the Haskell process crashes midway, then we can have these outcomes:</p>
+<ul class="simple">
+<li><p>with way 1: either the write succeeded or it didn’t. So either User-A is in chat X (way-1-A) or
+they are not (way-1-B). But either way it’s in both tables or in none, depending on when the crash
+happened.</p></li>
+<li><p>with way 2: there’s a chance one write to one table went through but the other didn’t.</p></li>
+</ul>
+<p>So with way-1-A - 5 minutes later - both User-A looking at their conversation list sees chat X
+appear; and other members of chat X looking at the member list of that chat see User-A as a
+member. With way-1-B: User-A doesn’t see chat-X and other members of the chat don’t see User-A
+as a member. With way-2: It’s inconsistent: User-A sees the chat, but other people can’t see
+him, or when accessing the chat some error occurs, and it’s weird. Or he’s in the chat but
+doesn’t see the chat appear in their UI and it’s weird.</p>
+<p>Now, way-1-B can be retried. I can try and add User-A again to chat X.</p>
+<p>That there is no isolation as the I in <a class="reference external" href="https://en.wikipedia.org/wiki/ACID">ACID</a> - well, here I
+don’t care. Anyway we have a race condition: User-B refreshing the member list of chat X will see no
+User-A until t=<code class="docutils literal notranslate"><span class="pre">&lt;addition-time&gt;</span></code> and thereafter sees User-A appear. That in theory there is a time gap
+between the writes of two tables where user-A is in one table but not the other doesn’t matter for
+User-B, it’s a state change from not-in-chat to in-chat. Similarly for User-A himself, it’s a state
+change from not-in-chat to in-chat, the access pattern of reading the member list in a weird order
+isn’t relevant here. At worst a refresh will show the new state of things.</p>
+<p>But way-2 is terrible! It will forever remain weird and appear as a bug either for User-A, or
+all other users in that chat, or all of us, and not resolve. In this case a batch statement is
+<strong>miles</strong> better from a user perspective in the Wire context.</p>
+</section>
+<section id="lightweight-transactions">
+<h2><span class="section-number">3.6. </span>Lightweight transactions<a class="headerlink" href="#lightweight-transactions" title="Permalink to this heading"></a></h2>
+<p>In some cases, it is important to make sure that a write is conditional to the existence (or non-existence) of a record. One example is uploading the public MLS signature key for a client: only one such key should be uploaded (per supported ciphersuite), so any attempts to write a new key when one is already present should fail.</p>
+<p>This sort of “compare-and-swap” semantics can be achieved using Cassandra’s lightweight transaction (LWT) mechanism. One can include the condition <code class="docutils literal notranslate"><span class="pre">IF</span> <span class="pre">EXISTS</span></code> or <code class="docutils literal notranslate"><span class="pre">IF</span> <span class="pre">NOT</span> <span class="pre">EXISTS</span></code> in a write query, which can then be executed using the <code class="docutils literal notranslate"><span class="pre">trans</span></code> function from the Cassandra Haskell driver. It is important to set <code class="docutils literal notranslate"><span class="pre">serialConsistency</span></code> to <code class="docutils literal notranslate"><span class="pre">LocalSerialConsistency</span></code> on the <code class="docutils literal notranslate"><span class="pre">QueryParams</span></code> structure passed to <code class="docutils literal notranslate"><span class="pre">trans</span></code>, since that is required for Cassandra to take into account other concurrent lightweight transactions when reading the value initially.</p>
+<p>The result of a ligthweight transaction is a single row containing a boolean value, which indicates whether the update was successful.</p>
+<p>Here is the code corresponding to the above example:</p>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">../services/brig/src/Brig/Data/Client.hs</span><a class="headerlink" href="#id4" title="Permalink to this code"></a></div>
+<div class="highlight-Haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">addMLSPublicKey</span><span class="w"> </span><span class="ow">::</span>
+<span class="w">  </span><span class="kt">MonadClient</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="ow">=&gt;</span>
+<span class="w">  </span><span class="kt">UserId</span><span class="w"> </span><span class="ow">-&gt;</span>
+<span class="w">  </span><span class="kt">ClientId</span><span class="w"> </span><span class="ow">-&gt;</span>
+<span class="w">  </span><span class="kt">SignatureSchemeTag</span><span class="w"> </span><span class="ow">-&gt;</span>
+<span class="w">  </span><span class="kt">ByteString</span><span class="w"> </span><span class="ow">-&gt;</span>
+<span class="w">  </span><span class="kt">ExceptT</span><span class="w"> </span><span class="kt">ClientDataError</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="nb">()</span>
+<span class="nf">addMLSPublicKey</span><span class="w"> </span><span class="n">u</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="n">ss</span><span class="w"> </span><span class="n">pk</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">do</span>
+<span class="w">  </span><span class="n">rows</span><span class="w"> </span><span class="ow">&lt;-</span>
+<span class="w">    </span><span class="n">trans</span>
+<span class="w">      </span><span class="n">insertMLSPublicKeys</span>
+<span class="w">      </span><span class="p">(</span><span class="w"> </span><span class="n">params</span>
+<span class="w">          </span><span class="kt">LocalQuorum</span>
+<span class="w">          </span><span class="p">(</span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">ss</span><span class="p">,</span><span class="w"> </span><span class="kt">Blob</span><span class="w"> </span><span class="p">(</span><span class="kt">LBS</span><span class="o">.</span><span class="n">fromStrict</span><span class="w"> </span><span class="n">pk</span><span class="p">))</span>
+<span class="w">      </span><span class="p">)</span>
+<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="n">serialConsistency</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Just</span><span class="w"> </span><span class="kt">LocalSerialConsistency</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">  </span><span class="kr">case</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="kr">of</span>
+<span class="w">    </span><span class="p">[</span><span class="n">row</span><span class="p">]</span>
+<span class="w">      </span><span class="o">|</span><span class="w"> </span><span class="kt">C</span><span class="o">.</span><span class="n">fromRow</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="kt">Right</span><span class="w"> </span><span class="p">(</span><span class="kt">Just</span><span class="w"> </span><span class="kt">True</span><span class="p">)</span><span class="w"> </span><span class="ow">-&gt;</span>
+<span class="w">          </span><span class="n">throwE</span><span class="w"> </span><span class="kt">MLSPublicKeyDuplicate</span>
+<span class="w">    </span><span class="kr">_</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">pure</span><span class="w"> </span><span class="nb">()</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="examples-of-code-design-for-optimal-user-level-consistency-in-complex-scenarios">
+<h2><span class="section-number">3.7. </span>Examples of code design for optimal user-level consistency in complex scenarios<a class="headerlink" href="#examples-of-code-design-for-optimal-user-level-consistency-in-complex-scenarios" title="Permalink to this heading"></a></h2>
+<section id="introduction">
+<h3><span class="section-number">3.7.1. </span>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h3>
+<p>As we saw above, we can achieve strong consistency for a single table, and for related tables in the
+same database, if the code path allows grouping inserts/updates/deletes together. In some scenarios,
+where some data is held by brig and some data is held by galley, this isn’t easily achievable, and
+we need to think harder abour ordering and possibly apply some tricks. There’s no easy answer to
+always have strong consistency, so instead here are some examples to guide future complex scenarios:</p>
+</section>
+<section id="creating-a-user-account">
+<h3><span class="section-number">3.7.2. </span>Creating a user account<a class="headerlink" href="#creating-a-user-account" title="Permalink to this heading"></a></h3>
+<p>Upon creating a user, some resources are created by brig, some by galley (such as a self
+conversation). Since LocalQuorum+batch statements are not an option here, and the services can crash
+mid-way their request, we still wish to ensure that no inconsistent half-written data leads to a
+broken experience (we can accept garbage data lingering around, but we don’t wish to accept a user
+being able to log in but having a broken state. Instead, we want to rely on some (in this case,
+user-level) retry. To achieve this, there is a boolean flag ‘activated’. In the past, what happened was:</p>
+<ul class="simple">
+<li><p>write a user entry with activated=false</p></li>
+<li><p>perform other operations in brig and galley and elsewhere</p></li>
+<li><p>update the user entry and set activated=true</p></li>
+<li><p>when doing a user lookup, filter out any results with activated=false (or null)</p></li>
+</ul>
+<p>This way, if the code fails halfway through, even though there might be some data in the database,
+as it is being filtered out, the user can retry the account creation and is not left in a
+halfway-there broken state. This is not “pretty”, but works for practial purposes.</p>
+<p>The code around this has been refactored and there are many scenarios of user creation, so the
+initial trick explained above may not hold true in all cases (thus potentially having broken the
+desired data integrity properties).</p>
+</section>
+<section id="deleting-a-user-account">
+<h3><span class="section-number">3.7.3. </span>Deleting a user account<a class="headerlink" href="#deleting-a-user-account" title="Permalink to this heading"></a></h3>
+<p>When deleting a user, also handles, clients, conversations, assets etc must be deleted.</p>
+<p>To guard against this failing midway due to a crashing/restarting service, the <code class="docutils literal notranslate"><span class="pre">deleteAccount</span></code>
+function is used in a “automated retry-logic” way. For this, it’s wrapped with some queue logic
+(push “this user should be deleted” onto a queue, start deleting things and only remove that item
+from the queue once all has completed).</p>
+<p>The function in question:</p>
+<div class="literal-block-wrapper docutils container" id="id5">
+<div class="code-block-caption"><span class="caption-text">../services/brig/src/Brig/API/User.hs</span><a class="headerlink" href="#id5" title="Permalink to this code"></a></div>
+<div class="highlight-Haskell notranslate"><div class="highlight"><pre><span></span><span class="c1">--</span>
+<span class="c1">-- Called via @delete /i/user/:uid@ (through `ensureAccountDeleted`), or</span>
+<span class="c1">-- indirectly via deleting self. Team owners can be deleted if the team is not</span>
+<span class="c1">-- orphaned, i.e. there is at least one other owner left.</span>
+<span class="c1">--</span>
+<span class="c1">-- N.B.: As Cassandra doesn&#39;t support transactions, the order of database</span>
+<span class="c1">-- statements matters! Other functions reason upon some states to imply other</span>
+<span class="c1">-- states. Please change this order only with care!</span>
+<span class="nf">deleteAccount</span><span class="w"> </span><span class="ow">::</span>
+<span class="w">  </span><span class="p">(</span><span class="w"> </span><span class="kt">MonadLogger</span><span class="w"> </span><span class="n">m</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">MonadIndexIO</span><span class="w"> </span><span class="n">m</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">MonadReader</span><span class="w"> </span><span class="kt">Env</span><span class="w"> </span><span class="n">m</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">MonadMask</span><span class="w"> </span><span class="n">m</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">MonadHttp</span><span class="w"> </span><span class="n">m</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">HasRequestId</span><span class="w"> </span><span class="n">m</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">MonadUnliftIO</span><span class="w"> </span><span class="n">m</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">MonadClient</span><span class="w"> </span><span class="n">m</span>
+<span class="w">  </span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span>
+<span class="w">  </span><span class="kt">UserAccount</span><span class="w"> </span><span class="ow">-&gt;</span>
+<span class="w">  </span><span class="n">m</span><span class="w"> </span><span class="nb">()</span>
+<span class="nf">deleteAccount</span><span class="w"> </span><span class="n">account</span><span class="o">@</span><span class="p">(</span><span class="n">accountUser</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">user</span><span class="p">)</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">do</span>
+<span class="w">  </span><span class="kr">let</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">userId</span><span class="w"> </span><span class="n">user</span>
+<span class="w">  </span><span class="kt">Log</span><span class="o">.</span><span class="n">info</span><span class="w"> </span><span class="o">$</span><span class="w"> </span><span class="n">field</span><span class="w"> </span><span class="s">&quot;user&quot;</span><span class="w"> </span><span class="p">(</span><span class="n">toByteString</span><span class="w"> </span><span class="n">uid</span><span class="p">)</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="n">msg</span><span class="w"> </span><span class="p">(</span><span class="n">val</span><span class="w"> </span><span class="s">&quot;Deleting account&quot;</span><span class="p">)</span>
+<span class="w">  </span><span class="c1">-- Free unique keys</span>
+<span class="w">  </span><span class="n">for_</span><span class="w"> </span><span class="p">(</span><span class="n">userEmail</span><span class="w"> </span><span class="n">user</span><span class="p">)</span><span class="w"> </span><span class="o">$</span><span class="w"> </span><span class="n">deleteKeyForUser</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="n">userEmailKey</span>
+<span class="w">  </span><span class="n">for_</span><span class="w"> </span><span class="p">(</span><span class="n">userPhone</span><span class="w"> </span><span class="n">user</span><span class="p">)</span><span class="w"> </span><span class="o">$</span><span class="w"> </span><span class="n">deleteKeyForUser</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="n">userPhoneKey</span>
+<span class="w">  </span><span class="n">for_</span><span class="w"> </span><span class="p">(</span><span class="n">userHandle</span><span class="w"> </span><span class="n">user</span><span class="p">)</span><span class="w"> </span><span class="o">$</span><span class="w"> </span><span class="n">freeHandle</span><span class="w"> </span><span class="p">(</span><span class="n">userId</span><span class="w"> </span><span class="n">user</span><span class="p">)</span>
+<span class="w">  </span><span class="c1">-- Wipe data</span>
+<span class="w">  </span><span class="kt">Data</span><span class="o">.</span><span class="n">clearProperties</span><span class="w"> </span><span class="n">uid</span>
+<span class="w">  </span><span class="n">tombstone</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">mkTombstone</span>
+<span class="w">  </span><span class="kt">Data</span><span class="o">.</span><span class="n">insertAccount</span><span class="w"> </span><span class="n">tombstone</span><span class="w"> </span><span class="kt">Nothing</span><span class="w"> </span><span class="kt">Nothing</span><span class="w"> </span><span class="kt">False</span>
+<span class="w">  </span><span class="kt">Intra</span><span class="o">.</span><span class="n">rmUser</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="p">(</span><span class="n">userAssets</span><span class="w"> </span><span class="n">user</span><span class="p">)</span>
+<span class="w">  </span><span class="kt">Data</span><span class="o">.</span><span class="n">lookupClients</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">&gt;&gt;=</span><span class="w"> </span><span class="n">mapM_</span><span class="w"> </span><span class="p">(</span><span class="kt">Data</span><span class="o">.</span><span class="n">rmClient</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="n">clientId</span><span class="p">)</span>
+<span class="w">  </span><span class="n">luid</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">qualifyLocal</span><span class="w"> </span><span class="n">uid</span>
+<span class="w">  </span><span class="kt">Intra</span><span class="o">.</span><span class="n">onUserEvent</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="kt">Nothing</span><span class="w"> </span><span class="p">(</span><span class="kt">UserDeleted</span><span class="w"> </span><span class="p">(</span><span class="n">tUntagged</span><span class="w"> </span><span class="n">luid</span><span class="p">))</span>
+<span class="w">  </span><span class="c1">-- Note: Connections can only be deleted afterwards, since</span>
+<span class="w">  </span><span class="c1">--       they need to be notified.</span>
+<span class="w">  </span><span class="kt">Data</span><span class="o">.</span><span class="n">deleteConnections</span><span class="w"> </span><span class="n">uid</span>
+<span class="w">  </span><span class="n">revokeAllCookies</span><span class="w"> </span><span class="n">uid</span>
+<span class="w">  </span><span class="kr">where</span>
+<span class="w">    </span><span class="n">mkTombstone</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">do</span>
+</pre></div>
+</div>
+</div>
+<p>The queue logic:</p>
+<div class="literal-block-wrapper docutils container" id="id6">
+<div class="code-block-caption"><span class="caption-text">../services/brig/src/Brig/API/User.hs</span><a class="headerlink" href="#id6" title="Permalink to this code"></a></div>
+<div class="highlight-Haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">deleteUserNoVerify</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">do</span>
+<span class="w">  </span><span class="n">queue</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">view</span><span class="w"> </span><span class="n">internalEvents</span>
+<span class="w">  </span><span class="kt">Queue</span><span class="o">.</span><span class="n">enqueue</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="p">(</span><span class="kt">Internal</span><span class="o">.</span><span class="kt">DeleteUser</span><span class="w"> </span><span class="n">uid</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<p>and</p>
+<div class="literal-block-wrapper docutils container" id="id7">
+<div class="code-block-caption"><span class="caption-text">../services/brig/src/Brig/InternalEvent/Process.hs</span><a class="headerlink" href="#id7" title="Permalink to this code"></a></div>
+<div class="highlight-Haskell notranslate"><div class="highlight"><pre><span></span><span class="w">  </span><span class="kt">DeleteUser</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">do</span>
+<span class="w">    </span><span class="kt">Log</span><span class="o">.</span><span class="n">info</span><span class="w"> </span><span class="o">$</span>
+<span class="w">      </span><span class="n">msg</span><span class="w"> </span><span class="p">(</span><span class="n">val</span><span class="w"> </span><span class="s">&quot;Processing user delete event&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="o">~~</span><span class="w"> </span><span class="n">field</span><span class="w"> </span><span class="s">&quot;user&quot;</span><span class="w"> </span><span class="p">(</span><span class="n">toByteString</span><span class="w"> </span><span class="n">uid</span><span class="p">)</span>
+<span class="w">    </span><span class="kt">API</span><span class="o">.</span><span class="n">lookupAccount</span><span class="w"> </span><span class="n">uid</span><span class="w"> </span><span class="o">&gt;&gt;=</span><span class="w"> </span><span class="n">mapM_</span><span class="w"> </span><span class="kt">API</span><span class="o">.</span><span class="n">deleteAccount</span>
+</pre></div>
+</div>
+</div>
+<p>Also, default SQS queue settings mean that events are only removed from the queue after the client
+code finishes processing. If the client fails mid-way, the event re-appears for consumption (after a
+timeout passes).</p>
+</section>
+<section id="designing-for-consistent-data">
+<h3><span class="section-number">3.7.4. </span>Designing for consistent data<a class="headerlink" href="#designing-for-consistent-data" title="Permalink to this heading"></a></h3>
+<p>As we saw above, within a single batch request we can guarantee strong consistency for a single
+service. If possible, try to not put some data in brig and some data in galley, as these cases will
+make it hard to stay consistent. Instead, think about merging the services, or the database access,
+to allow you to make use of batch queries. Or, try to keep related data within one service.</p>
+</section>
+<section id="the-future-cassandra-5-0-and-true-acid">
+<h3><span class="section-number">3.7.5. </span>The future: Cassandra 5.0 and true ACID<a class="headerlink" href="#the-future-cassandra-5-0-and-true-acid" title="Permalink to this heading"></a></h3>
+<p>Right now, we have <code class="docutils literal notranslate"><span class="pre">batch</span></code> statements (see above), which are atomic, which is usually good enough.
+But the ‘i’ for isolation from an ACID perspective is missing, so in a race condition another query
+from another thread could read one of the table updates but not the other. Usually that’s not a
+problem though.</p>
+<p>See <a class="reference external" href="https://thenewstack.io/an-apache-cassandra-breakthrough-acid-transactions-at-scale/">this post</a>
+on full ACID support coming to cassandra in the future. Note these true transactions will also not
+work if one piece of your data is in galley and the other is in brig. They wouldn’t in a postgres
+scenario either. So, first steps first: move your data together!</p>
+</section>
+</section>
+<section id="guidelines-for-deciding-where-correctness-and-consistency-matters-most-and-where-it-s-okay-to-be-inconsistent">
+<h2><span class="section-number">3.8. </span>Guidelines for deciding where correctness and consistency matters most, and where it’s okay to be inconsistent<a class="headerlink" href="#guidelines-for-deciding-where-correctness-and-consistency-matters-most-and-where-it-s-okay-to-be-inconsistent" title="Permalink to this heading"></a></h2>
+<p>FUTUREWORK.</p>
+</section>
+<section id="guidelines-for-taking-decisions-on-performance">
+<h2><span class="section-number">3.9. </span>Guidelines for taking decisions on performance<a class="headerlink" href="#guidelines-for-taking-decisions-on-performance" title="Permalink to this heading"></a></h2>
+<p>FUTUREWORK.</p>
+</section>
+<section id="we-made-a-mistake-how-to-detect-data-inconsistency-across-some-tables">
+<span id="discover-and-repair"></span><h2><span class="section-number">3.10. </span>We made a mistake. How to detect data inconsistency across some tables?<a class="headerlink" href="#we-made-a-mistake-how-to-detect-data-inconsistency-across-some-tables" title="Permalink to this heading"></a></h2>
+<p>This is a little time consuming to do. It involves writing a kind of script which does a paginated
+full table scan on one or more table and compares (and possibly repairs) data. We have some examples
+like this, see <a class="reference external" href="https://github.com/wireapp/wire-server/tree/develop/tools/db/inconsistencies">https://github.com/wireapp/wire-server/tree/develop/tools/db/inconsistencies</a>. A
+on-access ad-hoc detection/repair can in some cases also occur during normal code path execution if
+you know/suspect data integrity problems from previous buggy code that was deployed.</p>
+</section>
+<section id="anti-patterns-pain-points-and-gotchas">
+<h2><span class="section-number">3.11. </span>Anti-patterns, pain points and gotchas<a class="headerlink" href="#anti-patterns-pain-points-and-gotchas" title="Permalink to this heading"></a></h2>
+<section id="gotcha-update-x-set-y-z-where-id">
+<h3><span class="section-number">3.11.1. </span>Gotcha: update x set y=z WHERE id=<id><a class="headerlink" href="#gotcha-update-x-set-y-z-where-id" title="Permalink to this heading"></a></h3>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">UPDATE</span></code> statements really are exactly the same as <code class="docutils literal notranslate"><span class="pre">INSERT</span></code> statements, and a <code class="docutils literal notranslate"><span class="pre">update</span> <span class="pre">my_table</span> <span class="pre">set</span> <span class="pre">y</span> <span class="pre">=</span> <span class="pre">z</span> <span class="pre">WHERE</span> <span class="pre">id=&lt;id&gt;</span></code> statement will <strong>insert</strong> a row with these values even if <code class="docutils literal notranslate"><span class="pre">&lt;id&gt;</span></code>
+does not yet exist. Knowing this, you can opt for read-before-write, use a LWT, or program
+defensively with the knowledge that this may create some rows where not all columns have a value.</p>
+<p>You may wish to always use <code class="docutils literal notranslate"><span class="pre">INSERT</span></code> statements, or beware of this confusion and add some comments to
+your code to prevent your co-workers from incorrectly using the update statements.</p>
+</section>
+<section id="pain-point-inconsistent-data">
+<h3><span class="section-number">3.11.2. </span>Pain point: inconsistent data<a class="headerlink" href="#pain-point-inconsistent-data" title="Permalink to this heading"></a></h3>
+<blockquote>
+<div><p>My biggest pain point so far was hunting reasons for users having inconsistent data.</p>
+</div></blockquote>
+<p>Most likely the code is not using batch statements, or is spreading data across multiple databases
+and doesn’t employ creative tricks. First, remedy the situation and introduce <code class="docutils literal notranslate"><span class="pre">batch</span></code> statements,
+see <a class="reference internal" href="#batch-statements"><span class="std std-ref">batch statements</span></a>. Next, if needed, create a <a class="reference internal" href="#discover-and-repair"><span class="std std-ref">discover-and-repair script</span></a>.</p>
+</section>
+<section id="anti-pattern-using-full-table-scans-in-production-code">
+<h3><span class="section-number">3.11.3. </span>Anti-pattern: Using full table scans in production code<a class="headerlink" href="#anti-pattern-using-full-table-scans-in-production-code" title="Permalink to this heading"></a></h3>
+<p>Queries such as <code class="docutils literal notranslate"><span class="pre">select</span> <span class="pre">some_field</span> <span class="pre">from</span> <span class="pre">some_table;</span></code> are full table scans. Cassandra is not
+optimized at all for such queries, and even with a small amount of data, a single such query can
+completely mess up your whole cluster performance. We had an example of that which made our staging
+environment unusable. Luckily, it was caught in time and
+<a class="reference external" href="https://github.com/wireapp/wire-server/pull/1574/files">fixed</a> before making its way to production.</p>
+<p>Suggested alternative: Design your tables in a way to make use of a primary key, and always make use
+of a <code class="docutils literal notranslate"><span class="pre">WHERE</span></code> clause: <code class="docutils literal notranslate"><span class="pre">SELECT</span> <span class="pre">some_field</span> <span class="pre">FROM</span> <span class="pre">some_table</span> <span class="pre">WHERE</span> <span class="pre">some_key</span> <span class="pre">=</span> <span class="pre">?</span></code>.</p>
+<p>In some rare circumstances you might not easily think of a good primary key. In this case, you could
+for instance use a single default value that is hardcoded: <code class="docutils literal notranslate"><span class="pre">SELECT</span> <span class="pre">some_field</span> <span class="pre">FROM</span> <span class="pre">some_table</span> <span class="pre">WHERE</span> <span class="pre">some_key</span> <span class="pre">=</span> <span class="pre">1</span></code>. We use this strategy in the <code class="docutils literal notranslate"><span class="pre">meta</span></code> table which stores the cassandra version migration
+information, and we use it for a
+<a class="reference external" href="https://github.com/wireapp/wire-server/blob/4814afd88b8c832c4bd8c24674886c5d295aff78/services/spar/schema/src/V7.hs">default idp</a>.
+<code class="docutils literal notranslate"><span class="pre">some_field</span></code> might be of type <code class="docutils literal notranslate"><span class="pre">set</span></code>, which allows you to have some guarantees.
+See the implementation of unique claims and the
+<a class="reference external" href="https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Unique.hs#L110">note on guarantees of CQL sets</a>
+for more information on sets.</p>
+</section>
+<section id="anti-pattern-using-in-queries-on-a-field-in-the-partition-key">
+<h3><span class="section-number">3.11.4. </span>Anti-pattern: Using IN queries on a field in the partition key<a class="headerlink" href="#anti-pattern-using-in-queries-on-a-field-in-the-partition-key" title="Permalink to this heading"></a></h3>
+<p>Larger <code class="docutils literal notranslate"><span class="pre">IN</span></code> queries lead to performance problems. See <a class="reference external" href="https://lostechies.com/ryansvihla/2014/09/22/cassandra-query-patterns-not-using-the-in-query-for-multiple-partitions/">blog
+post</a></p>
+<p>A preferred way to do this lookup here is to use queries operating on single keys, and make
+concurrent requests. In some cases <code class="docutils literal notranslate"><span class="pre">mapConcurrently</span></code> might be good, for large sets of data you may
+wish to use the <code class="docutils literal notranslate"><span class="pre">pooledMapConcurrentlyN</span></code> function. To be conservative, you can use N=8 or N=32,
+we’ve done this in other places and not seen problematic performance yet. Knowing what N should be
+or if <code class="docutils literal notranslate"><span class="pre">mapConcurrently</span></code> is fine, we would ideally need load testing including performance metrics
+(which we currently don’t have - but which we should develop).</p>
+</section>
+<section id="anti-pattern-designing-for-a-lot-of-deletes-or-updates">
+<h3><span class="section-number">3.11.5. </span>Anti-pattern: Designing for a lot of deletes or updates<a class="headerlink" href="#anti-pattern-designing-for-a-lot-of-deletes-or-updates" title="Permalink to this heading"></a></h3>
+<p>Cassandra works best for write-once read-many scenarios.</p>
+<p>Read e.g.</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.datastax.com/blog/cassandra-anti-patterns-queues-and-queue-datasets">https://www.datastax.com/blog/cassandra-anti-patterns-queues-and-queue-datasets</a></p></li>
+<li><p><a class="reference external" href="https://www.instaclustr.com/support/documentation/cassandra/using-cassandra/managing-tombstones-in-cassandra/#">https://www.instaclustr.com/support/documentation/cassandra/using-cassandra/managing-tombstones-in-cassandra/#</a></p></li>
+<li><p>search the internet some more for ‘cassandra’ and ‘tombstones’ and if you find good posts, add them here.</p></li>
+</ul>
+</section>
+</section>
+<section id="understanding-more-about-cassandra">
+<h2><span class="section-number">3.12. </span>Understanding more about cassandra<a class="headerlink" href="#understanding-more-about-cassandra" title="Permalink to this heading"></a></h2>
+<section id="primary-partition-clustering-keys">
+<h3><span class="section-number">3.12.1. </span>primary partition clustering keys<a class="headerlink" href="#primary-partition-clustering-keys" title="Permalink to this heading"></a></h3>
+<p>Confused about primary key, partition key, and clustering key? See e.g. <a class="reference external" href="https://blog.devgenius.io/cassandra-primary-vs-partitioning-vs-clustering-keys-3b3fa0e317f4">this post</a> or <a class="reference external" href="https://dzone.com/articles/cassandra-data-modeling-primary-clustering-partiti">this one</a></p>
+</section>
+<section id="optimizing-parallel-request-performance">
+<h3><span class="section-number">3.12.2. </span>optimizing parallel request performance<a class="headerlink" href="#optimizing-parallel-request-performance" title="Permalink to this heading"></a></h3>
+<p>See the thoughts in https://github.com/wireapp/wire-server/pull/1345#discussion_r567829234 - measuring overall and per-request performance and trying out different settings here might be worthwhile if increasing read or write performance is critical.</p>
+</section>
+</section>
+<section id="cassandra-schema-migrations">
+<h2><span class="section-number">3.13. </span>Cassandra schema migrations<a class="headerlink" href="#cassandra-schema-migrations" title="Permalink to this heading"></a></h2>
+<section id="backwards-compatible-schema-changes">
+<h3><span class="section-number">3.13.1. </span>Backwards compatible schema changes<a class="headerlink" href="#backwards-compatible-schema-changes" title="Permalink to this heading"></a></h3>
+<p>Most cassandra schema changes are backwards compatible, or <em>should</em> be designed to be so. Looking at
+the changes under <code class="docutils literal notranslate"><span class="pre">services/{brig,spar,galley,gundeck}/schema</span></code> you’ll find this to be mostly the
+case.</p>
+<p>The general deployment setup for services interacting with cassandra have the following assumption:</p>
+<ul class="simple">
+<li><p>cassandra schema updates happen <em>before</em> new code is deployed.</p>
+<ul>
+<li><p>This is safeguarded by the concourse deployment pipelines</p></li>
+<li><p>This is also safeguarded by the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> helm chart, which deploys the <code class="docutils literal notranslate"><span class="pre">cassandra-migrations</span></code> job as part of a helm <a class="reference external" href="https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/charts/cassandra-migrations/templates/migrate-schema.yaml#L10-L13">pre-install/pre-upgrade hook</a>: that means the schema changes are applied, and helm waits before launching the new code in the brig/galley/spar/gundeck pods until the changes have completed applying.</p></li>
+<li><p>This is further safeguarded by the code e.g. in brig refusing to even start the service up if the applied schema migration is not at least at a version the code expects it to. See <a class="reference external" href="https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/services/brig/src/Brig/App.hs#L411">versionCheck</a> and <a class="reference external" href="https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/services/brig/src/Brig/App.hs#L136-L137">schemaVersion</a></p></li>
+</ul>
+</li>
+</ul>
+<p>So usually with these safeguards in place, and backwards-compatible changes, we have the following:</p>
+<ul class="simple">
+<li><p>At time t=0, old schema, old code serves traffic; all good.</p></li>
+<li><p>At time t=1, new schema, old code serves traffic: all good since backwards compatible.</p></li>
+<li><p>At time t=2, new schema, old code AND new code serve traffic: all good since backwards compatible.</p></li>
+<li><p>At time t=3, new schema, new code serves traffic: all good!</p></li>
+</ul>
+<p>If this order (apply schema first; then deploy code) is not safeguarded, then there will be code running in e.g. production which <code class="docutils literal notranslate"><span class="pre">SELECT</span> <span class="pre">my_new_field</span> <span class="pre">FROM</span> <span class="pre">my_new_table</span></code> even though this doesn’t yet exist, leading to 500 server errors for as long as the mismatch between applied schema and code version persists.</p>
+</section>
+<section id="backwards-incompatible-schema-changes">
+<h3><span class="section-number">3.13.2. </span>Backwards incompatible schema changes<a class="headerlink" href="#backwards-incompatible-schema-changes" title="Permalink to this heading"></a></h3>
+<p>In the case where a schema migration is <strong>not backwards compatible</strong>, such as in the form of <code class="docutils literal notranslate"><span class="pre">ALTER</span> <span class="pre">TABLE</span> <span class="pre">my_table</span> <span class="pre">DROP</span> <span class="pre">my_column</span></code>, the reverse problem exists:</p>
+<p>During a deployment:</p>
+<ul class="simple">
+<li><p>At time t=0, old schema, old code serves traffic; all good.</p></li>
+<li><p>At time t=1, new schema, old code serves traffic: 500 server errors as the old code is still active, bit columns or tables have been deleted, so old queries of <code class="docutils literal notranslate"><span class="pre">SELECT</span> <span class="pre">x</span> <span class="pre">from</span> <span class="pre">my_table</span></code> cause exceptions / HTTP 5xx results.</p>
+<ul>
+<li><p>In the worst deployment scenario, this could raise an alarm and lead operators or automation to stop the deployment or roll back; but that doesn’t solve the issue, 500s will continue being thrown until the new code is deployed.</p></li>
+</ul>
+</li>
+<li><p>At time t=2, new schema, old code AND new code serve traffic: partial 500s (all traffic still serves by old code)</p></li>
+<li><p>At time t=3, new schema, new code serves traffic: all good again.</p></li>
+</ul>
+<section id="what-to-do-about-backwards-incompatible-schema-changes">
+<h4><span class="section-number">3.13.2.1. </span>What to do about backwards incompatible schema changes<a class="headerlink" href="#what-to-do-about-backwards-incompatible-schema-changes" title="Permalink to this heading"></a></h4>
+<p>Options from most to least desirable:</p>
+<ul class="simple">
+<li><p>Never make backwards-incompatbile changes to the database schema :)</p></li>
+<li><p>Do changes in a two-step process:</p>
+<ul>
+<li><p>First make a change that stops the code from using queries involving <code class="docutils literal notranslate"><span class="pre">my_column</span></code> or <code class="docutils literal notranslate"><span class="pre">my_table</span></code> (assuming you wish to remove those), and deploy this all the way across all of your environments (staging, prod, customers, …).</p></li>
+<li><p>After all deployments have gone through (this can take weeks or months), do the schema change removing that column or table from the database. Often there is no urgency with removal of data, so it’s fine to do this e.g. 6 months later.</p></li>
+</ul>
+</li>
+<li><p>Do changes in a one-step process, but accept partial service interruption for several minutes up to a few hours, accept communication overhead across teams to warn them about upcoming interruption or explain previous interruption; accept communication and documentation to warn all operators deploying that or a future version of the code, and accept some amount of frustration that may arise from a lack of said communication and understanding of what is happening.</p></li>
+</ul>
+</section>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="building.html" class="btn btn-neutral float-left" title="2. How to build wire-server" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="changelog.html" class="btn btn-neutral float-right" title="4. Changelog" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

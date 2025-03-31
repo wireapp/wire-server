@@ -230,17 +230,18 @@ type ConvRow =
     Maybe (Writetime Epoch),
     Maybe CipherSuiteTag,
     Maybe GroupConvType,
+    Maybe AddPermission,
     Maybe CellsState
   )
 
 selectConv :: PrepQuery R (Identity ConvId) ConvRow
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, cells_state from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, channel_add_permission, cells_state  from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe GroupConvType, CellsState) ()
-insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, group_conv_type, cells_state) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe GroupConvType, Maybe AddPermission, CellsState) ()
+insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, group_conv_type, channel_add_permission, cells_state) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertMLSSelfConv ::
   PrepQuery
@@ -311,6 +312,9 @@ selectGroupInfo = "select public_group_state from conversation where conv = ?"
 
 updateGroupInfo :: PrepQuery W (GroupInfoData, ConvId) ()
 updateGroupInfo = "update conversation set public_group_state = ? where conv = ?"
+
+updateChannelAddPermission :: PrepQuery W (AddPermission, ConvId) ()
+updateChannelAddPermission = "update conversation set channel_add_permission = ? where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 

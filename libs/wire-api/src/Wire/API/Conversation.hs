@@ -61,6 +61,7 @@ module Wire.API.Conversation
     toAccessRoleLegacy,
     defRole,
     maybeRole,
+    AddPermission (..),
 
     -- * create
     NewConv (..),
@@ -81,6 +82,7 @@ module Wire.API.Conversation
     ConversationJoin (..),
     ConversationMemberUpdate (..),
     ConversationRemoveMembers (..),
+    AddPermissionUpdate (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -142,6 +144,7 @@ data ConversationMetadata = ConversationMetadata
     cnvmMessageTimer :: Maybe Milliseconds,
     cnvmReceiptMode :: Maybe ReceiptMode,
     cnvmGroupConvType :: Maybe GroupConvType,
+    cnvmChannelAddPermission :: Maybe AddPermission,
     cnvmCellsState :: CellsState
   }
   deriving stock (Eq, Show, Generic)
@@ -160,6 +163,7 @@ defConversationMetadata mCreator =
       cnvmMessageTimer = Nothing,
       cnvmReceiptMode = Nothing,
       cnvmGroupConvType = Just GroupConversation,
+      cnvmChannelAddPermission = Nothing,
       cnvmCellsState = def
     }
 
@@ -221,6 +225,7 @@ conversationMetadataObjectSchema sch =
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
     <*> cnvmGroupConvType .= optField "group_conv_type" (maybeWithDefault A.Null schema)
+    <*> cnvmChannelAddPermission .= optField "add_permission" (maybeWithDefault A.Null schema)
     <*> cnvmCellsState .= (fromMaybe def <$> optField "cells_state" schema)
 
 instance ToSchema ConversationMetadata where
@@ -1034,6 +1039,37 @@ namespaceMLSSelfConv :: UUID.UUID
 namespaceMLSSelfConv =
   -- a V5 uuid created with the nil namespace
   fromJust . UUID.fromString $ "3eac2a2c-3850-510b-bd08-8a98e80dd4d9"
+
+data AddPermission = Admins | Everyone
+  deriving stock (Eq, Show, Generic, Enum)
+  deriving (Arbitrary) via (GenericUniform AddPermission)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddPermission
+
+instance Default AddPermission where
+  def = Everyone
+
+instance ToSchema AddPermission where
+  schema =
+    enum @Text "AddPermission" $
+      mconcat
+        [ element "admins" Admins,
+          element "everyone" Everyone
+        ]
+
+newtype AddPermissionUpdate = AddPermissionUpdate
+  { addPermission :: AddPermission
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AddPermissionUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddPermissionUpdate
+
+instance ToSchema AddPermissionUpdate where
+  schema =
+    objectWithDocModifier
+      "AddPermissionUpdate"
+      (description ?~ "The action of changing the permission to add members to a channel")
+      $ AddPermissionUpdate
+        <$> addPermission .= field "add_permission" schema
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

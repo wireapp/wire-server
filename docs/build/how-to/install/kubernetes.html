@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installing kubernetes for a demo installation (on a single virtual machine) &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Installing wire-server (demo) components using helm" href="helm.html" />
+    <link rel="prev" title="Dependencies on operator’s machine" href="dependencies.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Installation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="planning.html">How to plan an installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="version-requirements.html">Version requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">How to install kubernetes (Demo)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-set-up-your-hosts-ini-file">How to set up your hosts.ini file</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#passwordless-authentication">Passwordless authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#minio-setup">Minio setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-install-kubernetes">How to install kubernetes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html">How to install wire-server using Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html">Infrastructure configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html">Web app settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Installing Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Installing Restund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html">Configure TLS ciphers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html">Verifying your installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Installation</a></li>
+      <li class="breadcrumb-item active">Installing kubernetes for a demo installation (on a single virtual machine)</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/install/kubernetes.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installing-kubernetes-for-a-demo-installation-on-a-single-virtual-machine">
+<span id="ansible-kubernetes"></span><h1>Installing kubernetes for a demo installation (on a single virtual machine)<a class="headerlink" href="#installing-kubernetes-for-a-demo-installation-on-a-single-virtual-machine" title="Permalink to this heading"></a></h1>
+<section id="how-to-set-up-your-hosts-ini-file">
+<h2>How to set up your hosts.ini file<a class="headerlink" href="#how-to-set-up-your-hosts-ini-file" title="Permalink to this heading"></a></h2>
+<p>Assuming a single virtual machine with a public IP address running Ubuntu 18.04, with at least 5 CPU cores and at least 8 GB of memory.</p>
+<p>Move to <code class="docutils literal notranslate"><span class="pre">wire-server-deploy/ansible</span></code>:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>ansible/
+</pre></div>
+</div>
+<p>Then:</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you use ssh <em>keys</em>, and the user you login with is either <cite>root</cite> or can elevate to <cite>root</cite> without a password, you don’t need to do anything further to use ansible. If, however, you use password authentication for ssh access, and/or your login user needs a password to become root, see <a class="reference internal" href="ansible-authentication.html#ansible-authentication"><span class="std std-ref">Manage ansible authentication settings</span></a>.</p>
+</div>
+</section>
+<section id="passwordless-authentication">
+<h2>Passwordless authentication<a class="headerlink" href="#passwordless-authentication" title="Permalink to this heading"></a></h2>
+<p>Presuming a fresh default Ubuntu 18.04 installation, the following steps will enable the Ansible playbook to run without specifying passwords.</p>
+<p>This presumes you named your default Ubuntu user “wire”, and X.X.X.X is the IP or domain name of the target server Ansible will install Kubernetes on.</p>
+<p>On the client (from <code class="docutils literal notranslate"><span class="pre">wire-server-deploy/ansible</span></code>), run:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>ssh-keygen<span class="w"> </span>-f<span class="w"> </span>/root/.ssh/id_rsa<span class="w"> </span>-t<span class="w"> </span>rsa<span class="w"> </span>-P
+ssh-copy-id<span class="w"> </span>wire@X.X.X.X
+sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s/# ansible_user = .../ansible_user = wire/g&#39;</span><span class="w"> </span>inventory/demo/hosts.ini
+</pre></div>
+</div>
+<p>And on the server (X.X.X.X), run:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;wire ALL=(ALL) NOPASSWD:ALL&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>-a<span class="w"> </span>/etc/sudoers
+</pre></div>
+</div>
+<p>Then on the client:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span>inventory/demo/hosts.example.ini<span class="w"> </span>inventory/demo/hosts.ini
+</pre></div>
+</div>
+<p>Open hosts.ini and replace <code class="docutils literal notranslate"><span class="pre">X.X.X.X</span></code> with the IP address of your virtual machine that you use for ssh access.  You can try using:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s/X.X.X.X/1.2.3.4/g&#39;</span><span class="w"> </span>inventory/demo/hosts.ini
+</pre></div>
+</div>
+</section>
+<section id="minio-setup">
+<h2>Minio setup<a class="headerlink" href="#minio-setup" title="Permalink to this heading"></a></h2>
+<p>In the <code class="docutils literal notranslate"><span class="pre">inventory/demo/hosts.ini</span></code> file, edit the minio variables in <code class="docutils literal notranslate"><span class="pre">[minio:vars]</span></code> (<code class="docutils literal notranslate"><span class="pre">prefix</span></code>, <code class="docutils literal notranslate"><span class="pre">domain</span></code> and <code class="docutils literal notranslate"><span class="pre">deeplink_title</span></code>)
+by replacing <code class="docutils literal notranslate"><span class="pre">example.com</span></code> with your own domain.</p>
+</section>
+<section id="how-to-install-kubernetes">
+<h2>How to install kubernetes<a class="headerlink" href="#how-to-install-kubernetes" title="Permalink to this heading"></a></h2>
+<p>From <code class="docutils literal notranslate"><span class="pre">wire-server-deploy/ansible</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ansible</span><span class="o">-</span><span class="n">playbook</span> <span class="o">-</span><span class="n">i</span> <span class="n">inventory</span><span class="o">/</span><span class="n">demo</span><span class="o">/</span><span class="n">hosts</span><span class="o">.</span><span class="n">ini</span> <span class="n">kubernetes</span><span class="o">.</span><span class="n">yml</span> <span class="o">-</span><span class="n">vv</span>
+</pre></div>
+</div>
+<p>When the playbook finishes correctly (which can take up to 20 minutes), you should have a folder <code class="docutils literal notranslate"><span class="pre">artifacts</span></code> containing a file <code class="docutils literal notranslate"><span class="pre">admin.conf</span></code>. Copy this file:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mkdir</span> <span class="o">-</span><span class="n">p</span> <span class="o">~/.</span><span class="n">kube</span>
+<span class="n">cp</span> <span class="n">artifacts</span><span class="o">/</span><span class="n">admin</span><span class="o">.</span><span class="n">conf</span> <span class="o">~/.</span><span class="n">kube</span><span class="o">/</span><span class="n">config</span>
+<span class="n">KUBECONFIG</span><span class="o">=~/.</span><span class="n">kube</span><span class="o">/</span><span class="n">config</span>
+</pre></div>
+</div>
+<p>Make sure you can reach the server:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">kubectl</span> <span class="n">version</span>
+</pre></div>
+</div>
+<p>should give output similar to this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Client</span> <span class="n">Version</span><span class="p">:</span> <span class="n">version</span><span class="o">.</span><span class="n">Info</span><span class="p">{</span><span class="n">Major</span><span class="p">:</span><span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="n">Minor</span><span class="p">:</span><span class="s2">&quot;14&quot;</span><span class="p">,</span> <span class="n">GitVersion</span><span class="p">:</span><span class="s2">&quot;v1.14.2&quot;</span><span class="p">,</span> <span class="n">GitCommit</span><span class="p">:</span><span class="s2">&quot;66049e3b21efe110454d67df4fa62b08ea79a19b&quot;</span><span class="p">,</span> <span class="n">GitTreeState</span><span class="p">:</span><span class="s2">&quot;clean&quot;</span><span class="p">,</span> <span class="n">BuildDate</span><span class="p">:</span><span class="s2">&quot;2019-05-16T16:23:09Z&quot;</span><span class="p">,</span> <span class="n">GoVersion</span><span class="p">:</span><span class="s2">&quot;go1.12.5&quot;</span><span class="p">,</span> <span class="n">Compiler</span><span class="p">:</span><span class="s2">&quot;gc&quot;</span><span class="p">,</span> <span class="n">Platform</span><span class="p">:</span><span class="s2">&quot;linux/amd64&quot;</span><span class="p">}</span>
+<span class="n">Server</span> <span class="n">Version</span><span class="p">:</span> <span class="n">version</span><span class="o">.</span><span class="n">Info</span><span class="p">{</span><span class="n">Major</span><span class="p">:</span><span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="n">Minor</span><span class="p">:</span><span class="s2">&quot;14&quot;</span><span class="p">,</span> <span class="n">GitVersion</span><span class="p">:</span><span class="s2">&quot;v1.14.2&quot;</span><span class="p">,</span> <span class="n">GitCommit</span><span class="p">:</span><span class="s2">&quot;66049e3b21efe110454d67df4fa62b08ea79a19b&quot;</span><span class="p">,</span> <span class="n">GitTreeState</span><span class="p">:</span><span class="s2">&quot;clean&quot;</span><span class="p">,</span> <span class="n">BuildDate</span><span class="p">:</span><span class="s2">&quot;2019-05-16T16:14:56Z&quot;</span><span class="p">,</span> <span class="n">GoVersion</span><span class="p">:</span><span class="s2">&quot;go1.12.5&quot;</span><span class="p">,</span> <span class="n">Compiler</span><span class="p">:</span><span class="s2">&quot;gc&quot;</span><span class="p">,</span> <span class="n">Platform</span><span class="p">:</span><span class="s2">&quot;linux/amd64&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dependencies.html" class="btn btn-neutral float-left" title="Dependencies on operator’s machine" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="helm.html" class="btn btn-neutral float-right" title="Installing wire-server (demo) components using helm" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

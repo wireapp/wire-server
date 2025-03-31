@@ -1,4 +1,5 @@
 {
+    "channel_add_permission": null,
     "cnv_access": [
         "invite",
         "code"

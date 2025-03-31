@@ -71,7 +71,8 @@ testObject_ConversationCreated1 =
       messageTimer = Just (Ms 1000),
       receiptMode = Just (ReceiptMode 42),
       protocol = ProtocolProteus,
-      groupConvType = Just GroupConversation
+      groupConvType = Just GroupConversation,
+      channelAddPermission = Nothing
     }
 
 testObject_ConversationCreated2 :: ConversationCreated ConvId
@@ -99,5 +100,6 @@ testObject_ConversationCreated2 =
                   )
               )
           ),
-      groupConvType = Nothing
+      groupConvType = Nothing,
+      channelAddPermission = Nothing
     }

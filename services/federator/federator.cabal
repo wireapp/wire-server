@@ -389,7 +389,6 @@ test-suite federator-tests
     , federator
     , filepath
     , HsOpenSSL
-    , http-media
     , http-types
     , http2
     , http2-manager

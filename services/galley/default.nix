@@ -245,7 +245,6 @@ mkDerivation {
     http-client
     http-client-openssl
     http-client-tls
-    http-media
     http-types
     imports
     kan-extensions

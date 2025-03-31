@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>10. Developer how-to’s &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="11. Refactoring galley to support large conversations" href="large-conversations.html" />
+    <link rel="prev" title="9. Federation Design Aspects" href="federation-design-aspects.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Developer</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="api-versioning.html">1. API versioning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="building.html">2. How to build wire-server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cassandra-interaction.html">3. Writing code interacting with cassandra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="changelog.html">4. Changelog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="dependencies.html">5. Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="editor-setup.html">6. Editor setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="features.html">7. Features</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-api-conventions.html">8. Federation API Conventions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-design-aspects.html">9. Federation Design Aspects</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">10. Developer how-to’s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-look-at-the-swagger-docs-ui-locally">10.1. How to look at the swagger docs / UI locally</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-run-federation-tests-across-two-backends">10.2. How to run federation tests across two backends</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-manage-rabbitmq">10.3. How to manage RabbitMQ</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="large-conversations.html">11. Refactoring galley to support large conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="linting.html">12. Linting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pr-guidelines.html">13. PR Guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="processes.html">14. Internal processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="scim/storage.html">15. Storing SCIM-related data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="servant.html">16. Servant</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html">17. Testing the wire-server Haskell code base</a></li>
+<li class="toctree-l3"><a class="reference internal" href="upgrading.html">18. Upgrading</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/index.html">Reference</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Developer</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">10. </span>Developer how-to’s</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/developer/how-to.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="developer-how-to-s">
+<h1><span class="section-number">10. </span>Developer how-to’s<a class="headerlink" href="#developer-how-to-s" title="Permalink to this heading"></a></h1>
+<p>The following assume you have a working developer environment with all the dependencies listed in <a class="reference internal" href="dependencies.html"><span class="std std-doc">./dependencies.md</span></a> available to you.</p>
+<p>If you want to deploy to the CI kubernetes cluster (how-tos below), you need to set the <code class="docutils literal notranslate"><span class="pre">KUBECONFIG</span></code> env var, where <code class="docutils literal notranslate"><span class="pre">$cailleach_repo</span></code> is replaced by your local checkout of the <code class="docutils literal notranslate"><span class="pre">cailleach</span></code> repository.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>export KUBECONFIG=$cailleach_repo/environments/kube-ci/kubeconfig.dec
+</pre></div>
+</div>
+<p>Check that this file exists by running <code class="docutils literal notranslate"><span class="pre">ls</span> <span class="pre">$KUBECONFIG</span></code>.</p>
+<section id="how-to-look-at-the-swagger-docs-ui-locally">
+<h2><span class="section-number">10.1. </span>How to look at the swagger docs / UI locally<a class="headerlink" href="#how-to-look-at-the-swagger-docs-ui-locally" title="Permalink to this heading"></a></h2>
+<p>Terminal 1:</p>
+<ul class="simple">
+<li><p>Set up backing services: <code class="docutils literal notranslate"><span class="pre">./deploy/dockerephemeral/run.sh</span></code></p></li>
+</ul>
+<p>Terminal 2:</p>
+<ul class="simple">
+<li><p>Build and start wire-server services: <code class="docutils literal notranslate"> <span class="pre">make</span> <span class="pre">c</span> <span class="pre">&amp;&amp;</span> <span class="pre">./services/run-services</span></code></p></li>
+</ul>
+<p>Open your browser at:
+<a class="reference external" href="http://localhost:8080/api/swagger-ui">http://localhost:8080/api/swagger-ui</a> for a list of API verions.</p>
+<p>Also check out the docs for swagger in our staging environment:
+<a class="reference internal" href="../../understand/api-client-perspective/swagger.html#swagger-api-docs"><span class="std std-ref">Swagger API documentation</span></a>.  Replace the staging domain by
+<code class="docutils literal notranslate"><span class="pre">localhost:8080</span></code> to get to your local build.</p>
+</section>
+<section id="how-to-run-federation-tests-across-two-backends">
+<h2><span class="section-number">10.2. </span>How to run federation tests across two backends<a class="headerlink" href="#how-to-run-federation-tests-across-two-backends" title="Permalink to this heading"></a></h2>
+<p>Requirements:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">helm</span></code> and <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> available on your PATH</p></li>
+<li><p>access to a kubernetes cluster via e.g. a <code class="docutils literal notranslate"><span class="pre">~/.kube/config</span></code> file.</p></li>
+</ul>
+<p>The process consists of:</p>
+<ol class="arabic simple">
+<li><p>Inspect/change the multi-backend tests</p></li>
+<li><p>Deploy two backends to kubernetes cluster</p></li>
+<li><p>Run multi-backend test half-locally half-on-kubernetes or fully on kubernetes</p></li>
+<li><p>Teardown</p></li>
+</ol>
+<section id="inspect-change-the-multi-backend-test-code">
+<h3><span class="section-number">10.2.1. </span>Inspect/change the multi-backend test code<a class="headerlink" href="#inspect-change-the-multi-backend-test-code" title="Permalink to this heading"></a></h3>
+<p>Refer to <code class="docutils literal notranslate"><span class="pre">services/brig/test/integration/API/Federation/End2End.hs</span></code> for the current multi-backend tests.</p>
+<p><em>Note that they only run if <code class="docutils literal notranslate"><span class="pre">INTEGRATION_FEDERATION_TESTS</span></code> is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. This is currently configured to be OFF when running regular brig integration tests (e.g. via <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">-C</span> <span class="pre">services/brig</span> <span class="pre">integration</span></code>) but is by default ON when running tests on kubernetes or on CI, or when using the <code class="docutils literal notranslate"><span class="pre">services/brig/federation-tests.sh</span></code> script.</em></p>
+</section>
+<section id="deploy-two-backends-to-kubernetes-cluster">
+<h3><span class="section-number">10.2.2. </span>Deploy two backends to kubernetes cluster<a class="headerlink" href="#deploy-two-backends-to-kubernetes-cluster" title="Permalink to this heading"></a></h3>
+<p>Decide which code you would like to deploy. The following options are detailed in the subsections below.</p>
+<ul class="simple">
+<li><p>2.1 Deploy the the latest compiled code from <code class="docutils literal notranslate"><span class="pre">develop</span></code></p></li>
+<li><p>2.2 Deploy code from your pull request</p></li>
+<li><p>2.3 Deploy your local code to a kind cluster</p></li>
+</ul>
+<section id="deploy-the-the-latest-compiled-code-from-develop">
+<h4><span class="section-number">10.2.2.1. </span>Deploy the the latest compiled code from <code class="docutils literal notranslate"><span class="pre">develop</span></code><a class="headerlink" href="#deploy-the-the-latest-compiled-code-from-develop" title="Permalink to this heading"></a></h4>
+<p>First, find the latest CI-compiled code made available as docker images:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run all commands from the top directory of wire-server</span>
+<span class="n">make</span> <span class="n">latest</span><span class="o">-</span><span class="n">tag</span>
+</pre></div>
+</div>
+<p>Output might be</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">./</span><span class="n">hack</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">find</span><span class="o">-</span><span class="n">latest</span><span class="o">-</span><span class="n">docker</span><span class="o">-</span><span class="n">tag</span><span class="o">.</span><span class="n">sh</span>
+<span class="n">latest</span> <span class="n">tag</span> <span class="k">for</span> <span class="n">brig</span><span class="p">:</span>
+<span class="mf">2.104.11</span>
+<span class="n">latest</span> <span class="n">tag</span> <span class="k">for</span> <span class="n">nginz</span><span class="p">:</span>
+<span class="mf">2.104.11</span>
+</pre></div>
+</div>
+<p>Let’s assume the tags are the same(*) for both, then export an environment variable:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">export</span> <span class="n">DOCKER_TAG</span><span class="o">=</span><span class="mf">2.104.11</span>
+<span class="n">export</span> <span class="n">NAMESPACE</span><span class="o">=</span><span class="s2">&quot;myname&quot;</span>
+<span class="n">make</span> <span class="n">kube</span><span class="o">-</span><span class="n">integration</span><span class="o">-</span><span class="n">setup</span>
+</pre></div>
+</div>
+<p>This will create two full installations of wire-server on the kubernetes cluster you’ve configured to connect to, and should take ~10 minutes. The namespaces will be <code class="docutils literal notranslate"><span class="pre">$NAMESPACE</span></code> and <code class="docutils literal notranslate"><span class="pre">$NAMESPACE-fed2</span></code>.</p>
+<section id="troubleshooting">
+<h5><span class="section-number">10.2.2.1.1. </span>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading"></a></h5>
+<p><code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">latest-tag</span></code> gives different tags for brig and nginz:</p>
+<ul class="simple">
+<li><p>maybe CI hasn’t finished, or failed. Look at concourse (<code class="docutils literal notranslate"><span class="pre">kubernetes-dev</span></code> pipeline)</p></li>
+</ul>
+</section>
+</section>
+<section id="deploy-code-from-your-pull-request">
+<h4><span class="section-number">10.2.2.2. </span>Deploy code from your pull request<a class="headerlink" href="#deploy-code-from-your-pull-request" title="Permalink to this heading"></a></h4>
+<p><em>Note: CI already runs multi-backend federation integration tests on your PR, so this section may not be often useful in practice. This is still documented for completeness and to help understand the relation between source code and compiled docker images on CI.</em></p>
+<p>Check CI for the latest tag that has been created on your PR (expect this to take at least 30-60 minutes from the last time you pushed to your branch). Example:</p>
+<p>Look at a successful job in the <code class="docutils literal notranslate"><span class="pre">wire-server-pr</span></code> pipeline from a job bruild matching your desired PR and commit hash. Then, find the actual docker tag used.</p>
+<p><img alt="concourse-pr-version-circled" src="https://user-images.githubusercontent.com/2112744/114410146-69b34000-9bab-11eb-863c-106fb661ca82.png" /></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># PR 1438 commit 7a183b2dbcf019df1af3d3b97604edac72eca762 translates to</span>
+<span class="n">export</span> <span class="n">DOCKER_TAG</span><span class="o">=</span><span class="mf">0.0.1</span><span class="o">-</span><span class="n">pr</span><span class="mf">.3684</span>
+<span class="n">export</span> <span class="n">NAMESPACE</span><span class="o">=</span><span class="s2">&quot;myname&quot;</span>
+<span class="n">make</span> <span class="n">kube</span><span class="o">-</span><span class="n">integration</span><span class="o">-</span><span class="n">setup</span>
+</pre></div>
+</div>
+</section>
+<section id="deploy-your-local-code-to-a-kind-cluster">
+<h4><span class="section-number">10.2.2.3. </span>Deploy your local code to a kind cluster<a class="headerlink" href="#deploy-your-local-code-to-a-kind-cluster" title="Permalink to this heading"></a></h4>
+<p>This can be useful to get quicker feedback while working on multi-backend code or configuration (e.g. helm charts) than to wait an hour for CI. This allows you to test code without uploading it to github and waiting an hour for CI.</p>
+<p>FUTUREWORK: this process is in development (update this section after it’s confirmed to work):</p>
+<section id="run-tests-in-kind">
+<h5><span class="section-number">10.2.2.3.1. </span>Run tests in kind<a class="headerlink" href="#run-tests-in-kind" title="Permalink to this heading"></a></h5>
+<ol class="arabic" start="0">
+<li><p>Create a local kind cluster with <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kind-cluster</span></code></p></li>
+<li><p>Upload images in docker-daemon running inside kind with <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kind-upload-images</span></code></p>
+<p><em>Note:</em> First time all the images need to be uploaded. When working on one
+service it can be selectively uploaded using <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kind-upload-image-&lt;name&gt;</span></code>
+(e.g. <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kind-upload-image-brig</span></code>).</p>
+</li>
+<li><p>Install wire-server using <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kind-integration-setup</span></code>.</p></li>
+<li><p>Run tests using <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kind-integration-test</span></code>.</p></li>
+<li><p>Run end2end integration tests: <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kind-integration-e2e</span></code>.</p></li>
+</ol>
+</section>
+</section>
+<section id="deploy-your-local-code-to-a-kubernetes-cluster">
+<h4><span class="section-number">10.2.2.4. </span>Deploy your local code to a kubernetes cluster<a class="headerlink" href="#deploy-your-local-code-to-a-kubernetes-cluster" title="Permalink to this heading"></a></h4>
+<p>This sections describes how partially update a release with a local build of a service, in this example <code class="docutils literal notranslate"><span class="pre">brig</span></code>.</p>
+<p>Start by deploying a published release (see 2.1 or 2.2).</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>export NAMESPACE=$USER
+export DOCKER_TAG=2.116.32
+make kube-integration-setup
+</pre></div>
+</div>
+<p>Then build and push the <code class="docutils literal notranslate"><span class="pre">brig</span></code> image by running</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#FUTUREWORK</span>
+</pre></div>
+</div>
+<p>To update the release with brig’s local image run</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">./</span><span class="n">hack</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="nb">set</span><span class="o">-</span><span class="n">chart</span><span class="o">-</span><span class="n">image</span><span class="o">-</span><span class="n">version</span><span class="o">.</span><span class="n">sh</span> <span class="s2">&quot;$DOCKER_TAG_LOCAL_BUILD&quot;</span> <span class="n">brig</span>
+<span class="o">./</span><span class="n">hack</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">integration</span><span class="o">-</span><span class="n">setup</span><span class="o">-</span><span class="n">federation</span><span class="o">.</span><span class="n">sh</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="run-multi-backend-tests">
+<h3><span class="section-number">10.2.3. </span>Run multi-backend tests<a class="headerlink" href="#run-multi-backend-tests" title="Permalink to this heading"></a></h3>
+<section id="run-all-integration-tests-on-kubernetes">
+<h4><span class="section-number">10.2.3.1. </span>Run all integration tests on kubernetes<a class="headerlink" href="#run-all-integration-tests-on-kubernetes" title="Permalink to this heading"></a></h4>
+<ul class="simple">
+<li><p>takes ~10 minutes to run</p></li>
+<li><p>test output is delayed until all tests have run. You will have to scroll the output to find the relevant multi-backend test output.</p></li>
+<li><p>tests run entirely on kubernetes.</p></li>
+<li><p>includes running the federation multi-backend tests by default (see also section (1))</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">make</span> <span class="n">kube</span><span class="o">-</span><span class="n">integration</span><span class="o">-</span><span class="n">test</span>
+</pre></div>
+</div>
+</section>
+<section id="run-only-the-multi-backend-tests">
+<h4><span class="section-number">10.2.3.2. </span>Run only the multi-backend tests<a class="headerlink" href="#run-only-the-multi-backend-tests" title="Permalink to this heading"></a></h4>
+<ul class="simple">
+<li><p>runs faster (~ half a minute)</p></li>
+<li><p>test output is shown dynamically as tests run</p></li>
+<li><p>business logic code runs on kubernetes, but the test executable runs on your local computer (which connects using <code class="docutils literal notranslate"><span class="pre">telepresence</span></code>)</p></li>
+</ul>
+<ol class="arabic simple">
+<li><p>ensure you have compiled brig-integration: <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">-C</span> <span class="pre">services/brig</span> <span class="pre">fast</span></code></p></li>
+<li><p>ensure you have <code class="docutils literal notranslate"><span class="pre">telepresence</span></code> installed (see developer dependencies documentation)</p></li>
+<li><p>Run the actual tests, (takes half a minute):</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">./</span><span class="n">services</span><span class="o">/</span><span class="n">brig</span><span class="o">/</span><span class="n">federation</span><span class="o">-</span><span class="n">tests</span><span class="o">.</span><span class="n">sh</span> <span class="s2">&quot;$NAMESPACE&quot;</span>
+</pre></div>
+</div>
+<p>Note that this runs your <em>locally</em> compiled <code class="docutils literal notranslate"><span class="pre">brig-integration</span></code>, so this allows to easily change test code locally with the following process:</p>
+<ol class="arabic simple">
+<li><p>change code under <code class="docutils literal notranslate"><span class="pre">services/brig/test/integration/Federation/</span></code></p></li>
+<li><p>recompile: <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">-C</span> <span class="pre">services/brig</span> <span class="pre">fast</span></code></p></li>
+<li><p>run <code class="docutils literal notranslate"><span class="pre">./services/brig/federation-tests.sh</span> <span class="pre">test-$USER</span></code> again.</p></li>
+</ol>
+</section>
+<section id="run-selected-integration-tests-on-kubernetes">
+<h4><span class="section-number">10.2.3.3. </span>Run selected integration tests on kubernetes<a class="headerlink" href="#run-selected-integration-tests-on-kubernetes" title="Permalink to this heading"></a></h4>
+<p>To run selective tests from brig-integration:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>helm -n $NAMESPACE get hooks $NAMESPACE-wire-server | yq &#39;.&#39; | jq -r &#39;select(.metadata.name | contains(&quot;brig-integration&quot;))&#39; &gt; /tmp/integration-pod
+
+# optional: edit the test pattern /tmp/integration-pod
+
+kubectl apply -n $NAMESPACE -f /tmp/integration-pod
+</pre></div>
+</div>
+</section>
+</section>
+<section id="teardown">
+<h3><span class="section-number">10.2.4. </span>Teardown<a class="headerlink" href="#teardown" title="Permalink to this heading"></a></h3>
+<p>To destroy all the resources on the kubernetes cluster that have been created run</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">./</span><span class="n">hack</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">integration</span><span class="o">-</span><span class="n">teardown</span><span class="o">-</span><span class="n">federation</span><span class="o">.</span><span class="n">sh</span>
+</pre></div>
+</div>
+<p>Note: Simply deleting the namespaces is insufficient, because it leaves some resources (of kind ClusterRole, ClusterRoleBinding) that cause problems when redeploying to the same namespace via helm.</p>
+</section>
+</section>
+<section id="how-to-manage-rabbitmq">
+<h2><span class="section-number">10.3. </span>How to manage RabbitMQ<a class="headerlink" href="#how-to-manage-rabbitmq" title="Permalink to this heading"></a></h2>
+<p>We support two different ways of managing the docker-compose instance of rabbitmq:</p>
+<ul class="simple">
+<li><p>A web console interface is available <a class="reference external" href="http://localhost:15672">here</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rabbitmqadmin</span></code> CLI is made available in the dev environment</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="federation-design-aspects.html" class="btn btn-neutral float-left" title="9. Federation Design Aspects" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="large-conversations.html" class="btn btn-neutral float-right" title="11. Refactoring galley to support large conversations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

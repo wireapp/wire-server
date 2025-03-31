@@ -331,6 +331,12 @@ updateConversationMember user conv target role = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", targetDomain, targetId])
   submit "PUT" (req & addJSONObject ["conversation_role" .= role])
 
+updateChannelAddPermission :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
+updateChannelAddPermission user conv perm = do
+  (convDomain, convId) <- objQid conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "add-permission"])
+  submit "PUT" (req & addJSONObject ["add_permission" .= perm])
+
 deleteTeamConv ::
   (HasCallStack, MakesValue team, MakesValue conv, MakesValue user) =>
   team ->

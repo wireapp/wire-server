@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trouble shooting &amp; FAQ &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="How to set up SSO integration with your IdP" href="generic-setup.html" />
+    <link rel="prev" title="Single sign-on and user provisioning" href="understand/main.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../overview.html">Architecture Overview</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Single Sign-On and User Provisioning</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="understand/main.html">Single sign-on and user provisioning: the user manual</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Trouble shooting and FAQ</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#reporting-a-problem-with-user-provisioning-or-sso-authentication">Reporting a problem with user provisioning or SSO authentication</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#can-i-use-scim-without-saml">Can I use SCIM without SAML?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#can-i-use-saml-without-scim">Can I use SAML without SCIM?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#can-i-use-the-same-sso-login-code-for-multiple-teams">Can I use the same SSO login code for multiple teams?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#can-an-existing-user-without-idp-or-with-a-different-idp-be-bound-to-a-new-idp">Can an existing user without IdP (or with a different IdP) be bound to a new IdP?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#can-the-sso-feature-be-disabled-for-a-team">Can the SSO feature be disabled for a team?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#do-i-need-to-change-any-firewall-settings-in-order-to-use-saml">Do I need to change any firewall settings in order to use SAML?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#why-does-the-team-owner-have-to-keep-using-password">Why does the team owner have to keep using password?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#what-should-the-saml-response-look-like">What should the SAML response look like?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#why-does-the-auth-response-not-contain-a-reference-to-an-auth-request-also-can-i-use-idp-initiated-login">Why does the auth response not contain a reference to an auth request?  (Also: can i use IdP-initiated login?)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#how-are-saml2-assertion-details-used-in-wire">How are SAML2 assertion details used in wire?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#how-should-i-map-user-data-to-scim-attributes-when-provisioning-users-via-scim">How should I map user data to SCIM attributes when provisioning users via SCIM?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#can-i-distribute-a-url-to-my-users-that-contains-the-login-code">Can I distribute a URL to my users that contains the login code?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#theoretical-name-clashes-in-saml-nameids">(Theoretical) name clashes in SAML NameIDs</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generic-setup.html">Generic setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="adfs/main.html">SSO integration with ADFS</a></li>
+<li class="toctree-l3"><a class="reference internal" href="azure/main.html">SSO integration with Azure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="centrify/main.html">SSO integration with Centrify</a></li>
+<li class="toctree-l3"><a class="reference internal" href="okta/main.html">SSO integration with Okta</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../developer/reference/spar-braindump.html">8. Internals for the intensely curious</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../restund.html">Audio/video calling, restund servers (TURN/STUN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../sft.html">Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../sft.html#federated-conference-calling">Federated Conference Calling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../helm.html">Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../federation/index.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../associate/index.html">Connecting Wire Clients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api-client-perspective/index.html">Client API documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../crypto-libs.html">Crypto libraries and sources of randomness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../block-user-creation.html">Block personal user creation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../classified-domains.html">Classified Domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-federation.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../legalhold.html">Installing and setting up Legal Hold</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../mls.html">Messaging Layer Security (MLS)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../searchability.html">User Searchability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../team-feature-settings.html">Server and team feature settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Reference</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Single Sign-On and User Provisioning</a></li>
+      <li class="breadcrumb-item active">Trouble shooting &amp; FAQ</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/understand/single-sign-on/trouble-shooting.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <nav class="contents" id="contents" role="doc-toc">
+<span id="trouble-shooting-faq"></span><p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#id1" id="id2">Trouble shooting &amp; FAQ</a></p>
+<ul>
+<li><p><a class="reference internal" href="#reporting-a-problem-with-user-provisioning-or-sso-authentication" id="id3">Reporting a problem with user provisioning or SSO authentication</a></p></li>
+<li><p><a class="reference internal" href="#can-i-use-scim-without-saml" id="id4">Can I use SCIM without SAML?</a></p></li>
+<li><p><a class="reference internal" href="#can-i-use-saml-without-scim" id="id5">Can I use SAML without SCIM?</a></p></li>
+<li><p><a class="reference internal" href="#can-i-use-the-same-sso-login-code-for-multiple-teams" id="id6">Can I use the same SSO login code for multiple teams?</a></p></li>
+<li><p><a class="reference internal" href="#can-an-existing-user-without-idp-or-with-a-different-idp-be-bound-to-a-new-idp" id="id7">Can an existing user without IdP (or with a different IdP) be bound to a new IdP?</a></p></li>
+<li><p><a class="reference internal" href="#can-the-sso-feature-be-disabled-for-a-team" id="id8">Can the SSO feature be disabled for a team?</a></p></li>
+<li><p><a class="reference internal" href="#do-i-need-to-change-any-firewall-settings-in-order-to-use-saml" id="id9">Do I need to change any firewall settings in order to use SAML?</a></p></li>
+<li><p><a class="reference internal" href="#why-does-the-team-owner-have-to-keep-using-password" id="id10">Why does the team owner have to keep using password?</a></p></li>
+<li><p><a class="reference internal" href="#what-should-the-saml-response-look-like" id="id11">What should the SAML response look like?</a></p></li>
+<li><p><a class="reference internal" href="#why-does-the-auth-response-not-contain-a-reference-to-an-auth-request-also-can-i-use-idp-initiated-login" id="id12">Why does the auth response not contain a reference to an auth request?  (Also: can i use IdP-initiated login?)</a></p></li>
+<li><p><a class="reference internal" href="#how-are-saml2-assertion-details-used-in-wire" id="id13">How are SAML2 assertion details used in wire?</a></p></li>
+<li><p><a class="reference internal" href="#how-should-i-map-user-data-to-scim-attributes-when-provisioning-users-via-scim" id="id14">How should I map user data to SCIM attributes when provisioning users via SCIM?</a></p></li>
+<li><p><a class="reference internal" href="#can-i-distribute-a-url-to-my-users-that-contains-the-login-code" id="id15">Can I distribute a URL to my users that contains the login code?</a></p></li>
+<li><p><a class="reference internal" href="#theoretical-name-clashes-in-saml-nameids" id="id16">(Theoretical) name clashes in SAML NameIDs</a></p></li>
+</ul>
+</li>
+</ul>
+</nav>
+<section id="id1">
+<h1><a class="toc-backref" href="#id2" role="doc-backlink">Trouble shooting &amp; FAQ</a><a class="headerlink" href="#id1" title="Permalink to this heading"></a></h1>
+<section id="reporting-a-problem-with-user-provisioning-or-sso-authentication">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Reporting a problem with user provisioning or SSO authentication</a><a class="headerlink" href="#reporting-a-problem-with-user-provisioning-or-sso-authentication" title="Permalink to this heading"></a></h2>
+<p>In order for us to analyse and understand your problem, we need at least the following information up-front:</p>
+<ul class="simple">
+<li><p>Have you followed the following instructions?</p>
+<ul>
+<li><p><a class="reference internal" href="#trouble-shooting-faq"><span class="std std-ref">FAQ</span></a> (This document)</p></li>
+<li><p><a class="reference external" href="https://docs.wire.com/how-to/single-sign-on/index.html">Howtos</a> for supported vendors</p></li>
+<li><p><a class="reference external" href="https://support.wire.com/hc/en-us/articles/360001285718-Set-up-SSO-externally">General documentation on the setup flow</a></p></li>
+</ul>
+</li>
+<li><p>Which vendor (or product) are you using (octa, azure, centrica, other (which one)?)</p></li>
+<li><p>Team ID (looks like eg. <code class="docutils literal notranslate"><span class="pre">2e9a9c9c-6f83-11eb-a118-3342c6f16f4e</span></code>, can be found in the team management app)</p></li>
+<li><p>User ID of the account that has the problem (alternatively: handle, email address)</p></li>
+<li><p>What do you expect to happen?</p>
+<ul>
+<li><p>e.g.: “I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page.”</p></li>
+</ul>
+</li>
+<li><p>What does happen instead?</p>
+<ul>
+<li><p>Screenshots</p></li>
+<li><p>Copy the text into your report where applicable in addition to screenshots (for automatic processing).</p></li>
+<li><p>e.g.: “instead of being logged into wire, I see the following error page: …”</p></li>
+</ul>
+</li>
+<li><p>Screenshots of the Configuration (both SAML and SCIM, as applicable), including, but not limited to:</p>
+<ul>
+<li><p>If you are using SAML: SAML IdP metadata file</p></li>
+<li><p>If you are using SCIM for provisioning: Which attributes in the User schema are mapped?  How?</p></li>
+</ul>
+</li>
+<li><p>If you have successfully authenticated on your IdP and are
+redirected into wire, and then see a white page with an error
+message that contains a lot of machine-readable info: copy the full
+message to the clipboard and insert it into your report.  We do not
+log this information for privacy reasons, but we can use it to
+investigate your problem.  (Hint, if you want to investigate
+yourself: it’s base64 encoded!)</p></li>
+</ul>
+<section id="notes-for-wire-support-development">
+<h3>notes for wire support / development<a class="headerlink" href="#notes-for-wire-support-development" title="Permalink to this heading"></a></h3>
+<p>Not officially supported IdP vendors may work out of the box, as we
+are requiring a minimum amount of SAML features.</p>
+<p>If there are problems: collect the metadata xml and an authentication
+response xml (either from the browser http logs via a more technically
+savvy customer; or from the “white page with an error” mentioned
+above.</p>
+<p>https://github.com/wireapp/saml2-web-sso supports writing <a class="reference external" href="https://github.com/wireapp/saml2-web-sso/blob/ff9b9f445475809d1fa31ef7f2932caa0ed31613/test/Test/SAML2/WebSSO/APISpec.hs#L266-L329">unit vendor
+compatibility
+tests</a>
+against that response value.  Once that test passes, it should all
+work fine.</p>
+</section>
+</section>
+<section id="can-i-use-scim-without-saml">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Can I use SCIM without SAML?</a><a class="headerlink" href="#can-i-use-scim-without-saml" title="Permalink to this heading"></a></h2>
+<p>Yes.  Scim is a technology for onboarding alternative to the team management app, and can produce both user accounts authenticated via SAML or via email and password.  (Phone may or may not work, but is not officially supported.)</p>
+<p>How does it work?  Make sure your team has no SAML IdPs registered.  Set up your SCIM peer to provision users with valid email addresses as <code class="docutils literal notranslate"><span class="pre">externalIds</span></code>.  Newly provisioned users will be created in status <code class="docutils literal notranslate"><span class="pre">PendingInvitation</span></code>, and an invitation email will be sent.  From here on out, the flow is exactly the same as if you had added the user to your team in the team management app.</p>
+<p>Upcoming features:</p>
+<ul class="simple">
+<li><p>support for the <code class="docutils literal notranslate"><span class="pre">emails</span></code> field in the scim user record (so you can choose non-email <code class="docutils literal notranslate"><span class="pre">externalId</span></code> values).</p></li>
+<li><p>flexible mapping between any number of SAML IdPs and any number of SCIM tokens in team management.</p></li>
+</ul>
+</section>
+<section id="can-i-use-saml-without-scim">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Can I use SAML without SCIM?</a><a class="headerlink" href="#can-i-use-saml-without-scim" title="Permalink to this heading"></a></h2>
+<p>Yes, but this is not recommended.  User (de-)provisioning requires more manual work without SCIM, and some of the account information cannot be provisioned at all via SAML.</p>
+</section>
+<section id="can-i-use-the-same-sso-login-code-for-multiple-teams">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Can I use the same SSO login code for multiple teams?</a><a class="headerlink" href="#can-i-use-the-same-sso-login-code-for-multiple-teams" title="Permalink to this heading"></a></h2>
+<p>Most SAML IdP products allow you to register arbitrary many apps for
+arbitrary many teams, by using a different entity Id for each app/team.  This is
+currently supported out of the box.</p>
+<p>If you don’t have this option, i.e. you need to serve two teams with an
+IdP that has only one entity ID, please keep reading and/or contact
+customer support.</p>
+<section id="the-long-answer">
+<h3>The long answer<a class="headerlink" href="#the-long-answer" title="Permalink to this heading"></a></h3>
+<p>Some SAML IdP vendors do not allow to set up fresh entity IDs (issuers)
+for fresh apps; instead, all apps controlled by the IdP are receiving
+SAML credentials from the same issuer.</p>
+<p>In the past, wire has used a tuple of IdP issuer and ‘NameID’
+(Haskell type ‘UserRef’) to uniquely identity users (tables
+<code class="docutils literal notranslate"><span class="pre">spar.user_v2</span></code> and <code class="docutils literal notranslate"><span class="pre">spar.issuer_idp</span></code>).</p>
+<p>In order to allow one IdP to serve more than one team, this has been
+changed: we now allow to identify an IdP by a combination of
+entityID/issuer and wire <code class="docutils literal notranslate"><span class="pre">TeamId</span></code>.  The necessary tweaks to the
+protocol are listed here.</p>
+<p><strong>This extension is currently (as of 2023-02-03) not supported by the
+team management app.  If you need this, please contact customer
+support.</strong></p>
+<section id="what-you-need-to-know-when-operating-a-team-or-an-instance">
+<h4>what you need to know when operating a team or an instance<a class="headerlink" href="#what-you-need-to-know-when-operating-a-team-or-an-instance" title="Permalink to this heading"></a></h4>
+<p>No instance-level configuration is required.</p>
+<p>If your IdP supports different entityID / issuer for different apps,
+you don’t need to change anything.</p>
+<p>If your IdP does not support different entityID / issuer for different
+apps, keep reading.  At the time of writing this section, there is no
+support for multi-team IdP issuers in the team management app, so you have two
+options: (1) use the rest API directly; or (2) contact our customer
+support and send them the link to this section.</p>
+<p>If you feel up to calling the rest API, try the following:</p>
+<ul class="simple">
+<li><p>Use the above end-point <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/sso/metadata/:tid</span></code> with your <code class="docutils literal notranslate"><span class="pre">TeamId</span></code>
+for pulling the SP metadata.</p></li>
+<li><p>When calling <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/identity-provider</span></code>, make sure to add
+<code class="docutils literal notranslate"><span class="pre">?api_version=v2</span></code>.  (<code class="docutils literal notranslate"><span class="pre">?api_version=v1</span></code> or no omission of the query
+param both invoke the old behavior.)</p></li>
+</ul>
+<p>NB: Neither version of the API allows you to provision a user with the
+same Issuer and same NameID.  The pair of Issuer and NameID must
+always be globally unique.</p>
+</section>
+<section id="api-changes-in-even-more-detail">
+<h4>API changes in even more detail<a class="headerlink" href="#api-changes-in-even-more-detail" title="Permalink to this heading"></a></h4>
+<ul class="simple">
+<li><p>New query param <code class="docutils literal notranslate"><span class="pre">api_version=&lt;v1|v2&gt;</span></code> for <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/identity-providers</span></code>.  The version is stored in <code class="docutils literal notranslate"><span class="pre">spar.idp</span></code> together
+with the rest of the IdP setup, and is used by <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/sso/initiate-login</span></code> (see below).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/sso/initiate-login</span></code> sends audience based on api_version stored
+in <code class="docutils literal notranslate"><span class="pre">spar.idp</span></code>: for v1, the audience is <code class="docutils literal notranslate"><span class="pre">/sso/finalize-login</span></code>; for
+v2, it’s <code class="docutils literal notranslate"><span class="pre">/sso/finalize-login/:tid</span></code>.</p></li>
+<li><p>New end-point <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/sso/finalize-login/:tid</span></code> that behaves
+indistinguishable from <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/sso/finalize-login</span></code>, except when more
+than one IdP with the same issuer, but different teams are
+registered.  In that case, this end-point can process the
+credentials by discriminating on the <code class="docutils literal notranslate"><span class="pre">TeamId</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/sso/finalize-login/</span></code> remains unchanged.</p></li>
+<li><p>New end-point <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/sso/metadata/:tid</span></code> returns the same SP metadata as
+<code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/sso/metadata</span></code>, with the exception that it lists
+<code class="docutils literal notranslate"><span class="pre">&quot;/sso/finalize-login/:tid&quot;</span></code> as the path of the
+<code class="docutils literal notranslate"><span class="pre">AssertionConsumerService</span></code> (rather than <code class="docutils literal notranslate"><span class="pre">&quot;/sso/finalize-login&quot;</span></code> as
+before).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/sso/metadata</span></code> remains unchanged, and still returns the old SP
+metadata, without the <code class="docutils literal notranslate"><span class="pre">TeamId</span></code> in the paths.</p></li>
+</ul>
+</section>
+<section id="database-schema-changes">
+<h4>database schema changes<a class="headerlink" href="#database-schema-changes" title="Permalink to this heading"></a></h4>
+<p><a class="reference external" href="https://github.com/wireapp/wire-server/blob/b97439756cfe0721164934db1f80658b60de1e5e/services/spar/schema/src/V15.hs#L29-L43">V15</a></p>
+</section>
+</section>
+</section>
+<section id="can-an-existing-user-without-idp-or-with-a-different-idp-be-bound-to-a-new-idp">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Can an existing user without IdP (or with a different IdP) be bound to a new IdP?</a><a class="headerlink" href="#can-an-existing-user-without-idp-or-with-a-different-idp-be-bound-to-a-new-idp" title="Permalink to this heading"></a></h2>
+<p>Yes, you can, by updating the user via SCIM.  (If you use SAML without
+SCIM, there is a way in theory, but there are no plans to implement
+it.)</p>
+</section>
+<section id="can-the-sso-feature-be-disabled-for-a-team">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Can the SSO feature be disabled for a team?</a><a class="headerlink" href="#can-the-sso-feature-be-disabled-for-a-team" title="Permalink to this heading"></a></h2>
+<p>No, this is <a class="reference external" href="https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215">not implemented</a>.  But the team admin can remove all IdPs, which will effectively disable all SAML logins.</p>
+</section>
+<section id="do-i-need-to-change-any-firewall-settings-in-order-to-use-saml">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Do I need to change any firewall settings in order to use SAML?</a><a class="headerlink" href="#do-i-need-to-change-any-firewall-settings-in-order-to-use-saml" title="Permalink to this heading"></a></h2>
+<p>No.</p>
+<p>There is nothing to be done here.  There is no internet traffic
+between your SAML IdP and the wire service.  All communication happens
+via the browser or app.</p>
+</section>
+<section id="why-does-the-team-owner-have-to-keep-using-password">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Why does the team owner have to keep using password?</a><a class="headerlink" href="#why-does-the-team-owner-have-to-keep-using-password" title="Permalink to this heading"></a></h2>
+<p>The user who creates the team cannot be authenticated via SSO.  There
+is fundamentally no easy way around that: we need somebody to give us
+the IdP credentials, and we need to trust that somebody.  For now,
+that’s the team owner with their password.</p>
+<p>(It is also unwise to bind that owner to SAML once it’s installed.  If
+there is ever any issue with SAML authentication that can only be
+resolved by updating the IdP metadata in the team management app, the owner must
+still have a way to authenticate in order to do that.)</p>
+<p>There is a good workaround, though: you can create a team with user A
+and use A for registering the IdP.  All the users for everyday use and
+maintenance of the team, including admins and owners, can then be created
+via SSO (either IdP or SCIM).  The original user A is only ever used
+for IdP registration and upgrade of IdP-authenticated owners / admins.</p>
+<p>In practice, user A and some owner authenticated via IdP would then be
+controlled by the same person, probably.</p>
+</section>
+<section id="what-should-the-saml-response-look-like">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">What should the SAML response look like?</a><a class="headerlink" href="#what-should-the-saml-response-look-like" title="Permalink to this heading"></a></h2>
+<p>Here is an example that works.  Much of this beyond the subject’s
+NameID is required by the SAML standard.  If you can find a more
+minimal example that still works, we’d be love to take a look.</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;saml:Assertion</span><span class="w"> </span><span class="na">xmlns:saml=</span><span class="s">&quot;urn:oasis:names:tc:SAML:2.0:assertion&quot;</span><span class="w"> </span><span class="na">ID=</span><span class="s">&quot;...&quot;</span><span class="w"> </span><span class="na">IssueInstant=</span><span class="s">&quot;...&quot;</span><span class="w"> </span><span class="na">Version=</span><span class="s">&quot;2.0&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;saml:Issuer&gt;</span>...<span class="nt">&lt;/saml:Issuer&gt;</span>
+<span class="w">  </span><span class="nt">&lt;ds:Signature</span><span class="w"> </span><span class="na">xmlns:ds=</span><span class="s">&quot;http://www.w3.org/2000/09/xmldsig#&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span><span class="nt">&lt;ds:SignedInfo&gt;</span>
+<span class="w">      </span><span class="nt">&lt;ds:CanonicalizationMethod</span><span class="w"> </span><span class="na">Algorithm=</span><span class="s">&quot;http://www.w3.org/2001/10/xml-exc-c14n#&quot;</span><span class="nt">/&gt;</span>
+<span class="w">      </span><span class="nt">&lt;ds:SignatureMethod</span><span class="w"> </span><span class="na">Algorithm=</span><span class="s">&quot;http://www.w3.org/2000/09/xmldsig#rsa-sha1&quot;</span><span class="nt">/&gt;</span>
+<span class="w">      </span><span class="nt">&lt;ds:Reference</span><span class="w"> </span><span class="na">URI=</span><span class="s">&quot;#...&quot;</span><span class="nt">&gt;</span>
+<span class="w">        </span><span class="nt">&lt;ds:Transforms&gt;</span>
+<span class="w">          </span><span class="nt">&lt;ds:Transform</span><span class="w"> </span><span class="na">Algorithm=</span><span class="s">&quot;http://www.w3.org/2000/09/xmldsig#enveloped-signature&quot;</span><span class="nt">/&gt;</span>
+<span class="w">          </span><span class="nt">&lt;ds:Transform</span><span class="w"> </span><span class="na">Algorithm=</span><span class="s">&quot;http://www.w3.org/2001/10/xml-exc-c14n#&quot;</span><span class="nt">&gt;</span>
+<span class="w">            </span><span class="nt">&lt;ec:InclusiveNamespaces</span><span class="w"> </span><span class="na">xmlns:ec=</span><span class="s">&quot;http://www.w3.org/2001/10/xml-exc-c14n#&quot;</span><span class="w"> </span><span class="na">PrefixList=</span><span class="s">&quot;ds saml&quot;</span><span class="nt">/&gt;</span>
+<span class="w">          </span><span class="nt">&lt;/ds:Transform&gt;</span>
+<span class="w">        </span><span class="nt">&lt;/ds:Transforms&gt;</span>
+<span class="w">        </span><span class="nt">&lt;ds:DigestMethod</span><span class="w"> </span><span class="na">Algorithm=</span><span class="s">&quot;http://www.w3.org/2000/09/xmldsig#sha1&quot;</span><span class="nt">/&gt;</span>
+<span class="w">        </span><span class="nt">&lt;ds:DigestValue&gt;</span>...<span class="nt">&lt;/ds:DigestValue&gt;</span>
+<span class="w">      </span><span class="nt">&lt;/ds:Reference&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/ds:SignedInfo&gt;</span>
+<span class="w">    </span><span class="nt">&lt;ds:SignatureValue&gt;</span>...<span class="nt">&lt;/ds:SignatureValue&gt;</span>
+<span class="w">    </span><span class="nt">&lt;ds:KeyInfo&gt;</span>
+<span class="w">      </span><span class="nt">&lt;ds:X509Data&gt;</span>
+<span class="w">        </span><span class="nt">&lt;ds:X509Certificate&gt;</span>...<span class="nt">&lt;/ds:X509Certificate&gt;</span>
+<span class="w">      </span><span class="nt">&lt;/ds:X509Data&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/ds:KeyInfo&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/ds:Signature&gt;</span>
+<span class="w">  </span><span class="nt">&lt;saml:Subject&gt;</span>
+<span class="w">    </span><span class="nt">&lt;saml:NameID</span><span class="w"> </span><span class="na">Format=</span><span class="s">&quot;urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress&quot;</span><span class="nt">&gt;</span>...<span class="nt">&lt;/saml:NameID&gt;</span>
+<span class="w">    </span><span class="nt">&lt;saml:SubjectConfirmation</span><span class="w"> </span><span class="na">Method=</span><span class="s">&quot;urn:oasis:names:tc:SAML:2.0:cm:bearer&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span><span class="nt">&lt;saml:SubjectConfirmationData</span><span class="w"> </span><span class="na">Address=</span><span class="s">&quot;...&quot;</span><span class="w"> </span><span class="na">InResponseTo=</span><span class="s">&quot;...&quot;</span><span class="w"> </span><span class="na">NotOnOrAfter=</span><span class="s">&quot;...&quot;</span>
+<span class="w">                                    </span><span class="na">Recipient=</span><span class="s">&quot;https://prod-nginz-https.wire.com/sso/finalize-login&quot;</span><span class="nt">/&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/saml:SubjectConfirmation&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/saml:Subject&gt;</span>
+<span class="w">  </span><span class="nt">&lt;saml:Conditions</span><span class="w"> </span><span class="na">NotBefore=</span><span class="s">&quot;...&quot;</span><span class="w"> </span><span class="na">NotOnOrAfter=</span><span class="s">&quot;...&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span><span class="nt">&lt;saml:AudienceRestriction&gt;</span>
+<span class="w">      </span><span class="nt">&lt;saml:Audience&gt;</span>https://prod-nginz-https.wire.com/sso/finalize-login<span class="nt">&lt;/saml:Audience&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/saml:AudienceRestriction&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/saml:Conditions&gt;</span>
+<span class="w">  </span><span class="nt">&lt;saml:AuthnStatement</span><span class="w"> </span><span class="na">AuthnInstant=</span><span class="s">&quot;...&quot;</span><span class="w"> </span><span class="na">SessionNotOnOrAfter=</span><span class="s">&quot;...&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span><span class="nt">&lt;saml:SubjectLocality</span><span class="w"> </span><span class="na">Address=</span><span class="s">&quot;...&quot;</span><span class="nt">/&gt;</span>
+<span class="w">    </span><span class="nt">&lt;saml:AuthnContext&gt;</span>
+<span class="w">      </span><span class="nt">&lt;saml:AuthnContextClassRef&gt;</span>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport<span class="nt">&lt;/saml:AuthnContextClassRef&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/saml:AuthnContext&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/saml:AuthnStatement&gt;</span>
+<span class="nt">&lt;/saml:Assertion&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="why-does-the-auth-response-not-contain-a-reference-to-an-auth-request-also-can-i-use-idp-initiated-login">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">Why does the auth response not contain a reference to an auth request?  (Also: can i use IdP-initiated login?)</a><a class="headerlink" href="#why-does-the-auth-response-not-contain-a-reference-to-an-auth-request-also-can-i-use-idp-initiated-login" title="Permalink to this heading"></a></h2>
+<p><strong>tl;dr:</strong> Wire only supports SP-initiated login, where the user selects
+the auth method from inside the app’s login screen.  It does not
+support IdP-initiated login, where the user enters the app from a list
+of applications in the IdP UI.</p>
+<section id="the-full-story">
+<h3>The full story<a class="headerlink" href="#the-full-story" title="Permalink to this heading"></a></h3>
+<p>SAML authentication can be initiated by the IdP (eg., Okta or Azure),
+or by the SP (Wire).</p>
+<p>A user doing IdP-initiated authentication starts from some dashboard
+in her IdP portal, and selects a button or link to the SP she wants to
+interact with.  The IdP will then refer the user to the SP with the
+SAML credentials in the redirect request.  The user needs to do
+nothing but wait for the App to start.</p>
+<p>In SP-initiated authentication, the user starts off on the login
+screen of the app or web site of the SP.  She selects the IdP she
+wants to authenticate with, and gets redirected there with an
+authentication request.</p>
+<p>That last part is important: the authentication request contains
+cryptographic credentials that make some attacks (like
+machine-in-the-middle attacks for stealing sessions and making users
+impersonate rogue accounts) hard that were otherwise quite feasible.</p>
+<p>Wire therefore only supports SP-initiated login.</p>
+</section>
+</section>
+<section id="how-are-saml2-assertion-details-used-in-wire">
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">How are SAML2 assertion details used in wire?</a><a class="headerlink" href="#how-are-saml2-assertion-details-used-in-wire" title="Permalink to this heading"></a></h2>
+<p>Wire only uses the SAML <code class="docutils literal notranslate"><span class="pre">NameID</span></code> from the assertion, plus the
+information whether authentication and authorization was successful.
+Any other information is ignored.  In particular, Wire does not
+support SAML2 <code class="docutils literal notranslate"><span class="pre">AttributeStatements</span></code>.  For best user experience, use
+SCIM for provisioning users (see next section).</p>
+<p>If SCIM is not in the picture, the SAML <code class="docutils literal notranslate"><span class="pre">NameID</span></code> is used to give the
+wire user display name a default value.  (The user will be allowed to
+change that value later; changing it does NOT affect the
+authentication handshake between wire and the IdP.)</p>
+</section>
+<section id="how-should-i-map-user-data-to-scim-attributes-when-provisioning-users-via-scim">
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">How should I map user data to SCIM attributes when provisioning users via SCIM?</a><a class="headerlink" href="#how-should-i-map-user-data-to-scim-attributes-when-provisioning-users-via-scim" title="Permalink to this heading"></a></h2>
+<p>If you are provisioning users via SCIM, the following mapping is used
+in your wire team:</p>
+<ol class="arabic simple">
+<li><p>SCIM’s <code class="docutils literal notranslate"><span class="pre">userName</span></code> is mapped to wire’s handle.  It must be unique
+accross the entire wire cloud or instance, and consist of the
+characters <code class="docutils literal notranslate"><span class="pre">a-z0-9_.-</span></code> (no capital letters).</p></li>
+<li><p>SCIM’s <code class="docutils literal notranslate"><span class="pre">displayName</span></code> is mapped to wire’s user display name.  It
+must consist of 1-128 unicode characters, and does not need to be
+unique.</p></li>
+<li><p>SCIM’s <code class="docutils literal notranslate"><span class="pre">preferredLanguage</span></code> is mapped to wire’s user locale settings
+when a locale is not defined for that user. It must consist of an
+ISO 639-1 language code.</p></li>
+<li><p>SCIM’s <code class="docutils literal notranslate"><span class="pre">externalId</span></code>:</p>
+<ol class="arabic simple">
+<li><p>If SAML SSO is used, it is mapped on the SAML <code class="docutils literal notranslate"><span class="pre">NameID</span></code>.  If it
+parses as an email, it will have format <code class="docutils literal notranslate"><span class="pre">email</span></code>, and you can
+choose to validate it during provisioning (by enabeling the
+feature flag for your team).  Otherwise, the format will be
+<code class="docutils literal notranslate"><span class="pre">unspecified</span></code>.</p></li>
+<li><p>If email/password authentication is used, SCIM’s <code class="docutils literal notranslate"><span class="pre">externalId</span></code> is
+mapped on wire’s email address, and provisioning works like in
+the team management app with invitation emails.</p></li>
+</ol>
+</li>
+</ol>
+<p>This means that if you use email/password authentication, you <strong>must</strong>
+map an email address to <code class="docutils literal notranslate"><span class="pre">externalId</span></code> on your side.  With <code class="docutils literal notranslate"><span class="pre">userName</span></code>
+and <code class="docutils literal notranslate"><span class="pre">displayName</span></code>, you are more flexible.</p>
+<p>All three fields are mandatory.</p>
+<p>Also note that the account will be set to <code class="docutils literal notranslate"><span class="pre">&quot;active&quot;:</span> <span class="pre">false</span></code> until the
+user has accepted the invitation and activated the account.  Please
+contact customer support if this causes any issues.</p>
+</section>
+<section id="can-i-distribute-a-url-to-my-users-that-contains-the-login-code">
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Can I distribute a URL to my users that contains the login code?</a><a class="headerlink" href="#can-i-distribute-a-url-to-my-users-that-contains-the-login-code" title="Permalink to this heading"></a></h2>
+<p>Users may find it awkward to copy and paste the login code into the
+form.  If they are using the webapp, an alternative is to give them
+the following URL (fill in the login code that you can find in the
+team management app):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>https://wire-webapp-dev.zinfra.io/auth#sso/3c4f050a-f073-11eb-b4c9-931bceeed13e
+</pre></div>
+</div>
+</section>
+<section id="theoretical-name-clashes-in-saml-nameids">
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">(Theoretical) name clashes in SAML NameIDs</a><a class="headerlink" href="#theoretical-name-clashes-in-saml-nameids" title="Permalink to this heading"></a></h2>
+<p>You can technically configure your SAML IdP to create name clashes in
+wire, ie., to map two (technically) different NameIDs to the same wire
+user.</p>
+<section id="how-to-know-you-re-safe">
+<h3>How to know you’re safe<a class="headerlink" href="#how-to-know-you-re-safe" title="Permalink to this heading"></a></h3>
+<p>This is highly unlikely, since the
+distinguishing parts of <code class="docutils literal notranslate"><span class="pre">NameID</span></code> that we ignore are generally either
+unused or redundant.  If you are confident that any two users you have
+assigned to the wire app can be distinguished solely by the
+lower-cased <code class="docutils literal notranslate"><span class="pre">NameID</span></code> content, you’re safe.</p>
+</section>
+<section id="impact">
+<h3>Impact<a class="headerlink" href="#impact" title="Permalink to this heading"></a></h3>
+<p>If you are using SCIM for user provisioning, this may lead
+to errors during provisioning of new users (“user already exists”).
+If you use SAML auto-provisioning, this may lead to unintential
+account sharing instead of an error.</p>
+</section>
+<section id="how-to-reproduce">
+<h3>How to reproduce<a class="headerlink" href="#how-to-reproduce" title="Permalink to this heading"></a></h3>
+<p>If you have users whose combination of
+<code class="docutils literal notranslate"><span class="pre">IssuerId</span></code> and <code class="docutils literal notranslate"><span class="pre">NameID</span></code> can only be distinguished by casing (upper
+vs. lower) or by the <code class="docutils literal notranslate"><span class="pre">NameID</span></code> qualifiers (<code class="docutils literal notranslate"><span class="pre">NameID</span></code> xml attributes
+<code class="docutils literal notranslate"><span class="pre">NameQualifier</span></code>, <code class="docutils literal notranslate"><span class="pre">IdPNameQualifier</span></code>, …), those users will name
+clash.</p>
+</section>
+<section id="solution">
+<h3>Solution<a class="headerlink" href="#solution" title="Permalink to this heading"></a></h3>
+<p>Do not rely on case sensitivity of <code class="docutils literal notranslate"><span class="pre">IssuerID</span></code> or <code class="docutils literal notranslate"><span class="pre">NameID</span></code>, or on
+<code class="docutils literal notranslate"><span class="pre">NameID</span></code> qualifiers for distinguishing user identifiers.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="understand/main.html" class="btn btn-neutral float-left" title="Single sign-on and user provisioning" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="generic-setup.html" class="btn btn-neutral float-right" title="How to set up SSO integration with your IdP" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

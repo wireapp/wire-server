@@ -71,6 +71,7 @@ remoteConversation =
             cnvmMessageTimer = Nothing,
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
             cnvmGroupConvType = Nothing,
+            cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsDisabled
           },
       members =
@@ -110,6 +111,7 @@ remoteConversationV2 =
             cnvmMessageTimer = Nothing,
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
             cnvmGroupConvType = Nothing,
+            cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsPending
           },
       members =

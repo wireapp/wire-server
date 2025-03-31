@@ -159,6 +159,7 @@ testObject_Event_user_8 =
                     cnvmMessageTimer = Just (Ms {ms = 283898987885780}),
                     cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -1}),
                     cnvmGroupConvType = Just GroupConversation,
+                    cnvmChannelAddPermission = Nothing,
                     cnvmCellsState = CellsDisabled
                   },
               cnvProtocol = ProtocolProteus,

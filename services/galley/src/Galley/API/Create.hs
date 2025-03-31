@@ -83,6 +83,7 @@ import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
 import Wire.API.Team.Feature
+import Wire.API.Team.Feature qualified as Conf
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
@@ -315,9 +316,9 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       when (channelsConf.status == FeatureStatusDisabled) $ throwS @ChannelsNotEnabled
       when (newConv.newConvProtocol /= BaseProtocolMLSTag) $ throwS @NotAnMlsConversation
       case channelsConf.config.allowedToCreateChannels of
-        Everyone -> pure ()
-        TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
-        Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
+        Conf.Everyone -> pure ()
+        Conf.TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
+        Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
     ensureCreateChannelPermissions _ Nothing = do
       throwS @NotATeamMember
 
@@ -683,6 +684,7 @@ newRegularConversation lusr newConv = do
                   cnvmReceiptMode = newConvReceiptMode newConv,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
                   cnvmGroupConvType = Just newConv.newConvGroupConvType,
+                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then Just def else Nothing,
                   cnvmCellsState =
                     if newConv.newConvCells
                       then CellsPending

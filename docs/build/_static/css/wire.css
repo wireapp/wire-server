@@ -1,0 +1,239 @@
+*{
+    -webkit-box-sizing:border-box;
+    -moz-box-sizing:border-box;
+    box-sizing:border-box
+}
+html,body{
+    margin:0;
+    padding:0;
+    min-height:100%
+}
+html{
+    font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+    font-size:16px;
+    line-height:1.5;
+    position:relative;
+}
+body{
+    color:#34383b;
+    background-color:#fff;
+}
+a{
+    color:#0772de;
+    text-decoration:none;
+    transition:color 0.08s
+}
+a:hover,a:focus{
+    color:#05498f
+}
+html,body{
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    -webkit-text-size-adjust:100%;
+    -ms-text-size-adjust:100%;
+    font-weight:300
+}
+h1,h2,h3,h4,h5,h6{
+    margin-bottom:0;
+    line-height:1.5;
+    text-rendering:optimizeLegibility
+}
+h1{
+    font-size:2rem;
+    font-weight:300;
+    text-align:center;
+    padding:32px 16px
+}
+h2{
+    margin-top:2rem;
+    font-size:1.5rem;
+    font-weight:600
+}
+h2:first-child{
+    margin-top:0
+}
+h3{
+    margin-top:2rem;
+    font-size:1.5rem;
+    font-weight:300
+}
+h4{
+    margin-top:2rem;
+    font-size:1rem;
+    font-weight:600
+}
+strong,b{
+    font-weight:600
+}
+p,dd{
+    margin-top:0;
+    margin-bottom:1rem
+}
+p.lead,dd.lead{
+    font-size:2rem;
+    font-weight:300;
+    color:#696c6e
+}
+p.dark,dd.dark{
+    color:#34383b
+}
+p.error,dd.error{
+    margin:160px 0 80px;
+    text-align:center
+}
+p a {
+    word-break: break-all;
+}
+ul,ol,dl{
+    margin:0 0 1rem;
+    padding:0
+}
+li{
+    list-style-image:url('data:image/svg+xml;utf8,<svg width="10" height="10" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><circle cx="5" cy="5" r="2" fill="#BAC8D1" fill-rule="evenodd"/></svg>');
+}
+
+hr{
+    margin:2rem 0;
+    border:0;
+    border-top:1px solid #696c6e;
+    border-bottom:0
+}
+blockquote{
+    padding:0 0 0 12px;
+    margin:1rem 0 1rem -14px;
+    border-left:2px solid #696c6e;
+    color:#34383b
+}
+dt{
+    font-weight:600
+}
+del{
+    color:#34383b
+}
+main{
+    max-width:840px;
+    display:flex;
+    align-items:stretch;
+    margin:0 auto
+}
+@media screen and (max-width: 550px){
+    main{
+        display:inherit
+    }
+}
+article{
+    max-width:560px;
+    margin:0 auto
+}
+main article{
+    margin:0
+}
+header{
+    max-width:840px;
+    height:96px;
+    border-bottom:1px solid #bec0c1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin:0 auto 32px
+}
+header a{
+    font-size:12px;
+    font-weight:600;
+    color:#34383b
+}
+header a:hover{
+    color:#17181a
+}
+header a:first-child{
+    margin-right:auto
+}
+header a:last-child{
+    margin-left:auto
+}
+a h1{
+    color:#34383b
+}
+input[type='checkbox']{
+    display:none
+}
+input[type='checkbox']:checked ~ #menu{
+    display:block
+}
+footer{
+    text-align:center;
+    color: #696C6E;
+}
+footer div{
+    max-width:840px;
+    line-height:160px;
+    margin:0 auto;
+    font-size:12px;
+    font-weight:600
+}
+
+.wy-menu-vertical a {
+    color: #0772de;
+}
+
+.wy-menu-vertical a:hover {
+    color: #05498f;
+    background-color: #fff;
+}
+
+.wy-side-scroll {
+    background-color: #fafafa;
+}
+
+.wy-nav-side {
+    background-color: #fafafa;
+}
+
+.wy-side-nav-search {
+    background-color: #fafafa;
+}
+
+.wy-body-for-nav {
+    background-color: #fff;
+}
+
+.wy-nav-content {
+    background-color: #fff !important;
+}
+
+.wy-nav-content-wrap {
+    background-color: #fff !important;
+}
+
+.wy-menu-vertical li.current {
+    background-color: #eaeaea;
+}
+
+.wy-menu-vertical li.current a {
+    border: none;
+}
+
+.wy-menu-vertical li.toctree-l2.current li.toctree-l3>a, .wy-menu-vertical li.toctree-l3.current li.toctree-l4>a {
+    background: unset;
+}
+
+.wy-menu-vertical li.toctree-l2.current li.toctree-l3>a:hover, .wy-menu-vertical li.toctree-l3.current li.toctree-l4>a:hover {
+    background-color: #c9c9c9;
+}
+
+.wy-nav-top {
+    background-color: #fafafa;
+    color: #34383b;
+}
+
+.wy-nav-top a {
+    color: #34383b;
+}
+/* 
+.wy-side-nav-search a {
+    color: #0772de;
+}
+
+.wy-side-nav-search a:hover {
+    color: #05498f;
+} */

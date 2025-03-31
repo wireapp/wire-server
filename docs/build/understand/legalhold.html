@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installing and setting up Legal Hold &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/clipboard.min.js"></script>
+        <script src="../_static/copybutton.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Messaging Layer Security (MLS)" href="mls.html" />
+    <link rel="prev" title="Federation" href="configure-federation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../index.html">
+        <img src="../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="overview.html">Architecture Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="single-sign-on/index.html">Single Sign-On and User Provisioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Audio/video calling, restund servers (TURN/STUN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html#federated-conference-calling">Federated Conference Calling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="federation/index.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="associate/index.html">Connecting Wire Clients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api-client-perspective/index.html">Client API documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crypto-libs.html">Crypto libraries and sources of randomness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="block-user-creation.html">Block personal user creation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="classified-domains.html">Classified Domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-federation.html">Federation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Installing and setting up Legal Hold</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#installing-legal-hold">Installing Legal Hold</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#configuring-team-settings-to-use-legal-hold">Configuring Team Settings to use Legal Hold</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mls.html">Messaging Layer Security (MLS)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="searchability.html">User Searchability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="team-feature-settings.html">Server and team feature settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Reference</a></li>
+      <li class="breadcrumb-item active">Installing and setting up Legal Hold</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/understand/legalhold.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installing-and-setting-up-legal-hold">
+<h1>Installing and setting up Legal Hold<a class="headerlink" href="#installing-and-setting-up-legal-hold" title="Permalink to this heading"></a></h1>
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h2>
+<p>Legal Hold is a service allowing for all communications of specific users of a Wire installation to be recorded in a secure vault, typically for legal reasons.</p>
+<p>The Legal Hold service is composed of three different sub-services:</p>
+<ul class="simple">
+<li><p>Collector, which collects the conversations from individual users</p></li>
+<li><p>Exporter, which exports the conversations for storage</p></li>
+<li><p>Hold, which holds the conversation after Collector collects them, and before Exporter exports them</p></li>
+</ul>
+<p>A typical installation of Legal Hold looks like this:</p>
+<ol class="arabic simple">
+<li><p>The Legal Hold service/container is installed and run on a server</p></li>
+<li><p>The Teams Settings for the team that will use Legal Hold is configured to use this service</p></li>
+<li><p>Specific users in that team are selected to have Legal Hold activated</p></li>
+<li><p>These users are asked to confirm that they are aware of the information collection. Once they do, Legal Hold is active for their account.</p></li>
+<li><p>Information starts being collected by the Collector service and stored by the Hold service</p></li>
+</ol>
+</section>
+<section id="installing-legal-hold">
+<h2>Installing Legal Hold<a class="headerlink" href="#installing-legal-hold" title="Permalink to this heading"></a></h2>
+<p>To install and run Legal Hold, you need a server dedicated to the service.</p>
+<p>Here we will use Ubuntu 18.04 as it is the system wire-server is installed on, but other systems should be possible.</p>
+<p>First, we need to install postgreSQL:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>sudo<span class="w"> </span>apt<span class="w"> </span>update
+<span class="w">    </span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>postgresql
+</pre></div>
+</div>
+<p>You then need to change the password to the database. First enter the PostgreSQL console:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">   </span>sudo<span class="w"> </span>-u<span class="w"> </span>postgres<span class="w"> </span>psql
+</pre></div>
+</div>
+<p>Then use this command to change the password:</p>
+<div class="highlight-sql notranslate"><div class="highlight"><pre><span></span><span class="w">   </span><span class="k">ALTER</span><span class="w"> </span><span class="k">USER</span><span class="w"> </span><span class="n">postgres</span><span class="w"> </span><span class="n">PASSWORD</span><span class="w"> </span><span class="s1">&#39;&lt;your-postgresql-password&gt;&#39;</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>Also create a <code class="docutils literal notranslate"><span class="pre">legalhold</span></code> database:</p>
+<div class="highlight-sql notranslate"><div class="highlight"><pre><span></span><span class="w">   </span><span class="k">CREATE</span><span class="w"> </span><span class="k">DATABASE</span><span class="w"> </span><span class="n">legalhold</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>Now that we have a working PostgreSQL database, we need to install the actual legalhold services.</p>
+<p>First install Git and Docker:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>sudo<span class="w"> </span>apt<span class="w"> </span>update
+<span class="w">    </span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>docker.io
+</pre></div>
+</div>
+<p>Generate a random secret (<code class="docutils literal notranslate"><span class="pre">SERVICE_TOKEN</span></code>) to use as your service token. This will be used in the Team Settings step later when entering configuration.</p>
+<p>Here we will use <code class="docutils literal notranslate"><span class="pre">secr3t</span></code> as an example, however you can for example use this command to generate one:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">   </span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">20</span>
+</pre></div>
+</div>
+<p>Finally, run the actual Docker container for the LegalHold service:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>docker<span class="w"> </span>run<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-e<span class="w"> </span><span class="nv">DB_URL</span><span class="o">=</span><span class="s1">&#39;jdbc:postgresql://localhost/legalhold&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-e<span class="w"> </span><span class="nv">DB_USER</span><span class="o">=</span><span class="s1">&#39;postgres&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-e<span class="w"> </span><span class="nv">DB_PASSWORD</span><span class="o">=</span><span class="s1">&#39;your-postgresql-password&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-e<span class="w"> </span><span class="nv">SERVICE_TOKEN</span><span class="o">=</span><span class="s1">&#39;secr3t&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">80</span>:8080<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--name<span class="w"> </span>secure-hold<span class="w"> </span>--rm<span class="w"> </span>quay.io/wire/legalhold:1.0.4
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">DB_URL</span></code> is the URL of your PostgreSQL database.</p></li>
+</ul>
+<p>Now that the legalhold service is running, you need to configure the DNS for your domain so that <code class="docutils literal notranslate"><span class="pre">legal.&lt;yourdomain&gt;</span></code> redirects to this service.</p>
+<p>Make sure you implement/enable HTTPS, and remember your TLS public key (in PEM format) as it will be necessary in the Team Settings configuration.</p>
+</section>
+<section id="configuring-team-settings-to-use-legal-hold">
+<h2>Configuring Team Settings to use Legal Hold<a class="headerlink" href="#configuring-team-settings-to-use-legal-hold" title="Permalink to this heading"></a></h2>
+<p>The next step is to configure the Wire Team, in the Team Settings interface, to interface with the newly installed Legal Hold service.</p>
+<p>To do this, first go to  <code class="docutils literal notranslate"><span class="pre">teams.&lt;your-domain&gt;</span></code>.</p>
+<p>Once in the interface, select <code class="docutils literal notranslate"><span class="pre">Customization</span></code> in the menu on the left:</p>
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+<p><img alt="Customization" src="../_images/legalhold-step01-click-customization.png" /></p>
+</div>
+<p>On the customization page, go to <code class="docutils literal notranslate"><span class="pre">Legal</span> <span class="pre">Hold</span></code>:</p>
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+<p><img alt="Legal Hold" src="../_images/legalhold-step02-goto-legalhold.png" /></p>
+</div>
+<p>Under the Legal Hold section, click the small down-pointing blue arrow:</p>
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+<p><img alt="Arrow" src="../_images/legalhold-step03-click-arrow.png" /></p>
+</div>
+<p>In the extended Legal Hold section, click on <code class="docutils literal notranslate"><span class="pre">Manage</span> <span class="pre">Configuration</span></code>:</p>
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+<p><img alt="Manage Configuration" src="../_images/legalhold-step04-click-manage-configuration.png" /></p>
+</div>
+<p>From here, you can fill in the required configuration info:</p>
+<div style=" display: block; margin-left: auto; margin-right: auto; width: 75%;">
+<p><img alt="Fill in configuration" src="../_images/legalhold-step05-fill-info.png" /></p>
+</div>
+<p>Here, fill in the different fields:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Service</span> <span class="pre">URL</span></code> is the domain you set up in the first step: <code class="docutils literal notranslate"><span class="pre">https://legal.&lt;your-domain&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Authentication</span> <span class="pre">token</span></code> is the token you created in first step, we used <code class="docutils literal notranslate"><span class="pre">secr3t</span></code> as an example, but you might have generated a random token with <code class="docutils literal notranslate"><span class="pre">openssl</span> <span class="pre">rand</span> <span class="pre">-hex</span> <span class="pre">20</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Public</span> <span class="pre">Key</span></code> is the TLS public key (in PEM format) for the certificate you generated when implementing HTTPS in the first step.</p></li>
+</ul>
+<p>Finally, click on <code class="docutils literal notranslate"><span class="pre">Save</span></code>.</p>
+<p>Here is the entire process animated:</p>
+<p><img alt="Animated" src="../_images/legalhold-screencast.gif" /></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="configure-federation.html" class="btn btn-neutral float-left" title="Federation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="mls.html" class="btn btn-neutral float-right" title="Messaging Layer Security (MLS)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upgrading a Kubernetes cluster &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+        <script src="../../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../../_static/clipboard.min.js"></script>
+        <script src="../../../../_static/copybutton.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <link rel="next" title="Backup and disaster recovery" href="../../backup-disaster-recovery.html" />
+    <link rel="prev" title="Restarting a machine in a Kubernetes cluster" href="../restart-machines/index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../../../index.html">
+        <img src="../../../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Administration</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Kubernetes</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../certificate-renewal/index.html">Certificate renewal</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../restart-machines/index.html">How to restart a machine that is part of a Kubernetes cluster?</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Upgrading a Kubernetes cluster</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#manually">Manually</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#kubespray-ansible">Kubespray (Ansible)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#kubeadm">Kubeadm</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#troubleshooting-problems-arising-after-kubernetes-cluster-upgrades">Troubleshooting problems arising after kubernetes cluster upgrades</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#helm-and-kubernetes-api-changes">Helm and kubernetes API changes</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../backup-disaster-recovery.html">Backup and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../cassandra.html">Cassandra</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../elasticsearch.html">Elasticsearch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../etcd.html">Etcd</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../general-linux.html">General - Linux</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations.html">Operational procedures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../restund.html">Restund (TURN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../users.html">Investigative tasks (e.g. searching for users as server admin)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Administration</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Kubernetes</a></li>
+      <li class="breadcrumb-item active">Upgrading a Kubernetes cluster</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/administrate/kubernetes/upgrade-cluster/index.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="upgrading-a-kubernetes-cluster">
+<h1>Upgrading a Kubernetes cluster<a class="headerlink" href="#upgrading-a-kubernetes-cluster" title="Permalink to this heading"></a></h1>
+<p>Before upgrading Kubernetes, a couple of aspects should be taken into account:</p>
+<ul class="simple">
+<li><p>downtime is (not) permitted</p></li>
+<li><p>stateful backing services that run outside or on top of Kubernetes</p></li>
+</ul>
+<p>As a result the following questions arise:</p>
+<ol class="arabic simple">
+<li><p>Is an in-place upgrade required (reuse existing machines) or is it possible to
+deploy a second cluster right next to the first one and install Wire on top?</p></li>
+<li><p>How was the Kubernetes cluster deployed?</p></li>
+</ol>
+<p>Depending on the deployment method, the upgrade procedure may vary. It may be reasonable to test
+the upgrade in a non-production environment first.
+Regardless of the deployment method, it is recommended to <a class="reference internal" href="../../etcd.html#etcd-backup-and-restore"><span class="std std-ref">back up the cluster state</span></a> before starting to upgrade the cluster. Additional background knowledge
+can be found in the section about <a class="reference internal" href="../restart-machines/index.html#restarting-a-machine-in-a-kubernetes-cluster"><span class="std std-ref">restarting a machine in an kubernetes cluster</span></a>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>For an in-place upgrade, it is <em>NOT</em> recommended to go straight to the latest Kubernetes
+version. Instead, one should upgrade step by step between each minor version.</p>
+</div>
+<section id="manually">
+<h2>Manually<a class="headerlink" href="#manually" title="Permalink to this heading"></a></h2>
+<p>Doing an upgrade by hand is cumbersome and error-prone, which is why there are tools and
+automation for this procedure. The high-level steps would be:</p>
+<ol class="arabic simple">
+<li><p>upgrade the control plane (also see a more detailed <a class="reference external" href="https://kubernetes.io/docs/tasks/administer-cluster/cluster-upgrade/#manual-deployments">list</a>)
+: 1. all <em>etcd</em> instances
+2. api-server on each control-plane host
+3. controllers, scheduler,</p></li>
+<li><p>upgrade the nodes (order may vary, depending on whether the kube-components run in containers)
+: - kubelet</p>
+<ul class="simple">
+<li><p>kube-proxy</p></li>
+<li><p>container runtime</p></li>
+</ul>
+</li>
+<li><p>then upgrade the clients (<code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, e.g. on workstations or in pipelines)</p></li>
+</ol>
+<p><em>For more details, please refer to the official documentation:</em>
+<a class="reference external" href="https://kubernetes.io/docs/tasks/administer-cluster/cluster-upgrade/">Upgrade A Cluster</a></p>
+</section>
+<section id="kubespray-ansible">
+<h2>Kubespray (Ansible)<a class="headerlink" href="#kubespray-ansible" title="Permalink to this heading"></a></h2>
+<p>Kubespray comes with a dedicated playbook that should be used to perform the upgrade:
+<code class="docutils literal notranslate"><span class="pre">upgrade-cluster.yml</span></code>. Before running the playbook, make sure that the right Kubespray version
+is being used. Each Kubespray version supports only a small and sliding window of Kubernetes
+versions (check <code class="docutils literal notranslate"><span class="pre">kube_version</span></code> &amp; <code class="docutils literal notranslate"><span class="pre">kube_version_min_required</span></code> in <code class="docutils literal notranslate"><span class="pre">roles/kubespray-defaults/defaults/main.yaml</span></code>
+for a given <a class="reference external" href="https://github.com/kubernetes-sigs/kubespray/releases">release version tag</a>).</p>
+<p>The commands may look similar to this example (assuming Kubernetes v1.18 version installed
+with Kubespray 2.14):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/kubernetes-sigs/kubespray
+<span class="nb">cd</span><span class="w"> </span>kubespray
+git<span class="w"> </span>checkout<span class="w"> </span>release-2.15
+<span class="si">${</span><span class="nv">EDITOR</span><span class="si">}</span><span class="w"> </span>roles/kubespray-defaults/defaults/main.yaml
+
+ansible-playbook<span class="w"> </span>-i<span class="w"> </span>./../path/my/inventory-dir<span class="w"> </span>-e<span class="w"> </span><span class="nv">kube_version</span><span class="o">=</span>v1.19.7<span class="w"> </span>./upgrade-cluster.yml
+</pre></div>
+</div>
+<p>Kubespray takes care of bringing the new binaries into position on each machine, restarting
+the components, and draining/uncordon nodes.</p>
+<p><em>For more details please refer to the official documentation:</em>
+<a class="reference external" href="https://kubespray.io/#/docs/upgrades">Upgrading Kubernetes in Kubespray</a></p>
+</section>
+<section id="kubeadm">
+<h2>Kubeadm<a class="headerlink" href="#kubeadm" title="Permalink to this heading"></a></h2>
+<p>Please refer to the <em>official documentation:</em> <a class="reference external" href="https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/">Upgrading kubeadm clusters</a></p>
+</section>
+</section>
+<section id="troubleshooting-problems-arising-after-kubernetes-cluster-upgrades">
+<h1>Troubleshooting problems arising after kubernetes cluster upgrades<a class="headerlink" href="#troubleshooting-problems-arising-after-kubernetes-cluster-upgrades" title="Permalink to this heading"></a></h1>
+<section id="helm-and-kubernetes-api-changes">
+<h2>Helm and kubernetes API changes<a class="headerlink" href="#helm-and-kubernetes-api-changes" title="Permalink to this heading"></a></h2>
+<p>If you upgrade to new versions of kubernetes while wire-server is deployed, you may find that after that version update, deploying a new version of wire-server or nginx-ingress-services (or another helm chart we provide) using <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">update</span></code> or <code class="docutils literal notranslate"><span class="pre">helmfile</span> <span class="pre">apply/sync</span></code> gives an error like this:</p>
+<blockquote>
+<div><p>Error: UPGRADE FAILED: current release manifest contains removed kubernetes api(s) for this kubernetes version and it is therefore unable to build the kubernetes objects for performing the diff. error from kubernetes: unable to recognize “”: no matches for kind “Ingress” in version “extensions/v1beta1”</p>
+</div></blockquote>
+<p>What’s happening here is that some <a class="reference external" href="https://kubernetes.io/docs/reference/using-api/deprecation-guide/">deprecated</a>  kubernetes API versions may potentially have been removed. While we strive to keep maximum compatibility of kubernetes versions in our helm charts, that’s not sufficient when doing k8s upgrades while wire-server helm charts are in use: you need to tell a helm release about the difference in API version.</p>
+<p>In which case you can use the <a class="reference external" href="https://github.com/helm/helm-mapkubeapis">helm mapkubeapis plugin</a> to upgrade an existing release with the following command:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><span class="c1"># install plugin version 0.1.0 (more recent may not work)</span>
+helm<span class="w"> </span>plugin<span class="w"> </span>install<span class="w"> </span>--version<span class="w"> </span>v0.1.0<span class="w"> </span>https://github.com/helm/helm-mapkubeapis
+<span class="c1"># adjust helm release name and namespace as required</span>
+helm<span class="w"> </span>mapkubeapis<span class="w"> </span>--namespace<span class="w"> </span>wire<span class="w"> </span>nginx-ingress-services
+</pre></div>
+</div>
+<p>Alternatively, if a few minutes of downtime are not a problem; you can <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">delete</span></code> a release and re-install it again, which will work without the above plugin.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../restart-machines/index.html" class="btn btn-neutral float-left" title="Restarting a machine in a Kubernetes cluster" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../backup-disaster-recovery.html" class="btn btn-neutral float-right" title="Backup and disaster recovery" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

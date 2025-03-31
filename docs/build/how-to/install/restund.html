@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installing Restund &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Configure TLS ciphers" href="tls.html" />
+    <link rel="prev" title="Installing Conference Calling 2.0 (aka SFT)" href="sft.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Installation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="planning.html">How to plan an installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="version-requirements.html">Version requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dependencies.html">Dependencies on operator’s machine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kubernetes.html">How to install kubernetes (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">How to install wire-server using Helm (Demo)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prod-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-VMs.html">How to install kubernetes and databases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aws-prod.html">How to configure AWS services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm-prod.html">How to install wire-server using Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="infrastructure-configuration.html">Infrastructure configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="monitoring.html">How to monitor wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">How to see centralized logs for wire-server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ingress.html">Ingress-controller (getting traffic in)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="web-app-settings.html">Web app settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sft.html">Installing Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Installing Restund</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#background">Background</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#installation-instructions">Installation instructions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#private-subnets">Private Subnets</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="tls.html">Configure TLS ciphers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-authentication.html">Managing authentication with ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ansible-tinc.html">Using tinc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting during installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="post-install.html">Verifying your installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Installation</a></li>
+      <li class="breadcrumb-item active">Installing Restund</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/how-to/install/restund.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installing-restund">
+<span id="install-restund"></span><h1>Installing Restund<a class="headerlink" href="#installing-restund" title="Permalink to this heading"></a></h1>
+<section id="background">
+<h2>Background<a class="headerlink" href="#background" title="Permalink to this heading"></a></h2>
+<p>Restund servers allow two users on different networks to have a Wire audio or video call.</p>
+<p>Please refer to the following <a class="reference internal" href="../../understand/restund.html#understand-restund"><span class="std std-ref">section to better understand Restund and how it works</span></a>.</p>
+</section>
+<section id="installation-instructions">
+<h2>Installation instructions<a class="headerlink" href="#installation-instructions" title="Permalink to this heading"></a></h2>
+<p>To Install Restund, do the following:</p>
+<ol class="arabic simple">
+<li><p>In your <code class="docutils literal notranslate"><span class="pre">hosts.ini</span></code> file, in the <code class="docutils literal notranslate"><span class="pre">[restund:vars]</span></code> section, set
+the <code class="docutils literal notranslate"><span class="pre">restund_network_interface</span></code> to the name of the interface
+you want restund to talk to clients on. This value defaults to the
+<code class="docutils literal notranslate"><span class="pre">default_ipv4_address</span></code>, with a fallback to <code class="docutils literal notranslate"><span class="pre">eth0</span></code>.</p></li>
+<li><p>(optional) <code class="docutils literal notranslate"><span class="pre">restund_peer_udp_advertise_addr=Y.Y.Y.Y</span></code>: set this to
+the IP to advertise for other restund servers if different than the
+ip on the ‘restund_network_interface’. If using
+‘restund_peer_udp_advertise_addr’, make sure that UDP (!) traffic
+from any restund server (including itself) can reach that IP (for
+<code class="docutils literal notranslate"><span class="pre">restund</span> <span class="pre">&lt;-&gt;</span> <span class="pre">restund</span></code> communication). This should only be necessary
+if you’re installing restund on a VM that is reachable on a public IP
+address but the process cannot bind to that public IP address
+directly (e.g. on AWS VPC VM). If unset, <code class="docutils literal notranslate"><span class="pre">restund</span> <span class="pre">&lt;-&gt;</span> <span class="pre">restund</span></code> UDP
+traffic will default to the IP in the <code class="docutils literal notranslate"><span class="pre">restund_network_interface</span></code>.</p></li>
+</ol>
+<div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="k">[all]</span>
+<span class="na">(...)</span>
+<span class="na">restund01         ansible_host</span><span class="o">=</span><span class="s">X.X.X.X</span>
+
+<span class="na">(...)</span>
+
+<span class="k">[all:vars]</span>
+<span class="c1">## Set the network interface name for restund to bind to if you have more than one network interface</span>
+<span class="c1">## If unset, defaults to the ansible_default_ipv4 (if defined) otherwise to eth0</span>
+<span class="na">restund_network_interface</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">eth0</span>
+
+<span class="na">(see `defaults/main.yml &lt;https</span><span class="o">:</span><span class="s">//github.com/wireapp/ansible-restund/blob/master/defaults/main.yml&gt;`__ for a full list of variables to change if necessary)</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="3">
+<li><p>Place a copy of the PEM formatted certificate and key you are going
+to use for TLS communication to the restund server in
+<code class="docutils literal notranslate"><span class="pre">/tmp/tls_cert_and_priv_key.pem</span></code>. Remove it after you have
+completed deploying restund with ansible.</p></li>
+<li><p>Use Ansible to actually install using the restund playbook:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>-i<span class="w"> </span>hosts.ini<span class="w"> </span>restund.yml<span class="w"> </span>-vv
+</pre></div>
+</div>
+<p>For information on setting up and using ansible-playbook to install Wire components, see <a class="reference internal" href="ansible-VMs.html#ansible-vms"><span class="std std-ref">this page</span></a>.</p>
+<section id="private-subnets">
+<h3>Private Subnets<a class="headerlink" href="#private-subnets" title="Permalink to this heading"></a></h3>
+<p>By default, Restund is configured with a firewall that filters-out CIDR networks.</p>
+<p>If you need to enable Restund to connect to a CIDR addressed host or network, you can specify a list of private subnets in <a class="reference external" href="https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing">CIDR format</a>, which will override Restund’s firewall’s default settings of filtering-out CIDR networks.</p>
+<p>You do this by setting the <code class="docutils literal notranslate"><span class="pre">restund_allowed_private_network_cidrs</span></code> option of the <code class="docutils literal notranslate"><span class="pre">[restund:vars]</span></code> section of the ansible inventory file (<a class="reference external" href="https://github.com/wireapp/wire-server-deploy/blob/master/ansible/inventory/prod/hosts.example.ini#L72">for example this file</a>):</p>
+<div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="k">[restund:vars]</span>
+<span class="c1">## Set the network interface name for restund to bind to if you have more than one network interface</span>
+<span class="c1">## If unset, defaults to the ansible_default_ipv4 (if defined) otherwise to eth0</span>
+<span class="c1"># restund_network_interface = eth0</span>
+<span class="na">restund_allowed_private_network_cidrs</span><span class="o">=</span><span class="s">192.168.0.1/32</span>
+</pre></div>
+</div>
+<p>This is needed, for example, to allow talking to the logging server if it is on a separate network:</p>
+<p>The private subnets only need to override the RFC-defined private networks, which Wire firewalls off by default:</p>
+<ul class="simple">
+<li><p>192.168.x.x</p></li>
+<li><p>10.x.x.x</p></li>
+<li><p>172.16.x.x - 172.31.x.x</p></li>
+<li><p>Etc…</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="sft.html" class="btn btn-neutral float-left" title="Installing Conference Calling 2.0 (aka SFT)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="tls.html" class="btn btn-neutral float-right" title="Configure TLS ciphers" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -221,6 +221,7 @@ ensureActionAllowed action self = case isActionAllowed (fromSing action) (convMe
   -- fact that there can be no custom roles at the moment
   Nothing -> throwS @('ActionDenied action)
 
+-- | Ensure that the conversation is a group conversation which includes channels
 ensureGroupConversation :: (Member (ErrorS 'InvalidOperation) r) => Data.Conversation -> Sem r ()
 ensureGroupConversation conv = do
   let ty = Data.convType conv
@@ -782,7 +783,8 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
       protocol = convProtocol,
-      groupConvType = cnvmGroupConvType
+      groupConvType = cnvmGroupConvType,
+      channelAddPermission = cnvmChannelAddPermission
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -844,6 +846,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmMessageTimer = messageTimer,
             cnvmReceiptMode = receiptMode,
             cnvmGroupConvType = groupConvType,
+            cnvmChannelAddPermission = channelAddPermission,
             cnvmCellsState = def
           }
         (ConvMembers this others)

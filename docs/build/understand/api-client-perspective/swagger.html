@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swagger API documentation &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Cryptographic Libraries and Sources of Randomness" href="../crypto-libs.html" />
+    <link rel="prev" title="Authentication" href="authentication.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../overview.html">Architecture Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../single-sign-on/index.html">Single Sign-On and User Provisioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../restund.html">Audio/video calling, restund servers (TURN/STUN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../sft.html">Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../sft.html#federated-conference-calling">Federated Conference Calling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../helm.html">Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../federation/index.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../associate/index.html">Connecting Wire Clients</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Client API documentation</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="authentication.html">Authentication</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Swagger API documentation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#swagger-docs-swagger-2-0">Swagger docs (Swagger 2.0)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../crypto-libs.html">Crypto libraries and sources of randomness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../block-user-creation.html">Block personal user creation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../classified-domains.html">Classified Domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-federation.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../legalhold.html">Installing and setting up Legal Hold</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../mls.html">Messaging Layer Security (MLS)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../searchability.html">User Searchability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../team-feature-settings.html">Server and team feature settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Reference</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Wire-server API documentation</a></li>
+      <li class="breadcrumb-item active">Swagger API documentation</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/understand/api-client-perspective/swagger.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="swagger-api-documentation">
+<span id="swagger-api-docs"></span><h1>Swagger API documentation<a class="headerlink" href="#swagger-api-documentation" title="Permalink to this heading"></a></h1>
+<p>Our staging system provides <a class="reference external" href="https://swagger.io/resources/open-api/">Swagger /
+OpenAPI</a> documentation of our HTTP REST
+API.</p>
+<p>The swagger docs are correct by construction (compiled from the server
+code), and they are complete up to bots/services and event notification
+payloads (as of 2023-01-16).</p>
+<p>There are several ways to interpret this kind of documentation:</p>
+<ul class="simple">
+<li><p>Read it as a reference</p></li>
+<li><p>Generate client code from it</p></li>
+<li><p>Interactively explore the API by making requests</p></li>
+</ul>
+<section id="swagger-docs-swagger-2-0">
+<h2>Swagger docs (Swagger 2.0)<a class="headerlink" href="#swagger-docs-swagger-2-0" title="Permalink to this heading"></a></h2>
+<p>The Swagger documentation for endpoints depends on the API version.</p>
+<p>The pages below show <a class="reference external" href="https://swagger.io/specification/v2/">Swagger / OpenAPI 2.0</a>
+docs.</p>
+<section id="public-endpoints">
+<h3>Public endpoints<a class="headerlink" href="#public-endpoints" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>Version <code class="docutils literal notranslate"><span class="pre">v0</span></code>:</p>
+<ul>
+<li><p><a class="reference external" href="https://staging-nginz-https.zinfra.io/v0/api/swagger-ui/"><strong>public</strong>
+endpoints</a></p></li>
+</ul>
+</li>
+<li><p>Version <code class="docutils literal notranslate"><span class="pre">v1</span></code>:</p>
+<ul>
+<li><p><a class="reference external" href="https://staging-nginz-https.zinfra.io/v1/api/swagger-ui/"><strong>public</strong>
+endpoints</a></p></li>
+</ul>
+</li>
+<li><p>Version <code class="docutils literal notranslate"><span class="pre">v2</span></code>:</p>
+<ul>
+<li><p><a class="reference external" href="https://staging-nginz-https.zinfra.io/v2/api/swagger-ui/"><strong>public</strong>
+endpoints</a></p></li>
+</ul>
+</li>
+<li><p>…</p></li>
+</ul>
+<p>The first part of the URL’s path is the version.</p>
+<p>New versions are added from time to time. If you
+would like to look at the docs of another version (which did not exist at the
+time of writing this): Just update the first path element of an existing link.
+The URL pattern is <code class="docutils literal notranslate"><span class="pre">https://&lt;nginz-host&gt;/v&lt;version&gt;/api/swagger-ui/</span></code>. To figure
+out which versions are supported by your backend, query
+<code class="docutils literal notranslate"><span class="pre">https://&lt;nginz-host&gt;/&lt;version&gt;/api-version</span></code>.</p>
+<p>If you want to get the raw json for the swagger (ie., for compiling it
+into client code in typescript, kotlin, swift, …), replace
+<code class="docutils literal notranslate"><span class="pre">swagger-ui</span></code> with <code class="docutils literal notranslate"><span class="pre">swagger.json</span></code> in the above URL pattern.</p>
+<p>The <a class="reference internal" href="../../developer/developer/api-versioning.html"><span class="std std-doc">API versioning</span></a> article
+discusses the versioning topic in detail.</p>
+<section id="example">
+<h4>Example<a class="headerlink" href="#example" title="Permalink to this heading"></a></h4>
+<p>To get the versions a backend (<code class="docutils literal notranslate"><span class="pre">staging-nginz-https.zinfra.io</span></code> in this case)
+supports, execute:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://staging-nginz-https.zinfra.io/api-version
+<span class="o">{</span><span class="s2">&quot;development&quot;</span>:<span class="o">[</span><span class="m">4</span><span class="o">]</span>,<span class="s2">&quot;domain&quot;</span>:<span class="s2">&quot;staging.zinfra.io&quot;</span>,<span class="s2">&quot;federation&quot;</span>:false,<span class="s2">&quot;supported&quot;</span>:<span class="o">[</span><span class="m">0</span>,1,2<span class="o">]}</span>
+</pre></div>
+</div>
+<p>The URL to open in your browser for the development version <code class="docutils literal notranslate"><span class="pre">4</span></code> is
+<code class="docutils literal notranslate"><span class="pre">https://staging-nginz-https.zinfra.io/v4/api/swagger-ui/</span></code>.</p>
+</section>
+</section>
+<section id="internal-endpoints">
+<h3>Internal endpoints<a class="headerlink" href="#internal-endpoints" title="Permalink to this heading"></a></h3>
+<p>Swagger docs for internal endpoints are served per service. I.e. there’s one for
+<code class="docutils literal notranslate"><span class="pre">brig</span></code>, one for <code class="docutils literal notranslate"><span class="pre">cannon</span></code>, etc.. This is because Swagger doesn’t play well with
+multiple actions having the same combination of HTTP method and URL path.</p>
+<p>Internal APIs are not under version control.</p>
+<ul class="simple">
+<li><p>Unversioned:</p>
+<ul>
+<li><p><a class="reference external" href="https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig"><code class="docutils literal notranslate"><span class="pre">brig</span></code> - <strong>internal</strong> (private)
+endpoints</a></p></li>
+<li><p><a class="reference external" href="https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/cannon"><code class="docutils literal notranslate"><span class="pre">cannon</span></code> - <strong>internal</strong> (private)
+endpoints</a></p></li>
+<li><p><a class="reference external" href="https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/cargohold"><code class="docutils literal notranslate"><span class="pre">cargohold</span></code> - <strong>internal</strong> (private)
+endpoints</a></p></li>
+<li><p><a class="reference external" href="https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley"><code class="docutils literal notranslate"><span class="pre">galley</span></code> - <strong>internal</strong> (private)
+endpoints</a></p></li>
+<li><p><a class="reference external" href="https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/spar"><code class="docutils literal notranslate"><span class="pre">spar</span></code> - <strong>internal</strong> (private)
+endpoints</a></p></li>
+</ul>
+</li>
+</ul>
+<p>The URL pattern is similar to that of public endpoints for latest version:
+<code class="docutils literal notranslate"><span class="pre">https://&lt;nginz-host&gt;/api-internal/swagger-ui/&lt;service&gt;</span></code>.</p>
+<p>If you want to get the raw json of the swagger:
+<code class="docutils literal notranslate"><span class="pre">https://&lt;nginz-host&gt;/api-internal/swagger-ui/&lt;service&gt;-swagger.json</span></code>.</p>
+</section>
+<section id="finding-the-source-code-for-an-end-point">
+<h3>Finding the source code for an end-point<a class="headerlink" href="#finding-the-source-code-for-an-end-point" title="Permalink to this heading"></a></h3>
+<p>A <em>route internal ID</em> is provided for every end-point.  See
+<a class="reference internal" href="../../developer/developer/servant.html#named-and-internal-route-ids"><span class="std std-ref">Named, and internal route IDs in swagger</span></a> for details and usage.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="authentication.html" class="btn btn-neutral float-left" title="Authentication" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../crypto-libs.html" class="btn btn-neutral float-right" title="Cryptographic Libraries and Sources of Randomness" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

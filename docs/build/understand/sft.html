@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Conference Calling 2.0 (aka SFT) &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/clipboard.min.js"></script>
+        <script src="../_static/copybutton.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Minio" href="minio.html" />
+    <link rel="prev" title="Restund (TURN) servers" href="restund.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../index.html">
+        <img src="../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="overview.html">Architecture Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="single-sign-on/index.html">Single Sign-On and User Provisioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="restund.html">Audio/video calling, restund servers (TURN/STUN)</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Conference Calling 2.0 (aka SFT)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#background">Background</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#architecture">Architecture</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#establishing-a-call">Establishing a call</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#federated-conference-calling">Federated Conference Calling</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#multi-sft-architecture">Multi-SFT Architecture</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="helm.html">Helm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="federation/index.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="associate/index.html">Connecting Wire Clients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api-client-perspective/index.html">Client API documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crypto-libs.html">Crypto libraries and sources of randomness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="block-user-creation.html">Block personal user creation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="classified-domains.html">Classified Domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-federation.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="legalhold.html">Installing and setting up Legal Hold</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mls.html">Messaging Layer Security (MLS)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="searchability.html">User Searchability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="team-feature-settings.html">Server and team feature settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Reference</a></li>
+      <li class="breadcrumb-item active">Conference Calling 2.0 (aka SFT)</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/understand/sft.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="conference-calling-2-0-aka-sft">
+<span id="understand-sft"></span><h1>Conference Calling 2.0 (aka SFT)<a class="headerlink" href="#conference-calling-2-0-aka-sft" title="Permalink to this heading"></a></h1>
+<section id="background">
+<h2>Background<a class="headerlink" href="#background" title="Permalink to this heading"></a></h2>
+<p>Previously, Wire group calls were implemented as a mesh, where each participant was connected
+to each other in a peer-to-peer fashion. This meant that a client would have to upload their
+video and audio feeds separately for each participant. This in practice meant that the amount
+of participants was limited by the upload bandwidth of the clients.</p>
+<p>Wire now has a signalling-forwarding unit called <a class="reference external" href="https://github.com/wireapp/wire-avs-service">SFT</a> which allows clients to upload once and
+then the SFT fans it out to the other clients. Because connections are not end-to-end anymore now, dTLS encryption offered by WebRTC is not enough anymore as the encryption is terminated at the server-side. To avoid Wire from seeing the contents of calls SFT utilises WebRTC InsertibleStreams to encrypt the packets a second time with a group key that is not known to the server.</p>
+<p>With SFT it is thus possible to have conference calls with many participants
+without compromising end-to-end security.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We will describe conferencing first in a single domain in this section.
+Conferencing in an environment with Federation is described in the
+<a class="reference internal" href="#federated-sft"><span class="std std-ref">federated conferencing</span></a> section.</p>
+</div>
+</section>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Permalink to this heading"></a></h2>
+<p>The following diagram is centered around SFT and its role within a calling setup. Restund is seen
+as a mere client proxy and its relation to and interaction with a client is explained
+<a class="reference internal" href="restund.html#understand-restund"><span class="std std-ref">here</span></a>. The diagram shows that a call resides on a single SFT instance
+and that the instance allocates at least one port for media transport per participant in the call.</p>
+<figure class="align-default" id="id3">
+<img alt="../_images/architecture-sft.png" src="../_images/architecture-sft.png" />
+<figcaption>
+<p><span class="caption-text">SFT signaling, and media sending from the perspective of one caller</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="establishing-a-call">
+<h2>Establishing a call<a class="headerlink" href="#establishing-a-call" title="Permalink to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><em>Client A</em> wants to initiate a call. It contacts all the known SFT servers via HTTPS.
+The SFT server that is quickest to respond is the one that will be used by the client.
+(Request 1: <code class="docutils literal notranslate"><span class="pre">CONFCONN</span></code>)</p></li>
+<li><p><em>Client A</em> gathers connection candidates (own public IP, public IP of the network the
+client is in with the help of STUN, through TURN servers) <a class="footnote-reference brackets" href="#footnote-1" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a> for the SFT server to
+establish a media connection to <em>Client A</em>. These information are then being send again
+from <em>Client A</em> to the chosen SFT server via HTTPS request. (Request 2: <code class="docutils literal notranslate"><span class="pre">SETUP</span></code>)</p></li>
+<li><p>The SFT server tests which of the connection candidates actually work. Meaning, it
+goes through all the candidates until one leads to a successful media connection
+between itself and <em>client A</em></p></li>
+<li><p><em>Client A</em> sends an end-to-end encrypted message <a class="footnote-reference brackets" href="#footnote-2" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a> <code class="docutils literal notranslate"><span class="pre">CONFSTART</span></code> to all members of chat, which contains
+the URL of the SFT server that is being used for the call.</p></li>
+<li><p>Any other client that wants to join the call, does 1. + 2. with the exception of <strong>only</strong>
+contacting one SFT server i.e. the one that <em>client A</em> chose and told all other
+potential participants about via <code class="docutils literal notranslate"><span class="pre">CONFSTART</span></code> message</p></li>
+</ol>
+<p>At that point a media connection between <em>client A</em> and the SFT server has been established,
+and they continue talking to each other by using the data-channel, which uses the media
+connection (i.e. no more HTTPS at that point). There are just 2 HTTPS request/response
+sequences per participant.</p>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading"></a></h2>
+<p>For Conference Calling to function properly, clients need to be able to reach the HTTPS interface
+of the SFT server(s) - either directly or through a load balancer sitting in front of the servers.
+This is only needed for the call initiation/joining part.
+Additionally, for the media connection, clients and SFT servers should be able to reach each other
+via UDP (see <a class="reference internal" href="../how-to/install/sft.html#install-sft-firewall-rules"><span class="std std-ref">Firewall rules</span></a>).
+If that is not possible, then at least SFT servers and Restund servers should be able to reach each
+other via UDP - and clients may connect via UDP and/or TCP to Restund servers
+(see <a class="reference internal" href="restund.html#understand-restund-protocal-and-ports"><span class="std std-ref">Protocols and open ports</span></a>), which in
+turn will connect to the SFT server.
+In the unlikely scenario where no UDP is allowed whatsoever or SFT servers may not be able to reach
+the Restund servers that clients are using to make themselves reachable, an SFT server itself can
+also choose to proxy itself by a Restund server, which could be different from the Restund servers
+used by clients (see <em>TURN discovery</em> flag).</p>
+<p>The SFT may need to receive and send traffic over UDP and TCP on a wide range of ports.
+Due to the fact that Kubernetes services do not support setting port ranges, and Kubernetes pods not being publicly routable (at least in IPv4) we require the SFT pods to run in <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code> mode and the pod will bind directly to the default interface of the node.</p>
+<p>Due to this <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code> limitation only one SFT instance can run per node so if you want to scale up your SFT deployment you will need to increase the amount of kubernetes nodes in your cluster.</p>
+<p>As a rule of thumb you will need 1vCPU of compute per 50 participants. SFT will utilise multiple cores. You can use this rule of thumb to decide how many kubernetes nodes you need to provision.</p>
+<p>For more information about capacity planning and networking please refer to the <a class="reference external" href="https://github.com/wireapp/wire-server/blob/eab0ce1ff335889bc5a187c51872dfd0e78cc22b/charts/sftd/README.md">technical documentation</a></p>
+</section>
+</section>
+<section id="federated-conference-calling">
+<span id="federated-sft"></span><h1>Federated Conference Calling<a class="headerlink" href="#federated-conference-calling" title="Permalink to this heading"></a></h1>
+<p>Conferencing in a federated environment assumes that each domain participating in a
+conference will use an SFT in its own domain. The SFT in the caller’s domain is called
+the <code class="docutils literal notranslate"><span class="pre">anchor</span> <span class="pre">SFT</span></code>.</p>
+<section id="multi-sft-architecture">
+<h2>Multi-SFT Architecture<a class="headerlink" href="#multi-sft-architecture" title="Permalink to this heading"></a></h2>
+<p>With support for federation, each domain participating in a conference is responsible to
+make available an SFT for users in that domain.  The SFT in the domain of the caller is
+called the <code class="docutils literal notranslate"><span class="pre">anchor</span> <span class="pre">SFT</span></code>. SFTs in other domains (in the same conference) connect to the
+anchor SFT.  Non-anchor SFTs drop their connection to the anchor SFT when no local
+participants are present. The anchor SFT does not destroy the conference until there are
+no participants (federated SFTs or local clients).</p>
+<p>The following diagram shows SFTs in two different domains. In this example, Alice
+initiates a call in a federated conversation which contains herself, Adam also in domain
+A, and Bob and Beth in domain B. Alice’s client first creates a conference and is
+assigned a conference URL on SFT A2. Because the SFT is configured for federation, it
+assumes the role of anchor and also returns an IP address and port (the <code class="docutils literal notranslate"><span class="pre">anchor</span> <span class="pre">SFT</span> <span class="pre">tuple</span></code>)
+which can be used by any federated SFTs which need to connect. (Alice sets up her media
+connection with SFT A2 as normal).</p>
+<p>Alice’s client forwards the conference URL and the anchor SFT tuple to the other
+participants in the conversation, end-to-end encrypted.  Bob’s client examines the
+conference URL. Realizing this URL is not an SFT in its own domain, Bob’s client opens
+a connection to its SFTs as if creating a new connection, but passes an additional
+parameter containing the anchor SFT URL and tuple. SFT B1 establishes a DTLS connection
+to the anchor SFT using the anchor SFT tuple and provides the SFT URL. (Bob’s client
+also sets up media with SFT B1 normally.)  At this point all paths are established
+and the conference call can happen normally.</p>
+<figure class="align-default" id="id4">
+<img alt="../_images/multi-sft-noturn.png" src="../_images/multi-sft-noturn.png" />
+<figcaption>
+<p><span class="caption-text">Basic Multi-SFT conference initiated by Alice in domain A, with Bob in domain B</span><a class="headerlink" href="#id4" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+<p>Because some customers do not wish to expose their SFTs directly to hosts on the public
+Internet, the SFTs can allocate a port on a TURN server. In this way, only the IP
+addresses and ports of the TURN server are exposed to the Internet. This can be a separate
+set of TURN servers from those used for ordinary client calling. The diagram below shows
+this scenario.  In this configuration, SFT A2 requests an allocation from the federation
+TURN server in domain A before responding to Alice. The anchor SFT tuple is the address
+allocated on the federation TURN server in domain A.</p>
+<figure class="align-default" id="id5">
+<img alt="../_images/multi-sft-turn.png" src="../_images/multi-sft-turn.png" />
+<figcaption>
+<p><span class="caption-text">Multi-SFT conference with TURN servers between federated SFTs</span><a class="headerlink" href="#id5" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+<p>Finally, for extremely restrictive firewall environments, the TURN servers used for
+federated SFT traffic can be further secured with a TURN to TURN mutually
+authenticated DTLS connection. The SFTs allocate a channel inside this DTLS connection
+per conference.  The channel number is included along with the anchor SFT tuple
+returned to Alice, which Alice shares with the conversation, which Bob sends to SFT B1,
+and which SFT B1 uses when forming its DTLS connection to SFT A2. This DTLS connection
+runs on a dedicated port number which is not used for regular TURN traffic. Under this
+configuration, only that single IP address and port is exposed for each federated TURN
+server with all SFT traffic multiplexed over the connection. The diagram below shows
+this scenario.  Note that this TURN DTLS multiplexing is only used for SFT to SFT
+communication into federated group calls, and does not affect the connectivity requirements for normal one-on-one
+calls.</p>
+<figure class="align-default" id="id6">
+<img alt="../_images/multi-sft-turn-dtls.png" src="../_images/multi-sft-turn-dtls.png" />
+<figcaption>
+<p><span class="caption-text">Multi-SFT conference with federated TURN servers with DTLS multiplexing</span><a class="headerlink" href="#id6" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+<hr class="footnotes docutils" />
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="footnote-1" role="note">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">1</a><span class="fn-bracket">]</span></span>
+<p>STUN &amp; TURN are both part of a <a class="reference internal" href="restund.html#understand-restund"><span class="std std-ref">Restund server</span></a></p>
+</aside>
+<aside class="footnote brackets" id="footnote-2" role="note">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">2</a><span class="fn-bracket">]</span></span>
+<p>This encrypted message is sent in the same conversation, hidden from user’s view but
+interpreted by user’s clients. It is sent via backend servers and forwarded to other
+conversation participants, not to or via SFT.</p>
+</aside>
+</aside>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="restund.html" class="btn btn-neutral float-left" title="Restund (TURN) servers" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="minio.html" class="btn btn-neutral float-right" title="Minio" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

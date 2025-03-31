@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>5. Dependencies &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="6. Editor setup" href="editor-setup.html" />
+    <link rel="prev" title="4. Changelog" href="changelog.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Developer</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="api-versioning.html">1. API versioning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="building.html">2. How to build wire-server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cassandra-interaction.html">3. Writing code interacting with cassandra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="changelog.html">4. Changelog</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">5. Dependencies</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#general-package-dependencies-needed-to-compile-haskell-services">5.1. General package dependencies (needed to compile Haskell services)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#haskell-stack">5.2. Haskell Stack</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rust">5.3. Rust</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#formatting-haskell-files">5.4. Formatting Haskell files</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#generating-license-headers">5.5. Generating license headers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#cryptobox-c">5.6. cryptobox-c</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#docker">5.7. Docker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#telepresence">5.8. Telepresence</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#helm-chart-development-integration-tests-in-kubernetes">5.9. Helm chart development, integration tests in kubernetes</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="editor-setup.html">6. Editor setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="features.html">7. Features</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-api-conventions.html">8. Federation API Conventions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-design-aspects.html">9. Federation Design Aspects</a></li>
+<li class="toctree-l3"><a class="reference internal" href="how-to.html">10. Developer how-to’s</a></li>
+<li class="toctree-l3"><a class="reference internal" href="large-conversations.html">11. Refactoring galley to support large conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="linting.html">12. Linting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pr-guidelines.html">13. PR Guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="processes.html">14. Internal processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="scim/storage.html">15. Storing SCIM-related data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="servant.html">16. Servant</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html">17. Testing the wire-server Haskell code base</a></li>
+<li class="toctree-l3"><a class="reference internal" href="upgrading.html">18. Upgrading</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/index.html">Reference</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Developer</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">5. </span>Dependencies</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/developer/dependencies.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="dependencies">
+<h1><span class="section-number">5. </span>Dependencies<a class="headerlink" href="#dependencies" title="Permalink to this heading"></a></h1>
+<p>Reference: {#DevDeps}</p>
+<p>This page documents how to install necessary dependencies to work with the wire-server code base.</p>
+<section id="general-package-dependencies-needed-to-compile-haskell-services">
+<h2><span class="section-number">5.1. </span>General package dependencies (needed to compile Haskell services)<a class="headerlink" href="#general-package-dependencies-needed-to-compile-haskell-services" title="Permalink to this heading"></a></h2>
+<p><em>Note: all the below sections for getting compile-time dependencies necessary to compile all of wire-server may potentially go out of date; if you spot a mistake please open an issue or PR</em></p>
+<section id="nix-direnv">
+<h3><span class="section-number">5.1.1. </span>Nix + Direnv<a class="headerlink" href="#nix-direnv" title="Permalink to this heading"></a></h3>
+<ol class="arabic">
+<li><p>Install <a class="reference external" href="https://nixos.org/download.html">Nix</a>. macOS users with a recent
+Mac and non-NixOS Linux users should follow <a class="reference external" href="https://nixos.org/manual/nix/stable/installation/installing-binary.html">these
+instructions</a>
+to install a binary distribution of Nix.</p>
+<p>Debian users (running at least Debian 11) can use this distro’s <code class="docutils literal notranslate"><span class="pre">nix-bin</span></code>
+package. In this case, ensure your user is added to the <code class="docutils literal notranslate"><span class="pre">nix-users</span></code> group
+(and restart your login session to pick this up). Note that Debian’s Nix
+package provides a <em>multi-user</em> installation (as opposed to a single-user
+installation, which is an option when using the binary distribution tarball).</p>
+</li>
+<li><p>Add the <code class="docutils literal notranslate"><span class="pre">wire-server</span></code> Cachix cache to your system. On NixOS, this can be
+done by adding the following snippet to your system configuration:</p>
+<div class="highlight-nix notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+  nix<span class="o">.</span><span class="ss">binaryCachePublicKeys =</span> <span class="p">[</span> <span class="s2">&quot;wire-server.cachix.org-1:fVWmRcvdsqzKek3X5Ad8nYNsBSjKZ9Um2NMLfMLS77Y=&quot;</span> <span class="p">];</span>
+  nix<span class="o">.</span><span class="ss">binaryCaches =</span> <span class="p">[</span> <span class="s2">&quot;https://wire-server.cachix.org&quot;</span> <span class="p">];</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>On non-NixOS systems, these need to be manually added to your <code class="docutils literal notranslate"><span class="pre">nix.conf</span></code>
+(this is at <code class="docutils literal notranslate"><span class="pre">~/.config/nix/nix.conf</span></code> for single-user installations, and
+<code class="docutils literal notranslate"><span class="pre">/etc/nix/nix.conf</span></code> for multi-user installations; you can create this file if
+it doesn’t exist):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">substituters</span> <span class="o">=</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">cache</span><span class="o">.</span><span class="n">nixos</span><span class="o">.</span><span class="n">org</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">wire</span><span class="o">-</span><span class="n">server</span><span class="o">.</span><span class="n">cachix</span><span class="o">.</span><span class="n">org</span>
+<span class="n">trusted</span><span class="o">-</span><span class="n">public</span><span class="o">-</span><span class="n">keys</span> <span class="o">=</span> <span class="n">wire</span><span class="o">-</span><span class="n">server</span><span class="o">.</span><span class="n">cachix</span><span class="o">.</span><span class="n">org</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="n">fVWmRcvdsqzKek3X5Ad8nYNsBSjKZ9Um2NMLfMLS77Y</span><span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">nixos</span><span class="o">.</span><span class="n">org</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="mi">6</span><span class="n">NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY</span><span class="o">=</span>
+</pre></div>
+</div>
+</li>
+<li><p>Install <a class="reference external" href="https://direnv.net/">Direnv</a>.
+On Debian, you can install the <code class="docutils literal notranslate"><span class="pre">direnv</span></code> package. On MacOS use <code class="docutils literal notranslate"><span class="pre">brew</span> <span class="pre">install</span> <span class="pre">direnv</span></code>.</p>
+<ul class="simple">
+<li><p>Make sure direnv is hooked into your shell via its appripriate <code class="docutils literal notranslate"><span class="pre">rc</span></code> file.
+Add <code class="docutils literal notranslate"><span class="pre">eval</span> <span class="pre">&quot;$(direnv</span> <span class="pre">hook</span> <span class="pre">bash|zsh|fish)&quot;</span></code> to your ~/.(bash|zsh|fish)rc .</p></li>
+</ul>
+<p>On NixOS with home-manager, you can set <code class="docutils literal notranslate"><span class="pre">programs.direnv.enable</span> <span class="pre">=</span> <span class="pre">true;</span></code>,
+which does all of the above.</p>
+<p>See the <a class="reference external" href="https://direnv.net/docs/installation.html">Installation documentation</a>
+for further details.</p>
+<p>When successfully installed and hooked, direnv should ask you to <code class="docutils literal notranslate"><span class="pre">direnv</span> <span class="pre">allow</span></code>
+the current <code class="docutils literal notranslate"><span class="pre">.envrc</span></code> when you cd to this repository.</p>
+</li>
+<li><p>As this repo uses git submodules, ensure you’re fetching from them automatically.
+Run <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">config</span> <span class="pre">--global</span> <span class="pre">submodule.recurse</span> <span class="pre">true</span></code> to enable this globally.
+Run <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">config</span> <span class="pre">--global</span> <span class="pre">fetch.parallel</span> <span class="pre">10</span></code> to fetch more submodules in parallel.
+If you’ve already cloned this repo before having enabled this, run <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">submodule</span> <span class="pre">update</span> <span class="pre">--init</span> <span class="pre">--recursive</span></code> once.</p></li>
+</ol>
+<section id="stack-s-nix-integration">
+<h4><span class="section-number">5.1.1.1. </span>Stack’s Nix Integration<a class="headerlink" href="#stack-s-nix-integration" title="Permalink to this heading"></a></h4>
+<p>Using Stack’s
+<a class="reference external" href="https://docs.haskellstack.org/en/stable/nix_integration/">Nix integration</a>,
+Stack will take care of installing any system dependencies automatically -
+including <code class="docutils literal notranslate"><span class="pre">cryptobox-c</span></code>. If new system dependencies are needed, add them to the
+<code class="docutils literal notranslate"><span class="pre">stack-deps.nix</span></code> file in the project root.</p>
+</section>
+</section>
+<section id="fedora">
+<h3><span class="section-number">5.1.2. </span>Fedora:<a class="headerlink" href="#fedora" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>pkgconfig<span class="w"> </span>haskell-platform<span class="w"> </span>libstdc++-devel<span class="w"> </span>libstdc++-static<span class="w"> </span>gcc-c++<span class="w"> </span>libtool<span class="w"> </span>automake<span class="w"> </span>openssl-devel<span class="w"> </span>libsodium-devel<span class="w"> </span>ncurses-compat-libs<span class="w"> </span>libicu-devel<span class="w"> </span>GeoIP-devel<span class="w"> </span>libxml2-devel<span class="w"> </span>snappy-devel<span class="w"> </span>protobuf-compiler
+</pre></div>
+</div>
+</section>
+<section id="ubuntu-debian">
+<h3><span class="section-number">5.1.3. </span>Ubuntu / Debian:<a class="headerlink" href="#ubuntu-debian" title="Permalink to this heading"></a></h3>
+<p><em>Note</em>: Debian is not recommended due to this issue when running local integration tests: <a class="reference external" href="https://github.com/wireapp/wire-server/issues/327">#327</a>. This issue does not occur with Ubuntu.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>pkg-config<span class="w"> </span>libsodium-dev<span class="w"> </span>openssl-dev<span class="w"> </span>libtool<span class="w"> </span>automake<span class="w"> </span>build-essential<span class="w"> </span>libicu-dev<span class="w"> </span>libsnappy-dev<span class="w"> </span>libgeoip-dev<span class="w"> </span>protobuf-compiler<span class="w"> </span>libxml2-dev<span class="w"> </span>zlib1g-dev<span class="w"> </span>libtinfo-dev<span class="w"> </span>liblzma-dev<span class="w"> </span>libpcre3<span class="w"> </span>libpcre3-dev<span class="w"> </span>-y
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">openssl-dev</span></code> does not work for you, try <code class="docutils literal notranslate"><span class="pre">libssl-dev</span></code>.</p>
+</section>
+<section id="arch">
+<h3><span class="section-number">5.1.4. </span>Arch:<a class="headerlink" href="#arch" title="Permalink to this heading"></a></h3>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>```
+# You might also need &#39;sudo pacman -S base-devel&#39; if you haven&#39;t
+# installed the base-devel group already.
+sudo pacman -S geoip snappy icu openssl ncurses-compat-libs
+```
+</pre></div>
+</div>
+</section>
+<section id="macos">
+<h3><span class="section-number">5.1.5. </span>macOS:<a class="headerlink" href="#macos" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>install<span class="w"> </span>pkg-config<span class="w"> </span>libsodium<span class="w"> </span>openssl<span class="w"> </span>automake<span class="w"> </span>icu4c<span class="w"> </span>geoip<span class="w"> </span>snappy<span class="w"> </span>protobuf
+</pre></div>
+</div>
+<p><em>Note</em>: macOS users will need to make sure to link Haskell services against a more recent version of OpenSSL than what ships with the OS by default. Additionally, <code class="docutils literal notranslate"><span class="pre">icu4c</span></code> is installed in a non-standard location by <code class="docutils literal notranslate"><span class="pre">homebrew</span></code>. Add the following to your <code class="docutils literal notranslate"><span class="pre">.stack/config.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">extra-include-dirs</span><span class="p">:</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/local/opt/openssl/include</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/local/opt/icu4c/include</span>
+
+<span class="nt">extra-lib-dirs</span><span class="p">:</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/local/opt/openssl/lib</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/local/opt/icu4c/lib</span>
+</pre></div>
+</div>
+<p><em>Note</em>: if you’re getting <code class="docutils literal notranslate"><span class="pre">fatal</span> <span class="pre">error:</span> <span class="pre">'libxml/parser.h'</span> <span class="pre">file</span> <span class="pre">not</span> <span class="pre">found</span></code> and you’re on macOS Mojave, try doing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>installer<span class="w"> </span>-pkg<span class="w"> </span>/Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg<span class="w"> </span>-target<span class="w"> </span>/
+</pre></div>
+</div>
+</section>
+</section>
+<section id="haskell-stack">
+<h2><span class="section-number">5.2. </span>Haskell Stack<a class="headerlink" href="#haskell-stack" title="Permalink to this heading"></a></h2>
+<p>Please refer to <a class="reference external" href="https://docs.haskellstack.org/en/stable/README/#how-to-install">Stack’s installation instructions</a>.</p>
+<p>When you’re done, ensure <code class="docutils literal notranslate"><span class="pre">stack</span> <span class="pre">--version</span></code> is the same as <code class="docutils literal notranslate"><span class="pre">STACK_VERSION</span></code> in <a class="reference external" href="https://github.com/wireapp/wire-server/blob/develop/build/ubuntu/Dockerfile.prebuilder"><code class="docutils literal notranslate"><span class="pre">build/ubuntu/Dockerfile.prebuilder</span></code></a>.</p>
+<p>If you have to, you can downgrade stack with this command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>stack<span class="w"> </span>upgrade<span class="w"> </span>--binary-version<span class="w"> </span>&lt;version&gt;
+</pre></div>
+</div>
+<section id="id1">
+<h3><span class="section-number">5.2.1. </span>Ubuntu / Debian<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<p><em>Note</em>: The packaged versions of <code class="docutils literal notranslate"><span class="pre">haskell-stack</span></code> are too old. It is recommended to follow the generic instructions or to use stack to update stack (<code class="docutils literal notranslate"><span class="pre">stack</span> <span class="pre">upgrade</span></code>).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>haskell-stack<span class="w"> </span>-y
+</pre></div>
+</div>
+</section>
+<section id="generic">
+<h3><span class="section-number">5.2.2. </span>Generic<a class="headerlink" href="#generic" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-sSL<span class="w"> </span>https://get.haskellstack.org/<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+<span class="c1"># or</span>
+wget<span class="w"> </span>-qO-<span class="w"> </span>https://get.haskellstack.org/<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+</pre></div>
+</div>
+</section>
+</section>
+<section id="rust">
+<h2><span class="section-number">5.3. </span>Rust<a class="headerlink" href="#rust" title="Permalink to this heading"></a></h2>
+<section id="id2">
+<h3><span class="section-number">5.3.1. </span>Ubuntu / Debian<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>rustc<span class="w"> </span>cargo<span class="w"> </span>-y
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h3><span class="section-number">5.3.2. </span>Generic<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://sh.rustup.rs<span class="w"> </span>-sSf<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+<span class="nb">source</span><span class="w"> </span><span class="nv">$HOME</span>/.cargo/env
+</pre></div>
+</div>
+</section>
+</section>
+<section id="formatting-haskell-files">
+<h2><span class="section-number">5.4. </span>Formatting Haskell files<a class="headerlink" href="#formatting-haskell-files" title="Permalink to this heading"></a></h2>
+<p>You need <a class="reference external" href="https://github.com/tweag/ormolu"><code class="docutils literal notranslate"><span class="pre">ormolu</span></code></a> on your PATH, get it with <code class="docutils literal notranslate"><span class="pre">stack</span> <span class="pre">install</span> <span class="pre">ormolu</span></code></p>
+</section>
+<section id="generating-license-headers">
+<h2><span class="section-number">5.5. </span>Generating license headers<a class="headerlink" href="#generating-license-headers" title="Permalink to this heading"></a></h2>
+<p>We use <a class="reference external" href="https://github.com/vaclavsvejcar/headroom"><code class="docutils literal notranslate"><span class="pre">headroom</span></code></a>, get it with <code class="docutils literal notranslate"><span class="pre">stack</span> <span class="pre">install</span> <span class="pre">headroom</span></code></p>
+</section>
+<section id="cryptobox-c">
+<h2><span class="section-number">5.6. </span>cryptobox-c<a class="headerlink" href="#cryptobox-c" title="Permalink to this heading"></a></h2>
+<section id="id4">
+<h3><span class="section-number">5.6.1. </span>Ubuntu / Debian<a class="headerlink" href="#id4" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/wireapp/cryptobox-c<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>cryptobox-c
+make<span class="w"> </span>dist
+dpkg<span class="w"> </span>-i<span class="w"> </span>target/release/cryptobox*.deb
+</pre></div>
+</div>
+</section>
+<section id="id5">
+<h3><span class="section-number">5.6.2. </span>Generic<a class="headerlink" href="#id5" title="Permalink to this heading"></a></h3>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>```bash
+export TARGET_LIB=&quot;$HOME/.wire-dev/lib&quot;
+export TARGET_INCLUDE=&quot;$HOME/.wire-dev/include&quot;
+mkdir -p &quot;$TARGET_LIB&quot;
+mkdir -p &quot;$TARGET_INCLUDE&quot;
+git clone https://github.com/wireapp/cryptobox-c &amp;&amp; cd cryptobox-c
+make install
+
+# Add cryptobox-c to ldconfig
+sudo bash -c &quot;echo \&quot;${TARGET_LIB}\&quot; &gt; /etc/ld.so.conf.d/cryptobox.conf&quot;
+sudo ldconfig
+```
+</pre></div>
+</div>
+<p>Make sure stack knows where to find it. In <code class="docutils literal notranslate"><span class="pre">~/.stack/config.yaml</span></code> add:</p>
+<p>(using <code class="docutils literal notranslate"><span class="pre">~</span></code> or <code class="docutils literal notranslate"><span class="pre">$HOME</span></code> doesn’t work, needs full paths)</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">extra-include-dirs</span><span class="p">:</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/local/include</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;YOUR_HOME_DIR&gt;/.wire-dev/include</span>
+
+<span class="nt">extra-lib-dirs</span><span class="p">:</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/local/lib</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;YOUR_HOME_DIR&gt;/.wire-dev/lib</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="docker">
+<h2><span class="section-number">5.7. </span>Docker<a class="headerlink" href="#docker" title="Permalink to this heading"></a></h2>
+<p><em>Note</em>: While it is possible to use non-docker solutions to set up and configure this software, we recommend using docker and our provided docker images to configure dependent services rapidly, and ensure a consistent environment for all potential developers.</p>
+<section id="ubuntu-debian-testing-unstable">
+<h3><span class="section-number">5.7.1. </span>Ubuntu / Debian Testing/Unstable:<a class="headerlink" href="#ubuntu-debian-testing-unstable" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>docker.io<span class="w"> </span>docker-compose
+</pre></div>
+</div>
+<p>After installing docker-io, add your user to the docker group, and restart your shell (usually involving a restart of your graphical environment).</p>
+<p>once you’ve logged in again, if you would like to upload any docker images (optional):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>login<span class="w"> </span>--username<span class="o">=</span>&lt;MY_DOCKER_USERNAME&gt;
+</pre></div>
+</div>
+</section>
+<section id="id6">
+<h3><span class="section-number">5.7.2. </span>Generic:<a class="headerlink" href="#id6" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p><a class="reference external" href="https://docker.com">Install docker</a></p></li>
+<li><p><a class="reference external" href="https://docs.docker.com/compose/install/">Install docker-compose</a></p></li>
+</ul>
+</section>
+</section>
+<section id="telepresence">
+<h2><span class="section-number">5.8. </span>Telepresence<a class="headerlink" href="#telepresence" title="Permalink to this heading"></a></h2>
+<p>You can instead use <a class="reference external" href="https://www.telepresence.io">telepresence</a> to allow you to talk to services installed in a given kubernetes namespace on a local or remote kubernetes cluster using easy DNS names like: <code class="docutils literal notranslate"><span class="pre">curl</span> <span class="pre">http://elasticsearch:9200</span></code>.</p>
+<p>Requirements:</p>
+<ul class="simple">
+<li><p>install telepresence (e.g. <code class="docutils literal notranslate"><span class="pre">nix-env</span> <span class="pre">-iA</span> <span class="pre">nixpkgs.telepresence</span></code>)</p></li>
+<li><p>you need access to a kubernetes cluster</p></li>
+<li><p>you need a namespace in which you have installed something (e.g. <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kube-integration-setup</span></code> will do this)</p></li>
+</ul>
+<section id="telepresence-example-usage">
+<h3><span class="section-number">5.8.1. </span>Telepresence example usage:<a class="headerlink" href="#telepresence-example-usage" title="Permalink to this heading"></a></h3>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>```
+# terminal 1
+telepresence --namespace &quot;$NAMESPACE&quot; --also-proxy cassandra-ephemeral
+```
+
+```
+# terminal 2
+curl http://elasticsearch-ephemeral:9200
+```
+</pre></div>
+</div>
+</section>
+<section id="telepresence-example-usage-2">
+<h3><span class="section-number">5.8.2. </span>Telepresence example usage 2:<a class="headerlink" href="#telepresence-example-usage-2" title="Permalink to this heading"></a></h3>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>```
+# just one terminal
+telepresence --namespace &quot;$NAMESPACE&quot; --also-proxy cassandra-ephemeral --run bash -c &quot;curl http://elasticsearch-ephemeral:9200&quot;
+```
+</pre></div>
+</div>
+</section>
+<section id="telepresence-usage-discussion">
+<h3><span class="section-number">5.8.3. </span>Telepresence usage discussion:<a class="headerlink" href="#telepresence-usage-discussion" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>If you have <code class="docutils literal notranslate"><span class="pre">fake-aws</span></code> and <code class="docutils literal notranslate"><span class="pre">databases-ephemeral</span></code> helm charts set up, you can run either <code class="docutils literal notranslate"><span class="pre">brig</span></code> and other services locally (they connect to cassandra-inside-kubernetes)</p></li>
+<li><p>If you also have <code class="docutils literal notranslate"><span class="pre">brig</span></code> and other haskell services running in kubernetes (e.g. you ran <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">kube-integration-setup</span></code>, you can use telepresence to only run test executables (like <code class="docutils literal notranslate"><span class="pre">brig-integration</span></code>) locally which connect to services inside kubernetes.</p></li>
+</ul>
+<p>In both cases, you need to adjust the various integration configuration files and names so that this can work.</p>
+</section>
+</section>
+<section id="helm-chart-development-integration-tests-in-kubernetes">
+<h2><span class="section-number">5.9. </span>Helm chart development, integration tests in kubernetes<a class="headerlink" href="#helm-chart-development-integration-tests-in-kubernetes" title="Permalink to this heading"></a></h2>
+<p>You need <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span></code>, <code class="docutils literal notranslate"><span class="pre">helmfile</span></code>, and a valid kubernetes context. Refer to https://docs.wire.com for details.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="changelog.html" class="btn btn-neutral float-left" title="4. Changelog" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="editor-setup.html" class="btn btn-neutral float-right" title="6. Editor setup" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

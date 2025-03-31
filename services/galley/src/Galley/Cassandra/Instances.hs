@@ -243,3 +243,9 @@ instance Cql GroupConvType where
   toCql = CqlInt . fromIntegral . fromEnum
   fromCql (CqlInt i) = Right . toEnum . fromIntegral $ i
   fromCql _ = Left "GroupConvType: int expected"
+
+instance Cql AddPermission where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . fromEnum
+  fromCql (CqlInt i) = Right . toEnum . fromIntegral $ i
+  fromCql _ = Left "AddPermission: int expected"

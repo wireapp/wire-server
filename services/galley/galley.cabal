@@ -280,6 +280,7 @@ library
     Galley.Schema.V95_TeamFeatureDataMigrationState
     Galley.Schema.V96_GroupConversationType
     Galley.Schema.V97_CellsConversation
+    Galley.Schema.V98_ChannelAddPermission
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
@@ -498,7 +499,6 @@ executable galley-integration
     , http-client
     , http-client-openssl
     , http-client-tls
-    , http-media
     , http-types
     , imports
     , kan-extensions

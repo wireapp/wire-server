@@ -102,6 +102,7 @@ import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
 import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation qualified as AddPermission
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -260,6 +261,11 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member TeamFeatureStore r,
       Member TinyLog r
     )
+  HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
+    ( Member (Error NoChanges) r,
+      Member ConversationStore r,
+      Member (ErrorS 'InvalidTargetAccess) r
+    )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -326,6 +332,15 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ErrorS 'TeamNotFound
+     ]
+  HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
+    '[ ErrorS ('ActionDenied 'ModifyAddPermission),
+       ErrorS 'InvalidOperation,
+       ErrorS 'ConvNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamNotFound,
+       ErrorS 'InvalidTargetAccess
      ]
 
 enforceFederationProtocol ::
@@ -421,6 +436,8 @@ ensureAllowed tag loc action conv origUser = do
           -- not a team conv, so one of the other access roles has to allow this.
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
             throwS @'InvalidTargetAccess
+    SConversationUpdateAddPermissionTag -> do
+      unless (conv.convMetadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
     _ -> pure ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
@@ -518,6 +535,10 @@ performAction tag origUser lconv action = do
         (ProtocolMLSTag, ProtocolMLSTag, _) ->
           noChanges
         (_, _, _) -> throwS @'ConvInvalidProtocolTransition
+    SConversationUpdateAddPermissionTag -> do
+      when (conv.convMetadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
+      E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
+      pure (mempty, action)
 
 performConversationJoin ::
   forall r.
@@ -540,7 +561,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
-  checkTeamMemberAddPermissions lusr
+  checkTeamMemberAddPermission lusr
   addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
@@ -629,8 +650,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Sem r ()
     checkLHPolicyConflictsRemote _remotes = pure ()
 
-    checkTeamMemberAddPermissions :: Local UserId -> Sem r ()
-    checkTeamMemberAddPermissions lusr =
+    checkTeamMemberAddPermission :: Local UserId -> Sem r ()
+    checkTeamMemberAddPermission lusr =
       forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
         >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation))
           . join
@@ -786,17 +807,14 @@ updateLocalConversationUnchecked lconv qusr con action = do
       lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
 
-  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
-
-  -- retrieve member
-  self <- noteS @'ConvNotFound $ getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember)
-
   -- perform checks
-  ensureConversationActionAllowed (sing @tag) lcnv action conv self
+  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
+  ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
 
   -- perform action
   (extraTargets, action') <- performAction tag qusr lconv action
 
+  -- notify participants
   notifyConversationAction
     (sing @tag)
     qusr
@@ -809,33 +827,25 @@ updateLocalConversationUnchecked lconv qusr con action = do
     getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
     getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
 
+    ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
+    ensureConversationActionAllowed tag loc conv mTeamMember = do
+      -- retrieve member
+      self <- noteS @'ConvNotFound $ getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember)
+
+      -- general action check
+      case (tag, conv.convMetadata.cnvmChannelAddPermission, mTeamMember) of
+        (SConversationJoinTag, Just AddPermission.Everyone, Just _) -> pure ()
+        _ -> ensureActionAllowed (sConversationActionPermission tag) self
+
+      -- check if it is a group conversation (except for rename actions)
+      when (fromSing tag /= ConversationRenameTag) $
+        ensureGroupConversation conv
+
+      -- extra action-specific checks
+      ensureAllowed tag loc action conv self
+
 -- --------------------------------------------------------------------------------
 -- -- Utilities
-
-ensureConversationActionAllowed ::
-  forall tag mem x r.
-  ( IsConvMember mem,
-    HasConversationActionEffects tag r,
-    ( Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
-      Member (ErrorS 'InvalidOperation) r
-    )
-  ) =>
-  Sing tag ->
-  Local x ->
-  ConversationAction (tag :: ConversationActionTag) ->
-  Conversation ->
-  mem ->
-  Sem r ()
-ensureConversationActionAllowed tag loc action conv self = do
-  -- general action check
-  ensureActionAllowed (sConversationActionPermission tag) self
-
-  -- check if it is a group conversation (except for rename actions)
-  when (fromSing tag /= ConversationRenameTag) $
-    ensureGroupConversation conv
-
-  -- extra action-specific checks
-  ensureAllowed tag loc action conv self
 
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
@@ -967,6 +977,7 @@ updateLocalStateOfRemoteConv rcu con = do
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
       SConversationUpdateProtocolTag -> pure (Just sca, [])
+      SConversationUpdateAddPermissionTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $

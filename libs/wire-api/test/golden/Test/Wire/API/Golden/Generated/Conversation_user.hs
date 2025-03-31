@@ -60,6 +60,7 @@ testObject_Conversation_user_1 =
             cnvmMessageTimer = Nothing,
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
             cnvmGroupConvType = Nothing,
+            cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsReady
           },
       cnvProtocol = ProtocolProteus,
@@ -109,6 +110,7 @@ testObject_Conversation_user_2 =
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Nothing,
             cnvmGroupConvType = Nothing,
+            cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsPending
           },
       cnvProtocol = ProtocolProteus,
@@ -177,6 +179,7 @@ testObject_Conversation_user_3 =
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
             cnvmGroupConvType = Nothing,
+            cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsDisabled
           },
       cnvMembers =
@@ -241,6 +244,7 @@ testObject_Conversation_user_4 =
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
             cnvmGroupConvType = Nothing,
+            cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsDisabled
           },
       cnvMembers =
@@ -283,6 +287,7 @@ testObject_Conversation_user_5 =
             cnvmMessageTimer = Nothing,
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
             cnvmGroupConvType = Nothing,
+            cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsDisabled
           },
       cnvMembers =

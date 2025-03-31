@@ -121,7 +121,7 @@ withMockFederator ::
   TestM a ->
   TestM (a, [FederatedRequest])
 withMockFederator respond action = do
-  withTempMockFederator def {handler = respond} $ \p ->
+  withTempMockFederator def {handler = fmap mockWithStatus200 . respond} $ \p ->
     withSettingsOverrides
       (federatorLens . _Just %~ setLocalEndpoint (fromIntegral p))
       action

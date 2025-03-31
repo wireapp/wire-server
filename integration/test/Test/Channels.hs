@@ -24,9 +24,11 @@ import API.Galley
 import API.GalleyInternal hiding (setTeamFeatureConfig)
 import GHC.Stack
 import MLS.Util
+import Notifications (isChannelAddPermissionUpdate)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
+import Testlib.VersionedFed (FedDomain)
 
 testCreateChannelEveryone :: (HasCallStack) => App ()
 testCreateChannelEveryone = do
@@ -166,6 +168,7 @@ testTeamAdminPermissions = do
       postConversationCode user conv Nothing Nothing >>= assertSuccess
       getConversationCode user conv Nothing >>= assertSuccess
       deleteConversationCode user conv >>= assertSuccess
+      updateChannelAddPermission user conv "everyone" >>= assertSuccess
       bindResponse (getConversation user conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "name" `shouldMatch` newName
@@ -173,6 +176,9 @@ testTeamAdminPermissions = do
         resp.json %. "message_timer" `shouldMatchInt` 1000
         asList (resp.json %. "access_role") `shouldMatchSet` ["team_member", "guest"]
         resp.json %. "members.self.otr_archived" `shouldMatch` True
+        resp.json %. "add_permission" `shouldMatch` "everyone"
+      -- we need to reset the add permission to admins for the next assertions to be meaningful
+      updateChannelAddPermission user conv "admins" >>= assertSuccess
       void $ createAddCommit userClient convId [userToAdd] >>= sendAndConsumeCommitBundle
       void $ createRemoveCommit userClient convId [userToAddClient] >>= sendAndConsumeCommitBundle
 
@@ -198,6 +204,9 @@ testTeamAdminPermissions = do
       deleteTeamConv tid conv user `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "action-denied"
+      updateChannelAddPermission user conv "everyone" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "action-denied"
       updateConversationSelf user conv (object ["otr_archived" .= True]) >>= assertSuccess
       -- since the mls test client cannot handle failed commits, we need to restore the state manually
       mlsState <- getMLSState
@@ -205,3 +214,135 @@ testTeamAdminPermissions = do
       modifyMLSState (const mlsState)
       createRemoveCommit userClient convId [userToUpdate] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
       modifyMLSState (const mlsState)
+
+testUpdateAddPermissions :: (HasCallStack) => App ()
+testUpdateAddPermissions = do
+  (alice, tid, bob : chaz : _) <- createTeam OwnDomain 3
+  clients@(aliceClient : _) <- for [alice, bob, chaz] $ createMLSClient def def
+  for_ clients (uploadNewKeyPackage def)
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "everyone")
+
+  conv <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def aliceClient convId
+
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "add_permission" `shouldMatch` "everyone"
+
+  void $ createAddCommit aliceClient convId [bob, chaz] >>= sendAndConsumeCommitBundle
+  void $ withWebSockets [alice, bob, chaz] $ \wss -> do
+    updateChannelAddPermission alice conv "admins" >>= assertSuccess
+    for_ wss $ \ws -> awaitMatch isChannelAddPermissionUpdate ws
+
+testAddPermissionEveryone :: (HasCallStack) => App ()
+testAddPermissionEveryone = do
+  (alice, tid, bob : chaz : delia : eric : _) <- createTeam OwnDomain 5
+  gunther <- randomUser OwnDomain def
+  clients@(aliceClient : bobClient : chazClient : _ : _ : guntherClient : _) <- for [alice, bob, chaz, delia, eric, gunther] $ createMLSClient def def
+  connectTwoUsers bob gunther
+  connectTwoUsers gunther eric
+  for_ clients (uploadNewKeyPackage def)
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "everyone")
+  conv <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def aliceClient convId
+  void $ createAddCommit aliceClient convId [bob] >>= sendAndConsumeCommitBundle
+
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "add_permission" `shouldMatch` "everyone"
+    members <- resp.json %. "members" %. "others" & asList
+    for members (\m -> m %. "id") `shouldMatchSet` (for [bob] (\m -> m %. "id"))
+    for_ members $ \m -> do
+      m %. "conversation_role" `shouldMatch` "wire_member"
+
+  assertAddSuccess convId bobClient (chaz, chazClient)
+  -- guests can be added
+  assertAddSuccess convId bobClient (gunther, guntherClient)
+  -- but guests are not allowed to add other members even when the add permission is set to everyone
+  assertAddFailure convId guntherClient eric
+  -- set permissions back to admins
+  updateChannelAddPermission alice conv "admins" >>= assertSuccess
+  assertAddFailure convId bobClient delia
+  where
+    assertAddSuccess :: (HasCallStack) => ConvId -> ClientIdentity -> (Value, ClientIdentity) -> App ()
+    assertAddSuccess convId userClient (userToAdd, userToAddClient) = do
+      void $ createAddCommit userClient convId [userToAdd] >>= sendAndConsumeCommitBundle
+      mlsState <- getMLSState
+      -- they cant remove, though
+      createRemoveCommit userClient convId [userToAddClient] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
+      modifyMLSState (const mlsState)
+
+    assertAddFailure :: (HasCallStack) => ConvId -> ClientIdentity -> Value -> App ()
+    assertAddFailure convId userClient userToAdd = do
+      mlsState <- getMLSState
+      createAddCommit userClient convId [userToAdd] >>= \mp -> postMLSCommitBundle userClient (mkBundle mp) >>= assertStatus 403
+      modifyMLSState (const mlsState)
+
+testFederatedChannel :: (HasCallStack) => App ()
+testFederatedChannel = do
+  (alice, teamAlice, anton : _) <- createTeam OwnDomain 2
+  (bärbel, _, bob : _) <- createTeam OtherDomain 2
+  connectTwoUsers alice bärbel
+  connectTwoUsers alice bob
+  clients@(aliceClient : _ : bärbelClient : _) <- for [alice, anton, bärbel, bob] $ createMLSClient def def
+  for_ clients (uploadNewKeyPackage def)
+
+  setTeamFeatureLockStatus alice teamAlice "channels" "unlocked"
+  void $ setTeamFeatureConfig alice teamAlice "channels" (config "everyone")
+  conv <- postConversation alice defMLS {groupConvType = Just "channel", team = Just teamAlice} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def aliceClient convId
+  void $ createAddCommit aliceClient convId [anton, bärbel] >>= sendAndConsumeCommitBundle
+
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "add_permission" `shouldMatch` "everyone"
+    members <- resp.json %. "members" %. "others" & asList
+    for members (\m -> m %. "id") `shouldMatchSet` (for [anton, bärbel] (\m -> m %. "id"))
+    for_ members $ \m -> do
+      m %. "conversation_role" `shouldMatch` "wire_member"
+
+  -- remote user gets the event
+  void $ withWebSockets [bärbel] $ \wss -> do
+    updateChannelAddPermission alice conv "admins" >>= assertSuccess
+    for_ wss $ \ws -> awaitMatch isChannelAddPermissionUpdate ws
+
+  -- even when the remote member is promoted to a conversation admin they can cant add other members, because this is not implemented yet
+  updateConversationMember alice conv bärbel "wire_admin" >>= assertSuccess
+  assertAddFails convId bärbelClient bob
+  where
+    assertAddFails :: (HasCallStack) => ConvId -> ClientIdentity -> Value -> App ()
+    assertAddFails convId userClient userToAdd = do
+      mp <- createAddCommit userClient convId [userToAdd]
+      postMLSCommitBundle userClient (mkBundle mp) `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 500
+        resp.json %. "label" `shouldMatch` "federation-not-implemented"
+
+-- if the federation queue gets stuck, the second test run will fail
+-- therefore this test verifies that a notification that cannot be parsed by the remote
+-- backend does not block the queue
+testWithOldBackendVersion :: (HasCallStack) => FedDomain 1 -> App ()
+testWithOldBackendVersion fedDomain = replicateM_ 2 do
+  let cs = Ciphersuite "0x0001"
+  (bärbel, tid, _) <- createTeam OwnDomain 2
+  horst <- randomUser fedDomain def
+  connectTwoUsers bärbel horst
+
+  bärbelClient <- createMLSClient cs def bärbel
+  void $ uploadNewKeyPackage cs bärbelClient
+  horstClient <- createMLSClient cs def horst
+  void $ uploadNewKeyPackage cs horstClient
+
+  setTeamFeatureLockStatus bärbel tid "channels" "unlocked"
+  void $ setTeamFeatureConfig bärbel tid "channels" (config "everyone")
+  conv <- postConversation bärbel defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup cs bärbelClient convId
+  void $ createAddCommit bärbelClient convId [horst] >>= sendAndConsumeCommitBundle
+
+  -- this will trigger a notification that the old backend cannot parse
+  updateChannelAddPermission bärbel conv "admins" >>= assertSuccess

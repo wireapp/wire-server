@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8. Federation API Conventions &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="9. Federation Design Aspects" href="federation-design-aspects.html" />
+    <link rel="prev" title="7. Features" href="features.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Developer</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="api-versioning.html">1. API versioning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="building.html">2. How to build wire-server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cassandra-interaction.html">3. Writing code interacting with cassandra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="changelog.html">4. Changelog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="dependencies.html">5. Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="editor-setup.html">6. Editor setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="features.html">7. Features</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">8. Federation API Conventions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-design-aspects.html">9. Federation Design Aspects</a></li>
+<li class="toctree-l3"><a class="reference internal" href="how-to.html">10. Developer how-to’s</a></li>
+<li class="toctree-l3"><a class="reference internal" href="large-conversations.html">11. Refactoring galley to support large conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="linting.html">12. Linting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pr-guidelines.html">13. PR Guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="processes.html">14. Internal processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="scim/storage.html">15. Storing SCIM-related data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="servant.html">16. Servant</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html">17. Testing the wire-server Haskell code base</a></li>
+<li class="toctree-l3"><a class="reference internal" href="upgrading.html">18. Upgrading</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/index.html">Reference</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Developer</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">8. </span>Federation API Conventions</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/developer/federation-api-conventions.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="federation-api-conventions">
+<h1><span class="section-number">8. </span>Federation API Conventions<a class="headerlink" href="#federation-api-conventions" title="Permalink to this heading"></a></h1>
+<ul>
+<li><p>All endpoints must start with <code class="docutils literal notranslate"><span class="pre">/federation/</span></code></p></li>
+<li><p>All path segments must be in kebab-case, and only consist of alphanumeric
+characters. The name the field in the record must be the same name in
+camelCase.</p></li>
+<li><p>There must be exactly one segment after <code class="docutils literal notranslate"><span class="pre">/federation/</span></code>, so
+<code class="docutils literal notranslate"><span class="pre">/federation/foo</span></code> is valid, but <code class="docutils literal notranslate"><span class="pre">/federation/foo/bar</span></code> is not.</p></li>
+<li><p>All endpoints must be <code class="docutils literal notranslate"><span class="pre">POST</span></code>.</p></li>
+<li><p>No query query params or captured path params, all information that needs to
+go must go in body.</p></li>
+<li><p>All responses must be <code class="docutils literal notranslate"><span class="pre">200</span> <span class="pre">OK</span></code>, domain specific failures (e.g. the
+conversation doesn’t exist) must be indicated as a Sum type. Unhandled
+failures can be 5xx, an endpoint not being implemented will of course
+return 404. But we shouldn’t pile onto these. This keeps the federator simple.</p></li>
+<li><p>Accept only json, respond with only json. Maybe we can think of changing
+this in future. But as of now, the federator hardcodes application/json as
+the content type of the body.</p></li>
+<li><p>Ensure that paths don’t collide between brig and galley federation API, this
+will be very helpful when we merge brig and galley.</p></li>
+<li><p>The name of the path segment after <code class="docutils literal notranslate"><span class="pre">/federation/</span></code> must be either
+<code class="docutils literal notranslate"><span class="pre">&lt;imperative-verb&gt;-&lt;object&gt;</span></code> or <code class="docutils literal notranslate"><span class="pre">on-&lt;subject&gt;-&lt;past-tense-verb&gt;</span></code>, e.g.
+<code class="docutils literal notranslate"><span class="pre">get-conversations</span></code> or <code class="docutils literal notranslate"><span class="pre">on-conversation-created</span></code>.</p>
+<p>How to decide which one to use:</p>
+<ul class="simple">
+<li><p>If the request is supposed to ask for information/change from another
+backend which has authority over that information, like send a message or
+leave a conversation, then use the first format like <code class="docutils literal notranslate"><span class="pre">send-message</span></code> or
+<code class="docutils literal notranslate"><span class="pre">leave-conversation</span></code>.</p></li>
+<li><p>If the request is supposed to notify a backend about something the caller of
+this request has authority on, like a conversation got created, or a message
+is sent, then use the second format like <code class="docutils literal notranslate"><span class="pre">on-conversation-created</span></code> or
+<code class="docutils literal notranslate"><span class="pre">on-message-sent</span></code></p></li>
+</ul>
+</li>
+</ul>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="features.html" class="btn btn-neutral float-left" title="7. Features" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="federation-design-aspects.html" class="btn btn-neutral float-right" title="9. Federation Design Aspects" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

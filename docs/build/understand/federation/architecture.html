@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1. Federation Achitecture &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="2. Backend to backend communication" href="backend-communication.html" />
+    <link rel="prev" title="Wire Federation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../overview.html">Architecture Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../single-sign-on/index.html">Single Sign-On and User Provisioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../restund.html">Audio/video calling, restund servers (TURN/STUN)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../sft.html">Conference Calling 2.0 (aka SFT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../sft.html#federated-conference-calling">Federated Conference Calling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../minio.html">Minio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../helm.html">Helm</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Federation</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">1. Federation Achitecture</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#backends">1.1. Backends</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#glossary-backend-domain">1.2. Backend domains</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#federation-ingress">1.3. Federation Ingress</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#federator">1.4. Federator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#service-components">1.5. Service components</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="backend-communication.html">2. Backend to backend communication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html">3. Federation API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="fedcalls.html">4. Federated API calls by client API end-point (generated)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../associate/index.html">Connecting Wire Clients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api-client-perspective/index.html">Client API documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../crypto-libs.html">Crypto libraries and sources of randomness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../block-user-creation.html">Block personal user creation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../classified-domains.html">Classified Domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-federation.html">Federation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../legalhold.html">Installing and setting up Legal Hold</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../mls.html">Messaging Layer Security (MLS)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../searchability.html">User Searchability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../team-feature-settings.html">Server and team feature settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer/index.html">Developers Notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Reference</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Wire Federation</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">1. </span>Federation Achitecture</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/understand/federation/architecture.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="federation-achitecture">
+<span id="federation-architecture"></span><h1><span class="section-number">1. </span>Federation Achitecture<a class="headerlink" href="#federation-achitecture" title="Permalink to this heading"></a></h1>
+<section id="backends">
+<span id="glossary-backend"></span><h2><span class="section-number">1.1. </span>Backends<a class="headerlink" href="#backends" title="Permalink to this heading"></a></h2>
+<p>In the following we call a <strong>backend</strong> the set of servers, databases and DNS
+configurations that together form one single Wire Server entity as seen from the
+outside. It can also be called a Wire “instance” or “server” or “Wire
+installation”. Every resource (e.g. users, conversations, assets and teams)
+exists and is <em>owned</em> by a single backend, which we can refer to as that
+resource’s backend.</p>
+<p>The communication between federated backends is facilitated by two components in
+each backend: <a class="reference internal" href="#federation-ingress"><span class="std std-ref">Federation Ingress</span></a> and <a class="reference internal" href="#federator"><span class="std std-ref">Federator</span></a>. The <em>Federation
+Ingress</em> is, as the name suggests, the ingress point for incoming connections
+from other backends, which are then forwarded to the <em>Federator</em>. The
+<em>Federator</em> forwards requests to internal components. It also acts as a <em>egress</em>
+point for requests from internal backend components to other, remote backends.</p>
+<p><img alt="image" src="../../_images/federated-backend-architecture.png" /></p>
+</section>
+<section id="glossary-backend-domain">
+<span id="glossary-infra-domain"></span><span id="backend-domains"></span><span id="id1"></span><h2><span class="section-number">1.2. </span>Backend domains<a class="headerlink" href="#glossary-backend-domain" title="Permalink to this heading"></a></h2>
+<p>Each backend has two domain: an <a class="reference internal" href="#glossary-infra-domain"><span class="std std-ref">infrastructure domain</span></a> and a
+<a class="reference internal" href="#glossary-backend-domain"><span class="std std-ref">backend domain</span></a>.</p>
+<p>The <strong>infrastructure domain</strong> is the domain name under which the backend
+is actually reachable via the network. It is also the domain name that
+each backend uses in authenticating itself to other backends.</p>
+<p>Similarly, there is the <strong>backend domain</strong>, which is used to <a class="reference internal" href="api.html#qualified-identifiers-and-names"><span class="std std-ref">qualify</span></a> the
+names and identifiers of users local to an individual backend in the
+context of federation.</p>
+<p>The distinction between the two domains allows the owner of a backend
+domain, e.g. <code class="docutils literal notranslate"><span class="pre">example.com</span></code>, to host their Wire backend under a
+different infrastructure domain, e.g. <code class="docutils literal notranslate"><span class="pre">wire.infra.example.com</span></code>.</p>
+</section>
+<section id="federation-ingress">
+<span id="id2"></span><h2><span class="section-number">1.3. </span>Federation Ingress<a class="headerlink" href="#federation-ingress" title="Permalink to this heading"></a></h2>
+<p>The <em>Federation Ingress</em> is a <a class="reference external" href="https://kubernetes.io/docs/concepts/services-networking/ingress/">Kubernetes
+ingress</a>
+and uses <a class="reference external" href="https://nginx.org/en/">nginx</a> as its underlying software.</p>
+<p>It is configured with a set of X.509 certificates, which acts as root of
+trust for the authentication of the infrastructure domain of remote backends, as
+well as with a certificate, which it uses to authenticate itself toward
+other backends.</p>
+<p>Its functions are:</p>
+<ul class="simple">
+<li><p>to terminate TLS connections</p></li>
+<li><p>to perform mutual <a class="reference internal" href="backend-communication.html#authentication"><span class="std std-ref">Authentication</span></a> as part of the TLS connection establishment</p></li>
+<li><p>to forward requests to the local <a class="reference internal" href="#federator"><span class="std std-ref">Federator</span></a> instance, along with the
+remote backend’s client certificate</p></li>
+</ul>
+</section>
+<section id="federator">
+<span id="id3"></span><h2><span class="section-number">1.4. </span>Federator<a class="headerlink" href="#federator" title="Permalink to this heading"></a></h2>
+<p>The <em>Federator</em> performs additional authorization checks after receiving
+federated requests from the <em>Federation Ingress</em> and acts as egress
+point for other backend components. It can be configured to use an
+<a class="reference internal" href="backend-communication.html#allow-list"><span class="std std-ref">allow list</span></a> to authorize incoming and
+outgoing connections, and it keeps an X.509 client certificate for the
+backend’s infrastructure domain to authenticate itself towards other backends.
+Additionally, it requires a connection to a DNS resolver to
+<a class="reference internal" href="backend-communication.html#discovery"><span class="std std-ref">discover</span></a> other backends.</p>
+<p>When receiving a request from an internal component, the <em>Federator</em>
+will:</p>
+<ol class="arabic simple">
+<li><p>If enabled, ensure the target domain is in the allow list,</p></li>
+<li><p>Discover the other backend,</p></li>
+<li><p>Establish a <a class="reference internal" href="backend-communication.html#authentication"><span class="std std-ref">mutually authenticated channel</span></a> to the other backend using its client certificate,</p></li>
+<li><p>Send the request to the other backend and</p></li>
+<li><p>Forward the response back to the originating component (and
+eventually to the originating Wire client).</p></li>
+</ol>
+<p>The <em>Federator</em> also implements the authorization logic for incoming
+requests and acts as intermediary between the <em>Federation Ingress</em> and
+the internal components. The <em>Federator</em> will, for incoming requests
+from remote backends (forwarded via the local
+<a class="reference internal" href="#federation-ingress"><span class="std std-ref">Federation Ingress</span></a>):</p>
+<ol class="arabic simple">
+<li><p>Discover the mapping
+between backend domain claimed by the remote backend and its infra
+domain,</p></li>
+<li><p>Verify that the discovered infrastructure domain matches the domain in the
+remote backend’s client certificate,</p></li>
+<li><p>If enabled, ensure that the backend domain of the other backend is
+in the allow list.</p></li>
+<li><p>Forward requests to other wire-server components.</p></li>
+</ol>
+</section>
+<section id="service-components">
+<span id="other-wire-server"></span><h2><span class="section-number">1.5. </span>Service components<a class="headerlink" href="#service-components" title="Permalink to this heading"></a></h2>
+<p>Components such as Brig, Galley, Cargohold are responsible
+for actual business logic and interfacing with databases and
+non-federation related external services. See <a class="reference external" href="https://github.com/wireapp/wire-server">source code
+documentation</a>. In the context
+of federation, their functions include:</p>
+<ul class="simple">
+<li><p>For incoming requests from other backends:
+<a class="reference internal" href="backend-communication.html#per-request-authorization"><span class="std std-ref">per-request authorization</span></a></p></li>
+<li><p>Outgoing requests to other backends are always sent via a local
+Federator instance.</p></li>
+</ul>
+<p>For more information of the functionalities provided to remote backends
+through their <em>Federator</em>, see the
+<a class="reference internal" href="api.html#api-endpoints"><span class="std std-ref">federated API documentation</span></a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Wire Federation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="backend-communication.html" class="btn btn-neutral float-right" title="2. Backend to backend communication" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

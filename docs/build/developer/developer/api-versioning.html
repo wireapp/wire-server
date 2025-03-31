@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1. API versioning &mdash; Wire 0.0.4 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/wire.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script src="../../_static/clipboard.min.js"></script>
+        <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="2. How to build wire-server" href="building.html" />
+    <link rel="prev" title="Developer" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+    <a href="../../index.html">
+        <img src="../../_static/Wire_logo.svg" class="logo" alt="Logo"/>
+    </a>
+
+    <!--
+            <div class="version">
+                0.0.4
+            </div> -->
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../security-responses/index.html">Security responses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog/index.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how-to/administrate/index.html">Administration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../understand/index.html">Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developers Notes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Developer</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">1. API versioning</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#supported-and-development-versions">1.1. Supported and development versions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#making-requests-to-a-particular-version">1.2. Making requests to a particular version</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#server-implementation">1.3. Server implementation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#client-implementation">1.4. Client implementation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#versioning-changes-in-events">1.5. Versioning changes in events</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="building.html">2. How to build wire-server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cassandra-interaction.html">3. Writing code interacting with cassandra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="changelog.html">4. Changelog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="dependencies.html">5. Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="editor-setup.html">6. Editor setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="features.html">7. Features</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-api-conventions.html">8. Federation API Conventions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="federation-design-aspects.html">9. Federation Design Aspects</a></li>
+<li class="toctree-l3"><a class="reference internal" href="how-to.html">10. Developer how-to’s</a></li>
+<li class="toctree-l3"><a class="reference internal" href="large-conversations.html">11. Refactoring galley to support large conversations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="linting.html">12. Linting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pr-guidelines.html">13. PR Guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="processes.html">14. Internal processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="scim/storage.html">15. Storing SCIM-related data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="servant.html">16. Servant</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html">17. Testing the wire-server Haskell code base</a></li>
+<li class="toctree-l3"><a class="reference internal" href="upgrading.html">18. Upgrading</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/index.html">Reference</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Wire</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Notes for developers</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Developer</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">1. </span>API versioning</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/developer/api-versioning.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api-versioning">
+<h1><span class="section-number">1. </span>API versioning<a class="headerlink" href="#api-versioning" title="Permalink to this heading"></a></h1>
+<p>This document details the versioning scheme used for wire-server’s HTTP APIs.
+This applies equally to:</p>
+<ul class="simple">
+<li><p>the public-facing API (defined in <code class="docutils literal notranslate"><span class="pre">wire-api</span></code>)</p></li>
+<li><p>the federation API (defined in <code class="docutils literal notranslate"><span class="pre">wire-api-federation</span></code>).</p></li>
+</ul>
+<section id="supported-and-development-versions">
+<h2><span class="section-number">1.1. </span>Supported and development versions<a class="headerlink" href="#supported-and-development-versions" title="Permalink to this heading"></a></h2>
+<p>An <em>API version</em> is a natural number, represented as <code class="docutils literal notranslate"><span class="pre">vN</span></code>, where <code class="docutils literal notranslate"><span class="pre">N</span></code> is the
+version. For example, version <code class="docutils literal notranslate"><span class="pre">5</span></code> is denoted <code class="docutils literal notranslate"><span class="pre">v5</span></code>.</p>
+<p>A backend advertises a set of <em>supported</em> API versions, divided into a set of
+<em>stable</em> API versions and a set of <em>development</em> API versions. These sets can
+be discovered via the <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api-version</span></code> endpoint, which returns a JSON object
+of the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span> <span class="s2">&quot;supported&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span>
+  <span class="s2">&quot;development&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">4</span><span class="p">],</span>
+  <span class="o">...</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>where the <code class="docutils literal notranslate"><span class="pre">...</span></code> stands for other fields, which are irrelevant to the purposes
+of API versioning. Development versions (usually one), are listed explicitly.
+Stable versions are all supported versions that are not development.</p>
+<p>Stable versions map to well-defined and fixed API <em>contracts</em>, which will not
+change over time. That is to say, if two different instances of the backend
+both list version <code class="docutils literal notranslate"><span class="pre">3</span></code> in <code class="docutils literal notranslate"><span class="pre">supported</span></code>, a client can assume that they will accept
+the same exact requests when version <code class="docutils literal notranslate"><span class="pre">3</span></code> is used, and handle them in exactly
+the same way.</p>
+<p>On the other hand, development versions give no such guarantees. When making
+requests using a development version on some backend, the client needs to be
+aware of the corresponding API contract used by that specific backend.</p>
+<p>Of course, development versions are useful while building a new API, but are
+not suitable for production. Backends deployed to production environments
+should disable development versions (and not advertise them in <code class="docutils literal notranslate"><span class="pre">/api-version</span></code>).</p>
+<p>Similarly, clients that are meant for production use can decide to ignore
+development versions on their backend. This is not strictly necessary, but it
+can be used as a safeguard against mistakes in deployment.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">/api-version</span></code> endpoint returns information about the public-facing
+(client) API. The corresponding information for the federation API is available
+at <code class="docutils literal notranslate"><span class="pre">/federation/api-version</span></code>.</p>
+</section>
+<section id="making-requests-to-a-particular-version">
+<h2><span class="section-number">1.2. </span>Making requests to a particular version<a class="headerlink" href="#making-requests-to-a-particular-version" title="Permalink to this heading"></a></h2>
+<p>An API at version <code class="docutils literal notranslate"><span class="pre">N</span></code> can be accessed by prepending <code class="docutils literal notranslate"><span class="pre">/vN/</span></code> to endpoint paths.
+So, for example, to access the endpoint <code class="docutils literal notranslate"><span class="pre">/conversations</span></code> for version <code class="docutils literal notranslate"><span class="pre">3</span></code>, the
+correct path is <code class="docutils literal notranslate"><span class="pre">/v3/conversations</span></code>.</p>
+<p>To support clients that have not yet implemented versioning, backends that
+support version <code class="docutils literal notranslate"><span class="pre">0</span></code> will also accept unversioned requests, which will
+automatically be rewritten to <code class="docutils literal notranslate"><span class="pre">/v0/</span></code> requests.</p>
+<p>Some endpoints are unversioned. The backend will also accept versioned requests
+to them, but they all behave identically regardless of the version prefix. The
+unversioned endpoints are:</p>
+<ul class="simple">
+<li><p>the <code class="docutils literal notranslate"><span class="pre">/api-version</span></code> endpoint itself; this is so that a client can dynamically
+determine which version to use based on the information returned by the
+backend;</p></li>
+<li><p>the <code class="docutils literal notranslate"><span class="pre">/access</span></code> endpoint; this is so that access cookie paths can be set to
+the same value regardless of the version, which avoids invalidating logins
+across version upgrades.</p></li>
+</ul>
+</section>
+<section id="server-implementation">
+<h2><span class="section-number">1.3. </span>Server implementation<a class="headerlink" href="#server-implementation" title="Permalink to this heading"></a></h2>
+<p>On the server side, we normally have a single development version and multiple
+stable versions. When we make a change to the development version, no further
+actions are needed.</p>
+<p>However, the development version is disabled in production, so whenever we need
+those changes to actually be deployed, we have to perform a version bump. That
+means a few things:</p>
+<ul class="simple">
+<li><p>freezing the current contract of the development version (see below);</p></li>
+<li><p>turning the development version into a stable version;</p></li>
+<li><p>creating a new development version, which is an exact copy of the previous
+development version at the time of the bump.</p></li>
+</ul>
+<p>To make this process easier, and to avoid unreasonable code duplication in the
+definition of the endpoints, API versions are maintained as a single routing
+table, appropriately tagged with version information, as described below.</p>
+<p>For each endpoint, we record a <em>range</em> of versions in which this endpoint
+exists. Note that an endpoint is assumed to behave identically regardless of
+the version it is being invoked at.</p>
+<p>This might seem like a very severe limitation, but in practice most endpoints
+evolve by adding optional fields, which means that the implementation can
+simply assume that it being called with the most recent version, and that
+implicitly will provide support for all older versions as well.</p>
+<p>Endpoint changing significantly between two versions are not directly supported
+by this system. It is still possible to implement them, but they will appear as
+different endpoints (and have different names) on the same path, and with
+non-overlapping version ranges.</p>
+<section id="version-bump-checklist">
+<h3><span class="section-number">1.3.1. </span>Version bump checklist<a class="headerlink" href="#version-bump-checklist" title="Permalink to this heading"></a></h3>
+<p>When making the client API version bump, i.e., when finalising a version, there
+are several steps to make apart from deciding what endpoint changes are part of
+the version:</p>
+<ul class="simple">
+<li><p>In <code class="docutils literal notranslate"><span class="pre">wire-api</span></code> extend the <code class="docutils literal notranslate"><span class="pre">Version</span></code> type with a new version by appending the
+new version to the end, e.g., by adding <code class="docutils literal notranslate"><span class="pre">V4</span></code>. Make sure to update its
+<code class="docutils literal notranslate"><span class="pre">ToSchema</span></code> instance,</p></li>
+<li><p>In the same <code class="docutils literal notranslate"><span class="pre">Version</span></code> module update the <code class="docutils literal notranslate"><span class="pre">developmentVersions</span></code> value to list
+only the new version,</p></li>
+<li><p>Consider updating the <code class="docutils literal notranslate"><span class="pre">backendApiVersion</span></code> value in Stern, which is
+unit-tested by checking if it is listed as supported in the response to <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api-version</span></code>.</p></li>
+</ul>
+</section>
+<section id="examples-of-endpoint-evolution">
+<h3><span class="section-number">1.3.2. </span>Examples of endpoint evolution<a class="headerlink" href="#examples-of-endpoint-evolution" title="Permalink to this heading"></a></h3>
+<p>In the following, we present some examples of API changes and how they might be
+realised in practice. In all examples, we assume a supported API version 1, and
+a development version 2, and an endpoint which is identical in both versions
+that now needs to be updated.</p>
+<section id="adding-an-optional-field-or-parameter">
+<h4><span class="section-number">1.3.2.1. </span>Adding an optional field or parameter<a class="headerlink" href="#adding-an-optional-field-or-parameter" title="Permalink to this heading"></a></h4>
+<p>This is the most common scenario, and the system is optimised to handle this
+efficiently. We simply go ahead and implement the new version of the endpoint,
+while leaving the version ranges unaffected. This works because the new
+implementation is also able to function as an implementation of the older
+version.</p>
+</section>
+<section id="adding-a-new-endpoint">
+<h4><span class="section-number">1.3.2.2. </span>Adding a new endpoint<a class="headerlink" href="#adding-a-new-endpoint" title="Permalink to this heading"></a></h4>
+<p>We add the new endpoint to the routing table, and set its version range to only
+include the development version. The supported version is unaffected.</p>
+</section>
+<section id="removing-an-endpoint">
+<h4><span class="section-number">1.3.2.3. </span>Removing an endpoint<a class="headerlink" href="#removing-an-endpoint" title="Permalink to this heading"></a></h4>
+<p>We keep the endpoint in the routing table, but reduce its version range to
+exclude the development version. The implementation is unaffected.</p>
+</section>
+<section id="making-an-incompatible-change-e-g-removing-a-field">
+<h4><span class="section-number">1.3.2.4. </span>Making an incompatible change (e.g. removing a field)<a class="headerlink" href="#making-an-incompatible-change-e-g-removing-a-field" title="Permalink to this heading"></a></h4>
+<p>This is the most complicated scenario, but hopefully the rarest. It can only be
+done indirectly, as a combination of the two scenarios above: we add a new
+endpoint on the same path, set its version range to only the development
+version, and then reduce the version range of the existing endpoint.</p>
+<p>The new and old endpoint can share code in most cases, but this needs to be
+arranged manually. One can use type families to handle differences in version.
+It is advised to use global versions to index the handlers and related types in
+these cases, rather than making up an endpoint-specific numbering.</p>
+<p>For example, the <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/foo</span></code> endpoint at version 1 changes the format of its
+response. Before the change, the routing entry looks something like:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kt">Named</span><span class="w"> </span><span class="s">&quot;get-foo&quot;</span><span class="w"> </span><span class="p">(</span><span class="s">&quot;foo&quot;</span><span class="w"> </span><span class="kt">:&gt;</span><span class="w"> </span><span class="kt">Get</span><span class="w"> </span><span class="kt">&#39;[JSON]</span><span class="w"> </span><span class="kt">Foo</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>No version range is specified, resulting in the endpoint being available on all
+API versions.</p>
+<p>Afterwards, we will have two entries:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kt">Named</span><span class="w"> </span><span class="s">&quot;get-foo@v1&quot;</span><span class="w"> </span><span class="p">(</span><span class="kt">Until</span><span class="w"> </span><span class="kt">V2</span><span class="w"> </span><span class="kt">:&gt;</span><span class="w"> </span><span class="s">&quot;foo&quot;</span><span class="w"> </span><span class="kt">:&gt;</span><span class="w"> </span><span class="kt">Get</span><span class="w"> </span><span class="kt">&#39;[JSON]</span><span class="w"> </span><span class="p">(</span><span class="kt">Foo</span><span class="w"> </span><span class="kt">V1</span><span class="p">))</span>
+<span class="kt">:&lt;|&gt;</span>
+<span class="kt">Named</span><span class="w"> </span><span class="s">&quot;get-foo&quot;</span><span class="w"> </span><span class="p">(</span><span class="kt">From</span><span class="w"> </span><span class="kt">V2</span><span class="w"> </span><span class="kt">:&gt;</span><span class="w"> </span><span class="s">&quot;foo&quot;</span><span class="w"> </span><span class="kt">:&gt;</span><span class="w"> </span><span class="kt">Get</span><span class="w"> </span><span class="kt">&#39;[JSON]</span><span class="w"> </span><span class="p">(</span><span class="kt">Foo</span><span class="w"> </span><span class="kt">V2</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">Foo</span></code> has now been turned into a type (or data) family with appropriate
+JSON instances to reflect the change in data format. The handler implementation
+can be polymorphic in the version and therefore shared, but it does have to be
+specified twice when instantiating the server.</p>
+</section>
+</section>
+<section id="swagger-documentation">
+<h3><span class="section-number">1.3.3. </span>Swagger documentation<a class="headerlink" href="#swagger-documentation" title="Permalink to this heading"></a></h3>
+<p>Since backwards-compatible changes in endpoints are lumped into single
+definitions, it is not possible to automatically generate accurate Swagger
+documentation for older versions from the global API routing table.</p>
+<p>Therefore, we keep pre-generated Swagger descriptions for all supported
+versions in the source, and serve them directly.</p>
+<p>When a development version <code class="docutils literal notranslate"><span class="pre">N</span></code> is frozen into a supported one, its
+automatically generated Swagger description has to be manually saved to
+<code class="docutils literal notranslate"><span class="pre">services/brig/docs/vN.json</span></code>, and kept around for as long as version <code class="docutils literal notranslate"><span class="pre">N</span></code>
+remains supported.</p>
+<p>The Swagger description for the development version is generated by
+pre-processing the global routing table and removing all entries that do not
+contain the development version in their range.</p>
+</section>
+</section>
+<section id="client-implementation">
+<h2><span class="section-number">1.4. </span>Client implementation<a class="headerlink" href="#client-implementation" title="Permalink to this heading"></a></h2>
+<p>Like servers, clients define a set of versions that they are able to make
+requests with. However, since they ultimately make the decision of which
+version to use, there is no distinction in clients between supported and
+development versions.</p>
+<p>Of course, using a version which is marked as <code class="docutils literal notranslate"><span class="pre">development</span></code> on the backend
+means utilising an unspecified API contract, so it should not be done in
+production.</p>
+<section id="version-negotiation">
+<h3><span class="section-number">1.4.1. </span>Version negotiation<a class="headerlink" href="#version-negotiation" title="Permalink to this heading"></a></h3>
+<p>Before making a request to the server, the client needs to have negotiated
+which version to use. The recommended flow is as follows:</p>
+<ul class="simple">
+<li><p>query <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api-version</span></code> and retrieve the set of supported and development
+versions;</p></li>
+<li><p>decide whether using a development version is unacceptable, and
+if so, take it out of consideration;</p></li>
+<li><p>use the latest (i.e. numerically largest) version that the client supports;</p></li>
+<li><p>if no backend-supported version is supported by the client, return a
+versioning error (either ask the user or the backend administrator to
+upgrade, depending on which versions are higher).</p></li>
+</ul>
+</section>
+<section id="id1">
+<h3><span class="section-number">1.4.2. </span>Examples of endpoint evolution<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<p>Just like for the server above, we present some examples of changes in
+endpoints, and to go about implementing the corresponding client changes. In
+the following, we again assume that the changed endpoint was initially equal
+in both version 1 and 2, with 2 being a development version.</p>
+<section id="id2">
+<h4><span class="section-number">1.4.2.1. </span>Adding an optional field or parameter<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h4>
+<p>Client only need to implement version 2, since the change is backwards- and
+forwards-compatible. Of course, clients might need to be written in such a way
+as to handle the scenario in which the server ignores the extra field or
+parameter.</p>
+</section>
+<section id="id3">
+<h4><span class="section-number">1.4.2.2. </span>Adding a new endpoint<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h4>
+<p>Clients can use the new endpoint, but need to handle the case where the
+endpoint is not available, either by catching a 404 error, or by pre-emptively
+using the old endpoint when the negotiated version is known not to contain it.</p>
+</section>
+<section id="id4">
+<h4><span class="section-number">1.4.2.3. </span>Removing an endpoint<a class="headerlink" href="#id4" title="Permalink to this heading"></a></h4>
+<p>Clients would just stop using the removed endpoint. Of course, this usually
+means refactoring whatever code was using it so that some other combination of
+endpoints is used instead.</p>
+</section>
+<section id="incompatible-changes-to-an-endpoint">
+<h4><span class="section-number">1.4.2.4. </span>Incompatible changes to an endpoint<a class="headerlink" href="#incompatible-changes-to-an-endpoint" title="Permalink to this heading"></a></h4>
+<p>Again, this is a combination of the previous two scenarios. After negotiation,
+clients need to determine which version of the endpoint can be used, and act
+accordingly.</p>
+</section>
+</section>
+<section id="federation-client-in-wire-server">
+<h3><span class="section-number">1.4.3. </span>Federation client in wire-server<a class="headerlink" href="#federation-client-in-wire-server" title="Permalink to this heading"></a></h3>
+<p>In wire-server itself, changes in the federation API have to be reflected not
+only in the implementation of the corresponding handlers, but also in client
+invocations.</p>
+<p>To that end, the module <code class="docutils literal notranslate"><span class="pre">Wire.API.Federation.Client</span></code> provides a
+<code class="docutils literal notranslate"><span class="pre">FederatorClient</span></code> monad which is integrated with the client functionality of
+Servant. To create an action in the <code class="docutils literal notranslate"><span class="pre">FederatorClient</span></code> monad, we use <code class="docutils literal notranslate"><span class="pre">fedClient</span></code>
+in <code class="docutils literal notranslate"><span class="pre">Wire.API.Federation.API</span></code>, e.g.:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">fedClient</span><span class="w"> </span><span class="o">@</span><span class="kt">&#39;Brig</span><span class="w"> </span><span class="o">@</span><span class="s">&quot;get-user-clients&quot;</span>
+</pre></div>
+</div>
+<p>returns a function of type <code class="docutils literal notranslate"><span class="pre">A</span> <span class="pre">-&gt;</span> <span class="pre">FederatorClient</span> <span class="pre">'Brig</span> <span class="pre">B</span></code>, where <code class="docutils literal notranslate"><span class="pre">A</span></code> and <code class="docutils literal notranslate"><span class="pre">B</span></code>
+are respectively the input and output of the <code class="docutils literal notranslate"><span class="pre">get-user-clients</span></code> endpoint.
+Running such an action will automatically perform version negotiation and then
+send the corresponding request.</p>
+<p>When invoking an endpoint as a federation client, we need to make sure that all
+supported versions are covered. The <code class="docutils literal notranslate"><span class="pre">FederatorClient</span></code> monad has an
+<code class="docutils literal notranslate"><span class="pre">Alternative</span></code> instance which can be useful for this purpose: an action will fail
+(before even performing any request) if it refers to an endpoint whose version
+range does not contain the version that was negotiatted.</p>
+<p>For example, suppose that <code class="docutils literal notranslate"><span class="pre">get-user-clients</span></code> disappears in version 2, and
+clients are now supposed to use an endpoint called <code class="docutils literal notranslate"><span class="pre">get-clients-ng</span></code>, with
+slightly different input and output types. Then the client invocation will look
+something like:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">fedClient</span><span class="w"> </span><span class="o">@</span><span class="kt">&#39;Brig</span><span class="w"> </span><span class="o">@</span><span class="s">&quot;get-user-clients&quot;</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">&lt;|&gt;</span>
+<span class="p">(</span><span class="n">adaptOutput</span><span class="w"> </span><span class="o">&lt;$&gt;</span><span class="w"> </span><span class="n">fedClient</span><span class="w"> </span><span class="o">@</span><span class="kt">&#39;Brig</span><span class="w"> </span><span class="o">@</span><span class="s">&quot;get-clients-ng&quot;</span><span class="w"> </span><span class="p">(</span><span class="n">adaptInput</span><span class="w"> </span><span class="n">input</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">adaptInput</span></code> and <code class="docutils literal notranslate"><span class="pre">adaptOutput</span></code> are (pure) functions that convert the input
+of the old endpoint into the input of the new, and the output of the new
+endpoint into the output of the old, respectively.</p>
+<p>Many variations on this theme are possible. For example, one could choose to
+write adapting functions in terms of the new input/output types, or even use a
+mixed approach. The adapting functions need not be pure in general, and they
+might even perform further RPC calls.</p>
+</section>
+</section>
+<section id="versioning-changes-in-events">
+<h2><span class="section-number">1.5. </span>Versioning changes in events<a class="headerlink" href="#versioning-changes-in-events" title="Permalink to this heading"></a></h2>
+<p>Making incompatible changes to events is also sometimes necessary, or at least
+desirable. Unfortunately, there is no direct way to make API versioning
+preserve compatibility with older clients when the format of events changes.
+This is because the format of events is decided when they are generated, which
+is of course before they are fetched by the clients. By the time the backend is
+made aware of the version supported by a client, it is too late to change any
+logic of event generation or serialisation.</p>
+<p>However, there are ways to alter the event API in incompatible ways without
+breaking older clients. Namely, we can tie a change X in the format of an event
+to a specific api version N. This means that in order for a client to support
+version N or later, it has to be able to consume events in any format,
+before or after X.</p>
+<p>If clients respect this constraint, then the backend only needs to keep the old
+format around for as long as version N-1 is supported, and can apply change X as
+soon as version N-1 is dropped.</p>
+<p>Conversely, clients need to be advised on when it is ok for them to drop their
+legacy event parsing code. Unfortunately, determining this point in time is
+complicated by the fact that legacy events may be retained by a backend for
+some time after it has been upgraded to a version that emits events in the new
+format. Therefore, this has to be worked out on a case by case basis.</p>
+<p>More precisely: When a new version Q of a backend is released, <em>if</em> we can
+ensure that no version lower than N is running anywhere in production, and
+hasn’t been for a time at least as long as the maximum event retention time,
+<em>then</em> we can drop the requirement for clients to be able to read events in the
+legacy format, <em>as long as they support only versions larger or equal to Q</em>.</p>
+<section id="example-timeline">
+<h3><span class="section-number">1.5.1. </span>Example timeline<a class="headerlink" href="#example-timeline" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>While version 3 is in development: a new format for an event is introduced in
+the code base, but not yet used for output events, the new format is
+documented for clients.</p></li>
+<li><p>Version 3 is finalised: events are still produced using the old format;
+clients that implement v3 are able to parse both event formats.</p></li>
+<li><p>Versions 4 to 6 are finalised. No changes to events.</p></li>
+<li><p>Support for version 2 is dropped while version 7 is in development. The old
+format can be removed from the code base, and the backend can start producing
+events in the new format. No changes in clients are required.</p></li>
+<li><p>Version 7 to 9 are finalised. No further changes to events.</p></li>
+<li><p>Version 2 or lower is not used in production anymore. Version 10 is currently
+in development. The old event format is removed from the documentation.
+Clients that support only version 10 or above are not required to understand
+the old format anymore.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Developer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="building.html" class="btn btn-neutral float-right" title="2. How to build wire-server" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2019 - 2023, Wire Swiss GmbH.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
