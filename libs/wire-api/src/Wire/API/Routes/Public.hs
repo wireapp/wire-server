@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -223,7 +222,13 @@ type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 -- | Optional @Z-Host@ header (added by @nginz@)
 data ZHostOpt
 
-type ZHostValue = Text
+instance (HasLink api) => HasLink (ZHostOpt :> api) where
+  type MkLink (ZHostOpt :> api) a = MkLink api a
+  toLink =
+    let simpleToLink toA _ = toLink toA (Proxy :: Proxy api)
+     in simpleToLink
+
+type ZHostValue = Text -- FUTUREWORK: use Data.Domain.Domain here instead of Text?
 
 type ZOptHostHeader =
   Header' '[Servant.Optional, Strict] "Z-Host" ZHostValue

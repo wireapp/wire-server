@@ -13,7 +13,7 @@ import Data.Foldable (toList)
 import Data.Kind (Type)
 import Data.List (nub, partition)
 import Data.List.NonEmpty (NonEmpty)
-import Data.Maybe (isJust)
+import Data.Maybe (fromJust, isJust)
 import Data.String.Conversions
 import Data.Time
 import Data.UUID (UUID)
@@ -156,7 +156,8 @@ noLater early late = early <= addTime tolerance late
 ----------------------------------------------------------------------
 -- paths
 
-getSsoURI ::
+-- | This function exists to deal with legacy test cases.
+getSsoURINoMultiIngress ::
   forall m endpoint api.
   ( HasCallStack,
     Functor m,
@@ -168,32 +169,17 @@ getSsoURI ::
   Proxy api ->
   Proxy endpoint ->
   m URI
-getSsoURI proxyAPI proxyAPIAuthResp = extpath . (^. cfgSPSsoURI) <$> getConfig
+getSsoURINoMultiIngress proxyAPI proxyAPIAuthResp =
+  (extpath . _cfgSPSsoURI) <$> getMultiIngressDomainConfigNoMultiIngress
   where
     extpath :: URI -> URI
     extpath = (=/ (cs . toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp))
 
--- | 'getSsoURI' for links that have one variable path segment.
---
--- FUTUREWORK: this is only sometimes what we need.  it would be nice to have a type class with a
--- method 'getSsoURI' for arbitrary path arities.
-getSsoURI' ::
-  forall endpoint api a (f :: Type -> Type) t.
-  ( Functor f,
-    HasConfig f,
-    MkLink endpoint Link ~ (t -> a),
-    HasLink endpoint,
-    ToHttpApiData a,
-    IsElem endpoint api
-  ) =>
-  Proxy api ->
-  Proxy endpoint ->
-  t ->
-  f URI
-getSsoURI' proxyAPI proxyAPIAuthResp idpid = extpath . (^. cfgSPSsoURI) <$> getConfig
-  where
-    extpath :: URI -> URI
-    extpath = (=/ (cs . toUrlPiece $ safeLink proxyAPI proxyAPIAuthResp idpid))
+-- | DANGER: This function is not valid for all spar configurations! It
+-- spuriously fails for multi-ingress configs!
+getMultiIngressDomainConfigNoMultiIngress :: forall m. (HasConfig m, Functor m) => m MultiIngressDomainConfig
+-- TODO: Can we get rid of this dangerous function?
+getMultiIngressDomainConfigNoMultiIngress = (fromJust . (`getMultiIngressDomainConfig` Nothing)) <$> getConfig
 
 ----------------------------------------------------------------------
 -- compute access verdict(s)

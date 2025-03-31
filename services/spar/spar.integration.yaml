@@ -14,6 +14,8 @@ saml:
       surname: Girlfriend
       email: email:president@evil.corp
 
+scimBaseUri: http://localhost:8088/scim/v2
+
 brig:
   host: 127.0.0.1
   port: 8082

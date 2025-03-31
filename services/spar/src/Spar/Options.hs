@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,20 +19,15 @@
 
 -- | Reading the Spar config.
 module Spar.Options
-  ( Opts' (..),
-    Opts,
-    DerivedOpts (..),
+  ( Opts (..),
     getOpts,
-    deriveOpts,
     readOptsFile,
     maxttlAuthreqDiffTime,
   )
 where
 
 import Control.Exception
-import Control.Lens
 import Data.Aeson hiding (fieldLabelModifier)
-import qualified Data.ByteString as SBS
 import Data.Time
 import qualified Data.Yaml as Yaml
 import Imports
@@ -41,16 +35,13 @@ import Options.Applicative
 import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
 import System.Logger.Extended (LogFormat)
-import Text.Ascii (ascii)
 import URI.ByteString
 import Util.Options
 import Wire.API.Routes.Version
 import Wire.API.User.Orphans ()
 import Wire.API.User.Saml
 
-type Opts = Opts' DerivedOpts
-
-data Opts' a = Opts
+data Opts = Opts
   { saml :: !SAML.Config,
     brig :: !Endpoint,
     galley :: !Endpoint,
@@ -67,50 +58,25 @@ data Opts' a = Opts
     logNetStrings :: !(Maybe (Last Bool)),
     logFormat :: !(Maybe (Last LogFormat)),
     disabledAPIVersions :: !(Set VersionExp),
-    derivedOpts :: !a
-  }
-  deriving (Functor, Show, Generic)
-
-instance FromJSON (Opts' (Maybe ()))
-
-data DerivedOpts = DerivedOpts
-  { derivedOptsScimBaseURI :: !URI
+    scimBaseUri :: URI
   }
   deriving (Show, Generic)
 
+instance FromJSON Opts
+
 maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
 maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
-
-type OptsRaw = Opts' (Maybe ())
 
 -- | Throws an exception if no config file is found.
 getOpts :: IO Opts
 getOpts = do
   let desc = "Spar - SSO Service"
-  deriveOpts
-    =<< readOptsFile
+  readOptsFile
     =<< execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
-
-deriveOpts :: OptsRaw -> IO Opts
-deriveOpts raw = do
-  derived <- do
-    -- We could also make this selectable in the config file, but it seems easier to derive it from
-    -- the SAML base uri.
-    let derivedOptsScimBaseURI = (saml raw ^. SAML.cfgSPSsoURI) & pathL %~ derive
-          where
-            derive path = case reverse
-              . filter (not . SBS.null)
-              . SBS.split (ascii '/')
-              $ path of
-              ("sso" : path') -> compile path'
-              path' -> compile path'
-            compile path = "/" <> SBS.intercalate "/" (reverse ("v2" : "scim" : path))
-    pure DerivedOpts {..}
-  pure $ derived <$ raw
 
 -- | This should not leave this module.  It is only for callling 'sparResponseURI' before the 'Spar'
 -- monad is fully initialized.
-newtype WithConfig a = WithConfig (Reader OptsRaw a)
+newtype WithConfig a = WithConfig (Reader Opts a)
   deriving (Functor, Applicative, Monad)
 
 instance SAML.HasConfig WithConfig where
@@ -131,7 +97,7 @@ cliOptsParser =
   where
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
 
-readOptsFile :: FilePath -> IO OptsRaw
+readOptsFile :: FilePath -> IO Opts
 readOptsFile path =
   either err1 pure =<< Yaml.decodeFileEither path
   where

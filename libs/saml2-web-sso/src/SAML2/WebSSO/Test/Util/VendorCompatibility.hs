@@ -87,7 +87,7 @@ vendorCompatibility filePath ssoURI = testAuthRespApp ssoURI $ do
               & ctxIdPs .~ [(idpcfg, sampleidp)]
               -- & ctxConfig . cfgSPAppURI .~ _
               -- (the SPAppURI default is a incorrect, but that should not invalidate the test)
-              & ctxConfig . cfgSPSsoURI .~ ssoURI
+              & ctxConfig . cfgDomainConfigs . _Left . cfgSPSsoURI .~ ssoURI
               & ctxRequestStore .~ reqstore
               & ctxNow .~ now
         verdict :: SResponse <-
