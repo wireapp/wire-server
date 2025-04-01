@@ -230,6 +230,7 @@ mkDerivation {
     servant
     servant-openapi3
     string-conversions
+    text
     these
     time
     tinylog
