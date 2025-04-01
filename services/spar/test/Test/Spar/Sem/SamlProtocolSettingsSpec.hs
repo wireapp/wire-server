@@ -20,7 +20,7 @@ spec :: Spec
 spec = do
   describe "SamlProtocolSettings actions" $ do
     prop "should find multi-ingress config values" $
-      \(tid :: TeamId)
+      \(mbTid :: Maybe TeamId)
        (domain :: Domain)
        (cfg :: Config)
        (miCfg :: MultiIngressDomainConfig) -> do
@@ -30,11 +30,11 @@ spec = do
                     %~ either
                       (\_ -> Right (Map.singleton domain miCfg))
                       (Right . Map.insert domain miCfg)
-              ssoUri = normalizeURIText ((miCfg ^. cfgSPSsoURI . to renderURI) <> "/finalize-login/" <> idToText tid)
+              ssoUri = normalizeURIText ((miCfg ^. cfgSPSsoURI . to renderURI) <> "/finalize-login/" <> teamIdPath mbTid)
 
           (iss, respUri, contacts) <- runFinal . sparRouteToServant cfgWithDomainEntry $ do
-            iss <- spIssuer (Just tid) (Just domain)
-            respUri <- responseURI (Just tid) (Just domain)
+            iss <- spIssuer mbTid (Just domain)
+            respUri <- responseURI mbTid (Just domain)
             contacts <- contactPersons (Just domain)
             pure (iss, respUri, contacts)
 
@@ -43,7 +43,7 @@ spec = do
           contacts `shouldBe` (miCfg ^. cfgContacts)
 
     prop "should find single-ingress config values" $
-      \(tid :: TeamId)
+      \(mbTid :: Maybe TeamId)
        (mbDomain :: Maybe Domain)
        (cfg :: Config)
        (siCfg :: MultiIngressDomainConfig) -> do
@@ -53,11 +53,11 @@ spec = do
                     %~ either
                       ((const . Left) siCfg)
                       ((const . Left) siCfg)
-              ssoUri = normalizeURIText ((siCfg ^. cfgSPSsoURI . to renderURI) <> "/finalize-login/" <> idToText tid)
+              ssoUri = normalizeURIText ((siCfg ^. cfgSPSsoURI . to renderURI) <> "/finalize-login/" <> teamIdPath mbTid)
 
           (iss, respUri, contacts) <- runFinal . sparRouteToServant cfgWithDomainEntry $ do
-            iss <- spIssuer (Just tid) mbDomain
-            respUri <- responseURI (Just tid) mbDomain
+            iss <- spIssuer mbTid mbDomain
+            respUri <- responseURI mbTid mbDomain
             contacts <- contactPersons mbDomain
             pure (iss, respUri, contacts)
 
@@ -72,3 +72,7 @@ normalizeURIText =
     . normalizeURIRef aggressiveNormalization
     . either error id
     . parseURI' @(Either String)
+
+teamIdPath :: Maybe TeamId -> Text
+teamIdPath Nothing = mempty
+teamIdPath (Just tid) = idToText tid
