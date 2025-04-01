@@ -195,6 +195,7 @@ library
     Testlib.Env
     Testlib.HTTP
     Testlib.JSON
+    Testlib.KleisliXML
     Testlib.Mock
     Testlib.MockIntegrationService
     Testlib.ModService

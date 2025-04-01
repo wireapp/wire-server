@@ -10,6 +10,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import GHC.Stack
 import SetupHelpers
+import qualified Testlib.KleisliXML as KXML
 import Testlib.Prelude
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
@@ -93,33 +94,20 @@ checkAuthnSPIssuer domain host idpId tid =
         valueName = XML.Name (cs "value") Nothing Nothing
         issuerName = XML.Name (cs "Issuer") (Just (cs "urn:oasis:names:tc:SAML:2.0:assertion")) Nothing
 
-    -- Kleisli components
-    let findElement :: XML.Name -> XML.Cursor -> Maybe XML.Cursor
-        findElement name = listToMaybe . (XML.$// XML.element name)
-
-        getAttribute :: XML.Name -> XML.Cursor -> Maybe T.Text
-        getAttribute name = listToMaybe . (XML.$| XML.attribute name)
-
-        getContent :: XML.Cursor -> Maybe T.Text
-        getContent = listToMaybe . (XML.$// XML.content)
-
-        parseXml :: ByteString -> XML.Cursor
-        parseXml = XML.fromDocument . XML.parseText_ XML.def . cs
-
-        decodeBase64 :: T.Text -> Maybe ByteString
+    let decodeBase64 :: T.Text -> Maybe ByteString
         decodeBase64 = either (const Nothing) Just . Data.ByteString.Base64.decode . cs
 
     let targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
 
     let getIssuerUrl :: ByteString -> Maybe T.Text
         getIssuerUrl =
-          (pure . parseXml)
-            >=> findElement inputName
-            >=> getAttribute valueName
+          (pure . KXML.parseXml . cs)
+            >=> KXML.findElement inputName
+            >=> KXML.getAttribute valueName
             >=> (cs >>> decodeBase64)
-            >=> (cs >>> (pure . parseXml))
-            >=> findElement issuerName
-            >=> getContent
+            >=> (cs >>> (pure . KXML.parseXml))
+            >=> KXML.findElement issuerName
+            >=> KXML.getContent
 
     getIssuerUrl authnreq.body `shouldMatch` targetSPUrl
 
@@ -135,38 +123,25 @@ checkMetadataSPIssuer domain host tid =
         entityIdName = XML.Name (cs "entityID") Nothing Nothing
         locationName = XML.Name (cs "Location") Nothing Nothing
 
-    -- Kleisli components
-    let parseXml :: ByteString -> XML.Cursor
-        parseXml = XML.fromDocument . XML.parseText_ XML.def . cs
-
-        findElement :: XML.Name -> XML.Cursor -> Maybe XML.Cursor
-        findElement name = listToMaybe . (XML.$// XML.element name)
-
-        getAttribute :: XML.Name -> XML.Cursor -> Maybe T.Text
-        getAttribute name = listToMaybe . (XML.$| (XML.attribute name))
-
-        getContent :: XML.Cursor -> Maybe T.Text
-        getContent = listToMaybe . (XML.$// XML.content)
-
     let targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
 
-    let root = parseXml resp.body
+    let root = (KXML.parseXml . cs) resp.body
 
         locationPipeline :: XML.Cursor -> Maybe T.Text
         locationPipeline =
-          findElement spSsoDescName
-            >=> findElement acsName
+          KXML.findElement spSsoDescName
+            >=> KXML.findElement acsName
             >=> pure
-            >=> getAttribute locationName
+            >=> KXML.getAttribute locationName
 
         orgUrlContentPipeline :: XML.Cursor -> Maybe T.Text
         orgUrlContentPipeline =
-          findElement spSsoDescName
-            >=> findElement orgName
-            >=> findElement orgUrlName
+          KXML.findElement spSsoDescName
+            >=> KXML.findElement orgName
+            >=> KXML.findElement orgUrlName
             >=> pure
-            >=> getContent
+            >=> KXML.getContent
 
-    getAttribute entityIdName root `shouldMatch` Just targetSPUrl
+    KXML.getAttribute entityIdName root `shouldMatch` Just targetSPUrl
     locationPipeline root `shouldMatch` Just targetSPUrl
     orgUrlContentPipeline root `shouldMatch` Just targetSPUrl
