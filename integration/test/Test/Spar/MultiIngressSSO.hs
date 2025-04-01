@@ -6,14 +6,20 @@ import API.GalleyInternal
 import API.Spar
 import Control.Arrow ((>>>))
 import Data.ByteString.Base64
+import qualified Data.ByteString.Base64.Lazy as EL
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
+import qualified Data.UUID as UUID
 import GHC.Stack
+import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.API.Example as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SetupHelpers
 import qualified Testlib.KleisliXML as KXML
 import Testlib.Prelude
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
+import qualified Text.XML.DSig as SAML
 
 testMultiIngressSSO :: (HasCallStack) => App ()
 testMultiIngressSSO = do
@@ -85,6 +91,9 @@ testMultiIngressSSO = do
         authnreq.status `shouldMatchInt` 404
         authnreq.json %. "label" `shouldMatch` "not-found"
 
+      finalizeLoginWithWrongZHost (Just bertZHost) (Just kermitZHost) domain tid bertEmail (idpId, idpMeta) `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 404
+
 checkAuthnSPIssuer :: (HasCallStack) => String -> String -> String -> String -> App ()
 checkAuthnSPIssuer domain host idpId tid =
   initiateSamlLoginWithZHost domain (Just host) idpId `bindResponse` \authnreq -> do
@@ -143,3 +152,25 @@ checkMetadataSPIssuer domain host tid =
     KXML.getAttribute entityIdName root `shouldMatch` Just targetSPUrl
     locationPipeline root `shouldMatch` Just targetSPUrl
     orgUrlContentPipeline root `shouldMatch` Just targetSPUrl
+
+finalizeLoginWithWrongZHost ::
+  (MakesValue domain, HasCallStack) =>
+  Maybe String ->
+  Maybe String ->
+  domain ->
+  String ->
+  String ->
+  (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) ->
+  App Response
+finalizeLoginWithWrongZHost mbZHost1 mbZHost2 domain tid email (iid, (meta, privcreds)) = do
+  let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
+  spmeta <- getSPMetadataWithZHost domain mbZHost1 tid
+  authnreq <- initiateSamlLoginWithZHost domain mbZHost1 iid
+  let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
+      spMetaData = toSPMetaData spmeta.body
+      parsedAuthnReq = parseAuthnReqResp authnreq.body
+  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
+  finalizeSamlLoginWithZHost domain mbZHost2 tid authnReqResp
+  where
+    toSPMetaData :: ByteString -> SAML.SPMetadata
+    toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs

@@ -471,9 +471,11 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid email (iid, (meta, privc
   spmeta <- getSPMetadataWithZHost domain mbZHost tid
   authnreq <- initiateSamlLoginWithZHost domain mbZHost iid
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
-  authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnResp `bindResponse` validateLoginResp
-  pure (mUid, authnResp)
+      spMetaData = toSPMetaData spmeta.body
+      parsedAuthnReq = parseAuthnReqResp authnreq.body
+  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
+  mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
+  pure (mUid, authnReqResp)
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
@@ -521,34 +523,45 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid email (iid, (meta, privc
         [[_, uuid]] -> Just uuid
         _ -> Nothing
 
+makeAuthnResponse ::
+  SAML.NameID ->
+  SAML.SignPrivCreds ->
+  SAML.IdPConfig extra ->
+  SAML.SPMetadata ->
+  SAML.AuthnRequest ->
+  App SAML.SignedAuthnResponse
+makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq =
+  runSimpleSP $
+    SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig spMetaData parsedAuthnReq True
+  where
     runSimpleSP :: SAML.SimpleSP a -> App a
     runSimpleSP action = liftIO $ do
       ctx <- SAML.mkSimpleSPCtx undefined []
       result <- SAML.runSimpleSP ctx action
       pure $ fromRight (error "simple sp action failed") result
 
-    parseAuthnReqResp ::
-      ByteString ->
-      SAML.AuthnRequest
-    parseAuthnReqResp bs = reqBody
-      where
-        xml :: XML.Document
-        xml =
-          fromRight (error "malformed html in response body") $
-            XML.parseText XML.def (cs bs)
+parseAuthnReqResp ::
+  ByteString ->
+  SAML.AuthnRequest
+parseAuthnReqResp bs = reqBody
+  where
+    xml :: XML.Document
+    xml =
+      fromRight (error "malformed html in response body") $
+        XML.parseText XML.def (cs bs)
 
-        reqBody :: SAML.AuthnRequest
-        reqBody =
-          (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
-            & head
-            & XML.attribute (fromString "value")
-            & head
-            & cs
-            & EL.decode
-            & fromRight (error "")
-            & cs
-            & SAML.decodeElem
-            & fromRight (error "")
+    reqBody :: SAML.AuthnRequest
+    reqBody =
+      (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
+        & head
+        & XML.attribute (fromString "value")
+        & head
+        & cs
+        & EL.decode
+        & fromRight (error "")
+        & cs
+        & SAML.decodeElem
+        & fromRight (error "")
 
 -- helpers
 
