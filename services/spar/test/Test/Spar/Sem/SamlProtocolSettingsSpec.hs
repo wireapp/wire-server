@@ -42,6 +42,29 @@ spec = do
           respUri ^? _Just . to renderURI `shouldBe` (Just ssoUri)
           contacts `shouldBe` (miCfg ^. cfgContacts)
 
+    prop "should find single-ingress config values" $
+      \(tid :: TeamId)
+       (mbDomain :: Maybe Domain)
+       (cfg :: Config)
+       (siCfg :: MultiIngressDomainConfig) -> do
+          let cfgWithDomainEntry =
+                cfg
+                  & cfgDomainConfigs
+                    %~ either
+                      ((const . Left) siCfg)
+                      ((const . Left) siCfg)
+              ssoUri = normalizeURIText ((siCfg ^. cfgSPSsoURI . to renderURI) <> "/finalize-login/" <> idToText tid)
+
+          (iss, respUri, contacts) <- runFinal . sparRouteToServant cfgWithDomainEntry $ do
+            iss <- spIssuer (Just tid) mbDomain
+            respUri <- responseURI (Just tid) mbDomain
+            contacts <- contactPersons mbDomain
+            pure (iss, respUri, contacts)
+
+          iss ^? _Just . fromIssuer . to renderURI `shouldBe` (Just ssoUri)
+          respUri ^? _Just . to renderURI `shouldBe` (Just ssoUri)
+          contacts `shouldBe` (siCfg ^. cfgContacts)
+
 normalizeURIText :: Text -> Text
 normalizeURIText =
   T.decodeUtf8
