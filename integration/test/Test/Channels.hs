@@ -160,7 +160,6 @@ testTeamAdminPermissions = do
     assertChannelAdminPermission convId conv user userClient (userToAdd, userToAddClient) userToUpdate = do
       newName <- randomName
       changeConversationName user conv newName >>= assertSuccess
-      updateReceiptMode user conv (42 :: Int) >>= assertSuccess
       updateMessageTimer user conv 1000 >>= assertSuccess
       updateAccess user conv (["access" .= ["code", "invite"], "access_role" .= ["team_member", "guest"]]) >>= assertSuccess
       updateConversationMember user conv userToUpdate "wire_member" >>= assertSuccess
@@ -172,7 +171,6 @@ testTeamAdminPermissions = do
       bindResponse (getConversation user conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "name" `shouldMatch` newName
-        resp.json %. "receipt_mode" `shouldMatchInt` 42
         resp.json %. "message_timer" `shouldMatchInt` 1000
         asList (resp.json %. "access_role") `shouldMatchSet` ["team_member", "guest"]
         resp.json %. "members.self.otr_archived" `shouldMatch` True
@@ -186,9 +184,6 @@ testTeamAdminPermissions = do
     assertNoChannelAdminPermission convId conv user userClient (userToAdd, _) userToUpdate = do
       newName <- randomName
       changeConversationName user conv newName `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 403
-        resp.json %. "label" `shouldMatch` "action-denied"
-      updateReceiptMode user conv (41 :: Int) `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "action-denied"
       updateMessageTimer user conv 2000 `bindResponse` \resp -> do

@@ -664,6 +664,9 @@ newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ReceiptMode
 
+instance Default ReceiptMode where
+  def = ReceiptMode 0
+
 instance ToSchema ReceiptMode where
   schema =
     (S.schema . description ?~ "Conversation receipt mode") $

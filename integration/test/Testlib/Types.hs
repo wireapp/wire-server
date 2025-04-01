@@ -320,6 +320,9 @@ data ConvId = ConvId
 convIdToQidObject :: ConvId -> Value
 convIdToQidObject convId = object [fromString "id" .= convId.id_, fromString "domain" .= convId.domain]
 
+instance ToJSON ConvId where
+  toJSON = convIdToQidObject
+
 data MLSState = MLSState
   { baseDir :: FilePath,
     convs :: Map ConvId MLSConv,

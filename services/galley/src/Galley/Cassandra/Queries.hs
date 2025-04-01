@@ -272,7 +272,7 @@ updateToMixedConv =
   "insert into conversation (conv, protocol, group_id, epoch) values (?, ?, ?, ?)"
 
 updateToMLSConv :: PrepQuery W (ConvId, ProtocolTag) ()
-updateToMLSConv = "insert into conversation (conv, protocol) values (?, ?)"
+updateToMLSConv = "insert into conversation (conv, protocol, receipt_mode) values (?, ?, 0)"
 
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) ()
 updateConvAccess = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set access = ?, access_roles_v2 = ? where conv = ?"

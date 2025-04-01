@@ -147,6 +147,7 @@ data GalleyError
     InvalidTeamNotificationId
   | ChannelsNotEnabled
   | NotAnMlsConversation
+  | MLSReadReceiptsNotAllowed
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -334,6 +335,8 @@ type instance MapError 'LegalHoldCouldNotBlockConnections = 'StaticError 500 "le
 type instance MapError 'ChannelsNotEnabled = 'StaticError 403 "channels-not-enabled" "The channels feature is not enabled for this team"
 
 type instance MapError 'NotAnMlsConversation = 'StaticError 403 "not-mls-conversation" "This operation requires an MLS conversation"
+
+type instance MapError 'MLSReadReceiptsNotAllowed = 'StaticError 403 "mls-receipts-not-allowed" "Read receipts on MLS conversations are not allowed"
 
 --------------------------------------------------------------------------------
 -- Team Member errors

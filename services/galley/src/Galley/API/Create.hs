@@ -681,7 +681,9 @@ newRegularConversation lusr newConv = do
                   cnvmAccessRoles = accessRoles newConv,
                   cnvmName = fmap fromRange (newConvName newConv),
                   cnvmMessageTimer = newConvMessageTimer newConv,
-                  cnvmReceiptMode = newConvReceiptMode newConv,
+                  cnvmReceiptMode = case newConvProtocol newConv of
+                    BaseProtocolProteusTag -> newConvReceiptMode newConv
+                    BaseProtocolMLSTag -> Just def,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
                   cnvmGroupConvType = Just newConv.newConvGroupConvType,
                   cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then Just def else Nothing,
