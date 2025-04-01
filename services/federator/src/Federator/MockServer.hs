@@ -74,6 +74,7 @@ import Wire.API.Federation.API (Component)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
 import Wire.API.Federation.Version
+import Wire.Sem.Logger.Level qualified as Log
 import Wire.Sem.Logger.TinyLog
 
 -- | This can be thrown by actions passed to mock federator to simulate
@@ -84,6 +85,7 @@ data MockException
   deriving (Eq, Show, Typeable)
 
 instance AsWai MockException where
+  errorLogLevel _ = Log.Error
   toWai (MockErrorResponse status message) = Wai.mkError status "mock-error" message
   toWai (MockUnreachableBackendErrorResponse d) =
     Wai.mkError HTTP.status503 "mock-error" (unreachableMsg d)

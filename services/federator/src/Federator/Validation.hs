@@ -46,6 +46,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.SRV (SrvTarget (..))
+import Wire.Sem.Logger.Level qualified as Log
 
 data ValidationError
   = NoClientCertificate
@@ -58,6 +59,8 @@ data ValidationError
 instance Exception ValidationError
 
 instance AsWai ValidationError where
+  errorLogLevel (FederationDenied _) = Log.Warn
+  errorLogLevel _ = Log.Error
   toWai err =
     Wai.mkError (validationErrorStatus err) (validationErrorLabel err)
       . LText.fromStrict

@@ -36,6 +36,7 @@ import System.Logger.Class qualified as Log
 import Wire.Network.DNS.Effect (DNSLookup)
 import Wire.Network.DNS.Effect qualified as Lookup
 import Wire.Network.DNS.SRV (SrvEntry (srvTarget), SrvResponse (..), SrvTarget)
+import Wire.Sem.Logger.Level qualified as SemLog
 
 data DiscoveryFailure
   = DiscoveryFailureSrvNotAvailable ByteString
@@ -45,6 +46,7 @@ data DiscoveryFailure
 instance Exception DiscoveryFailure
 
 instance AsWai DiscoveryFailure where
+  errorLogLevel _ = SemLog.Error
   toWai e = Wai.mkError status label (LText.fromStrict (discoveryErrorDescription e))
     where
       (status, label) = case e of

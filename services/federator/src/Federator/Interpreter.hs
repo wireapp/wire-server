@@ -23,7 +23,7 @@ import Federator.Remote
 import Federator.Service
 import Federator.Validation
 import HTTP2.Client.Manager (Http2Manager)
-import Imports
+import Imports hiding (log)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
@@ -46,6 +46,7 @@ import Wire.API.Component (Component (Brig))
 import Wire.API.FederationUpdate qualified as FedUp (getFederationDomainConfigs)
 import Wire.API.Routes.FederationDomainConfig qualified as FedUp (FederationDomainConfigs)
 import Wire.Network.DNS.Effect
+import Wire.Sem.Logger
 import Wire.Sem.Logger.TinyLog
 
 class ErrorEffects (ee :: [Type]) r where
@@ -84,22 +85,19 @@ runWaiErrorEither ::
   (AsWai e, Member TinyLog r) =>
   Sem (Error e ': r) (Either Wai.Error a) ->
   Sem r (Either Wai.Error a)
-runWaiErrorEither =
-  fmap join
-    . runError
-    . flip catch logError
-    . mapError toWai
-    . raiseUnder
+runWaiErrorEither = fmap join . logError
   where
     logError ::
-      ( Member (Error Wai.Error) r,
-        Member TinyLog r
-      ) =>
-      Wai.Error ->
-      Sem r a
-    logError e = do
-      err $ Wai.logErrorMsg e
-      throw e
+      (Member TinyLog r, AsWai e) =>
+      Sem (Error e ': r) a ->
+      Sem r (Either Wai.Error a)
+    logError m =
+      runError m >>= \case
+        Left e -> do
+          let we = toWai e
+          log (errorLogLevel e) $ Wai.logErrorMsg we
+          pure (Left we)
+        Right x -> pure (Right x)
 
 serveServant ::
   forall (api :: Type).
