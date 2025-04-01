@@ -1,5 +1,5 @@
 
-# /docs 
+# docs 
 
 - This directory contains only files that have been modified within the past year (since February 19, 2025). All older files have been moved to the [wire-docs](https://github.com/wireapp/wire-docs) repository. 
 
