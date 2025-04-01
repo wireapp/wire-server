@@ -19,7 +19,7 @@ import URI.ByteString (aggressiveNormalization, normalizeURIRef)
 spec :: Spec
 spec = do
   describe "SamlProtocolSettings actions" $ do
-    prop "should find the spIssuer" $
+    prop "should find multi-ingress config values" $
       \(tid :: TeamId)
        (domain :: Domain)
        (cfg :: Config)
@@ -30,10 +30,17 @@ spec = do
                     %~ either
                       (\_ -> Right (Map.singleton domain miCfg))
                       (Right . Map.insert domain miCfg)
-          iss <- runFinal . sparRouteToServant cfgWithDomainEntry $ do
-            spIssuer (Just tid) (Just domain)
-          iss ^? _Just . fromIssuer . to renderURI
-            `shouldBe` (Just . normalizeURIText) ((miCfg ^. cfgSPSsoURI . to renderURI) <> "/finalize-login/" <> idToText tid)
+              ssoUri = normalizeURIText ((miCfg ^. cfgSPSsoURI . to renderURI) <> "/finalize-login/" <> idToText tid)
+
+          (iss, respUri, contacts) <- runFinal . sparRouteToServant cfgWithDomainEntry $ do
+            iss <- spIssuer (Just tid) (Just domain)
+            respUri <- responseURI (Just tid) (Just domain)
+            contacts <- contactPersons (Just domain)
+            pure (iss, respUri, contacts)
+
+          iss ^? _Just . fromIssuer . to renderURI `shouldBe` (Just ssoUri)
+          respUri ^? _Just . to renderURI `shouldBe` (Just ssoUri)
+          contacts `shouldBe` (miCfg ^. cfgContacts)
 
 normalizeURIText :: Text -> Text
 normalizeURIText =
