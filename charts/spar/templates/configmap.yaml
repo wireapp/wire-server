@@ -45,8 +45,8 @@ data:
       spHost: 0.0.0.0
       spPort: {{ $.Values.service.externalPort }}
       {{- if .domainConfigs }}
-      domainConfigs:
-        {{- range $key, $value := .Values.domainConfigs }}
+      spDomainConfigs:
+        {{- range $key, $value := .domainConfigs }}
         {{ $key }}:
           spAppUri: {{ required (printf "Multi-ingress: config.appUri required for %s" $key) $value.appUri }}
           spSsoUri: {{ required (printf "Multi-ingress: config.ssoUri required for %s" $key) $value.ssoUri }}
