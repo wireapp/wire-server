@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -27,6 +28,7 @@ import Data.OpenApi hiding (Header (..))
 import Data.Proxy
 import Data.String.Conversions
 import Imports
+import SAML2.WebSSO.Config
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types
 import Servant.API.ContentTypes
@@ -63,6 +65,36 @@ instance Arbitrary IdPMetadataInfo where
 
 instance Arbitrary SsoSettings where
   arbitrary = SsoSettings <$> arbitrary
+
+instance Arbitrary MultiIngressDomainConfig where
+  arbitrary = do
+    _cfgSPAppURI <- arbitrary
+    _cfgSPSsoURI <- arbitrary
+    _cfgContacts <- arbitrary
+    pure $ MultiIngressDomainConfig {..}
+
+instance Arbitrary ContactPerson where
+  arbitrary =
+    ContactPerson
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
+instance Arbitrary XmlText where
+  arbitrary = mkXmlText <$> arbitrary
+
+instance Arbitrary ContactType where
+  arbitrary =
+    elements
+      [ ContactTechnical,
+        ContactSupport,
+        ContactAdministrative,
+        ContactBilling,
+        ContactOther
+      ]
 
 -- This is not required by the servant-server instances, but the swagger
 -- tests want it. See https://github.com/haskell-servant/servant-swagger/issues/58

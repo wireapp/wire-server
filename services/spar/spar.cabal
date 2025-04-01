@@ -555,6 +555,7 @@ test-suite spec
     Test.Spar.Sem.DefaultSsoCodeSpec
     Test.Spar.Sem.IdPRawMetadataStoreSpec
     Test.Spar.Sem.NowSpec
+    Test.Spar.Sem.SamlProtocolSettingsSpec
     Test.Spar.Sem.ScimExternalIdStoreSpec
     Test.Spar.TypesSpec
 
@@ -615,6 +616,8 @@ test-suite spec
     , base
     , brig-types
     , bytestring-conversion
+    , bytestring
+    , containers
     , cookie
     , hscim
     , hspec
@@ -634,6 +637,7 @@ test-suite spec
     , servant-openapi3
     , spar
     , string-conversions
+    , text
     , these
     , time
     , tinylog

@@ -211,6 +211,7 @@ mkDerivation {
     base
     brig-types
     bytestring-conversion
+    containers
     cookie
     hscim
     hspec
