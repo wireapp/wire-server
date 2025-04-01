@@ -257,7 +257,7 @@ specFinalizeLogin = do
                 WireIdPAPIV1 -> "/sso/finalize-login"
                 WireIdPAPIV2 -> "/sso/finalize-login/" <> toByteString' tid
           liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
-          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta (Just authnreq) True
           loginSuccess =<< submitAuthnResponse tid authnresp
 
       context "happy flow (two teams, fixed IdP entityID)" $ do
@@ -280,17 +280,17 @@ specFinalizeLogin = do
           do
             spmeta <- getTestSPMetadata tid1
             authnreq <- negotiateAuthnRequest idp1
-            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp1 spmeta authnreq True
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp1 spmeta (Just authnreq) True
             loginSuccess =<< submitAuthnResponse tid1 authnresp
           do
             spmeta <- getTestSPMetadata tid2
             authnreq <- negotiateAuthnRequest idp2
-            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp2 spmeta authnreq True
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp2 spmeta (Just authnreq) True
             loginSuccess =<< submitAuthnResponse tid2 authnresp
           do
             spmeta <- getTestSPMetadata tid3
             authnreq <- negotiateAuthnRequest idp3
-            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta (Just authnreq) True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
       -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
@@ -312,12 +312,12 @@ specFinalizeLogin = do
           do
             spmeta <- getTestSPMetadata tid1
             authnreq <- negotiateAuthnRequest idp1
-            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp1 spmeta authnreq True
+            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp1 spmeta (Just authnreq) True
             loginSuccess =<< submitAuthnResponse tid1 authnresp
           do
             spmeta <- getTestSPMetadata tid2
             authnreq <- negotiateAuthnRequest idp2
-            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
+            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta (Just authnreq) True
             loginFailure =<< submitAuthnResponse tid2 authnresp
 
       -- @END
@@ -330,7 +330,7 @@ specFinalizeLogin = do
           -- first login
           newUserAuthnResp :: SignedAuthnResponse <- do
             authnreq <- negotiateAuthnRequest idp
-            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta (Just authnreq) True
             loginSuccess =<< submitAuthnResponse teamid authnresp
             pure $ authnresp
           let newUserRef@(UserRef _ subj) =
@@ -366,7 +366,7 @@ specFinalizeLogin = do
           do
             -- second login
             authnreq <- negotiateAuthnRequest idp
-            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
+            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta (Just authnreq) True
             loginSuccess =<< submitAuthnResponse teamid authnresp
 
       context "unknown user" $ do
@@ -402,7 +402,7 @@ specFinalizeLogin = do
 
         let loginWithSubject subj = do
               authnreq <- negotiateAuthnRequest idp
-              authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
+              authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta (Just authnreq) True
               loginSuccess =<< submitAuthnResponse tid authnresp
               ssoid <- getSsoidViaAuthResp authnresp
               ssoToUidSpar tid ssoid
@@ -469,7 +469,7 @@ mkSsoOwner :: UserId -> TeamId -> IdP -> SignPrivCreds -> TestSpar UserId
 mkSsoOwner firstOwner tid idp privcreds = do
   spmeta <- getTestSPMetadata tid
   authnreq <- negotiateAuthnRequest idp
-  authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+  authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta (Just authnreq) True
   loginresp <- submitAuthnResponse tid authnresp
   liftIO $ responseStatus loginresp `shouldBe` status200
   [ssoOwner] <- filter (/= firstOwner) <$> getTeamMemberIds firstOwner tid
@@ -840,7 +840,7 @@ specCRUDIdentityProvider = do
             (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. idpId)
             spmeta <- getTestSPMetadata tid
             let privkey = if useNewPrivKey then newPrivKey else oldPrivKey
-            idpresp <- runSimpleSP $ mkAuthnResponse privkey idp spmeta authnreq True
+            idpresp <- runSimpleSP $ mkAuthnResponse privkey idp spmeta (Just authnreq) True
             sparresp <- submitAuthnResponse tid idpresp
             liftIO $ do
               statusCode sparresp `shouldBe` expectedStatus
@@ -1083,7 +1083,7 @@ specCRUDIdentityProvider = do
           (uid, mbEmail, hdl) :: (UserId, Maybe Text, Text) <- do
             spmeta <- getTestSPMetadata teamid
             authnreq <- negotiateAuthnRequest idp1
-            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp1 spmeta authnreq True
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp1 spmeta (Just authnreq) True
             sparresp <- submitAuthnResponse teamid authnresp
             liftIO $ statusCode sparresp `shouldBe` 200
             ssoid <- getSsoidViaAuthResp authnresp
@@ -1248,7 +1248,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
       let tid = idp ^. idpExtraInfo . team
       authnReq <- negotiateAuthnRequest idp
       spmeta <- getTestSPMetadata tid
-      authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+      authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta (Just authnReq) True
       createResp <- submitAuthnResponse tid authnResp
       liftIO $ responseStatus createResp `shouldBe` status200
       pure createResp
@@ -1290,7 +1290,7 @@ specScimAndSAML = do
     -- login a user for the first time with the scim-supplied credentials
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata tid
-    authnresp :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta authnreq True
+    authnresp :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta (Just authnreq) True
     sparresp :: ResponseLBS <- submitAuthnResponse tid authnresp
     -- user should receive a cookie
     liftIO $ statusCode sparresp `shouldBe` 200
@@ -1332,7 +1332,7 @@ specScimAndSAML = do
 
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . team)
-    authnresp :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subjectWithQualifier privcreds idp spmeta authnreq True
+    authnresp :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subjectWithQualifier privcreds idp spmeta (Just authnreq) True
 
     ssoid <- getSsoidViaAuthResp authnresp
     mid <- ssoToUidSpar tid ssoid
@@ -1561,7 +1561,7 @@ specSparUserMigration = do
 
       mbUserId <- do
         authnreq <- negotiateAuthnRequest idp
-        authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta authnreq True
+        authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta (Just authnreq) True
         sparresp <- submitAuthnResponse tid authnresp
         liftIO $ statusCode sparresp `shouldBe` 200
         ssoid <- getSsoidViaAuthResp authnresp
@@ -1684,7 +1684,7 @@ testRejectsSAMLResponseSayingAccessNotGranted = do
   (idp, (_, privcreds)) <- registerTestIdPWithMeta user
   authnreq <- negotiateAuthnRequest idp
   spmeta <- getTestSPMetadata tid
-  authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
+  authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta (Just authnreq) False
   sparresp <- submitAuthnResponse tid authnresp
   liftIO $ do
     statusCode sparresp `shouldBe` 200
@@ -1707,12 +1707,12 @@ testRejectsSAMLResponseSayingAccessNotGranted = do
 testRejectsSAMLResponseFromWrongIssuer :: (HasCallStack) => TestSpar ()
 testRejectsSAMLResponseFromWrongIssuer = do
   let mkareq = negotiateAuthnRequest
-      mkaresp privcreds idp spmeta authnreq =
+      mkaresp privcreds idp spmeta mbauthnreq =
         mkAuthnResponse
           privcreds
           (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
           spmeta
-          authnreq
+          mbauthnreq
           True
       submitaresp = submitAuthnResponse
       checkresp sparresp = do
@@ -1806,7 +1806,7 @@ shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
 checkSamlFlow ::
   (HasCallStack) =>
   (IdP -> TestSpar SAML.AuthnRequest) ->
-  (SignPrivCreds -> IdP -> SAML.SPMetadata -> SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
+  (SignPrivCreds -> IdP -> SAML.SPMetadata -> Maybe SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
   (TeamId -> SignedAuthnResponse -> TestSpar (Response (Maybe LByteString))) ->
   (ResponseLBS -> IO ()) ->
   TestSpar ()
@@ -1821,6 +1821,6 @@ checkSamlFlow mkareq mkaresp submitaresp checkresp = do
         privcreds
         idp
         spmeta
-        authnreq
+        (Just authnreq)
   sparresp <- submitaresp teamid authnresp
   liftIO $ checkresp sparresp

@@ -473,7 +473,7 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid email (iid, (meta, privc
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
       spMetaData = toSPMetaData spmeta.body
       parsedAuthnReq = parseAuthnReqResp authnreq.body
-  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
+  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData (Just parsedAuthnReq)
   mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
   pure (mUid, authnReqResp)
   where
