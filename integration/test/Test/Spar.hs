@@ -9,7 +9,10 @@ import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
+import Data.String.Conversions (cs)
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
 import qualified SAML2.WebSSO as SAML
@@ -19,6 +22,9 @@ import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
+
+----------------------------------------------------------------------
+-- scim stuff
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
@@ -353,6 +359,30 @@ testSparCreateScimTokenWithName = do
   token <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList >>= assertOne
   assoc <- token %. "id"
   token %. "name" `shouldMatch` Just assoc
+
+----------------------------------------------------------------------
+-- saml stuff
+
+testSparIdPInitiatedLogin :: (HasCallStack) => App ()
+testSparIdPInitiatedLogin = do
+  -- set up saml-not-scim team
+  (owner, tid, []) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (createIdpResp, (_idpmeta, privcreds)) <- registerTestIdPWithMetaWithPrivateCreds owner
+  assertSuccess createIdpResp
+
+  -- craft authnresp without req
+  idpValue :: A.Value <- createIdpResp.json
+  let idp :: SAML.IdPConfig Value
+      idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
+  authnresp <- getAuthnResponse tid idp privcreds
+
+  -- send to finalize and check redirect response
+  finalizeSamlLogin OwnDomain tid authnresp `bindResponse` \resp -> do
+    -- the 303 is followed immediately, so the response is already coming from
+    -- /sso/initiate-login here.
+    resp.status `shouldMatchInt` 200
+    (cs resp.body) `shouldContain` "SAMLRequest"
 
 -- | in V6, create two idps then one scim should fail
 testSparCreateTwoScimTokensForOneIdp :: (HasCallStack) => App ()

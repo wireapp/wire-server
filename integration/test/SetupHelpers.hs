@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 
 module SetupHelpers where
 
@@ -32,6 +32,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
+import System.Random (randomRIO)
 import Test.DNSMock
 import Testlib.JSON
 import Testlib.Prelude
@@ -473,7 +474,7 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid email (iid, (meta, privc
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
       spMetaData = toSPMetaData spmeta.body
       parsedAuthnReq = parseAuthnReqResp authnreq.body
-  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData (Just parsedAuthnReq)
+  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
   mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
   pure (mUid, authnReqResp)
   where
@@ -532,13 +533,7 @@ makeAuthnResponse ::
   App SAML.SignedAuthnResponse
 makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq =
   runSimpleSP $
-    SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig spMetaData parsedAuthnReq True
-  where
-    runSimpleSP :: SAML.SimpleSP a -> App a
-    runSimpleSP action = liftIO $ do
-      ctx <- SAML.mkSimpleSPCtx undefined []
-      result <- SAML.runSimpleSP ctx action
-      pure $ fromRight (error "simple sp action failed") result
+    SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig spMetaData (Just parsedAuthnReq) True
 
 -- | extract an `AuthnRequest` from the html form in the http response from /sso/initiate-login
 parseAuthnReqResp ::
@@ -563,6 +558,34 @@ parseAuthnReqResp bs = reqBody
         & cs
         & SAML.decodeElem
         & fromRight (error "")
+
+getAuthnResponse :: String -> SAML.IdPConfig extra -> SAML.SignPrivCreds -> App SAML.SignedAuthnResponse
+getAuthnResponse tid idp privCreds = do
+  subject <- nextSubject
+  spmeta :: SAML.SPMetadata <-
+    getSPMetadata OwnDomain tid `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      either (error . show) pure $ SAML.decode (cs resp.body)
+  runSimpleSP $ SAML.mkAuthnResponseWithSubj subject privCreds idp spmeta Nothing True
+
+-- | useful for, say, getting an authentication request that spar won't remember.
+runSimpleSP :: SAML.SimpleSP a -> App a
+runSimpleSP action = do
+  ctx <- liftIO $ SAML.mkSimpleSPCtx undefined []
+  runSimpleSPWithCtx ctx action
+
+runSimpleSPWithCtx :: SAML.SimpleSPCtx -> SAML.SimpleSP a -> App a
+runSimpleSPWithCtx ctx action = liftIO $ do
+  result <- SAML.runSimpleSP ctx action
+  pure $ fromRight (error "simple sp action failed") result
+
+nextSubject :: App SAML.NameID
+nextSubject = do
+  unameId <-
+    randomRIO (0, 1 :: Int) >>= \case
+      0 -> either (error . show) id . SAML.mkUNameIDEmail . cs <$> randomEmail
+      1 -> liftIO $ SAML.mkUNameIDUnspecified . UUID.toText <$> nextRandom
+  either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
 
 -- helpers
 
