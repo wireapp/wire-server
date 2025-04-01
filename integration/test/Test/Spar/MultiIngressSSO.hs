@@ -131,7 +131,6 @@ checkMetadataSPIssuer domain host tid =
         locationPipeline =
           KXML.findElement spSsoDescName
             >=> KXML.findElement acsName
-            >=> pure
             >=> KXML.getAttribute locationName
 
         orgUrlContentPipeline :: XML.Cursor -> Maybe T.Text
@@ -139,7 +138,6 @@ checkMetadataSPIssuer domain host tid =
           KXML.findElement spSsoDescName
             >=> KXML.findElement orgName
             >=> KXML.findElement orgUrlName
-            >=> pure
             >=> KXML.getContent
 
     KXML.getAttribute entityIdName root `shouldMatch` Just targetSPUrl
