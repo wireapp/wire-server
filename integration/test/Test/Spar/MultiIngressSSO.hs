@@ -69,25 +69,13 @@ testMultiIngressSSO = do
         ((getRoot >=> KXML.findElement titleName >=> KXML.getContent) resp.body)
           `shouldMatch` (Just "wire:sso:error:forbidden")
 
-      void $ loginWithSamlWithZHost (Just ernieZHost) domain True tid ernieEmail (idpId, idpMeta)
-      activateEmail domain ernieEmail
-      getUsersByEmail domain [ernieEmail] `bindResponse` \res -> do
-        res.status `shouldMatchInt` 200
-        user <- res.json >>= asList >>= assertOne
-        user %. "status" `shouldMatch` "active"
-        user %. "email" `shouldMatch` ernieEmail
+      makeSuccessfulSamlLogin domain ernieZHost tid ernieEmail idpId idpMeta
 
       bertEmail <- ("bert@" <>) <$> randomDomain
       checkMetadataSPIssuer domain bertZHost tid
       checkAuthnSPIssuer domain bertZHost idpId tid
 
-      void $ loginWithSamlWithZHost (Just bertZHost) domain True tid bertEmail (idpId, idpMeta)
-      activateEmail domain bertEmail
-      getUsersByEmail domain [bertEmail] `bindResponse` \res -> do
-        res.status `shouldMatchInt` 200
-        user <- res.json >>= asList >>= assertOne
-        user %. "status" `shouldMatch` "active"
-        user %. "email" `shouldMatch` bertEmail
+      makeSuccessfulSamlLogin domain bertZHost tid bertEmail idpId idpMeta
 
       kermitEmail <- ("kermit@" <>) <$> randomDomain
       getSPMetadataWithZHost domain (Just kermitZHost) tid `bindResponse` \resp -> do
@@ -159,6 +147,24 @@ checkMetadataSPIssuer domain host tid =
     KXML.getAttribute entityIdName root `shouldMatch` Just targetSPUrl
     locationPipeline root `shouldMatch` Just targetSPUrl
     orgUrlContentPipeline root `shouldMatch` Just targetSPUrl
+
+makeSuccessfulSamlLogin ::
+  (MakesValue domain) =>
+  domain ->
+  String ->
+  String ->
+  String ->
+  String ->
+  (SAML.IdPMetadata, SAML.SignPrivCreds) ->
+  App ()
+makeSuccessfulSamlLogin domain host tid email idpId idpMeta = do
+  void $ loginWithSamlWithZHost (Just host) domain True tid email (idpId, idpMeta)
+  activateEmail domain email
+  getUsersByEmail domain [email] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` email
 
 finalizeLoginWithWrongZHost ::
   (MakesValue domain, HasCallStack) =>
