@@ -616,7 +616,6 @@ test-suite spec
     , base
     , brig-types
     , bytestring-conversion
-    , bytestring
     , containers
     , cookie
     , hscim
