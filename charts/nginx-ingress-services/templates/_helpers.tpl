@@ -109,6 +109,21 @@ nginx-ingress-{{ .Values.ingressName }}
 {{- end -}}
 
 {{/*
+Name of the minio ingress. Extracted as helper to reduce the complexity in the template
+itself. The default name is 'minio-ingress' for backwards compatibility (it has
+been this name in previous versions.)
+Why do we need to be able to change this name? For multi-ingress setups, we'll
+have multiple of these ingresses (which need unique names).
+*/}}
+{{- define "nginx-ingress-services.getMinioIngressName" -}}
+{{- if (eq .Values.ingressName "") -}}
+minio-ingress
+{{- else -}}
+minio-ingress-{{ .Values.ingressName }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Name of the certificate 'Issuer'. Especially, used in 'issuerRef's.
 In multi-domain backends (multi-ingress), the 'ingressName' is used as postfix
 of the name to ensure that certificates aren't accidentally all issued by the
