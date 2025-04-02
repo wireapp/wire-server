@@ -845,3 +845,23 @@ testBackendRemoveProposal suite domain = do
   -- alice commits the external proposals
   r <- createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
   shouldBeEmpty $ r %. "events"
+
+testExternalCommitDuplicateClient :: (HasCallStack) => App ()
+testExternalCommitDuplicateClient = do
+  alice <- randomUser OwnDomain def
+  creator : [other] <- traverse (createMLSClient def def) (replicate 2 alice)
+  (_, conv) <- createSelfGroup def creator
+  convId <- objConvId conv
+  void $ createAddCommit creator convId [alice] >>= sendAndConsumeCommitBundle
+
+  replicateM_ 2 $ uploadNewKeyPackage def other
+  void $ createExternalCommit convId other Nothing >>= sendAndConsumeCommitBundle
+
+  -- reset client state
+  setClientGroupState other def
+
+  -- rejoin with the same client without removing the existing leaf node
+  mp <- createExternalCommit convId other Nothing
+  bindResponse (postMLSCommitBundle other (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"
