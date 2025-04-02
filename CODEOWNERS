@@ -1,3 +1,4 @@
 *		@wireapp/backend
-/charts/	@wireapp/backend @wireapp/platform-engineering
-/docs		@wireapp/backend @wireapp/platform-engineering @wireapp/customerops
+/changelog.d/	@wireapp/backend @wireapp/platform-engineering @wireapp/customerops
+/charts/	@wireapp/backend @wireapp/platform-engineering @wireapp/customerops
+/docs/		@wireapp/backend @wireapp/platform-engineering @wireapp/customerops
