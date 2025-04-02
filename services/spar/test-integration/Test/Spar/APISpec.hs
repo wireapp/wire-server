@@ -55,7 +55,6 @@ import SAML2.WebSSO
     edIssuer,
     edRequestURI,
     fromIssuer,
-    getUserRef,
     idPIdToST,
     idpExtraInfo,
     idpId,
@@ -1529,7 +1528,7 @@ getSsoidViaAuthResp :: (HasCallStack) => SignedAuthnResponse -> TestSpar UserSSO
 getSsoidViaAuthResp aresp = do
   parsed :: AuthnResponse <-
     either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-  either error (pure . UserSSOId) $ getUserRef parsed
+  either (error . show) (pure . UserSSOId) $ SAML.assertionsToUserRef (parsed ^. SAML.rspPayload)
 
 specSparUserMigration :: SpecWith TestEnv
 specSparUserMigration = do
@@ -1705,7 +1704,7 @@ testRejectsSAMLResponseSayingAccessNotGranted = do
 -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
 --
 -- Do not authenticate if SSO IdP response is for unknown issuer
-testRejectsSAMLResponseFromWrongIssuer :: TestSpar ()
+testRejectsSAMLResponseFromWrongIssuer :: (HasCallStack) => TestSpar ()
 testRejectsSAMLResponseFromWrongIssuer = do
   let mkareq = negotiateAuthnRequest
       mkaresp privcreds idp spmeta authnreq =
@@ -1805,6 +1804,7 @@ shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
         g "" = ""
 
 checkSamlFlow ::
+  (HasCallStack) =>
   (IdP -> TestSpar SAML.AuthnRequest) ->
   (SignPrivCreds -> IdP -> SAML.SPMetadata -> SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
   (TeamId -> SignedAuthnResponse -> TestSpar (Response (Maybe LByteString))) ->

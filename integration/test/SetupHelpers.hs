@@ -61,18 +61,25 @@ deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
 
 -- | returns (owner, team id, members)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
-createTeam domain memberCount = do
-  owner <- createUser domain def {team = True} >>= getJSON 201
+createTeam domain memberCount = createTeamWithEmailDomain domain "example.com" memberCount
+
+createTeamWithEmailDomain :: (HasCallStack, MakesValue domain) => domain -> String -> Int -> App (Value, String, [Value])
+createTeamWithEmailDomain domain emailDomain memberCount = do
+  ownerEmail <- randomName <&> (<> "@" <> emailDomain)
+  owner <- createUser domain def {team = True, email = Just ownerEmail} >>= getJSON 201
   tid <- owner %. "team" & asString
-  members <- pooledForConcurrentlyN 64 [2 .. memberCount] $ \_ -> createTeamMember owner def
+  members <- pooledForConcurrentlyN 64 [2 .. memberCount] $ \_ -> do
+    email <- randomName <&> (<> "@" <> emailDomain)
+    createTeamMember owner def {email = Just email}
   pure (owner, tid, members)
 
 data CreateTeamMember = CreateTeamMember
-  { role :: String
+  { role :: String,
+    email :: Maybe String
   }
 
 instance Default CreateTeamMember where
-  def = CreateTeamMember {role = "member"}
+  def = CreateTeamMember {role = "member", email = Nothing}
 
 createTeamMember ::
   (HasCallStack, MakesValue inviter) =>
@@ -80,7 +87,7 @@ createTeamMember ::
   CreateTeamMember ->
   App Value
 createTeamMember inviter args = do
-  newUserEmail <- randomEmail
+  newUserEmail <- maybe randomEmail pure args.email
   invitation <-
     postInvitation
       inviter
@@ -539,14 +546,14 @@ data ChallengeSetup = ChallengeSetup
   }
 
 setupChallenge :: (MakesValue domain, HasCallStack) => domain -> String -> App ChallengeSetup
-setupChallenge domain registrationDomain = do
-  challenge <- getDomainVerificationChallenge domain registrationDomain >>= getJSON 200
+setupChallenge domain emailDomain = do
+  challenge <- getDomainVerificationChallenge domain emailDomain >>= getJSON 200
   dnsToken <- challenge %. "dns_verification_token" & asString
   challengeId <- challenge %. "id" & asString
   challengeToken <- challenge %. "token" & asString
 
   technitiumToken <- getTechnitiumApiKey
-  registerTechnitiumZone technitiumToken registrationDomain
+  registerTechnitiumZone technitiumToken emailDomain
 
   pure $
     ChallengeSetup
@@ -562,15 +569,29 @@ data DomainRegistrationSetup = DomainRegistrationSetup
     ownershipToken :: String
   }
 
-setupOwnershipToken :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
-setupOwnershipToken domain registrationDomain = do
-  challenge <- setupChallenge domain registrationDomain
-
+setupChallengeAndDnsRecord :: (MakesValue domain, HasCallStack) => domain -> String -> App ChallengeSetup
+setupChallengeAndDnsRecord domain emailDomain = do
+  challenge <- setupChallenge domain emailDomain
   -- register TXT DNS record
-  registerTechnitiumRecord challenge.technitiumToken registrationDomain ("wire-domain." <> registrationDomain) "TXT" challenge.dnsToken
+  registerTechnitiumRecord challenge.technitiumToken emailDomain ("wire-domain." <> emailDomain) "TXT" challenge.dnsToken
+  pure challenge
+
+setupOwnershipTokenForBackend :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
+setupOwnershipTokenForBackend domain emailDomain = do
+  challenge <- setupChallengeAndDnsRecord domain emailDomain
+  -- verify domain
+  ownershipToken <- bindResponse (verifyDomain domain emailDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_ownership_token" & asString
+
+  pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken
+
+setupOwnershipTokenForTeam :: (MakesValue user, HasCallStack) => user -> String -> App DomainRegistrationSetup
+setupOwnershipTokenForTeam user emailDomain = do
+  challenge <- setupChallengeAndDnsRecord user emailDomain
 
   -- verify domain
-  ownershipToken <- bindResponse (verifyDomain OwnDomain registrationDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+  ownershipToken <- bindResponse (verifyDomainForTeam user emailDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_ownership_token" & asString
 

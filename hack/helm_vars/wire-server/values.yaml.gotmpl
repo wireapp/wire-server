@@ -342,6 +342,17 @@ galley:
           defaults:
             status: disabled
             lockStatus: locked
+        channels:
+          defaults:
+            status: disabled
+            config:
+              allowed_to_create_channels: team-members
+              allowed_to_open_channels: team-members
+            lockStatus: locked
+        cells:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
@@ -431,6 +442,7 @@ gundeck:
     setMaxConcurrentNativePushes:
       hard: 30
       soft: 10
+    cellsEventQueue: cells_events
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret

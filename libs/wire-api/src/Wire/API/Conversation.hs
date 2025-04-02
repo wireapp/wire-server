@@ -61,9 +61,12 @@ module Wire.API.Conversation
     toAccessRoleLegacy,
     defRole,
     maybeRole,
+    AddPermission (..),
 
     -- * create
     NewConv (..),
+    GroupConvType (..),
+    NewOne2OneConv (..),
     ConvTeamInfo (..),
 
     -- * invite
@@ -79,6 +82,7 @@ module Wire.API.Conversation
     ConversationJoin (..),
     ConversationMemberUpdate (..),
     ConversationRemoveMembers (..),
+    AddPermissionUpdate (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -90,6 +94,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
@@ -109,6 +114,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports
 import System.Random (randomRIO)
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
@@ -136,7 +142,10 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode
+    cnvmReceiptMode :: Maybe ReceiptMode,
+    cnvmGroupConvType :: Maybe GroupConvType,
+    cnvmChannelAddPermission :: Maybe AddPermission,
+    cnvmCellsState :: CellsState
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -152,7 +161,10 @@ defConversationMetadata mCreator =
       cnvmName = Nothing,
       cnvmTeam = Nothing,
       cnvmMessageTimer = Nothing,
-      cnvmReceiptMode = Nothing
+      cnvmReceiptMode = Nothing,
+      cnvmGroupConvType = Just GroupConversation,
+      cnvmChannelAddPermission = Nothing,
+      cnvmCellsState = def
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -212,6 +224,9 @@ conversationMetadataObjectSchema sch =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+    <*> cnvmGroupConvType .= optField "group_conv_type" (maybeWithDefault A.Null schema)
+    <*> cnvmChannelAddPermission .= optField "add_permission" (maybeWithDefault A.Null schema)
+    <*> cnvmCellsState .= (fromMaybe def <$> optField "cells_state" schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
@@ -649,6 +664,9 @@ newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ReceiptMode
 
+instance Default ReceiptMode where
+  def = ReceiptMode 0
+
 instance ToSchema ReceiptMode where
   schema =
     (S.schema . description ?~ "Conversation receipt mode") $
@@ -656,6 +674,19 @@ instance ToSchema ReceiptMode where
 
 --------------------------------------------------------------------------------
 -- create
+
+data GroupConvType = GroupConversation | Channel
+  deriving stock (Eq, Show, Generic, Enum)
+  deriving (Arbitrary) via (GenericUniform GroupConvType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GroupConvType
+
+instance ToSchema GroupConvType where
+  schema =
+    enum @Text "GroupConvType" $
+      mconcat
+        [ element "group_conversation" GroupConversation,
+          element "channel" Channel
+        ]
 
 data NewConv = NewConv
   { newConvUsers :: [UserId],
@@ -671,7 +702,9 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: BaseProtocolTag
+    newConvProtocol :: BaseProtocolTag,
+    newConvGroupConvType :: GroupConvType,
+    newConvCells :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -737,6 +770,8 @@ newConvSchema v sch =
         .= fmap
           (fromMaybe BaseProtocolProteusTag)
           (optField "protocol" schema)
+      <*> newConvGroupConvType .= (fromMaybe GroupConversation <$> optField "group_conv_type" schema)
+      <*> newConvCells .= (fromMaybe False <$> optField "cells" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \
@@ -780,6 +815,56 @@ instance ToSchema ConvTeamInfo where
     where
       c :: (ToJSON a) => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
+
+data NewOne2OneConv = NewOne2OneConv
+  { users :: [UserId],
+    -- | A list of qualified users, which can include some local qualified users
+    -- too.
+    qualifiedUsers :: [Qualified UserId],
+    name :: Maybe (Range 1 256 Text),
+    team :: Maybe ConvTeamInfo
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewOne2OneConv)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewOne2OneConv)
+
+instance ToSchema NewOne2OneConv where
+  schema =
+    objectWithDocModifier
+      "NewOne2OneConv"
+      (description ?~ "JSON object to create a new 1:1 conversation. When using 'qualified_users' (preferred), you can omit 'users'")
+      $ NewOne2OneConv
+        <$> users
+          .= ( fieldWithDocModifier
+                 "users"
+                 ( (S.deprecated ?~ True)
+                     . (description ?~ usersDesc)
+                 )
+                 (array schema)
+                 <|> pure []
+             )
+        <*> (.qualifiedUsers)
+          .= ( fieldWithDocModifier
+                 "qualified_users"
+                 (description ?~ qualifiedUsersDesc)
+                 (array schema)
+                 <|> pure []
+             )
+        <*> name .= maybe_ (optField "name" schema)
+        <*> team
+          .= maybe_
+            ( optFieldWithDocModifier
+                "team"
+                (description ?~ "Team information of this conversation")
+                schema
+            )
+    where
+      usersDesc =
+        "List of user IDs (excluding the requestor) to be \
+        \part of this conversation (deprecated)"
+      qualifiedUsersDesc =
+        "List of qualified user IDs (excluding the requestor) \
+        \to be part of this conversation"
 
 --------------------------------------------------------------------------------
 -- invite
@@ -957,6 +1042,37 @@ namespaceMLSSelfConv :: UUID.UUID
 namespaceMLSSelfConv =
   -- a V5 uuid created with the nil namespace
   fromJust . UUID.fromString $ "3eac2a2c-3850-510b-bd08-8a98e80dd4d9"
+
+data AddPermission = Admins | Everyone
+  deriving stock (Eq, Show, Generic, Enum)
+  deriving (Arbitrary) via (GenericUniform AddPermission)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddPermission
+
+instance Default AddPermission where
+  def = Everyone
+
+instance ToSchema AddPermission where
+  schema =
+    enum @Text "AddPermission" $
+      mconcat
+        [ element "admins" Admins,
+          element "everyone" Everyone
+        ]
+
+newtype AddPermissionUpdate = AddPermissionUpdate
+  { addPermission :: AddPermission
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AddPermissionUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddPermissionUpdate
+
+instance ToSchema AddPermissionUpdate where
+  schema =
+    objectWithDocModifier
+      "AddPermissionUpdate"
+      (description ?~ "The action of changing the permission to add members to a channel")
+      $ AddPermissionUpdate
+        <$> addPermission .= field "add_permission" schema
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

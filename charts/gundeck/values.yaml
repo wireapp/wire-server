@@ -89,6 +89,9 @@ config:
   # The default is 28 days.
   notificationTTL: 2419200
 
+  # To enable cells notifications
+  # cellsEventQueue: cells_events
+
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
   # 'gundeck' exists or change the 'name' field to 'default'

@@ -47,6 +47,8 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.CaseInsensitive as CI
 import Data.Id
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Encoding as Text
@@ -282,7 +284,7 @@ verdictHandler ::
     Member Reporter r,
     Member SAMLUserStore r
   ) =>
-  SAML.AuthnResponse ->
+  NonEmpty SAML.Assertion ->
   SAML.AccessVerdict ->
   IdP ->
   Sem r SAML.ResponseVerdict
@@ -291,7 +293,12 @@ verdictHandler aresp verdict idp = do
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
   Logger.log Logger.Debug $ "entering verdictHandler: " <> show (aresp, verdict)
-  reqid <- either (throwSparSem . SparNoRequestRefInResponse . LText.pack) pure $ SAML.rspInResponseTo aresp
+  reqid <- do
+    let xs = SAML.assertionToInResponseTo `mapM` aresp
+    case NonEmpty.nub <$> xs of
+      Right (x :| []) -> pure x
+      Left err -> throwSparSem (SparNoRequestRefInResponse $ "missing or incoherent requestIDs: " <> LText.pack err)
+      _ -> throwSparSem SparNoSuchRequest
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just VerdictFormatWeb ->
@@ -452,26 +459,27 @@ verdictHandlerWeb =
   where
     forbiddenPage :: Text -> [Text] -> SAML.ResponseVerdict
     forbiddenPage errlbl reasons =
-      ServerError
-        { errHTTPCode = 200,
-          errReasonPhrase = Text.unpack errlbl, -- (not sure what this is used for)
-          errBody =
-            easyHtml $
-              "<head>"
-                <> "  <title>wire:sso:error:"
-                <> LText.fromStrict errlbl
-                <> "</title>"
-                <> "   <script type=\"text/javascript\">"
-                <> "       const receiverOrigin = '*';"
-                <> "       window.opener.postMessage("
-                <> Aeson.encodeToLazyText errval
-                <> ", receiverOrigin);"
-                <> "   </script>"
-                <> "</head>",
-          errHeaders =
-            [ ("Content-Type", "text/html;charset=utf-8")
-            ]
-        }
+      SAML.ResponseVerdict
+        ServerError
+          { errHTTPCode = 200,
+            errReasonPhrase = Text.unpack errlbl, -- (not sure what this is used for)
+            errBody =
+              easyHtml $
+                "<head>"
+                  <> "  <title>wire:sso:error:"
+                  <> LText.fromStrict errlbl
+                  <> "</title>"
+                  <> "   <script type=\"text/javascript\">"
+                  <> "       const receiverOrigin = '*';"
+                  <> "       window.opener.postMessage("
+                  <> Aeson.encodeToLazyText errval
+                  <> ", receiverOrigin);"
+                  <> "   </script>"
+                  <> "</head>",
+            errHeaders =
+              [ ("Content-Type", "text/html;charset=utf-8")
+              ]
+          }
       where
         errval =
           object
@@ -484,23 +492,24 @@ verdictHandlerWeb =
             ]
     successPage :: SetCookie -> SAML.ResponseVerdict
     successPage cky =
-      ServerError
-        { errHTTPCode = 200,
-          errReasonPhrase = "success",
-          errBody =
-            easyHtml $
-              "<head>"
-                <> "  <title>wire:sso:success</title>"
-                <> "   <script type=\"text/javascript\">"
-                <> "       const receiverOrigin = '*';"
-                <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
-                <> "   </script>"
-                <> "</head>",
-          errHeaders =
-            [ ("Content-Type", "text/html;charset=utf-8"),
-              ("Set-Cookie", toStrict . Builder.toLazyByteString . renderSetCookie $ cky)
-            ]
-        }
+      SAML.ResponseVerdict
+        ServerError
+          { errHTTPCode = 200,
+            errReasonPhrase = "success",
+            errBody =
+              easyHtml $
+                "<head>"
+                  <> "  <title>wire:sso:success</title>"
+                  <> "   <script type=\"text/javascript\">"
+                  <> "       const receiverOrigin = '*';"
+                  <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
+                  <> "   </script>"
+                  <> "</head>",
+            errHeaders =
+              [ ("Content-Type", "text/html;charset=utf-8"),
+                ("Set-Cookie", toStrict . Builder.toLazyByteString . renderSetCookie $ cky)
+              ]
+          }
 
 easyHtml :: LText -> LByteString
 easyHtml doc =
@@ -534,23 +543,25 @@ verdictHandlerMobile granted denied = \case
   where
     forbiddenPage :: Text -> [Text] -> URI.URI -> SAML.ResponseVerdict
     forbiddenPage errlbl errs uri =
-      err303
-        { errReasonPhrase = Text.unpack errlbl,
-          errHeaders =
-            [ ("Location", Text.encodeUtf8 $ renderURI uri),
-              ("Content-Type", "application/json")
-            ],
-          errBody = Aeson.encode errs
-        }
+      SAML.ResponseVerdict
+        err303
+          { errReasonPhrase = Text.unpack errlbl,
+            errHeaders =
+              [ ("Location", Text.encodeUtf8 $ renderURI uri),
+                ("Content-Type", "application/json")
+              ],
+            errBody = Aeson.encode errs
+          }
     successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
     successPage cky uri =
-      err303
-        { errReasonPhrase = "success",
-          errHeaders =
-            [ ("Location", Text.encodeUtf8 $ renderURI uri),
-              ("Set-Cookie", toStrict . Builder.toLazyByteString . renderSetCookie $ cky)
-            ]
-        }
+      SAML.ResponseVerdict
+        err303
+          { errReasonPhrase = "success",
+            errHeaders =
+              [ ("Location", Text.encodeUtf8 $ renderURI uri),
+                ("Set-Cookie", toStrict . Builder.toLazyByteString . renderSetCookie $ cky)
+              ]
+          }
 
 -- | When getting stuck during login finalization, show a nice HTML error rather than the json
 -- blob.  Show lots of debugging info for the customer to paste in any issue they might open.

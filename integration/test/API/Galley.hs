@@ -29,7 +29,9 @@ data CreateConv = CreateConv
     messageTimer :: Maybe Int,
     receiptMode :: Maybe Int,
     newUsersRole :: String,
-    protocol :: String
+    protocol :: String,
+    groupConvType :: Maybe String,
+    cells :: Bool
   }
 
 defProteus :: CreateConv
@@ -43,11 +45,17 @@ defProteus =
       messageTimer = Nothing,
       receiptMode = Nothing,
       newUsersRole = "wire_admin",
-      protocol = "proteus"
+      protocol = "proteus",
+      groupConvType = Nothing,
+      cells = False
     }
 
 defMLS :: CreateConv
 defMLS = defProteus {protocol = "mls"}
+
+defConv :: ConversationProtocol -> CreateConv
+defConv ConversationProtocolProteus = defProteus
+defConv ConversationProtocolMLS = defMLS
 
 allowGuests :: CreateConv -> CreateConv
 allowGuests cc =
@@ -63,7 +71,8 @@ instance MakesValue CreateConv where
       $ Aeson.object
       $ ( [ "qualified_users" .= quids,
             "conversation_role" .= cc.newUsersRole,
-            "protocol" .= cc.protocol
+            "protocol" .= cc.protocol,
+            "cells" .= cc.cells
           ]
             <> catMaybes
               [ "name" .=? cc.name,
@@ -71,7 +80,8 @@ instance MakesValue CreateConv where
                 "access_role_v2" .=? cc.access,
                 "team" .=? (cc.team <&> \tid -> Aeson.object ["teamid" .= tid, "managed" .= False]),
                 "message_timer" .=? cc.messageTimer,
-                "receipt_mode" .=? cc.receiptMode
+                "receipt_mode" .=? cc.receiptMode,
+                "group_conv_type" .=? cc.groupConvType
               ]
         )
 
@@ -116,6 +126,23 @@ deleteTeamMember tid owner mem = do
   let path = joinHttpPath ["teams", tid, "members", memId]
   req <- baseRequest owner Galley Versioned path
   submit "DELETE" (addJSONObject ["password" .= defPassword] req)
+
+data TeamPermissions = Partner | Member | Admin | Owner
+
+instance ToJSON TeamPermissions where
+  toJSON perms = object ["self" .= toInt perms, "copy" .= toInt perms]
+    where
+      toInt Partner = Number 1025
+      toInt Member = Number 1587
+      toInt Admin = Number 5951
+      toInt Owner = Number 8191
+
+updateTeamMember :: (HasCallStack, MakesValue user, MakesValue member) => String -> user -> member -> TeamPermissions -> App Response
+updateTeamMember tid owner mem permissions = do
+  memId <- objId mem
+  let path = joinHttpPath ["teams", tid, "members"]
+  req <- baseRequest owner Galley Versioned path
+  submit "PUT" (req & addJSONObject ["member" .= object ["user" .= memId, "permissions" .= permissions]])
 
 putConversationProtocol ::
   ( HasCallStack,
@@ -308,6 +335,12 @@ updateConversationMember user conv target role = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", targetDomain, targetId])
   submit "PUT" (req & addJSONObject ["conversation_role" .= role])
 
+updateChannelAddPermission :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
+updateChannelAddPermission user conv perm = do
+  (convDomain, convId) <- objQid conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "add-permission"])
+  submit "PUT" (req & addJSONObject ["add_permission" .= perm])
+
 deleteTeamConv ::
   (HasCallStack, MakesValue team, MakesValue conv, MakesValue user) =>
   team ->
@@ -431,6 +464,12 @@ getConversationCode user conv mbZHost = do
         & addQueryParams [("cnv", convId)]
         & maybe id zHost mbZHost
     )
+
+deleteConversationCode :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> App Response
+deleteConversationCode user conv = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit "DELETE" req
 
 getJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
 getJoinCodeConv u k v = do
@@ -766,3 +805,9 @@ sendTypingStatus user conv status = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "typing"])
   submit "POST"
     $ addJSONObject ["status" .= status] req
+
+updateConversationSelf :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> Value -> App Response
+updateConversationSelf user conv payload = do
+  (domain, cnv) <- objQid conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "self"])
+  submit "PUT" $ req & addJSON payload

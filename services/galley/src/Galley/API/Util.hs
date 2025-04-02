@@ -19,10 +19,11 @@
 
 module Galley.API.Util where
 
-import Control.Lens (set, to, view, (.~), (^.))
+import Control.Lens (to, view, (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Json.Util
@@ -37,6 +38,7 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
+import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.Data.Conversation qualified as Data
@@ -219,6 +221,7 @@ ensureActionAllowed action self = case isActionAllowed (fromSing action) (convMe
   -- fact that there can be no custom roles at the moment
   Nothing -> throwS @('ActionDenied action)
 
+-- | Ensure that the conversation is a group conversation which includes channels
 ensureGroupConversation :: (Member (ErrorS 'InvalidOperation) r) => Data.Conversation -> Sem r ()
 ensureGroupConversation conv = do
   let ty = Data.convType conv
@@ -343,8 +346,13 @@ acceptOne2One lusr conv conn = do
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
-        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems')) $ \p ->
-          pushNotifications [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
+            p =
+              def
+                { origin = Just (tUnqualified lusr),
+                  json = toJSONObject e,
+                  recipients = localMemberToRecipient <$> mems'
+                }
+        pushNotifications [p {conn, route = PushV2.RouteDirect}]
         pure conv' {Data.convLocalMembers = mems'}
     _ -> throwS @'InvalidOperation
   where
@@ -425,6 +433,25 @@ instance IsConvMemberId (Qualified UserId) (Either LocalMember RemoteMember) whe
       loc
       (fmap Left . getConvMember loc conv)
       (fmap Right . getConvMember loc conv)
+
+instance IsConvMemberId LocalConvMember (Either LocalMember RemoteMember) where
+  getConvMember loc conv (ConvMemberNoTeam quid) =
+    getConvMember loc conv quid
+  getConvMember loc conv (ConvMemberTeam tm) =
+    Left . updateChannelPermissions <$> getConvMember loc conv (tm ^. Mem.userId)
+    where
+      updateChannelPermissions :: LocalMember -> LocalMember
+      updateChannelPermissions lm =
+        if hasChannelAdminPermissions
+          then lm {lmConvRoleName = roleNameWireAdmin}
+          else lm
+
+      hasChannelAdminPermissions :: Bool
+      hasChannelAdminPermissions =
+        conv.convMetadata.cnvmGroupConvType == Just Channel
+          && isAdminOrOwner (tm ^. permissions)
+
+data LocalConvMember = ConvMemberNoTeam (Qualified UserId) | ConvMemberTeam TeamMember
 
 class IsConvMember mem where
   convMemberRole :: mem -> RoleName
@@ -636,22 +663,29 @@ canDeleteMember deleter deletee
 pushConversationEvent ::
   ( Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Foldable f
+    Foldable f,
+    HasCellsState a
   ) =>
   Maybe ConnId ->
+  a ->
   Event ->
   Local (f UserId) ->
   f BotMember ->
   Sem r ()
-pushConversationEvent conn e lusers bots = do
-  for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
-    pushNotifications [p & set pushConn conn]
+pushConversationEvent conn st e lusers bots = do
+  pushNotifications
+    [(newConversationEventPush st e (fmap toList lusers)) {conn}]
   deliverAsync (map (,e) (toList bots))
 
-newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
-newConversationEventPush e users =
+newConversationEventPush :: (HasCellsState a) => a -> Event -> Local [UserId] -> Push
+newConversationEventPush st e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
-   in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users))
+   in def
+        { origin = musr,
+          json = toJSONObject e,
+          recipients = map userRecipient (tUnqualified users),
+          isCellsEvent = shouldPushToCells st (evtType e)
+        }
 
 verifyReusableCode ::
   ( Member CodeStore r,
@@ -748,7 +782,9 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       nonCreatorMembers = Set.empty,
       messageTimer = cnvmMessageTimer,
       receiptMode = cnvmReceiptMode,
-      protocol = convProtocol
+      protocol = convProtocol,
+      groupConvType = cnvmGroupConvType,
+      channelAddPermission = cnvmChannelAddPermission
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -808,7 +844,10 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             -- domain.
             cnvmTeam = Nothing,
             cnvmMessageTimer = messageTimer,
-            cnvmReceiptMode = receiptMode
+            cnvmReceiptMode = receiptMode,
+            cnvmGroupConvType = groupConvType,
+            cnvmChannelAddPermission = channelAddPermission,
+            cnvmCellsState = def
           }
         (ConvMembers this others)
         ProtocolProteus

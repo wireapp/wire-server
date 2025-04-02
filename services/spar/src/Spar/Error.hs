@@ -190,6 +190,7 @@ renderSparError (SAML.BadSamlResponseSamlError msg) =
     Wai.mkError status400 "bad-response-saml" ("Bad response: SAML parse error: " <> msg)
 renderSparError SAML.BadSamlResponseFormFieldMissing = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: SAMLResponse form field missing from HTTP body"
 renderSparError SAML.BadSamlResponseIssuerMissing = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: no Issuer in AuthnResponse"
+renderSparError SAML.BadSamlResponseInconsistentIdPIssuerInfo = Right $ Wai.mkError status403 "bad-response-saml" "Bad response: IdP Issuer in AuthnResponse does not match AuthnRequest"
 renderSparError SAML.BadSamlResponseNoAssertions = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: no assertions in AuthnResponse"
 renderSparError SAML.BadSamlResponseAssertionWithoutID = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: assertion without ID"
 renderSparError (SAML.BadSamlResponseInvalidSignature msg) =

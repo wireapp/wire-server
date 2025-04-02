@@ -28,6 +28,7 @@ import Cassandra.Util
 import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc
@@ -55,6 +56,7 @@ import Polysemy.TinyLog
 import System.Logger qualified as Log
 import UnliftIO qualified
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation
@@ -131,16 +133,19 @@ createConversation lcnv nc = do
     addPrepQuery
       Cql.insertConv
       ( tUnqualified lcnv,
-        cnvmType meta,
-        cnvmCreator meta,
-        Cql.Set (cnvmAccess meta),
-        Cql.Set (toList (cnvmAccessRoles meta)),
-        cnvmName meta,
-        cnvmTeam meta,
-        cnvmMessageTimer meta,
-        cnvmReceiptMode meta,
+        meta.cnvmType,
+        meta.cnvmCreator,
+        Cql.Set meta.cnvmAccess,
+        Cql.Set (toList meta.cnvmAccessRoles),
+        meta.cnvmName,
+        meta.cnvmTeam,
+        meta.cnvmMessageTimer,
+        meta.cnvmReceiptMode,
         baseProtocolToProtocol (ncProtocol nc),
-        mgid
+        mgid,
+        meta.cnvmGroupConvType,
+        meta.cnvmChannelAddPermission,
+        meta.cnvmCellsState
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
   (lmems, rmems) <- addMembers (tUnqualified lcnv) (ncUsers nc)
@@ -171,10 +176,10 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _) = do
+    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, mgct, mcap, mcs) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm
+      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm mgct mcap (fromMaybe def mcs)
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
@@ -230,6 +235,13 @@ updateConvCipherSuite cid cs =
     write
       Cql.updateConvCipherSuite
       (params LocalQuorum (cs, cid))
+
+updateConvCellsState :: ConvId -> CellsState -> Client ()
+updateConvCellsState cid ps =
+  retry x5 $
+    write
+      Cql.updateConvCellsState
+      (params LocalQuorum (ps, cid))
 
 setGroupInfo :: ConvId -> GroupInfoData -> Client ()
 setGroupInfo conv gid =
@@ -345,26 +357,10 @@ toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe
-    ( ConvType,
-      Maybe UserId,
-      Maybe (Cql.Set Access),
-      Maybe AccessRoleLegacy,
-      Maybe (Cql.Set AccessRole),
-      Maybe Text,
-      Maybe TeamId,
-      Maybe Bool,
-      Maybe Milliseconds,
-      Maybe ReceiptMode,
-      Maybe ProtocolTag,
-      Maybe GroupId,
-      Maybe Epoch,
-      Maybe (Writetime Epoch),
-      Maybe CipherSuiteTag
-    ) ->
+  Maybe Cql.ConvRow ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs) <- mconv
+  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
   proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
@@ -384,7 +380,10 @@ toConv cid ms remoteMems mconv = do
               cnvmName = nme,
               cnvmTeam = ti,
               cnvmMessageTimer = timer,
-              cnvmReceiptMode = rm
+              cnvmReceiptMode = rm,
+              cnvmGroupConvType = mgct,
+              cnvmCellsState = fromMaybe def mcells,
+              cnvmChannelAddPermission = mAp
             }
       }
 
@@ -419,6 +418,9 @@ updateToMLSProtocol ::
 updateToMLSProtocol lcnv =
   embedClient . retry x5 $
     write Cql.updateToMLSConv (params LocalQuorum (tUnqualified lcnv, ProtocolMLSTag))
+
+updateChannelAddPermissions :: ConvId -> AddPermission -> Client ()
+updateChannelAddPermissions cid cap = retry x5 $ write Cql.updateChannelAddPermission (params LocalQuorum (cap, cid))
 
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -482,6 +484,9 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationCipherSuite cid cs -> do
     logEffect "ConversationStore.SetConversationCipherSuite"
     embedClient $ updateConvCipherSuite cid cs
+  SetConversationCellsState cid ps -> do
+    logEffect "ConversationStore.SetConversationCellsState"
+    embedClient $ updateConvCellsState cid ps
   DeleteConversation cid -> do
     logEffect "ConversationStore.DeleteConversation"
     embedClient $ deleteConversation cid
@@ -500,3 +505,6 @@ interpretConversationStoreToCassandra = interpret $ \case
   UpdateToMLSProtocol cid -> do
     logEffect "ConversationStore.UpdateToMLSProtocol"
     updateToMLSProtocol cid
+  UpdateChannelAddPermissions cid cap -> do
+    logEffect "ConversationStore.UpdateChannelAddPermissions"
+    embedClient $ updateChannelAddPermissions cid cap

@@ -4,5 +4,5 @@ name: ingress-nginx-controller
 version: 0.0.42
 dependencies:
 - name: ingress-nginx
-  version: 4.5.2 # k8s compatibility [1.23 - 1.26]
+  version: 4.11.5 # k8s compatibility [1.26 - 1.30]
   repository: https://kubernetes.github.io/ingress-nginx

@@ -103,7 +103,9 @@ tests s =
       test s "i/oauth/clients" testCrudOAuthClient,
       test s "i/domain-registration" testDomainRegistration,
       test s "GET /teams/:tid/features/domainRegistration" $ testFeatureStatus @DomainRegistrationConfig,
-      test s "PUT /teams/:tid/features/domainRegistration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @DomainRegistrationConfig
+      test s "PUT /teams/:tid/features/domainRegistration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @DomainRegistrationConfig,
+      test s "/teams/:tid/features/channels" $ testLockedFeatureConfig @ChannelsConfig,
+      test s "PUT /teams/:tid/features/channels{,'?lockOrUnlock'}" $ testLockStatus @ChannelsConfig
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`
@@ -163,7 +165,7 @@ testCrudOAuthClient = do
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   putFeatureStatus @SearchVisibilityAvailableConfig tid FeatureStatusEnabled Nothing !!! const 200 === statusCode
   do
     TeamSearchVisibilityView sv <- getSearchVisibility tid
@@ -195,7 +197,7 @@ testDeleteUser = do
 
 testSuspendTeam :: TestM ()
 testSuspendTeam = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   do
     info <- getTeamInfo tid
     liftIO $ info.tiData.tdStatus @?= Team.Active
@@ -206,7 +208,7 @@ testSuspendTeam = do
 
 testUnsuspendTeam :: TestM ()
 testUnsuspendTeam = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   suspendTeam tid
   do
     info <- getTeamInfo tid
@@ -218,7 +220,7 @@ testUnsuspendTeam = do
 
 testDeleteTeam :: TestM ()
 testDeleteTeam = do
-  (uid, tid, _) <- createTeamWithNMembers 10
+  (uid, tid, _) <- createTeamWithNMembers 1
   [ua] <- getUsersByIds [uid]
   let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.userIdentity
   do
@@ -248,7 +250,7 @@ testUserBlacklist = do
 
 testGetTeamInfoByMemberEmail :: TestM ()
 testGetTeamInfoByMemberEmail = do
-  (_, tid, member : _) <- createTeamWithNMembers 10
+  (_, tid, member : _) <- createTeamWithNMembers 1
   [ua] <- getUsersByIds [member]
   let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.userIdentity
   info <- getTeamInfoByMemberEmail email
@@ -256,20 +258,40 @@ testGetTeamInfoByMemberEmail = do
 
 testGetTeamAdminInfo :: TestM ()
 testGetTeamAdminInfo = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   info <- getTeamAdminInfo tid
   liftIO $ do
     (info.taData.tdTeam ^. teamId) @?= tid
     (length info.taOwners) @?= 1
-    info.taMembers @?= 11
+    info.taMembers @?= 2
 
 testLegalholdConfig :: TestM ()
 testLegalholdConfig = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   cfg <- getFeatureConfig @LegalholdConfig tid
   liftIO $ cfg @?= def
   -- Legal hold is enabled for teams via server config and cannot be changed here
   putFeatureStatus @LegalholdConfig tid FeatureStatusEnabled Nothing !!! const 403 === statusCode
+
+testLockedFeatureConfig ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    Eq cfg,
+    Show cfg
+  ) =>
+  TestM ()
+testLockedFeatureConfig = do
+  (_, tid, _) <- createTeamWithNMembers 1
+  cfg <- getFeatureConfig @cfg tid
+  liftIO $ cfg @?= def
+  void $ putFeatureStatusLock @cfg tid LockStatusUnlocked Nothing
+  let newStatus = if cfg.status == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
+  putFeatureConfig @cfg tid cfg {status = newStatus} !!! const 200 === statusCode
+  cfg' <- getFeatureConfig @cfg tid
+  liftIO $ cfg'.status @?= newStatus
 
 testFeatureConfig ::
   forall cfg.
@@ -282,7 +304,7 @@ testFeatureConfig ::
   ) =>
   TestM ()
 testFeatureConfig = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   cfg <- getFeatureConfig @cfg tid
   liftIO $ cfg @?= def
   let newStatus = if cfg.status == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
@@ -302,7 +324,7 @@ testGetFeatureConfig ::
   Maybe FeatureStatus ->
   TestM ()
 testGetFeatureConfig mDef = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   cfg <- getFeatureConfig @cfg tid
   liftIO $ cfg.status @?= fromMaybe (def @(Feature cfg)).status mDef
 
@@ -331,7 +353,7 @@ testFeatureStatusOptTtl ::
   Maybe FeatureTTL ->
   TestM ()
 testFeatureStatusOptTtl defValue mTtl = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   cfg <- getFeatureConfig @cfg tid
   liftIO $ cfg @?= defValue
   when (cfg.lockStatus == LockStatusLocked) $ unlockFeature @cfg tid
@@ -339,6 +361,39 @@ testFeatureStatusOptTtl defValue mTtl = do
   putFeatureStatus @cfg tid newStatus mTtl !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
   liftIO $ cfg'.status @?= newStatus
+
+testLockStatus ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    Eq cfg,
+    Show cfg
+  ) =>
+  TestM ()
+testLockStatus = do
+  (_, tid, _) <- createTeamWithNMembers 1
+  lockStatus <- (.lockStatus) <$> getFeatureConfig @cfg tid
+
+  case lockStatus of
+    LockStatusLocked ->
+      assertSuccess =<< putFeatureStatusLock @cfg tid LockStatusUnlocked Nothing
+    LockStatusUnlocked ->
+      pure ()
+
+  getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
+    cfg.lockStatus @?= LockStatusUnlocked
+
+  assertSuccess =<< putFeatureStatusLock @cfg tid LockStatusLocked Nothing
+
+  getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
+    cfg.lockStatus @?= LockStatusLocked
+
+  assertSuccess =<< putFeatureStatusLock @cfg tid LockStatusUnlocked Nothing
+
+  getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
+    cfg.lockStatus @?= LockStatusUnlocked
 
 testFeatureStatusWithLock ::
   forall cfg.
@@ -352,7 +407,7 @@ testFeatureStatusWithLock ::
   TestM ()
 testFeatureStatusWithLock = do
   let mTtl = Nothing -- this function can become a variant of `testFeatureStatusOptTtl` if we need one.
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
     cfg @?= def
     -- if either of these two lines fails, it's probably because the default is surprising.
@@ -379,6 +434,10 @@ testFeatureStatusWithLock = do
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
     cfg.lockStatus @?= LockStatusUnlocked
     cfg.status @?= FeatureStatusEnabled
+
+assertSuccess :: ResponseLBS -> TestM ()
+assertSuccess r = do
+  liftIO $ assertBool "status code not in 200-299" $ statusCode r >= 200 && statusCode r < 300
 
 testGetConsentLog :: TestM ()
 testGetConsentLog = do
@@ -448,9 +507,9 @@ testGetUsersByIds = do
 
 testGetTeamInfo :: TestM ()
 testGetTeamInfo = do
-  (_, tid, _) <- createTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 1
   info <- getTeamInfo tid
-  liftIO $ length info.tiMembers @?= 11
+  liftIO $ length info.tiMembers @?= 2
 
 testSearchUsers :: TestM ()
 testSearchUsers = do

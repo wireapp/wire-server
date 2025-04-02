@@ -29,6 +29,7 @@ import Servant.OpenApi
 import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
@@ -81,6 +82,9 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
+    :<|> IFeatureStatusLockStatusPut ChannelsConfig
+    :<|> IFeatureStatusLockStatusPut CellsConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -97,17 +101,6 @@ type IFeatureAPI =
                     "user_id"
                     UserId
                :> Get '[JSON] AllTeamFeatures
-           )
-    :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
-    -- migration state
-    :<|> Named
-           "put-feature-migration-state"
-           ( Summary "Manually set migration state (for testing)"
-               :> "teams"
-               :> Capture "team" TeamId
-               :> "feature-migration-state"
-               :> ReqBody '[JSON] TeamFeatureMigrationState
-               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "OK")
            )
 
 type InternalAPI = "i" :> InternalAPIBase
@@ -181,6 +174,7 @@ type InternalAPIBase =
     :<|> IFederationAPI
     :<|> IConversationAPI
     :<|> IEJPDAPI
+    :<|> ICellsAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -576,6 +570,21 @@ type IEJPDAPI =
         :> Capture "user" UserId
         :> "all-conversations"
         :> Get '[Servant.JSON] [EJPDConvInfo]
+    )
+
+type ICellsAPI =
+  Named
+    "set-cells-state"
+    ( CanThrow ConvNotFound
+        :> CanThrow InvalidOperation
+        :> "conversations"
+        :> Capture "conversation" ConvId
+        :> "cells-state"
+        :> ReqBody '[JSON] CellsState
+        :> MultiVerb1
+             'PUT
+             '[JSON]
+             (RespondEmpty 204 "OK")
     )
 
 swaggerDoc :: OpenApi

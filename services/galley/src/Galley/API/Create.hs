@@ -33,9 +33,9 @@ where
 
 import Control.Error (headMay)
 import Control.Lens hiding ((??))
+import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
@@ -43,10 +43,12 @@ import Data.Set qualified as Set
 import Data.Time
 import Data.UUID.Tagged qualified as U
 import Galley.API.Action
+import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.Mapping
 import Galley.API.One2One
+import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Data.Conversation qualified as Data
@@ -70,6 +72,7 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation qualified as Public
+import Wire.API.Conversation.CellsState
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -79,6 +82,8 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
+import Wire.API.Team.Feature
+import Wire.API.Team.Feature qualified as Conf
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
@@ -104,6 +109,8 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -112,7 +119,8 @@ createGroupConversationUpToV3 ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -144,6 +152,8 @@ createGroupConversation ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -152,7 +162,8 @@ createGroupConversation ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -185,6 +196,8 @@ createGroupConversationGeneric ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -193,7 +206,8 @@ createGroupConversationGeneric ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -201,8 +215,7 @@ createGroupConversationGeneric ::
   Sem r Conversation
 createGroupConversationGeneric lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
-  let tinfo = newConvTeam newConv
-  checkCreateConvPermissions lusr newConv tinfo allUsers
+  checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
 
   when (newConvProtocol newConv == BaseProtocolMLSTag) $ do
@@ -210,13 +223,11 @@ createGroupConversationGeneric lusr conn newConv = do
     assertMLSEnabled
 
   lcnv <- traverse (const E.createConversationId) lusr
-  do
-    conv <- E.createConversation lcnv nc
-
-    -- NOTE: We only send (conversation) events to members of the conversation
-    notifyCreatedConversation lusr conn conv
-    E.getConversation (tUnqualified lcnv)
-      >>= note (BadConvState (tUnqualified lcnv))
+  conv <- E.createConversation lcnv nc
+  -- NOTE: We only send (conversation) events to members of the conversation
+  notifyCreatedConversation lusr conn conv
+  E.getConversation (tUnqualified lcnv)
+    >>= note (BadConvState (tUnqualified lcnv))
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -238,14 +249,19 @@ checkCreateConvPermissions ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
-    Member TeamStore r
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
+    Member TeamStore r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   NewConv ->
   Maybe ConvTeamInfo ->
   UserList UserId ->
   Sem r ()
-checkCreateConvPermissions lusr _newConv Nothing allUsers = do
+checkCreateConvPermissions lusr newConv Nothing allUsers = do
+  when (newConv.newConvGroupConvType == Channel) $ throwS @OperationDenied
   activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
   void $ noteS @OperationDenied activated
   -- an external partner is not allowed to create group conversations (except 1:1 team conversations that are handled below)
@@ -256,28 +272,55 @@ checkCreateConvPermissions lusr _newConv Nothing allUsers = do
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
   zusrMembership <- getTeamMember (tUnqualified lusr) (Just convTeam)
-  void $ permissionCheck CreateConversation zusrMembership
+  case newConv.newConvGroupConvType of
+    Channel -> do
+      ensureCreateChannelPermissions tinfo.cnvTeamId zusrMembership
+    GroupConversation -> do
+      void $ permissionCheck CreateConversation zusrMembership
+      -- In teams we don't have 1:1 conversations, only regular conversations. We want
+      -- users without the 'AddRemoveConvMember' permission to still be able to create
+      -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
+      -- there are going to be more than two users in the conversation.
+      -- FUTUREWORK: We keep this permission around because not doing so will break backwards
+      -- compatibility in the sense that the team role 'partners' would be able to create group
+      -- conversations (which they should not be able to).
+      -- Not sure at the moment how to best solve this but it is unlikely
+      -- we can ever get rid of the team permission model anyway - the only thing I can
+      -- think of is that 'partners' can create convs but not be admins...
+      -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
+      -- so we don't allow an external partner to create an MLS group conversation at all
+      when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
+        void $ permissionCheck AddRemoveConvMember zusrMembership
+
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
-  -- In teams we don't have 1:1 conversations, only regular conversations. We want
-  -- users without the 'AddRemoveConvMember' permission to still be able to create
-  -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
-  -- there are going to be more than two users in the conversation.
-  -- FUTUREWORK: We keep this permission around because not doing so will break backwards
-  -- compatibility in the sense that the team role 'partners' would be able to create group
-  -- conversations (which they should not be able to).
-  -- Not sure at the moment how to best solve this but it is unlikely
-  -- we can ever get rid of the team permission model anyway - the only thing I can
-  -- think of is that 'partners' can create convs but not be admins...
-  -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
-  -- so we don't allow an external partner to create an MLS group conversation at all
-  when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
-    void $ permissionCheck AddRemoveConvMember zusrMembership
-
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
   ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
+  where
+    ensureCreateChannelPermissions ::
+      forall r.
+      ( Member (ErrorS OperationDenied) r,
+        Member (Input Opts) r,
+        Member TeamFeatureStore r,
+        Member (ErrorS NotATeamMember) r,
+        Member (ErrorS ChannelsNotEnabled) r,
+        Member (ErrorS NotAnMlsConversation) r
+      ) =>
+      TeamId ->
+      Maybe TeamMember ->
+      Sem r ()
+    ensureCreateChannelPermissions tid (Just tm) = do
+      channelsConf <- getFeatureForTeam @ChannelsConfig tid
+      when (channelsConf.status == FeatureStatusDisabled) $ throwS @ChannelsNotEnabled
+      when (newConv.newConvProtocol /= BaseProtocolMLSTag) $ throwS @NotAnMlsConversation
+      case channelsConf.config.allowedToCreateChannels of
+        Conf.Everyone -> pure ()
+        Conf.TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
+        Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
+    ensureCreateChannelPermissions _ Nothing = do
+      throwS @NotATeamMember
 
 getTeamMember :: (Member TeamStore r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
 getTeamMember uid (Just tid) = E.getTeamMember tid uid
@@ -333,15 +376,15 @@ createOne2OneConversation ::
   ) =>
   Local UserId ->
   ConnId ->
-  NewConv ->
+  NewOne2OneConv ->
   Sem r (ConversationResponse Public.Conversation)
 createOne2OneConversation lusr zcon j =
   mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
-    let allUsers = newConvMembers lusr j
+    let allUsers = newOne2OneConvMembers lusr j
     other <- ensureOne (ulAll lusr allUsers)
     when (tUntagged lusr == other) $
       throwS @'InvalidOperation
-    mtid <- case newConvTeam j of
+    mtid <- case j.team of
       Just ti -> do
         foldQualified
           lusr
@@ -351,8 +394,8 @@ createOne2OneConversation lusr zcon j =
       Nothing -> ensureConnected lusr allUsers $> Nothing
     foldQualified
       lusr
-      (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
-      (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
+      (createLegacyOne2OneConversationUnchecked lusr zcon j.name mtid)
+      (createOne2OneConversationUnchecked lusr zcon j.name mtid . tUntagged)
       other
   where
     verifyMembership ::
@@ -551,12 +594,16 @@ createConnectConversation lusr conn j = do
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
       notifyCreatedConversation lusr conn c
-      for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)) $ \p ->
-        pushNotifications
-          [ p
-              & pushRoute .~ PushV2.RouteDirect
-              & pushConn .~ conn
-          ]
+      pushNotifications
+        [ def
+            { origin = Just (tUnqualified lusr),
+              json = toJSONObject e,
+              recipients = map localMemberToRecipient (Data.convLocalMembers c),
+              isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+              route = PushV2.RouteDirect,
+              conn
+            }
+        ]
       conversationCreated lusr c
     update n conv = do
       let mems = Data.convLocalMembers conv
@@ -591,12 +638,16 @@ createConnectConversation lusr conn j = do
             Nothing -> pure $ Data.convName conv
           t <- input
           let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t (EdConnect j)
-          for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers conv)) $ \p ->
-            pushNotifications
-              [ p
-                  & pushRoute .~ PushV2.RouteDirect
-                  & pushConn .~ conn
-              ]
+          pushNotifications
+            [ def
+                { origin = Just (tUnqualified lusr),
+                  json = toJSONObject e,
+                  recipients = map localMemberToRecipient (Data.convLocalMembers conv),
+                  isCellsEvent = shouldPushToCells conv.convMetadata (evtType e),
+                  route = PushV2.RouteDirect,
+                  conn
+                }
+            ]
           pure $ Data.convSetName n' conv
       | otherwise = pure conv
 
@@ -630,8 +681,16 @@ newRegularConversation lusr newConv = do
                   cnvmAccessRoles = accessRoles newConv,
                   cnvmName = fmap fromRange (newConvName newConv),
                   cnvmMessageTimer = newConvMessageTimer newConv,
-                  cnvmReceiptMode = newConvReceiptMode newConv,
-                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
+                  cnvmReceiptMode = case newConvProtocol newConv of
+                    BaseProtocolProteusTag -> newConvReceiptMode newConv
+                    BaseProtocolMLSTag -> Just def,
+                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
+                  cnvmGroupConvType = Just newConv.newConvGroupConvType,
+                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then Just def else Nothing,
+                  cnvmCellsState =
+                    if newConv.newConvCells
+                      then CellsPending
+                      else CellsDisabled
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv
@@ -691,9 +750,14 @@ notifyCreatedConversation lusr conn c = do
       c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr (lmId m))
       let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t (EdConversation c')
       pure $
-        newPushLocal1 (tUnqualified lusr) (toJSONObject e) (NonEmpty.singleton (localMemberToRecipient m))
-          & pushConn .~ conn
-          & pushRoute .~ route
+        def
+          { origin = Just (tUnqualified lusr),
+            json = toJSONObject e,
+            recipients = [localMemberToRecipient m],
+            isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+            route,
+            conn
+          }
 
 localOne2OneConvId ::
   (Member (Error InvalidInput) r) =>
@@ -726,6 +790,11 @@ newConvMembers :: Local x -> NewConv -> UserList UserId
 newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)
+
+newOne2OneConvMembers :: Local x -> NewOne2OneConv -> UserList UserId
+newOne2OneConvMembers loc body =
+  UserList body.users []
+    <> toUserList loc body.qualifiedUsers
 
 ensureOne :: (Member (Error InvalidInput) r) => [a] -> Sem r a
 ensureOne [x] = pure x

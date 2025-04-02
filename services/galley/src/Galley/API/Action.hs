@@ -32,7 +32,6 @@ module Galley.API.Action
     pushTypingIndicatorEvents,
 
     -- * Utilities
-    ensureConversationActionAllowed,
     addMembersToLocalConversation,
     notifyConversationAction,
     updateLocalStateOfRemoteConv,
@@ -49,6 +48,7 @@ import Control.Arrow ((&&&))
 import Control.Error (headMay)
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.Json.Util
@@ -102,6 +102,7 @@ import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
 import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation qualified as AddPermission
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -239,7 +240,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
     ( Member ConversationStore r,
-      Member (Error NoChanges) r
+      Member (Error NoChanges) r,
+      Member (ErrorS MLSReadReceiptsNotAllowed) r
     )
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
     ( Member ConversationStore r,
@@ -259,6 +261,11 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member SubConversationStore r,
       Member TeamFeatureStore r,
       Member TinyLog r
+    )
+  HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
+    ( Member (Error NoChanges) r,
+      Member ConversationStore r,
+      Member (ErrorS 'InvalidTargetAccess) r
     )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
@@ -308,6 +315,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
   HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag =
     '[ ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
        ErrorS 'InvalidOperation,
+       ErrorS 'MLSReadReceiptsNotAllowed,
        ErrorS 'ConvNotFound
      ]
   HasConversationActionGalleyErrors 'ConversationAccessDataTag =
@@ -326,6 +334,15 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ErrorS 'TeamNotFound
+     ]
+  HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
+    '[ ErrorS ('ActionDenied 'ModifyAddPermission),
+       ErrorS 'InvalidOperation,
+       ErrorS 'ConvNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamNotFound,
+       ErrorS 'InvalidTargetAccess
      ]
 
 enforceFederationProtocol ::
@@ -421,6 +438,12 @@ ensureAllowed tag loc action conv origUser = do
           -- not a team conv, so one of the other access roles has to allow this.
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
             throwS @'InvalidTargetAccess
+    SConversationUpdateAddPermissionTag -> do
+      unless (conv.convMetadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
+    SConversationReceiptModeUpdateTag -> do
+      -- cannot update receipt mode of MLS conversations
+      when (convProtocolTag conv == ProtocolMLSTag) $
+        throwS @MLSReadReceiptsNotAllowed
     _ -> pure ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
@@ -518,6 +541,10 @@ performAction tag origUser lconv action = do
         (ProtocolMLSTag, ProtocolMLSTag, _) ->
           noChanges
         (_, _, _) -> throwS @'ConvInvalidProtocolTransition
+    SConversationUpdateAddPermissionTag -> do
+      when (conv.convMetadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
+      E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
+      pure (mempty, action)
 
 performConversationJoin ::
   forall r.
@@ -540,7 +567,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
-  checkTeamMemberAddPermissions lusr
+  checkTeamMemberAddPermission lusr
   addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
@@ -629,8 +656,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Sem r ()
     checkLHPolicyConflictsRemote _remotes = pure ()
 
-    checkTeamMemberAddPermissions :: Local UserId -> Sem r ()
-    checkTeamMemberAddPermissions lusr =
+    checkTeamMemberAddPermission :: Local UserId -> Sem r ()
+    checkTeamMemberAddPermission lusr =
       forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
         >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation))
           . join
@@ -734,7 +761,8 @@ updateLocalConversation ::
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     HasConversationActionEffects tag r,
-    SingI tag
+    SingI tag,
+    Member TeamStore r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -772,7 +800,8 @@ updateLocalConversationUnchecked ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    HasConversationActionEffects tag r
+    HasConversationActionEffects tag r,
+    Member TeamStore r
   ) =>
   Local Conversation ->
   Qualified UserId ->
@@ -784,15 +813,14 @@ updateLocalConversationUnchecked lconv qusr con action = do
       lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
 
-  -- retrieve member
-  self <- noteS @'ConvNotFound $ getConvMember lconv conv qusr
-
   -- perform checks
-  ensureConversationActionAllowed (sing @tag) lcnv action conv self
+  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
+  ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
 
   -- perform action
   (extraTargets, action') <- performAction tag qusr lconv action
 
+  -- notify participants
   notifyConversationAction
     (sing @tag)
     qusr
@@ -801,34 +829,29 @@ updateLocalConversationUnchecked lconv qusr con action = do
     lconv
     (convBotsAndMembers conv <> extraTargets)
     action'
+  where
+    getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
+    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
+
+    ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
+    ensureConversationActionAllowed tag loc conv mTeamMember = do
+      -- retrieve member
+      self <- noteS @'ConvNotFound $ getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember)
+
+      -- general action check
+      case (tag, conv.convMetadata.cnvmChannelAddPermission, mTeamMember) of
+        (SConversationJoinTag, Just AddPermission.Everyone, Just _) -> pure ()
+        _ -> ensureActionAllowed (sConversationActionPermission tag) self
+
+      -- check if it is a group conversation (except for rename actions)
+      when (fromSing tag /= ConversationRenameTag) $
+        ensureGroupConversation conv
+
+      -- extra action-specific checks
+      ensureAllowed tag loc action conv self
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
-
-ensureConversationActionAllowed ::
-  forall tag mem x r.
-  ( IsConvMember mem,
-    HasConversationActionEffects tag r,
-    ( Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
-      Member (ErrorS 'InvalidOperation) r
-    )
-  ) =>
-  Sing tag ->
-  Local x ->
-  ConversationAction (tag :: ConversationActionTag) ->
-  Conversation ->
-  mem ->
-  Sem r ()
-ensureConversationActionAllowed tag loc action conv self = do
-  -- general action check
-  ensureActionAllowed (sConversationActionPermission tag) self
-
-  -- check if it is a group conversation (except for rename actions)
-  when (fromSing tag /= ConversationRenameTag) $
-    ensureGroupConversation conv
-
-  -- extra action-specific checks
-  ensureAllowed tag loc action conv self
 
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
@@ -865,6 +888,7 @@ notifyConversationAction ::
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap (.convId) lconv
+      conv = tUnqualified lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
       mkUpdate uids =
         ConversationUpdate
@@ -888,7 +912,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
             else pure (Just update)
 
   -- notify local participants and bots
-  pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
+  pushConversationEvent con conv e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
 
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
@@ -959,6 +983,7 @@ updateLocalStateOfRemoteConv rcu con = do
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
       SConversationUpdateProtocolTag -> pure (Just sca, [])
+      SConversationUpdateAddPermissionTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $
@@ -975,7 +1000,7 @@ updateLocalStateOfRemoteConv rcu con = do
     let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
-    pushConversationEvent con event (qualifyAs loc targets) [] $> event
+    pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
 addLocalUsersToRemoteConv ::
   ( Member BrigAccess r,
@@ -1099,10 +1124,13 @@ pushTypingIndicatorEvents ::
   Sem r ()
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
   let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
-  for_ (newPushLocal (qUnqualified qusr) (toJSONObject e) (userRecipient <$> users)) $ \p ->
-    pushNotifications
-      [ p
-          & pushConn .~ mcon
-          & pushRoute .~ PushV2.RouteDirect
-          & pushTransient .~ True
-      ]
+  pushNotifications
+    [ def
+        { origin = Just (qUnqualified qusr),
+          json = toJSONObject e,
+          recipients = map userRecipient users,
+          conn = mcon,
+          route = PushV2.RouteDirect,
+          transient = True
+        }
+    ]

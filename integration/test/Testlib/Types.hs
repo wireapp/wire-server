@@ -5,10 +5,13 @@ NOTE: Don't import any other Testlib modules here. Use this module to break depe
 module Testlib.Types where
 
 import Control.Concurrent (QSemN)
+import Control.Concurrent.MVar
+import Control.Concurrent.STM.TChan
 import Control.Exception as E
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.Codensity
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Crypto.Random (MonadRandom (..))
@@ -36,6 +39,8 @@ import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
+import qualified Network.AMQP as Q
+import Network.AMQP.Extended
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import Network.URI
@@ -90,23 +95,6 @@ data DynamicBackendConfig = DynamicBackendConfig
 
 instance FromJSON DynamicBackendConfig
 
-data RabbitMQConfig = RabbitMQConfig
-  { host :: String,
-    adminPort :: Word16,
-    tls :: Bool,
-    vHost :: String
-  }
-  deriving (Show)
-
-instance FromJSON RabbitMQConfig where
-  parseJSON =
-    withObject "RabbitMQConfig" $ \ob ->
-      RabbitMQConfig
-        <$> ob .: fromString "host"
-        <*> ob .: fromString "adminPort"
-        <*> ob .: fromString "tls"
-        <*> ob .: fromString "vHost"
-
 data DNSMockServerConfig = DNSMockServerConfig
   { host :: !String,
     apiPort :: !Word16,
@@ -129,12 +117,15 @@ data GlobalEnv = GlobalEnv
     gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
-    gRabbitMQConfig :: RabbitMQConfig,
-    gRabbitMQConfigV0 :: RabbitMQConfig,
-    gRabbitMQConfigV1 :: RabbitMQConfig,
+    gRabbitMQConfig :: RabbitMqAdminOpts,
+    gRabbitMQConfigV0 :: RabbitMqAdminOpts,
+    gRabbitMQConfigV1 :: RabbitMqAdminOpts,
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
-    gDNSMockServerConfig :: DNSMockServerConfig
+    gDNSMockServerConfig :: DNSMockServerConfig,
+    gCellsEventQueue :: String,
+    gCellsEventWatchersLock :: MVar (),
+    gCellsEventWatchers :: IORef (Map String QueueWatcher)
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -144,11 +135,12 @@ data IntegrationConfig = IntegrationConfig
     federationV1 :: BackendConfig,
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
-    rabbitmq :: RabbitMQConfig,
-    rabbitmqV0 :: RabbitMQConfig,
-    rabbitmqV1 :: RabbitMQConfig,
+    rabbitmq :: RabbitMqAdminOpts,
+    rabbitmqV0 :: RabbitMqAdminOpts,
+    rabbitmqV1 :: RabbitMqAdminOpts,
     cassandra :: CassandraConfig,
-    dnsMockServer :: DNSMockServerConfig
+    dnsMockServer :: DNSMockServerConfig,
+    cellsEventQueue :: String
   }
   deriving (Show, Generic)
 
@@ -167,6 +159,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "rabbitmq-v1"
         <*> o .: fromString "cassandra"
         <*> o .: fromString "dnsMockServer"
+        <*> o .: fromString "cellsEventQueue"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -181,7 +174,8 @@ data ServiceMap = ServiceMap
     spar :: HostPort,
     proxy :: HostPort,
     stern :: HostPort,
-    wireServerEnterprise :: HostPort
+    wireServerEnterprise :: HostPort,
+    rabbitMqVHost :: T.Text
   }
   deriving (Show, Generic)
 
@@ -224,6 +218,14 @@ instance FromJSON CassandraConfig where
       dropPrefix :: String -> String
       dropPrefix = Prelude.drop (length "cass")
 
+data QueueWatcher = QueueWatcher
+  { doneVar :: MVar (),
+    broadcast :: TChan Q.Message
+  }
+
+stopQueueWatcher :: QueueWatcher -> IO ()
+stopQueueWatcher watcher = void $ tryPutMVar watcher.doneVar ()
+
 -- | Initialised once per test.
 data Env = Env
   { serviceMap :: Map String ServiceMap,
@@ -241,10 +243,13 @@ data Env = Env
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
-    rabbitMQConfig :: RabbitMQConfig,
+    rabbitMQConfig :: RabbitMqAdminOpts,
     timeOutSeconds :: Int,
     currentTestName :: Maybe String,
-    dnsMockServerConfig :: DNSMockServerConfig
+    dnsMockServerConfig :: DNSMockServerConfig,
+    cellsEventQueue :: String,
+    cellsEventWatchersLock :: MVar (),
+    cellsEventWatchers :: IORef (Map String QueueWatcher)
   }
 
 data Response = Response
@@ -315,6 +320,9 @@ data ConvId = ConvId
 convIdToQidObject :: ConvId -> Value
 convIdToQidObject convId = object [fromString "id" .= convId.id_, fromString "domain" .= convId.domain]
 
+instance ToJSON ConvId where
+  toJSON = convIdToQidObject
+
 data MLSState = MLSState
   { baseDir :: FilePath,
     convs :: Map ConvId MLSConv,
@@ -322,10 +330,20 @@ data MLSState = MLSState
   }
   deriving (Show)
 
+printMLSState :: MLSState -> String
+printMLSState MLSState {convs, clientGroupState} =
+  "MLSState {"
+    <> "convs = "
+    <> show convs
+    <> ", clientGroupState = "
+    <> show (Map.keys clientGroupState)
+    <> "}"
+
 data MLSConv = MLSConv
   { members :: Set ClientIdentity,
     -- | users expected to receive a welcome message after the next commit
     newMembers :: Set ClientIdentity,
+    membersToBeRemoved :: Set ClientIdentity,
     groupId :: String,
     convId :: ConvId,
     epoch :: Word64,
@@ -395,6 +413,11 @@ appToIOKleisli :: (a -> App b) -> App (a -> IO b)
 appToIOKleisli k = do
   env <- ask
   pure $ \a -> runAppWithEnv env (k a)
+
+hoistCodensity :: Codensity IO a -> Codensity App a
+hoistCodensity m = Codensity $ \k -> do
+  iok <- appToIOKleisli k
+  liftIO $ runCodensity m iok
 
 getServiceMap :: (HasCallStack) => String -> App ServiceMap
 getServiceMap fedDomain = do

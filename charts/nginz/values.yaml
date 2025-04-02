@@ -515,6 +515,9 @@ nginx_conf:
       envs:
         - all
       disable_zauth: true
+    - path: /domain-verification/([^/]*)/team/challenges/([^/]*)
+      envs:
+        - all
     - path: /domain-verification/([^/]*)/team$
       envs:
         - all
@@ -552,6 +555,9 @@ nginx_conf:
       # limiting in favour of the specific one defined above.
       unlimited_requests_endpoint: true
     - path: /conversations/([^/]*)/([^/]*)/protocol
+      envs:
+      - all
+    - path: /conversations/([^/]*)/([^/]*)/add-permission
       envs:
       - all
     - path: /broadcast

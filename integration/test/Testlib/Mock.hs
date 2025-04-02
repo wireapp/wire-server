@@ -45,16 +45,15 @@ spawnTLSServer wsettings sock app = do
 startMockServer :: MockServerConfig -> Wai.Application -> Codensity App Warp.Port
 startMockServer config app = do
   let closeSocket sock = catch (Socket.close sock) (\(_ :: SomeException) -> pure ())
-  (port, sock) <- Codensity $ \k -> do
-    action <- appToIOKleisli k
-    liftIO
+  (port, sock) <-
+    hoistCodensity
+      $ Codensity
       $ bracket
         ( case config.port of
             Nothing -> bindRandomPortTCP (fromString "*6")
             Just n -> (n,) <$> bindPortTCP n (fromString "*6")
         )
         (\(_, sock) -> closeSocket sock)
-        action
   serverStarted <- liftIO newEmptyMVar
   let wsettings =
         Warp.defaultSettings
@@ -72,16 +71,15 @@ startMockServer config app = do
         traverse_ throw mException
         pure a
 
-  Codensity $ \k -> do
-    action <- appToIO (k ())
-    liftIO
-      $ bracket
-        startServerAsync
-        ( \serverAsync -> do
-            closeSocket sock
-            -- kill the thread running the server
-            cancel serverAsync
-        )
-      $ const action
+  void
+    $ hoistCodensity
+    $ Codensity
+    $ bracket
+      startServerAsync
+      ( \serverAsync -> do
+          closeSocket sock
+          -- kill the thread running the server
+          cancel serverAsync
+      )
 
   pure port

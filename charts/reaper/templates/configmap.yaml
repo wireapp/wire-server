@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reaper-script
+  labels:
+    app: reaper
+data:
+  reaper.sh: |-
+    {{- .Files.Get "scripts/reaper.sh" | nindent 4 }}
+

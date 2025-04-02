@@ -71,6 +71,7 @@ import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.ZAuth.Token qualified as ZAuth
+import Federator.MockServer (MockResponse (MockResponse))
 import Federator.MockServer qualified as Mock
 import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
@@ -725,6 +726,8 @@ createConversation galley zusr usersToAdd = do
           Nothing
           roleNameWireAdmin
           BaseProtocolProteusTag
+          GroupConversation
+          False
   post $
     galley
       . path "/conversations"
@@ -1170,7 +1173,7 @@ withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
     $ withTempMockedService initState galleyHandler
     $ \galleyMockState ->
       Mock.withTempMockFederator
-        def {Mock.handler = (\r -> pure ("application" // "json", r)) <=< fedResp}
+        def {Mock.handler = (\r -> pure (MockResponse HTTP.status200 ("application" // "json") r)) <=< fedResp}
         $ \fedMockPort -> do
           let opts' =
                 opts

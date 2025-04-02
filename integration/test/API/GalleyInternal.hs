@@ -47,14 +47,10 @@ setTeamFeatureStatus domain team featureName status = do
 
 setTeamFeatureLockStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
 setTeamFeatureLockStatus domain team featureName status = do
-  bindResponse (setTeamFeatureLockStatusResponse domain team featureName status) $ \res ->
-    res.status `shouldMatchInt` 200
-
-setTeamFeatureLockStatusResponse :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App Response
-setTeamFeatureLockStatusResponse domain team featureName status = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName, status]
-  submit "PUT" $ req
+  bindResponse (submit "PUT" $ req) $ \res ->
+    res.status `shouldMatchInt` 200
 
 getFederationStatus ::
   ( HasCallStack,
@@ -147,3 +143,9 @@ setTeamFeatureMigrationState :: (HasCallStack, MakesValue domain) => domain -> S
 setTeamFeatureMigrationState domain tid state = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "feature-migration-state"]
   submit "PUT" $ req & addJSON (A.String (T.pack state))
+
+setCellsState :: (MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
+setCellsState user conv state = do
+  convId <- snd <$> objQid conv
+  req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "conversations", convId, "cells-state"]
+  submit "PUT" $ req & addJSON (toJSON state)

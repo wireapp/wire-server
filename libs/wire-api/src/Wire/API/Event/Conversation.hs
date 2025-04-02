@@ -26,6 +26,7 @@ module Wire.API.Event.Conversation
     EventType (..),
     EventData (..),
     AddCodeResult (..),
+    isCellsConversationEvent,
 
     -- * Event lenses
     _EdMembersJoin,
@@ -44,6 +45,7 @@ module Wire.API.Event.Conversation
     _EdOtrMessage,
     _EdMLSMessage,
     _EdMLSWelcome,
+    _EdAddPermissionUpdate,
 
     -- * Event data helpers
     SimpleMember (..),
@@ -80,7 +82,8 @@ import Data.Time
 import Imports
 import Test.QuickCheck qualified as QC
 import URI.ByteString ()
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (AddPermissionUpdate)
+import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Code (ConversationCode (..), ConversationCodeInfo)
 import Wire.API.Conversation.Protocol (ProtocolUpdate (unProtocolUpdate))
 import Wire.API.Conversation.Protocol qualified as P
@@ -138,6 +141,7 @@ data EventType
   | MLSWelcome
   | Typing
   | ProtocolUpdate
+  | AddPermissionUpdate
   deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -162,7 +166,8 @@ instance ToSchema EventType where
           element "conversation.otr-message-add" OtrMessageAdd,
           element "conversation.mls-message-add" MLSMessageAdd,
           element "conversation.mls-welcome" MLSWelcome,
-          element "conversation.protocol-update" ProtocolUpdate
+          element "conversation.protocol-update" ProtocolUpdate,
+          element "conversation.add-permission-update" AddPermissionUpdate
         ]
 
 data EventData
@@ -183,6 +188,7 @@ data EventData
   | EdMLSMessage ByteString
   | EdMLSWelcome ByteString
   | EdProtocolUpdate P.ProtocolTag
+  | EdAddPermissionUpdate Conv.AddPermissionUpdate
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -204,6 +210,7 @@ genEventData = \case
   MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
   ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
+  AddPermissionUpdate -> EdAddPermissionUpdate <$> arbitrary
 
 eventDataType :: EventData -> EventType
 eventDataType (EdMembersJoin _) = MemberJoin
@@ -223,6 +230,16 @@ eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
+eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
+
+isCellsConversationEvent :: EventType -> Bool
+isCellsConversationEvent MemberJoin = True
+isCellsConversationEvent MemberLeave = True
+isCellsConversationEvent MemberStateUpdate = True
+isCellsConversationEvent ConvRename = True
+isCellsConversationEvent ConvCreate = True
+isCellsConversationEvent ConvDelete = True
+isCellsConversationEvent _ = False
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -406,6 +423,7 @@ taggedEventDataSchema =
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
+      AddPermissionUpdate -> tag _EdAddPermissionUpdate (unnamed schema)
 
 memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
 memberLeaveSchema =

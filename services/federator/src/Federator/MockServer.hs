@@ -23,6 +23,7 @@ module Federator.MockServer
     MockException (..),
     withTempMockFederator,
     FederatedRequest (..),
+    MockResponse (..),
 
     -- * Mock utilities
     Mock,
@@ -36,6 +37,7 @@ module Federator.MockServer
     getRequest,
     getRequestRPC,
     getRequestBody,
+    mockWithStatus200,
   )
 where
 
@@ -58,6 +60,7 @@ import Federator.Validation
 import Imports hiding (fromException)
 import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as Wai
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities.Error as Wai hiding (Error)
@@ -71,6 +74,7 @@ import Wire.API.Federation.API (Component)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
 import Wire.API.Federation.Version
+import Wire.Sem.Logger.Level qualified as Log
 import Wire.Sem.Logger.TinyLog
 
 -- | This can be thrown by actions passed to mock federator to simulate
@@ -81,6 +85,7 @@ data MockException
   deriving (Eq, Show, Typeable)
 
 instance AsWai MockException where
+  errorLogLevel _ = Log.Error
   toWai (MockErrorResponse status message) = Wai.mkError status "mock-error" message
   toWai (MockUnreachableBackendErrorResponse d) =
     Wai.mkError HTTP.status503 "mock-error" (unreachableMsg d)
@@ -142,16 +147,16 @@ mockInternalRequest remoteCalls mock targetDomain component (RPC path) req cont 
               frBody = reqBody
             }
         )
-  (ct, resBody) <-
+  mr <-
     if path == "api-version"
-      then pure ("application/json", Aeson.encode (VersionInfo mock.versions))
+      then pure $ MockResponse Wai.status200 "application/json" (Aeson.encode (VersionInfo mock.versions))
       else do
         modifyIORef remoteCalls (<> [fedRequest])
         fromException @MockException
           . handle (throw . handleException)
           $ mock.handler fedRequest
-  let headers = ("Content-Type", HTTP.renderHeader ct) : mock.headers
-  embed . cont $ Wai.responseLBS HTTP.status200 headers resBody
+  let headers = ("Content-Type", HTTP.renderHeader mr.contentType) : mock.headers
+  embed . cont $ Wai.responseLBS mr.status headers mr.body
   where
     handleException :: SomeException -> MockException
     handleException e = case Exception.fromException e of
@@ -160,17 +165,40 @@ mockInternalRequest remoteCalls mock targetDomain component (RPC path) req cont 
 
 data MockFederator = MockFederator
   { headers :: [HTTP.Header],
-    handler :: FederatedRequest -> IO (HTTP.MediaType, LByteString),
+    handler :: FederatedRequest -> IO MockResponse,
     versions :: [Int]
   }
+
+data MockResponse = MockResponse
+  { status :: HTTP.Status,
+    contentType :: HTTP.MediaType,
+    body :: LByteString
+  }
+  deriving (Eq, Show)
+
+instance Default MockResponse where
+  def =
+    MockResponse
+      { status = HTTP.status200,
+        contentType = "application/json",
+        body = Aeson.encode EmptyResponse
+      }
 
 instance Default MockFederator where
   def =
     MockFederator
       { headers = [],
-        handler = \_ -> pure ("application/json", Aeson.encode EmptyResponse),
+        handler = \_ -> pure def,
         versions = map versionInt (toList supportedVersions)
       }
+
+mockWithStatus200 :: (HTTP.MediaType, LByteString) -> MockResponse
+mockWithStatus200 (ct, b) =
+  def
+    { status = status200,
+      contentType = ct,
+      body = b
+    }
 
 -- | Spawn a mock federator on a random port and run an action while it is running.
 --

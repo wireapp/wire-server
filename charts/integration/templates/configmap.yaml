@@ -65,6 +65,8 @@ data:
       host: wireServerEnterprise.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
+    rabbitMqVHost: /
+
     dnsMockServer:
       host: technitium-dnsserver
       apiPort: 5380
@@ -74,20 +76,22 @@ data:
 
     rabbitmq:
       host: rabbitmq
+      port: 5671
       adminPort: 15671
-      tls: true
+      enableTls: true
+      insecureSkipVerifyTls: true
       vHost: /
 
     rabbitmq-v0:
       host: rabbitmq.wire-federation-v0.svc.cluster.local
+      port: 5671
       adminPort: 15672
-      tls: false
       vHost: /
 
     rabbitmq-v1:
       host: rabbitmq.wire-federation-v1.svc.cluster.local
+      port: 5671
       adminPort: 15672
-      tls: false
       vHost: /
 
     backendTwo:
@@ -143,6 +147,8 @@ data:
       wireServerEnterprise:
         host: wireServerEnterprise.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
+
+      rabbitMqVHost: /
 
       originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
 
@@ -206,6 +212,7 @@ data:
       wireServerEnterprise:
         host: wireServerEnterprise.wire-federation-v0.svc.cluster.local
         port: 8080
+      rabbitMqVHost: /
 
     federation-v1:
       originDomain: federation-test-helper.wire-federation-v1.svc.cluster.local
@@ -248,5 +255,7 @@ data:
       wireServerEnterprise:
         host: wireServerEnterprise.wire-federation-v1.svc.cluster.local
         port: 8080
+      rabbitMqVHost: /
 
     integrationTestHostName: integration-headless.{{ .Release.Namespace }}.svc.cluster.local
+    cellsEventQueue: cells_events

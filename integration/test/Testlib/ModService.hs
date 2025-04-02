@@ -104,9 +104,7 @@ traverseConcurrentlyCodensity f args = do
   -- invocations of 'withAsync' one inside the other, but without the need for
   -- explicit recursion.
   asyncs <- for (zip vars args) $ \x ->
-    Codensity $ \k -> do
-      k' <- appToIOKleisli k
-      liftIO $ withAsync (runAction x) k'
+    hoistCodensity $ Codensity $ withAsync (runAction x)
 
   -- Wait for all the threads set their result variables. Any exception is
   -- rethrown here, and aborts the overall function.
@@ -470,9 +468,10 @@ withProcess resource overrides service = do
           void $ forkIO $ logToConsole colorize prefix stderrHdl
           pure $ ServiceInstance ph tempFile
 
-  void $ Codensity $ \k -> do
-    iok <- appToIOKleisli k
-    liftIO $ E.bracket initProcess cleanupService iok
+  void $
+    hoistCodensity $
+      Codensity $
+        E.bracket initProcess cleanupService
 
   lift $
     addFailureContext ("Waiting for service: " <> prefix) $

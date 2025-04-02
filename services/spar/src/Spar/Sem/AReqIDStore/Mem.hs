@@ -26,6 +26,7 @@ import qualified Data.Map as M
 import Imports
 import Polysemy
 import Polysemy.State
+import SAML2.WebSSO.Types (Issuer)
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Sem.AReqIDStore
 import Wire.API.User.Saml (AReqId)
@@ -34,13 +35,13 @@ import Wire.Sem.Now
 aReqIDStoreToMem ::
   (Member Now r) =>
   Sem (AReqIDStore ': r) a ->
-  Sem r (Map AReqId SAML.Time, a)
+  Sem r (Map AReqId (Issuer, SAML.Time), a)
 aReqIDStoreToMem = (runState mempty .) $
   reinterpret $ \case
-    Store areqid ti -> modify $ M.insert areqid ti
+    Store areqid issuer ti -> modify $ M.insert areqid (issuer, ti)
     UnStore areqid -> modify $ M.delete areqid
-    IsAlive areqid ->
+    GetIdpIssuer areqid ->
       gets (M.lookup areqid) >>= \case
-        Just time -> do
-          boolTTL False True time
-        Nothing -> pure False
+        Just (issuer, time) -> do
+          boolTTL Nothing (Just issuer) time
+        Nothing -> pure Nothing

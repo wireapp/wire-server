@@ -178,6 +178,13 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
+      channels:
+        defaults:
+          status: disabled
+          config:
+            allowed_to_create_channels: team-members
+            allowed_to_open_channels: team-members
+          lockStatus: locked
 
   aws:
     region: "eu-west-1"

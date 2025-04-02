@@ -116,7 +116,8 @@ testMixedProtocolUpgrade secondDomain = do
       alice
       defProteus
         { qualifiedUsers = [bob, charlie],
-          team = Just tid
+          team = Just tid,
+          receiptMode = Just 7
         }
       >>= getJSON 201
       >>= objConvId
@@ -138,6 +139,7 @@ testMixedProtocolUpgrade secondDomain = do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mixed"
     resp.json %. "epoch" `shouldMatchInt` 0
+    resp.json %. "receipt_mode" `shouldMatchInt` 7
 
   bindResponse (putConversationProtocol alice convId "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
@@ -337,6 +339,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 testMLSProtocolUpgrade :: (HasCallStack) => Domain -> App ()
 testMLSProtocolUpgrade secondDomain = do
   (alice, bob, convId) <- simpleMixedConversationSetup secondDomain
+  updateReceiptMode alice convId (9 :: Int) >>= assertSuccess
   charlie <- randomUser OwnDomain def
 
   -- alice creates MLS group and bob joins
@@ -358,12 +361,14 @@ testMLSProtocolUpgrade secondDomain = do
   bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mixed"
+    resp.json %. "receipt_mode" `shouldMatchInt` 9
 
   supportMLS bob
 
   withWebSockets [alice1, bob1] $ \wss -> do
     bindResponse (putConversationProtocol bob convId "mls") $ \resp -> do
       resp.status `shouldMatchInt` 200
+      resp.json %. "data.protocol" `shouldMatch` "mls"
     for_ wss $ \ws -> do
       n <- awaitMatch isNewMLSMessageNotif ws
       msg <- asByteString (nPayload n %. "data") >>= showMessage def alice1
@@ -374,6 +379,7 @@ testMLSProtocolUpgrade secondDomain = do
   bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
+    resp.json %. "receipt_mode" `shouldMatchInt` 0
 
 testAddUserSimple :: (HasCallStack) => Ciphersuite -> CredentialType -> App ()
 testAddUserSimple suite ctype = do

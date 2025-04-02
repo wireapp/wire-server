@@ -188,7 +188,10 @@ roots = [ # may of the entries here are about general-purpose module
          "^Wire.API.Password.mkSafePasswordScrypt$", # Used in testing
          "^Wire.Sem.Concurrency.IO.performConcurrency",
          "^Wire.Sem.Logger.fatal",
-         "^Wire.Sem.Metrics.incGauge$" # Used in wai-utilities
+         "^Wire.Sem.Metrics.incGauge$", # Used in wai-utilities
+         "^Test.SAML2..*.spec$",
+         "^Test.Text.XML..*.spec$",
+         "^Test.Text.XML..*.spec$"
         ]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 

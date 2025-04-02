@@ -371,6 +371,8 @@ instance GetFeatureConfig SearchVisibilityInboundConfig
 
 instance GetFeatureConfig MLSConfig
 
+instance GetFeatureConfig ChannelsConfig
+
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type
     ComputeFeatureConstraints ExposeInvitationURLsToTeamAdminConfig r =
@@ -394,6 +396,8 @@ instance GetFeatureConfig EnforceFileDownloadLocationConfig
 instance GetFeatureConfig LimitedEventFanoutConfig
 
 instance GetFeatureConfig DomainRegistrationConfig
+
+instance GetFeatureConfig CellsConfig
 
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but
 -- should, are blocked completely.  (This is a workaround until we have 2FA for those

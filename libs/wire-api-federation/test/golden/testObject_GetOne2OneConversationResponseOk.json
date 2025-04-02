@@ -1,39 +1,42 @@
 {
-    "contents": {
-        "id": "00000001-0000-0001-0000-000200040001",
-        "members": {
-            "others": [
-                {
-                    "conversation_role": "wire_member",
-                    "id": "00000001-0000-0001-0000-000200000001",
-                    "qualified_id": {
-                        "domain": "example.com",
-                        "id": "00000001-0000-0001-0000-000200000001"
-                    },
-                    "status": 0
-                }
-            ],
-            "self_role": "wire_admin"
-        },
-        "metadata": {
-            "access": [],
-            "access_role": [],
-            "creator": "00000001-0000-0001-0000-000200000001",
-            "last_event": "0.0",
-            "last_event_time": "1970-01-01T00:00:00.000Z",
-            "message_timer": null,
-            "name": " 0",
-            "receipt_mode": -2,
-            "team": "00000001-0000-0001-0000-000100000002",
-            "type": 2
-        },
-        "protocol": {
-            "cipher_suite": 1,
-            "epoch": 0,
-            "epoch_timestamp": null,
-            "group_id": "Z3JvdXA=",
-            "protocol": "mls"
+  "contents": {
+    "id": "00000001-0000-0001-0000-000200040001",
+    "members": {
+      "others": [
+        {
+          "conversation_role": "wire_member",
+          "id": "00000001-0000-0001-0000-000200000001",
+          "qualified_id": {
+            "domain": "example.com",
+            "id": "00000001-0000-0001-0000-000200000001"
+          },
+          "status": 0
         }
+      ],
+      "self_role": "wire_admin"
     },
-    "tag": "GetOne2OneConversationOk"
+    "metadata": {
+      "access": [],
+      "access_role": [],
+      "cells_state": "disabled",
+      "add_permission": null,
+      "creator": "00000001-0000-0001-0000-000200000001",
+      "group_conv_type": null,
+      "last_event": "0.0",
+      "last_event_time": "1970-01-01T00:00:00.000Z",
+      "message_timer": null,
+      "name": " 0",
+      "receipt_mode": -2,
+      "team": "00000001-0000-0001-0000-000100000002",
+      "type": 2
+    },
+    "protocol": {
+      "cipher_suite": 1,
+      "epoch": 0,
+      "epoch_timestamp": null,
+      "group_id": "Z3JvdXA=",
+      "protocol": "mls"
+    }
+  },
+  "tag": "GetOne2OneConversationOk"
 }

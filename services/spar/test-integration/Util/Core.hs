@@ -173,7 +173,7 @@ import Network.HTTP.Client.MultipartFormData
 import Network.URI (pathSegments)
 import qualified Options.Applicative as OPA
 import Polysemy (Sem)
-import SAML2.WebSSO as SAML hiding ((<$$>))
+import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse

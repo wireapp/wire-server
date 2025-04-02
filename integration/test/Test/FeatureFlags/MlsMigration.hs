@@ -7,28 +7,25 @@ import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testMlsMigration :: (HasCallStack) => FeatureTable -> APIAccess -> App ()
-testMlsMigration table access = do
+testMlsMigration :: (HasCallStack) => APIAccess -> App ()
+testMlsMigration access = do
   -- first we have to enable mls
   (owner, tid, _) <- createTeam OwnDomain 0
-  updateMigrationState OwnDomain tid table
   void $ Public.setTeamFeatureConfig owner tid "mls" mlsEnable >>= getJSON 200
   mkFeatureTests "mlsMigration"
     & addUpdate mlsMigrationConfig1
     & addUpdate mlsMigrationConfig2
-    & setTable table
     & setOwner owner
       >>= runFeatureTests OwnDomain access
 
-testMlsMigrationDefaults :: (HasCallStack) => FeatureTable -> App ()
-testMlsMigrationDefaults table = do
+testMlsMigrationDefaults :: (HasCallStack) => App ()
+testMlsMigrationDefaults = do
   withModifiedBackend
     def
       { galleyCfg = setField "settings.featureFlags.mlsMigration.defaults.lockStatus" "unlocked"
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 0
-      updateMigrationState OwnDomain tid table
       void
         $ Internal.patchTeamFeature owner tid "mls" (object ["status" .= "enabled"])
         >>= getJSON 200
