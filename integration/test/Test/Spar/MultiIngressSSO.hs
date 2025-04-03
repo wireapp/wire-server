@@ -77,6 +77,7 @@ testMultiIngressSSO = do
 
       makeSuccessfulSamlLogin domain bertZHost tid bertEmail idpId idpMeta
 
+      -- Kermit's domain is not configured
       kermitEmail <- ("kermit@" <>) <$> randomDomain
       getSPMetadataWithZHost domain (Just kermitZHost) tid `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
@@ -98,12 +99,12 @@ checkAuthnSPIssuer domain host idpId tid =
         valueName = XML.Name (cs "value") Nothing Nothing
         issuerName = XML.Name (cs "Issuer") (Just (cs "urn:oasis:names:tc:SAML:2.0:assertion")) Nothing
 
-    let decodeBase64 :: T.Text -> Maybe ByteString
+        decodeBase64 :: T.Text -> Maybe ByteString
         decodeBase64 = either (const Nothing) Just . Data.ByteString.Base64.decode . cs
 
-    let targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
+        targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
 
-    let getIssuerUrl :: ByteString -> Maybe T.Text
+        getIssuerUrl :: ByteString -> Maybe T.Text
         getIssuerUrl =
           (pure . KXML.parseXml . cs)
             >=> KXML.findElement inputName
@@ -127,26 +128,26 @@ checkMetadataSPIssuer domain host tid =
         entityIdName = XML.Name (cs "entityID") Nothing Nothing
         locationName = XML.Name (cs "Location") Nothing Nothing
 
-    let targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
+        targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
 
-    let root = (KXML.parseXml . cs) resp.body
+        root = (KXML.parseXml . cs) resp.body
 
-        locationPipeline :: XML.Cursor -> Maybe T.Text
-        locationPipeline =
+        getLocation :: XML.Cursor -> Maybe T.Text
+        getLocation =
           KXML.findElement spSsoDescName
             >=> KXML.findElement acsName
             >=> KXML.getAttribute locationName
 
-        orgUrlContentPipeline :: XML.Cursor -> Maybe T.Text
-        orgUrlContentPipeline =
+        getOrgUrlContent :: XML.Cursor -> Maybe T.Text
+        getOrgUrlContent =
           KXML.findElement spSsoDescName
             >=> KXML.findElement orgName
             >=> KXML.findElement orgUrlName
             >=> KXML.getContent
 
     KXML.getAttribute entityIdName root `shouldMatch` Just targetSPUrl
-    locationPipeline root `shouldMatch` Just targetSPUrl
-    orgUrlContentPipeline root `shouldMatch` Just targetSPUrl
+    getLocation root `shouldMatch` Just targetSPUrl
+    getOrgUrlContent root `shouldMatch` Just targetSPUrl
 
 makeSuccessfulSamlLogin ::
   (MakesValue domain) =>
