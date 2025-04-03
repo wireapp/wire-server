@@ -7,16 +7,12 @@ import Control.Exception
 import Control.Lens hiding (Level, element, enum, (.=))
 import Control.Monad (when)
 import Data.Aeson qualified as A
-import Data.Aeson.Types qualified as A
-import Data.ByteString (toStrict)
-import Data.ByteString.Builder
 import Data.Domain
 import Data.Map
 import Data.Map qualified as Map
 import Data.Schema
 import Data.String.Conversions
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
 import Data.Yaml qualified as Yaml
 import GHC.Generics
 import SAML2.WebSSO.Types
@@ -95,33 +91,6 @@ instance ToSchema MultiIngressDomainConfig where
         <*> (_cfgSPSsoURI .= field "spSsoUri" schema)
         <*> (_cfgContacts .= field "contacts" (array schema))
 
--- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
-instance ToSchema ContactPerson where
-  schema =
-    object "ContactPerson" $
-      ContactPerson
-        <$> (_cntType .= field "type" schema)
-        <*> (_cntCompany .= maybe_ (optField "company" schema))
-        <*> (_cntGivenName .= maybe_ (optField "givenName" schema))
-        <*> (_cntSurname .= maybe_ (optField "surname" schema))
-        <*> (_cntEmail .= maybe_ (optField "email" schema))
-        <*> (_cntPhone .= maybe_ (optField "phone" schema))
-
-instance ToSchema XmlText where
-  schema = mkXmlText <$> unsafeFromXmlText .= (schema @T.Text)
-
--- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
-instance ToSchema ContactType where
-  schema =
-    enum @T.Text "ContactType" $
-      mconcat
-        [ element "ContactTechnical" ContactTechnical,
-          element "ContactSupport" ContactSupport,
-          element "ContactAdministrative" ContactAdministrative,
-          element "ContactBilling" ContactBilling,
-          element "ContactOther" ContactOther
-        ]
-
 instance ToSchema Config where
   schema = u .= ((schema @ConfigRaw) `withParser` p)
     where
@@ -184,19 +153,6 @@ instance ToSchema Level where
           element "Error" Error,
           element "Fatal" Fatal
         ]
-
-instance ToSchema URI where
-  schema = uriToText .= schema @T.Text `withParser` parseSchemaURI
-    where
-      uriToText :: URI -> T.Text
-      uriToText = T.decodeUtf8 . toStrict . toLazyByteString . serializeURIRef
-
-      parseSchemaURI :: T.Text -> A.Parser URI
-      parseSchemaURI uriText =
-        either
-          (\e -> fail ("Failed to parse URI " ++ T.unpack uriText ++ " Error: " ++ show e))
-          pure
-          $ (parseURI strictURIParserOptions . T.encodeUtf8) uriText
 
 ----------------------------------------------------------------------
 -- default
