@@ -303,7 +303,7 @@ foldJudge (toList -> assertions) = do
 
 judge1 :: (HasCallStack, MonadJudge m, SP m, SPStore m) => Assertion -> m AccessVerdict
 judge1 assertion = do
-  inRespTo <- either (giveup . DeniedBadInResponseTos) pure $ assertionToInResponseTo assertion
+  inRespTo <- either (const . giveup . DeniedNoInResponseTo $ assertion ^. assIssuer) pure $ assertionToInResponseTo assertion
   checkInResponseTo "response" (assertion ^. assIssuer) inRespTo
   verdict <- checkAssertion assertion
   unStoreRequest inRespTo
