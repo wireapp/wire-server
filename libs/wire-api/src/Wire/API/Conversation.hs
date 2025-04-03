@@ -704,7 +704,8 @@ data NewConv = NewConv
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
     newConvProtocol :: BaseProtocolTag,
     newConvGroupConvType :: GroupConvType,
-    newConvCells :: Bool
+    newConvCells :: Bool,
+    newConvChannelAddPermission :: Maybe AddPermission
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -772,6 +773,10 @@ newConvSchema v sch =
           (optField "protocol" schema)
       <*> newConvGroupConvType .= (fromMaybe GroupConversation <$> optField "group_conv_type" schema)
       <*> newConvCells .= (fromMaybe False <$> optField "cells" schema)
+      <*> newConvChannelAddPermission
+        .= maybe_
+          ( optFieldWithDocModifier "add_permission" (description ?~ "Channel add permission") schema
+          )
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \

@@ -50,7 +50,8 @@ testObject_NewConv_user_1 =
       newConvUsersRole = fromJust (parseRoleName "8tp2gs7b6"),
       newConvProtocol = BaseProtocolProteusTag,
       newConvGroupConvType = GroupConversation,
-      newConvCells = False
+      newConvCells = False,
+      newConvChannelAddPermission = Nothing
     }
 
 testObject_NewConv_user_3 :: NewConv
@@ -71,5 +72,6 @@ testObject_NewConv_user_3 =
           ),
       newConvProtocol = BaseProtocolMLSTag,
       newConvGroupConvType = Channel,
-      newConvCells = True
+      newConvCells = True,
+      newConvChannelAddPermission = Just Admins
     }

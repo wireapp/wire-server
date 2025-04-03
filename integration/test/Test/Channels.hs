@@ -231,6 +231,20 @@ testUpdateAddPermissions = do
     updateChannelAddPermission alice conv "admins" >>= assertSuccess
     for_ wss $ \ws -> awaitMatch isChannelAddPermissionUpdate ws
 
+testSetAddPermissionOnChannelCreation :: (HasCallStack) => App ()
+testSetAddPermissionOnChannelCreation = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  aliceClient <- createMLSClient def def alice
+  void $ uploadNewKeyPackage def aliceClient
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "everyone")
+
+  conv <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid, addPermission = Just "admins"} >>= getJSON 201
+  convId <- objConvId conv
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "add_permission" `shouldMatch` "admins"
+
 testAddPermissionEveryone :: (HasCallStack) => App ()
 testAddPermissionEveryone = do
   (alice, tid, bob : chaz : delia : eric : _) <- createTeam OwnDomain 5
