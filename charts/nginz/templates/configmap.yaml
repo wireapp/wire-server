@@ -1,14 +1,101 @@
+
+{{- $nginx_conf := .Values.nginx_conf }}
+
+{{- if hasKey $nginx_conf "external_env_domain" }}
+  {{- $external_env_domain := $nginx_conf.external_env_domain }}
+  {{- range $nginx_conf.additional_external_env_domains }}
+    {{- if eq $external_env_domain . }}
+      {{- fail (printf "Error: external_env_domain (%s) cannot be part of additional_external_env_domains list." $external_env_domain) }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+---
 apiVersion: v1
-data:
-  nginx.conf: |2
-{{- include "nginz_nginx.conf" . | indent 4 }}
-  upstreams.txt: "{{- include "nginz_upstreams.txt" . | trim }}"
-  deeplink.json: |2
-{{- include "nginz_deeplink.json" . | indent 4 }}
-  deeplink.html: |2
-{{- include "nginz_deeplink.html" . | indent 4 }}
-{{ (.Files.Glob "static/conf/*").AsConfig | indent 2 }}
 kind: ConfigMap
 metadata:
   creationTimestamp: null
   name: nginz
+data:
+  nginx.conf: |2
+    {{- include "nginz_nginx.conf" . | indent 4 }}
+  upstreams.txt: "{{- include "nginz_upstreams.txt" . | trim }}"
+
+{{ (.Files.Glob "static/conf/*").AsConfig | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginz-deeplink
+data:
+  {{- if and (hasKey .Values.nginx_conf "deeplink") (hasKey .Values.nginx_conf "external_env_domain") }}
+  {{- $backendURL := .Values.nginx_conf.deeplink.endpoints.backendURL }}
+  {{- $deeplink_json := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplink_html := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
+  {{ $deeplink_json }}: |
+    {{- $deeplink := dict
+      "endpoints" (dict
+        "backendURL" .Values.nginx_conf.deeplink.endpoints.backendURL
+        "backendWSURL" .Values.nginx_conf.deeplink.endpoints.backendWSURL
+        "blackListURL" .Values.nginx_conf.deeplink.endpoints.blackListURL
+        "teamsURL" .Values.nginx_conf.deeplink.endpoints.teamsURL
+        "accountsURL" .Values.nginx_conf.deeplink.endpoints.accountsURL
+        "websiteURL" .Values.nginx_conf.deeplink.endpoints.websiteURL
+      )
+      "title" .Values.nginx_conf.deeplink.title
+    }}
+    {{- if hasKey .Values.nginx_conf.deeplink "apiProxy" }}
+    {{- $_ := set $deeplink "apiProxy" (dict
+      "host" .Values.nginx_conf.deeplink.apiProxy.host
+      "port" .Values.nginx_conf.deeplink.apiProxy.port
+      "needsAuthentication" .Values.nginx_conf.deeplink.apiProxy.needsAuthentication
+    ) }}
+    {{- end }}
+    {{ toJson $deeplink | indent 4 }}
+  {{ $deeplink_html }}: |
+    <html>
+      <head></head>
+      <body>
+        <a href="wire://access/?config={{ .Values.nginx_conf.deeplink.endpoints.backendURL }}/deeplink.json">Click here for access</a>
+      </body>
+    </html>
+  {{- end }}
+
+  {{- if (hasKey $nginx_conf "additional_external_env_domains") }}
+    {{- range $domain, $config := $nginx_conf.multi_ingress_deeplink }}
+      {{- if (has $domain $nginx_conf.additional_external_env_domains) }}
+        {{- $backendURL := $config.endpoints.backendURL }}
+  {{- $deeplink_json := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplink_html := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
+  {{ $deeplink_json }}: |
+    {{- $deeplink := dict
+      "endpoints" (dict
+        "backendURL" $config.endpoints.backendURL
+        "backendWSURL" $config.endpoints.backendWSURL
+        "blackListURL" $config.endpoints.blackListURL
+        "teamsURL" $config.endpoints.teamsURL
+        "accountsURL" $config.endpoints.accountsURL
+        "websiteURL" $config.endpoints.websiteURL
+      )
+      "title" $config.title
+    }}
+    {{- if hasKey $config "apiProxy" }}
+    {{- $_ := set $deeplink "apiProxy" (dict
+      "host" $config.apiProxy.host
+      "port" $config.apiProxy.port
+      "needsAuthentication" $config.apiProxy.needsAuthentication
+    ) }}
+    {{- end }}
+    {{ toJson $deeplink | indent 4 }}
+    {{ printf "\n" }}
+  {{ $deeplink_html }}: |
+    <html>
+      <head>
+        <title>Deeplink for {{ $domain }}</title>
+      </head>
+      <body>
+        <a href="wire://access/?config={{ $config.endpoints.backendURL }}/deeplink.json">Click here for access</a>
+      </body>
+    </html>
+      {{- end }}
+    {{- end }}
+  {{- end }}
