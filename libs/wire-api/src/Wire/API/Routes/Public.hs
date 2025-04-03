@@ -224,9 +224,7 @@ data ZHostOpt
 
 instance (HasLink api) => HasLink (ZHostOpt :> api) where
   type MkLink (ZHostOpt :> api) a = MkLink api a
-  toLink =
-    let simpleToLink toA _ = toLink toA (Proxy :: Proxy api)
-     in simpleToLink
+  toLink toA _ = toLink toA (Proxy :: Proxy api)
 
 type ZHostValue = Text -- FUTUREWORK: use Data.Domain.Domain here instead of Text?
 
