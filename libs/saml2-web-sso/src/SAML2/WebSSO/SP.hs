@@ -13,7 +13,7 @@ import Data.Foldable (toList)
 import Data.Kind (Type)
 import Data.List (nub, partition)
 import Data.List.NonEmpty (NonEmpty)
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.String.Conversions
 import Data.Time
 import Data.UUID (UUID)
@@ -178,8 +178,11 @@ getSsoURINoMultiIngress proxyAPI proxyAPIAuthResp =
 -- | DANGER: This function is not valid for all spar configurations! It
 -- spuriously fails for multi-ingress configs!
 getMultiIngressDomainConfigNoMultiIngress :: forall m. (HasConfig m, Functor m) => m MultiIngressDomainConfig
--- TODO: Can we get rid of this dangerous function?
-getMultiIngressDomainConfigNoMultiIngress = (fromJust . (`getMultiIngressDomainConfig` Nothing)) <$> getConfig
+-- FUTUREWORK: Get rid of this dangerous function. It solely exists to
+-- implement legacy service example functions.
+getMultiIngressDomainConfigNoMultiIngress =
+  (fromMaybe (error "Configuration not found. (Multi-ingress config not supported.)") . (`getMultiIngressDomainConfig` Nothing))
+    <$> getConfig
 
 ----------------------------------------------------------------------
 -- compute access verdict(s)
