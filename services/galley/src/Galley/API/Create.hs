@@ -686,7 +686,7 @@ newRegularConversation lusr newConv = do
                     BaseProtocolMLSTag -> Just def,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
                   cnvmGroupConvType = Just newConv.newConvGroupConvType,
-                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then Just def else Nothing,
+                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then newConv.newConvChannelAddPermission <|> Just def else Nothing,
                   cnvmCellsState =
                     if newConv.newConvCells
                       then CellsPending

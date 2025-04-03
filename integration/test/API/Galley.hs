@@ -31,7 +31,8 @@ data CreateConv = CreateConv
     newUsersRole :: String,
     protocol :: String,
     groupConvType :: Maybe String,
-    cells :: Bool
+    cells :: Bool,
+    addPermission :: Maybe String
   }
 
 defProteus :: CreateConv
@@ -47,7 +48,8 @@ defProteus =
       newUsersRole = "wire_admin",
       protocol = "proteus",
       groupConvType = Nothing,
-      cells = False
+      cells = False,
+      addPermission = Nothing
     }
 
 defMLS :: CreateConv
@@ -81,7 +83,8 @@ instance MakesValue CreateConv where
                 "team" .=? (cc.team <&> \tid -> Aeson.object ["teamid" .= tid, "managed" .= False]),
                 "message_timer" .=? cc.messageTimer,
                 "receipt_mode" .=? cc.receiptMode,
-                "group_conv_type" .=? cc.groupConvType
+                "group_conv_type" .=? cc.groupConvType,
+                "add_permission" .=? cc.addPermission
               ]
         )
 

@@ -728,6 +728,7 @@ createConversation galley zusr usersToAdd = do
           BaseProtocolProteusTag
           GroupConversation
           False
+          Nothing
   post $
     galley
       . path "/conversations"
