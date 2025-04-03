@@ -135,9 +135,6 @@ data Access = Access
   }
   deriving (Eq, Show)
 
--- TODO: call this 'ClientToken' and 'Access' 'ClientAccessToken'?  anyway it's more of a
--- client device than a user, so 'User' is definitely wrong.  also probably rename more stuff
--- that follows the same obsolete pattern?
 data User = User
   { user :: !UUID,
     client :: Maybe Text,
