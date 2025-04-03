@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Strict #-}
--- TODO: Create a dedicated module for orphan instances
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 module SAML2.WebSSO.Config where
 
@@ -35,9 +33,9 @@ data Config = Config
   { _cfgLogLevel :: Level,
     _cfgSPHost :: String,
     _cfgSPPort :: Int,
+    -- | if you don't use the multi-ingress feature, you only ever need one of these, so
+    -- you'll use the `Left` case.
     _cfgDomainConfigs ::
-      -- if you don't use the multi-ingress feature, you only ever need one of these, so
-      -- you'll use the `Left` case.
       Either MultiIngressDomainConfig (Map Domain MultiIngressDomainConfig)
   }
   deriving (Eq, Show, Generic)
