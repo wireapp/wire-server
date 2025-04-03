@@ -173,7 +173,6 @@ newUserToken u c = do
 newSessionToken :: forall t r. (Member CryptoSign r, Member Now r, Member (Input ZAuthEnv) r, UserTokenLike t, Member Random r) => UserId -> Maybe ClientId -> Sem r (Either ZV.Failure (Token t))
 newSessionToken u c = runError $ do
   unless (allowSessionToken @t) $
-    -- TODO: Is this right? It used to be MonadThrow
     throw ZV.Unsupported
   z <- input
   r <- randomValue
