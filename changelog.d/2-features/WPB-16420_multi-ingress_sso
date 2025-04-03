@@ -1,0 +1,2 @@
+Allow multiple SAML ServiceProviders (SP) to be configured in spar. The idea is
+to have one SP per multi-ingress domain/endpoint.
