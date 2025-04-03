@@ -28,6 +28,7 @@ import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.AuthenticationSubsystem.ZAuth (randomConnId)
 import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.MiniBackend
@@ -373,6 +374,12 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               pure (c, s)
         length sto `shouldBe` 1
         (head sto).cookieId `shouldBe` cky.cookieId
+
+  describe "randomConnId" $ do
+    it "generates different connection ids" $ do
+      let connIds = run . runRandomPure $ replicateM 100 randomConnId
+          uniqueConnIds = nub connIds
+      length connIds `shouldBe` length uniqueConnIds
 
 newtype Upto4 = Upto4 Int
   deriving newtype (Show, Eq)

@@ -82,8 +82,6 @@ newAccessToken ::
 newAccessToken xt = do
   z <- inputs (.zauthEnv)
   let ttl = accessTTL @(AccessTokenType t) z.settings
-  -- TODO: Test that connId is randomly generated, there was a test in
-  -- zauth, which got deleted as a result of moving this code here.
   connId <- randomConnId
   accessToken :: Token (AccessTokenType t) <-
     ZC.newToken z.private (TokenExpiresAfter ttl) Nothing $
