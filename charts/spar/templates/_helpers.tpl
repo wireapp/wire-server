@@ -27,8 +27,12 @@ created one (in case the CA is provided as PEM string.)
 
 The rules are:
 - If `scimBaseUri` is defined, take that value
-- Otherwise, if `ssoUri` is defined, take the value and drop a possible last /sso path element
+- Otherwise, if `ssoUri` is defined, take the value and drop a possible last
+  /sso path element
 - Otherwise, fail
+
+In multi-ingress setups you have to configure the `scimBaseUri`, because it
+cannot be decided which `ssoUri` to take from the map.
 */}}
 {{- define "computeScimBaseUri" -}}
 {{- $scimBaseUri := .scimBaseUri -}}
