@@ -111,7 +111,7 @@ nginx-ingress-{{ .Values.ingressName }}
 {{/*
 Name of the minio ingress. Extracted as helper to reduce the complexity in the template
 itself. The default name is 'minio-ingress' for backwards compatibility (it has
-been this name in previous versions.)
+been this name since version 5.7.0.)
 Why do we need to be able to change this name? For multi-ingress setups, we'll
 have multiple of these ingresses (which need unique names).
 */}}
