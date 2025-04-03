@@ -114,7 +114,6 @@
 , spar
 , split
 , ssl-util
-, statistics
 , stomp-queue
 , streaming-commons
 , string-conversions
@@ -249,7 +248,6 @@ mkDerivation {
     servant-swagger-ui
     split
     ssl-util
-    statistics
     stomp-queue
     template
     template-haskell
@@ -267,7 +265,6 @@ mkDerivation {
     uri-bytestring
     utf8-string
     uuid
-    vector
     wai
     wai-extra
     wai-middleware-gunzip
