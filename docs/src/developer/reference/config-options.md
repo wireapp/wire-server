@@ -1016,7 +1016,7 @@ provides a lot of useful information.
 
 This section describes the common "single-ingress" (one backend is reachable by
 only one domain) case. The multi-ingress case is described in [Multi-Ingress
-setup](#multi-ingress-setup)
+setup](#multi-ingress-setup).
 
 ### SAML
 
