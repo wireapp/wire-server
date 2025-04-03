@@ -67,8 +67,8 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Password
 import Wire.ActivationCodeStore
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
-import Wire.AuthenticationSubsystem.ZAuth
 import Wire.BlockListStore
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
@@ -278,10 +278,9 @@ stateEffectsInterpreters MiniBackendParams {..} =
 
 type InputEffects =
   '[ Input UserSubsystemConfig,
-     Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input (Map TeamId IdPList),
-     Input ZAuthEnv
+     Input AuthenticationSubsystemConfig
    ]
 
 defaultZAuthEnv :: ZAuthEnv
@@ -296,12 +295,22 @@ defaultZAuthEnv =
       settings = defSettings
     }
 
+defaultAuthenticationSubsystemConfig :: AuthenticationSubsystemConfig
+defaultAuthenticationSubsystemConfig =
+  AuthenticationSubsystemConfig
+    { zauthEnv = defaultZAuthEnv,
+      allowlistEmailDomains = Nothing,
+      local = defaultLocalDomain
+    }
+
+defaultLocalDomain :: Local ()
+defaultLocalDomain = (toLocalUnsafe (Domain "localdomain") ())
+
 inputEffectsInterpreters :: forall r a. UserSubsystemConfig -> Map TeamId IdPList -> Sem (InputEffects `Append` r) a -> Sem r a
 inputEffectsInterpreters cfg teamIdps =
-  runInputConst defaultZAuthEnv
+  runInputConst defaultAuthenticationSubsystemConfig
     . runInputConst teamIdps
     . runInputConst Nothing
-    . runInputConst (toLocalUnsafe (Domain "localdomain") ())
     . runInputConst cfg
 
 ----------------------------------------------------------------------

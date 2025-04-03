@@ -26,8 +26,8 @@ import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
-import Wire.AuthenticationSubsystem.ZAuth
 import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.MiniBackend (defaultZAuthEnv)
@@ -53,9 +53,7 @@ type AllEffects =
     CryptoSign,
     Now,
     State UTCTime,
-    Input (Local ()),
-    Input (Maybe AllowlistEmailDomains),
-    Input ZAuthEnv,
+    Input AuthenticationSubsystemConfig,
     SessionStore,
     State (Map UserId [Cookie ()]),
     PasswordStore,
@@ -70,29 +68,33 @@ type AllEffects =
 
 runAllEffects :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
 runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
-  run
-    . evalState mempty
-    . evalState mempty
-    . inMemoryUserStoreInterpreter
-    . inMemoryEmailSubsystemInterpreter
-    . discardTinyLogs
-    . evalState mempty
-    . inMemoryPasswordResetCodeStore
-    . runInMemoryPasswordStoreInterpreter
-    . evalState mempty
-    . inMemorySessionStoreInterpreter
-    . runInputConst defaultZAuthEnv
-    . runInputConst (AllowlistEmailDomains <$> mAllowedEmailDomains)
-    . runInputConst (toLocalUnsafe localDomain ())
-    . evalState defaultTime
-    . interpretNowAsState
-    . runCryptoSignUnsafe
-    . staticHashPasswordInterpreter
-    . runRandomPure
-    . noRateLimit
-    . runErrorUnsafe
-    . runError
-    . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
+  let cfg =
+        AuthenticationSubsystemConfig
+          { zauthEnv = defaultZAuthEnv,
+            allowlistEmailDomains = AllowlistEmailDomains <$> mAllowedEmailDomains,
+            local = toLocalUnsafe localDomain ()
+          }
+   in run
+        . evalState mempty
+        . evalState mempty
+        . inMemoryUserStoreInterpreter
+        . inMemoryEmailSubsystemInterpreter
+        . discardTinyLogs
+        . evalState mempty
+        . inMemoryPasswordResetCodeStore
+        . runInMemoryPasswordStoreInterpreter
+        . evalState mempty
+        . inMemorySessionStoreInterpreter
+        . runInputConst cfg
+        . evalState defaultTime
+        . interpretNowAsState
+        . runCryptoSignUnsafe
+        . staticHashPasswordInterpreter
+        . runRandomPure
+        . noRateLimit
+        . runErrorUnsafe
+        . runError
+        . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
 
 verifyPasswordPure :: PlainTextPassword' t -> Password -> Bool
 verifyPasswordPure plain hashed =

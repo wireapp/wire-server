@@ -8,6 +8,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.User.Auth
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Error
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.Sem.Now qualified as Now
@@ -16,7 +17,7 @@ import Wire.SessionStore (SessionStore)
 import Wire.SessionStore qualified as SessionStore
 
 newCookieImpl ::
-  (UserTokenLike u, Member (Input ZAuthEnv) r, Member SessionStore r, Member (Error AuthenticationSubsystemError) r, Member Now.Now r, Member CryptoSign r, Member Random r) =>
+  (UserTokenLike u, Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member (Error AuthenticationSubsystemError) r, Member Now.Now r, Member CryptoSign r, Member Random r) =>
   UserId ->
   Maybe ClientId ->
   CookieType ->

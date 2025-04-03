@@ -124,7 +124,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.AuthenticationSubsystem as Authentication
-import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
@@ -149,7 +149,7 @@ botAPI ::
     Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
     Member AuthenticationSubsystem r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member SessionStore r,
     Member Now r,
     Member CryptoSign r
@@ -199,7 +199,7 @@ providerAPI ::
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
     Member RateLimit r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member CryptoSign r,
     Member Now r
   ) =>
@@ -325,7 +325,7 @@ getPasswordResetCode email = do
 login ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member CryptoSign r,
     Member Now r
   ) =>
@@ -740,7 +740,7 @@ updateServiceWhitelist uid con tid upd = do
 addBot ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r
   ) =>

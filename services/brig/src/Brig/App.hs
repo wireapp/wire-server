@@ -157,7 +157,8 @@ import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
-import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
+import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
+import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
 import Wire.RateLimit.Interpreter
@@ -202,7 +203,7 @@ data Env = Env
     turnEnv :: Calling.TurnEnv,
     sftEnv :: Maybe Calling.SFTEnv,
     currentTime :: IO UTCTime,
-    zauthEnv :: ZAuth.ZAuthEnv,
+    zauthEnv :: ZAuthEnv,
     digestSHA256 :: Digest,
     digestMD5 :: Digest,
     indexEnv :: IndexEnv,
@@ -352,17 +353,17 @@ mkIndexEnv esOpts logger galleyEp rpcHttpManager = do
         idxCredentials = mEsCreds
       }
 
-initZAuth :: Opts -> IO ZAuth.ZAuthEnv
+initZAuth :: Opts -> IO ZAuthEnv
 initZAuth o = do
   let zOpts = Opt.zauth o
       privateKeys = Opt.privateKeys zOpts
       publicKeys = Opt.publicKeys zOpts
-  sk <- ZAuth.readKeys privateKeys
-  pk <- ZAuth.readKeys publicKeys
+  sk <- AuthenticationSubsystem.readKeys privateKeys
+  pk <- AuthenticationSubsystem.readKeys publicKeys
   case (sk, pk) of
     (Nothing, _) -> error ("No private key in: " ++ privateKeys)
     (_, Nothing) -> error ("No public key in: " ++ publicKeys)
-    (Just s, Just p) -> ZAuth.mkZAuthEnv s p $ Opt.authSettings zOpts
+    (Just s, Just p) -> AuthenticationSubsystem.mkZAuthEnv s p $ Opt.authSettings zOpts
 
 initHttpManager :: IO Manager
 initHttpManager = do

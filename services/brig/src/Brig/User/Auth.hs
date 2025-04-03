@@ -75,6 +75,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -105,7 +106,7 @@ login ::
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
-    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
@@ -206,7 +207,7 @@ withRetryLimit action uid = do
     action bkey budget
 
 logout ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
   List1 (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
@@ -222,7 +223,7 @@ renewAccess ::
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
     ZAuth.AccessTokenType u ~ a,
-    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Embed IO) r,
     Member (Input Env) r,
     Member Metrics r,
@@ -307,7 +308,7 @@ newAccess ::
     ZAuth.AccessTokenType u ~ a,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
-    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member Now r,
     Member AuthenticationSubsystem r,
@@ -392,7 +393,7 @@ isPendingActivation ident = case ident of
 --   given, we perform the usual checks.
 --   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member CryptoSign r, Member Now r) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -411,7 +412,7 @@ validateTokens uts at = do
       _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input ZAuth.ZAuthEnv) r, Member CryptoSign r, Member Now r) =>
+  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>
   ZAuth.Token u ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
@@ -432,7 +433,7 @@ ssoLogin ::
     Member UserSubsystem r,
     Member Events r,
     Member AuthenticationSubsystem r,
-    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
@@ -472,7 +473,7 @@ legalHoldLogin ::
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member Events r,
-    Member (Input ZAuth.ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,

@@ -52,8 +52,9 @@ import Wire.API.User.Auth.Sso
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Error (zauthError)
-import Wire.AuthenticationSubsystem.ZAuth hiding (settings)
+import Wire.AuthenticationSubsystem.ZAuth
 import Wire.BlockListStore
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
@@ -78,7 +79,7 @@ accessH ::
   ( Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Embed IO) r,
     Member Metrics r,
@@ -106,7 +107,7 @@ access ::
     UserTokenLike u,
     AccessTokenLike a,
     AccessTokenType u ~ a,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
@@ -141,7 +142,7 @@ login ::
     Member ActivationCodeStore r,
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
@@ -158,7 +159,7 @@ login l (fromMaybe False -> persist) = do
   traverse mkUserTokenCookie c
 
 logoutH ::
-  (Member (Input ZAuthEnv) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
+  (Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   Handler r ()
@@ -168,7 +169,7 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (UserTokenLike u, AccessTokenLike a, Member (Input ZAuthEnv) r, Member SessionStore r, Member CryptoSign r, Member Now r) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (UserTokenLike u, AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member CryptoSign r, Member Now r) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> StdError . zauthError
 
@@ -184,7 +185,7 @@ changeSelfEmail ::
     Member TinyLog r,
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member CryptoSign r,
     Member Now r
   ) =>
@@ -203,7 +204,7 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (UserTokenLike u, AccessTokenLike a, Member (Input ZAuthEnv) r, Member CryptoSign r, Member Now r) =>
+  (UserTokenLike u, AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
@@ -234,7 +235,7 @@ legalHoldLogin ::
     Member UserSubsystem r,
     Member Events r,
     Member AuthenticationSubsystem r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
@@ -254,7 +255,7 @@ ssoLogin ::
     Member AuthenticationSubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,

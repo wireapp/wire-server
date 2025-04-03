@@ -55,7 +55,7 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.User
-import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
+import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.EmailSending.SMTP (SMTPConnType (..))
 import Wire.RateLimit.Interpreter
 
@@ -291,7 +291,7 @@ data ZAuthOpts = ZAuthOpts
     -- | Public key file
     publicKeys :: !FilePath,
     -- | Other settings
-    authSettings :: !ZAuth.Settings
+    authSettings :: !ZAuthSettings
   }
   deriving (Show, Generic)
 

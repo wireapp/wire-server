@@ -62,7 +62,7 @@ import Util.Timeout
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
 import Wire.AuthenticationSubsystem
-import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
+import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics qualified as Metrics
@@ -83,7 +83,7 @@ nextCookie ::
     Member TinyLog r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Embed IO) r,
     Member CryptoSign r,
     Member Now r,
@@ -173,7 +173,7 @@ newAccessToken ::
   ( ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
     ZAuth.AccessTokenType u ~ a,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member CryptoSign r,
     Member Now r,
     Member Random r

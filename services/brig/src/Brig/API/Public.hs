@@ -153,7 +153,7 @@ import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
-import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
+import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
@@ -389,7 +389,7 @@ servantSitemap ::
     Member SparAPIAccess r,
     Member RateLimit r,
     Member EnterpriseLoginSubsystem r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member SessionStore r,
     Member (Input Env) r,
     Member Metrics r,

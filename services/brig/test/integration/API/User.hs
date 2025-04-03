@@ -33,11 +33,13 @@ import Brig.AWS qualified as AWS
 import Brig.App (initZAuth)
 import Brig.Options qualified as Opt
 import Cassandra qualified as DB
+import Data.Qualified
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
 import Util.AWS (UserJournalWatcher)
 import Wire.API.Federation.Component
+import Wire.AuthenticationSubsystem.Config
 
 tests ::
   Opt.Opts ->
@@ -55,13 +57,20 @@ tests ::
 tests conf fbc p b c ch g n aws db userJournalWatcher = do
   let cl = ConnectionLimit conf.settings.userMaxConnections
   let at = conf.settings.activationTimeout
-  z <- initZAuth conf
+  zauthEnv <- initZAuth conf
+  let localUnit = toLocalUnsafe conf.settings.federationDomain ()
+      authenticationSubsystemConfig =
+        AuthenticationSubsystemConfig
+          { zauthEnv = zauthEnv,
+            allowlistEmailDomains = conf.settings.allowlistEmailDomains,
+            local = localUnit
+          }
   pure $
     testGroup
       "user"
       [ API.User.Client.tests cl at conf p db n b c g,
         API.User.Account.tests cl at conf p b c ch g aws userJournalWatcher,
-        API.User.Auth.tests conf p z db b g n,
+        API.User.Auth.tests conf p authenticationSubsystemConfig db b g n,
         API.User.Connection.tests cl at p b c g fbc db,
         API.User.Handles.tests cl at conf p b c g,
         API.User.RichInfo.tests cl at conf p b c g

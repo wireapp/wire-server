@@ -95,7 +95,7 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
-import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
+import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.DomainRegistrationStore hiding (domain)
@@ -172,7 +172,7 @@ servantSitemap ::
     Member SparAPIAccess r,
     Member RateLimit r,
     Member SessionStore r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member Now r,
     Member CryptoSign r,
@@ -322,7 +322,7 @@ authAPI ::
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
-    Member (Input ZAuthEnv) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,

@@ -68,7 +68,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.HashPassword.Interpreter
 import Wire.Sem.Now (Now)
@@ -95,8 +95,8 @@ onlyIfLhWhitelisted action = do
           \(the 'withLHWhitelist' trick does not work because it does not allow \
           \brig to talk to the dynamically spawned galley)."
 
-tests :: Opts.Opts -> Manager -> ZAuthEnv -> DB.ClientState -> Brig -> Galley -> Nginz -> TestTree
-tests conf m z db b g n =
+tests :: Opts.Opts -> Manager -> AuthenticationSubsystemConfig -> DB.ClientState -> Brig -> Galley -> Nginz -> TestTree
+tests conf m authCfg db b g n =
   testGroup
     "auth"
     [ testGroup
@@ -133,12 +133,12 @@ tests conf m z db b g n =
         ],
       testGroup
         "refresh /access"
-        [ test m "invalid-token" (testInvalidToken z b),
-          test m "missing-cookie" (testMissingCookie @ZAuth.U z b),
-          test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LU z b),
-          test m "unknown-cookie" (testUnknownCookie @ZAuth.U z b),
-          test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LU z b),
-          test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
+        [ test m "invalid-token" (testInvalidToken authCfg b),
+          test m "missing-cookie" (testMissingCookie @ZAuth.U authCfg b),
+          test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LU authCfg b),
+          test m "unknown-cookie" (testUnknownCookie @ZAuth.U authCfg b),
+          test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LU authCfg b),
+          test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold authCfg b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
           testGroup "suspend-inactive" $ do
@@ -155,8 +155,8 @@ tests conf m z db b g n =
         "update /access/self/email"
         [ test m "valid token (idempotency case) (with cookie)" (testAccessSelfEmailAllowed n b True),
           test m "valid token (idempotency case) (without cookie)" (testAccessSelfEmailAllowed n b False),
-          test m "invalid or missing token (with cookie)" (testAccessSelfEmailDenied z n b True),
-          test m "invalid or missing token (without cookie)" (testAccessSelfEmailDenied z n b False)
+          test m "invalid or missing token (with cookie)" (testAccessSelfEmailDenied authCfg n b True),
+          test m "invalid or missing token (without cookie)" (testAccessSelfEmailDenied authCfg n b False)
         ],
       testGroup
         "cookies"
@@ -211,10 +211,10 @@ testLoginWith6CharPassword opts brig db = do
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
 
-randomAccessToken :: forall u r. (ZAuth.UserTokenLike u, Member (Input ZAuthEnv) r, Member (Embed IO) r, Member CryptoSign r, Member Now r, Member Random r) => Sem r AccessToken
+randomAccessToken :: forall u r. (ZAuth.UserTokenLike u, Member (Input AuthenticationSubsystemConfig) r, Member (Embed IO) r, Member CryptoSign r, Member Now r, Member Random r) => Sem r AccessToken
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
-randomUserToken :: (ZAuth.UserTokenLike u, Member (Embed IO) r, Member (Input ZAuthEnv) r, Member CryptoSign r, Member Now r, Member Random r) => Sem r (ZAuth.Token u)
+randomUserToken :: (ZAuth.UserTokenLike u, Member (Embed IO) r, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r, Member Random r) => Sem r (ZAuth.Token u)
 randomUserToken = do
   r <- Id <$> liftIO UUID.nextRandom
   ZAuth.newUserToken r Nothing
@@ -576,10 +576,10 @@ testNoUserSsoLogin brig = do
 -------------------------------------------------------------------------------
 -- Token Refresh
 
-testInvalidToken :: ZAuthEnv -> Brig -> Http ()
-testInvalidToken z b = do
+testInvalidToken :: AuthenticationSubsystemConfig -> Brig -> Http ()
+testInvalidToken authCfg b = do
   user <- Public.userId <$> randomUser b
-  t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.U user Nothing)
+  t <- toByteString' <$> runZAuth authCfg (ZAuth.newUserToken @ZAuth.U user Nothing)
 
   -- Syntactically invalid
   post (unversioned . b . path "/access" . queryItem "access_token" "xxx" . cookieRaw "zuid" t)
@@ -591,12 +591,12 @@ testInvalidToken z b = do
       const 403 === statusCode
       const (Just "Invalid token") =~= responseBody
 
-testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuthEnv -> Brig -> Http ()
-testMissingCookie z b = do
+testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => AuthenticationSubsystemConfig -> Brig -> Http ()
+testMissingCookie authCfg b = do
   -- Missing cookie, i.e. token refresh mandates a cookie.
   post (unversioned . b . path "/access")
     !!! errResponse
-  t <- BS.toStrict . (.access) <$> runZAuth z (randomAccessToken @u)
+  t <- BS.toStrict . (.access) <$> runZAuth authCfg (randomAccessToken @u)
   post (unversioned . b . path "/access" . header "Authorization" ("Bearer " <> t))
     !!! errResponse
   post (unversioned . b . path "/access" . queryItem "access_token" t)
@@ -607,16 +607,16 @@ testMissingCookie z b = do
       const (Just "Missing cookie") =~= responseBody
       const (Just "invalid-credentials") =~= responseBody
 
-testUnknownCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuthEnv -> Brig -> Http ()
-testUnknownCookie z b = do
+testUnknownCookie :: forall u. (ZAuth.UserTokenLike u) => AuthenticationSubsystemConfig -> Brig -> Http ()
+testUnknownCookie authCfg b = do
   -- Valid cookie but unknown to the server.
-  t <- toByteString' <$> runZAuth z (randomUserToken @u)
+  t <- toByteString' <$> runZAuth authCfg (randomUserToken @u)
   post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") =~= responseBody
 
-testTokenMismatchLegalhold :: ZAuthEnv -> Brig -> Galley -> Http ()
-testTokenMismatchLegalhold z brig galley = do
+testTokenMismatchLegalhold :: AuthenticationSubsystemConfig -> Brig -> Galley -> Http ()
+testTokenMismatchLegalhold authCfg brig galley = do
   u <- randomUser brig
   let Just email = userEmail u
   _rs <-
@@ -624,7 +624,7 @@ testTokenMismatchLegalhold z brig galley = do
       <!! const 200 === statusCode
   -- try refresh with a regular UserCookie but a LegalHoldAccessToken
   let c = decodeCookie _rs
-  t <- BS.toStrict . (.access) <$> runZAuth z (randomAccessToken @ZAuth.LU)
+  t <- BS.toStrict . (.access) <$> runZAuth authCfg (randomAccessToken @ZAuth.LU)
   post (unversioned . brig . path "/access" . cookie c . header "Authorization" ("Bearer " <> t)) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
@@ -633,7 +633,7 @@ testTokenMismatchLegalhold z brig galley = do
   putLHWhitelistTeam galley tid !!! const 200 === statusCode
   _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
   let c' = decodeCookie _rs
-  t' <- BS.toStrict . (.access) <$> runZAuth z (randomAccessToken @ZAuth.U)
+  t' <- BS.toStrict . (.access) <$> runZAuth authCfg (randomAccessToken @ZAuth.U)
   post (unversioned . brig . path "/access" . cookie c' . header "Authorization" ("Bearer " <> t')) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
@@ -666,7 +666,7 @@ testAccessSelfEmailAllowed nginz brig withCookie = do
     !!! const (if withCookie then 204 else 403) === statusCode
 
 -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
-testAccessSelfEmailDenied :: ZAuthEnv -> Nginz -> Brig -> Bool -> Http ()
+testAccessSelfEmailDenied :: AuthenticationSubsystemConfig -> Nginz -> Brig -> Bool -> Http ()
 testAccessSelfEmailDenied zenv nginz brig withCookie = do
   usr <- randomUser brig
   let Just email = userEmail usr
@@ -1185,5 +1185,5 @@ remJson p l ids =
       "ids" .= ids
     ]
 
-runZAuth :: (MonadIO m) => ZAuthEnv -> Sem '[Input ZAuthEnv, CryptoSign, Now, Random, Embed IO] a -> m a
+runZAuth :: (MonadIO m) => AuthenticationSubsystemConfig -> Sem '[Input AuthenticationSubsystemConfig, CryptoSign, Now, Random, Embed IO] a -> m a
 runZAuth zenv = liftIO . runM . randomToIO . nowToIO . runCryptoSign . runInputConst zenv

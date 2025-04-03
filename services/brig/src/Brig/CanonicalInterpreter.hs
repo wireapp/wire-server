@@ -31,14 +31,13 @@ import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.Internal.Kind
 import Polysemy.TinyLog (TinyLog)
 import Util.Timeout
-import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
-import Wire.AuthenticationSubsystem.ZAuth (ZAuthEnv)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.DeleteQueue
@@ -161,7 +160,7 @@ type BrigLowerLevelEffects =
      Input VerificationCodeThrottleTTL,
      Input UTCTime,
      Input (Local ()),
-     Input (Maybe AllowlistEmailDomains),
+     Input (AuthenticationSubsystemConfig),
      Input TeamTemplates,
      Input ZAuthEnv,
      -- TODO: Do not keep this around, move authentication subsystem stuff into
@@ -224,6 +223,13 @@ runBrigToIO e (AppT ma) = do
             maxValueLength = fromMaybe Opt.defMaxValueLen e.settings.propertyMaxValueLen,
             maxProperties = 16
           }
+      localUnit = toLocalUnsafe e.settings.federationDomain ()
+      authenticationSubsystemConfig =
+        AuthenticationSubsystemConfig
+          { zauthEnv = e.zauthEnv,
+            allowlistEmailDomains = e.settings.allowlistEmailDomains,
+            local = localUnit
+          }
       mainESEnv = e.indexEnv ^. to idxElastic
       indexedUserStoreConfig =
         IndexedUserStoreConfig
@@ -281,8 +287,8 @@ runBrigToIO e (AppT ma) = do
               . runInputConst e
               . runInputConst e.zauthEnv
               . runInputConst (teamTemplatesNoLocale e)
-              . runInputConst e.settings.allowlistEmailDomains
-              . runInputConst (toLocalUnsafe e.settings.federationDomain ())
+              . runInputConst authenticationSubsystemConfig
+              . runInputConst localUnit
               . runInputSem (embed getCurrentTime)
               . runInputConst (fromIntegral $ Opt.twoFACodeGenerationDelaySecs e.settings)
               . runInputConst userSubsystemConfig

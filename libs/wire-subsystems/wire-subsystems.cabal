@@ -72,6 +72,7 @@ library
     Wire.ActivationCodeStore
     Wire.ActivationCodeStore.Cassandra
     Wire.AuthenticationSubsystem
+    Wire.AuthenticationSubsystem.Config
     Wire.AuthenticationSubsystem.Cookie
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
