@@ -108,11 +108,14 @@ testTooManyCookies = do
             (deletedCookie1 : deletedCookie2 : validCookies) <-
               replicateM (cookieLimit + 2)
                 $ do
+                  -- This threadDelay is required to get around problems caused
+                  -- by: https://wearezeta.atlassian.net/browse/WPB-15446
+                  threadDelay 1_000_000
                   loginFn domain aliceEmail defPassword
                     `bindResponse` \resp -> do
                       resp.status `shouldMatchInt` 200
                       pure . fromJust $ getCookie "zuid" resp
-            addFailureContext ("deletedCookie1: " <> deletedCookie1 <> "\ndeletedCookie2: " <> deletedCookie2) $ do
+            addFailureContext ("deletedCookie1: " <> deletedCookie1 <> "\ndeletedCookie2: " <> deletedCookie2 <> "\nvalidCookies:\n" <> unlines validCookies) $ do
               forM_ [deletedCookie1, deletedCookie2] $ \deletedCookie -> do
                 renewToken alice deletedCookie `bindResponse` \resp ->
                   resp.status `shouldMatchInt` 403
