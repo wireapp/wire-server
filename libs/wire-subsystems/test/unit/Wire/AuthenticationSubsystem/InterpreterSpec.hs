@@ -30,7 +30,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.EmailSubsystem
 import Wire.HashPassword
-import Wire.MiniBackend (defaultZAuthEnv)
+import Wire.MiniBackend
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
@@ -69,9 +69,8 @@ type AllEffects =
 runAllEffects :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
 runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
   let cfg =
-        AuthenticationSubsystemConfig
-          { zauthEnv = defaultZAuthEnv,
-            allowlistEmailDomains = AllowlistEmailDomains <$> mAllowedEmailDomains,
+        defaultAuthenticationSubsystemConfig
+          { allowlistEmailDomains = AllowlistEmailDomains <$> mAllowedEmailDomains,
             local = toLocalUnsafe localDomain ()
           }
    in run

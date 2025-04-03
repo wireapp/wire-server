@@ -74,6 +74,7 @@ library
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Config
     Wire.AuthenticationSubsystem.Cookie
+    Wire.AuthenticationSubsystem.Cookie.Limit
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
     Wire.AuthenticationSubsystem.ZAuth
@@ -226,6 +227,7 @@ library
     , servant
     , servant-client-core
     , sodium-crypto-sign
+    , statistics
     , stomp-queue
     , template
     , text

@@ -25,7 +25,6 @@
 module Brig.Options where
 
 import Brig.Queue.Types (QueueOpts (..))
-import Brig.User.Auth.Cookie.Limit
 import Control.Applicative
 import Control.Lens hiding (Level, element, enum)
 import Data.Aeson
@@ -56,6 +55,7 @@ import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
+import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.EmailSending.SMTP (SMTPConnType (..))
 import Wire.RateLimit.Interpreter
 

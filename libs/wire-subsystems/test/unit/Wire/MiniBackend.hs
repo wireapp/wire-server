@@ -15,7 +15,7 @@ module Wire.MiniBackend
     runNoFederationStackUserSubsystemErrorEither,
     runErrorUnsafe,
     miniLocale,
-    defaultZAuthEnv,
+    defaultAuthenticationSubsystemConfig,
 
     -- * Mini events
     MiniEvent (..),
@@ -68,6 +68,7 @@ import Wire.API.User.Password
 import Wire.ActivationCodeStore
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
 import Wire.DeleteQueue
@@ -300,7 +301,10 @@ defaultAuthenticationSubsystemConfig =
   AuthenticationSubsystemConfig
     { zauthEnv = defaultZAuthEnv,
       allowlistEmailDomains = Nothing,
-      local = defaultLocalDomain
+      local = defaultLocalDomain,
+      userCookieRenewAge = 2,
+      userCookieLimit = 5,
+      userCookieThrottle = StdDevThrottle 5 3
     }
 
 defaultLocalDomain :: Local ()

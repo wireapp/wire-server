@@ -173,7 +173,6 @@ servantSitemap ::
     Member RateLimit r,
     Member SessionStore r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Input Env) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -323,7 +322,6 @@ authAPI ::
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Input Env) r,
     Member (Concurrency Unsafe) r,
     Member SessionStore r,
     Member Now r,

@@ -63,7 +63,10 @@ tests conf fbc p b c ch g n aws db userJournalWatcher = do
         AuthenticationSubsystemConfig
           { zauthEnv = zauthEnv,
             allowlistEmailDomains = conf.settings.allowlistEmailDomains,
-            local = localUnit
+            local = localUnit,
+            userCookieRenewAge = conf.settings.userCookieRenewAge,
+            userCookieLimit = conf.settings.userCookieLimit,
+            userCookieThrottle = conf.settings.userCookieThrottle
           }
   pure $
     testGroup

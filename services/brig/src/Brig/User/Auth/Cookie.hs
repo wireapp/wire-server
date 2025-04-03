@@ -40,7 +40,6 @@ where
 
 import Brig.App
 import Brig.Options hiding (user)
-import Brig.User.Auth.Cookie.Limit
 import Cassandra
 import Control.Error
 import Control.Monad.Except
@@ -62,7 +61,8 @@ import Util.Timeout
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
 import Wire.AuthenticationSubsystem
-import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
+import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics qualified as Metrics
@@ -79,7 +79,6 @@ import Wire.SessionStore qualified as Store
 -- exceeds the configured minimum threshold.
 nextCookie ::
   ( ZAuth.UserTokenLike u,
-    Member (Input Env) r,
     Member TinyLog r,
     Member Metrics r,
     Member SessionStore r,
@@ -100,10 +99,9 @@ nextCookie c mNewCid = runMaybeT $ do
   -- Keep old client ID by default, but use new one if none was set.
   let mcid = mOldCid <|> mNewCid
 
-  s <- lift . lift $ inputs @Env (.settings)
+  renewAge <- fmap fromInteger . lift . lift $ inputs (.userCookieRenewAge)
   now <- liftIO $ getCurrentTime
   let created = cookieCreated c
-  let renewAge = fromInteger s.userCookieRenewAge
   -- Renew the cookie if the client ID has changed, regardless of age.
   -- FUTUREWORK: Also renew the cookie if it was signed with a different zauth
   -- key index, regardless of age.
@@ -126,9 +124,9 @@ nextCookie c mNewCid = runMaybeT $ do
 -- | Renew the given cookie with a fresh token.
 renewCookie ::
   ( ZAuth.UserTokenLike u,
-    Member (Input Env) r,
     Member SessionStore r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input AuthenticationSubsystemConfig) r
   ) =>
   Cookie (ZAuth.Token u) ->
   Maybe ClientId ->
@@ -142,8 +140,7 @@ renewCookie old mcid = do
   -- around only for another renewal period so as not to build
   -- an ever growing chain of superseded cookies.
   let old' = old {cookieSucc = Just (cookieId new)}
-  -- TODO: Do not input the whole env
-  ttl <- inputs @Env (.settings.userCookieRenewAge)
+  ttl <- inputs (.userCookieRenewAge)
   Store.insertCookie uid (toUnitCookie old') (Just (Store.TTL (fromIntegral ttl)))
   pure new
 
@@ -223,7 +220,7 @@ newCookieLimited ::
   ( ZAuth.UserTokenLike t,
     Member SessionStore r,
     Member Now r,
-    Member (Input Env) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member AuthenticationSubsystem r
   ) =>
   UserId ->
@@ -234,8 +231,8 @@ newCookieLimited ::
 newCookieLimited u c typ label = do
   cs <- filter ((typ ==) . cookieType) <$> Store.listCookies u
   now <- Now.get
-  lim <- CookieLimit <$> inputs @Env (.settings.userCookieLimit)
-  thr <- inputs @Env (.settings.userCookieThrottle)
+  lim <- CookieLimit <$> inputs (.userCookieLimit)
+  thr <- inputs (.userCookieThrottle)
   let evict = map cookieId (limitCookies lim now cs)
   if null evict
     then Right <$> newCookie u c typ label

@@ -163,9 +163,6 @@ type BrigLowerLevelEffects =
      Input (AuthenticationSubsystemConfig),
      Input TeamTemplates,
      Input ZAuthEnv,
-     -- TODO: Do not keep this around, move authentication subsystem stuff into
-     -- the subsystem and remove this
-     Input App.Env,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -228,7 +225,10 @@ runBrigToIO e (AppT ma) = do
         AuthenticationSubsystemConfig
           { zauthEnv = e.zauthEnv,
             allowlistEmailDomains = e.settings.allowlistEmailDomains,
-            local = localUnit
+            local = localUnit,
+            userCookieRenewAge = e.settings.userCookieRenewAge,
+            userCookieLimit = e.settings.userCookieLimit,
+            userCookieThrottle = e.settings.userCookieThrottle
           }
       mainESEnv = e.indexEnv ^. to idxElastic
       indexedUserStoreConfig =
@@ -284,7 +284,6 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runInputConst e
               . runInputConst e.zauthEnv
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst authenticationSubsystemConfig

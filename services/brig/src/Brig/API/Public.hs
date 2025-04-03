@@ -391,7 +391,6 @@ servantSitemap ::
     Member EnterpriseLoginSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member SessionStore r,
-    Member (Input Env) r,
     Member Metrics r,
     Member CryptoSign r,
     Member Random r

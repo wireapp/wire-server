@@ -10,11 +10,15 @@ import Data.ZAuth.Creation qualified as ZC
 import Imports
 import Sodium.Crypto.Sign
 import Wire.API.Allowlists (AllowlistEmailDomains)
+import Wire.AuthenticationSubsystem.Cookie.Limit
 
 data AuthenticationSubsystemConfig = AuthenticationSubsystemConfig
   { local :: Local (),
     allowlistEmailDomains :: Maybe AllowlistEmailDomains,
-    zauthEnv :: ZAuthEnv
+    zauthEnv :: ZAuthEnv,
+    userCookieRenewAge :: Integer,
+    userCookieLimit :: Int,
+    userCookieThrottle :: CookieThrottle
   }
 
 data ZAuthSettings = ZAuthSettings

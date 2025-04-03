@@ -74,6 +74,7 @@
 , servant
 , servant-client-core
 , sodium-crypto-sign
+, statistics
 , stomp-queue
 , streaming-commons
 , string-conversions
@@ -167,6 +168,7 @@ mkDerivation {
     servant
     servant-client-core
     sodium-crypto-sign
+    statistics
     stomp-queue
     template
     text
