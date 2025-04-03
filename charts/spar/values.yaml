@@ -40,7 +40,7 @@ config:
   # SAML - ServiceProvider configuration
   # Usually, one would configure one set of options for a single domain. For
   # multi-ingress setups (one backend is available through multiple domains),
-  # configure a map with the domain as key.
+  # configure a map with the nginz domain as key.
   #
   # Single domain configuration
   # appUri: <webapp-uri> # E.g. https://webapp.<domain>
@@ -67,8 +67,9 @@ config:
   #         phone: <phone-number-string> # Optional
   #   <domain2>:
   #     ...
-  
-  # SCIM base URI (by default deduced from single-domain spSsoUri)
+
+  # SCIM base URI (by default deduced from single-domain spSsoUri, must be set
+  # for multi-ingress)
   # scimBaseUri: <uri> 
 
 podSecurityContext:
