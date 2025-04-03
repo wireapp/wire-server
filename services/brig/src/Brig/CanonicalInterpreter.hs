@@ -162,7 +162,6 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (AuthenticationSubsystemConfig),
      Input TeamTemplates,
-     Input ZAuthEnv,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -284,7 +283,6 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runInputConst e.zauthEnv
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst authenticationSubsystemConfig
               . runInputConst localUnit
