@@ -875,15 +875,14 @@ testInternalCommitDuplicateClient = do
   replicateM_ 2 $ uploadNewKeyPackage def alice2
   void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
 
-  void $ do
-    -- wipe key store
-    setClientGroupState alice2 def
-    (kp, _) <- generateKeyPackage alice2 def
+  -- wipe key store
+  setClientGroupState alice2 def
+  (kp, _) <- generateKeyPackage alice2 def
 
-    -- We cannot upload the new key package at this point, because the
-    -- signature key won't match. However, alice1 can still use it to craft an
-    -- add proposal.
-    mp <- createAddCommitWithKeyPackages alice1 convId [(alice2, kp)]
-    bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "mls-protocol-error"
+  -- We cannot upload the new key package at this point, because the
+  -- signature key won't match. However, alice1 can still use it to craft an
+  -- add proposal.
+  mp <- createAddCommitWithKeyPackages alice1 convId [(alice2, kp)]
+  bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"
