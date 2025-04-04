@@ -176,7 +176,6 @@ mkDerivation {
     optparse-applicative
     polysemy
     polysemy-plugin
-    polysemy-wire-zoo
     QuickCheck
     random
     raw-strings-qq

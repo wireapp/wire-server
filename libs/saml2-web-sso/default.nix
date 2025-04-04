@@ -62,6 +62,7 @@
 , temporary
 , text
 , time
+, tinylog
 , transformers
 , types-common
 , uniplate
@@ -137,6 +138,7 @@ mkDerivation {
     temporary
     text
     time
+    tinylog
     transformers
     types-common
     uniplate
@@ -207,6 +209,7 @@ mkDerivation {
     temporary
     text
     time
+    tinylog
     transformers
     types-common
     uniplate

@@ -17,7 +17,7 @@ import SAML2.WebSSO.Types
 import System.Environment
 import System.FilePath
 import System.IO
-import System.Logger (Level(..))
+import System.Logger (Level (..))
 import URI.ByteString
 import URI.ByteString.QQ
 
