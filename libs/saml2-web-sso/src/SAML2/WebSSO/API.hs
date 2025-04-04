@@ -49,6 +49,7 @@ import SAML2.WebSSO.XML
 import Servant.API as Servant hiding (URI (..))
 import Servant.Multipart
 import Servant.Server
+import System.Logger (Level (..))
 import Text.Hamlet.XML
 import Text.Show.Pretty (ppShow)
 import Text.XML
@@ -79,12 +80,6 @@ type API =
     :<|> APIAuthReq'
     :<|> APIAuthResp'
 
-api :: forall err m. (SPHandler (Error err) m) => ST -> HandleVerdict m -> ServerT API m
-api appName handleVerdict =
-  meta appName defSPIssuer defResponseURI defContactPersons
-    :<|> authreq' defSPIssuer
-    :<|> authresp' Nothing {- this is a lazy short-cut: no SPIds expected in this API -} defSPIssuer defResponseURI handleVerdict
-
 -- | The 'Issuer' is an identifier of a SAML participant.  In this case, it's the SP, ie.,
 -- ourselves.  For simplicity, we re-use the response URI here.
 defSPIssuer :: (Functor m, HasConfig m) => m Issuer
@@ -114,9 +109,6 @@ data AuthnResponseBody = AuthnResponseBody
     -- FUTUREWORK: this is only for dumping the error on the "something went wrong" page.  we
     -- should find a better solution there and remove it here.
   }
-
-renderAuthnResponseBody :: AuthnResponse -> LBS
-renderAuthnResponseBody = EL.encode . cs . encode
 
 -- | Implies verification, hence the constraints and the optional service provider ID (needed for IdP lookup).
 parseAuthnResponseBody ::
@@ -162,9 +154,6 @@ parseAuthnResponseBody mbSPId base64 = do
     creds <- idpToCreds issuer idp
     (,idp,mkUnvalidatedSAMLStatus (resp ^. rspStatus)) <$> simpleVerifyAuthnResponse creds xmltxt
   pure (signedAssertions, idp, status)
-
-authnResponseBodyToMultipart :: AuthnResponse -> MultipartData tag
-authnResponseBodyToMultipart resp = MultipartData [Input "SAMLResponse" (cs $ renderAuthnResponseBody resp)] []
 
 instance FromMultipart Mem AuthnResponseBody where
   fromMultipart resp = Right (AuthnResponseBody eval resp)

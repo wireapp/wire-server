@@ -7,7 +7,6 @@ module SAML2.WebSSO.Cookie
     cookieName,
     cookieToHeader,
     toggleCookie,
-    setSimpleCookieValue,
   )
 where
 
@@ -88,6 +87,3 @@ toggleCookie path =
 
 beginningOfTime :: Time
 beginningOfTime = unsafeReadTime "1970-01-01T00:00:00Z"
-
-setSimpleCookieValue :: SimpleSetCookie name -> SBS
-setSimpleCookieValue = setCookieValue . fromSimpleSetCookie

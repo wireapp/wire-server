@@ -20,7 +20,6 @@ module Text.XML.DSig
     parseKeyInfo,
     renderKeyInfo,
     certToCreds,
-    certToPublicKey,
     mkSignCreds,
     mkSignCredsWithCert,
 
@@ -162,9 +161,6 @@ certToCreds cert = do
     X509.PubKeyRSA pk -> pure $ SignKeyRSA pk
     bad -> throwError $ "unsupported: " <> show bad
   pure $ SignCreds digest key
-
-certToPublicKey :: (HasCallStack, MonadError String m) => X509.SignedCertificate -> m RSA.PublicKey
-certToPublicKey cert = certToCreds cert <&> \(SignCreds _ (SignKeyRSA key)) -> key
 
 mkSignCreds :: (Crypto.MonadRandom m, MonadIO m) => Int -> m (SignPrivCreds, SignCreds)
 mkSignCreds size = mkSignCredsWithCert Nothing size <&> \(priv, pub, _) -> (priv, pub)

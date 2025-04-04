@@ -19,6 +19,7 @@ import Hedgehog
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Arbitrary
 import SAML2.WebSSO.Test.Util
+import System.Logger (Level (..))
 import Test.Hspec
 import URI.ByteString.QQ
 

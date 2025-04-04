@@ -3,7 +3,6 @@
 
 module SAML2.WebSSO.Config where
 
-import Control.Exception
 import Control.Lens hiding (Level, element, enum, (.=))
 import Control.Monad (when)
 import Data.Aeson qualified as A
@@ -12,13 +11,13 @@ import Data.Map
 import Data.Map qualified as Map
 import Data.Schema
 import Data.String.Conversions
-import Data.Text qualified as T
 import Data.Yaml qualified as Yaml
 import GHC.Generics
 import SAML2.WebSSO.Types
 import System.Environment
 import System.FilePath
 import System.IO
+import System.Logger (Level (..))
 import URI.ByteString
 import URI.ByteString.QQ
 
@@ -51,11 +50,6 @@ data MultiIngressDomainConfig = MultiIngressDomainConfig
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema MultiIngressDomainConfig
-
--- | this looks exactly like tinylog's type, but we redefine it here to avoid the dependency.
-data Level = Trace | Debug | Info | Warn | Error | Fatal
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-  deriving (A.ToJSON, A.FromJSON) via Schema Level
 
 ----------------------------------------------------------------------
 -- schema-profunctor
@@ -142,18 +136,6 @@ instance ToSchema Config where
               _cfgRawContacts = Nothing
             }
 
-instance ToSchema Level where
-  schema =
-    enum @T.Text "Level" $
-      mconcat
-        [ element "Trace" Trace,
-          element "Debug" Debug,
-          element "Info" Info,
-          element "Warn" Warn,
-          element "Error" Error,
-          element "Fatal" Fatal
-        ]
-
 ----------------------------------------------------------------------
 -- default
 
@@ -210,31 +192,6 @@ readConfig filepath =
         "*** could not read config file: "
           <> show err
           <> "  using default!  see SAML.WebSSO.Config for details!"
-
--- | Convenience function to write a config file if you don't already have one.  Writes to
--- `$SAML2_WEB_SSO_ROOT/server.yaml`.  Warns if env does not contain the root.
-writeConfig :: Config -> IO ()
-writeConfig cfg = (`Yaml.encodeFile` cfg) =<< configFilePath
-
-idpConfigIO :: Config -> IO [IdPConfig_]
-idpConfigIO cfg = readIdPConfig cfg =<< idpConfigFilePath
-
-idpConfigFilePath :: IO FilePath
-idpConfigFilePath = (</> "idps.yaml") <$> getEnv "SAML2_WEB_SSO_ROOT"
-
-readIdPConfig :: Config -> FilePath -> IO [IdPConfig_]
-readIdPConfig cfg filepath =
-  either (throwIO . ErrorCall . show) (\cnf -> info cnf >> pure cnf)
-    =<< Yaml.decodeFileEither filepath
-  where
-    info :: [IdPConfig_] -> IO ()
-    info idps =
-      when (_cfgLogLevel cfg <= Info)
-        $ hPutStrLn stderr
-          . ("\n>>>known idps:\n" <>)
-          . cs
-          . Yaml.encode
-        $ idps
 
 ----------------------------------------------------------------------
 -- class

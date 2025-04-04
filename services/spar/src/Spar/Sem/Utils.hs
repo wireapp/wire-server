@@ -108,7 +108,7 @@ viaRunHttp env m = do
     Right a -> pure a
 
 instance (Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r) => TinyLog.MonadLogger (RunHttp r) where
-  log lvl msg = semToRunHttp $ Logger.log (Logger.fromLevel lvl) msg
+  log lvl msg = semToRunHttp $ Logger.log lvl msg
 
 instance
   ( Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r,

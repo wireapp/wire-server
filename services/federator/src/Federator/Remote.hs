@@ -45,11 +45,11 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Servant.Client.Core
+import System.Logger qualified as Log
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.Network.DNS.SRV
-import Wire.Sem.Logger.Level qualified as Log
 
 -- | An error that can occur as a result of making a request to a remote
 -- federator.

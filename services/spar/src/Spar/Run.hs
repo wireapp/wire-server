@@ -56,7 +56,6 @@ import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
-import Wire.Sem.Logger.TinyLog
 
 ----------------------------------------------------------------------
 -- cassandra
@@ -87,7 +86,7 @@ runServer sparCtxOpts = do
 
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
-  let logLevel = samlToLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
+  let logLevel = saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts) (logFormat sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- Bilge.newManager Bilge.defaultManagerSettings

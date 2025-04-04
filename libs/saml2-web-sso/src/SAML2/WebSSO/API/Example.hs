@@ -12,21 +12,15 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.EitherR (fmapL)
-import Data.Kind (Type)
 import Data.Map as Map
 import Data.Proxy
 import Data.String.Conversions
-import Data.UUID as UUID
 import Data.Void (Void)
-import GHC.Stack
-import Network.Wai hiding (Response)
-import SAML2.Util
 import SAML2.WebSSO
 import Servant.API hiding (URI (..))
 import Servant.Server
 import Text.Hamlet.XML
 import Text.XML
-import URI.ByteString
 
 ----------------------------------------------------------------------
 -- a simple concrete monad
@@ -196,24 +190,6 @@ instance GetAllIdPs SimpleError SimpleSP where
 ----------------------------------------------------------------------
 -- the app
 
--- | The most straight-forward 'Application' that can be constructed from 'api', 'API'.
-app :: Config -> [IdPConfig_] -> IO Application
-app cfg idps = app' (Proxy @SimpleSP) =<< mkSimpleSPCtx cfg idps
-
-app' ::
-  forall (m :: Type -> Type).
-  (SP m, MonadApp m) =>
-  Proxy m ->
-  NTCTX m ->
-  IO Application
-app' Proxy ctx = do
-  let served :: Application
-      served =
-        serve
-          (Proxy @APPAPI)
-          (hoistServer (Proxy @APPAPI) (nt @SimpleError @m ctx) appapi :: Server APPAPI)
-  pure . setHttpCachePolicy $ served
-
 type SPAPI =
   Header "Cookie" Cky :> Get '[HTML] LoginStatus
     :<|> "logout" :> "local" :> GetRedir '[HTML] (WithCookieAndLocation ST)
@@ -222,37 +198,6 @@ type SPAPI =
 type APPAPI =
   "sp" :> SPAPI
     :<|> "sso" :> API
-
-spapi :: (MonadApp m) => ServerT SPAPI m
-spapi = loginStatus :<|> localLogout :<|> singleLogout
-
-appapi :: (MonadApp m) => ServerT APPAPI m
-appapi = spapi :<|> api "toy-sp" (HandleVerdictRedirect (simpleOnSuccess SubjectFoldCase))
-
-loginStatus :: (GetAllIdPs err m, SP m) => Maybe Cky -> m LoginStatus
-loginStatus cookie = do
-  idpids <- getAllIdPs
-  loginOpts <- mkLoginOption `mapM` idpids
-  logoutPath <- getPath' SpPathLocalLogout
-  pure $ maybe (NotLoggedIn loginOpts) (LoggedInAs logoutPath . cs . setSimpleCookieValue) cookie
-
-mkLoginOption :: (Monad m, SP m) => IdPConfig a -> m (ST, ST)
-mkLoginOption icfg = (renderURI $ icfg ^. idpMetadata . edIssuer . fromIssuer,) <$> getPath' (SsoPathAuthnReq (icfg ^. idpId))
-
--- | only logout on this SP.
-localLogout :: (SPHandler SimpleError m) => m (WithCookieAndLocation ST)
-localLogout = do
-  uri <- getPath SpPathHome
-  cky <- toggleCookie "/" Nothing
-  pure . addHeader cky . addHeader uri $ "Logged out locally, redirecting to " <> renderURI uri
-
--- | acts weird (handles /sso/meta path)
-singleLogout :: (HasCallStack, SP m, Applicative m) => m (WithCookieAndLocation ST)
-singleLogout =
-  -- if we just say "error" instead of "pure . error" here, the routing algorithm in servant
-  -- will construct the handler and crash, even if the route for the handler does not match
-  -- the path in the request.
-  pure $ error "not implemented: singleLogout"
 
 data LoginStatus
   = NotLoggedIn [(ST {- issuer -}, ST {- authreq path -})]
@@ -297,22 +242,3 @@ data Path
   | SsoPathAuthnReq IdPId
   | SsoPathAuthnResp IdPId
   deriving (Eq, Show)
-
-getPath' :: forall m. (Monad m, HasConfig m) => Path -> m ST
-getPath' = fmap renderURI . getPath
-
-getPath :: forall m. (Monad m, HasConfig m) => Path -> m URI
-getPath path = do
-  cfg <- getMultiIngressDomainConfigNoMultiIngress
-  let sp, sso :: ST -> URI
-      sp = ((cfg ^. cfgSPAppURI) =/)
-      sso = ((cfg ^. cfgSPSsoURI) =/)
-      withidp :: IdPId -> URI -> URI
-      withidp (IdPId uuid) = (=/ UUID.toText uuid)
-  pure $ case path of
-    SpPathHome -> sp ""
-    SpPathLocalLogout -> sp "/logout/local"
-    SpPathSingleLogout -> sp "/logout/single"
-    SsoPathMeta ip -> withidp ip $ sso "/meta"
-    SsoPathAuthnReq ip -> withidp ip $ sso "/authreq"
-    SsoPathAuthnResp ip -> withidp ip $ sso "/authresp"

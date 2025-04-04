@@ -70,11 +70,11 @@ import Polysemy.Error hiding (throw)
 import Servant.API
 import Servant.Server qualified as Servant
 import Servant.Server.Generic
+import System.Logger qualified as Log
 import Wire.API.Federation.API (Component)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
 import Wire.API.Federation.Version
-import Wire.Sem.Logger.Level qualified as Log
 import Wire.Sem.Logger.TinyLog
 
 -- | This can be thrown by actions passed to mock federator to simulate
