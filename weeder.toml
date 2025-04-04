@@ -191,7 +191,21 @@ roots = [ # may of the entries here are about general-purpose module
          "^Wire.Sem.Metrics.incGauge$", # Used in wai-utilities
          "^Test.SAML2..*.spec$",
          "^Test.Text.XML..*.spec$",
-         "^Test.Text.XML..*.spec$"
+         "^Test.Text.XML..*.spec$",
+         "^SAML2.WebSSO.Types.baseID",
+         "^SAML2.WebSSO.Types.baseIDNameQ",
+         "^SAML2.WebSSO.Types.baseIDSPNameQ",
+         "^SAML2.WebSSO.Types.rqacAuthnContexts",
+         "^SAML2.WebSSO.Types.rqacComparison",
+         "^SAML2.WebSSO.Types._AuthnStatement",
+         "^SAML2.WebSSO.Types._UNameIDEmail",
+         "^SAML2.WebSSO.Types._UNameIDEntity",
+         "^SAML2.WebSSO.Types._UNameIDKerberos",
+         "^SAML2.WebSSO.Types._UNameIDPersistent",
+         "^SAML2.WebSSO.Types._UNameIDTransient",
+         "^SAML2.WebSSO.Types._UNameIDUnspecified",
+         "^SAML2.WebSSO.Types._UNameIDWindows",
+         "^SAML2.WebSSO.Types._UNameIDX509"
         ]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 

@@ -670,14 +670,6 @@ data Locality = Locality
   deriving (Eq, Show, Generic)
 
 ----------------------------------------------------------------------
--- helper functions
-
--- | pull statements from different assertions of same shape into the same assertion.
--- [1/2.3.3]
-normalizeAssertion :: [Assertion] -> [Assertion]
-normalizeAssertion = error "normalizeAssertion: not implemented"
-
-----------------------------------------------------------------------
 -- misc instances
 
 makeLenses ''AccessVerdict
