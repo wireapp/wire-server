@@ -211,31 +211,6 @@ readConfig filepath =
           <> show err
           <> "  using default!  see SAML.WebSSO.Config for details!"
 
--- | Convenience function to write a config file if you don't already have one.  Writes to
--- `$SAML2_WEB_SSO_ROOT/server.yaml`.  Warns if env does not contain the root.
-writeConfig :: Config -> IO ()
-writeConfig cfg = (`Yaml.encodeFile` cfg) =<< configFilePath
-
-idpConfigIO :: Config -> IO [IdPConfig_]
-idpConfigIO cfg = readIdPConfig cfg =<< idpConfigFilePath
-
-idpConfigFilePath :: IO FilePath
-idpConfigFilePath = (</> "idps.yaml") <$> getEnv "SAML2_WEB_SSO_ROOT"
-
-readIdPConfig :: Config -> FilePath -> IO [IdPConfig_]
-readIdPConfig cfg filepath =
-  either (throwIO . ErrorCall . show) (\cnf -> info cnf >> pure cnf)
-    =<< Yaml.decodeFileEither filepath
-  where
-    info :: [IdPConfig_] -> IO ()
-    info idps =
-      when (_cfgLogLevel cfg <= Info)
-        $ hPutStrLn stderr
-          . ("\n>>>known idps:\n" <>)
-          . cs
-          . Yaml.encode
-        $ idps
-
 ----------------------------------------------------------------------
 -- class
 

@@ -196,10 +196,6 @@ instance GetAllIdPs SimpleError SimpleSP where
 ----------------------------------------------------------------------
 -- the app
 
--- | The most straight-forward 'Application' that can be constructed from 'api', 'API'.
-app :: Config -> [IdPConfig_] -> IO Application
-app cfg idps = app' (Proxy @SimpleSP) =<< mkSimpleSPCtx cfg idps
-
 app' ::
   forall (m :: Type -> Type).
   (SP m, MonadApp m) =>

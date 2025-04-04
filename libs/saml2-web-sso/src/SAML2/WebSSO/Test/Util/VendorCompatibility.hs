@@ -37,13 +37,6 @@ testAuthRespApp ssoURI =
     spissuer = Issuer <$> respuri
     respuri = pure ssoURI
 
-vendorParseAuthResponse :: (HasCallStack) => FilePath -> URI.URI -> Spec
-vendorParseAuthResponse filePath ssoURI = testAuthRespApp ssoURI $ do
-  it filePath . runtest $ \_ctx -> do
-    authnrespRaw :: LT <- readSampleIO ("vendors/" <> filePath <> "-authnresp.xml")
-    _authnresp :: AuthnResponse <- either (error . show) pure $ decode authnrespRaw
-    pure ()
-
 vendorCompatibility :: (HasCallStack) => FilePath -> URI.URI -> Spec
 vendorCompatibility filePath ssoURI = testAuthRespApp ssoURI $ do
   let filePathMeta = "vendors/" <> filePath <> "-metadata.xml"
@@ -98,6 +91,3 @@ vendorCompatibility filePath ssoURI = testAuthRespApp ssoURI $ do
         when (statusCode (simpleStatus verdict) /= 303) . liftIO $ do
           putStrLn $ ppShow verdict
         liftIO $ statusCode (simpleStatus verdict) `shouldBe` 303
-
-eraseSampleIdPs :: Ctx -> Ctx
-eraseSampleIdPs = ctxIdPs .~ mempty -- SampleIdPs as we create them here have undefineds that will break showing.
