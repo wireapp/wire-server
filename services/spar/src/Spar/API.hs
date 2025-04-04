@@ -390,7 +390,7 @@ authresp mbtid arbody mbHost = do
     -- positive authentication, but better be lenient wrt what the IdP sends us here, it is
     -- about to get thrown away anyway.
     shouldRedirectToInit :: [SAML.DeniedReason] -> Bool
-    shouldRedirectToInit = any (\case SAML.DeniedNoInResponseTo _ -> True; _ -> False)
+    shouldRedirectToInit = any (\case SAML.DeniedNoInResponseTo -> True; _ -> False)
 
     redirectToInit :: IdP -> Sem r Void
     redirectToInit idp = do

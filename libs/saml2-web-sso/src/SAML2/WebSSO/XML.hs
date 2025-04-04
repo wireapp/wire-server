@@ -196,7 +196,7 @@ explainDeniedReason = \case
   DeniedStatusFailure -> "status: failure"
   DeniedBadUserRefs msg -> "bad user refs: " <> cs msg
   DeniedBadInResponseTos msg -> "bad InResponseTo attribute(s): " <> cs msg
-  DeniedNoInResponseTo _issuer ->
+  DeniedNoInResponseTo ->
     -- this can be turned into a redirect to simulate idp-initiated login.
     "authentication response without authentication request ID"
   DeniedAssertionIssueInstantNotInPast ts now ->

@@ -228,7 +228,7 @@ data DeniedReason
   = DeniedStatusFailure
   | DeniedBadUserRefs {deniedDetails :: String}
   | DeniedBadInResponseTos {deniedDetails :: String}
-  | DeniedNoInResponseTo {idpIssuer :: Issuer}
+  | DeniedNoInResponseTo
   | DeniedAssertionIssueInstantNotInPast {deniedTimestamp :: Time, deniedNow :: Time}
   | DeniedAuthnStatementIssueInstantNotInPast {deniedTimestamp :: Time, deniedNow :: Time}
   | DeniedBadRecipient {deniedWeExpected :: String, deniedTheyExpected :: String}
