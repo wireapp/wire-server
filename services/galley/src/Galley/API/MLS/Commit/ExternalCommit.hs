@@ -74,7 +74,6 @@ getExternalCommitData ::
   Sem r ExternalCommitAction
 getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
-      groupId = cnvmlsGroupId convOrSub.mlsMeta
   activeData <-
     note (mlsProtocolError "The first commit in a group cannot be external") $
       cnvmlsActiveData convOrSub.mlsMeta
@@ -102,7 +101,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 
   evalState convOrSub.indexMap $ do
     -- process optional removal
-    propAction <- applyProposals activeData.ciphersuite groupId proposals
+    propAction <- applyProposals activeData.ciphersuite proposals
     removedIndex <- case cmAssocs (paRemove propAction) of
       [(cid, idx)]
         | cid /= senderIdentity ->
