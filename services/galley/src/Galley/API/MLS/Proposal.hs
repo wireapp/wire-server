@@ -143,6 +143,7 @@ type HasProposalEffects r =
 derefOrCheckProposal ::
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
     Member ProposalStore r,
     Member (State IndexMap) r,
     Member (ErrorS 'MLSProposalNotFound) r
@@ -162,25 +163,14 @@ derefOrCheckProposal _epoch ciphersuite _ (Inline p) = do
 
 checkProposal ::
   ( Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r
   ) =>
   CipherSuiteTag ->
   IndexMap ->
   Proposal ->
   Sem r ()
-checkProposal ciphersuite im p = case p of
-  AddProposal kp -> do
-    (cs, _lifetime) <-
-      either
-        (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
-        pure
-        $ validateKeyPackage Nothing kp.value
-    -- we are not checking lifetime constraints here
-    unless (ciphersuite == cs) $
-      throw (mlsProtocolError "Key package ciphersuite does not match conversation")
-  RemoveProposal idx -> do
-    void $ noteS @'MLSInvalidLeafNodeIndex $ imLookup im idx
-  _ -> pure ()
+checkProposal ciphersuite im p = void $ evalState im $ applyProposal ciphersuite p
 
 addProposedClient :: (Member (State IndexMap) r) => ClientIdentity -> Sem r ProposalAction
 addProposedClient cid = do
@@ -196,12 +186,11 @@ applyProposals ::
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r
   ) =>
   CipherSuiteTag ->
-  GroupId ->
   [Proposal] ->
   Sem r ProposalAction
-applyProposals ciphersuite groupId =
+applyProposals ciphersuite =
   -- proposals are sorted before processing
-  foldMap (applyProposal ciphersuite groupId)
+  foldMap (applyProposal ciphersuite)
     . sortOn proposalProcessingStage
 
 applyProposal ::
@@ -211,10 +200,9 @@ applyProposal ::
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r
   ) =>
   CipherSuiteTag ->
-  GroupId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal ciphersuite _groupId (AddProposal kp) = do
+applyProposal ciphersuite (AddProposal kp) = do
   (cs, _lifetime) <-
     either
       (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
@@ -225,12 +213,12 @@ applyProposal ciphersuite _groupId (AddProposal kp) = do
   -- we are not checking lifetime constraints here
   cid <- getKeyPackageIdentity kp.value
   addProposedClient cid
-applyProposal _ciphersuite _groupId (RemoveProposal idx) = do
+applyProposal _ciphersuite (RemoveProposal idx) = do
   im <- get
   (cid, im') <- noteS @'MLSInvalidLeafNodeIndex $ imRemoveClient im idx
   put im'
   pure (paRemoveClient cid idx)
-applyProposal _activeData _groupId _ = pure mempty
+applyProposal _activeData _ = pure mempty
 
 processProposal ::
   (HasProposalEffects r) =>

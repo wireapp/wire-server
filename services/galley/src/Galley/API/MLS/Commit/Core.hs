@@ -117,7 +117,7 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
       traverse
         (derefOrCheckProposal epoch ciphersuite groupId)
         bundle.commit.value.proposals
-    action <- applyProposals ciphersuite groupId proposals
+    action <- applyProposals ciphersuite proposals
     pure (creatorAction <> action)
 
 incrementEpoch ::
