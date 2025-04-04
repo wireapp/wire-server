@@ -42,7 +42,7 @@ getMultiIngressDomainConfig config mbDomain =
   case (_cfgDomainConfigs config, mbDomain) of
     (Left cfg, _) -> pure cfg
     (Right cfgMap, Just d) -> Map.lookup d cfgMap
-    (_, _) -> Nothing
+    (Right _, Nothing) -> Nothing
 
 data MultiIngressDomainConfig = MultiIngressDomainConfig
   { _cfgSPAppURI :: URI,
@@ -92,10 +92,10 @@ instance ToSchema MultiIngressDomainConfig where
         <*> (_cfgContacts .= field "contacts" (array schema))
 
 instance ToSchema Config where
-  schema = u .= ((schema @ConfigRaw) `withParser` p)
+  schema = unprs .= ((schema @ConfigRaw) `withParser` prs)
     where
-      p :: ConfigRaw -> Yaml.Parser Config
-      p config@(ConfigRaw {..}) =
+      prs :: ConfigRaw -> Yaml.Parser Config
+      prs config@(ConfigRaw {..}) =
         case (_cfgRawDomainConfigs, _cfgRawSPAppURI, _cfgRawSPSsoURI, _cfgRawContacts) of
           (Nothing, Just _cfgSPAppURI, Just _cfgSPSsoURI, Just _cfgContacts) ->
             pure
@@ -119,8 +119,8 @@ instance ToSchema Config where
                 ++ show config
                 ++ " (give either all of `spAppUri`, `spSsoUri`, `contacts`, or `spDomainConfigs`)"
 
-      u :: Config -> ConfigRaw
-      u (Config {..}) = case _cfgDomainConfigs of
+      unprs :: Config -> ConfigRaw
+      unprs (Config {..}) = case _cfgDomainConfigs of
         Left MultiIngressDomainConfig {..} ->
           ConfigRaw
             { _cfgRawLogLevel = _cfgLogLevel,
