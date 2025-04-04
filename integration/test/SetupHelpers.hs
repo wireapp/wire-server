@@ -540,6 +540,7 @@ makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq =
       result <- SAML.runSimpleSP ctx action
       pure $ fromRight (error "simple sp action failed") result
 
+-- | extract an `AuthnRequest` from the html form in the http response from /sso/initiate-login
 parseAuthnReqResp ::
   ByteString ->
   SAML.AuthnRequest
