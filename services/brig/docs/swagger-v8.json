@@ -106,7 +106,8 @@
           "modify_conversation_access",
           "modify_other_conversation_member",
           "leave_conversation",
-          "delete_conversation"
+          "delete_conversation",
+          "modify_add_permission"
         ],
         "type": "string"
       },
@@ -204,6 +205,25 @@
           "accent_id",
           "assets",
           "event"
+        ],
+        "type": "object"
+      },
+      "AddPermission": {
+        "enum": [
+          "admins",
+          "everyone"
+        ],
+        "type": "string"
+      },
+      "AddPermissionUpdate": {
+        "description": "The action of changing the permission to add members to a channel",
+        "properties": {
+          "add_permission": {
+            "$ref": "#/components/schemas/AddPermission"
+          }
+        },
+        "required": [
+          "add_permission"
         ],
         "type": "object"
       },
@@ -1090,6 +1110,9 @@
             },
             "type": "array"
           },
+          "add_permission": {
+            "$ref": "#/components/schemas/AddPermission"
+          },
           "cells_state": {
             "$ref": "#/components/schemas/CellsState"
           },
@@ -1385,6 +1408,9 @@
             },
             "type": "array"
           },
+          "add_permission": {
+            "$ref": "#/components/schemas/AddPermission"
+          },
           "cells_state": {
             "$ref": "#/components/schemas/CellsState"
           },
@@ -1478,6 +1504,9 @@
               "$ref": "#/components/schemas/AccessRole"
             },
             "type": "array"
+          },
+          "add_permission": {
+            "$ref": "#/components/schemas/AddPermission"
           },
           "cells_state": {
             "$ref": "#/components/schemas/CellsState"
@@ -1573,6 +1602,9 @@
               "$ref": "#/components/schemas/AccessRole"
             },
             "type": "array"
+          },
+          "add_permission": {
+            "$ref": "#/components/schemas/AddPermission"
           },
           "cells_state": {
             "$ref": "#/components/schemas/CellsState"
@@ -1766,6 +1798,9 @@
               "$ref": "#/components/schemas/AccessRole"
             },
             "type": "array"
+          },
+          "add_permission": {
+            "$ref": "#/components/schemas/AddPermission"
           },
           "cells_state": {
             "$ref": "#/components/schemas/CellsState"
@@ -2560,7 +2595,7 @@
             "$ref": "#/components/schemas/UUID"
           },
           "data": {
-            "description": "Encrypted message of a conversation",
+            "description": "The action of changing the permission to add members to a channel",
             "example": "ZXhhbXBsZQo=",
             "properties": {
               "access": {
@@ -2577,6 +2612,9 @@
                   "$ref": "#/components/schemas/AccessRole"
                 },
                 "type": "array"
+              },
+              "add_permission": {
+                "$ref": "#/components/schemas/AddPermission"
               },
               "cells_state": {
                 "$ref": "#/components/schemas/CellsState"
@@ -2762,7 +2800,8 @@
               "sender",
               "recipient",
               "text",
-              "status"
+              "status",
+              "add_permission"
             ],
             "type": "object"
           },
@@ -2812,7 +2851,8 @@
           "conversation.otr-message-add",
           "conversation.mls-message-add",
           "conversation.mls-welcome",
-          "conversation.protocol-update"
+          "conversation.protocol-update",
+          "conversation.add-permission-update"
         ],
         "type": "string"
       },
@@ -4124,6 +4164,9 @@
               "$ref": "#/components/schemas/AccessRole"
             },
             "type": "array"
+          },
+          "add_permission": {
+            "$ref": "#/components/schemas/AddPermission"
           },
           "cells": {
             "type": "boolean"
@@ -12286,6 +12329,185 @@
         "summary": "Update access modes for a conversation"
       }
     },
+    "/conversations/{cnv_domain}/{cnv}/add-permission": {
+      "put": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"update-channel-add-permission\"]\n\n",
+        "operationId": "update-channel-add-permission",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cnv_domain",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Conversation ID",
+            "in": "path",
+            "name": "cnv",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPermissionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              },
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            },
+            "description": "Add permissions updated"
+          },
+          "204": {
+            "description": "Add permissions unchanged"
+          },
+          "403": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "example": {
+                    "code": 403,
+                    "label": "invalid-op",
+                    "message": "Invalid target access"
+                  },
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        403
+                      ],
+                      "type": "integer"
+                    },
+                    "label": {
+                      "enum": [
+                        "invalid-op",
+                        "not-connected",
+                        "operation-denied",
+                        "no-team-member",
+                        "access-denied",
+                        "action-denied"
+                      ],
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "label",
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid target access (label: `invalid-op`)\n\nUsers are not connected (label: `not-connected`)\n\nInsufficient permissions (label: `operation-denied`)\n\nRequesting user is not a team member (label: `no-team-member`)\n\nConversation access denied (label: `access-denied`)\n\nInvalid operation (label: `invalid-op`)\n\nInsufficient authorization (missing modify_add_permissions) (label: `action-denied`)"
+          },
+          "404": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "example": {
+                    "code": 404,
+                    "label": "no-team",
+                    "message": "Team not found"
+                  },
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        404
+                      ],
+                      "type": "integer"
+                    },
+                    "label": {
+                      "enum": [
+                        "no-team",
+                        "no-conversation"
+                      ],
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "label",
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "`cnv_domain` or `cnv` not found\n\nTeam not found (label: `no-team`)\n\nConversation not found (label: `no-conversation`)"
+          },
+          "409": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "properties": {
+                    "non_federating_backends": {
+                      "items": {
+                        "$ref": "#/components/schemas/Domain"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "non_federating_backends"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
+          },
+          "533": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "properties": {
+                    "unreachable_backends": {
+                      "items": {
+                        "$ref": "#/components/schemas/Domain"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "unreachable_backends"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Some domains are unreachable"
+          }
+        },
+        "summary": "Update the permissions for adding members to a channel"
+      }
+    },
     "/conversations/{cnv_domain}/{cnv}/groupinfo": {
       "get": {
         "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"get-group-info\"]\n\n",
@@ -13558,8 +13780,8 @@
                 "schema": {
                   "example": {
                     "code": 403,
-                    "label": "invalid-op",
-                    "message": "Invalid operation"
+                    "label": "mls-receipts-not-allowed",
+                    "message": "Read receipts on MLS conversations are not allowed"
                   },
                   "properties": {
                     "code": {
@@ -13570,6 +13792,7 @@
                     },
                     "label": {
                       "enum": [
+                        "mls-receipts-not-allowed",
                         "invalid-op",
                         "access-denied",
                         "action-denied"
@@ -13589,7 +13812,7 @@
                 }
               }
             },
-            "description": "Invalid operation (label: `invalid-op`)\n\nConversation access denied (label: `access-denied`)\n\nInsufficient authorization (missing modify_conversation_receipt_mode) (label: `action-denied`)"
+            "description": "Read receipts on MLS conversations are not allowed (label: `mls-receipts-not-allowed`)\n\nInvalid operation (label: `invalid-op`)\n\nConversation access denied (label: `access-denied`)\n\nInsufficient authorization (missing modify_conversation_receipt_mode) (label: `action-denied`)"
           },
           "404": {
             "content": {
