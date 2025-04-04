@@ -95,6 +95,8 @@ module SAML2.WebSSO.Types
     mkUNameIDUnspecified,
     mkUNameIDEmail,
     mkUNameIDEntity,
+    mkUNameIDPersistent,
+    mkUNameIDTransient,
     Status (..),
     Assertion (..),
     assID,
@@ -519,6 +521,12 @@ mkUNameIDEmail = either throwError (pure . UNameIDEmail) . Email.validate
 
 mkUNameIDEntity :: URI -> UnqualifiedNameID
 mkUNameIDEntity = UNameIDEntity
+
+mkUNameIDPersistent :: ST -> UnqualifiedNameID
+mkUNameIDPersistent = UNameIDPersistent . mkXmlText
+
+mkUNameIDTransient :: ST -> UnqualifiedNameID
+mkUNameIDTransient = UNameIDTransient . mkXmlText
 
 nameIDToST :: NameID -> CI.CI ST
 nameIDToST (NameID (UNameIDUnspecified txt) Nothing Nothing Nothing) = CI.mk $ escapeXmlText txt
