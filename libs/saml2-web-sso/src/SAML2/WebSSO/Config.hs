@@ -11,13 +11,13 @@ import Data.Map
 import Data.Map qualified as Map
 import Data.Schema
 import Data.String.Conversions
-import Data.Text qualified as T
 import Data.Yaml qualified as Yaml
 import GHC.Generics
 import SAML2.WebSSO.Types
 import System.Environment
 import System.FilePath
 import System.IO
+import System.Logger (Level(..))
 import URI.ByteString
 import URI.ByteString.QQ
 
@@ -50,11 +50,6 @@ data MultiIngressDomainConfig = MultiIngressDomainConfig
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema MultiIngressDomainConfig
-
--- | this looks exactly like tinylog's type, but we redefine it here to avoid the dependency.
-data Level = Trace | Debug | Info | Warn | Error | Fatal
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-  deriving (A.ToJSON, A.FromJSON) via Schema Level
 
 ----------------------------------------------------------------------
 -- schema-profunctor
@@ -140,18 +135,6 @@ instance ToSchema Config where
               _cfgRawSPSsoURI = Nothing,
               _cfgRawContacts = Nothing
             }
-
-instance ToSchema Level where
-  schema =
-    enum @T.Text "Level" $
-      mconcat
-        [ element "Trace" Trace,
-          element "Debug" Debug,
-          element "Info" Info,
-          element "Warn" Warn,
-          element "Error" Error,
-          element "Fatal" Fatal
-        ]
 
 ----------------------------------------------------------------------
 -- default

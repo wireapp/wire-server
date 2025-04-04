@@ -25,6 +25,7 @@ import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import SAML2.WebSSO.Config
 import SAML2.WebSSO.Types
 import Servant hiding (URI (..))
+import System.Logger (Level (..))
 import URI.ByteString
 
 ----------------------------------------------------------------------

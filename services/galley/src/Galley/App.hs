@@ -115,7 +115,6 @@ import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
 import Wire.Sem.Delay
-import Wire.Sem.Logger qualified
 import Wire.Sem.Random.IO
 
 -- Effects needed by the interpretation of other effects
@@ -223,7 +222,7 @@ interpretTinyLog ::
   Sem (P.TinyLog ': r) a ->
   Sem r a
 interpretTinyLog e = interpret $ \case
-  P.Log l m -> Logger.log (e ^. applog) (Wire.Sem.Logger.toLevel l) (reqIdMsg (e ^. reqId) . m)
+  P.Log l m -> Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
 
 evalGalleyToIO :: Env -> Sem GalleyEffects a -> IO a
 evalGalleyToIO env action = do

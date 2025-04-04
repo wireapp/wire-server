@@ -32,11 +32,11 @@ import Polysemy
 import Polysemy.Error qualified as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
+import System.Logger qualified as SemLog
 import System.Logger.Class qualified as Log
 import Wire.Network.DNS.Effect (DNSLookup)
 import Wire.Network.DNS.Effect qualified as Lookup
 import Wire.Network.DNS.SRV (SrvEntry (srvTarget), SrvResponse (..), SrvTarget)
-import Wire.Sem.Logger.Level qualified as SemLog
 
 data DiscoveryFailure
   = DiscoveryFailureSrvNotAvailable ByteString

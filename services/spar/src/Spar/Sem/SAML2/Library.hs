@@ -83,7 +83,7 @@ instance
   (Member (Logger String) r) =>
   HasLogger (SPImpl r)
   where
-  logger lvl = SPImpl . Logger.log (Logger.samlFromLevel lvl)
+  logger lvl = SPImpl . Logger.log lvl
 
 instance (Member (Embed IO) r) => MonadIO (SPImpl r) where
   liftIO = SPImpl . embed @IO

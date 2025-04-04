@@ -22,8 +22,8 @@ import Federator.Error
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai.Utilities.Error qualified as Wai
+import System.Logger qualified as Log
 import Wire.API.Federation.Domain
-import Wire.Sem.Logger.Level qualified as Log
 
 data ServerError
   = InvalidRoute

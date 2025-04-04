@@ -43,6 +43,7 @@ import SAML2.WebSSO.Config
 import SAML2.WebSSO.Cookie qualified as Cky
 import SAML2.WebSSO.Error as SamlErr
 import SAML2.WebSSO.SP
+import System.Logger (Level (..))
 import SAML2.WebSSO.Servant
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML

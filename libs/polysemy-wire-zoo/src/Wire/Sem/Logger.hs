@@ -19,13 +19,13 @@
 
 module Wire.Sem.Logger
   ( module Wire.Sem.Logger,
-    module Wire.Sem.Logger.Level,
+    Level (..),
   )
 where
 
 import Imports hiding (log)
 import Polysemy
-import Wire.Sem.Logger.Level
+import System.Logger (Level (..))
 
 data Logger msg m a where
   Log :: Level -> msg -> Logger msg m ()

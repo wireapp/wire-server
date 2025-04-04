@@ -218,7 +218,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
-import Wire.Sem.Logger.TinyLog
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -264,7 +263,7 @@ cliOptsParser =
 mkEnv :: (HasCallStack) => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv tstOpts opts = do
   mgr :: Manager <- newManager defaultManagerSettings
-  sparCtxLogger <- Log.mkLogger (samlToLevel $ saml opts ^. SAML.cfgLogLevel) (logNetStrings opts) (logFormat opts)
+  sparCtxLogger <- Log.mkLogger (saml opts ^. SAML.cfgLogLevel) (logNetStrings opts) (logFormat opts)
   cql :: ClientState <- initCassandra opts sparCtxLogger
   let brig = mkVersionedRequest tstOpts.brig
       galley = mkVersionedRequest tstOpts.galley
