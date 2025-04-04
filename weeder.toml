@@ -133,7 +133,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^SAML2.WebSSO.Types._UNameIDTransient",
          "^SAML2.WebSSO.Types._UNameIDUnspecified",
          "^SAML2.WebSSO.Types._UNameIDWindows",
-         "^SAML2.WebSSO.Types._UNameIDX509"
+         "^SAML2.WebSSO.Types._UNameIDX509",
          "^Spar.Sem.AReqIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.AssIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.ScimTokenStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
@@ -202,7 +202,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Wire.API.Password.mkSafePasswordScrypt$", # Used in testing
          "^Wire.Sem.Concurrency.IO.performConcurrency",
          "^Wire.Sem.Logger.fatal",
-         "^Wire.Sem.Metrics.incGauge$", # Used in wai-utilities
+         "^Wire.Sem.Metrics.incGauge$" # Used in wai-utilities
         ]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 
