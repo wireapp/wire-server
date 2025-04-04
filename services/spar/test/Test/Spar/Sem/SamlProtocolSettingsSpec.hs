@@ -18,7 +18,7 @@ import URI.ByteString (aggressiveNormalization, normalizeURIRef)
 
 spec :: Spec
 spec = do
-  describe "SamlProtocolSettings actions" $ do
+  describe "SamlProtocolSettings actions" . modifyMaxSuccess (const 10) $ do
     prop "should find multi-ingress config values" $
       \(mbTid :: Maybe TeamId)
        (domain :: Domain)

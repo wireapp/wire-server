@@ -35,17 +35,15 @@ In multi-ingress setups you have to configure the `scimBaseUri`, because it
 cannot be decided which `ssoUri` to take from the map.
 */}}
 {{- define "computeScimBaseUri" -}}
-{{- $scimBaseUri := .scimBaseUri -}}
-{{- $ssoUri := .ssoUri -}}
-{{- if $scimBaseUri -}}
-  {{- $scimBaseUri -}}
-{{- else if $ssoUri -}}
-  {{- $parts := splitList "/" $ssoUri -}}
+{{- if .scimBaseUri -}}
+  {{- .scimBaseUri -}}
+{{- else if .ssoUri -}}
+  {{- $parts := splitList "/" .ssoUri -}}
   {{- if eq (last $parts) "sso" -}}
     {{- $baseUri := $parts | reverse | rest | reverse | join "/" -}}
     {{- $baseUri -}}/scim/v2
   {{- else -}}
-    {{- $ssoUri -}}/scim/v2
+    {{- .ssoUri -}}/scim/v2
   {{- end -}}
 {{- else -}}
   {{- fail "Either scimBaseUri or ssoUri must be defined" -}}
