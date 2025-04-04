@@ -156,7 +156,7 @@ specMetadata = do
         mkit mdpath finalizepath = do
           it ("metadata (" <> mdpath <> ")") $ do
             env <- ask
-            let sparHost = env ^. teOpts . to saml . SAML.cfgSPSsoURI . to (cs . SAML.renderURI)
+            let sparHost = env ^. teOpts . to saml . SAML.cfgDomainConfigs . _Left . SAML.cfgSPSsoURI . to (cs . SAML.renderURI)
                 fragments =
                   [ "md:SPSSODescriptor",
                     "validUntil",

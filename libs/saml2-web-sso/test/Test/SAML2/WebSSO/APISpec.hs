@@ -154,7 +154,7 @@ spec = describe "API" $ do
       ctx <- mkTestCtxSimple
       c2 <- ioFromTestSP ctx $ toggleCookie @CookieName "/" (Just ("nick", defReqTTL))
       rndtrip c2 `shouldBe` Right c2
-  describe "meta" . withapp (Proxy @APIMeta') (meta "toy-sp" defSPIssuer defResponseURI) mkTestCtxSimple $ do
+  describe "meta" . withapp (Proxy @APIMeta') (meta "toy-sp" defSPIssuer defResponseURI defContactPersons) mkTestCtxSimple $ do
     it "responds with 200 and an 'SPSSODescriptor'" . runtest' $ do
       get "/meta"
         `shouldRespondWith` 200 {matchBody = bodyContains "OrganizationName xml:lang=\"EN\">toy-sp"}

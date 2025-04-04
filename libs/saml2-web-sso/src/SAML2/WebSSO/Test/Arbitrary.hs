@@ -158,10 +158,15 @@ genConfig = do
   _cfgLogLevel <- Gen.enumBounded
   _cfgSPHost <- cs <$> genNiceWord
   _cfgSPPort <- Gen.int (Range.linear 1 9999)
+  _cfgDomainConfigs <- Left <$> genMultiIngressDomainConfig
+  pure Config {..}
+
+genMultiIngressDomainConfig :: Gen MultiIngressDomainConfig
+genMultiIngressDomainConfig = do
   _cfgSPAppURI <- genHttps
   _cfgSPSsoURI <- genHttps
   _cfgContacts <- Gen.list (Range.linear 0 3) genSPContactPerson
-  pure Config {..}
+  pure MultiIngressDomainConfig {..}
 
 genSPContactPerson :: Gen ContactPerson
 genSPContactPerson =

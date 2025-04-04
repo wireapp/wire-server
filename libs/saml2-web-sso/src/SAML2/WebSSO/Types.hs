@@ -167,6 +167,7 @@ import Data.List qualified as L
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NL
 import Data.Maybe
+import Data.Schema qualified as Schema
 import Data.String.Conversions (ST, cs)
 import Data.Text qualified as ST
 import Data.Time (NominalDiffTime, UTCTime (..), addUTCTime, defaultTimeLocale, formatTime, parseTimeM)
@@ -190,6 +191,9 @@ import URI.ByteString
 -- for use cases like storing texts in a database.
 newtype XmlText = XmlText {unsafeFromXmlText :: ST}
   deriving (Eq, Ord, Show, Generic)
+
+instance Schema.ToSchema XmlText where
+  schema = mkXmlText <$> unsafeFromXmlText Schema..= (Schema.schema @ST.Text)
 
 -- | Construct an 'XmlText'
 mkXmlText :: ST -> XmlText
@@ -283,6 +287,18 @@ data ContactPerson = ContactPerson
   }
   deriving (Eq, Show, Generic)
 
+-- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
+instance Schema.ToSchema ContactPerson where
+  schema =
+    Schema.object "ContactPerson" $
+      ContactPerson
+        <$> (_cntType Schema..= Schema.field "type" Schema.schema)
+        <*> (_cntCompany Schema..= Schema.maybe_ (Schema.optField "company" Schema.schema))
+        <*> (_cntGivenName Schema..= Schema.maybe_ (Schema.optField "givenName" Schema.schema))
+        <*> (_cntSurname Schema..= Schema.maybe_ (Schema.optField "surname" Schema.schema))
+        <*> (_cntEmail Schema..= Schema.maybe_ (Schema.optField "email" Schema.schema))
+        <*> (_cntPhone Schema..= Schema.maybe_ (Schema.optField "phone" Schema.schema))
+
 data ContactType
   = ContactTechnical
   | ContactSupport
@@ -290,6 +306,18 @@ data ContactType
   | ContactBilling
   | ContactOther
   deriving (Eq, Enum, Bounded, Show, Generic)
+
+-- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
+instance Schema.ToSchema ContactType where
+  schema =
+    Schema.enum @ST.Text "ContactType" $
+      mconcat
+        [ Schema.element "ContactTechnical" ContactTechnical,
+          Schema.element "ContactSupport" ContactSupport,
+          Schema.element "ContactAdministrative" ContactAdministrative,
+          Schema.element "ContactBilling" ContactBilling,
+          Schema.element "ContactOther" ContactOther
+        ]
 
 data IdPMetadata = IdPMetadata
   { _edIssuer :: Issuer,

@@ -452,14 +452,30 @@ updateTestIdpWithMetaWithPrivateCreds owner idpId = do
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.
 loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App (Maybe String, SAML.SignedAuthnResponse)
-loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
+loginWithSaml = loginWithSamlWithZHost Nothing OwnDomain
+
+-- | Given a team configured with saml sso, attempt a login with valid credentials.  This
+-- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
+-- scim-provisioned users as well as saml auto-provisioning without scim.
+loginWithSamlWithZHost ::
+  (MakesValue domain, HasCallStack) =>
+  Maybe String ->
+  domain ->
+  Bool ->
+  String ->
+  String ->
+  (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) ->
+  App (Maybe String, SAML.SignedAuthnResponse)
+loginWithSamlWithZHost mbZHost domain expectSuccess tid email (iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
-  spmeta <- getSPMetadata OwnDomain tid
-  authnreq <- initiateSamlLogin OwnDomain iid
+  spmeta <- getSPMetadataWithZHost domain mbZHost tid
+  authnreq <- initiateSamlLoginWithZHost domain mbZHost iid
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
-  authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  mUid <- finalizeSamlLogin OwnDomain tid authnResp `bindResponse` validateLoginResp
-  pure (mUid, authnResp)
+      spMetaData = toSPMetaData spmeta.body
+      parsedAuthnReq = parseAuthnReqResp authnreq.body
+  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
+  mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
+  pure (mUid, authnReqResp)
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
@@ -507,34 +523,46 @@ loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
         [[_, uuid]] -> Just uuid
         _ -> Nothing
 
+makeAuthnResponse ::
+  SAML.NameID ->
+  SAML.SignPrivCreds ->
+  SAML.IdPConfig extra ->
+  SAML.SPMetadata ->
+  SAML.AuthnRequest ->
+  App SAML.SignedAuthnResponse
+makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq =
+  runSimpleSP $
+    SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig spMetaData parsedAuthnReq True
+  where
     runSimpleSP :: SAML.SimpleSP a -> App a
     runSimpleSP action = liftIO $ do
       ctx <- SAML.mkSimpleSPCtx undefined []
       result <- SAML.runSimpleSP ctx action
       pure $ fromRight (error "simple sp action failed") result
 
-    parseAuthnReqResp ::
-      ByteString ->
-      SAML.AuthnRequest
-    parseAuthnReqResp bs = reqBody
-      where
-        xml :: XML.Document
-        xml =
-          fromRight (error "malformed html in response body") $
-            XML.parseText XML.def (cs bs)
+-- | extract an `AuthnRequest` from the html form in the http response from /sso/initiate-login
+parseAuthnReqResp ::
+  ByteString ->
+  SAML.AuthnRequest
+parseAuthnReqResp bs = reqBody
+  where
+    xml :: XML.Document
+    xml =
+      fromRight (error "malformed html in response body") $
+        XML.parseText XML.def (cs bs)
 
-        reqBody :: SAML.AuthnRequest
-        reqBody =
-          (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
-            & head
-            & XML.attribute (fromString "value")
-            & head
-            & cs
-            & EL.decode
-            & fromRight (error "")
-            & cs
-            & SAML.decodeElem
-            & fromRight (error "")
+    reqBody :: SAML.AuthnRequest
+    reqBody =
+      (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
+        & head
+        & XML.attribute (fromString "value")
+        & head
+        & cs
+        & EL.decode
+        & fromRight (error "")
+        & cs
+        & SAML.decodeElem
+        & fromRight (error "")
 
 -- helpers
 

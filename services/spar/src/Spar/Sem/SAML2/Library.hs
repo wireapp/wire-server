@@ -174,11 +174,12 @@ saml2ToSaml2WebSso =
               (\x y z -> inspectOrBomb ins $ get_c $ (x, (y, z)) <$ s)
               ab
       pure $ x <$ s
-    Meta t ma mb -> do
+    Meta t ma mb mc -> do
       get_a <- runT ma
       get_b <- runT mb
+      get_c <- runT mc
       ins <- getInspectorT
-      x <- raise $ unSPImpl $ SAML.meta t (inspectOrBomb ins get_a) (inspectOrBomb ins get_b)
+      x <- raise $ unSPImpl $ SAML.meta t (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (inspectOrBomb ins get_c)
       s <- getInitialStateT
       pure $ x <$ s
     ToggleCookie sbs mp -> do

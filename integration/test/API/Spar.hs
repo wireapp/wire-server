@@ -115,19 +115,31 @@ getIdps user = do
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/sso-team-metadata
 getSPMetadata :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-getSPMetadata domain tid = do
+getSPMetadata = (flip getSPMetadataWithZHost) Nothing
+
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/sso-team-metadata
+getSPMetadataWithZHost :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> App Response
+getSPMetadataWithZHost domain mbZHost tid = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["sso", "metadata", tid]
-  submit "GET" req
+  submit "GET" (req & maybe id zHost mbZHost)
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-req
 initiateSamlLogin :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-initiateSamlLogin domain idpId = do
+initiateSamlLogin = (flip initiateSamlLoginWithZHost) Nothing
+
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-req
+initiateSamlLoginWithZHost :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> App Response
+initiateSamlLoginWithZHost domain mbZHost idpId = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["sso", "initiate-login", idpId]
-  submit "GET" req
+  submit "GET" (req & maybe id zHost mbZHost)
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-resp
 finalizeSamlLogin :: (HasCallStack, MakesValue domain) => domain -> String -> SAML.SignedAuthnResponse -> App Response
-finalizeSamlLogin domain tid (SAML.SignedAuthnResponse authnresp) = do
+finalizeSamlLogin = (flip finalizeSamlLoginWithZHost) Nothing
+
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-resp
+finalizeSamlLoginWithZHost :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> SAML.SignedAuthnResponse -> App Response
+finalizeSamlLoginWithZHost domain mbZHost tid (SAML.SignedAuthnResponse authnresp) = do
   baseRequest domain Spar Versioned (joinHttpPath ["sso", "finalize-login", tid])
     >>= formDataBody [partLBS (cs "SAMLResponse") . EL.encode . XML.renderLBS XML.def $ authnresp]
-    >>= submit "POST"
+    >>= \req -> submit "POST" (req & maybe id zHost mbZHost)
