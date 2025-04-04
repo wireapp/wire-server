@@ -3,7 +3,6 @@
 
 module SAML2.WebSSO.Test.Util.VendorCompatibility
   ( vendorCompatibility,
-    vendorParseAuthResponse,
   )
 where
 

@@ -3,7 +3,6 @@
 
 module SAML2.WebSSO.Config where
 
-import Control.Exception
 import Control.Lens hiding (Level, element, enum, (.=))
 import Control.Monad (when)
 import Data.Aeson qualified as A
