@@ -79,12 +79,6 @@ type API =
     :<|> APIAuthReq'
     :<|> APIAuthResp'
 
-api :: forall err m. (SPHandler (Error err) m) => ST -> HandleVerdict m -> ServerT API m
-api appName handleVerdict =
-  meta appName defSPIssuer defResponseURI defContactPersons
-    :<|> authreq' defSPIssuer
-    :<|> authresp' Nothing {- this is a lazy short-cut: no SPIds expected in this API -} defSPIssuer defResponseURI handleVerdict
-
 -- | The 'Issuer' is an identifier of a SAML participant.  In this case, it's the SP, ie.,
 -- ourselves.  For simplicity, we re-use the response URI here.
 defSPIssuer :: (Functor m, HasConfig m) => m Issuer

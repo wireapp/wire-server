@@ -157,7 +157,6 @@ test-suite spec
     Paths_saml2_web_sso
     Samples
     Test.SAML2.UtilSpec
-    Test.SAML2.WebSSO.API.ExampleSpec
     Test.SAML2.WebSSO.APISpec
     Test.SAML2.WebSSO.ConfigSpec
     Test.SAML2.WebSSO.RoundtripSpec
