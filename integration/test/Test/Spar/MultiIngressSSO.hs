@@ -39,7 +39,7 @@ testMultiIngressSSO = do
                           "spSsoUri" .= "https://nginz-https.ernie.example.com/sso",
                           "contacts" .= [object ["type" .= "ContactTechnical"]]
                         ],
-                    "nginz-https.bert.example.com"
+                    bertZHost
                       .= object
                         [ "spAppUri" .= "https://webapp.bert.example.com",
                           "spSsoUri" .= "https://nginz-https.bert.example.com/sso",
