@@ -75,7 +75,6 @@ module SAML2.WebSSO.Types
     ID (..),
     mkID,
     BaseID,
-    mkBaseID,
     baseID,
     baseIDNameQ,
     baseIDSPNameQ,
@@ -92,17 +91,10 @@ module SAML2.WebSSO.Types
     shortShowNameID,
     unsafeShowNameID,
     NameIDFormat (..),
-    nameIDFormat,
     UnqualifiedNameID (..),
     mkUNameIDUnspecified,
     mkUNameIDEmail,
-    mkUNameIDX509,
-    mkUNameIDWindows,
-    mkUNameIDKerberos,
     mkUNameIDEntity,
-    mkUNameIDPersistent,
-    mkUNameIDTransient,
-    unameIDFormat,
     Status (..),
     Assertion (..),
     assID,
@@ -146,13 +138,11 @@ module SAML2.WebSSO.Types
     Locality (..),
     localityAddress,
     localityDNSName,
-    normalizeAssertion,
     idPIdToST,
     assEndOfLife,
     assertionToInResponseTo,
     assertionsToUserRef,
     assertionToUserRef,
-    nelConcat,
   )
 where
 
@@ -177,7 +167,6 @@ import Foundation.Network.IPv4 qualified as IPv4
 import Foundation.Network.IPv6 qualified as IPv6
 import Foundation.Parser qualified as IP
 import GHC.Generics (Generic)
-import GHC.Stack
 import Network.DNS.Utils qualified as DNS
 import SAML2.Util
 import SAML2.WebSSO.Orphans ()
@@ -451,9 +440,6 @@ data BaseID = BaseID
   }
   deriving (Eq, Show, Generic)
 
-mkBaseID :: ST -> Maybe ST -> Maybe ST -> BaseID
-mkBaseID i n s = BaseID (mkXmlText i) (mkXmlText <$> n) (mkXmlText <$> s)
-
 -- | [1/2.2.2], [1/2.2.3], [1/3.4.1.1], see 'mkNameID' implementation for constraints on this type.
 data NameID = NameID
   { _nameID :: UnqualifiedNameID,
@@ -531,45 +517,8 @@ mkUNameIDUnspecified = UNameIDUnspecified . mkXmlText
 mkUNameIDEmail :: (MonadError String m) => ST -> m UnqualifiedNameID
 mkUNameIDEmail = either throwError (pure . UNameIDEmail) . Email.validate
 
-mkUNameIDX509 :: ST -> UnqualifiedNameID
-mkUNameIDX509 = UNameIDX509 . mkXmlText
-
-mkUNameIDWindows :: ST -> UnqualifiedNameID
-mkUNameIDWindows = UNameIDWindows . mkXmlText
-
-mkUNameIDKerberos :: ST -> UnqualifiedNameID
-mkUNameIDKerberos = UNameIDKerberos . mkXmlText
-
 mkUNameIDEntity :: URI -> UnqualifiedNameID
 mkUNameIDEntity = UNameIDEntity
-
-mkUNameIDPersistent :: ST -> UnqualifiedNameID
-mkUNameIDPersistent = UNameIDPersistent . mkXmlText
-
-mkUNameIDTransient :: ST -> UnqualifiedNameID
-mkUNameIDTransient = UNameIDTransient . mkXmlText
-
-nameIDFormat :: (HasCallStack) => NameIDFormat -> String
-nameIDFormat = \case
-  NameIDFUnspecified -> "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
-  NameIDFEmail -> "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-  NameIDFX509 -> "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
-  NameIDFWindows -> "urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName"
-  NameIDFKerberos -> "urn:oasis:names:tc:SAML:2.0:nameid-format:kerberos"
-  NameIDFEntity -> "urn:oasis:names:tc:SAML:2.0:nameid-format:entity"
-  NameIDFPersistent -> "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-  NameIDFTransient -> "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-
-unameIDFormat :: (HasCallStack) => UnqualifiedNameID -> String
-unameIDFormat = \case
-  UNameIDUnspecified _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
-  UNameIDEmail _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-  UNameIDX509 _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
-  UNameIDWindows _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName"
-  UNameIDKerberos _ -> "urn:oasis:names:tc:SAML:2.0:nameid-format:kerberos"
-  UNameIDEntity _ -> "urn:oasis:names:tc:SAML:2.0:nameid-format:entity"
-  UNameIDPersistent _ -> "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-  UNameIDTransient _ -> "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 
 nameIDToST :: NameID -> CI.CI ST
 nameIDToST (NameID (UNameIDUnspecified txt) Nothing Nothing Nothing) = CI.mk $ escapeXmlText txt
@@ -884,9 +833,3 @@ assertionToUserRef assertion =
   let issuer = assertion ^. assIssuer
       Subject subject _ = assertion ^. assContents . sasSubject
    in UserRef issuer subject
-
-----------------------------------------------------------------------
--- why is this not in the resp. packages?
-
-nelConcat :: NonEmpty (NonEmpty a) -> NonEmpty a
-nelConcat ((x :| xs) :| ys) = x :| mconcat (xs : (NL.toList <$> ys))
