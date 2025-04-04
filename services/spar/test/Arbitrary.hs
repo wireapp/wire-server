@@ -89,12 +89,7 @@ instance Arbitrary XmlText where
 instance Arbitrary ContactType where
   arbitrary =
     elements
-      [ ContactTechnical,
-        ContactSupport,
-        ContactAdministrative,
-        ContactBilling,
-        ContactOther
-      ]
+      [minBound..]
 
 -- This is not required by the servant-server instances, but the swagger
 -- tests want it. See https://github.com/haskell-servant/servant-swagger/issues/58
