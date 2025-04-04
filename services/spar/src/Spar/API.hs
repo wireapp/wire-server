@@ -377,14 +377,58 @@ authresp mbtid arbody mbHost = do
   logErrors $ SAML2.authResp mbtid iss rsp go arbody
   where
     go :: NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
+    go _assertions idp (SAML.AccessDenied (shouldRedirectToInit -> True)) = do
+      -- redirect back to idp for idp-initiated login.
+      redirectToInit idp
     go assertions verdict idp = do
+      -- handle the verdict
       SAML.ResponseVerdict result <- verdictHandler assertions idp verdict
       throw @SparError $ SAML.CustomServant result
 
+    -- Whenever at least one of the denied reasons is `DeniedNoInResponseTo`, try again.
+    -- there may be other reasons that will make the redirect less likely to result in a
+    -- positive authentication, but better be lenient wrt what the IdP sends us here, it is
+    -- about to get thrown away anyway.
+    shouldRedirectToInit :: [SAML.DeniedReason] -> Bool
+    shouldRedirectToInit = any (\case SAML.DeniedNoInResponseTo -> True; _ -> False)
+
+    redirectToInit :: IdP -> Sem r Void
+    redirectToInit idp = do
+      throw (SAML.CustomError (SparRequestMissingTryIdpInitiatedLogin initiateLoginEndPointText))
+      where
+        -- FUTUREWORK: success_url and error_url (used to distinguish between mobile and web)
+        -- are missing in this flow.  maybe the mobile browser can start app.wire.com, and
+        -- app.wire.com finds the app for us?  server-side solutions probably exist, but are
+        -- likely to make everything more complicated, both now and in the long run.  see
+        -- `APIAuthReq` route.
+        success_url = Nothing
+        error_url = Nothing
+
+        initiateLoginEndPoint :: URI
+        initiateLoginEndPoint =
+          ( safeLink'
+              linkURI
+              (Proxy @SparAPI)
+              (Proxy @("sso" :> "initiate-login" :> APIAuthReq))
+          )
+            success_url
+            error_url
+            (idp ^. SAML.idpId)
+
+        initiateLoginEndPointText :: T.Text
+        initiateLoginEndPointText =
+          T.pack ("/" <> uriPath initiateLoginEndPoint <> uriQuery initiateLoginEndPoint)
+
     logErrors :: Sem r Void -> Sem r Void
     logErrors action = catch @SparError action $ \case
-      e@(SAML.CustomServant _) -> throw e
+      e@(SAML.CustomServant _) ->
+        -- this is where the "you're ok, please come in" redirect response is coming from
+        throw e
+      e@(SAML.CustomError (SparRequestMissingTryIdpInitiatedLogin _)) -> do
+        -- redirect to /sso/initiate-login
+        throw e
       e -> do
+        -- something went wrong, log and fail
         throw @SparError
           . SAML.CustomServant
           $ errorPage

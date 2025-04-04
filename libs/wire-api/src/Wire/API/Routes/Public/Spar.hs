@@ -120,7 +120,7 @@ type APIAuthResp =
     ( "finalize-login"
         :> Capture "team" TeamId
         -- (SAML.APIAuthResp from here on, except for response)
-        :> MultipartForm Mem SAML.AuthnResponseBody
+        :> MultipartForm Mem SAML.AuthnResponseBody -- this is the *http request* body containing the *saml response*.
         :> ZHostOpt
         :> Post '[PlainText] Void
     )

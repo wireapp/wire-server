@@ -24,12 +24,12 @@ mkAuthnResponse ::
   SignPrivCreds ->
   IdPConfig extra ->
   SPMetadata ->
-  AuthnRequest ->
+  Maybe AuthnRequest ->
   Bool ->
   m SignedAuthnResponse
-mkAuthnResponse creds idp spmeta areq grant = do
+mkAuthnResponse creds idp spmeta mbareq grant = do
   subj <- unspecifiedNameID . UUID.toText <$> createUUID
-  mkAuthnResponseWithSubj subj creds idp spmeta areq grant
+  mkAuthnResponseWithSubj subj creds idp spmeta mbareq grant
 
 -- | Replace the 'NameID' child of the 'Subject' with a given one.
 --
@@ -42,7 +42,7 @@ mkAuthnResponseWithSubj ::
   SignPrivCreds ->
   IdPConfig extra ->
   SPMetadata ->
-  AuthnRequest ->
+  Maybe AuthnRequest ->
   Bool ->
   m SignedAuthnResponse
 mkAuthnResponseWithSubj subj = mkAuthnResponseWithModif modif id
@@ -66,7 +66,7 @@ mkAuthnResponseWithRawSubj ::
   SignPrivCreds ->
   IdPConfig extra ->
   SPMetadata ->
-  AuthnRequest ->
+  Maybe AuthnRequest ->
   Bool ->
   m SignedAuthnResponse
 mkAuthnResponseWithRawSubj subj = mkAuthnResponseWithModif modif id
@@ -87,10 +87,10 @@ mkAuthnResponseWithModif ::
   SignPrivCreds ->
   IdPConfig extra ->
   SPMetadata ->
-  AuthnRequest ->
+  Maybe AuthnRequest ->
   Bool ->
   m SignedAuthnResponse
-mkAuthnResponseWithModif modifUnsignedAssertion modifAll creds idp sp authnreq grantAccess = do
+mkAuthnResponseWithModif modifUnsignedAssertion modifAll creds idp sp mbauthnreq grantAccess = do
   let freshNCName = ("_" <>) . UUID.toText <$> createUUID
   assertionUuid <- freshNCName
   respUuid <- freshNCName
@@ -99,8 +99,8 @@ mkAuthnResponseWithModif modifUnsignedAssertion modifAll creds idp sp authnreq g
       expires = renderTime $ 3600 `addTime` now
       idpissuer :: ST = idp ^. idpMetadata . edIssuer . fromIssuer . to renderURI
       recipient :: ST = sp ^. spResponseURL . to renderURI
-      spissuer :: ST = authnreq ^. rqIssuer . fromIssuer . to renderURI
-      inResponseTo = escapeXmlText . fromID $ authnreq ^. rqID
+      mbspissuer :: Maybe ST = (^. rqIssuer . fromIssuer . to renderURI) <$> mbauthnreq
+      mbinResponseTo :: Maybe ST = escapeXmlText . fromID . (^. rqID) <$> mbauthnreq
       status
         | grantAccess = "urn:oasis:names:tc:SAML:2.0:status:Success"
         | otherwise = "urn:oasis:names:tc:SAML:2.0:status:Requester"
@@ -119,14 +119,20 @@ mkAuthnResponseWithModif modifUnsignedAssertion modifAll creds idp sp authnreq g
                 <NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">
                     #{"emil@email.com"}
                 <SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-                    <SubjectConfirmationData
-                      InResponseTo="#{inResponseTo}"
-                      NotOnOrAfter="#{expires}"
-                      Recipient="#{recipient}">
+                    $maybe inResponseTo <- mbinResponseTo
+                      <SubjectConfirmationData
+                        InResponseTo="#{inResponseTo}"
+                        NotOnOrAfter="#{expires}"
+                        Recipient="#{recipient}">
+                    $nothing
+                      <SubjectConfirmationData
+                        NotOnOrAfter="#{expires}"
+                        Recipient="#{recipient}">
             <Conditions NotBefore="#{issueInstant}" NotOnOrAfter="#{expires}">
-                <AudienceRestriction>
-                    <Audience>
-                        #{spissuer}
+                $maybe spissuer <- mbspissuer
+                    <AudienceRestriction>
+                        <Audience>
+                            #{spissuer}
             <AuthnStatement AuthnInstant="#{issueInstant}" SessionIndex="_e9ae1025-bc03-4b5a-943c-c9fcb8730b21">
                 <AuthnContext>
                     <AuthnContextClassRef>
@@ -134,14 +140,17 @@ mkAuthnResponseWithModif modifUnsignedAssertion modifAll creds idp sp authnreq g
       |]
   let authnResponse :: Element
       [NodeElement authnResponse] =
-        modifAll . repairNamespaces $
-          [xml|
+        -- it's safe to skip the `inResponseTo` attribute here because it is optional and
+        -- wire-server ignores it: it's not signed, and shouldn't be considered trustworthy no
+        -- matter what it contains.
+        modifAll
+          . repairNamespaces
+          $ [xml|
           <samlp:Response
             xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
             ID="#{respUuid}"
             Version="2.0"
             Destination="#{recipient}"
-            InResponseTo="#{inResponseTo}"
             IssueInstant="#{issueInstant}">
               <Issuer xmlns="urn:oasis:names:tc:SAML:2.0:assertion">
                   #{idpissuer}

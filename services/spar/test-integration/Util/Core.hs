@@ -823,7 +823,7 @@ tryLogin privkey idp userSubject = do
   let tid = idp ^. idpExtraInfo . team
   spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
-  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta (Just authnreq) True
   sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     statusCode sparresp `shouldBe` 200
@@ -838,7 +838,7 @@ tryLoginFail privkey idp userSubject bodyShouldContain = do
   let tid = idp ^. idpExtraInfo . team
   spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
-  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta (Just authnreq) True
   sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
@@ -919,7 +919,7 @@ loginCreatedSsoUser nameid idp privCreds = do
   let tid = idp ^. idpExtraInfo . team
   authnReq <- negotiateAuthnRequest idp
   spmeta <- getTestSPMetadata tid
-  authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta authnReq True
+  authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta (Just authnReq) True
   sparAuthnResp <- submitAuthnResponse tid authnResp
 
   let wireCookie = fromMaybe (error (show sparAuthnResp)) . lookup "Set-Cookie" $ responseHeaders sparAuthnResp

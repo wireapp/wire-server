@@ -46,6 +46,7 @@ import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
 import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
+import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
@@ -80,6 +81,7 @@ data SparCustomError
   | SparNoPermission LText
   | SparSSODisabled
   | SparNoSuchRequest
+  | SparRequestMissingTryIdpInitiatedLogin LText
   | SparNoRequestRefInResponse LText
   | SparCouldNotSubstituteSuccessURI LText
   | SparCouldNotSubstituteFailureURI LText
@@ -158,6 +160,10 @@ waiToServant waierr =
 
 renderSparError :: SparError -> Either ServerError Wai.Error
 renderSparError (SAML.CustomError SparNoSuchRequest) = Right $ Wai.mkError status500 "server-error" "AuthRequest seems to have disappeared (could not find verdict format)."
+renderSparError (SAML.CustomError (SparRequestMissingTryIdpInitiatedLogin (issuer :: LText))) = Left err303 {errHeaders = [("Location", cs issuer)]}
+  where
+    cs :: LText -> ByteString
+    cs = mconcat . ByteString.toChunks . LText.encodeUtf8
 renderSparError (SAML.CustomError (SparNoRequestRefInResponse msg)) = Right $ Wai.mkError status400 "server-error-unsupported-saml" ("The IdP needs to provide an InResponseTo attribute in the assertion: " <> msg)
 renderSparError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg)) = Right $ Wai.mkError status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 renderSparError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg)) = Right $ Wai.mkError status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)

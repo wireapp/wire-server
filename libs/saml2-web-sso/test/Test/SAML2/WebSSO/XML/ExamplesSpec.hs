@@ -86,7 +86,7 @@ spec = describe "XML serialization" $ do
             createAuthnRequest 3600 spiss idpiss
           SignedAuthnResponse doc <-
             ioFromTestSP ctx $
-              mkAuthnResponseWithRawSubj nameId sampleIdPPrivkey testIdPConfig spmeta authnreq True
+              mkAuthnResponseWithRawSubj nameId sampleIdPPrivkey testIdPConfig spmeta (Just authnreq) True
           let parsed :: Either String AuthnResponse = parseFromDocument @AuthnResponse doc
           case expectedsubj of
             Nothing -> do
