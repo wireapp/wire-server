@@ -94,7 +94,7 @@ generateClientPrekeys brig prekeys = do
   quser <- userQualifiedId <$> randomUser brig
   let mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
       nclients = map mkClient prekeys
-      mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
+      mkClientPrekey (pk, _) (c :: Client) = ClientPrekey c.clientId pk
   clients <- traverse (responseJsonError <=< addClient brig (qUnqualified quser)) nclients
   pure (quser, zipWith mkClientPrekey prekeys clients)
 

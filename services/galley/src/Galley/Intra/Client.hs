@@ -129,7 +129,7 @@ addLegalHoldClientToUser ::
   LastPrekey ->
   App (Either AuthenticationError ClientId)
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
-  fmap clientId <$> brigAddClient uid connId lhClient
+  fmap (.clientId) <$> brigAddClient uid connId lhClient
   where
     lhClient =
       NewClient

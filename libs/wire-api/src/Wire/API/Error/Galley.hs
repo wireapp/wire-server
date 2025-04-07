@@ -108,6 +108,7 @@ data GalleyError
   | -- | MLS and federation are incompatible with legalhold - this error is thrown if a user
     -- tries to create an MLS group while being under legalhold
     MLSLegalholdIncompatible
+  | MLSIdentityMismatch
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -263,6 +264,8 @@ type instance MapError 'MLSMigrationCriteriaNotSatisfied = 'StaticError 400 "mls
 type instance MapError 'MLSFederatedOne2OneNotSupported = 'StaticError 400 "mls-federated-one2one-not-supported" "Federated One2One MLS conversations are only supported in API version >= 6"
 
 type instance MapError MLSLegalholdIncompatible = 'StaticError 409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
+
+type instance MapError 'MLSIdentityMismatch = 'StaticError 403 "mls-identity-mismatch" "Leaf node signature key does not match client's"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

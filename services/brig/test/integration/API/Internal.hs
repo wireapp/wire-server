@@ -102,17 +102,17 @@ testGetMlsClients brig = do
             <!! const 200 === statusCode
 
   cs0 <- getClients
-  liftIO $ toList cs0 @?= [ClientInfo c False]
+  liftIO $ toList cs0 @?= [ClientInfo c mempty False]
 
   withSystemTempDirectory "mls" $ \tmp ->
     uploadKeyPackages brig tmp def qusr c 2
 
   cs1 <- getClients
-  liftIO $ toList cs1 @?= [ClientInfo c True]
+  liftIO $ toList cs1 @?= [ClientInfo c mempty True]
 
 createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
 createClient brig u i =
-  fmap clientId $
+  fmap ((.clientId) :: Client -> ClientId) $
     responseJsonError
       =<< addClient
         brig

@@ -116,7 +116,9 @@ type MLSMessageStaticErrors =
 type MLSBundleStaticErrors =
   Append
     MLSMessageStaticErrors
-    '[ErrorS 'MLSWelcomeMismatch]
+    '[ ErrorS 'MLSWelcomeMismatch,
+       ErrorS 'MLSIdentityMismatch
+     ]
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -152,6 +154,7 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
 
 postMLSCommitBundle ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
+    Member (ErrorS MLSIdentityMismatch) r,
     Member Random r,
     Member Resource r,
     Member SubConversationStore r,
@@ -175,6 +178,7 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
 
 postMLSCommitBundleFromLocalUser ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
+    Member (ErrorS MLSIdentityMismatch) r,
     Member Random r,
     Member Resource r,
     Member SubConversationStore r,
@@ -198,6 +202,7 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
 
 postMLSCommitBundleToLocalConv ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
+    Member (ErrorS MLSIdentityMismatch) r,
     Member Random r,
     Member Resource r,
     Member SubConversationStore r,

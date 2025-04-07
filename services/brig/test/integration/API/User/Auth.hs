@@ -29,7 +29,7 @@ import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
 import Brig.Options qualified as Opts
-import Cassandra hiding (Value)
+import Cassandra hiding (Client, Value)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Retry
@@ -777,7 +777,7 @@ testAccessWithClientId brig = do
       PersistentCookie
       <!! const 200 === statusCode
   let c = decodeCookie rs
-  cl <-
+  cl :: Client <-
     responseJsonError
       =<< addClient
         brig
@@ -789,7 +789,7 @@ testAccessWithClientId brig = do
       ( unversioned
           . brig
           . path "/access"
-          . queryItem "client_id" (toByteString' (clientId cl))
+          . queryItem "client_id" (toByteString' cl.clientId)
           . cookie c
       )
       <!! const 200 === statusCode
@@ -799,9 +799,9 @@ testAccessWithClientId brig = do
     let Just token = fromByteString @(ZAuth.Token ZAuth.U) (cookie_value ck)
         atoken = decodeToken' @ZAuth.A r
     assertSanePersistentCookie @ZAuth.U ck
-    token.body.client @?= Just (clientToText (clientId cl))
+    token.body.client @?= Just (clientToText cl.clientId)
     assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.A r)
-    atoken.body.clientId @?= Just (clientToText (clientId cl))
+    atoken.body.clientId @?= Just (clientToText cl.clientId)
 
 -- here a fresh client gets a token without client_id first, then allocates a
 -- new client ID and finally calls access again with the new client_id
@@ -828,7 +828,7 @@ testAccessWithClientIdAndOldToken brig = do
             . cookie c
         )
         <!! const 200 === statusCode
-  cl <-
+  cl :: Client <-
     responseJsonError
       =<< addClient
         brig
@@ -840,7 +840,7 @@ testAccessWithClientIdAndOldToken brig = do
       ( unversioned
           . brig
           . path "/access"
-          . queryItem "client_id" (toByteString' (clientId cl))
+          . queryItem "client_id" (toByteString' cl.clientId)
           . header "Authorization" ("Bearer " <> toByteString' token0)
           . cookie c
       )
@@ -851,9 +851,9 @@ testAccessWithClientIdAndOldToken brig = do
         Just token = fromByteString @(ZAuth.Token ZAuth.U) (cookie_value ck)
         atoken = decodeToken' @ZAuth.A r
     assertSanePersistentCookie @ZAuth.U ck
-    token.body.client @?= Just (clientToText (clientId cl))
+    token.body.client @?= Just (clientToText cl.clientId)
     assertSaneAccessToken now (userId u) atoken
-    atoken.body.clientId @?= Just (clientToText (clientId cl))
+    atoken.body.clientId @?= Just (clientToText cl.clientId)
 
 testAccessWithIncorrectClientId :: Brig -> Http ()
 testAccessWithIncorrectClientId brig = do
@@ -897,7 +897,7 @@ testAccessWithExistingClientId brig = do
       PersistentCookie
       <!! const 200 === statusCode
   let c0 = decodeCookie rs
-  cl <-
+  cl :: Client <-
     responseJsonError
       =<< addClient
         brig
@@ -913,7 +913,7 @@ testAccessWithExistingClientId brig = do
         ( unversioned
             . brig
             . path "/access"
-            . queryItem "client_id" (toByteString' (clientId cl))
+            . queryItem "client_id" (toByteString' cl.clientId)
             . cookie c0
         )
         <!! const 200 === statusCode
@@ -934,14 +934,14 @@ testAccessWithExistingClientId brig = do
           Just token = fromByteString @(ZAuth.Token ZAuth.U) (cookie_value ck)
           atoken = decodeToken' @ZAuth.A r
       assertSanePersistentCookie @ZAuth.U ck
-      token.body.client @?= Just (clientToText (clientId cl))
+      token.body.client @?= Just (clientToText cl.clientId)
       assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.A r)
-      atoken.body.clientId @?= Just (clientToText (clientId cl))
+      atoken.body.clientId @?= Just (clientToText cl.clientId)
     pure (decodeCookie r)
 
   -- now access with a different client ID
   do
-    cl2 <-
+    cl2 :: Client <-
       responseJsonError
         =<< addClient
           brig
@@ -952,7 +952,7 @@ testAccessWithExistingClientId brig = do
       ( unversioned
           . brig
           . path "/access"
-          . queryItem "client_id" (toByteString' (clientId cl2))
+          . queryItem "client_id" (toByteString' cl2.clientId)
           . cookie c2
       )
       !!! const 403 === statusCode
