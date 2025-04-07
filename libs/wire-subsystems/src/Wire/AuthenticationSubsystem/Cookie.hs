@@ -26,9 +26,11 @@ newCookieImpl ::
 newCookieImpl uid cid typ label = do
   now <- Now.get
   tok <-
-    if typ == PersistentCookie
-      then newUserToken uid cid
-      else mapError AuthenticationSubsystemZAuthFailure $ fromEither =<< newSessionToken uid cid
+    case typ of
+      PersistentCookie -> newUserToken uid cid
+      SessionCookie ->
+        mapError AuthenticationSubsystemZAuthFailure . fromEither
+          =<< newSessionToken uid cid
   let c =
         Cookie
           { cookieId = CookieId tok.body.rand,
