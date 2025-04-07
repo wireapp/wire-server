@@ -20,10 +20,31 @@
 module Test.Proxy where
 
 import API.Proxy
+import Control.Monad.Codensity
+import Control.Monad.Reader
+import qualified Network.Wai as Wai
+import Servant
+import SetupHelpers.Proxied
+import Testlib.Mock
 import Testlib.Prelude
 
 testProxyGiphy :: App ()
 testProxyGiphy = do
-  getGiphy OwnDomain `bindResponse` \resp -> do
-    -- resp.body `shouldBe` ~/src/wire-server/integration/sample-giphy-response.json
-    resp.status `shouldMatchInt` 200
+  lowerCodensity $ do
+    port <- startMockServer def app
+    lift
+      $ withModifiedBackend
+        def
+          { wireProxyCfg = setField "giphyEndpoint" (object ["host" .= "localhost", "port" .= port])
+          }
+        ( \domain -> do
+            getGiphy domain `bindResponse` \resp -> do
+              -- resp.body `shouldBe` ~/src/wire-server/integration/sample-giphy-response.json
+              resp.status `shouldMatchInt` 200
+        )
+  where
+    app :: Wai.Application
+    app = serve (Proxy :: Proxy GiphyAPI) server
+
+    server :: Server GiphyAPI
+    server _apiKey _q _limit _offset = pure NoContent

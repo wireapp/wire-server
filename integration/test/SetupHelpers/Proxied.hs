@@ -21,5 +21,7 @@ type GiphyAPI =
     :> QueryParam "offset" Int
     :> Get '[JSON] NoContent
 
+-- TODO: Does this belong here? Wouldn't it be better if the tests could define
+-- their mocks themselves?
 giphyAPI :: Server GiphyAPI
 giphyAPI = undefined
