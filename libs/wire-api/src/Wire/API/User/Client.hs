@@ -373,9 +373,11 @@ qualifiedUserClientPrekeyMapFromList =
 -- | A client, together with extra information about it.
 data ClientInfo = ClientInfo
   { -- | The ID of this client.
-    ciId :: ClientId,
-    -- | Whether this client is MLS-capable.
-    ciMLS :: Bool
+    clientId :: ClientId,
+    -- | The signature keys of this client
+    mlsSignatureKeys :: MLSPublicKeys,
+    -- | Whether this client has any key packages
+    hasKeyPackages :: Bool
   }
   deriving stock (Eq, Ord, Show)
   deriving (Swagger.ToSchema, FromJSON, ToJSON) via Schema ClientInfo
@@ -384,8 +386,9 @@ instance ToSchema ClientInfo where
   schema =
     object "ClientInfo" $
       ClientInfo
-        <$> ciId .= field "id" schema
-        <*> ciMLS .= field "mls" schema
+        <$> (.clientId) .= field "id" schema
+        <*> (.mlsSignatureKeys) .= field "mls_signature_key" mlsPublicKeysSchema
+        <*> (.hasKeyPackages) .= field "has_key_packages" schema
 
 --------------------------------------------------------------------------------
 -- UserClients
@@ -536,7 +539,7 @@ clientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Client
 clientSchema mVersion =
   object (versionedName mVersion "Client") $
     Client
-      <$> clientId .= field "id" schema
+      <$> (.clientId) .= field "id" schema
       <*> clientType .= field "type" schema
       <*> clientTime .= field "time" schema
       <*> clientClass .= maybe_ (optField "class" schema)
@@ -582,7 +585,7 @@ mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
 
 instance AsHeaders '[ClientId] Client Client where
-  toHeaders c = (I (clientId c) :* Nil, c)
+  toHeaders c = (I c.clientId :* Nil, c)
   fromHeaders = snd
 
 --------------------------------------------------------------------------------

@@ -59,6 +59,7 @@ import Wire.API.Event.LeaveReason
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
@@ -71,6 +72,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member SubConversationStore r,
     Member Resource r,
@@ -167,13 +169,32 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                     pure Nothing
                   Nothing -> do
                     -- final set of clients in the conversation
-                    let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
+                    let clients =
+                          Map.keysSet
+                            ( fmap fst newclients
+                                <> Map.findWithDefault mempty qtarget cm
+                            )
                     -- get list of mls clients from Brig (local or remote)
                     getClientInfo lConvOrSub qtarget ciphersuite >>= \case
                       Left _e -> pure (Just qtarget)
                       Right clientInfo -> do
-                        let allClients = Set.map ciId clientInfo
-                        let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
+                        let allClients = Set.map (.clientId) clientInfo
+                        let infoMap :: Map ClientId ByteString =
+                              Map.fromList
+                                [ (info.clientId, key)
+                                  | info <- toList clientInfo,
+                                    key <-
+                                      toList
+                                        ( Map.lookup
+                                            (csSignatureScheme ciphersuite)
+                                            info.mlsSignatureKeys
+                                        )
+                                ]
+                        let allMLSClients =
+                              Set.map
+                                (.clientId)
+                                (Set.filter (.hasKeyPackages) clientInfo)
+
                         -- We check the following condition:
                         --   allMLSClients ⊆ clients ⊆ allClients
                         -- i.e.
@@ -190,6 +211,19 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                           $
                           -- FUTUREWORK: turn this error into a proper response
                           throwS @'MLSClientMismatch
+
+                        -- Check that new leaf nodes are using the registered signature keys.
+                        when
+                          ( any
+                              ( \(cid, (_, mKp :: Maybe KeyPackage)) ->
+                                  case mKp of
+                                    Just kp -> Map.lookup cid infoMap /= Just kp.leafNode.signatureKey
+                                    Nothing -> False
+                              )
+                              (Map.assocs newclients)
+                          )
+                          $ throwS @'MLSIdentityMismatch
+
                         pure Nothing
           for_
             (unreachableFromList failedAddFetching)
@@ -273,7 +307,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
     -- add clients to the conversation state
     for_ newUserClients $ \(qtarget, newClients) -> do
-      addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
+      addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget $
+        Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
 
     -- set cipher suite
     when ciphersuiteUpdate $ case convOrSub.id of

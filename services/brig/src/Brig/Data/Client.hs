@@ -162,7 +162,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients caps = do
       LegalHoldClientType -> Nothing
 
     exists :: Client -> Bool
-    exists = (==) newId . clientId
+    exists = (==) newId . (.clientId)
 
     insert :: (MonadClient m, MonadReader Brig.App.Env m) => UserId -> ExceptT ClientDataError m Client
     insert uid = do
@@ -222,7 +222,7 @@ lookupClients u = do
       updateKeys c =
         c
           { clientMLSPublicKeys =
-              Map.fromList $ Map.findWithDefault [] (clientId c) keyMap
+              Map.fromList $ Map.findWithDefault [] c.clientId keyMap
           }
   updateKeys . toClient []
     <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))

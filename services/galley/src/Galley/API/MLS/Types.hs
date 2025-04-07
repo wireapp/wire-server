@@ -78,7 +78,9 @@ imRemoveClient im idx = do
 -- Note that clients that are in the process of being removed from a group
 -- (i.e. there is a pending remove proposals for them) are __not__ included in
 -- this mapping.
-type ClientMap = Map (Qualified UserId) (Map ClientId LeafIndex)
+type ClientMap = GenericClientMap LeafIndex
+
+type GenericClientMap a = Map (Qualified UserId) (Map ClientId a)
 
 mkClientMap :: [(Domain, UserId, ClientId, Int32, Bool)] -> ClientMap
 mkClientMap = foldr addEntry mempty
@@ -105,16 +107,16 @@ cmRemoveClient cid cm = case Map.lookup (cidQualifiedUser cid) cm of
 isClientMember :: ClientIdentity -> ClientMap -> Bool
 isClientMember ci = isJust . cmLookupIndex ci
 
-cmAssocs :: ClientMap -> [(ClientIdentity, LeafIndex)]
+cmAssocs :: GenericClientMap a -> [(ClientIdentity, a)]
 cmAssocs cm = do
   (quid, clients) <- Map.assocs cm
   (clientId, idx) <- Map.assocs clients
   pure (mkClientIdentity quid clientId, idx)
 
-cmIdentities :: ClientMap -> [ClientIdentity]
+cmIdentities :: GenericClientMap a -> [ClientIdentity]
 cmIdentities = map fst . cmAssocs
 
-cmSingleton :: ClientIdentity -> LeafIndex -> ClientMap
+cmSingleton :: ClientIdentity -> a -> GenericClientMap a
 cmSingleton cid idx =
   Map.singleton
     (cidQualifiedUser cid)
