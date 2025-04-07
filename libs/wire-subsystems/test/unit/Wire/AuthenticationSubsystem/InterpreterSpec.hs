@@ -358,13 +358,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
       \localDomain uid cid mLabel ->
         let Right cookie = runAllEffects localDomain [] Nothing $ do
               newCookie @_ @ZAuth.U uid cid PersistentCookie mLabel
-         in cookie.cookieExpires === addUTCTime (fromIntegral defSettings.userTokenTimeout.userTokenTimeoutSeconds) defaultTime
+         in cookie.cookieExpires === addUTCTime (fromIntegral defaultZAuthSettings.userTokenTimeout.userTokenTimeoutSeconds) defaultTime
 
     prop "persistent LH cookie expires at configured time" $
       \localDomain uid cid mLabel ->
         let Right cookie = runAllEffects localDomain [] Nothing $ do
               newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel
-         in cookie.cookieExpires === addUTCTime (fromIntegral defSettings.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds) defaultTime
+         in cookie.cookieExpires === addUTCTime (fromIntegral defaultZAuthSettings.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds) defaultTime
 
     modifyMaxSuccess (const 3) . prop "cookie is persisted" $
       \localDomain uid cid mLabel -> do

@@ -16,6 +16,7 @@ module Wire.MiniBackend
     runErrorUnsafe,
     miniLocale,
     defaultAuthenticationSubsystemConfig,
+    defaultZAuthSettings,
 
     -- * Mini events
     MiniEvent (..),
@@ -284,6 +285,17 @@ type InputEffects =
      Input AuthenticationSubsystemConfig
    ]
 
+defaultZAuthSettings :: ZAuthSettings
+defaultZAuthSettings =
+  ZAuthSettings
+    1
+    (UserTokenTimeout (60 * 60 * 24 * 28)) -- 28 days
+    (SessionTokenTimeout (60 * 60 * 24)) -- 1 day
+    (AccessTokenTimeout 900) -- 15 minutes
+    (ProviderTokenTimeout (60 * 60 * 24 * 7)) -- 7 days
+    (LegalHoldUserTokenTimeout (60 * 60 * 24 * 56)) -- 56 days
+    (LegalHoldAccessTokenTimeout (60 * 15)) -- 15 minutes
+
 defaultZAuthEnv :: ZAuthEnv
 defaultZAuthEnv =
   ZAuthEnv
@@ -293,7 +305,7 @@ defaultZAuthEnv =
             key = read "Z-x7AIRMxXYbY2BBan0dFUH0WR_hUqoNF_EJzQ7cSdBrLBirXOBCsdTEKibIJ1WGgeshXkGdYMWh7EMsJ_X9UA=="
           },
       publicKeys = Vector.singleton $ read "aywYq1zgQrHUxComyCdVhoHrIV5BnWDFoexDLCf1_VA=",
-      settings = defSettings
+      settings = defaultZAuthSettings
     }
 
 defaultAuthenticationSubsystemConfig :: AuthenticationSubsystemConfig
