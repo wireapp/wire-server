@@ -1,1 +1,0 @@
-The request body of `POST /conversation` can now contain a boolean field `cells`, which defaults to `false`, and determines whether Cells should be enabled for the new conversation.

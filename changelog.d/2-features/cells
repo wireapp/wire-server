@@ -1,1 +1,0 @@
-Cells integration. Conversations now have a new field "cells_state", which defaults to "disabled", but can be set to "pending" and "ready". When set to "pending" or "ready", events relevant for tracking conversation members and metadata are forwarded to a RabbitMQ queue, which can be configured in gundeck.

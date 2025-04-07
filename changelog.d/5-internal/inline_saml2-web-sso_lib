@@ -1,4 +1,0 @@
-Move the `saml2-web-sso` library into this project / git repository. According
-to the Github search, this library is only used by wire-server anyways. Stopping
-to pretend that it's of general usage, gives us opportunities to write Wire
-specific code in a better way and simplifies CI processes.
