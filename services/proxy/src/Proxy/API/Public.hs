@@ -24,6 +24,7 @@ where
 
 import Bilge.Request qualified as Req
 import Bilge.Response qualified as Res
+import Cassandra.Options
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Retry
@@ -34,6 +35,7 @@ import Data.CaseInsensitive qualified as CI
 import Data.Configurator qualified as Config
 import Data.List qualified as List
 import Data.Text qualified as Text
+import Data.Text.Encoding
 import Imports hiding (head)
 import Network.HTTP.Client qualified as Client
 import Network.HTTP.ReverseProxy
@@ -47,6 +49,7 @@ import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
+import Proxy.Options (giphyEndpoint)
 import Proxy.Proxy
 import Servant qualified
 import System.Logger.Class hiding (Error, info, render)
@@ -89,7 +92,7 @@ waiRoutingSitemap e = do
 
   get
     "/proxy/giphy/v1/gifs/:path"
-    (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
+    (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" (giphy e))
     pure
 
   post "/proxy/spotify/api/token" (continue spotifyToken) request
@@ -98,10 +101,13 @@ waiRoutingSitemap e = do
 
   get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
 
-youtube, googleMaps, giphy :: ProxyDest
+youtube, googleMaps :: ProxyDest
 youtube = ProxyDest "www.googleapis.com" 443
 googleMaps = ProxyDest "maps.googleapis.com" 443
-giphy = ProxyDest "api.giphy.com" 443
+
+giphy :: Env -> ProxyDest
+giphy ((^. Proxy.Env.options . giphyEndpoint) -> endpoint) =
+  ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
 
 proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
 proxy e qparam keyname reroute path phost rq k = do
