@@ -19,8 +19,7 @@
 
 module Proxy.Options
   ( Opts,
-    host,
-    port,
+    proxy,
     secretsConfig,
     httpPoolSize,
     maxConns,
@@ -31,6 +30,7 @@ module Proxy.Options
   )
 where
 
+import Cassandra.Options
 import Control.Lens hiding (Level)
 import Data.Aeson
 import Data.Aeson.TH
@@ -39,10 +39,7 @@ import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
 
 data Opts = Opts
-  { -- | Host to listen on
-    _host :: !String,
-    -- | Port to listen on
-    _port :: !Word16,
+  { _proxy :: !Endpoint,
     -- | File containing upstream secrets
     _secretsConfig :: !FilePath,
     -- | Number of connections for the HTTP pool

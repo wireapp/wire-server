@@ -21,6 +21,7 @@ module Proxy.Run
 where
 
 import Bilge.Request (requestIdName)
+import Cassandra.Options (host, port)
 import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
@@ -29,6 +30,7 @@ import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddlewarePaths)
 import Data.Metrics.Servant
 import Data.Metrics.Types
 import Data.Metrics.WaiRoute
+import Data.Text qualified as T
 import Imports hiding (head)
 import Network.Wai (Middleware, Request, requestHeaders)
 import Network.Wai.Middleware.Gunzip qualified as GZip
@@ -51,7 +53,7 @@ combinedSitemap env = I.servantSitemap Servant.:<|> P.servantSitemap env
 run :: Opts -> IO ()
 run o = do
   e <- createEnv o
-  s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e ^. applog)
+  s <- newSettings $ defaultServer (o ^. proxy . to (T.unpack . host)) (o ^. proxy . to port) (e ^. applog)
 
   let metricsMW :: Middleware
       metricsMW =

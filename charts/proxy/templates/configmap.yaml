@@ -8,8 +8,9 @@ data:
     logLevel: {{ .Values.config.logLevel }}
     logNetStrings: {{ .Values.config.logNetStrings }}
     disabledAPIVersions: {{ toJson .Values.config.disabledAPIVersions }}
-    host: 0.0.0.0
-    port: {{ .Values.service.internalPort }}
+    proxy:
+      host: 0.0.0.0
+      port: {{ .Values.service.internalPort }}
     httpPoolSize: 1000
     maxConns: 5000
     secretsConfig: /etc/wire/proxy/secrets/proxy.config
