@@ -99,12 +99,14 @@ library
     API.Gundeck
     API.GundeckInternal
     API.Nginz
+    API.Proxy
     API.Spar
     API.SparInternal
     MLS.Util
     Notifications
     RunAllTests
     SetupHelpers
+    SetupHelpers.Proxied
     Test.AccessUpdate
     Test.AssetDownload
     Test.AssetUpload
@@ -175,6 +177,7 @@ library
     Test.Presence
     Test.Property
     Test.Provider
+    Test.Proxy
     Test.PushToken
     Test.Register
     Test.Roles
