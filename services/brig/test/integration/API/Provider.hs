@@ -1276,7 +1276,22 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag GroupConversation False Nothing
+    conv =
+      NewConv
+        us
+        []
+        Nothing
+        Set.empty
+        ars
+        Nothing
+        Nothing
+        Nothing
+        roleNameWireAdmin
+        BaseProtocolProteusTag
+        GroupConversation
+        False
+        Nothing
+        False
 
 postMessage ::
   Galley ->

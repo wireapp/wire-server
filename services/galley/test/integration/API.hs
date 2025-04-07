@@ -1934,6 +1934,7 @@ postConvHelper g zusr newUsers = do
           GroupConversation
           False
           Nothing
+          False
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -1976,6 +1977,7 @@ postConvO2OFailWithSelf = do
           GroupConversation
           False
           Nothing
+          False
   post (g . path "one2one-conversations" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe

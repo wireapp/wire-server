@@ -355,3 +355,15 @@ testWithOldBackendVersion fedDomain = replicateM_ 2 do
 
   -- this will trigger a notification that the old backend cannot parse
   updateChannelAddPermission bärbel conv "admins" >>= assertSuccess
+
+testTeamAdminCanCreateChannelWithoutJoining :: (HasCallStack) => App ()
+testTeamAdminCanCreateChannelWithoutJoining = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "members.self" `shouldMatch` Null
+    resp.json %. "members.others" `shouldMatch` ([] :: [Value])

@@ -729,6 +729,7 @@ createConversation galley zusr usersToAdd = do
           GroupConversation
           False
           Nothing
+          False
   post $
     galley
       . path "/conversations"
