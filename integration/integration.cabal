@@ -233,8 +233,6 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
-    , servant
-    , servant-server
     , cookie
     , cql
     , cql-io
@@ -280,6 +278,7 @@ library
     , scientific
     , servant
     , servant-client
+    , servant-server
     , split
     , stm
     , streaming-commons
