@@ -180,7 +180,7 @@ createGroupConversation lusr conn newConv = do
       newConv
   conv <- conversationView lusr cnv
   pure . GroupConversationCreated $
-    CreateGroupConversation conv mempty
+    CreateGroupConversationV8 conv mempty
 
 createGroupConversationGeneric ::
   ( Member BackendNotificationQueueAccess r,
@@ -671,6 +671,11 @@ newRegularConversation lusr newConv = do
     BaseProtocolMLSTag -> do
       unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
       pure mempty
+  let usersWithoutCreator = (,newConvUsersRole newConv) <$> fromConvSize users
+      newConvUsersRoles =
+        if newConv.newConvSkipCreator
+          then usersWithoutCreator
+          else ulAddLocal (toUserRole (tUnqualified lusr)) usersWithoutCreator
   let nc =
         NewConversation
           { ncMetadata =
@@ -692,7 +697,7 @@ newRegularConversation lusr newConv = do
                       then CellsPending
                       else CellsDisabled
                 },
-            ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
+            ncUsers = newConvUsersRoles,
             ncProtocol = newConvProtocol newConv
           }
   pure (nc, users)

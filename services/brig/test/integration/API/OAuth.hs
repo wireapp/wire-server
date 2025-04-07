@@ -691,6 +691,7 @@ createTeamConv svc mkHeader token tid name = do
           GroupConversation
           False
           Nothing
+          False
   post $
     svc
       . path "conversations"

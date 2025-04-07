@@ -32,7 +32,8 @@ data CreateConv = CreateConv
     protocol :: String,
     groupConvType :: Maybe String,
     cells :: Bool,
-    addPermission :: Maybe String
+    addPermission :: Maybe String,
+    skipCreator :: Maybe Bool
   }
 
 defProteus :: CreateConv
@@ -49,7 +50,8 @@ defProteus =
       protocol = "proteus",
       groupConvType = Nothing,
       cells = False,
-      addPermission = Nothing
+      addPermission = Nothing,
+      skipCreator = Nothing
     }
 
 defMLS :: CreateConv
@@ -84,7 +86,8 @@ instance MakesValue CreateConv where
                 "message_timer" .=? cc.messageTimer,
                 "receipt_mode" .=? cc.receiptMode,
                 "group_conv_type" .=? cc.groupConvType,
-                "add_permission" .=? cc.addPermission
+                "add_permission" .=? cc.addPermission,
+                "skip_creator" .=? cc.skipCreator
               ]
         )
 
