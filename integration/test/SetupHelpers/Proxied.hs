@@ -4,11 +4,22 @@
 -- | services needed to test /services/proxy (giphy, ...)
 module SetupHelpers.Proxied where
 
-{-
+import Servant
+import Testlib.Prelude
+
 type GiphyPath = String
+
 type GiphyApiKey = String
 
-data GiphyAPI =
-  "v1" :> "gifs" :> Capture "path" GiphyPath :> QueryParam "api_key" GiphyAPIKey :>
-  Get '[JSON]
--}
+type GiphyAPI =
+  "v1"
+    :> "gifs"
+    :> "search"
+    :> QueryParam "api_key" GiphyApiKey
+    :> QueryParam "q" String
+    :> QueryParam "limit" Int
+    :> QueryParam "offset" Int
+    :> Get '[JSON] NoContent
+
+giphyAPI :: Server GiphyAPI
+giphyAPI = undefined

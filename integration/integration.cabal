@@ -233,6 +233,8 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , servant
+    , servant-server
     , cookie
     , cql
     , cql-io
