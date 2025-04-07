@@ -79,6 +79,7 @@ library
     , bilge                  >=0.21
     , bytestring             >=0.10
     , case-insensitive       >=1.2
+    , cassandra-util
     , configurator           >=0.3
     , errors
     , exceptions             >=0.8
