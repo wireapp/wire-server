@@ -72,7 +72,7 @@ import Wire.API.Message
 import Wire.NotificationSubsystem
 
 data ProposalAction = ProposalAction
-  { paAdd :: ClientMap,
+  { paAdd :: GenericClientMap (LeafIndex, Maybe KeyPackage),
     paRemove :: ClientMap
   }
   deriving (Show)
@@ -86,8 +86,8 @@ instance Semigroup ProposalAction where
 instance Monoid ProposalAction where
   mempty = ProposalAction mempty mempty
 
-paAddClient :: ClientIdentity -> LeafIndex -> ProposalAction
-paAddClient cid idx = mempty {paAdd = cmSingleton cid idx}
+paAddClient :: ClientIdentity -> LeafIndex -> Maybe KeyPackage -> ProposalAction
+paAddClient cid idx kp = mempty {paAdd = cmSingleton cid (idx, kp)}
 
 paRemoveClient :: ClientIdentity -> LeafIndex -> ProposalAction
 paRemoveClient cid idx = mempty {paRemove = cmSingleton cid idx}
@@ -172,12 +172,22 @@ checkProposal ::
   Sem r ()
 checkProposal ciphersuite im p = void $ evalState im $ applyProposal ciphersuite p
 
-addProposedClient :: (Member (State IndexMap) r) => ClientIdentity -> Sem r ProposalAction
-addProposedClient cid = do
+addProposedClient ::
+  ( Member (State IndexMap) r,
+    Member (ErrorS MLSUnsupportedProposal) r
+  ) =>
+  Either ClientIdentity KeyPackage ->
+  Sem r ProposalAction
+addProposedClient cidOrKp = do
+  (cid, mKp) <- case cidOrKp of
+    Left cid -> pure (cid, Nothing)
+    Right kp -> do
+      cid <- getKeyPackageIdentity kp
+      pure (cid, Just kp)
   im <- get
   let (idx, im') = imAddClient im cid
   put im'
-  pure (paAddClient cid idx)
+  pure (paAddClient cid idx mKp)
 
 applyProposals ::
   ( Member (State IndexMap) r,
@@ -211,8 +221,7 @@ applyProposal ciphersuite (AddProposal kp) = do
   unless (ciphersuite == cs) $
     throw (mlsProtocolError "Key package ciphersuite does not match conversation")
   -- we are not checking lifetime constraints here
-  cid <- getKeyPackageIdentity kp.value
-  addProposedClient cid
+  addProposedClient (Right kp.value)
 applyProposal _ciphersuite (RemoveProposal idx) = do
   im <- get
   (cid, im') <- noteS @'MLSInvalidLeafNodeIndex $ imRemoveClient im idx

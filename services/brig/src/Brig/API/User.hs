@@ -1036,7 +1036,7 @@ deleteAccount user = do
     deleteUser user
 
   Intra.rmUser uid (userAssets user)
-  embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
+  embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . (.clientId))
   luid <- embed $ qualifyLocal uid
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing (UserDeleted (tUntagged luid))

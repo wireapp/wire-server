@@ -111,7 +111,7 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   evalState convOrSub.indexMap $ do
     creatorAction <-
       if epoch == Epoch 0
-        then addProposedClient senderIdentity
+        then addProposedClient (Left senderIdentity)
         else mempty
     proposals <-
       traverse

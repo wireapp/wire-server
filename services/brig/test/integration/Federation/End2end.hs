@@ -143,8 +143,8 @@ testClaimPrekeySuccess brig1 brig2 = do
   self <- randomUser brig1
   user <- randomUser brig2
   let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
-  c <- responseJsonError =<< addClient brig2 (userId user) new
-  let cpk = ClientPrekey (clientId c) (Imports.head somePrekeys)
+  c :: Client <- responseJsonError =<< addClient brig2 (userId user) new
+  let cpk = ClientPrekey c.clientId (Imports.head somePrekeys)
   let quser = userQualifiedId user
   get
     ( brig1
@@ -154,7 +154,7 @@ testClaimPrekeySuccess brig1 brig2 = do
             toByteString' (qDomain quser),
             toByteString' (qUnqualified quser),
             "prekeys",
-            toByteString' (clientId c)
+            toByteString' c.clientId
           ]
     )
     !!! do
@@ -403,8 +403,8 @@ testSendMessage :: Brig -> Brig -> Galley -> Cannon -> Http ()
 testSendMessage brig1 brig2 galley2 cannon1 = do
   -- create alice user and client on domain 1
   alice <- randomUser brig1
-  aliceClient <-
-    clientId . responseJsonUnsafe
+  aliceClient :: Client <-
+    responseJsonUnsafe
       <$> addClient
         brig1
         (userId alice)
@@ -412,8 +412,8 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
 
   -- create bob user and client on domain 2
   bob <- randomUser brig2
-  bobClient <-
-    clientId . responseJsonUnsafe
+  bobClient :: Client <-
+    responseJsonUnsafe
       <$> addClient
         brig2
         (userId bob)
@@ -430,8 +430,8 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
   -- send a message from bob at domain 2 to alice at domain 1
   let qconvId = Qualified convId (qDomain (userQualifiedId bob))
       msgText = "🕊️"
-      rcpts = [(userQualifiedId alice, aliceClient, msgText)]
-      msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
+      rcpts = [(userQualifiedId alice, aliceClient.clientId, msgText)]
+      msg = mkQualifiedOtrPayload bobClient.clientId rcpts "" MismatchReportAll
 
   WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
     post
@@ -461,7 +461,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
       evtFrom e @?= userQualifiedId bob
       evtData e
         @?= EdOtrMessage
-          ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
+          ( OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just "")
           )
 
 -- alice creates a conversation on domain 1 with bob on domain 2, then bob
@@ -470,15 +470,15 @@ testSendMessageToRemoteConv :: Brig -> Brig -> Galley -> Galley -> Cannon -> Htt
 testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
   -- create alice user and client on domain 1
   alice <- randomUser brig1
-  aliceClient <-
-    fmap clientId . responseJsonError
+  aliceClient :: Client <-
+    responseJsonError
       =<< addClient brig1 (userId alice) (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
         <!! const 201 === statusCode
 
   -- create bob user and client on domain 2
   bob <- randomUser brig2
-  bobClient <-
-    fmap clientId . responseJsonError
+  bobClient :: Client <-
+    responseJsonError
       =<< addClient brig2 (userId bob) (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
         <!! const 201 === statusCode
 
@@ -493,8 +493,8 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
   -- send a message from bob at domain 2 to alice at domain 1
   let qconvId = Qualified convId (qDomain (userQualifiedId alice))
       msgText = "🕊️"
-      rcpts = [(userQualifiedId alice, aliceClient, msgText)]
-      msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
+      rcpts = [(userQualifiedId alice, aliceClient.clientId, msgText)]
+      msg = mkQualifiedOtrPayload bobClient.clientId rcpts "" MismatchReportAll
 
   WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
     post
@@ -524,7 +524,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
       evtFrom e @?= userQualifiedId bob
       evtData e
         @?= EdOtrMessage
-          ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
+          ( OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just "")
           )
 
 testDeleteUser :: Brig -> Brig -> Galley -> Galley -> Cannon -> Http ()
@@ -569,13 +569,13 @@ claimRemoteKeyPackages brig1 brig2 = do
   alice <- userQualifiedId <$> randomUser brig1
 
   bob <- userQualifiedId <$> randomUser brig2
-  bobClients <- for (take 3 someLastPrekeys) $ \lpk -> do
+  bobClients :: [Client] <- for (take 3 someLastPrekeys) $ \lpk -> do
     let new = defNewClient PermanentClientType [] lpk
-    fmap clientId $ responseJsonError =<< addClient brig2 (qUnqualified bob) new
+    responseJsonError =<< addClient brig2 (qUnqualified bob) new
 
   withSystemTempDirectory "mls" $ \tmp ->
     for_ bobClients $ \c ->
-      uploadKeyPackages brig2 tmp def bob c 5
+      uploadKeyPackages brig2 tmp def bob c.clientId 5
 
   bundle :: KeyPackageBundle <-
     responseJsonError
@@ -589,7 +589,7 @@ claimRemoteKeyPackages brig1 brig2 = do
 
   liftIO $
     Set.map (\e -> (e.user, e.client)) bundle.entries
-      @?= Set.fromList [(bob, c) | c <- bobClients]
+      @?= Set.fromList [(bob, c.clientId) | c <- bobClients]
 
 testRemoteTypingIndicator ::
   (HasCallStack) =>
