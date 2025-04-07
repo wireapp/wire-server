@@ -22,6 +22,7 @@ servicePort (ServiceInternal FederatorInternal) bn = mkPort 8097 bn
 servicePort (ServiceInternal Galley) bn = mkPort 8085 bn
 servicePort (ServiceInternal Gundeck) bn = mkPort 8086 bn
 servicePort (ServiceInternal Nginz) bn = mkPort 8080 bn
+servicePort (ServiceInternal WireProxy) bn = mkPort 8087 bn
 servicePort (ServiceInternal Spar) bn = mkPort 8088 bn
 servicePort (ServiceInternal Stern) bn = mkPort 8091 bn
 servicePort (ServiceInternal WireServerEnterprise) bn = mkPort 8079 bn
