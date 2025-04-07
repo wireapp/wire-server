@@ -38,6 +38,7 @@ serviceHostPort m Cannon = m.cannon
 serviceHostPort m Gundeck = m.gundeck
 serviceHostPort m Cargohold = m.cargohold
 serviceHostPort m Nginz = m.nginz
+serviceHostPort m WireProxy = m.proxy
 serviceHostPort m Spar = m.spar
 serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
