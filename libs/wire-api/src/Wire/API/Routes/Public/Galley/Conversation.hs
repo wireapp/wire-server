@@ -54,11 +54,11 @@ import Wire.API.Team.Feature
 -- backends forming an incomplete graph.
 data CreateGroupConversationResponse
   = GroupConversationExisted Conversation
-  | GroupConversationCreated CreateGroupConversation
+  | GroupConversationCreated CreateGroupConversationV8
 
 instance
   ( ResponseType r1 ~ Conversation,
-    ResponseType r2 ~ CreateGroupConversation
+    ResponseType r2 ~ CreateGroupConversationV8
   ) =>
   AsUnion '[r1, r2] CreateGroupConversationResponse
   where
@@ -75,7 +75,7 @@ type family ConversationResponse r
 
 type instance ConversationResponse Conversation = ResponseForExistedCreated Conversation
 
-type instance ConversationResponse CreateGroupConversation = CreateGroupConversationResponse
+type instance ConversationResponse CreateGroupConversationV8 = CreateGroupConversationResponse
 
 type ConversationVerb v r =
   MultiVerb
@@ -434,7 +434,7 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb 'V5 CreateGroupConversation
+               :> ConversationVerb 'V5 CreateGroupConversationV8
            )
     :<|> Named
            "create-group-conversation"
@@ -456,7 +456,7 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb 'V6 CreateGroupConversation
+               :> ConversationVerb 'V6 CreateGroupConversationV8
            )
     :<|> Named
            "create-self-conversation@v2"
