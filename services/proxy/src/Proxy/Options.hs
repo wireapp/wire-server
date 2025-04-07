@@ -40,6 +40,8 @@ import Wire.API.Routes.Version
 
 data Opts = Opts
   { _proxy :: !Endpoint,
+    -- _giphyEndpoint :: !Endpoint,
+
     -- | File containing upstream secrets
     _secretsConfig :: !FilePath,
     -- | Number of connections for the HTTP pool
