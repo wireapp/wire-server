@@ -48,8 +48,11 @@ testProxyGiphy = do
               resp.json %. "limit" `shouldMatchInt` 100
               resp.json %. "offset" `shouldMatchInt` 0
 
-            getGiphyError domain `bindResponse` \resp -> do
+            getGiphyNotFound domain `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 404
+
+            getGiphyBadRequest domain `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 400
         )
   where
     app :: Wai.Application
