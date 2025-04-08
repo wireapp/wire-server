@@ -28,6 +28,7 @@ module Proxy.Options
     logNetStrings,
     logFormat,
     disabledAPIVersions,
+    disableTlsForTest,
   )
 where
 
@@ -55,7 +56,8 @@ data Opts = Opts
     _logNetStrings :: !(Maybe (Last Bool)),
     -- | choose Encoding
     _logFormat :: !(Maybe (Last LogFormat)),
-    _disabledAPIVersions :: !(Set VersionExp)
+    _disabledAPIVersions :: !(Set VersionExp),
+    _disableTlsForTest :: Maybe Bool
   }
   deriving (Show, Generic)
 

@@ -49,7 +49,7 @@ import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
-import Proxy.Options (giphyEndpoint)
+import Proxy.Options (disableTlsForTest, giphyEndpoint)
 import Proxy.Proxy
 import Servant qualified
 import System.Logger.Class hiding (Error, info, render)
@@ -124,7 +124,7 @@ proxy e qparam keyname reroute path phost rq k = do
             I.rawQueryString = q
           }
   runInIO <- askRunInIO
-  liftIO $ loop runInIO (2 :: Int) r (WPRModifiedRequestSecure r' phost)
+  liftIO $ loop runInIO (2 :: Int) r (waiProxyResponse r' phost)
   where
     loop runInIO !n waiReq req =
       waiProxyTo (const $ pure req) (onUpstreamError runInIO) (e ^. manager) waiReq $ \res ->
@@ -133,9 +133,15 @@ proxy e qparam keyname reroute path phost rq k = do
             threadDelay 5000
             loop runInIO (n - 1) waiReq req
           else appInProxy e waiReq (k res)
+
     onUpstreamError runInIO x _ next = do
       void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
       next (errorRs error502)
+
+    waiProxyResponse :: Request -> ProxyDest -> WaiProxyResponse
+    waiProxyResponse = case (e ^. Proxy.Env.options . disableTlsForTest) of
+      Just True -> WPRModifiedRequest
+      _ -> WPRModifiedRequestSecure
 
 spotifyToken :: Request -> Proxy Response
 spotifyToken rq = do
