@@ -133,9 +133,16 @@ testProxyYoutube = do
 -- google maps
 
 type GoogleMapsAPI =
-  "googlemaps"
-    :> ( ("api" :> "staticmap" :> QueryString :> Get '[JSON] Value)
-           :<|> ("maps" :> "api" :> "geocode" :> Capture "path" String :> QueryString :> Get '[JSON] Value)
+  "maps"
+    :> ( "api"
+           :> "staticmap"
+           :> QueryString
+           :> Get '[JSON] Value
+           :<|> "api"
+             :> "geocode"
+             :> Capture "path" String
+             :> QueryString
+             :> Get '[JSON] Value
        )
 
 googleMapsApp :: Wai.Application
@@ -166,9 +173,14 @@ testProxyGoogleMaps = do
                 . (setField "disableTlsForTest" True)
           }
         ( \domain -> do
-            getGoogleMaps domain "wef" [("gnarz", "true")] `bindResponse` \resp -> do
+            getGoogleMaps domain "maps/api/geocode/path_segment" [("geocode", "true")] `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 200
               -- the response from mock googleMaps is just passed through to the wire client.
-              resp.json %. "pathSegment" `shouldMatch` "wef"
-              resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-googlemaps-secret\"),(\"gnarz\",Just \"true\")]"
+              resp.json %. "pathSegment" `shouldMatch` "path_segment"
+              resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-googlemaps-secret\"),(\"geocode\",Just \"true\")]"
+
+            getGoogleMaps domain "api/staticmap" [("staticmap", "true")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 200
+              -- the response from mock googleMaps is just passed through to the wire client.
+              resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-googlemaps-secret\"),(\"staticmap\",Just \"true\")]"
         )
