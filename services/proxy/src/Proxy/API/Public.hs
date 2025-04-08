@@ -93,7 +93,7 @@ servantSitemap e =
     app r k = appInProxy e r (Routing.route tree r k')
       where
         tree :: Tree (App Proxy)
-        tree = compile (waiRoutingSitemap e)
+        tree = compile waiRoutingSitemap
 
         k' :: Response -> Proxy.Proxy.Proxy ResponseReceived
         k' = liftIO . k
@@ -102,18 +102,8 @@ servantSitemap e =
 --
 -- >>> /libs/wire-api/src/Wire/API/Routes/Public/Proxy.hs
 -- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
-waiRoutingSitemap :: Env -> Routes a Proxy ()
-waiRoutingSitemap e = do
-  get
-    "/proxy/googlemaps/api/staticmap"
-    (proxyWaiPredicate e "key" "secrets.googlemaps" Static "/maps/api/staticmap" (googleMaps e))
-    pure
-
-  get
-    "/proxy/googlemaps/maps/api/geocode/:path"
-    (proxyWaiPredicate e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" (googleMaps e))
-    pure
-
+waiRoutingSitemap :: Routes a Proxy ()
+waiRoutingSitemap = do
   post "/proxy/spotify/api/token" (continue spotifyToken) request
 
   get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
@@ -162,16 +152,6 @@ proxyServant qparam keyname reroute path phost rq kont = do
     assertMethod req meth = do
       when (mk (requestMethod req) /= mk meth) $ do
         throwM $ mkError status405 "method-not-allowed" "Method not allowed"
-
-proxyWaiPredicate :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
-proxyWaiPredicate env qparam keyname reroute path phost rq k = do
-  proxy qparam keyname reroute path phost rq' k'
-  where
-    rq' :: Request
-    rq' = getRequest rq
-
-    k' :: Response -> IO ResponseReceived
-    k' = runProxy env . k
 
 proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
 proxy qparam keyname reroute path phost rq k = do
