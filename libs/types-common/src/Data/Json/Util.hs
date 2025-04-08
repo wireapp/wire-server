@@ -130,7 +130,7 @@ showUTCTimeMillis :: UTCTimeMillis -> Text
 showUTCTimeMillis = Text.pack . formatTime defaultTimeLocale "%FT%T.%03qZ" . fromUTCTimeMillis
 
 showUTCTime :: UTCTime -> Text
-showUTCTime = Text.pack . formatTime defaultTimeLocale "%FT%T%QZ"
+showUTCTime = Text.pack . formatTime defaultTimeLocale "%FT%TZ"
 
 readUTCTimeMillis :: String -> Maybe UTCTimeMillis
 readUTCTimeMillis = fmap toUTCTimeMillis . parseTimeM True defaultTimeLocale formatUTCTimeMillis
