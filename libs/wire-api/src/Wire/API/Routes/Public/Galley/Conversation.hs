@@ -53,11 +53,11 @@ import Wire.API.Team.Feature
 -- to add remote members while creating a conversation or due to involved
 -- backends forming an incomplete graph.
 data CreateGroupConversationResponseV8
-  = GroupConversationExistedV8 Conversation
+  = GroupConversationExistedV8 ConversationV8
   | GroupConversationCreatedV8 CreateGroupConversationV8
 
 instance
-  ( ResponseType r1 ~ Conversation,
+  ( ResponseType r1 ~ ConversationV8,
     ResponseType r2 ~ CreateGroupConversationV8
   ) =>
   AsUnion '[r1, r2] CreateGroupConversationResponseV8
@@ -93,7 +93,7 @@ type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
 type family ConversationResponse r
 
-type instance ConversationResponse Conversation = ResponseForExistedCreated Conversation
+type instance ConversationResponse ConversationV8 = ResponseForExistedCreated ConversationV8
 
 type instance ConversationResponse CreateGroupConversationV8 = CreateGroupConversationResponseV8
 
@@ -103,8 +103,8 @@ type ConversationVerb v r =
     '[JSON]
     '[ WithHeaders
          ConversationHeaders
-         Conversation
-         (VersionedRespond v 200 "Conversation existed" Conversation),
+         ConversationV8
+         (VersionedRespond v 200 "Conversation existed" ConversationV8),
        WithHeaders
          ConversationHeaders
          r
@@ -144,7 +144,7 @@ type ConversationAPI =
         :> ZLocalUser
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" Conversation)
+        :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" ConversationV8)
     )
     :<|> Named
            "get-unqualified-conversation-legalhold-alias"
@@ -157,7 +157,7 @@ type ConversationAPI =
                :> "legalhold"
                :> "conversations"
                :> Capture "cnv" ConvId
-               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" Conversation)
+               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" ConversationV8)
            )
     :<|> Named
            "get-conversation@v2"
@@ -168,7 +168,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
-               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" Conversation)
+               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" ConversationV8)
            )
     :<|> Named
            "get-conversation@v5"
@@ -180,7 +180,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
-               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "Conversation" Conversation)
+               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "Conversation" ConversationV8)
            )
     :<|> Named
            "get-conversation"
@@ -191,7 +191,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
-               :> Get '[JSON] Conversation
+               :> Get '[JSON] ConversationV8
            )
     :<|> Named
            "get-conversation-roles"
@@ -308,7 +308,7 @@ type ConversationAPI =
                         'V2
                         200
                         "List of local conversations"
-                        (ConversationList Conversation)
+                        (ConversationList ConversationV8)
                     )
            )
     :<|> Named
@@ -408,7 +408,7 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
-               :> ConversationVerb 'V2 Conversation
+               :> ConversationVerb 'V2 ConversationV8
            )
     :<|> Named
            "create-group-conversation@v3"
@@ -431,7 +431,7 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb 'V3 Conversation
+               :> ConversationVerb 'V3 ConversationV8
            )
     :<|> Named
            "create-group-conversation@v5"
@@ -520,7 +520,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> "self"
-               :> ConversationVerb 'V2 Conversation
+               :> ConversationVerb 'V2 ConversationV8
            )
     :<|> Named
            "create-self-conversation@v5"
@@ -530,7 +530,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> "self"
-               :> ConversationVerb 'V5 Conversation
+               :> ConversationVerb 'V5 ConversationV8
            )
     :<|> Named
            "create-self-conversation"
@@ -539,7 +539,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> "self"
-               :> ConversationVerb 'V6 Conversation
+               :> ConversationVerb 'V6 ConversationV8
            )
     :<|> Named
            "get-mls-self-conversation@v5"
@@ -557,7 +557,7 @@ type ConversationAPI =
                         'V5
                         200
                         "The MLS self-conversation"
-                        Conversation
+                        ConversationV8
                     )
            )
     :<|> Named
@@ -574,7 +574,7 @@ type ConversationAPI =
                     ( Respond
                         200
                         "The MLS self-conversation"
-                        Conversation
+                        ConversationV8
                     )
            )
     :<|> Named
@@ -682,7 +682,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> ReqBody '[JSON] NewOne2OneConv
-               :> ConversationVerb 'V2 Conversation
+               :> ConversationVerb 'V2 ConversationV8
            )
     :<|> Named
            "create-one-to-one-conversation@v6"
@@ -704,7 +704,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> ReqBody '[JSON] NewOne2OneConv
-               :> ConversationVerb 'V3 Conversation
+               :> ConversationVerb 'V3 ConversationV8
            )
     :<|> Named
            "create-one-to-one-conversation"
@@ -724,7 +724,7 @@ type ConversationAPI =
                :> ZConn
                :> "one2one-conversations"
                :> ReqBody '[JSON] NewOne2OneConv
-               :> ConversationVerb 'V3 Conversation
+               :> ConversationVerb 'V3 ConversationV8
            )
     :<|> Named
            "get-one-to-one-mls-conversation@v5"
@@ -738,7 +738,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> QualifiedCapture "usr" UserId
-               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "MLS 1-1 conversation" Conversation)
+               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "MLS 1-1 conversation" ConversationV8)
            )
     :<|> Named
            "get-one-to-one-mls-conversation@v6"

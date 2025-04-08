@@ -24,7 +24,7 @@ module Wire.API.Conversation
   ( -- * Conversation
     ConversationMetadata (..),
     defConversationMetadata,
-    Conversation (..),
+    ConversationV8 (..),
     ConversationV9 (..),
     conversationSchema,
     cnvType,
@@ -246,7 +246,7 @@ instance ToSchema (Versioned 'V2 ConversationMetadata) where
 --
 -- Can be produced from the internal one ('Galley.Data.Types.Conversation')
 -- by using 'Galley.API.Mapping.conversationView'.
-data Conversation = Conversation
+data ConversationV8 = ConversationV8
   { -- | A qualified conversation ID
     cnvQualifiedId :: Qualified ConvId,
     cnvMetadata :: ConversationMetadata,
@@ -255,42 +255,42 @@ data Conversation = Conversation
     cnvProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Conversation)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Conversation
+  deriving (Arbitrary) via (GenericUniform ConversationV8)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationV8
 
-cnvType :: Conversation -> ConvType
+cnvType :: ConversationV8 -> ConvType
 cnvType = cnvmType . cnvMetadata
 
-cnvCreator :: Conversation -> Maybe UserId
+cnvCreator :: ConversationV8 -> Maybe UserId
 cnvCreator = cnvmCreator . cnvMetadata
 
-cnvAccess :: Conversation -> [Access]
+cnvAccess :: ConversationV8 -> [Access]
 cnvAccess = cnvmAccess . cnvMetadata
 
-cnvAccessRoles :: Conversation -> Set AccessRole
+cnvAccessRoles :: ConversationV8 -> Set AccessRole
 cnvAccessRoles = cnvmAccessRoles . cnvMetadata
 
-cnvName :: Conversation -> Maybe Text
+cnvName :: ConversationV8 -> Maybe Text
 cnvName = cnvmName . cnvMetadata
 
-cnvTeam :: Conversation -> Maybe TeamId
+cnvTeam :: ConversationV8 -> Maybe TeamId
 cnvTeam = cnvmTeam . cnvMetadata
 
-cnvMessageTimer :: Conversation -> Maybe Milliseconds
+cnvMessageTimer :: ConversationV8 -> Maybe Milliseconds
 cnvMessageTimer = cnvmMessageTimer . cnvMetadata
 
-cnvReceiptMode :: Conversation -> Maybe ReceiptMode
+cnvReceiptMode :: ConversationV8 -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
-instance ToSchema Conversation where
+instance ToSchema ConversationV8 where
   schema = conversationSchema Nothing
 
-instance (SingI v) => ToSchema (Versioned v Conversation) where
+instance (SingI v) => ToSchema (Versioned v ConversationV8) where
   schema = Versioned <$> unVersioned .= conversationSchema (Just (demote @v))
 
-conversationObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc Conversation
+conversationObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc ConversationV8
 conversationObjectSchema v =
-  Conversation
+  ConversationV8
     <$> cnvQualifiedId .= field "qualified_id" schema
     <* (qUnqualified . cnvQualifiedId)
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
@@ -300,7 +300,7 @@ conversationObjectSchema v =
 
 conversationSchema ::
   Maybe Version ->
-  ValueSchema NamedSwaggerDoc Conversation
+  ValueSchema NamedSwaggerDoc ConversationV8
 conversationSchema v =
   objectWithDocModifier
     ("Conversation" <> foldMap (Text.toUpper . versionText) v)
@@ -336,7 +336,7 @@ conversationV9ObjectSchema =
     <*> protocol .= protocolSchema Nothing
 
 data MLSOne2OneConversation a = MLSOne2OneConversation
-  { conversation :: Conversation,
+  { conversation :: ConversationV8,
     publicKeys :: MLSKeysByPurpose (MLSKeys a)
   }
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (MLSOne2OneConversation a))
@@ -352,7 +352,7 @@ instance (ToSchema a) => ToSchema (MLSOne2OneConversation a) where
 -- | The public-facing conversation type extended with information on which
 -- remote users could not be added when creating the conversation.
 data CreateGroupConversationV8 = CreateGroupConversationV8
-  { cgcConversation :: Conversation,
+  { cgcConversation :: ConversationV8,
     -- | Remote users that could not be added to the created group conversation
     -- because their backend was not reachable.
     cgcFailedToAdd :: Map Domain (Set UserId)
@@ -401,7 +401,7 @@ instance ToSchema CreateGroupConversation where
         <$> (.conversation) .= conversationV9ObjectSchema
         <*> (toFlatList . failedToAdd) .= field "failed_to_add" (fromFlatList <$> array schema)
 
--- | Limited view of a 'Conversation'. Is used to inform users with an invite
+-- | Limited view of a 'ConversationV8'. Is used to inform users with an invite
 -- link about the conversation.
 data ConversationCoverView = ConversationCoverView
   { cnvCoverConvId :: ConvId,
@@ -412,7 +412,7 @@ data ConversationCoverView = ConversationCoverView
   deriving (Arbitrary) via (GenericUniform ConversationCoverView)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationCoverView
 
--- | Schema is compatible to a subset of 'Conversation' schema, in case we
+-- | Schema is compatible to a subset of 'ConversationV8' schema, in case we
 -- decide to substitute 'ConversationCoverView' with it in the future.
 instance ToSchema ConversationCoverView where
   schema =
@@ -438,13 +438,13 @@ class ConversationListItem a where
 instance ConversationListItem ConvId where
   convListItemName _ = "conversation IDs"
 
-instance ConversationListItem Conversation where
+instance ConversationListItem ConversationV8 where
   convListItemName _ = "conversations"
 
 instance (ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
   schema = conversationListSchema schema
 
-instance ToSchema (Versioned 'V2 (ConversationList Conversation)) where
+instance ToSchema (Versioned 'V2 (ConversationList ConversationV8)) where
   schema =
     Versioned
       <$> unVersioned
@@ -502,7 +502,7 @@ instance ToSchema ListConversations where
         <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema (array schema))
 
 data ConversationsResponse = ConversationsResponse
-  { crFound :: [Conversation],
+  { crFound :: [ConversationV8],
     crNotFound :: [Qualified ConvId],
     crFailed :: [Qualified ConvId]
   }
@@ -1138,7 +1138,7 @@ instance ToSchema AddPermissionUpdate where
 --------------------------------------------------------------------------------
 -- MultiVerb instances
 
-instance AsHeaders '[ConvId] Conversation Conversation where
+instance AsHeaders '[ConvId] ConversationV8 ConversationV8 where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
   fromHeaders = snd
 
