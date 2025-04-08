@@ -11,9 +11,6 @@ data:
     proxy:
       host: 0.0.0.0
       port: {{ .Values.service.internalPort }}
-    giphyEndpoint:
-      host: api.giphy.com
-      port: 443
     httpPoolSize: 1000
     maxConns: 5000
     secretsConfig: /etc/wire/proxy/secrets/proxy.config
