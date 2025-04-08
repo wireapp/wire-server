@@ -1644,6 +1644,7 @@ assertConvWithRole ::
 assertConvWithRole r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
   cnv :: ConversationV9 <- responseJsonError r
+  let otherMembers = filter (\m -> m.omQualifiedId /= s) (toList cnv.otherMembers)
   liftIO $ do
     assertEqual "id" cId cnv.qualifiedId.qUnqualified
     assertEqual "name" n cnv.metadata.cnvmName
@@ -1652,7 +1653,7 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "message_timer" mt cnv.metadata.cnvmMessageTimer
     assertEqual "members" (Set.fromList $ s : us) (Set.fromList . map omQualifiedId . toList $ cnv.otherMembers)
     assertEqual "creator is always an admin" (Just roleNameWireAdmin) (omConvRoleName <$> find (\m -> m.omQualifiedId == s) cnv.otherMembers)
-    assertBool "others role" (all ((== role) . omConvRoleName) (toList cnv.otherMembers))
+    assertBool "others role" (all ((== role) . omConvRoleName) otherMembers)
     case t of
       SelfConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)
       ConnectConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)
@@ -2879,3 +2880,6 @@ createAndConnectUsers domains = do
       (False, True) -> connectWithRemoteUser (qUnqualified b) a
       (False, False) -> pure ()
   pure users
+
+withOrderedMembers :: ConversationV9 -> ConversationV9
+withOrderedMembers conv = conv {otherMembers = sort conv.otherMembers}

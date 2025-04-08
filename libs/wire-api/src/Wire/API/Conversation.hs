@@ -310,7 +310,7 @@ conversationSchema v =
 data ConversationV9 = ConversationV9
   { qualifiedId :: Qualified ConvId,
     metadata :: ConversationMetadata,
-    -- TODO: rename to members
+    -- TODO: rename to members and make it a Set
     otherMembers :: [OtherMember],
     protocol :: Protocol
   }
