@@ -30,7 +30,7 @@ import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Runner
-import Wire.API.Conversation (Conversation, MemberUpdate, OtherMemberUpdate)
+import Wire.API.Conversation (ConversationV8, MemberUpdate, OtherMemberUpdate)
 import Wire.API.User (NewUser, NewUserPublic)
 import Wire.API.User.Client (RmClient)
 
@@ -53,7 +53,7 @@ tests =
       testCase "RmClient failure" $
         testFromJSONFailure @RmClient "testObject_RmClient_failure.json",
       testCase "QualifiedConversationId" $
-        testFromJSONFailure @Conversation "testObject_Conversation_qualifiedId.json",
+        testFromJSONFailure @ConversationV8 "testObject_Conversation_qualifiedId.json",
       testCase "Invite" $
         testFromJSONObject testObject_Invite_user_2 "testObject_Invite_user_2.json",
       testCase "MemberUpdate" $

@@ -145,7 +145,7 @@ testObject_Event_user_8 =
     (Qualified (Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c"))) (Domain "faraway.example.com"))
     (read "1864-05-29 19:31:31.226 UTC")
     ( EdConversation
-        ( Conversation
+        ( ConversationV8
             { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvMetadata =
                 ConversationMetadata
