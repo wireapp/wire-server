@@ -239,7 +239,7 @@ startDynamicBackend resource beOverrides = do
           backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
           sternCfg = setField "logLevel" ("Warn" :: String),
           federatorInternalCfg = setField "logLevel" ("Warn" :: String),
-          wireProxyCfg = setField "logLevel" ("Warn" :: String)
+          wireProxyCfg = setField "logLevel" ("Trace" :: String)
         }
 
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
