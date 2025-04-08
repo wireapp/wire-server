@@ -410,5 +410,4 @@ testTeamAdminCanCreateChannelWithoutJoining = do
 
   postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 201
-    resp.json %. "members.self" `shouldMatch` Null
-    resp.json %. "members.others" `shouldMatch` ([] :: [Value])
+    resp.json %. "members" `shouldMatch` ([] :: [Value])
