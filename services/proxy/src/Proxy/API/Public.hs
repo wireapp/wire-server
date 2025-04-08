@@ -78,7 +78,7 @@ type PublicAPI =
                :> Servant.CaptureAll "illegal_segments" String
                :> RawM
            )
-    -- :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
+    :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
     :<|> Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
 
 servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy
@@ -86,6 +86,7 @@ servantSitemap e =
   Named @"giphy-path" (giphyH e)
     :<|> Named @"youtube-path" (youtubeH e)
     :<|> Named @"gmaps-static" (gmapsStaticH e)
+    :<|> Named @"gmaps-path" (gmapsPathH e)
     :<|> Servant.Tagged app
   where
     app :: Application
@@ -140,6 +141,9 @@ gmapsStaticH _env illegalPaths =
       status404
       "not-found"
       ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
+
+gmapsPathH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+gmapsPathH env = (proxyServant "key" "secrets.googlemaps" Prefix "/maps/api/geocode") (googleMaps env)
 
 getProxiedEndpoint :: Env -> Getter Opts (Maybe Endpoint) -> Endpoint -> ProxyDest
 getProxiedEndpoint env endpointInConfig defaultEndpoint = phost
