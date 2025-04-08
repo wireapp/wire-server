@@ -52,6 +52,7 @@ import Proxy.Env
 import Proxy.Options (disableTlsForTest, giphyEndpoint)
 import Proxy.Proxy
 import Servant qualified
+import Servant.API.Extended.RawM
 import System.Logger.Class hiding (Error, info, render)
 import System.Logger.Class qualified as Logger
 
@@ -77,22 +78,22 @@ waiRoutingSitemap :: Env -> Routes a Proxy ()
 waiRoutingSitemap e = do
   get
     "/proxy/youtube/v3/:path"
-    (proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
+    (proxyWaiPredicate e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
     pure
 
   get
     "/proxy/googlemaps/api/staticmap"
-    (proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
+    (proxyWaiPredicate e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
     pure
 
   get
     "/proxy/googlemaps/maps/api/geocode/:path"
-    (proxy e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
+    (proxyWaiPredicate e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
     pure
 
   get
     "/proxy/giphy/v1/gifs/:path"
-    (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" (giphy e))
+    (proxyWaiPredicate e "api_key" "secrets.giphy" Prefix "/v1/gifs" (giphy e))
     pure
 
   post "/proxy/spotify/api/token" (continue spotifyToken) request
@@ -109,8 +110,19 @@ giphy :: Env -> ProxyDest
 giphy ((^. Proxy.Env.options . giphyEndpoint) -> endpoint) =
   ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
 
-proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
-proxy e qparam keyname reroute path phost rq k = do
+proxyWaiPredicate :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
+proxyWaiPredicate env qparam keyname reroute path phost rq k = do
+  proxy qparam keyname reroute path phost rq' k'
+  where
+    rq' :: Request
+    rq' = getRequest rq
+
+    k' :: Response -> IO ResponseReceived
+    k' = runProxy env . k
+
+proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
+proxy qparam keyname reroute path phost rq k = do
+  e :: Env <- ask
   s <- liftIO $ Config.require (e ^. secrets) keyname
   let r = getRequest rq
   let q = renderQuery True ((qparam, Just s) : safeQuery (I.queryString r))
@@ -124,22 +136,24 @@ proxy e qparam keyname reroute path phost rq k = do
             I.rawQueryString = q
           }
   runInIO <- askRunInIO
-  liftIO $ loop runInIO (2 :: Int) r (waiProxyResponse r' phost)
+  liftIO $ loop e runInIO (2 :: Int) r (waiProxyResponse e r' phost)
   where
-    loop runInIO !n waiReq req =
+    loop :: Env -> (Proxy () -> IO a) -> Int -> Request -> WaiProxyResponse -> IO ResponseReceived
+    loop e runInIO !n waiReq req =
       waiProxyTo (const $ pure req) (onUpstreamError runInIO) (e ^. manager) waiReq $ \res ->
         if responseStatus res == status502 && n > 0
           then do
             threadDelay 5000
-            loop runInIO (n - 1) waiReq req
-          else appInProxy e waiReq (k res)
+            loop e runInIO (n - 1) waiReq req
+          else appInProxy e waiReq (liftIO $ k res)
 
+    onUpstreamError :: (Proxy () -> IO a) -> SomeException -> p -> (Response -> IO b) -> IO b
     onUpstreamError runInIO x _ next = do
       void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
       next (errorRs error502)
 
-    waiProxyResponse :: Request -> ProxyDest -> WaiProxyResponse
-    waiProxyResponse = case (e ^. Proxy.Env.options . disableTlsForTest) of
+    waiProxyResponse :: Env -> Request -> ProxyDest -> WaiProxyResponse
+    waiProxyResponse e = case (e ^. Proxy.Env.options . disableTlsForTest) of
       Just True -> WPRModifiedRequest
       _ -> WPRModifiedRequestSecure
 
