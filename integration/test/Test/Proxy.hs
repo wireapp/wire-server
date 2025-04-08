@@ -42,10 +42,26 @@ type GiphyAPI =
     :> QueryParam "offset" Int
     :> Get '[JSON] Value
 
+giphyApp :: Wai.Application
+giphyApp = serve (Proxy :: Proxy GiphyAPI) server
+  where
+    server :: Server GiphyAPI
+    server mbPathSegment (Just apiKey) (Just q) (Just limit) (Just offset) =
+      pure
+        $ A.object
+          [ "pathSegment" .= mbPathSegment,
+            "apiKey" .= apiKey,
+            "q" .= q,
+            "limit" .= limit,
+            "offset" .= offset
+          ]
+    server mbPathSegment mbApiKey mbQ mbLimit mbOffset =
+      error $ "unexpected: " <> show (mbPathSegment, mbApiKey, mbQ, mbLimit, mbOffset)
+
 testProxyGiphy :: App ()
 testProxyGiphy = do
   lowerCodensity $ do
-    port <- startMockServer def app
+    port <- startMockServer def giphyApp
     lift
       $ withModifiedBackend
         def
@@ -72,22 +88,6 @@ testProxyGiphy = do
             getGiphy domain "search" [("q", "monday"), ("limit", "true"), ("offset", "0")] `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 400
         )
-  where
-    app :: Wai.Application
-    app = serve (Proxy :: Proxy GiphyAPI) server
-
-    server :: Server GiphyAPI
-    server mbPathSegment (Just apiKey) (Just q) (Just limit) (Just offset) =
-      pure
-        $ A.object
-          [ "pathSegment" .= mbPathSegment,
-            "apiKey" .= apiKey,
-            "q" .= q,
-            "limit" .= limit,
-            "offset" .= offset
-          ]
-    server mbPathSegment mbApiKey mbQ mbLimit mbOffset =
-      error $ "unexpected: " <> show (mbPathSegment, mbApiKey, mbQ, mbLimit, mbOffset)
 
 ----------------------------------------------------------------------
 -- youtube
@@ -99,10 +99,21 @@ type YoutubeAPI =
     :> QueryString
     :> Get '[JSON] Value
 
+youtubeApp :: Wai.Application
+youtubeApp = serve (Proxy :: Proxy YoutubeAPI) server
+  where
+    server :: Server YoutubeAPI
+    server pathSegment queryString =
+      pure
+        $ A.object
+          [ "pathSegment" .= pathSegment,
+            "queryString" .= show queryString
+          ]
+
 testProxyYoutube :: App ()
 testProxyYoutube = do
   lowerCodensity $ do
-    port <- startMockServer def app
+    port <- startMockServer def youtubeApp
     lift
       $ withModifiedBackend
         def
@@ -117,14 +128,3 @@ testProxyYoutube = do
               resp.json %. "pathSegment" `shouldMatch` "wef"
               resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-youtube-secret\"),(\"gnarz\",Just \"true\")]"
         )
-  where
-    app :: Wai.Application
-    app = serve (Proxy :: Proxy YoutubeAPI) server
-
-    server :: Server YoutubeAPI
-    server pathSegment queryString =
-      pure
-        $ A.object
-          [ "pathSegment" .= pathSegment,
-            "queryString" .= show queryString
-          ]
