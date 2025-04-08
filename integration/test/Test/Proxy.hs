@@ -179,8 +179,14 @@ testProxyGoogleMaps = do
               resp.json %. "pathSegment" `shouldMatch` "path_segment"
               resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-googlemaps-secret\"),(\"geocode\",Just \"true\")]"
 
+            getGoogleMaps domain "maps/api/geocode/path_segment/invalid" [("geocode", "true")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 404
+
             getGoogleMaps domain "api/staticmap" [("staticmap", "true")] `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 200
               -- the response from mock googleMaps is just passed through to the wire client.
               resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-googlemaps-secret\"),(\"staticmap\",Just \"true\")]"
+
+            getGoogleMaps domain "api/staticmap/invalid" [("staticmap", "true")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 404
         )
