@@ -60,7 +60,7 @@ import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import Util.Timeout
-import Wire.API.Conversation (Conversation (..))
+import Wire.API.Conversation
 import Wire.API.Password as Password
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
@@ -271,8 +271,8 @@ testNginzLegalHold b g n = do
         cUsr = decodeCookie rsUsr
     pure (c, t)
 
-  qconv <-
-    fmap cnvQualifiedId . responseJsonError
+  qconv :: Qualified ConvId <-
+    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
       =<< createConversation g (userId alice) [] <!! const 201 === statusCode
 
   -- ensure nginz allows passing legalhold cookies / tokens through to /access
