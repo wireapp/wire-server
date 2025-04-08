@@ -25,7 +25,6 @@ import Control.Monad.Codensity
 import Control.Monad.Reader
 import qualified Network.Wai as Wai
 import Servant
-import SetupHelpers.Proxied
 import Testlib.Mock
 import Testlib.Prelude
 
@@ -59,3 +58,25 @@ testProxyGiphy = do
     server :: Server GiphyAPI
     server (Just apiKey) (Just q) (Just limit) (Just offset) = pure (GiphyResponse {..})
     server _ _ _ _ = error "Unexpected"
+
+data GiphyResponse = GiphyResponse
+  { apiKey :: String,
+    q :: String,
+    limit :: Int,
+    offset :: Int
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON GiphyResponse
+
+instance ToJSON GiphyResponse
+
+type GiphyAPI =
+  "v1"
+    :> "gifs"
+    :> "search"
+    :> QueryParam "api_key" String
+    :> QueryParam "q" String
+    :> QueryParam "limit" Int
+    :> QueryParam "offset" Int
+    :> Get '[JSON] GiphyResponse

@@ -106,7 +106,6 @@ library
     Notifications
     RunAllTests
     SetupHelpers
-    SetupHelpers.Proxied
     Test.AccessUpdate
     Test.AssetDownload
     Test.AssetUpload
