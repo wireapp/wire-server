@@ -36,6 +36,7 @@ import Data.Configurator qualified as Config
 import Data.List qualified as List
 import Data.Text qualified as Text
 import Data.Text.Encoding
+import Data.Text.Lazy qualified as LText
 import Imports hiding (head)
 import Network.HTTP.Client qualified as Client
 import Network.HTTP.ReverseProxy
@@ -65,7 +66,18 @@ import Wire.API.Routes.Public.Proxy
 type PublicAPI =
   ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
     :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
-    -- :<|> ProxyAPIRoute "gmaps-static" ("googlemaps" :> "api" :> "staticmap" :> RawM)
+    :<|> ProxyAPIRoute
+           "gmaps-static"
+           ( "googlemaps"
+               :> "api"
+               :> "staticmap"
+               -- Why do we capture path segments here? We don't want to allow
+               -- access to the proxied API beyond the base path. (Who knows
+               -- what might be accessible then?!) The Handler will return HTTP
+               -- 404 if there are any illegal path segments.
+               :> Servant.CaptureAll "illegal_segments" String
+               :> RawM
+           )
     -- :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
     :<|> Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
 
@@ -73,6 +85,7 @@ servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy
 servantSitemap e =
   Named @"giphy-path" (giphyH e)
     :<|> Named @"youtube-path" (youtubeH e)
+    :<|> Named @"gmaps-static" (gmapsStaticH e)
     :<|> Servant.Tagged app
   where
     app :: Application
@@ -118,6 +131,15 @@ youtubeH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy Respons
 youtubeH env = proxyServant "key" "secrets.youtube" Prefix "/youtube/v3" phost
   where
     phost = getProxiedEndpoint env youtubeEndpoint (Endpoint "www.googleapis.com" 443)
+
+gmapsStaticH :: Env -> [String] -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+gmapsStaticH env [] = (proxyServant "key" "secrets.googlemaps" Static "/maps/api/staticmap") (googleMaps env)
+gmapsStaticH _env illegalPaths =
+  const . const . liftIO . throwM $
+    mkError
+      status404
+      "not-found"
+      ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
 
 getProxiedEndpoint :: Env -> Getter Opts (Maybe Endpoint) -> Endpoint -> ProxyDest
 getProxiedEndpoint env endpointInConfig defaultEndpoint = phost
