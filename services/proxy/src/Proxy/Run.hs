@@ -62,7 +62,7 @@ run o = do
         waiPrometheusMiddlewarePaths (pub <> int)
         where
           pub, int :: Paths
-          pub = treeToPaths $ prepare (P.waiRoutingSitemap e)
+          pub = treeToPaths $ prepare P.waiRoutingSitemap
           int = routesToPaths @InternalAPI
 
       middleware :: Middleware
