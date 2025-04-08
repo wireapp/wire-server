@@ -58,7 +58,7 @@ where
 
 import Cassandra
 import Control.Applicative
-import Control.Lens ((?~), (^.))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor
@@ -471,8 +471,8 @@ instance AsHeaders '[Maybe UserTokenCookie] AccessToken SomeAccess where
 -- Token sum types
 
 data SomeUserToken
-  = PlainUserToken (ZAuth.Token ZAuth.User)
-  | LHUserToken (ZAuth.Token ZAuth.LegalHoldUser)
+  = PlainUserToken (ZAuth.Token ZAuth.U)
+  | LHUserToken (ZAuth.Token ZAuth.LU)
   deriving (Show)
 
 instance FromHttpApiData SomeUserToken where
@@ -492,8 +492,8 @@ instance ToByteString SomeUserToken where
   builder (LHUserToken t) = builder t
 
 data SomeAccessToken
-  = PlainAccessToken (ZAuth.Token ZAuth.Access)
-  | LHAccessToken (ZAuth.Token ZAuth.LegalHoldAccess)
+  = PlainAccessToken (ZAuth.Token ZAuth.A)
+  | LHAccessToken (ZAuth.Token ZAuth.LA)
   deriving (Show)
 
 instance FromHttpApiData SomeAccessToken where
@@ -550,7 +550,7 @@ instance ToHttpApiData UserTokenCookie where
 --------------------------------------------------------------------------------
 -- Provider
 
-data ProviderToken = ProviderToken (ZAuth.Token ZAuth.Provider)
+data ProviderToken = ProviderToken (ZAuth.Token ZAuth.P)
   deriving (Show)
 
 instance FromByteString ProviderToken where
@@ -593,11 +593,11 @@ ptcToSetCookie c =
       setCookieHttpOnly = True
     }
   where
-    providerToken :: ProviderToken -> ZAuth.Token ZAuth.Provider
+    providerToken :: ProviderToken -> ZAuth.Token ZAuth.P
     providerToken (ProviderToken t) = t
 
     tokenExpiresUTC :: ZAuth.Token a -> UTCTime
-    tokenExpiresUTC t = posixSecondsToUTCTime (fromIntegral (t ^. header . time))
+    tokenExpiresUTC t = posixSecondsToUTCTime (fromIntegral (t.header.time))
 
 instance S.ToParamSchema ProviderTokenCookie where
   toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString

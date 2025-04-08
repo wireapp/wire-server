@@ -23,7 +23,6 @@ import Brig.API.Types
 import Brig.App
 import Brig.Options
 import Brig.User.Auth qualified as Auth
-import Brig.ZAuth hiding (Env, settings)
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
 import Data.Id
@@ -32,6 +31,8 @@ import Data.List1 (List1 (..))
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
+import Data.ZAuth.CryptoSign (CryptoSign)
+import Data.ZAuth.Token (Token)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Types
@@ -51,11 +52,20 @@ import Wire.API.User.Auth.Sso
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.Error (zauthError)
+import Wire.AuthenticationSubsystem.ZAuth
 import Wire.BlockListStore
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.Error (HttpError (..))
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess
+import Wire.Sem.Concurrency
+import Wire.Sem.Metrics (Metrics)
+import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
+import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -68,7 +78,16 @@ import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 accessH ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member (Embed IO) r,
+    Member Metrics r,
+    Member SessionStore r,
+    Member (Concurrency Unsafe) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member AuthenticationSubsystem r,
+    Member Random r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -81,10 +100,21 @@ accessH mcid ut' mat' = do
     >>= either (uncurry (access mcid)) (uncurry (access mcid))
 
 access ::
-  ( TokenPair u a,
-    Member TinyLog r,
+  ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    UserTokenLike u,
+    AccessTokenLike a,
+    AccessTokenType u ~ a,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member (Embed IO) r,
+    Member Metrics r,
+    Member SessionStore r,
+    Member (Concurrency Unsafe) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member AuthenticationSubsystem r,
+    Member Random r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -92,7 +122,7 @@ access ::
   Handler r SomeAccess
 access mcid t mt =
   traverse mkUserTokenCookie
-    =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
+    =<< Auth.renewAccess (List1 t) mt mcid !>> (StdError . zauthError)
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode _ =
@@ -109,7 +139,13 @@ login ::
     Member UserSubsystem r,
     Member ActivationCodeStore r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   Login ->
   Maybe Bool ->
@@ -120,6 +156,7 @@ login l (fromMaybe False -> persist) = do
   traverse mkUserTokenCookie c
 
 logoutH ::
+  (Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   Handler r ()
@@ -129,9 +166,9 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (TokenPair u a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (UserTokenLike u, AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member CryptoSign r, Member Now r) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
-logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
+logout uts (Just at) = Auth.logout (List1 uts) at !>> StdError . zauthError
 
 changeSelfEmail ::
   ( Member BlockListStore r,
@@ -144,7 +181,10 @@ changeSelfEmail ::
     Member (Input UserSubsystemConfig) r,
     Member TinyLog r,
     Member DomainRegistrationStore r,
-    Member SparAPIAccess r
+    Member SparAPIAccess r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member CryptoSign r,
+    Member Now r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -161,13 +201,13 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (TokenPair u a) =>
+  (UserTokenLike u, AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
 validateCredentials _ Nothing = throwStd missingAccessToken
 validateCredentials uts mat =
-  fst <$> Auth.validateTokens (List1 uts) mat !>> zauthError
+  fst <$> Auth.validateTokens (List1 uts) mat !>> StdError . zauthError
 
 listCookies :: Local UserId -> Maybe (CommaSeparatedList CookieLabel) -> Handler r CookieList
 listCookies lusr (fold -> labels) =
@@ -177,7 +217,8 @@ listCookies lusr (fold -> labels) =
 removeCookies ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   RemoveCookies ->
@@ -190,7 +231,13 @@ legalHoldLogin ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -203,7 +250,13 @@ ssoLogin ::
   ( Member TinyLog r,
     Member AuthenticationSubsystem r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   SsoLogin ->
   Maybe Bool ->
@@ -261,8 +314,8 @@ partitionTokens ::
   Handler
     r
     ( Either
-        (NonEmpty (ZAuth.Token ZAuth.User), Maybe (ZAuth.Token ZAuth.Access))
-        (NonEmpty (ZAuth.Token ZAuth.LegalHoldUser), Maybe (ZAuth.Token ZAuth.LegalHoldAccess))
+        (NonEmpty (ZAuth.Token ZAuth.U), Maybe (ZAuth.Token ZAuth.A))
+        (NonEmpty (ZAuth.Token ZAuth.LU), Maybe (ZAuth.Token ZAuth.LA))
     )
 partitionTokens tokens mat =
   case (partitionEithers (map toEither (toList tokens)), mat) of
@@ -280,7 +333,7 @@ partitionTokens tokens mat =
     -- mixed PlainUserToken and LHUserToken
     ((_ats, _lts), _) -> throwStd authTokenMismatch
   where
-    toEither :: SomeUserToken -> Either (ZAuth.Token ZAuth.User) (ZAuth.Token ZAuth.LegalHoldUser)
+    toEither :: SomeUserToken -> Either (ZAuth.Token ZAuth.U) (ZAuth.Token ZAuth.LU)
     toEither (PlainUserToken ut) = Left ut
     toEither (LHUserToken lt) = Right lt
 

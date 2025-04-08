@@ -21,7 +21,6 @@
 
 module Arbitraries where
 
-import Control.Lens ((.~))
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
 import Data.Text.Lazy.Builder.Int qualified as LT
@@ -31,29 +30,13 @@ import Imports
 import Sodium.Crypto.Sign
 import Test.Tasty.QuickCheck
 
-instance Arbitrary (Token Access) where
-  arbitrary = mkToken <$> arbitrary <*> ((typ .~ A) <$> arbitrary) <*> arbitrary
+instance (Arbitrary (Body t)) => Arbitrary (Token t) where
+  arbitrary = Token <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary (Token User) where
-  arbitrary = mkToken <$> arbitrary <*> ((typ .~ U) <$> arbitrary) <*> arbitrary
-
-instance Arbitrary (Token Bot) where
-  arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary (Token Provider) where
-  arbitrary = mkToken <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary (Token LegalHoldAccess) where
-  arbitrary = mkToken <$> arbitrary <*> ((typ .~ LA) <$> arbitrary) <*> arbitrary
-
-instance Arbitrary (Token LegalHoldUser) where
-  arbitrary = mkToken <$> arbitrary <*> ((typ .~ LU) <$> arbitrary) <*> arbitrary
-
-instance Arbitrary Header where
+instance Arbitrary (Header t) where
   arbitrary =
-    mkHeader
+    Header
       <$> arbitrary
-      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
@@ -66,22 +49,16 @@ arbitraryClientId =
     toClientId = LT.toStrict . LT.toLazyText . LT.hexadecimal
 
 instance Arbitrary Access where
-  arbitrary = mkAccess <$> arbitrary <*> arbitraryClientId <*> arbitrary
+  arbitrary = Access <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary User where
-  arbitrary = mkUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
+  arbitrary = User <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary Bot where
-  arbitrary = mkBot <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Bot <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Provider where
-  arbitrary = mkProvider <$> arbitrary
-
-instance Arbitrary LegalHoldAccess where
-  arbitrary = mkLegalHoldAccess <$> arbitrary <*> arbitraryClientId <*> arbitrary
-
-instance Arbitrary LegalHoldUser where
-  arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
+  arbitrary = Provider <$> arbitrary
 
 instance Arbitrary ByteString where
   arbitrary = fromString <$> arbitrary `suchThat` notElem '.'

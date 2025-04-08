@@ -111,11 +111,9 @@
 , servant-openapi3
 , servant-server
 , servant-swagger-ui
-, sodium-crypto-sign
 , spar
 , split
 , ssl-util
-, statistics
 , stomp-queue
 , streaming-commons
 , string-conversions
@@ -248,10 +246,8 @@ mkDerivation {
     servant-openapi3
     servant-server
     servant-swagger-ui
-    sodium-crypto-sign
     split
     ssl-util
-    statistics
     stomp-queue
     template
     template-haskell
@@ -269,7 +265,6 @@ mkDerivation {
     uri-bytestring
     utf8-string
     uuid
-    vector
     wai
     wai-extra
     wai-middleware-gunzip
