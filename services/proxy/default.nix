@@ -8,6 +8,7 @@
 , bilge
 , bytestring
 , case-insensitive
+, cassandra-util
 , configurator
 , errors
 , exceptions
@@ -47,6 +48,7 @@ mkDerivation {
     bilge
     bytestring
     case-insensitive
+    cassandra-util
     configurator
     errors
     exceptions
