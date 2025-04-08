@@ -35,7 +35,9 @@ testProxyGiphy = do
     lift
       $ withModifiedBackend
         def
-          { wireProxyCfg = setField "giphyEndpoint" (object ["host" .= "localhost", "port" .= port])
+          { wireProxyCfg =
+              (setField "giphyEndpoint" (object ["host" .= "localhost", "port" .= port]))
+                . (setField "disableTlsForTest" True)
           }
         ( \domain -> do
             getGiphy domain `bindResponse` \resp -> do
