@@ -23,10 +23,24 @@ module Test.Proxy where
 import API.Proxy
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.Aeson as A
 import qualified Network.Wai as Wai
 import Servant
 import Testlib.Mock
 import Testlib.Prelude
+
+----------------------------------------------------------------------
+-- giphy
+
+type GiphyAPI =
+  "v1"
+    :> "gifs"
+    :> Capture "path" String
+    :> QueryParam "api_key" String
+    :> QueryParam "q" String
+    :> QueryParam "limit" Int
+    :> QueryParam "offset" Int
+    :> Get '[JSON] Value
 
 testProxyGiphy :: App ()
 testProxyGiphy = do
@@ -36,22 +50,26 @@ testProxyGiphy = do
       $ withModifiedBackend
         def
           { wireProxyCfg =
-              (setField "giphyEndpoint" (object ["host" .= "localhost", "port" .= port]))
+              (setField "giphyEndpoint" (A.object ["host" .= "localhost", "port" .= port]))
                 . (setField "disableTlsForTest" True)
           }
         ( \domain -> do
-            getGiphy domain `bindResponse` \resp -> do
+            getGiphy domain "search" [("q", "monday"), ("limit", "100"), ("offset", "0")] `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 200
               -- the response from mock giphy is just passed through to the wire client.
+              resp.json %. "pathSegment" `shouldMatch` (Just "search")
               resp.json %. "apiKey" `shouldMatch` "my-giphy-secret"
               resp.json %. "q" `shouldMatch` "monday"
               resp.json %. "limit" `shouldMatchInt` 100
               resp.json %. "offset" `shouldMatchInt` 0
 
-            getGiphyNotFound domain `bindResponse` \resp -> do
+            getGiphy domain "storch" [("q", "monday"), ("limit", "100"), ("offset", "0")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 200
+
+            getGiphy domain "search/more" [("q", "monday"), ("limit", "100"), ("offset", "0")] `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 404
 
-            getGiphyBadRequest domain `bindResponse` \resp -> do
+            getGiphy domain "search" [("q", "monday"), ("limit", "true"), ("offset", "0")] `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 400
         )
   where
@@ -59,27 +77,14 @@ testProxyGiphy = do
     app = serve (Proxy :: Proxy GiphyAPI) server
 
     server :: Server GiphyAPI
-    server (Just apiKey) (Just q) (Just limit) (Just offset) = pure (GiphyResponse {..})
-    server _ _ _ _ = error "Unexpected"
-
-data GiphyResponse = GiphyResponse
-  { apiKey :: String,
-    q :: String,
-    limit :: Int,
-    offset :: Int
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON GiphyResponse
-
-instance ToJSON GiphyResponse
-
-type GiphyAPI =
-  "v1"
-    :> "gifs"
-    :> "search"
-    :> QueryParam "api_key" String
-    :> QueryParam "q" String
-    :> QueryParam "limit" Int
-    :> QueryParam "offset" Int
-    :> Get '[JSON] GiphyResponse
+    server mbPathSegment (Just apiKey) (Just q) (Just limit) (Just offset) =
+      pure
+        $ A.object
+          [ "pathSegment" .= mbPathSegment,
+            "apiKey" .= apiKey,
+            "q" .= q,
+            "limit" .= limit,
+            "offset" .= offset
+          ]
+    server mbPathSegment mbApiKey mbQ mbLimit mbOffset =
+      error $ "unexpected: " <> show (mbPathSegment, mbApiKey, mbQ, mbLimit, mbOffset)
