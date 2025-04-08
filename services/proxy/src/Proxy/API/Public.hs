@@ -64,11 +64,13 @@ import Wire.API.Routes.Public.Proxy
 
 type PublicAPI =
   ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
+    :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
     :<|> Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
 
 servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy
 servantSitemap e =
   Named @"giphy-path" (giphyH e)
+    :<|> Named @"youtube-path" (youtubeH e)
     :<|> Servant.Tagged app
   where
     app :: Application
@@ -86,11 +88,6 @@ servantSitemap e =
 -- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
 waiRoutingSitemap :: Env -> Routes a Proxy ()
 waiRoutingSitemap e = do
-  get
-    "/proxy/youtube/v3/:path"
-    (proxyWaiPredicate e "key" "secrets.youtube" Prefix "/youtube/v3" (youtube e))
-    pure
-
   get
     "/proxy/googlemaps/api/staticmap"
     (proxyWaiPredicate e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
@@ -110,18 +107,17 @@ waiRoutingSitemap e = do
 googleMaps :: ProxyDest
 googleMaps = ProxyDest "www.googleapis.com" 443
 
-youtube :: Env -> ProxyDest
-youtube env = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
-  where
-    endpoint = fromMaybe (Endpoint "www.googleapis.com" 443) (env ^. Proxy.Env.options . youtubeEndpoint)
-
 giphyH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
-giphyH env = proxyServant "api_key" "secrets.giphy" reroute path phost
+giphyH env = proxyServant "api_key" "secrets.giphy" Prefix "/v1/gifs" phost
   where
-    reroute = Prefix
-    path = "/v1/gifs"
     phost = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
     endpoint = fromMaybe (Endpoint "api.giphy.com" 443) (env ^. Proxy.Env.options . giphyEndpoint)
+
+youtubeH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+youtubeH env = proxyServant "key" "secrets.youtube" Prefix "/youtube/v3" phost
+  where
+    phost = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
+    endpoint = fromMaybe (Endpoint "www.googleapis.com" 443) (env ^. Proxy.Env.options . youtubeEndpoint)
 
 proxyServant :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
 proxyServant qparam keyname reroute path phost rq kont = do
