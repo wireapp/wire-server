@@ -24,6 +24,7 @@ import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Generated.Invite_user (testObject_Invite_user_2)
 import Test.Wire.API.Golden.Generated.LockableFeature_team
 import Test.Wire.API.Golden.Generated.MemberUpdateData_user
+import Test.Wire.API.Golden.Generated.NewConv_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
@@ -95,5 +96,7 @@ tests =
       testCase "LockableFeature_ConferenceCallingConfig" $
         testFromJSONObject testObject_LockableFeature_team_14 "testObject_LockableFeature_team_14.json",
       testCase "LockableFeature_ConferenceCallingConfig" $
-        testFromJSONObject testObject_Presence_3 "testObject_Presence_3.json"
+        testFromJSONObject testObject_Presence_3 "testObject_Presence_3.json",
+      testCase "NewConv" $
+        testFromJSONObject testObject_NewConv_user_1 "testObject_NewConv_user_1.json"
     ]
