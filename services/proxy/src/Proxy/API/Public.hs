@@ -30,7 +30,7 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString (breakSubstring)
 import Data.ByteString.Lazy qualified as B
-import Data.CaseInsensitive (CI)
+import Data.CaseInsensitive
 import Data.CaseInsensitive qualified as CI
 import Data.Configurator qualified as Config
 import Data.List qualified as List
@@ -51,15 +51,25 @@ import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
 import Proxy.Options (disableTlsForTest, giphyEndpoint)
 import Proxy.Proxy
+import Servant ((:<|>) (..), (:>))
 import Servant qualified
 import Servant.API.Extended.RawM
 import System.Logger.Class hiding (Error, info, render)
 import System.Logger.Class qualified as Logger
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Proxy
 
-type PublicAPI = Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
+-- TODO: test that the switch from wai-route to servant doesn't break streaming
+-- characteristics (we don't want to turn O(1) memory requirement into O(n))
+
+type PublicAPI =
+  ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
+    :<|> Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
 
 servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy
-servantSitemap e = Servant.Tagged app
+servantSitemap e =
+  Named @"giphy-path" (giphyH e)
+    :<|> Servant.Tagged app
   where
     app :: Application
     app r k = appInProxy e r (Routing.route tree r k')
@@ -91,11 +101,6 @@ waiRoutingSitemap e = do
     (proxyWaiPredicate e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
     pure
 
-  get
-    "/proxy/giphy/v1/gifs/:path"
-    (proxyWaiPredicate e "api_key" "secrets.giphy" Prefix "/v1/gifs" (giphy e))
-    pure
-
   post "/proxy/spotify/api/token" (continue spotifyToken) request
 
   get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
@@ -106,9 +111,25 @@ youtube, googleMaps :: ProxyDest
 youtube = ProxyDest "www.googleapis.com" 443
 googleMaps = ProxyDest "maps.googleapis.com" 443
 
-giphy :: Env -> ProxyDest
-giphy ((^. Proxy.Env.options . giphyEndpoint) -> endpoint) =
-  ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
+giphyH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+giphyH env = proxyServant "api_key" "secrets.giphy" reroute path phost
+  where
+    reroute = Prefix
+    path = "/v1/gifs"
+    phost = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
+    endpoint = env ^. Proxy.Env.options . giphyEndpoint
+
+proxyServant :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
+proxyServant qparam keyname reroute path phost rq kont = do
+  env :: Env <- ask
+  liftIO $ do
+    assertMethod rq "GET"
+    runProxy env $ proxy qparam keyname reroute path phost rq (liftIO . kont)
+  where
+    assertMethod :: Request -> ByteString -> IO ()
+    assertMethod req meth = do
+      when (mk (requestMethod req) /= mk meth) $ do
+        throwM $ mkError status405 "method-not-allowed" "Method not allowed"
 
 proxyWaiPredicate :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
 proxyWaiPredicate env qparam keyname reroute path phost rq k = do
