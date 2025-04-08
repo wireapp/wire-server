@@ -16,6 +16,7 @@ import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.RouteResult
 import Servant.Server.Internal.Router
 
+-- TODO: this has been merged to servant in 2023: https://github.com/haskell-servant/servant/pull/1551
 type ApplicationM m = Request -> (Response -> IO ResponseReceived) -> m ResponseReceived
 
 -- | Variant of 'Raw' that lets you access the underlying monadic context to process the request.
