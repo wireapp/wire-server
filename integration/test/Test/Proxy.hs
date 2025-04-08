@@ -43,10 +43,14 @@ testProxyGiphy = do
         ( \domain -> do
             getGiphy domain `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 200
+              -- the response from mock giphy is just passed through to the wire client.
               resp.json %. "apiKey" `shouldMatch` "my-giphy-secret"
               resp.json %. "q" `shouldMatch` "monday"
               resp.json %. "limit" `shouldMatchInt` 100
               resp.json %. "offset" `shouldMatchInt` 0
+
+            getGiphyError domain `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 404
         )
   where
     app :: Wai.Application
