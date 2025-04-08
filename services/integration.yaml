@@ -47,6 +47,8 @@ wireServerEnterprise:
   host: 127.0.0.1
   port: 8079
 
+rabbitMqVHost: backendA
+
 # client-API:
 # webapp ---> load balancer  ---> nginx-ingress (TLS termination) ---> nginz ----> brig
 #
@@ -122,6 +124,7 @@ backendTwo:
   wireServerEnterprise:
     host: 127.0.0.1
     port: 9079
+  rabbitMqVHost: backendB
 
   originDomain: b.example.com
 
@@ -163,20 +166,22 @@ dynamicBackends:
 
 rabbitmq:
   host: localhost
+  port: 5671
   adminPort: 15671
-  tls: true
+  enableTls: true
+  insecureSkipVerifyTls: true
   vHost: /
 
 rabbitmq-v0:
   host: localhost
+  port: 5671
   adminPort: 15672
-  tls: false
   vHost: federation-v0
 
 rabbitmq-v1:
   host: localhost
+  port: 5671
   adminPort: 15672
-  tls: false
   vHost: federation-v1
 
 cassandra:
@@ -229,6 +234,7 @@ federation-v0:
   wireServerEnterprise:
     host: 127.0.0.1
     port: 21079
+  rabbitMqVHost: /
 
 federation-v1:
   originDomain: federation-v1.example.com
@@ -271,7 +277,10 @@ federation-v1:
   wireServerEnterprise:
     host: 127.0.0.1
     port: 22079
+  rabbitMqVHost: /
 
 integrationTestHostName: "localhost"
 
 additionalElasticSearch: https://localhost:9201
+
+cellsEventQueue: cells_events

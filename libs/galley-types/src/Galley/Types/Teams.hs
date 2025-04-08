@@ -223,6 +223,12 @@ newtype instance FeatureDefaults MLSConfig = MLSDefaults (DefaultsInitial MLSCon
   deriving (FromJSON) via DefaultsInitial MLSConfig
   deriving (ParseFeatureDefaults) via OptionalField MLSConfig
 
+newtype instance FeatureDefaults ChannelsConfig = ChannelsDefaults (DefaultsInitial ChannelsConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via DefaultsInitial ChannelsConfig
+  deriving (ParseFeatureDefaults) via OptionalField ChannelsConfig
+
 data instance FeatureDefaults ExposeInvitationURLsToTeamAdminConfig
   = ExposeInvitationURLsToTeamAdminDefaults
   deriving stock (Eq, Show)
@@ -272,6 +278,13 @@ newtype instance FeatureDefaults DomainRegistrationConfig
   deriving newtype (Default, GetFeatureDefaults)
   deriving (FromJSON) via Defaults (LockableFeature DomainRegistrationConfig)
   deriving (ParseFeatureDefaults) via OptionalField DomainRegistrationConfig
+
+newtype instance FeatureDefaults CellsConfig
+  = CellsConfigDefaults (LockableFeature CellsConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature CellsConfig)
+  deriving (ParseFeatureDefaults) via OptionalField CellsConfig
 
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg

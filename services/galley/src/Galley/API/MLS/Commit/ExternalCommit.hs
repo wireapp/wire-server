@@ -108,7 +108,11 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
         | cid /= senderIdentity ->
             throw $ mlsProtocolError "Only the self client can be removed by an external commit"
         | otherwise -> pure (Just idx)
-      [] -> pure Nothing
+      [] -> do
+        -- no remove proposal, make sure the client is not already part of the conversation
+        when (isJust (cmLookupIndex senderIdentity convOrSub.members)) $
+          throw (mlsProtocolError "External commits for existing members must contain a Remove proposal")
+        pure Nothing
       _ -> throw (mlsProtocolError "External commits must contain at most one Remove proposal")
 
     -- add sender client

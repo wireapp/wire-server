@@ -44,6 +44,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import System.Logger qualified as Log
 import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
@@ -58,6 +59,8 @@ data ValidationError
 instance Exception ValidationError
 
 instance AsWai ValidationError where
+  errorLogLevel (FederationDenied _) = Log.Warn
+  errorLogLevel _ = Log.Error
   toWai err =
     Wai.mkError (validationErrorStatus err) (validationErrorLabel err)
       . LText.fromStrict

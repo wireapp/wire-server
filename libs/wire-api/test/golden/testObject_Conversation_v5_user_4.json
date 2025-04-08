@@ -18,10 +18,12 @@
         "guest",
         "service"
     ],
+    "add_permission": null,
     "cipher_suite": 1,
     "creator": "00000000-0000-0000-0000-000200000001",
     "epoch": 0,
     "epoch_timestamp": null,
+    "group_conv_type": null,
     "group_id": "dGVzdF9ncm91cA==",
     "id": "00000000-0000-0000-0000-000000000002",
     "last_event": "0.0",
@@ -50,6 +52,7 @@
     "message_timer": 1319272593797015,
     "name": "",
     "protocol": "mls",
+    "cells_state": "disabled",
     "qualified_id": {
         "domain": "golden.example.com",
         "id": "00000000-0000-0000-0000-000000000002"

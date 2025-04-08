@@ -23,6 +23,7 @@ module Network.Wai.Utilities.Error
     ErrorData (..),
     mkError,
     (!>>),
+    isBadRequest,
   )
 where
 
@@ -41,6 +42,9 @@ data Error = Error
     innerError :: Maybe Error
   }
   deriving (Eq, Show, Typeable)
+
+isBadRequest :: Error -> Bool
+isBadRequest e = code e == badRequest400
 
 mkError :: Status -> LText -> LText -> Error
 mkError c l m = Error c l m Nothing Nothing

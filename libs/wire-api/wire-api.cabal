@@ -81,6 +81,7 @@ library
     Wire.API.Conversation.Action
     Wire.API.Conversation.Action.Tag
     Wire.API.Conversation.Bot
+    Wire.API.Conversation.CellsState
     Wire.API.Conversation.Code
     Wire.API.Conversation.Member
     Wire.API.Conversation.Protocol
@@ -471,6 +472,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.NewConv_user
     Test.Wire.API.Golden.Generated.NewLegalHoldClient_team
     Test.Wire.API.Golden.Generated.NewLegalHoldService_team
+    Test.Wire.API.Golden.Generated.NewOne2OneConv_user
     Test.Wire.API.Golden.Generated.NewOtrMessage_user
     Test.Wire.API.Golden.Generated.NewPasswordReset_user
     Test.Wire.API.Golden.Generated.NewProvider_provider

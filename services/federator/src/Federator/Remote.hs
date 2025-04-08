@@ -45,6 +45,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Servant.Client.Core
+import System.Logger qualified as Log
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -63,6 +64,7 @@ data RemoteError
   deriving (Show)
 
 instance AsWai RemoteError where
+  errorLogLevel _ = Log.Error
   toWai (RemoteError target msg err) =
     federationRemoteHTTP2Error target msg err
   toWai (RemoteErrorResponse target msg status body) =

@@ -219,22 +219,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V8)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V9)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V8
-        <> serviceSwagger @BrigAPITag @'V8
-        <> serviceSwagger @GalleyAPITag @'V8
-        <> serviceSwagger @SparAPITag @'V8
-        <> serviceSwagger @CargoholdAPITag @'V8
-        <> serviceSwagger @CannonAPITag @'V8
-        <> serviceSwagger @GundeckAPITag @'V8
-        <> serviceSwagger @ProxyAPITag @'V8
-        <> serviceSwagger @OAuthAPITag @'V8
+    ( serviceSwagger @VersionAPITag @'V9
+        <> serviceSwagger @BrigAPITag @'V9
+        <> serviceSwagger @GalleyAPITag @'V9
+        <> serviceSwagger @SparAPITag @'V9
+        <> serviceSwagger @CargoholdAPITag @'V9
+        <> serviceSwagger @CannonAPITag @'V9
+        <> serviceSwagger @GundeckAPITag @'V9
+        <> serviceSwagger @ProxyAPITag @'V9
+        <> serviceSwagger @OAuthAPITag @'V9
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V8) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V9) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V8)) = swaggerPregenUIServer $(pregenSwagger V8)
 versionedSwaggerDocsAPI (Just (VersionNumber V7)) = swaggerPregenUIServer $(pregenSwagger V7)
 versionedSwaggerDocsAPI (Just (VersionNumber V6)) = swaggerPregenUIServer $(pregenSwagger V6)
 versionedSwaggerDocsAPI (Just (VersionNumber V5)) = swaggerPregenUIServer $(pregenSwagger V5)
@@ -565,7 +566,8 @@ servantSitemap =
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
     domainVerificationTeamAPI =
-      Named @"domain-verification-authorize-team" authorizeTeam
+      Named @"verify-challenge-team" verifyChallengeTeam
+        :<|> Named @"domain-verification-authorize-team" authorizeTeam
         :<|> Named @"update-team-invite" updateTeamInvite
         :<|> Named @"get-all-registered-domains" getAllRegisteredDomains
         :<|> Named @"delete-registered-domain" deleteRegisteredDomain
@@ -1588,7 +1590,18 @@ verifyChallenge ::
   Handler r DomainOwnershipToken
 verifyChallenge domain challengeId (ChallengeToken token) = do
   lift . liftSem . fmap DomainOwnershipToken $
-    EnterpriseLogin.verifyChallenge domain challengeId token
+    EnterpriseLogin.verifyChallenge Nothing domain challengeId token
+
+verifyChallengeTeam ::
+  (_) =>
+  Local UserId ->
+  Domain ->
+  ChallengeId ->
+  ChallengeToken ->
+  Handler r DomainOwnershipToken
+verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
+  lift . liftSem . fmap DomainOwnershipToken $
+    EnterpriseLogin.verifyChallenge (Just lusr) domain challengeId token
 
 -- Deprecated
 

@@ -235,9 +235,8 @@ testInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
   let email = "user@" <> domain
   void $ I.createUser OwnDomain def {I.email = Just email} >>= getJSON 201
 
-  setup <- setupOwnershipToken OwnDomain domain
-  -- [backoffice] preauth
   I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
@@ -260,9 +259,9 @@ testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
   inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
   code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
 
-  setup <- setupOwnershipToken OwnDomain domain
-  -- [backoffice] preauth
   I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
+
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
@@ -375,9 +374,8 @@ testUpgradePersonalToTeamEmailDomainForAnotherBackend = do
   let email = "alice@" <> domain
   alice <- randomUser OwnDomain def {I.email = Just email}
 
-  setup <- setupOwnershipToken OwnDomain domain
-  -- [backoffice] preauth
   I.domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
 
   -- [customer admin] post no-registration config
   updateDomainRedirect

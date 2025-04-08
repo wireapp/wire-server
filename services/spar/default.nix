@@ -61,7 +61,6 @@
 , string-conversions
 , tasty-hunit
 , text
-, text-latin1
 , these
 , time
 , tinylog
@@ -124,7 +123,6 @@ mkDerivation {
     servant-multipart
     servant-server
     text
-    text-latin1
     these
     time
     tinylog
@@ -178,7 +176,6 @@ mkDerivation {
     optparse-applicative
     polysemy
     polysemy-plugin
-    polysemy-wire-zoo
     QuickCheck
     random
     raw-strings-qq
@@ -213,6 +210,7 @@ mkDerivation {
     base
     brig-types
     bytestring-conversion
+    containers
     cookie
     hscim
     hspec
@@ -231,6 +229,7 @@ mkDerivation {
     servant
     servant-openapi3
     string-conversions
+    text
     these
     time
     tinylog

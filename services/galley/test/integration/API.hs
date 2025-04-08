@@ -49,6 +49,7 @@ import Data.Aeson hiding (json)
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util (toBase64Text, toUTCTimeMillis)
@@ -65,7 +66,7 @@ import Data.Text qualified as T
 import Data.Text.Ascii qualified as Ascii
 import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
-import Federator.MockServer
+import Federator.MockServer hiding (status)
 import Galley.API.Mapping
 import Galley.Options (federator, rabbitmq)
 import Galley.Types.Conversations.Members
@@ -1918,7 +1919,21 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
+  let conv =
+        NewConv
+          []
+          newUsers
+          (checked "gossip")
+          (Set.fromList [])
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          BaseProtocolProteusTag
+          GroupConversation
+          False
+          Nothing
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -1946,7 +1961,21 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- viewGalley
   alice <- randomUser
-  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
+  let inv =
+        NewConv
+          [alice]
+          []
+          Nothing
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          BaseProtocolProteusTag
+          GroupConversation
+          False
+          Nothing
   post (g . path "one2one-conversations" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -2197,6 +2226,9 @@ accessConvMeta = do
           Nothing
           Nothing
           Nothing
+          (Just GroupConversation)
+          Nothing
+          def
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode
     const (Just meta) === (decode <=< responseBody)

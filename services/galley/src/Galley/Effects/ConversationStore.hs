@@ -44,10 +44,12 @@ module Galley.Effects.ConversationStore
     setConversationMessageTimer,
     setConversationEpoch,
     setConversationCipherSuite,
+    setConversationCellsState,
     acceptConnectConversation,
     setGroupInfo,
     updateToMixedProtocol,
     updateToMLSProtocol,
+    updateChannelAddPermissions,
 
     -- * Delete conversation
     deleteConversation,
@@ -69,6 +71,7 @@ import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.MLS.GroupInfo
@@ -98,7 +101,9 @@ data ConversationStore m a where
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
+  SetConversationCellsState :: ConvId -> CellsState -> ConversationStore m ()
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
+  UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()

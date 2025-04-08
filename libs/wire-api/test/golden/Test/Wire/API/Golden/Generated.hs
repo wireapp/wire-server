@@ -117,6 +117,7 @@ import Test.Wire.API.Golden.Generated.NewClient_user qualified
 import Test.Wire.API.Golden.Generated.NewConv_user qualified
 import Test.Wire.API.Golden.Generated.NewLegalHoldClient_team qualified
 import Test.Wire.API.Golden.Generated.NewLegalHoldService_team qualified
+import Test.Wire.API.Golden.Generated.NewOne2OneConv_user qualified
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user qualified
 import Test.Wire.API.Golden.Generated.NewPasswordReset_user qualified
 import Test.Wire.API.Golden.Generated.NewProviderResponse_provider qualified
@@ -415,6 +416,11 @@ tests =
         testObjects
           [ (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_1, "testObject_NewConv_user_1.json"),
             (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_3, "testObject_NewConv_user_3.json")
+          ],
+      testGroup "Golden: NewOne2OneConv_user" $
+        testObjects
+          [ (Test.Wire.API.Golden.Generated.NewOne2OneConv_user.testObject_NewOne2OneConv_user_1, "testObject_NewOne2OneConv_user_1.json"),
+            (Test.Wire.API.Golden.Generated.NewOne2OneConv_user.testObject_NewOne2OneConv_user_3, "testObject_NewOne2OneConv_user_3.json")
           ],
       testGroup "Golden: ConversationList_20_28Id_20_2a_20C_29_user" $
         testObjects

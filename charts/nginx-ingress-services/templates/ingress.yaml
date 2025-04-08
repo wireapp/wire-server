@@ -13,28 +13,37 @@ metadata:
     {{ if not (contains .Values.config.ingressClass "nginx") }}
         {{ fail "In ingress CSP header setting only works with a 'nginx' controller. (Rename it to 'nginx-*' if it is one.)" }}
     {{ end }}
+    {{/* We need to add CSP headers here for webapp, team-settings and
+    account-pages requests, because they cannot do it on their own in the
+    multi-ingress case.
+    SAML SSO endpoints are a special case: They do not provide CSP headers in
+    the single-ingress implementation (because of their javascript form
+    submitting logic), so we skip them here as well.
+    */}}
     nginx.ingress.kubernetes.io/configuration-snippet: |
-      set $CSP "connect-src 'self' blob: data: https://*.giphy.com https://{{ .Values.config.dns.https }}";
-      {{if .Values.websockets.enabled}}
-      set $CSP "${CSP} wss://{{ .Values.config.dns.ssl }}";
-      {{end}}
-      set $CSP "${CSP} https://*.{{ .Values.config.dns.base }};";
-      set $CSP "${CSP} default-src 'self';";
-      set $CSP "${CSP} font-src 'self' data:;";
-      set $CSP "${CSP} frame-src https://*.soundcloud.com https://*.spotify.com https://*.vimeo.com https://*.youtube-nocookie.com;";
-      set $CSP "${CSP} img-src 'self' blob: data: https://*.giphy.com https://*.{{ .Values.config.dns.base }};";
-      set $CSP "${CSP} manifest-src 'self';";
-      set $CSP "${CSP} media-src 'self' blob: data:;";
-      set $CSP "${CSP} object-src 'none';";
-      set $CSP "${CSP} script-src 'self' 'unsafe-eval' https://*.{{ required "Need a 'base' domain for CSP headers." .Values.config.dns.base }}; ";
-      set $CSP "${CSP} style-src 'self' 'unsafe-inline';";
-      set $CSP "${CSP} worker-src 'self' blob:;";
-      set $CSP "${CSP} base-uri 'self';";
-      set $CSP "${CSP} form-action 'self';";
-      set $CSP "${CSP} frame-ancestors 'self';";
-      set $CSP "${CSP} script-src-attr 'none';";
-      set $CSP "${CSP} upgrade-insecure-requests";
-      more_set_headers "content-security-policy: $CSP";
+      if ($uri !~ "(^/sso/finalize-login(/[a-zA-Z0-9-]*)?$)|(^/sso/initiate-login(/[a-zA-Z0-9-]*)?$)|(^/favicon.ico$)") {
+        set $CSP "connect-src 'self' blob: data: https://*.giphy.com https://{{ .Values.config.dns.https }}";
+        {{if .Values.websockets.enabled}}
+        set $CSP "${CSP} wss://{{ .Values.config.dns.ssl }}";
+        {{end}}
+        set $CSP "${CSP} https://*.{{ .Values.config.dns.base }};";
+        set $CSP "${CSP} default-src 'self';";
+        set $CSP "${CSP} font-src 'self' data:;";
+        set $CSP "${CSP} frame-src https://*.soundcloud.com https://*.spotify.com https://*.vimeo.com https://*.youtube-nocookie.com;";
+        set $CSP "${CSP} img-src 'self' blob: data: https://*.giphy.com https://*.{{ .Values.config.dns.base }};";
+        set $CSP "${CSP} manifest-src 'self';";
+        set $CSP "${CSP} media-src 'self' blob: data:;";
+        set $CSP "${CSP} object-src 'none';";
+        set $CSP "${CSP} script-src 'self' 'unsafe-eval' https://*.{{ required "Need a 'base' domain for CSP headers." .Values.config.dns.base }}; ";
+        set $CSP "${CSP} style-src 'self' 'unsafe-inline';";
+        set $CSP "${CSP} worker-src 'self' blob:;";
+        set $CSP "${CSP} base-uri 'self';";
+        set $CSP "${CSP} form-action 'self';";
+        set $CSP "${CSP} frame-ancestors 'self';";
+        set $CSP "${CSP} script-src-attr 'none';";
+        set $CSP "${CSP} upgrade-insecure-requests";
+        more_set_headers "content-security-policy: $CSP";
+      }
     {{ end }}
 spec:
   {{- if $ingressFieldNotAnnotation }}

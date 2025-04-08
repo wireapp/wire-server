@@ -93,5 +93,8 @@ data:
         # hard: 30  # more than this number of threads will not be allowed
       maxPayloadLoadSize : {{ .maxPayloadLoadSize }}
       internalPageSize : {{ .internalPageSize }}
+      {{- if hasKey . "cellsEventQueue" }}
+      cellsEventQueue: {{ .cellsEventQueue }}
+      {{- end }}
 
   {{- end }}

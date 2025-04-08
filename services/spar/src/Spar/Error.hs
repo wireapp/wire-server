@@ -46,6 +46,7 @@ import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
 import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
+import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
@@ -73,12 +74,14 @@ throwSpar = throwError . SAML.CustomError
 
 data SparCustomError
   = SparIdPNotFound LText
+  | SparSPNotFound LText
   | SparSamlCredentialsNotFound
   | SparMissingZUsr
   | SparNotInTeam
   | SparNoPermission LText
   | SparSSODisabled
   | SparNoSuchRequest
+  | SparRequestMissingTryIdpInitiatedLogin LText
   | SparNoRequestRefInResponse LText
   | SparCouldNotSubstituteSuccessURI LText
   | SparCouldNotSubstituteFailureURI LText
@@ -157,6 +160,10 @@ waiToServant waierr =
 
 renderSparError :: SparError -> Either ServerError Wai.Error
 renderSparError (SAML.CustomError SparNoSuchRequest) = Right $ Wai.mkError status500 "server-error" "AuthRequest seems to have disappeared (could not find verdict format)."
+renderSparError (SAML.CustomError (SparRequestMissingTryIdpInitiatedLogin (issuer :: LText))) = Left err303 {errHeaders = [("Location", cs issuer)]}
+  where
+    cs :: LText -> ByteString
+    cs = mconcat . ByteString.toChunks . LText.encodeUtf8
 renderSparError (SAML.CustomError (SparNoRequestRefInResponse msg)) = Right $ Wai.mkError status400 "server-error-unsupported-saml" ("The IdP needs to provide an InResponseTo attribute in the assertion: " <> msg)
 renderSparError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg)) = Right $ Wai.mkError status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 renderSparError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg)) = Right $ Wai.mkError status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
@@ -190,6 +197,7 @@ renderSparError (SAML.BadSamlResponseSamlError msg) =
     Wai.mkError status400 "bad-response-saml" ("Bad response: SAML parse error: " <> msg)
 renderSparError SAML.BadSamlResponseFormFieldMissing = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: SAMLResponse form field missing from HTTP body"
 renderSparError SAML.BadSamlResponseIssuerMissing = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: no Issuer in AuthnResponse"
+renderSparError SAML.BadSamlResponseInconsistentIdPIssuerInfo = Right $ Wai.mkError status403 "bad-response-saml" "Bad response: IdP Issuer in AuthnResponse does not match AuthnRequest"
 renderSparError SAML.BadSamlResponseNoAssertions = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: no assertions in AuthnResponse"
 renderSparError SAML.BadSamlResponseAssertionWithoutID = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: assertion without ID"
 renderSparError (SAML.BadSamlResponseInvalidSignature msg) =
@@ -197,6 +205,8 @@ renderSparError (SAML.BadSamlResponseInvalidSignature msg) =
     Wai.mkError status400 "bad-response-signature" msg
 renderSparError (SAML.CustomError (SparIdPNotFound "")) = Right $ Wai.mkError status404 "not-found" "Could not find IdP."
 renderSparError (SAML.CustomError (SparIdPNotFound msg)) = Right $ Wai.mkError status404 "not-found" ("Could not find IdP: " <> msg)
+renderSparError (SAML.CustomError (SparSPNotFound "")) = Right $ Wai.mkError status404 "not-found" "Could not find SP."
+renderSparError (SAML.CustomError (SparSPNotFound msg)) = Right $ Wai.mkError status404 "not-found" ("Could not find SP: " <> msg)
 renderSparError (SAML.CustomError SparSamlCredentialsNotFound) = Right $ Wai.mkError status404 "not-found" "Could not find SAML credentials, and auto-provisioning is disabled."
 renderSparError (SAML.CustomError SparMissingZUsr) = Right $ Wai.mkError status400 "client-error" "[header] 'Z-User' required"
 renderSparError (SAML.CustomError SparNotInTeam) = Right $ Wai.mkError status403 "no-team-member" "Requesting user is not a team member or not a member of this team."

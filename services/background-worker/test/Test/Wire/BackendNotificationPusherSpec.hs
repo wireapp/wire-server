@@ -6,6 +6,7 @@ module Test.Wire.BackendNotificationPusherSpec where
 
 import Control.Exception
 import Control.Monad.Trans.Except
+import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Lazy qualified as LBS
@@ -25,6 +26,7 @@ import Network.HTTP.Types
 import Network.RabbitMqAdmin
 import Network.Wai qualified as Wai
 import Network.Wai.Internal qualified as Wai
+import Network.Wai.Utilities qualified as Wai
 import Prometheus
 import Servant hiding (respond)
 import Servant.Client
@@ -93,6 +95,57 @@ spec = do
                        }
                    ]
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
+
+    it "bad request should not clog the queue" $ do
+      let origDomain = Domain "origin.example.com"
+          targetDomain = Domain "target.example.com"
+          badRequest = Wai.mkError status400 "bad-request" "Aeson parsing error"
+          fedError =
+            ( Wai.mkError
+                (mkStatus 533 "federation-remote-error")
+                "federation-remote-error"
+                "A remote federator failed with status code: 400"
+            )
+              { Wai.innerError = Just badRequest
+              }
+
+          mockRemote :: p -> IO MockResponse
+          mockRemote _ = do
+            pure $ MockResponse (mkStatus 533 "federation-remote-error") "application/json" (Aeson.encode fedError)
+
+          notifContent = Aeson.object ["foo" .= ("bar" :: Text)]
+          notif =
+            BackendNotification
+              { targetComponent = Brig,
+                ownDomain = origDomain,
+                path = "/on-user-deleted-connections",
+                body = RawJson $ Aeson.encode notifContent,
+                bodyVersions = Nothing,
+                requestId = Just $ RequestId defRequestId
+              }
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode notif,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, _) <- withTempMockFederator def {handler = mockRemote} . runTestAppT $ do
+        notification <- pushNotification runningFlag targetDomain (msg, envelope)
+        void . liftIO . try @SomeException $ wait notification
+        ask
+
+      readIORef envelope.acks `shouldReturn` 0
+      readIORef envelope.rejections `shouldReturn` [False]
+
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` []
+
+      getVectorWith env.backendNotificationMetrics.stuckQueuesGauge getGauge
+        `shouldReturn` [(domainText targetDomain, 0)]
+
+      getVectorWith env.backendNotificationMetrics.errorCounter getCounter
         `shouldReturn` [(domainText targetDomain, 1)]
 
     it "should push notification bundles" $ do
@@ -198,13 +251,14 @@ spec = do
     it "should retry failed deliveries" $ do
       isRemoteBrokenRef <- newIORef True
       fedCalls <- newIORef (0 :: Int)
-      let mockRemote _ = do
+      let mockRemote :: req -> IO MockResponse
+          mockRemote _ = do
             isRemoteBroken <- readIORef isRemoteBrokenRef
             atomicModifyIORef fedCalls $ \c -> (c + 1, ())
             pure $
               if isRemoteBroken
-                then ("text/html", "<marquee>down for maintenance</marquee>")
-                else ("application/json", Aeson.encode EmptyResponse)
+                then MockResponse status200 "text/html" "<marquee>down for maintenance</marquee>"
+                else MockResponse status200 "application/json" (Aeson.encode EmptyResponse)
           origDomain = Domain "origin.example.com"
           targetDomain = Domain "target.example.com"
       notifContent <- generate $ UserDeletedConnectionsNotification <$> arbitrary <*> (unsafeRange . (: []) <$> arbitrary)

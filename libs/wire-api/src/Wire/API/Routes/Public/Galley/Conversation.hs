@@ -381,6 +381,8 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow UnreachableBackendsLegacy
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -402,6 +404,8 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow UnreachableBackendsLegacy
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -423,6 +427,8 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -443,6 +449,8 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -618,7 +626,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> VersionedReqBody 'V2 '[JSON] NewConv
+               :> ReqBody '[JSON] NewOne2OneConv
                :> ConversationVerb 'V2 Conversation
            )
     :<|> Named
@@ -640,7 +648,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> ReqBody '[JSON] NewConv
+               :> ReqBody '[JSON] NewOne2OneConv
                :> ConversationVerb 'V3 Conversation
            )
     :<|> Named
@@ -660,7 +668,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "one2one-conversations"
-               :> ReqBody '[JSON] NewConv
+               :> ReqBody '[JSON] NewOne2OneConv
                :> ConversationVerb 'V3 Conversation
            )
     :<|> Named
@@ -1147,6 +1155,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
+               :> CanThrow 'MLSReadReceiptsNotAllowed
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "receipt-mode"
@@ -1166,6 +1175,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
+               :> CanThrow 'MLSReadReceiptsNotAllowed
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "receipt-mode"
@@ -1314,4 +1324,30 @@ type ConversationAPI =
                :> "protocol"
                :> ReqBody '[JSON] ProtocolUpdate
                :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+           )
+    :<|> Named
+           "update-channel-add-permission"
+           ( Summary "Update the permissions for adding members to a channel"
+               :> CanThrow ('ActionDenied 'ModifyAddPermission)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'NotConnected
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> CanThrow 'InvalidTargetAccess
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "add-permission"
+               :> ReqBody '[JSON] AddPermissionUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    (UpdateResponses "Add permissions unchanged" "Add permissions updated" Event)
+                    (UpdateResult Event)
            )

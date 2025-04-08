@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 
 module SetupHelpers where
 
@@ -32,6 +32,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
+import System.Random (randomRIO)
 import Test.DNSMock
 import Testlib.JSON
 import Testlib.Prelude
@@ -61,18 +62,25 @@ deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
 
 -- | returns (owner, team id, members)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
-createTeam domain memberCount = do
-  owner <- createUser domain def {team = True} >>= getJSON 201
+createTeam domain memberCount = createTeamWithEmailDomain domain "example.com" memberCount
+
+createTeamWithEmailDomain :: (HasCallStack, MakesValue domain) => domain -> String -> Int -> App (Value, String, [Value])
+createTeamWithEmailDomain domain emailDomain memberCount = do
+  ownerEmail <- randomName <&> (<> "@" <> emailDomain)
+  owner <- createUser domain def {team = True, email = Just ownerEmail} >>= getJSON 201
   tid <- owner %. "team" & asString
-  members <- pooledForConcurrentlyN 64 [2 .. memberCount] $ \_ -> createTeamMember owner def
+  members <- pooledForConcurrentlyN 64 [2 .. memberCount] $ \_ -> do
+    email <- randomName <&> (<> "@" <> emailDomain)
+    createTeamMember owner def {email = Just email}
   pure (owner, tid, members)
 
 data CreateTeamMember = CreateTeamMember
-  { role :: String
+  { role :: String,
+    email :: Maybe String
   }
 
 instance Default CreateTeamMember where
-  def = CreateTeamMember {role = "member"}
+  def = CreateTeamMember {role = "member", email = Nothing}
 
 createTeamMember ::
   (HasCallStack, MakesValue inviter) =>
@@ -80,7 +88,7 @@ createTeamMember ::
   CreateTeamMember ->
   App Value
 createTeamMember inviter args = do
-  newUserEmail <- randomEmail
+  newUserEmail <- maybe randomEmail pure args.email
   invitation <-
     postInvitation
       inviter
@@ -445,14 +453,30 @@ updateTestIdpWithMetaWithPrivateCreds owner idpId = do
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.
 loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App (Maybe String, SAML.SignedAuthnResponse)
-loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
+loginWithSaml = loginWithSamlWithZHost Nothing OwnDomain
+
+-- | Given a team configured with saml sso, attempt a login with valid credentials.  This
+-- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
+-- scim-provisioned users as well as saml auto-provisioning without scim.
+loginWithSamlWithZHost ::
+  (MakesValue domain, HasCallStack) =>
+  Maybe String ->
+  domain ->
+  Bool ->
+  String ->
+  String ->
+  (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) ->
+  App (Maybe String, SAML.SignedAuthnResponse)
+loginWithSamlWithZHost mbZHost domain expectSuccess tid email (iid, (meta, privcreds)) = do
   let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
-  spmeta <- getSPMetadata OwnDomain tid
-  authnreq <- initiateSamlLogin OwnDomain iid
+  spmeta <- getSPMetadataWithZHost domain mbZHost tid
+  authnreq <- initiateSamlLoginWithZHost domain mbZHost iid
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
-  authnResp <- runSimpleSP $ SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig (toSPMetaData spmeta.body) (parseAuthnReqResp authnreq.body) True
-  mUid <- finalizeSamlLogin OwnDomain tid authnResp `bindResponse` validateLoginResp
-  pure (mUid, authnResp)
+      spMetaData = toSPMetaData spmeta.body
+      parsedAuthnReq = parseAuthnReqResp authnreq.body
+  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
+  mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
+  pure (mUid, authnReqResp)
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
     toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
@@ -500,34 +524,68 @@ loginWithSaml expectSuccess tid email (iid, (meta, privcreds)) = do
         [[_, uuid]] -> Just uuid
         _ -> Nothing
 
-    runSimpleSP :: SAML.SimpleSP a -> App a
-    runSimpleSP action = liftIO $ do
-      ctx <- SAML.mkSimpleSPCtx undefined []
-      result <- SAML.runSimpleSP ctx action
-      pure $ fromRight (error "simple sp action failed") result
+makeAuthnResponse ::
+  SAML.NameID ->
+  SAML.SignPrivCreds ->
+  SAML.IdPConfig extra ->
+  SAML.SPMetadata ->
+  SAML.AuthnRequest ->
+  App SAML.SignedAuthnResponse
+makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq =
+  runSimpleSP $
+    SAML.mkAuthnResponseWithSubj nameId privcreds idpConfig spMetaData (Just parsedAuthnReq) True
 
-    parseAuthnReqResp ::
-      ByteString ->
-      SAML.AuthnRequest
-    parseAuthnReqResp bs = reqBody
-      where
-        xml :: XML.Document
-        xml =
-          fromRight (error "malformed html in response body") $
-            XML.parseText XML.def (cs bs)
+-- | extract an `AuthnRequest` from the html form in the http response from /sso/initiate-login
+parseAuthnReqResp ::
+  ByteString ->
+  SAML.AuthnRequest
+parseAuthnReqResp bs = reqBody
+  where
+    xml :: XML.Document
+    xml =
+      fromRight (error "malformed html in response body") $
+        XML.parseText XML.def (cs bs)
 
-        reqBody :: SAML.AuthnRequest
-        reqBody =
-          (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
-            & head
-            & XML.attribute (fromString "value")
-            & head
-            & cs
-            & EL.decode
-            & fromRight (error "")
-            & cs
-            & SAML.decodeElem
-            & fromRight (error "")
+    reqBody :: SAML.AuthnRequest
+    reqBody =
+      (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
+        & head
+        & XML.attribute (fromString "value")
+        & head
+        & cs
+        & EL.decode
+        & fromRight (error "")
+        & cs
+        & SAML.decodeElem
+        & fromRight (error "")
+
+getAuthnResponse :: String -> SAML.IdPConfig extra -> SAML.SignPrivCreds -> App SAML.SignedAuthnResponse
+getAuthnResponse tid idp privCreds = do
+  subject <- nextSubject
+  spmeta :: SAML.SPMetadata <-
+    getSPMetadata OwnDomain tid `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      either (error . show) pure $ SAML.decode (cs resp.body)
+  runSimpleSP $ SAML.mkAuthnResponseWithSubj subject privCreds idp spmeta Nothing True
+
+-- | useful for, say, getting an authentication request that spar won't remember.
+runSimpleSP :: SAML.SimpleSP a -> App a
+runSimpleSP action = do
+  ctx <- liftIO $ SAML.mkSimpleSPCtx undefined []
+  runSimpleSPWithCtx ctx action
+
+runSimpleSPWithCtx :: SAML.SimpleSPCtx -> SAML.SimpleSP a -> App a
+runSimpleSPWithCtx ctx action = liftIO $ do
+  result <- SAML.runSimpleSP ctx action
+  pure $ fromRight (error "simple sp action failed") result
+
+nextSubject :: App SAML.NameID
+nextSubject = do
+  unameId <-
+    randomRIO (0, 1 :: Int) >>= \case
+      0 -> either (error . show) id . SAML.mkUNameIDEmail . cs <$> randomEmail
+      1 -> liftIO $ SAML.mkUNameIDUnspecified . UUID.toText <$> nextRandom
+  either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
 
 -- helpers
 
@@ -539,14 +597,14 @@ data ChallengeSetup = ChallengeSetup
   }
 
 setupChallenge :: (MakesValue domain, HasCallStack) => domain -> String -> App ChallengeSetup
-setupChallenge domain registrationDomain = do
-  challenge <- getDomainVerificationChallenge domain registrationDomain >>= getJSON 200
+setupChallenge domain emailDomain = do
+  challenge <- getDomainVerificationChallenge domain emailDomain >>= getJSON 200
   dnsToken <- challenge %. "dns_verification_token" & asString
   challengeId <- challenge %. "id" & asString
   challengeToken <- challenge %. "token" & asString
 
   technitiumToken <- getTechnitiumApiKey
-  registerTechnitiumZone technitiumToken registrationDomain
+  registerTechnitiumZone technitiumToken emailDomain
 
   pure $
     ChallengeSetup
@@ -562,15 +620,29 @@ data DomainRegistrationSetup = DomainRegistrationSetup
     ownershipToken :: String
   }
 
-setupOwnershipToken :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
-setupOwnershipToken domain registrationDomain = do
-  challenge <- setupChallenge domain registrationDomain
-
+setupChallengeAndDnsRecord :: (MakesValue domain, HasCallStack) => domain -> String -> App ChallengeSetup
+setupChallengeAndDnsRecord domain emailDomain = do
+  challenge <- setupChallenge domain emailDomain
   -- register TXT DNS record
-  registerTechnitiumRecord challenge.technitiumToken registrationDomain ("wire-domain." <> registrationDomain) "TXT" challenge.dnsToken
+  registerTechnitiumRecord challenge.technitiumToken emailDomain ("wire-domain." <> emailDomain) "TXT" challenge.dnsToken
+  pure challenge
+
+setupOwnershipTokenForBackend :: (MakesValue domain, HasCallStack) => domain -> String -> App DomainRegistrationSetup
+setupOwnershipTokenForBackend domain emailDomain = do
+  challenge <- setupChallengeAndDnsRecord domain emailDomain
+  -- verify domain
+  ownershipToken <- bindResponse (verifyDomain domain emailDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "domain_ownership_token" & asString
+
+  pure $ DomainRegistrationSetup challenge.dnsToken challenge.technitiumToken ownershipToken
+
+setupOwnershipTokenForTeam :: (MakesValue user, HasCallStack) => user -> String -> App DomainRegistrationSetup
+setupOwnershipTokenForTeam user emailDomain = do
+  challenge <- setupChallengeAndDnsRecord user emailDomain
 
   -- verify domain
-  ownershipToken <- bindResponse (verifyDomain OwnDomain registrationDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
+  ownershipToken <- bindResponse (verifyDomainForTeam user emailDomain challenge.challengeId challenge.challengeToken) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_ownership_token" & asString
 

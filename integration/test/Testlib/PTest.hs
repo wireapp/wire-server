@@ -140,3 +140,14 @@ instance (KnownNat times) => TestCases (Deflake times) where
     let timesVal = natVal (Proxy @times)
     pure . flip map [1 .. timesVal] $ \n ->
       MkTestCase {testCaseName = "[deflake" <> show n <> "]", testCase = Deflake}
+
+data ConversationProtocol
+  = ConversationProtocolProteus
+  | ConversationProtocolMLS
+
+instance TestCases ConversationProtocol where
+  mkTestCases =
+    pure
+      [ MkTestCase "[proto=proteus]" ConversationProtocolProteus,
+        MkTestCase "[proto=mls]" ConversationProtocolMLS
+      ]

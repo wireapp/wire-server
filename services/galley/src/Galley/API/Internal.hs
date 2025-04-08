@@ -28,6 +28,7 @@ where
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Default
 import Data.Id as Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
@@ -36,6 +37,7 @@ import Data.Range
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
+import Galley.API.Cells
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
 import Galley.API.Error
@@ -61,7 +63,6 @@ import Galley.Effects.CustomBackendStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ServiceStore
-import Galley.Effects.TeamFeatureStore qualified as E
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
@@ -116,6 +117,7 @@ internalAPI =
       <@> federationAPI
       <@> conversationAPI
       <@> iEJPDAPI
+      <@> cellsAPI
 
 iEJPDAPI :: API IEJPDAPI GalleyEffects
 iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
@@ -271,6 +273,8 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -286,11 +290,14 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @MlsE2EIdConfig)
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
+    <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
+    <@> mkNamedAPI @'("ilock", ChannelsConfig) (updateLockStatus @ChannelsConfig)
+    <@> mkNamedAPI @'("ilock", CellsConfig) (updateLockStatus @CellsConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
-    <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
-    -- migration state
-    <@> mkNamedAPI @"put-feature-migration-state" E.setMigrationState
+
+cellsAPI :: API ICellsAPI GalleyEffects
+cellsAPI = mkNamedAPI @"set-cells-state" Update.updateCellsState
 
 rmUser ::
   forall p1 p2 r.
@@ -393,10 +400,15 @@ rmUser lusr conn = do
                       now
                       (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-              pure $
-                newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)
-                  <&> set pushConn conn
-                    . set pushRoute PushV2.RouteDirect
+              pure . Just $
+                def
+                  { origin = Just (tUnqualified lusr),
+                    json = toJSONObject e,
+                    recipients = map localMemberToRecipient (Data.convLocalMembers c),
+                    isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+                    conn,
+                    route = PushV2.RouteDirect
+                  }
           | otherwise -> pure Nothing
 
       pushNotifications (catMaybes pp)

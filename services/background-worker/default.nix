@@ -112,6 +112,7 @@ mkDerivation {
     types-common
     unliftio
     wai
+    wai-utilities
     wire-api
     wire-api-federation
   ];

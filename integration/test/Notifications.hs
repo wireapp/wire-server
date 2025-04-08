@@ -159,6 +159,10 @@ isReceiptModeUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isReceiptModeUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.receipt-mode-update"
 
+isChannelAddPermissionUpdate :: (HasCallStack, MakesValue n) => n -> App Bool
+isChannelAddPermissionUpdate n =
+  fieldEquals n "payload.0.type" "conversation.add-permission-update"
+
 isConvMsgTimerUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isConvMsgTimerUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.message-timer-update"

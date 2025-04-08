@@ -1,10 +1,8 @@
 # Authentication
 
-% useful vim replace commands when porting markdown -> restructured text:
-
-% :%s/.. raw:: html//g
-
-% :%s/   <a name="\(.*\)"\/>/.. _\1:/gc
+<!-- useful vim replace commands when porting markdown -> restructured text: -->
+<!-- :%s/.. raw:: html//g -->
+<!-- :%s/   <a name="\(.*\)"\/>/.. _\1:/gc -->
 
 ## Access Tokens
 
@@ -18,29 +16,29 @@ current validity of access tokens is `15 minutes`, however, that may
 change at any time without prior notice.
 
 In order to obtain new access tokens without having to ask the user for
-his credentials again, so-called "user tokens" are issued which are
+his credentials again, so-called “user tokens” are issued which are
 issued in the form of a `zuid` HTTP
 [cookie](https://en.wikipedia.org/wiki/HTTP_cookie). These cookies
-have a long lifetime (if {ref}`persistent <login-persistent>` typically
+have a long lifetime (if [persistent](#login-persistent) typically
 at least a few months) and their use is strictly limited to the
-{ref}`/access <token-refresh>` endpoint used for token refresh.
-{ref}`Persistent <login-persistent>` access cookies are regularly
-refreshed as part of an {ref}`access token refresh <token-refresh>`.
+[/access](#token-refresh) endpoint used for token refresh.
+[Persistent](#login-persistent) access cookies are regularly
+refreshed as part of an [access token refresh](#token-refresh).
 
 An access cookie is obtained either directly after registration or through a
-subsequent {ref}`login <login>`. A successful login provides both an access
+subsequent [login](#login). A successful login provides both an access
 cookie and and access token. Both access token and cookie must be stored safely
 and kept confidential. User passwords should not be stored.
 
 As of yet, there is no concept of authorising third-party applications to
 perform operations on the API on behalf of a user (Notable exceptions:
-{ref}`sso`). Such functionality may be provided in the future through
+[Single Sign-On](#sso)). Such functionality may be provided in the future through
 standardised OAuth2 flows.
 
 To authorise an API request, the access token must be provided via the
 HTTP `Authorization` header with the `Bearer` scheme as follows:
 
-```
+```default
 Authorization: Bearer fmmLpDSjArpksFv57r5rDrzZZlj...
 ```
 
@@ -49,16 +47,16 @@ query string of a request, this approach is highly discouraged as it
 unnecessarily exposes access tokens (e.g. in server logs) and thus might
 be removed in the future.
 
-(login)=
+<a id="login"></a>
 
 ## Login - `POST /login`
 
 A login is the process of authenticating a user either through a known
-secret in a {ref}`password login <login-password>`. The response to a
+secret in a [password login](#login-password). The response to a
 successful login contains an access cookie in a `Set-Cookie` header and an
 access token in the JSON response body.
 
-(login-cookies)=
+<a id="login-cookies"></a>
 
 ### Cookies
 
@@ -71,7 +69,7 @@ session cookies, persistent cookies are replaced by persistent cookies.
 
 To prevent performance issues and malicious usages of the API, there is a
 throttling mechanism in place. When the maximum number of cookies of one type
-are issued, it's checked that login calls don't happen too frequently (too
+are issued, it’s checked that login calls don’t happen too frequently (too
 quickly after one another.)
 
 In case of throttling no cookie gets issued. The error response ([HTTP status
@@ -84,9 +82,9 @@ login many times in a row on the same device. Instead, the cookie should be
 re-used.
 
 The corresponding backend configuration settings are described in:
-{ref}`auth-cookie-config` .
+[Configuring authentication cookie throttling](../../how-to/install/infrastructure-configuration.md#auth-cookie-config) .
 
-(login-password)=
+<a id="login-password"></a>
 
 ### Password Login
 
@@ -94,7 +92,7 @@ To perform a password login, send a `POST` request to the `/login`
 endpoint, providing either a verified email address and the corresponding
 password. For example:
 
-```
+```default
 POST /login HTTP/1.1
 [headers omitted]
 
@@ -109,7 +107,7 @@ that the handle value should be sent *without* the `@` symbol). Assuming
 the credentials are correct, the API will respond with a `200 OK` and an
 access token and cookie:
 
-```
+```default
 HTTP/1.1 200 OK
 zuid=...; Expires=Fri, 02-Aug-2024 09:15:54 GMT; Domain=zinfra.io; Path=/access; HttpOnly; Secure
 [other headers omitted]
@@ -121,8 +119,6 @@ zuid=...; Expires=Fri, 02-Aug-2024 09:15:54 GMT; Domain=zinfra.io; Path=/access;
 }
 ```
 
-%
-
 > The `Domain` of the cookie will be different depending on the
 > environment.
 
@@ -131,18 +127,18 @@ The value of `expires_in` is the number of seconds that the
 
 As of yet, the `token_type` is always `Bearer`.
 
-(login-persistent)=
+<a id="login-persistent"></a>
 
 ### Persistent Logins
 
 By default, access cookies are issued as [session
 cookies](https://en.wikipedia.org/wiki/HTTP_cookie#Session_cookie)
 with a validity of 1 week. Furthermore, these session cookies are not
-refreshed as part of an {ref}`access token refresh <token-refresh>`. To
+refreshed as part of an [access token refresh](#token-refresh). To
 request a `persistent` access cookie which does get refreshed, specify
 the `persist=true` parameter during a login:
 
-```
+```default
 POST /login?persist=true HTTP/1.1
 [headers omitted]
 
@@ -154,7 +150,7 @@ POST /login?persist=true HTTP/1.1
 
 All access cookies returned on registration are persistent.
 
-(token-refresh)=
+<a id="token-refresh"></a>
 
 ### FAQ: is my cookie a persistent cookie or a session cookie?
 
@@ -165,7 +161,7 @@ the backend has a validity of max 1 day or 1 week (configurable, see
 current config in [hegemony](https://github.com/zinfra/hegemony)).
 Example **session cookie**:
 
-```
+```default
 POST /login?persist=false
 
 Set-Cookie: zuid=(redacted); Path=/access; Domain=zinfra.io; HttpOnly; Secure
@@ -177,7 +173,7 @@ means it has *some* expiration date. In production this is currently 14 days
 config](https://github.com/zinfra/cailleach/tree/master/targets/wire/prod/app))
 and can be renewed during token refresh. Example **persistent cookie**:
 
-```
+```default
 POST /login?persist=true
 
 Set-Cookie: zuid=(redacted); Path=/access; Expires=Thu, 10-Jan-2019 10:43:28 GMT; Domain=zinfra.io; HttpOnly; Secure
@@ -191,7 +187,7 @@ refreshed. In order to refresh an access token, send a `POST` reques
 to `/access`, including the access cookie in the `Cookie` header and
 the old (possibly expired) access token in the `Authorization` header:
 
-```
+```default
 POST /access HTTP/1.1
 Authorization: Bearer fmmLpDSjArpksFv57r5rDrzZZlj...
 Cookie: zuid=...
@@ -209,18 +205,18 @@ As part of an access token refresh, the response may also contain a new
 expect a new `zuid` cookie as part of any access token refresh and
 replace the existing cookie appropriately.
 
-(cookies-1)=
+<a id="cookies-1"></a>
 
 ## Cookie Management
 
-(cookies-logout)=
+<a id="cookies-logout"></a>
 
 ### Logout - `POST /access/logout`
 
 An explicit logout effectively deletes the cookie used to perform the
 operation:
 
-```
+```default
 POST /access/logout HTTP/1.1
 Authorization: Bearer fmmLpDSjArpksFv57r5rDrzZZlj...
 Cookie: zuid=...
@@ -235,14 +231,14 @@ no longer valid.
 If a client offers an explicit logout, this operation must be performed.
 An explicit logout is especially important for Web clients.
 
-(cookies-labels)=
+<a id="cookies-labels"></a>
 
 ### Labels
 
 Cookies can be labeled by specifying a `label` during login or
 registration, e.g.:
 
-```
+```default
 POST /login?persist=true HTTP/1.1
 [headers omitted]
 
@@ -254,10 +250,10 @@ POST /login?persist=true HTTP/1.1
 ```
 
 Specifying a label is recommended as it helps to identify the cookies in a
-user-friendly way and allows {ref}`selective revocation <cookies-revoke>` based
+user-friendly way and allows [selective revocation](#cookies-revoke) based
 on the labels.
 
-(cookies-list)=
+<a id="cookies-list"></a>
 
 ### Listing Cookies - `GET /cookies`
 
@@ -265,7 +261,7 @@ To list the cookies currently associated with an account, send a `GET`
 request to `/cookies`. The response will contain a list of cookies,
 e.g.:
 
-```
+```default
 HTTP/1.1 200 OK
 [other headers omitted]
 
@@ -291,16 +287,16 @@ HTTP/1.1 200 OK
 Note that expired cookies are not automatically removed when they
 expire, only as new cookies are issued.
 
-(cookies-revoke)=
+<a id="cookies-revoke"></a>
 
 ### Revoking Cookies - `POST /cookies/remove`
 
 Cookies can be removed individually or in bulk either by specifying the full
-cookie structure as it is returned by {ref}`GET /cookies <cookies-list>` or only
+cookie structure as it is returned by [GET /cookies](#cookies-list) or only
 by their labels in a `POST` request to `/cookies/remove`, alongside with the
-user's credentials:
+user’s credentials:
 
-```
+```default
 POST /cookies/remove HTTP/1.1
 [headers omitted]
 
@@ -315,7 +311,7 @@ POST /cookies/remove HTTP/1.1
 Cookie removal currently requires an account with an email address and
 password.
 
-(password-reset)=
+<a id="password-reset"></a>
 
 ## Password Reset - `POST /password-reset`
 
@@ -329,7 +325,7 @@ if you suspect your current password to be compromised.
 To initiate a password reset, send a `POST` request to `/password-reset`,
 specifying a verified email address for the account in question:
 
-```
+```default
 POST /password-reset HTTP/1.1
 [headers omitted]
 
@@ -356,7 +352,7 @@ new password and the `email` used when initiating the reset (or the opaque
 `key` sent by mail) are sent to `/password-reset/complete` in a `POST`
 request:
 
-```
+```default
 POST /password-reset/complete HTTP/1.1
 [headers omitted]
 
@@ -372,11 +368,11 @@ after which the password reset code becomes invalid and a new password
 reset must be initiated.
 
 A completed password reset results in all access cookies to be revoked,
-requiring the user to {ref}`login <login>`.
+requiring the user to [login](#login).
 
 ## Related topics: SSO, Legalhold
 
-(sso)=
+<a id="sso"></a>
 
 ### Single Sign-On
 
@@ -384,10 +380,10 @@ Users that are part of a team, for which a team admin has configured SSO (Single
 
 More information:
 
-- {ref}`FAQ <trouble-shooting-faq>`
-- [setup howtos for various IdP vendors](https://docs.wire.com/how-to/single-sign-on/index.html)
-- [a few fragments that may help admins](https://github.com/wireapp/wire-server/blob/develop/docs/reference/spar-braindump.md)
+- [FAQ](../single-sign-on/trouble-shooting.md#trouble-shooting-faq)
+- [setup howtos for various IdP vendors](../../understand/single-sign-on/README.md)
+- [a few fragments that may help admins](https://github.com/wireapp/wire-docs/blob/main/src/developer/reference/spar-braindump.md)
 
 ### LegalHold
 
-Users that are part of a team, for which a team admin has configured "LegalHold", can add a so-called "LegalHold" device. The endpoints in use to authenticate for a "LegalHold" Device are the same as for regular users, but the access tokens they get can only use a restricted set of API endpoints. See also [legalhold documentation on wire-server](https://github.com/wireapp/wire-server/blob/develop/docs/reference/team/legalhold.md)
+Users that are part of a team, for which a team admin has configured “LegalHold”, can add a so-called “LegalHold” device. The endpoints in use to authenticate for a “LegalHold” Device are the same as for regular users, but the access tokens they get can only use a restricted set of API endpoints. See also [legalhold documentation on wire-server](https://github.com/wireapp/wire-docs/blob/main/src/developer/reference/team/legalhold.md)

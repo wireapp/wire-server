@@ -48,7 +48,10 @@ testObject_NewConv_user_1 =
       newConvMessageTimer = Just (Ms {ms = 3320987366258987}),
       newConvReceiptMode = Just (ReceiptMode {unReceiptMode = 1}),
       newConvUsersRole = fromJust (parseRoleName "8tp2gs7b6"),
-      newConvProtocol = BaseProtocolProteusTag
+      newConvProtocol = BaseProtocolProteusTag,
+      newConvGroupConvType = GroupConversation,
+      newConvCells = False,
+      newConvChannelAddPermission = Nothing
     }
 
 testObject_NewConv_user_3 :: NewConv
@@ -67,5 +70,8 @@ testObject_NewConv_user_3 =
           ( parseRoleName
               "y3otpiwu615lvvccxsq0315jj75jquw01flhtuf49t6mzfurvwe3_sh51f4s257e2x47zo85rif_xyiyfldpan3g4r6zr35rbwnzm0k"
           ),
-      newConvProtocol = BaseProtocolMLSTag
+      newConvProtocol = BaseProtocolMLSTag,
+      newConvGroupConvType = Channel,
+      newConvCells = True,
+      newConvChannelAddPermission = Just Admins
     }

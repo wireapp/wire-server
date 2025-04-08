@@ -80,7 +80,8 @@ runEnterpriseLoginSubsystemWithConfig ::
     Member Random r,
     Member Rpc r,
     Member UserKeyStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   EnterpriseLoginSubsystemConfig ->
   Sem (EnterpriseLoginSubsystem ': r) a ->
@@ -103,7 +104,8 @@ runEnterpriseLoginSubsystem ::
     Member Random r,
     Member Rpc r,
     Member UserKeyStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Sem (EnterpriseLoginSubsystem ': r) a ->
   Sem r a
@@ -127,9 +129,9 @@ runEnterpriseLoginSubsystem = interpret $
     CreateDomainVerificationChallenge domain ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         createDomainVerificationChallengeImpl domain
-    VerifyChallenge domain challengeId challengeToken ->
+    VerifyChallenge mLusr domain challengeId challengeToken ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
-        verifyChallengeImpl domain challengeId challengeToken
+        verifyChallengeImpl mLusr domain challengeId challengeToken
     AuthorizeTeam lusr domain ownershipToken ->
       runInputSem (wireServerEnterpriseEndpoint <$> input) $
         authorizeTeamImpl lusr domain ownershipToken
@@ -203,11 +205,17 @@ createDomainVerificationChallengeImpl ::
     Member DomainVerificationChallengeStore r,
     Member (Error ParseException) r,
     Member (Input Endpoint) r,
-    Member Rpc r
+    Member Rpc r,
+    Member TinyLog r,
+    Member DomainRegistrationStore r,
+    Member (Error EnterpriseLoginSubsystemError) r
   ) =>
   Domain ->
   Sem r DomainVerificationChallenge
 createDomainVerificationChallengeImpl domain = do
+  dr <- lookup domain
+  when (((.domainRedirect) <$> dr) == Just Locked) $
+    throw EnterpriseLoginSubsystemOperationForbidden
   challengeId <- Id <$> Random.uuid
   token <- Token <$> Random.bytes 32
   dnsVerificationToken <- newDnsVerificationToken
@@ -228,13 +236,22 @@ verifyChallengeImpl ::
     Member (Input Endpoint) r,
     Member Random r,
     Member Rpc r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
+  Maybe (Local UserId) ->
   Domain ->
   ChallengeId ->
   Token ->
   Sem r Token
-verifyChallengeImpl domain challengeId challengeToken = do
+verifyChallengeImpl mLusr domain challengeId challengeToken = do
+  mCurrentEntry <- lookup domain
+  when (((.domainRedirect) <$> mCurrentEntry) == Just Locked) $
+    throw EnterpriseLoginSubsystemOperationForbidden
+  case mLusr of
+    Just lusr -> void $ guardTeamAdminAccess lusr
+    Nothing -> unless (domainRegistrationForAnonymousAllowed mCurrentEntry) $ throw EnterpriseLoginSubsystemOperationForbidden
   challenge <- Challenge.lookup challengeId >>= note EnterpriseLoginSubsystemChallengeNotFound
   unless
     ( challenge.challengeTokenHash == hashToken challengeToken
@@ -244,15 +261,23 @@ verifyChallengeImpl domain challengeId challengeToken = do
       throw EnterpriseLoginSubsystemAuthFailure
   verifyDNSRecord domain challenge.dnsVerificationToken
   authToken <- Token <$> Random.bytes 32
-  mOld <- lookup domain
-  let old = fromMaybe (mkDomainRegistration domain) mOld
+  let domReg = fromMaybe (mkDomainRegistration domain) mCurrentEntry
   upsert $
-    old
+    domReg
       { authTokenHash = Just $ hashToken authToken,
         dnsVerificationToken = Just challenge.dnsVerificationToken
       }
   Challenge.delete challengeId
   pure authToken
+  where
+    domainRegistrationForAnonymousAllowed :: Maybe DomainRegistration -> Bool
+    domainRegistrationForAnonymousAllowed mDr = case (.domainRedirect) <$> mDr of
+      Nothing -> False
+      Just Locked -> False
+      Just PreAuthorized -> True
+      -- once the domain was registered before (meaning an entry exists other than Locked or Preauthorized)
+      -- there is no need to preauthorize it again before verifying the DNS record
+      Just _ -> True
 
 deleteDomainImpl ::
   ( Member DomainRegistrationStore r,
@@ -592,10 +617,12 @@ updateTeamInviteImpl luid domain config = do
         throw EnterpriseLoginSubsystemOperationForbidden
       case conf.teamInvite of
         Team tidConfig | tidConfig /= tid -> throw EnterpriseLoginSubsystemOperationForbidden
-        validTeamInvite -> case conf.code of
-          Just idpId -> do
+        validTeamInvite -> case conf.domainRedirect of
+          Just (TeamSso idpId) -> do
             validateIdPId tid idpId
             pure $ DomainRegistrationUpdate (SSO idpId) validTeamInvite
+          Just TeamNone -> pure $ DomainRegistrationUpdate None validTeamInvite
+          Just TeamNoRegistration -> pure $ DomainRegistrationUpdate NoRegistration validTeamInvite
           Nothing -> pure $ DomainRegistrationUpdate domReg.domainRedirect validTeamInvite
 
     validateIdPId ::
@@ -649,13 +676,18 @@ getDomainRegistrationPublicImpl ::
   ( Member UserKeyStore r,
     Member (Error EnterpriseLoginSubsystemError) r,
     Member DomainRegistrationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   GetDomainRegistrationRequest ->
   Sem r DomainRedirectResponse
 getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
   -- check if the email belongs to a registered user
-  mUser <- lookupKey (mkEmailKey email)
+  mUser <- do
+    mUid <- lookupKey (mkEmailKey email)
+    mLuid <- for mUid (\uid -> flip qualifyAs uid <$> input)
+    maybe (pure Nothing) (fmap (fmap selfUser) . getSelfProfile) mLuid
 
   domain <-
     either
@@ -664,7 +696,13 @@ getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
       $ mkDomain (Text.decodeUtf8 (domainPart email))
   mReg <- getDomainRegistrationImpl domain
 
-  pure $ case mUser of
-    Nothing -> DomainRedirectResponse False (maybe None (.domainRedirect) mReg)
-    Just _ ->
-      DomainRedirectResponse (fmap (domainRedirectTag . (.domainRedirect)) mReg == Just BackendTag) None
+  pure $ case (mUser, maybe None (.domainRedirect) mReg) of
+    (Just _, Backend _) -> DomainRedirectResponse True NoRegistration
+    (Just user, SSO _)
+      | not (isSSOAccountFromTeam (mReg >>= (.authorizedTeam)) user) ->
+          DomainRedirectResponse False NoRegistration
+    (_, dr) -> DomainRedirectResponse False dr
+  where
+    isSSOAccountFromTeam :: Maybe TeamId -> User -> Bool
+    isSSOAccountFromTeam Nothing _ = False
+    isSSOAccountFromTeam (Just tid) user = any isSSOIdentity user.userIdentity && user.userTeam == Just tid

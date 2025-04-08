@@ -348,36 +348,36 @@ putSSOId user args = do
         ]
 
 domainRegistrationLock :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-domainRegistrationLock domain registrationDomain = do
-  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain, "lock"]
+domainRegistrationLock domain emailDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", emailDomain, "lock"]
   submit "POST" req
 
 domainRegistrationUnlock :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-domainRegistrationUnlock domain registrationDomain = do
-  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain, "unlock"]
+domainRegistrationUnlock domain emailDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", emailDomain, "unlock"]
   submit "POST" req
 
 domainRegistrationPreAuthorize :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-domainRegistrationPreAuthorize domain registrationDomain = do
-  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain, "preauthorize"]
+domainRegistrationPreAuthorize domain emailDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", emailDomain, "preauthorize"]
   submit "POST" req
 
 domainRegistrationUnAuthorize :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-domainRegistrationUnAuthorize domain registrationDomain = do
-  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain, "unauthorize"]
+domainRegistrationUnAuthorize domain emailDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", emailDomain, "unauthorize"]
   submit "POST" req
 
 updateDomainRegistration :: (HasCallStack, MakesValue domain) => domain -> String -> Value -> App Response
-updateDomainRegistration domain registrationDomain payload = do
-  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain]
+updateDomainRegistration domain emailDomain payload = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", emailDomain]
   submit "PUT" $ req & addJSON payload
 
 deleteDomainRegistration :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-deleteDomainRegistration domain registrationDomain = do
-  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain]
+deleteDomainRegistration domain emailDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", emailDomain]
   submit "DELETE" req
 
 getDomainRegistration :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-getDomainRegistration domain registrationDomain = do
-  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", registrationDomain]
+getDomainRegistration domain emailDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", emailDomain]
   submit "GET" req

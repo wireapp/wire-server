@@ -32,6 +32,7 @@ import Polysemy
 import Polysemy.Error qualified as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
+import System.Logger qualified as SemLog
 import System.Logger.Class qualified as Log
 import Wire.Network.DNS.Effect (DNSLookup)
 import Wire.Network.DNS.Effect qualified as Lookup
@@ -45,6 +46,7 @@ data DiscoveryFailure
 instance Exception DiscoveryFailure
 
 instance AsWai DiscoveryFailure where
+  errorLogLevel _ = SemLog.Error
   toWai e = Wai.mkError status label (LText.fromStrict (discoveryErrorDescription e))
     where
       (status, label) = case e of

@@ -39,10 +39,12 @@ module Galley.API.Update
     updateConversationMessageTimer,
     updateConversationAccessUnqualified,
     updateConversationAccess,
+    updateChannelAddPermission,
     deleteLocalConversation,
     updateRemoteConversation,
     updateConversationProtocolWithLocalUser,
     updateLocalStateOfRemoteConv,
+    updateCellsState,
 
     -- * Managing Members
     addMembersUnqualified,
@@ -75,6 +77,7 @@ where
 import Control.Error.Util (hush)
 import Control.Lens
 import Data.Code
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.List1
@@ -85,10 +88,12 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
+import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Query qualified as Query
+import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation qualified as Data
@@ -102,6 +107,7 @@ import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
@@ -113,6 +119,7 @@ import Polysemy.TinyLog
 import Wire.API.Bot hiding (addBot)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
@@ -129,6 +136,7 @@ import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
+import Wire.API.Team.Feature
 import Wire.API.User.Client
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
@@ -317,13 +325,15 @@ updateConversationReceiptMode ::
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -391,13 +401,15 @@ updateConversationReceiptModeUnqualified ::
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -415,7 +427,8 @@ updateConversationMessageTimer ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -447,7 +460,8 @@ updateConversationMessageTimerUnqualified ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -501,7 +515,8 @@ addCodeUnqualifiedWithReqBody ::
     Member HashPassword r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   UserId ->
   Maybe Text ->
@@ -526,7 +541,8 @@ addCodeUnqualified ::
     Member (Input Opts) r,
     Member HashPassword r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   Maybe CreateConversationCodeRequest ->
   UserId ->
@@ -553,7 +569,8 @@ addCode ::
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Maybe ZHostValue ->
@@ -564,7 +581,8 @@ addCode ::
 addCode lusr mbZHost mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (Data.convTeam conv)
-  Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.convMetadata.cnvmTeam
+  Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
   convUri <- getConversationCodeURI mbZHost
@@ -578,7 +596,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
       now <- input
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
       let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
-      pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
+      pushConversationEvent mZcon conv event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     -- In case conversation already has a code this case covers the allowed no-ops
     Just (code, mPw) -> do
@@ -601,7 +619,8 @@ rmCodeUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -618,7 +637,8 @@ rmCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -627,14 +647,15 @@ rmCode ::
 rmCode lusr zcon lcnv = do
   conv <-
     E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.convMetadata.cnvmTeam
+  Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
   key <- E.makeKey (tUnqualified lcnv)
   E.deleteCode key ReusableCode
   now <- input
   let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now EdConvCodeDelete
-  pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
+  pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map lmId users)) bots
   pure event
 
 getCode ::
@@ -711,7 +732,8 @@ updateConversationProtocolWithLocalUser ::
     Member Random r,
     Member ProposalStore r,
     Member SubConversationStore r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -734,6 +756,50 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
             newProtocol
       )
       qcnv
+
+updateChannelAddPermission ::
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (ErrorS ('ActionDenied 'ModifyAddPermission)) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (Error FederationError) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member (Input (Local ())) r,
+    Member TinyLog r,
+    Member (ErrorS (MissingPermission Nothing)) r,
+    Member (ErrorS NotATeamMember) r,
+    Member (ErrorS TeamNotFound) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
+    Member BrigAccess r,
+    Member FederatorAccess r,
+    Member MemberStore r,
+    Member (ErrorS 'InvalidTargetAccess) r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  AddPermissionUpdate ->
+  Sem r (UpdateResult Event)
+updateChannelAddPermission lusr zcon qcnv update =
+  foldQualified
+    lusr
+    ( \lcnv ->
+        getUpdateResult $
+          lcuEvent
+            <$> updateLocalConversation
+              @'ConversationUpdateAddPermissionTag
+              lcnv
+              (tUntagged lusr)
+              (Just zcon)
+              update
+    )
+    (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr zcon update)
+    qcnv
 
 joinConversationByReusableCode ::
   forall r.
@@ -983,7 +1049,7 @@ updateSelfMember lusr zcon qcnv update = do
   E.setSelfMember qcnv lusr update
   now <- input
   let e = Event qcnv Nothing (tUntagged lusr) now (EdMemberUpdate (updateData lusr))
-  pushConversationEvent (Just zcon) e (fmap pure lusr) []
+  pushConversationEvent (Just zcon) () e (fmap pure lusr) []
   where
     checkLocalMembership ::
       (Member MemberStore r) =>
@@ -1040,7 +1106,8 @@ updateOtherMemberLocalConv ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1066,7 +1133,8 @@ updateOtherMemberUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1091,7 +1159,8 @@ updateOtherMember ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1130,7 +1199,8 @@ removeMemberUnqualified ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1159,7 +1229,8 @@ removeMemberQualified ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1235,7 +1306,8 @@ removeMemberFromLocalConv ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamStore r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1580,8 +1652,15 @@ addBot lusr zcon b = do
                   ]
               )
           )
-  for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users)) $ \p ->
-    pushNotifications [p & pushConn ?~ zcon]
+  pushNotifications
+    [ def
+        { origin = Just (tUnqualified lusr),
+          json = toJSONObject e,
+          recipients = map localMemberToRecipient users,
+          isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+          conn = Just zcon
+        }
+    ]
   E.deliverAsync (map (,e) (bm : bots))
   pure e
   where
@@ -1592,6 +1671,8 @@ addBot lusr zcon b = do
       self <- getSelfMemberFromLocals (tUnqualified lusr) users
       -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
       -- Remember to change this if we ever want to allow non admins to add bots.
+      -- Also note, that in the future we want to allow channel admins (who are not necessarily conversation admins) to add bots.
+      -- Currently bots cannot be added to channels because channels are always MLS conversations which do not support bots.
       ensureActionAllowed SAddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
@@ -1624,6 +1705,7 @@ rmBot lusr zcon b = do
     -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
     -- Remember to change this if we ever want to allow non admins to remove bots.
     self <- getSelfMemberFromLocals (tUnqualified lusr) users
+    -- Similarly to addBot we currently only allow admins to remove bots. Once bots support MLS we, also need to check for channel admin permissions here.
     ensureActionAllowed SRemoveConversationMember self
   let lcnv = qualifyAs lusr (Data.convId c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
@@ -1633,12 +1715,37 @@ rmBot lusr zcon b = do
       do
         let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t evd
-        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users)) $ \p ->
-          pushNotifications [p & pushConn .~ zcon]
+        pushNotifications
+          [ def
+              { origin = Just (tUnqualified lusr),
+                json = toJSONObject e,
+                recipients = map localMemberToRecipient users,
+                isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+                conn = zcon
+              }
+          ]
         E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
         E.deleteClients (botUserId (b ^. rmBotId))
         E.deliverAsync (map (,e) bots)
         pure $ Updated e
+
+updateCellsState ::
+  ( Member ConversationStore r,
+    Member (ErrorS ConvNotFound) r,
+    Member (ErrorS InvalidOperation) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
+  ConvId ->
+  CellsState ->
+  Sem r ()
+updateCellsState cnv state = do
+  when (state /= CellsDisabled) $ do
+    conv <- E.getConversation cnv >>= noteS @ConvNotFound
+    tid <- noteS @InvalidOperation conv.convMetadata.cnvmTeam
+    feat <- getFeatureForTeam @CellsConfig tid
+    noteS @InvalidOperation $ guard (feat.status == FeatureStatusEnabled)
+  E.setConversationCellsState cnv state
 
 -------------------------------------------------------------------------------
 -- Helpers

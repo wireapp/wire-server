@@ -237,3 +237,15 @@ instance Cql SubConvId where
   toCql = CqlText . unSubConvId
   fromCql (CqlText txt) = Right (SubConvId txt)
   fromCql _ = Left "SubConvId: Text expected"
+
+instance Cql GroupConvType where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . fromEnum
+  fromCql (CqlInt i) = Right . toEnum . fromIntegral $ i
+  fromCql _ = Left "GroupConvType: int expected"
+
+instance Cql AddPermission where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . fromEnum
+  fromCql (CqlInt i) = Right . toEnum . fromIntegral $ i
+  fromCql _ = Left "AddPermission: int expected"

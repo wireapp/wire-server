@@ -1611,10 +1611,13 @@ CREATE TABLE galley_test.conversation (
     access set<int>,
     access_role int,
     access_roles_v2 set<int>,
+    cells_state int,
+    channel_add_permission int,
     cipher_suite int,
     creator uuid,
     deleted boolean,
     epoch bigint,
+    group_conv_type int,
     group_id blob,
     message_timer bigint,
     name text,
@@ -2139,7 +2142,8 @@ CREATE TABLE spar_test.verdict (
 
 CREATE TABLE spar_test.authreq (
     req text PRIMARY KEY,
-    end_of_life timestamp
+    end_of_life timestamp,
+    idp_issuer text
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''

@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><samlp:AuthnRequest ID="id6c1c178c166d486687be4aaf5e482730" IssueInstant="2013-03-18T03:28:54.1839884Z" Version="2.0" xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"> <Issuer xmlns="urn:oasis:names:tc:SAML:2.0:assertion">https://www.contoso.com</Issuer></samlp:AuthnRequest>

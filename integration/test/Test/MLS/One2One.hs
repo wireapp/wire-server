@@ -403,12 +403,12 @@ testMLSGhostOne2OneConv = do
 -- | See Note: [Federated 1:1 MLS Conversations]
 -- To run locally this test requires federation-v1 docker containers to be up and running.
 -- See `deploy/dockerephemeral/run.sh` and comment on `StaticFedDomain` in `Testlib/VersionedFed.hs` for more details.
-testMLSFederationV1ConvOnOldBackend :: App ()
-testMLSFederationV1ConvOnOldBackend = do
+testMLSFederationV1ConvOnOldBackend :: (HasCallStack) => FedDomain 1 -> App ()
+testMLSFederationV1ConvOnOldBackend domain = do
   let cs = Ciphersuite "0x0001"
   alice <- randomUser OwnDomain def
   let createBob = do
-        bobCandidate <- randomUser (StaticFedDomain 1) def
+        bobCandidate <- randomUser domain def
         connectUsers [alice, bobCandidate]
         getMLSOne2OneConversation alice bobCandidate `bindResponse` \resp -> do
           if resp.status == 533
@@ -459,12 +459,12 @@ testMLSFederationV1ConvOnOldBackend = do
 -- | See Note: Federated 1:1 MLS Conversations
 -- To run locally this test requires federation-v1 docker containers to be up and running.
 -- See `deploy/dockerephemeral/run.sh` and comment on `StaticFedDomain` in `Testlib/VersionedFed.hs` for more details.
-testMLSFederationV1ConvOnNewBackend :: App ()
-testMLSFederationV1ConvOnNewBackend = do
+testMLSFederationV1ConvOnNewBackend :: (HasCallStack) => FedDomain 1 -> App ()
+testMLSFederationV1ConvOnNewBackend domain = do
   let cs = Ciphersuite "0x0001"
   alice <- randomUser OwnDomain def
   let createBob = do
-        bobCandidate <- randomUser (StaticFedDomain 1) def
+        bobCandidate <- randomUser domain def
         connectUsers [alice, bobCandidate]
         getMLSOne2OneConversation alice bobCandidate `bindResponse` \resp -> do
           if resp.status == 200

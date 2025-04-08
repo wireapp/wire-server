@@ -65,7 +65,7 @@ import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
 import Data.UUID qualified as UUID
 import Data.UUID.V4
-import Federator.MockServer
+import Federator.MockServer hiding (body)
 import Federator.MockServer qualified as Mock
 import GHC.TypeNats
 import Galley.Options qualified as Opts
@@ -74,7 +74,6 @@ import Galley.Types.Conversations.One2One
 import Galley.Types.UserList
 import Imports
 import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Media.MediaType
 import Network.URI (pathSegments)
 import Network.Wai.Utilities.MockServer (withMockServer)
 import Servant
@@ -585,7 +584,20 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- viewGalley
   let tinfo = ConvTeamInfo tid
   let conv =
-        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) BaseProtocolProteusTag
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (fromMaybe (Set.fromList []) acc)
+          role
+          (Just tinfo)
+          mtimer
+          Nothing
+          (fromMaybe roleNameWireAdmin convRole)
+          BaseProtocolProteusTag
+          GroupConversation
+          False
+          Nothing
   post
     ( g
         . path "/conversations"
@@ -621,7 +633,10 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
             newConvMessageTimer = timer,
             newConvUsersRole = fromMaybe roleNameWireAdmin convRole,
             newConvReceiptMode = Nothing,
-            newConvProtocol = BaseProtocolMLSTag
+            newConvProtocol = BaseProtocolMLSTag,
+            newConvGroupConvType = GroupConversation,
+            newConvCells = False,
+            newConvChannelAddPermission = Nothing
           }
   r <-
     post
@@ -652,7 +667,20 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- viewGalley
   let conv =
-        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
+        NewConv
+          [u2]
+          []
+          (n >>= checked)
+          mempty
+          Nothing
+          (Just $ ConvTeamInfo tid)
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          BaseProtocolProteusTag
+          GroupConversation
+          False
+          Nothing
   post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -666,7 +694,21 @@ postConv ::
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
 defNewProteusConv :: NewConv
-defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
+defNewProteusConv =
+  NewConv
+    []
+    []
+    Nothing
+    mempty
+    Nothing
+    Nothing
+    Nothing
+    Nothing
+    roleNameWireAdmin
+    BaseProtocolProteusTag
+    GroupConversation
+    False
+    Nothing
 
 defNewMLSConv :: NewConv
 defNewMLSConv =
@@ -710,7 +752,21 @@ postConvWithRemoteUsers u c n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin BaseProtocolProteusTag
+  let conv =
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (Set.fromList a)
+          r
+          (Just (ConvTeamInfo tid))
+          mtimer
+          Nothing
+          roleNameWireAdmin
+          BaseProtocolProteusTag
+          GroupConversation
+          False
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -748,7 +804,21 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin BaseProtocolProteusTag
+  let conv =
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (Set.fromList a)
+          r
+          Nothing
+          mtimer
+          (Just rcpt)
+          roleNameWireAdmin
+          BaseProtocolProteusTag
+          GroupConversation
+          False
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -759,7 +829,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- viewGalley
-  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
+  let conv = NewOne2OneConv [u2] [] (n >>= checked) Nothing
   post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -1501,7 +1571,9 @@ registerRemoteConv convId originUser name othMembers = do
           nonCreatorMembers = othMembers,
           messageTimer = Nothing,
           receiptMode = Nothing,
-          protocol = ProtocolProteus
+          protocol = ProtocolProteus,
+          groupConvType = Nothing,
+          channelAddPermission = Nothing
         }
 
 -------------------------------------------------------------------------------
@@ -2298,6 +2370,9 @@ mkProteusConv cnvId creator selfRole otherMembers =
         Nothing
         Nothing
         Nothing
+        (Just GroupConversation)
+        Nothing
+        def
     )
     (RemoteConvMembers selfRole otherMembers)
     ProtocolProteus
@@ -2460,7 +2535,7 @@ withTempMockFederator' resp action = do
         def
           { handler = runMock (assertFailure . Text.unpack) $ do
               r <- resp
-              pure ("application" // "json", r)
+              pure (def {Mock.body = r})
           }
   Mock.withTempMockFederator
     mock

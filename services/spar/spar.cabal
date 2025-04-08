@@ -42,6 +42,7 @@ library
     Spar.Schema.V18
     Spar.Schema.V19
     Spar.Schema.V2
+    Spar.Schema.V20
     Spar.Schema.V3
     Spar.Schema.V4
     Spar.Schema.V5
@@ -180,12 +181,11 @@ library
     , polysemy-wire-zoo
     , QuickCheck
     , raw-strings-qq
-    , saml2-web-sso          >=0.20
+    , saml2-web-sso
     , semigroupoids
     , servant-multipart
     , servant-server
     , text
-    , text-latin1
     , these
     , time
     , tinylog
@@ -373,12 +373,11 @@ executable spar-integration
     , optparse-applicative
     , polysemy
     , polysemy-plugin
-    , polysemy-wire-zoo
     , QuickCheck
     , random
     , raw-strings-qq
     , retry
-    , saml2-web-sso          >=0.20
+    , saml2-web-sso
     , servant
     , servant-server
     , silently
@@ -471,7 +470,7 @@ executable spar-migrate-data
     , imports
     , lens
     , optparse-applicative
-    , saml2-web-sso         >=0.20
+    , saml2-web-sso
     , spar
     , text
     , time
@@ -555,6 +554,7 @@ test-suite spec
     Test.Spar.Sem.DefaultSsoCodeSpec
     Test.Spar.Sem.IdPRawMetadataStoreSpec
     Test.Spar.Sem.NowSpec
+    Test.Spar.Sem.SamlProtocolSettingsSpec
     Test.Spar.Sem.ScimExternalIdStoreSpec
     Test.Spar.TypesSpec
 
@@ -615,6 +615,7 @@ test-suite spec
     , base
     , brig-types
     , bytestring-conversion
+    , containers
     , cookie
     , hscim
     , hspec
@@ -629,11 +630,12 @@ test-suite spec
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
-    , saml2-web-sso          >=0.20
+    , saml2-web-sso
     , servant
     , servant-openapi3
     , spar
     , string-conversions
+    , text
     , these
     , time
     , tinylog

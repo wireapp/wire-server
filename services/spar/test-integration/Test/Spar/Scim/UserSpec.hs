@@ -1076,7 +1076,7 @@ createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
   spmeta <- getTestSPMetadata tid
   authnResp <-
     runSimpleSP $
-      SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+      SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta (Just authnReq) True
   submitAuthnResponse tid authnResp <!! const 200 === statusCode
 
 createViaSamlFails :: (HasCallStack) => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ()

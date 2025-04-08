@@ -56,7 +56,7 @@ spec = describe "accessVerdict" $ do
         env <- ask
         (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         idp <- registerTestIdP owner
-        (Nothing, outcome, _, _) <- requestAccessVerdict idp False mkAuthnReqWeb
+        (Nothing, ResponseVerdict outcome, _, _) <- requestAccessVerdict idp False mkAuthnReqWeb
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 200
           Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -69,7 +69,7 @@ spec = describe "accessVerdict" $ do
         env <- ask
         (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         idp <- registerTestIdP owner
-        (Just _, outcome, _, _) <- requestAccessVerdict idp True mkAuthnReqWeb
+        (Just _, ResponseVerdict outcome, _, _) <- requestAccessVerdict idp True mkAuthnReqWeb
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 200
           Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -88,7 +88,7 @@ spec = describe "accessVerdict" $ do
         env <- ask
         (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         idp <- registerTestIdP owner
-        (Nothing, outcome, loc, qry) <- requestAccessVerdict idp False mkAuthnReqMobile
+        (Nothing, ResponseVerdict outcome, loc, qry) <- requestAccessVerdict idp False mkAuthnReqMobile
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 303
           Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -102,7 +102,7 @@ spec = describe "accessVerdict" $ do
         env <- ask
         (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         idp <- registerTestIdP owner
-        (Just uid, outcome, loc, qry) <- requestAccessVerdict idp True mkAuthnReqMobile
+        (Just uid, ResponseVerdict outcome, loc, qry) <- requestAccessVerdict idp True mkAuthnReqMobile
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 303
           Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -168,20 +168,20 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
       (SAML.FormRedirect _ req) -> do
         SAML.SignedAuthnResponse (XML.Document _ el _) <-
           runSimpleSP $
-            SAML.mkAuthnResponseWithSubj subject privKey idp spmeta req True
+            SAML.mkAuthnResponseWithSubj subject privKey idp spmeta (Just req) True
         either (error . show) pure $ SAML.parse [XML.NodeElement el]
   let verdict =
         if isGranted
           then SAML.AccessGranted uref
           else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
-  outcome :: ResponseVerdict <- do
-    runSpar $ Spar.verdictHandler authnresp verdict idp
+  outcome <- do
+    runSpar $ Spar.verdictHandler (authnresp ^. rspPayload) verdict idp
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)
           . List.lookup "Location"
           . Servant.errHeaders
-          $ outcome
+          $ unResponseVerdict outcome
       qry :: [(ByteString, ByteString)]
       qry = queryPairs $ uriQuery loc
   muid <- runSpar $ SAMLUserStore.get uref

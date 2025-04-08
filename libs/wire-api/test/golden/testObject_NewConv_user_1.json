@@ -7,7 +7,9 @@
         "team_member",
         "guest"
     ],
+    "cells": false,
     "conversation_role": "8tp2gs7b6",
+    "group_conv_type": "group_conversation",
     "message_timer": 3320987366258987,
     "protocol": "proteus",
     "qualified_users": [],

@@ -4,7 +4,9 @@
             "access": [],
             "access_role": "private",
             "access_role_v2": [],
+            "add_permission": null,
             "creator": "00000000-0000-0000-0000-000000000001",
+            "group_conv_type": "group_conversation",
             "id": "00000001-0000-0000-0000-000000000000",
             "last_event": "0.0",
             "last_event_time": "1970-01-01T00:00:00.000Z",
@@ -32,6 +34,7 @@
             "message_timer": 4760386328981119,
             "name": "",
             "protocol": "proteus",
+            "cells_state": "ready",
             "qualified_id": {
                 "domain": "golden.example.com",
                 "id": "00000001-0000-0000-0000-000000000000"

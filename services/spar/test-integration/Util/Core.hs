@@ -173,7 +173,7 @@ import Network.HTTP.Client.MultipartFormData
 import Network.URI (pathSegments)
 import qualified Options.Applicative as OPA
 import Polysemy (Sem)
-import SAML2.WebSSO as SAML hiding ((<$$>))
+import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
@@ -218,7 +218,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
-import Wire.Sem.Logger.TinyLog
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -226,7 +225,7 @@ mkEnvFromOptions = do
   let desc = "Spar - SSO Service Integration Test Suite"
   (integrationCfgFilePath, cfgFilePath) <- OPA.execParser (OPA.info (OPA.helper <*> cliOptsParser) (OPA.header desc <> OPA.fullDesc))
   integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationCfgFilePath >>= either (error . show) pure
-  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) Spar.Options.deriveOpts
+  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) pure
   mkEnv integrationOpts serviceOpts
 
 -- | Accept config file locations as cli options.
@@ -264,7 +263,7 @@ cliOptsParser =
 mkEnv :: (HasCallStack) => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv tstOpts opts = do
   mgr :: Manager <- newManager defaultManagerSettings
-  sparCtxLogger <- Log.mkLogger (samlToLevel $ saml opts ^. SAML.cfgLogLevel) (logNetStrings opts) (logFormat opts)
+  sparCtxLogger <- Log.mkLogger (saml opts ^. SAML.cfgLogLevel) (logNetStrings opts) (logFormat opts)
   cql :: ClientState <- initCassandra opts sparCtxLogger
   let brig = mkVersionedRequest tstOpts.brig
       galley = mkVersionedRequest tstOpts.galley
@@ -823,7 +822,7 @@ tryLogin privkey idp userSubject = do
   let tid = idp ^. idpExtraInfo . team
   spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
-  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta (Just authnreq) True
   sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     statusCode sparresp `shouldBe` 200
@@ -838,7 +837,7 @@ tryLoginFail privkey idp userSubject bodyShouldContain = do
   let tid = idp ^. idpExtraInfo . team
   spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
-  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+  idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta (Just authnreq) True
   sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
@@ -919,7 +918,7 @@ loginCreatedSsoUser nameid idp privCreds = do
   let tid = idp ^. idpExtraInfo . team
   authnReq <- negotiateAuthnRequest idp
   spmeta <- getTestSPMetadata tid
-  authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta authnReq True
+  authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta (Just authnReq) True
   sparAuthnResp <- submitAuthnResponse tid authnResp
 
   let wireCookie = fromMaybe (error (show sparAuthnResp)) . lookup "Set-Cookie" $ responseHeaders sparAuthnResp

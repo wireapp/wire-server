@@ -18,6 +18,7 @@ packages:
   , libs/metrics-core/
   , libs/metrics-wai/
   , libs/polysemy-wire-zoo/
+  , libs/saml2-web-sso
   , libs/schema-profunctor/
   , libs/sodium-crypto-sign/
   , libs/ssl-util/
