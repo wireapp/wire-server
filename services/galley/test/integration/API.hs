@@ -28,6 +28,7 @@ where
 import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
 import API.MLS qualified
+import API.MLS.Util (convV8ToV9, memberToOtherMember)
 import API.MessageTimer qualified as MessageTimer
 import API.Roles qualified as Roles
 import API.SQS
@@ -276,7 +277,7 @@ testGetConvQualifiedV2 = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (list1 bob [])
-  conv <-
+  conv :: ConversationV9 <-
     responseJsonError
       =<< postConvQualified
         alice
@@ -285,12 +286,12 @@ testGetConvQualifiedV2 = do
           { newConvUsers = [bob]
           }
         <!! const 201 === statusCode
-  let qcnv = cnvQualifiedId conv
+  let qcnv = conv.qualifiedId
   conv' <-
     fmap (unVersioned @'V2) . responseJsonError
       =<< getConvQualifiedV2 alice qcnv
         <!! const 200 === statusCode
-  liftIO $ conv @=? conv'
+  liftIO $ withOrderedMembers conv @=? withOrderedMembers (convV8ToV9 conv')
 
 postProteusConvOk :: TestM ()
 postProteusConvOk = do
@@ -1495,34 +1496,30 @@ getConvsOk2 = do
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (singleton carl)
-  cnv2 <-
+  cnv2 :: ConversationV9 <-
     responseJsonError
       =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
         <!! const 201 === statusCode
   do
     r <-
       responseJsonError
-        =<< getConvs alice [cnvQualifiedId cnv2] <!! do
+        =<< getConvs alice [cnv2.qualifiedId] <!! do
           const 200 === statusCode
     liftIO $
-      [cnvQualifiedId cnv2] @=? map cnvQualifiedId (crFound r)
+      [cnv2.qualifiedId] @=? map cnvQualifiedId (crFound r)
   -- get both
   convs <- getAllConvs alice
   let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) convs
-  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) convs
-  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
-    assertEqual
-      "name mismatch"
-      (Just $ C.cnvName expected)
-      (C.cnvName <$> actual)
-    assertEqual
-      "self member mismatch"
-      (Just . cmSelf $ cnvMembers expected)
-      (cmSelf . cnvMembers <$> actual)
-    assertEqual
-      "other members mismatch"
-      (Just [])
-      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+  let c2 = find ((== cnv2.qualifiedId) . cnvQualifiedId) convs
+  liftIO . forM_ [(convV8ToV9 cnv1, c1), (cnv2, c2)] $ \(expected, mActual) ->
+    case mActual of
+      Nothing -> assertFailure $ "Did not find expected conversation: " <> show expected
+      Just actual -> do
+        assertEqual "name mismatch" expected.metadata.cnvmName actual.cnvMetadata.cnvmName
+        assertEqual
+          "members"
+          (Set.fromList expected.otherMembers)
+          (Set.fromList (memberToOtherMember actual.cnvMembers.cmSelf : actual.cnvMembers.cmOthers))
 
 getConvsFailMaxSizeV2 :: TestM ()
 getConvsFailMaxSizeV2 = do
@@ -2012,7 +2009,7 @@ putConvAcceptOk :: TestM ()
 putConvAcceptOk = do
   alice <- randomUser
   bob <- randomUser
-  qcnv <- decodeQualifiedConvId <$> postConnectConv alice bob "Alice" "come to zeta!" Nothing
+  qcnv <- decodeQualifiedConvIdV8 <$> postConnectConv alice bob "Alice" "come to zeta!" Nothing
   putConvAccept bob (qUnqualified qcnv) !!! const 200 === statusCode
   getConvQualified alice qcnv !!! do
     const 200 === statusCode
@@ -2339,8 +2336,8 @@ testBulkGetQualifiedConvs = do
   connectWithRemoteUser alice carlQ
   connectWithRemoteUser alice deeQ
 
-  localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
-  let localConvId = cnvQualifiedId localConv
+  localConv :: ConversationV9 <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
+  let localConvId = localConv.qualifiedId
 
   remoteConvIdA <- randomQualifiedId remoteDomainA
   remoteConvIdB <- randomQualifiedId remoteDomainB
@@ -2390,11 +2387,11 @@ testBulkGetQualifiedConvs = do
   liftIO $ do
     let expectedFound =
           sortOn
-            cnvQualifiedId
-            $ pure (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
-              <> pure (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
-              <> [localConv]
-        actualFound = sortOn cnvQualifiedId $ crFound convs
+            (.qualifiedId)
+            $ convV8ToV9 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
+              : convV8ToV9 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
+              : [localConv]
+        actualFound = sortOn (.qualifiedId) . map convV8ToV9 $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
 
     -- Assumes only one request is made
