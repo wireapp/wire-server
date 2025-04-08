@@ -22,6 +22,7 @@ module Proxy.Options
     proxy,
     giphyEndpoint,
     youtubeEndpoint,
+    googleMapsEndpoint,
     secretsConfig,
     httpPoolSize,
     maxConns,
@@ -45,6 +46,7 @@ data Opts = Opts
   { _proxy :: !Endpoint,
     _giphyEndpoint :: !(Maybe Endpoint),
     _youtubeEndpoint :: !(Maybe Endpoint),
+    _googleMapsEndpoint :: !(Maybe Endpoint),
     -- | File containing upstream secrets
     _secretsConfig :: !FilePath,
     -- | Number of connections for the HTTP pool
