@@ -68,6 +68,7 @@
 , scientific
 , servant
 , servant-client
+, servant-server
 , split
 , stm
 , streaming-commons
@@ -170,6 +171,7 @@ mkDerivation {
     scientific
     servant
     servant-client
+    servant-server
     split
     stm
     streaming-commons
