@@ -21,6 +21,7 @@ module Proxy.Options
   ( Opts,
     proxy,
     giphyEndpoint,
+    youtubeEndpoint,
     secretsConfig,
     httpPoolSize,
     maxConns,
@@ -42,7 +43,8 @@ import Wire.API.Routes.Version
 
 data Opts = Opts
   { _proxy :: !Endpoint,
-    _giphyEndpoint :: !Endpoint,
+    _giphyEndpoint :: !(Maybe Endpoint),
+    _youtubeEndpoint :: !(Maybe Endpoint),
     -- | File containing upstream secrets
     _secretsConfig :: !FilePath,
     -- | Number of connections for the HTTP pool

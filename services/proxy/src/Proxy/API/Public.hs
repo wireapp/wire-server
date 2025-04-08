@@ -49,7 +49,7 @@ import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
-import Proxy.Options (disableTlsForTest, giphyEndpoint)
+import Proxy.Options (disableTlsForTest, giphyEndpoint, youtubeEndpoint)
 import Proxy.Proxy
 import Servant ((:<|>) (..), (:>))
 import Servant qualified
@@ -88,7 +88,7 @@ waiRoutingSitemap :: Env -> Routes a Proxy ()
 waiRoutingSitemap e = do
   get
     "/proxy/youtube/v3/:path"
-    (proxyWaiPredicate e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
+    (proxyWaiPredicate e "key" "secrets.youtube" Prefix "/youtube/v3" (youtube e))
     pure
 
   get
@@ -107,9 +107,13 @@ waiRoutingSitemap e = do
 
   get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
 
-youtube, googleMaps :: ProxyDest
-youtube = ProxyDest "www.googleapis.com" 443
-googleMaps = ProxyDest "maps.googleapis.com" 443
+googleMaps :: ProxyDest
+googleMaps = ProxyDest "www.googleapis.com" 443
+
+youtube :: Env -> ProxyDest
+youtube env = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
+  where
+    endpoint = fromMaybe (Endpoint "www.googleapis.com" 443) (env ^. Proxy.Env.options . youtubeEndpoint)
 
 giphyH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
 giphyH env = proxyServant "api_key" "secrets.giphy" reroute path phost
@@ -117,7 +121,7 @@ giphyH env = proxyServant "api_key" "secrets.giphy" reroute path phost
     reroute = Prefix
     path = "/v1/gifs"
     phost = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
-    endpoint = env ^. Proxy.Env.options . giphyEndpoint
+    endpoint = fromMaybe (Endpoint "api.giphy.com" 443) (env ^. Proxy.Env.options . giphyEndpoint)
 
 proxyServant :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
 proxyServant qparam keyname reroute path phost rq kont = do

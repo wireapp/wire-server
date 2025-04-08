@@ -36,7 +36,7 @@ type GiphyAPI =
   "v1"
     :> "gifs"
     :> Capture "path" String
-    :> QueryParam "api_key" String
+    :> QueryParam "api_key" String -- (we could also use `QueryString` here, no deep reason why we don't)
     :> QueryParam "q" String
     :> QueryParam "limit" Int
     :> QueryParam "offset" Int
@@ -88,3 +88,43 @@ testProxyGiphy = do
           ]
     server mbPathSegment mbApiKey mbQ mbLimit mbOffset =
       error $ "unexpected: " <> show (mbPathSegment, mbApiKey, mbQ, mbLimit, mbOffset)
+
+----------------------------------------------------------------------
+-- youtube
+
+type YoutubeAPI =
+  "youtube"
+    :> "v3"
+    :> Capture "path" String
+    :> QueryString
+    :> Get '[JSON] Value
+
+testProxyYoutube :: App ()
+testProxyYoutube = do
+  lowerCodensity $ do
+    port <- startMockServer def app
+    lift
+      $ withModifiedBackend
+        def
+          { wireProxyCfg =
+              (setField "youtubeEndpoint" (A.object ["host" .= "localhost", "port" .= port]))
+                . (setField "disableTlsForTest" True)
+          }
+        ( \domain -> do
+            getYoutube domain "wef" [("gnarz", "true")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 200
+              -- the response from mock youtube is just passed through to the wire client.
+              resp.json %. "pathSegment" `shouldMatch` "wef"
+              resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-youtube-secret\"),(\"gnarz\",Just \"true\")]"
+        )
+  where
+    app :: Wai.Application
+    app = serve (Proxy :: Proxy YoutubeAPI) server
+
+    server :: Server YoutubeAPI
+    server pathSegment queryString =
+      pure
+        $ A.object
+          [ "pathSegment" .= pathSegment,
+            "queryString" .= show queryString
+          ]
