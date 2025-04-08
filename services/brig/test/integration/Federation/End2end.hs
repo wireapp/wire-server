@@ -225,7 +225,7 @@ testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
   connectUsersEnd2End brig1 brig2 aliceId bobId
 
   convId <-
-    fmap cnvQualifiedId . responseJsonError
+    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
       =<< createConversation galley1 (userId alice) [bobId]
         <!! const 201 === statusCode
 
@@ -267,7 +267,7 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
   connectUsersEnd2End brig1 brig2 aliceId bobId
 
   convId <-
-    fmap cnvQualifiedId . responseJsonError
+    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
       =<< createConversation galley1 (userId alice) [bobId]
         <!! const 201 === statusCode
 
@@ -308,7 +308,7 @@ testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
 
   connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
   convId <-
-    fmap cnvQualifiedId . responseJsonError
+    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
 
@@ -358,11 +358,11 @@ testListConversations brig1 brig2 galley1 galley2 = do
 
   -- create two group conversations with alice & bob, on each of domain1, domain2
   cnv1 <-
-    responseJsonError
+    responseJsonError @_ @ConversationV9
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
   cnv2 <-
-    responseJsonError
+    responseJsonError @_ @ConversationV9
       =<< createConversation galley2 (userId bob) [userQualifiedId alice]
         <!! const 201 === statusCode
 
@@ -382,17 +382,15 @@ testListConversations brig1 brig2 galley1 galley2 = do
   (cs :: [Conversation]) <-
     (fmap crFound . responseJsonError)
       =<< listConvs galley1 (userId alice) cids <!! (const 200 === statusCode)
-  let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) cs
-  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) cs
-  liftIO . forM_ [c1, c2] $ \actual -> do
-    assertEqual
-      "self member mismatch"
-      (Just . cmSelf $ cnvMembers expected)
-      (cmSelf . cnvMembers <$> actual)
-    assertEqual
-      "other members mismatch"
-      (Just [])
-      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+  let c1 = find ((== cnv1.qualifiedId) . cnvQualifiedId) cs
+  let c2 = find ((== cnv2.qualifiedId) . cnvQualifiedId) cs
+  liftIO . forM_ [c1, c2] $ \mActual -> do
+    case mActual of
+      Nothing -> assertFailure "An expected conversation was not found"
+      Just actual -> do
+        let actualMemIds = Set.fromList $ actual.cnvMembers.cmSelf.memId : map (.omQualifiedId) actual.cnvMembers.cmOthers
+            expectedMemIds = Set.fromList $ map (.omQualifiedId) expected.otherMembers
+        assertEqual "member mismatch" actualMemIds expectedMemIds
 
 debug :: Text -> Http ()
 debug text = do
@@ -425,7 +423,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
 
   -- create conversation on domain 2
   convId <-
-    fmap (qUnqualified . cnvQualifiedId) . responseJsonError
+    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @ConversationV9
       =<< createConversation galley2 (userId bob) [userQualifiedId alice]
         <!! const 201 === statusCode
 
@@ -488,7 +486,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
 
   -- create conversation on domain 1
   convId <-
-    fmap (qUnqualified . cnvQualifiedId) . responseJsonError
+    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @ConversationV9
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
 
@@ -537,12 +535,12 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
   connectUsersEnd2End brig1 brig2 alice bobDel
 
   conv1 <-
-    fmap cnvQualifiedId . responseJsonError
+    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
       =<< createConversation galley1 (qUnqualified alice) [bobDel]
         <!! const 201 === statusCode
 
   conv2 <-
-    fmap cnvQualifiedId . responseJsonError
+    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
       =<< createConversation galley2 (qUnqualified bobDel) [alice]
         <!! const 201 === statusCode
 
@@ -609,7 +607,7 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
   connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
 
   cnv <-
-    responseJsonError
+    responseJsonError @_ @ConversationV9
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
   let isTyping g u s =
@@ -617,8 +615,8 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
           ( g
               . paths
                 [ "conversations",
-                  toByteString' (qDomain (cnvQualifiedId cnv)),
-                  toByteString' (qUnqualified (cnvQualifiedId cnv)),
+                  toByteString' (qDomain cnv.qualifiedId),
+                  toByteString' (qUnqualified cnv.qualifiedId),
                   "typing"
                 ]
               . zUser (userId u)
@@ -630,7 +628,7 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
         WS.assertMatch_ (8 # Second) ws $ \n -> do
           let e = List1.head (WS.unpackPayload n)
           ntfTransient n @?= True
-          evtConv e @?= cnvQualifiedId cnv
+          evtConv e @?= cnv.qualifiedId
           evtType e @?= Typing
           evtFrom e @?= userQualifiedId u
           evtData e @?= EdTyping s
