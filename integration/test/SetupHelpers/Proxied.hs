@@ -7,9 +7,19 @@ module SetupHelpers.Proxied where
 import Servant
 import Testlib.Prelude
 
-type GiphyPath = String
-
 type GiphyApiKey = String
+
+data GiphyResponse = GiphyResponse
+  { apiKey :: GiphyApiKey,
+    q :: String,
+    limit :: Int,
+    offset :: Int
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON GiphyResponse
+
+instance ToJSON GiphyResponse
 
 type GiphyAPI =
   "v1"
@@ -19,7 +29,7 @@ type GiphyAPI =
     :> QueryParam "q" String
     :> QueryParam "limit" Int
     :> QueryParam "offset" Int
-    :> Get '[JSON] NoContent
+    :> Get '[JSON] GiphyResponse
 
 -- TODO: Does this belong here? Wouldn't it be better if the tests could define
 -- their mocks themselves?

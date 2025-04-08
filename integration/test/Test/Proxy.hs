@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -41,12 +42,13 @@ testProxyGiphy = do
           }
         ( \domain -> do
             getGiphy domain `bindResponse` \resp -> do
-              -- resp.body `shouldBe` ~/src/wire-server/integration/sample-giphy-response.json
               resp.status `shouldMatchInt` 200
+              resp.json %. "q" `shouldMatch` "monday"
         )
   where
     app :: Wai.Application
     app = serve (Proxy :: Proxy GiphyAPI) server
 
     server :: Server GiphyAPI
-    server _apiKey _q _limit _offset = pure NoContent
+    server (Just apiKey) (Just q) (Just limit) (Just offset) = pure (GiphyResponse {..})
+    server _ _ _ _ = error "Unexpected"
