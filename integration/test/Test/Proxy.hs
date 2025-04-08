@@ -128,3 +128,47 @@ testProxyYoutube = do
               resp.json %. "pathSegment" `shouldMatch` "wef"
               resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-youtube-secret\"),(\"gnarz\",Just \"true\")]"
         )
+
+----------------------------------------------------------------------
+-- google maps
+
+type GoogleMapsAPI =
+  "googlemaps"
+    :> ( ("api" :> "staticmap" :> QueryString :> Get '[JSON] Value)
+           :<|> ("maps" :> "api" :> "geocode" :> Capture "path" String :> QueryString :> Get '[JSON] Value)
+       )
+
+googleMapsApp :: Wai.Application
+googleMapsApp = serve (Proxy :: Proxy GoogleMapsAPI) (server1 :<|> server2)
+  where
+    server1 queryString =
+      pure
+        $ A.object
+          [ "queryString" .= show queryString
+          ]
+
+    server2 pathSegment queryString =
+      pure
+        $ A.object
+          [ "pathSegment" .= pathSegment,
+            "queryString" .= show queryString
+          ]
+
+testProxyGoogleMaps :: App ()
+testProxyGoogleMaps = do
+  lowerCodensity $ do
+    port <- startMockServer def googleMapsApp
+    lift
+      $ withModifiedBackend
+        def
+          { wireProxyCfg =
+              (setField "googleMapsEndpoint" (A.object ["host" .= "localhost", "port" .= port]))
+                . (setField "disableTlsForTest" True)
+          }
+        ( \domain -> do
+            getGoogleMaps domain "wef" [("gnarz", "true")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 200
+              -- the response from mock googleMaps is just passed through to the wire client.
+              resp.json %. "pathSegment" `shouldMatch` "wef"
+              resp.json %. "queryString" `shouldMatch` "[(\"key\",Just \"my-googlemaps-secret\"),(\"gnarz\",Just \"true\")]"
+        )

@@ -65,6 +65,8 @@ import Wire.API.Routes.Public.Proxy
 type PublicAPI =
   ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
     :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
+    -- :<|> ProxyAPIRoute "gmaps-static" ("googlemaps" :> "api" :> "staticmap" :> RawM)
+    -- :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
     :<|> Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
 
 servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy

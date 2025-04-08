@@ -8,6 +8,9 @@ getGiphy = callProxy "giphy/v1/gifs/"
 getYoutube :: (HasCallStack, MakesValue caller) => caller -> String -> [(String, String)] -> App Response
 getYoutube = callProxy "youtube/v3/"
 
+getGoogleMaps :: (HasCallStack, MakesValue caller) => caller -> String -> [(String, String)] -> App Response
+getGoogleMaps = callProxy "googlemaps/"
+
 callProxy :: (HasCallStack, MakesValue caller) => String -> caller -> String -> [(String, String)] -> App Response
 callProxy pathPrefix caller path qparams = do
   req <- baseRequest caller WireProxy Unversioned ("/proxy/" <> pathPrefix <> path)
