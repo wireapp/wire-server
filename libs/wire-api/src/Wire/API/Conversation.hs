@@ -25,6 +25,7 @@ module Wire.API.Conversation
     ConversationMetadata (..),
     defConversationMetadata,
     Conversation (..),
+    ConversationV9 (..),
     conversationSchema,
     cnvType,
     cnvCreator,
@@ -36,6 +37,7 @@ module Wire.API.Conversation
     cnvAccessRoles,
     MLSOne2OneConversation (..),
     CreateGroupConversationV8 (..),
+    CreateGroupConversation (..),
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
@@ -308,6 +310,7 @@ conversationSchema v =
 data ConversationV9 = ConversationV9
   { qualifiedId :: Qualified ConvId,
     metadata :: ConversationMetadata,
+    -- TODO: rename to members
     otherMembers :: [OtherMember],
     protocol :: Protocol
   }
@@ -320,11 +323,17 @@ instance ToSchema ConversationV9 where
     objectWithDocModifier
       "ConversationV9"
       (description ?~ "A conversation object as returned from the server")
-      $ ConversationV9
-        <$> qualifiedId .= field "qualified_id" schema
-        <*> metadata .= conversationMetadataObjectSchema accessRolesSchema
-        <*> otherMembers .= field "other_members" (array schema)
-        <*> protocol .= protocolSchema Nothing
+      $ conversationV9ObjectSchema
+
+conversationV9ObjectSchema :: ObjectSchema SwaggerDoc ConversationV9
+conversationV9ObjectSchema =
+  ConversationV9
+    <$> qualifiedId .= field "qualified_id" schema
+    <* (qUnqualified . qualifiedId)
+      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+    <*> metadata .= conversationMetadataObjectSchema accessRolesSchema
+    <*> otherMembers .= field "members" (array schema)
+    <*> protocol .= protocolSchema Nothing
 
 data MLSOne2OneConversation a = MLSOne2OneConversation
   { conversation :: Conversation,
@@ -337,7 +346,7 @@ instance (ToSchema a) => ToSchema (MLSOne2OneConversation a) where
     let aName = maybe "" ("_" <>) $ getName (schemaDoc (schema @a))
      in object ("MLSOne2OneConversation" <> aName) $
           MLSOne2OneConversation
-            <$> conversation .= field "conversation" schema
+            <$> (.conversation) .= field "conversation" schema
             <*> publicKeys .= field "public_keys" schema
 
 -- | The public-facing conversation type extended with information on which
@@ -367,12 +376,30 @@ createGroupConversationSchema v =
       <$> cgcConversation .= conversationObjectSchema v
       <*> (toFlatList . cgcFailedToAdd)
         .= field "failed_to_add" (fromFlatList <$> array schema)
-  where
-    toFlatList :: Map Domain (Set a) -> [Qualified a]
-    toFlatList m =
-      (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
-    fromFlatList :: (Ord a) => [Qualified a] -> Map Domain (Set a)
-    fromFlatList = fmap Set.fromList . indexQualified
+
+toFlatList :: Map Domain (Set a) -> [Qualified a]
+toFlatList m =
+  (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
+
+fromFlatList :: (Ord a) => [Qualified a] -> Map Domain (Set a)
+fromFlatList = fmap Set.fromList . indexQualified
+
+data CreateGroupConversation = CreateGroupConversation
+  { conversation :: ConversationV9,
+    failedToAdd :: Map Domain (Set UserId)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateGroupConversation)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateGroupConversation
+
+instance ToSchema CreateGroupConversation where
+  schema =
+    objectWithDocModifier
+      "CreateGroupConversation"
+      (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
+      $ CreateGroupConversation
+        <$> (.conversation) .= conversationV9ObjectSchema
+        <*> (toFlatList . failedToAdd) .= field "failed_to_add" (fromFlatList <$> array schema)
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
@@ -1115,7 +1142,16 @@ instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
   fromHeaders = snd
 
+instance AsHeaders '[ConvId] ConversationV9 ConversationV9 where
+  toHeaders c = (I (qUnqualified c.qualifiedId) :* Nil, c)
+  fromHeaders = snd
+
 instance AsHeaders '[ConvId] CreateGroupConversationV8 CreateGroupConversationV8 where
   toHeaders c =
     ((I . qUnqualified . cnvQualifiedId . cgcConversation $ c) :* Nil, c)
+  fromHeaders = snd
+
+instance AsHeaders '[ConvId] CreateGroupConversation CreateGroupConversation where
+  toHeaders c =
+    (I c.conversation.qualifiedId.qUnqualified :* Nil, c)
   fromHeaders = snd

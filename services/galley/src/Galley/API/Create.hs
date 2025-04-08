@@ -24,10 +24,11 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Create
   ( createGroupConversationUpToV3,
-    createGroupConversation,
+    createGroupConversationV8,
     createProteusSelfConversation,
     createOne2OneConversation,
     createConnectConversation,
+    createGroupConversation,
   )
 where
 
@@ -136,7 +137,54 @@ createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLe
     conversationCreated lusr conv
 
 -- | The public-facing endpoint for creating group conversations in the client
--- API in version 4 and above.
+-- API in from version 4 to 8
+createGroupConversationV8 ::
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
+    Member ConversationStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (Error NonFederatingBackends) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
+    Member (Error UnreachableBackends) r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member TeamStore r,
+    Member P.TinyLog r,
+    Member TeamFeatureStore r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  NewConv ->
+  Sem r CreateGroupConversationResponseV8
+createGroupConversationV8 lusr conn newConv = do
+  let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
+  checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
+  cnv <-
+    createGroupConversationGeneric
+      lusr
+      conn
+      newConv
+  conv <- conversationView lusr cnv
+  pure . GroupConversationCreatedV8 $
+    CreateGroupConversationV8 conv mempty
+
+-- | The public-facing endpoint for creating group conversations in the client
+-- API in version 9 and above.
 createGroupConversation ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
@@ -170,6 +218,7 @@ createGroupConversation ::
   NewConv ->
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr conn newConv = do
+  -- TODO: Dedupe stuff with createGroupConversationV8
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
@@ -178,9 +227,9 @@ createGroupConversation lusr conn newConv = do
       lusr
       conn
       newConv
-  conv <- conversationView lusr cnv
+  let conv = toConversationV9 lusr cnv
   pure . GroupConversationCreated $
-    CreateGroupConversationV8 conv mempty
+    CreateGroupConversation conv mempty
 
 createGroupConversationGeneric ::
   ( Member BackendNotificationQueueAccess r,

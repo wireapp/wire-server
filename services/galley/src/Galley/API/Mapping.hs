@@ -21,6 +21,7 @@ module Galley.API.Mapping
     remoteConversationView,
     conversationToRemote,
     localMemberToSelf,
+    toConversationV9,
   )
 where
 
@@ -53,6 +54,21 @@ conversationView luid conv = do
   let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers conv
       localOthers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
   conversationViewWithCachedOthers remoteOthers localOthers conv luid
+
+-- | TODO: Rename this function
+toConversationV9 ::
+  Local x ->
+  Data.Conversation ->
+  ConversationV9
+toConversationV9 luid conv =
+  let remoteMembers = map remoteMemberToOther $ Data.convRemoteMembers conv
+      localMembers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
+   in ConversationV9
+        { otherMembers = localMembers <> remoteMembers,
+          qualifiedId = (tUntagged . qualifyAs luid . Data.convId $ conv),
+          metadata = conv.convMetadata,
+          protocol = conv.convProtocol
+        }
 
 -- | Like 'conversationView' but optimized for situations which could benefit
 -- from pre-computing the list of @OtherMember@s in the conversation. For

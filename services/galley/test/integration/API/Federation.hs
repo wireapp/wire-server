@@ -48,7 +48,6 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
-import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
@@ -105,7 +104,7 @@ getConversationsAllFound = do
   connectWithRemoteUser bob aliceQ
 
   -- create & get group conv
-  cnv2 <-
+  cnv2 :: ConversationV9 <-
     responseJsonError
       =<< postConvWithRemoteUsers
         bob
@@ -127,11 +126,11 @@ getConversationsAllFound = do
   do
     convs <-
       responseJsonError
-        =<< getConvs bob [cnv1Id, cnvQualifiedId cnv2] <!! do
+        =<< getConvs bob [cnv1Id, cnv2.qualifiedId] <!! do
           const 200 === statusCode
     liftIO $
       sort (map cnvQualifiedId (crFound convs))
-        @?= sort [cnv1Id, cnvQualifiedId cnv2]
+        @?= sort [cnv1Id, cnv2.qualifiedId]
 
   -- get conversations
 
@@ -141,18 +140,18 @@ getConversationsAllFound = do
     runFedClient @"get-conversations" fedGalleyClient (qDomain aliceQ) $
       GetConversationsRequest
         (qUnqualified aliceQ)
-        (map qUnqualified [cnv1Id, cnvQualifiedId cnv2])
+        (map qUnqualified [cnv1Id, cnv2.qualifiedId])
 
-  let c2 = find ((== qUnqualified (cnvQualifiedId cnv2)) . (.id)) convs
-
+  let c2 = find ((== cnv2.qualifiedId.qUnqualified) . (.id)) convs
+  let selfMember = find (\m -> m.omQualifiedId == bobQ) cnv2.otherMembers
   liftIO $ do
     assertEqual
       "name mismatch"
-      (Just $ Conv.cnvName cnv2)
+      (Just $ cnv2.metadata.cnvmName)
       ((.metadata.cnvmName) <$> c2)
     assertEqual
       "self member role mismatch"
-      (Just . memConvRoleName . cmSelf $ cnvMembers cnv2)
+      (omConvRoleName <$> selfMember)
       ((.members.selfRole) <$> c2)
     assertEqual
       "other members mismatch"

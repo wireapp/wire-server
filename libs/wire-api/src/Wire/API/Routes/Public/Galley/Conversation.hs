@@ -52,13 +52,33 @@ import Wire.API.Team.Feature
 -- | A type similar to 'ResponseForExistedCreated' introduced to allow for a failure
 -- to add remote members while creating a conversation or due to involved
 -- backends forming an incomplete graph.
-data CreateGroupConversationResponse
-  = GroupConversationExisted Conversation
-  | GroupConversationCreated CreateGroupConversationV8
+data CreateGroupConversationResponseV8
+  = GroupConversationExistedV8 Conversation
+  | GroupConversationCreatedV8 CreateGroupConversationV8
 
 instance
   ( ResponseType r1 ~ Conversation,
     ResponseType r2 ~ CreateGroupConversationV8
+  ) =>
+  AsUnion '[r1, r2] CreateGroupConversationResponseV8
+  where
+  toUnion (GroupConversationExistedV8 x) = Z (I x)
+  toUnion (GroupConversationCreatedV8 x) = S (Z (I x))
+
+  fromUnion (Z (I x)) = GroupConversationExistedV8 x
+  fromUnion (S (Z (I x))) = GroupConversationCreatedV8 x
+  fromUnion (S (S x)) = case x of {}
+
+-- | A type similar to 'ResponseForExistedCreated' introduced to allow for a failure
+-- to add remote members while creating a conversation or due to involved
+-- backends forming an incomplete graph.
+data CreateGroupConversationResponse
+  = GroupConversationExisted ConversationV9
+  | GroupConversationCreated CreateGroupConversation
+
+instance
+  ( ResponseType r1 ~ ConversationV9,
+    ResponseType r2 ~ CreateGroupConversation
   ) =>
   AsUnion '[r1, r2] CreateGroupConversationResponse
   where
@@ -75,7 +95,7 @@ type family ConversationResponse r
 
 type instance ConversationResponse Conversation = ResponseForExistedCreated Conversation
 
-type instance ConversationResponse CreateGroupConversationV8 = CreateGroupConversationResponse
+type instance ConversationResponse CreateGroupConversationV8 = CreateGroupConversationResponseV8
 
 type ConversationVerb v r =
   MultiVerb
@@ -437,9 +457,10 @@ type ConversationAPI =
                :> ConversationVerb 'V5 CreateGroupConversationV8
            )
     :<|> Named
-           "create-group-conversation"
+           "create-group-conversation@v8"
            ( Summary "Create a new conversation"
                :> From 'V6
+               :> Until 'V9
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
@@ -457,6 +478,40 @@ type ConversationAPI =
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb 'V6 CreateGroupConversationV8
+           )
+    :<|> Named
+           "create-group-conversation"
+           ( Summary "Create a new conversation"
+               :> From 'V9
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> ReqBody '[Servant.JSON] NewConv
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[ WithHeaders
+                         ConversationHeaders
+                         ConversationV9
+                         (Respond 200 "Conversation existed" ConversationV9),
+                       WithHeaders
+                         ConversationHeaders
+                         CreateGroupConversation
+                         (Respond 201 "Conversation created" CreateGroupConversation)
+                     ]
+                    CreateGroupConversationResponse
            )
     :<|> Named
            "create-self-conversation@v2"
