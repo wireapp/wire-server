@@ -49,7 +49,7 @@ import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
-import Proxy.Options (disableTlsForTest, giphyEndpoint, youtubeEndpoint)
+import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, youtubeEndpoint)
 import Proxy.Proxy
 import Servant ((:<|>) (..), (:>))
 import Servant qualified
@@ -90,12 +90,12 @@ waiRoutingSitemap :: Env -> Routes a Proxy ()
 waiRoutingSitemap e = do
   get
     "/proxy/googlemaps/api/staticmap"
-    (proxyWaiPredicate e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
+    (proxyWaiPredicate e "key" "secrets.googlemaps" Static "/maps/api/staticmap" (googleMaps e))
     pure
 
   get
     "/proxy/googlemaps/maps/api/geocode/:path"
-    (proxyWaiPredicate e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
+    (proxyWaiPredicate e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" (googleMaps e))
     pure
 
   post "/proxy/spotify/api/token" (continue spotifyToken) request
@@ -104,20 +104,24 @@ waiRoutingSitemap e = do
 
   get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
 
-googleMaps :: ProxyDest
-googleMaps = ProxyDest "www.googleapis.com" 443
+googleMaps :: Env -> ProxyDest
+googleMaps env = getProxiedEndpoint env googleMapsEndpoint (Endpoint "www.googleapis.com" 443)
 
 giphyH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
 giphyH env = proxyServant "api_key" "secrets.giphy" Prefix "/v1/gifs" phost
   where
-    phost = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
-    endpoint = fromMaybe (Endpoint "api.giphy.com" 443) (env ^. Proxy.Env.options . giphyEndpoint)
+    phost = getProxiedEndpoint env giphyEndpoint (Endpoint "api.giphy.com" 443)
 
 youtubeH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
 youtubeH env = proxyServant "key" "secrets.youtube" Prefix "/youtube/v3" phost
   where
+    phost = getProxiedEndpoint env youtubeEndpoint (Endpoint "www.googleapis.com" 443)
+
+getProxiedEndpoint :: Env -> Getter Opts (Maybe Endpoint) -> Endpoint -> ProxyDest
+getProxiedEndpoint env endpointInConfig defaultEndpoint = phost
+  where
     phost = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
-    endpoint = fromMaybe (Endpoint "www.googleapis.com" 443) (env ^. Proxy.Env.options . youtubeEndpoint)
+    endpoint = fromMaybe defaultEndpoint (env ^. Proxy.Env.options . endpointInConfig)
 
 proxyServant :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
 proxyServant qparam keyname reroute path phost rq kont = do
