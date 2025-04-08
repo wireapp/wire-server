@@ -1,1 +1,0 @@
-Update the Docker (container) image of `ldap-scim-bridge` to the latest release (0.4 -> 0.10.4) in the corresponding Helm chart.

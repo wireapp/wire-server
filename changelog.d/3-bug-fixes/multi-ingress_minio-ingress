@@ -1,3 +1,0 @@
-When `fakeS3` is enabled, `nginx-ingress-services` creates an ingress for
-Minio. This ingress' name is now configurable to allow multiple of them
-("multi-ingress".)
