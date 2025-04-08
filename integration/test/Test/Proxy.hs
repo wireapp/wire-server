@@ -43,7 +43,10 @@ testProxyGiphy = do
         ( \domain -> do
             getGiphy domain `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 200
+              resp.json %. "apiKey" `shouldMatch` "my-giphy-secret"
               resp.json %. "q" `shouldMatch` "monday"
+              resp.json %. "limit" `shouldMatchInt` 100
+              resp.json %. "offset" `shouldMatchInt` 0
         )
   where
     app :: Wai.Application
