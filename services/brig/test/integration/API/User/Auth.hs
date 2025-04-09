@@ -60,7 +60,7 @@ import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import Util.Timeout
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Password as Password
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
