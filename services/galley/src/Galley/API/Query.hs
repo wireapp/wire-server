@@ -148,7 +148,7 @@ getUnqualifiedConversation ::
   Sem r Public.ConversationV8
 getUnqualifiedConversation lusr cnv = do
   c <- getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
-  Mapping.conversationView lusr c
+  Mapping.conversationViewV8 lusr c
 
 getConversation ::
   forall r.
@@ -467,7 +467,7 @@ getConversations ::
   Sem r (Public.ConversationList Public.ConversationV8)
 getConversations luser mids mstart msize = do
   ConversationList cs more <- getConversationsInternal luser mids mstart msize
-  flip ConversationList more <$> mapM (Mapping.conversationView luser) cs
+  flip ConversationList more <$> mapM (Mapping.conversationViewV8 luser) cs
 
 getConversationsInternal ::
   ( Member ConversationStore r,
@@ -532,7 +532,7 @@ listConversations luser (Public.ListConversations ids) = do
     E.getConversations foundLocalIds
       >>= filterM removeDeleted
       >>= filterM (pure . isMember (tUnqualified luser) . Data.convLocalMembers)
-  localConversations <- mapM (Mapping.conversationView luser) localInternalConversations
+  localConversations <- mapM (Mapping.conversationViewV8 luser) localInternalConversations
 
   (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures luser remoteIds
   let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
@@ -744,7 +744,7 @@ getMLSSelfConversation lusr = do
   let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- E.getConversation selfConvId
   cnv <- maybe (E.createMLSSelfConversation lusr) pure mconv
-  conversationView lusr cnv
+  conversationViewV8 lusr cnv
 
 -- | Get an MLS 1-1 conversation. If not already existing, the conversation
 -- object is created on the fly, but not persisted. The conversation will only
@@ -854,7 +854,7 @@ getLocalMLSOne2OneConversation lself lconv = do
   keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
   conv <- case mconv of
     Nothing -> pure (localMLSOne2OneConversation lself lconv)
-    Just conv -> conversationView lself conv
+    Just conv -> conversationViewV8 lself conv
   pure $
     MLSOne2OneConversation
       { conversation = conv,

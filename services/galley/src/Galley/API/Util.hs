@@ -1086,7 +1086,7 @@ conversationExisted ::
   Local UserId ->
   Data.Conversation ->
   Sem r (ConversationResponse ConversationV8)
-conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
+conversationExisted lusr cnv = Existed <$> conversationViewV8 lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
