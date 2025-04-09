@@ -21,7 +21,7 @@ module Galley.API.Mapping
     remoteConversationView,
     conversationToRemote,
     localMemberToSelf,
-    toConversationV9,
+    toConversation,
   )
 where
 
@@ -56,14 +56,14 @@ conversationView luid conv = do
   conversationViewWithCachedOthers remoteOthers localOthers conv luid
 
 -- | TODO: Rename this function
-toConversationV9 ::
+toConversation ::
   Local x ->
   Data.Conversation ->
-  ConversationV9
-toConversationV9 luid conv =
+  Conversation
+toConversation luid conv =
   let remoteMembers = map remoteMemberToOther $ Data.convRemoteMembers conv
       localMembers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
-   in ConversationV9
+   in Conversation
         { otherMembers = localMembers <> remoteMembers,
           qualifiedId = (tUntagged . qualifyAs luid . Data.convId $ conv),
           metadata = conv.convMetadata,

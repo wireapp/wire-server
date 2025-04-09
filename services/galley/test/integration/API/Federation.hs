@@ -104,7 +104,7 @@ getConversationsAllFound = do
   connectWithRemoteUser bob aliceQ
 
   -- create & get group conv
-  cnv2 :: ConversationV9 <-
+  cnv2 :: Conversation <-
     responseJsonError
       =<< postConvWithRemoteUsers
         bob

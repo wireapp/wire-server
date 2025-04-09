@@ -643,7 +643,7 @@ testWriteConversationsCodeSuccessNginz brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
   resp <- getAccessTokenForScope brig uid [WriteConversations, WriteConversationsCode]
   conv <-
-    responseJsonError @_ @ConversationV9
+    responseJsonError @_ @Conversation
       =<< createTeamConv nginz authHeader resp.accessToken tid "oauth test group" <!! do
         const 201 === statusCode
   postConvCode nginz authHeader resp.accessToken conv.qualifiedId.qUnqualified !!! do

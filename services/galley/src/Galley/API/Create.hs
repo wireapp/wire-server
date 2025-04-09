@@ -71,7 +71,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
-import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
 import Wire.API.Error
@@ -227,7 +227,7 @@ createGroupConversation lusr conn newConv = do
       lusr
       conn
       newConv
-  let conv = toConversationV9 lusr cnv
+  let conv = toConversation lusr cnv
   pure . GroupConversationCreated $
     CreateGroupConversation conv mempty
 

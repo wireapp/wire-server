@@ -21,7 +21,7 @@ import Data.Id
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Imports
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Conversation)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.User

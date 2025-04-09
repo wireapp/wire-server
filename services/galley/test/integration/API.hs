@@ -277,7 +277,7 @@ testGetConvQualifiedV2 = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (list1 bob [])
-  conv :: ConversationV9 <-
+  conv :: Conversation <-
     responseJsonError
       =<< postConvQualified
         alice
@@ -1496,7 +1496,7 @@ getConvsOk2 = do
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (singleton carl)
-  cnv2 :: ConversationV9 <-
+  cnv2 :: Conversation <-
     responseJsonError
       =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
         <!! const 201 === statusCode
@@ -2336,7 +2336,7 @@ testBulkGetQualifiedConvs = do
   connectWithRemoteUser alice carlQ
   connectWithRemoteUser alice deeQ
 
-  localConv :: ConversationV9 <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
+  localConv :: Conversation <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   let localConvId = localConv.qualifiedId
 
   remoteConvIdA <- randomQualifiedId remoteDomainA
