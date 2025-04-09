@@ -50,7 +50,7 @@ import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
-import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, youtubeEndpoint)
+import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, spotifyEndpoint, youtubeEndpoint)
 import Proxy.Proxy
 import Servant (RawM, (:<|>) (..), (:>))
 import Servant qualified
@@ -193,11 +193,11 @@ proxy qparam keyname reroute path phost rq k = do
 
 spotifyToken :: Request -> Proxy Response
 spotifyToken rq = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.spotify"
+  env <- ask
+  s <- liftIO $ Config.require (env ^. secrets) "secrets.spotify"
   b <- readBody rq
   let hdr = (hAuthorization, s) : basicHeaders (I.requestHeaders rq)
-      req = baseReq {Client.requestHeaders = hdr}
+      req = (baseReq env) {Client.requestHeaders = hdr}
   mgr <- view manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs (Req.lbytes b req) mgr)
   when (isError (Client.responseStatus res)) $
@@ -214,12 +214,14 @@ spotifyToken rq = do
       & setStatus (Client.responseStatus res)
         . maybeHeader hContentType res
   where
-    baseReq =
+    baseReq (endpoint -> endp) =
       Req.method POST
-        . Req.host "accounts.spotify.com"
-        . Req.port 443
+        . Req.host (encodeUtf8 endp.host)
+        . Req.port endp.port
         . Req.path "/api/token"
         $ Req.empty {Client.secure = True}
+
+    endpoint env = fromMaybe (Endpoint "accounts.spotify.com" 443) (env ^. Proxy.Env.options . spotifyEndpoint)
 
 soundcloudResolve :: ByteString -> Proxy Response
 soundcloudResolve url = do
