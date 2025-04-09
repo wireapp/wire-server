@@ -214,12 +214,13 @@ spotifyToken rq = do
       & setStatus (Client.responseStatus res)
         . maybeHeader hContentType res
   where
-    baseReq (endpoint -> endp) =
-      Req.method POST
-        . Req.host (encodeUtf8 endp.host)
-        . Req.port endp.port
-        . Req.path "/api/token"
-        $ Req.empty {Client.secure = True}
+    baseReq env =
+      let endp = endpoint env
+       in Req.method POST
+            . Req.host (encodeUtf8 endp.host)
+            . Req.port endp.port
+            . Req.path "/api/token"
+            $ Req.empty {Client.secure = maybe True not (env ^. Proxy.Env.options . disableTlsForTest)}
 
     endpoint env = fromMaybe (Endpoint "accounts.spotify.com" 443) (env ^. Proxy.Env.options . spotifyEndpoint)
 

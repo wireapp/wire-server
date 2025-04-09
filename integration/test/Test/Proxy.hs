@@ -189,3 +189,40 @@ testProxyGoogleMaps = do
             getGoogleMaps domain "api/staticmap/invalid" [("staticmap", "true")] `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 404
         )
+
+----------------------------------------------------------------------
+-- spotify
+
+type SpotifyAPI =
+  "api"
+    :> "token"
+    :> Header "Authorization" String
+    :> ReqBody '[JSON] Value
+    :> Post '[JSON] Value
+
+spotifyApp :: Wai.Application
+spotifyApp = serve (Proxy :: Proxy SpotifyAPI) server
+  where
+    server :: Server SpotifyAPI
+    server authHeader body =
+      pure
+        $ A.object
+          [ "authHeader" .= show authHeader,
+            "body" .= body
+          ]
+
+testProxySpotify :: App ()
+testProxySpotify = do
+  lowerCodensity $ do
+    port <- startMockServer def spotifyApp
+    lift
+      $ withModifiedBackend
+        def
+          { wireProxyCfg =
+              (setField "spotifyEndpoint" (A.object ["host" .= "localhost", "port" .= port]))
+                . (setField "disableTlsForTest" True)
+          }
+        ( \domain -> do
+            postSpotify domain "api/token" "{\"v\": \"my-spotify-body\"}" `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 200
+        )
