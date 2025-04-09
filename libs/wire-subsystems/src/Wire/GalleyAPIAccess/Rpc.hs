@@ -145,7 +145,7 @@ getConv ::
   Version ->
   UserId ->
   Local ConvId ->
-  Sem r (Maybe Conversation)
+  Sem r (Maybe ConversationV8)
 getConv v usr lcnv = do
   debug $
     remote "galley"
@@ -592,7 +592,7 @@ unblockConversation ::
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  Sem r Conversation
+  Sem r ConversationV8
 unblockConversation v lusr mconn (Qualified cnv cdom) = do
   debug $
     remote "galley"
@@ -600,7 +600,7 @@ unblockConversation v lusr mconn (Qualified cnv cdom) = do
       . field "domain" (toByteString cdom)
       . msg (val "Unblocking conversation")
   void $ galleyRequest putReq
-  galleyRequest getReq >>= decodeBodyOrThrow @Conversation "galley"
+  galleyRequest getReq >>= decodeBodyOrThrow @ConversationV8 "galley"
   where
     putReq =
       method PUT
