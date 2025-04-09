@@ -49,7 +49,7 @@ import Data.UUID.Tagged qualified as U
 import Galley.Cassandra.Instances ()
 import Galley.Data.Conversation.Types
 import Imports hiding (Set)
-import Wire.API.Conversation hiding (Conversation)
+import Wire.API.Conversation
 
 isConvDeleted :: Conversation -> Bool
 isConvDeleted = convDeleted

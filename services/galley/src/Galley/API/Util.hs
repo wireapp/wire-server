@@ -795,7 +795,7 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
 fromConversationCreated ::
   Local x ->
   ConversationCreated (Remote ConvId) ->
-  [(Public.Member, Public.Conversation)]
+  [(Public.Member, Public.ConversationV8)]
 fromConversationCreated loc rc@ConversationCreated {..} =
   let membersView = fmap (second Set.toList) . setHoles $ nonCreatorMembers
       creatorOther =
@@ -828,9 +828,9 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           memHiddenRef = Nothing,
           memConvRoleName = Public.omConvRoleName m
         }
-    conv :: Public.Member -> [OtherMember] -> Public.Conversation
+    conv :: Public.Member -> [OtherMember] -> Public.ConversationV8
     conv this others =
-      Public.Conversation
+      Public.ConversationV8
         (tUntagged cnvId)
         ConversationMetadata
           { cnvmType = cnvType,
@@ -1085,7 +1085,7 @@ conversationExisted ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r (ConversationResponse Conversation)
+  Sem r (ConversationResponse ConversationV8)
 conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]

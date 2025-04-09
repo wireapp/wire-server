@@ -145,7 +145,7 @@ getUnqualifiedConversation ::
   ) =>
   Local UserId ->
   ConvId ->
-  Sem r Public.Conversation
+  Sem r Public.ConversationV8
 getUnqualifiedConversation lusr cnv = do
   c <- getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
@@ -162,7 +162,7 @@ getConversation ::
   ) =>
   Local UserId ->
   Qualified ConvId ->
-  Sem r Public.Conversation
+  Sem r Public.ConversationV8
 getConversation lusr cnv = do
   foldQualified
     lusr
@@ -170,7 +170,7 @@ getConversation lusr cnv = do
     getRemoteConversation
     cnv
   where
-    getRemoteConversation :: Remote ConvId -> Sem r Public.Conversation
+    getRemoteConversation :: Remote ConvId -> Sem r Public.ConversationV8
     getRemoteConversation remoteConvId = do
       conversations <- getRemoteConversations lusr [remoteConvId]
       case conversations of
@@ -188,7 +188,7 @@ getRemoteConversations ::
   ) =>
   Local UserId ->
   [Remote ConvId] ->
-  Sem r [Public.Conversation]
+  Sem r [Public.ConversationV8]
 getRemoteConversations lusr remoteConvs =
   getRemoteConversationsWithFailures lusr remoteConvs >>= \case
     -- throw first error
@@ -245,11 +245,11 @@ getRemoteConversationsWithFailures ::
   ) =>
   Local UserId ->
   [Remote ConvId] ->
-  Sem r ([FailedGetConversation], [Public.Conversation])
+  Sem r ([FailedGetConversation], [Public.ConversationV8])
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
   statusMap <- E.getRemoteConversationStatus (tUnqualified lusr) convs
-  let remoteView :: Remote RemoteConversationV2 -> Conversation
+  let remoteView :: Remote RemoteConversationV2 -> ConversationV8
       remoteView rconv =
         Mapping.remoteConversationView
           lusr
@@ -464,7 +464,7 @@ getConversations ::
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
   Maybe (Range 1 500 Int32) ->
-  Sem r (Public.ConversationList Public.Conversation)
+  Sem r (Public.ConversationList Public.ConversationV8)
 getConversations luser mids mstart msize = do
   ConversationList cs more <- getConversationsInternal luser mids mstart msize
   flip ConversationList more <$> mapM (Mapping.conversationView luser) cs
@@ -721,7 +721,7 @@ getMLSSelfConversationWithError ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Sem r Conversation
+  Sem r ConversationV8
 getMLSSelfConversationWithError lusr = do
   assertMLSEnabled
   getMLSSelfConversation lusr
@@ -739,7 +739,7 @@ getMLSSelfConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Sem r Conversation
+  Sem r ConversationV8
 getMLSSelfConversation lusr = do
   let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- E.getConversation selfConvId
@@ -769,7 +769,7 @@ getMLSOne2OneConversationV5 ::
   ) =>
   Local UserId ->
   Qualified UserId ->
-  Sem r Conversation
+  Sem r ConversationV8
 getMLSOne2OneConversationV5 lself qother = do
   if isLocal lself qother
     then getMLSOne2OneConversationInternal lself qother
@@ -789,7 +789,7 @@ getMLSOne2OneConversationInternal ::
   ) =>
   Local UserId ->
   Qualified UserId ->
-  Sem r Conversation
+  Sem r ConversationV8
 getMLSOne2OneConversationInternal lself qother =
   (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 

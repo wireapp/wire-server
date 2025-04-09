@@ -2245,7 +2245,7 @@ testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do
   alice <- randomUser
   convId <- decodeQualifiedConvId <$> postConv alice [] (Just "gossip") [] Nothing Nothing
-  conv :: Conversation <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
+  conv :: ConversationV8 <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
   liftIO $ do
     assertEqual "conversation id" convId (C.cnvQualifiedId conv)
     assertEqual "conversation name" (Just "gossip") (C.cnvName conv)

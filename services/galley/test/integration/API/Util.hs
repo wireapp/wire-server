@@ -1048,7 +1048,7 @@ getConvs u cids = do
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
 
-getAllConvs :: (HasCallStack) => UserId -> TestM [Conversation]
+getAllConvs :: (HasCallStack) => UserId -> TestM [ConversationV8]
 getAllConvs u = do
   g <- viewGalley
   cids <- do
@@ -1604,7 +1604,7 @@ assertNotConvMember u c =
     const 200 === statusCode
     const (Right Null) === responseJsonEither
 
-assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
+assertConvEquals :: (HasCallStack, MonadIO m) => ConversationV8 -> ConversationV8 -> m ()
 assertConvEquals c1 c2 = liftIO $ do
   assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
   assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
