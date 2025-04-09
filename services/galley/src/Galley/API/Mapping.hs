@@ -21,13 +21,14 @@ module Galley.API.Mapping
     remoteConversationView,
     conversationToRemote,
     localMemberToSelf,
-    toConversation,
+    convToPublic,
   )
 where
 
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
+import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.Data.Conversation qualified as Data
 import Galley.Types.Conversations.Members
@@ -55,16 +56,15 @@ conversationView luid conv = do
       localOthers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
   conversationViewWithCachedOthers remoteOthers localOthers conv luid
 
--- | TODO: Rename this function
-toConversation ::
+convToPublic ::
   Local x ->
   Data.Conversation ->
   Conversation
-toConversation luid conv =
+convToPublic luid conv =
   let remoteMembers = map remoteMemberToOther $ Data.convRemoteMembers conv
       localMembers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
    in Conversation
-        { otherMembers = localMembers <> remoteMembers,
+        { members = Set.fromList $ localMembers <> remoteMembers,
           qualifiedId = (tUntagged . qualifyAs luid . Data.convId $ conv),
           metadata = conv.convMetadata,
           protocol = conv.convProtocol
