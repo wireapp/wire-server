@@ -148,24 +148,21 @@ createWireClient u clientArgs = do
 
 data InitMLSClient = InitMLSClient
   { credType :: CredentialType,
-    clientArgs :: AddClient
+    clientArgs :: AddClient,
+    ciphersuites :: [Ciphersuite]
   }
 
 instance Default InitMLSClient where
-  def = InitMLSClient {credType = BasicCredentialType, clientArgs = def}
+  def = InitMLSClient {credType = BasicCredentialType, clientArgs = def, ciphersuites = [def]}
 
 -- | Create new mls client and register with backend.
-createMLSClient :: (MakesValue u, HasCallStack) => Ciphersuite -> InitMLSClient -> u -> App ClientIdentity
-createMLSClient ciphersuite = createMLSClientWithCiphersuites [ciphersuite]
-
--- | Create new mls client and register with backend.
-createMLSClientWithCiphersuites :: (MakesValue u, HasCallStack) => [Ciphersuite] -> InitMLSClient -> u -> App ClientIdentity
-createMLSClientWithCiphersuites ciphersuites opts u = do
+createMLSClient :: (MakesValue u, HasCallStack) => InitMLSClient -> u -> App ClientIdentity
+createMLSClient opts u = do
   cid <- createWireClient u opts.clientArgs
   setClientGroupState cid def {credType = opts.credType}
 
   -- set public key
-  suitePKeys <- for ciphersuites $ \ciphersuite -> (ciphersuite,) <$> mlscli Nothing ciphersuite cid ["public-key"] Nothing
+  suitePKeys <- for opts.ciphersuites $ \ciphersuite -> (ciphersuite,) <$> mlscli Nothing ciphersuite cid ["public-key"] Nothing
   bindResponse
     ( updateClient
         cid
