@@ -23,6 +23,10 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public ()
 
+-- Why do we use CaptureAll to capture path segments here? We don't want to
+-- allow access to some proxied APIs beyond the base path. (Who knows what
+-- might be accessible then?!) The Handlers will return HTTP
+-- 404 if there are any illegal path segments.
 type ProxyAPI =
   ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
     :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
@@ -31,10 +35,6 @@ type ProxyAPI =
            ( "googlemaps"
                :> "api"
                :> "staticmap"
-               -- Why do we capture path segments here? We don't want to allow
-               -- access to the proxied API beyond the base path. (Who knows
-               -- what might be accessible then?!) The Handler will return HTTP
-               -- 404 if there are any illegal path segments.
                :> Servant.CaptureAll "illegal_segments" String
                :> RawM
            )
@@ -44,10 +44,14 @@ type ProxyAPI =
            ( "spotify"
                :> "api"
                :> "token"
-               -- Why do we capture path segments here? We don't want to allow
-               -- access to the proxied API beyond the base path. (Who knows
-               -- what might be accessible then?!) The Handler will return HTTP
-               -- 404 if there are any illegal path segments.
+               :> Servant.CaptureAll "illegal_segments" String
+               :> RawM
+           )
+    :<|> ProxyAPIRoute
+           "soundcloud-resolve"
+           ( "soundcloud"
+               :> "resolve"
+               :> QueryParam' '[Required] "url" Text
                :> Servant.CaptureAll "illegal_segments" String
                :> RawM
            )
@@ -73,6 +77,8 @@ type family ProxyAPISummary name where
     "[DEPRECATED] proxy: `get /proxy/googlemaps/maps/api/geocode/:path`; see google maps API docs"
   ProxyAPISummary "spotify" =
     "proxy: `get /proxy/spotify/api/token`; see spotify API docs"
+  ProxyAPISummary "soundcloud-resolve" =
+    "proxy: `get /proxy/soundcloud/resolve`; see soundcloud API docs"
 
 data ProxyAPITag
 
