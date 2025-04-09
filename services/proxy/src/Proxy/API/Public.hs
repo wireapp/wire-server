@@ -72,6 +72,7 @@ servantSitemap e =
       :<|> Named @"youtube-path" (youtubeH e)
       :<|> Named @"gmaps-static" (gmapsStaticH e)
       :<|> Named @"gmaps-path" (gmapsPathH e)
+      :<|> Named @"spotify" (spotifyH e)
   )
     :<|> Servant.Tagged app
   where
@@ -90,8 +91,6 @@ servantSitemap e =
 -- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
 waiRoutingSitemap :: Routes a Proxy ()
 waiRoutingSitemap = do
-  post "/proxy/spotify/api/token" (continue spotifyToken) request
-
   get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
 
   get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
@@ -120,6 +119,15 @@ gmapsStaticH _env illegalPaths =
 
 gmapsPathH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
 gmapsPathH env = (proxyServant "key" "secrets.googlemaps" Prefix "/maps/api/geocode") (googleMaps env)
+
+spotifyH :: Env -> [String] -> ApplicationM Proxy
+spotifyH env [] req kont = spotifyToken env req >>= liftIO . kont
+spotifyH _env illegalPaths _req _kont =
+  liftIO . throwM $
+    mkError
+      status404
+      "not-found"
+      ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
 
 getProxiedEndpoint :: Env -> Getter Opts (Maybe Endpoint) -> Endpoint -> ProxyDest
 getProxiedEndpoint env endpointInConfig defaultEndpoint = phost
@@ -176,13 +184,12 @@ proxy qparam keyname reroute path phost rq k = do
       Just True -> WPRModifiedRequest
       _ -> WPRModifiedRequestSecure
 
-spotifyToken :: Request -> Proxy Response
-spotifyToken rq = do
-  env <- ask
+spotifyToken :: Env -> Request -> Proxy Response
+spotifyToken env rq = do
   s <- liftIO $ Config.require (env ^. secrets) "secrets.spotify"
   b <- readBody rq
   let hdr = (hAuthorization, s) : basicHeaders (I.requestHeaders rq)
-      req = (baseReq env) {Client.requestHeaders = hdr}
+      req = baseReq {Client.requestHeaders = hdr}
   mgr <- view manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs (Req.lbytes b req) mgr)
   when (isError (Client.responseStatus res)) $
@@ -199,15 +206,14 @@ spotifyToken rq = do
       & setStatus (Client.responseStatus res)
         . maybeHeader hContentType res
   where
-    baseReq env =
-      let endp = endpoint env
-       in Req.method POST
-            . Req.host (encodeUtf8 endp.host)
-            . Req.port endp.port
-            . Req.path "/api/token"
-            $ Req.empty {Client.secure = maybe True not (env ^. Proxy.Env.options . disableTlsForTest)}
+    baseReq =
+      Req.method POST
+        . Req.host (encodeUtf8 endpoint.host)
+        . Req.port endpoint.port
+        . Req.path "/api/token"
+        $ Req.empty {Client.secure = maybe True not (env ^. Proxy.Env.options . disableTlsForTest)}
 
-    endpoint env = fromMaybe (Endpoint "accounts.spotify.com" 443) (env ^. Proxy.Env.options . spotifyEndpoint)
+    endpoint = fromMaybe (Endpoint "accounts.spotify.com" 443) (env ^. Proxy.Env.options . spotifyEndpoint)
 
 soundcloudResolve :: ByteString -> Proxy Response
 soundcloudResolve url = do
