@@ -366,3 +366,6 @@ instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) c
 
 instance (RoutesToPaths api) => RoutesToPaths (DescriptionOAuthScope scope :> api) where
   getRoutes = getRoutes @api
+
+instance HasOpenApi RawM where
+  toOpenApi _ = toOpenApi (Proxy @Raw)

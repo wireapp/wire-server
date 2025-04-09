@@ -24,7 +24,6 @@ library
     Network.RabbitMqAdmin
     Servant.API.Extended
     Servant.API.Extended.Endpath
-    Servant.API.Extended.RawM
     System.Logger.Extended
 
   other-modules:      Paths_extended
@@ -95,7 +94,6 @@ library
     , imports
     , metrics-wai
     , monad-control
-    , resourcet
     , retry
     , servant
     , servant-client

@@ -70,6 +70,8 @@ type instance
   SpecialiseToVersion v (MultiVerb m t r x) =
     MultiVerb m t r x
 
+type instance SpecialiseToVersion v RawM = RawM
+
 type instance
   SpecialiseToVersion v (ReqBody t x :> api) =
     ReqBody t x :> SpecialiseToVersion v api
