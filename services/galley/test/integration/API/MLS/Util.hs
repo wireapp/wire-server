@@ -417,7 +417,7 @@ hasClientGroupState cid =
 -- corresponding group.
 setupMLSGroupWithConv ::
   (HasCallStack) =>
-  MLSTest ConversationV9 ->
+  MLSTest Conversation ->
   ClientIdentity ->
   MLSTest (GroupId, Qualified ConvId)
 setupMLSGroupWithConv convAction creator = do
@@ -457,9 +457,9 @@ memberToOtherMember m =
       omConvRoleName = m.memConvRoleName
     }
 
-convV8ToV9 :: ConversationV8 -> ConversationV9
+convV8ToV9 :: ConversationV8 -> Conversation
 convV8ToV9 conv =
-  ConversationV9
+  Conversation
     { qualifiedId = conv.cnvQualifiedId,
       otherMembers = memberToOtherMember conv.cnvMembers.cmSelf : conv.cnvMembers.cmOthers,
       metadata = conv.cnvMetadata,

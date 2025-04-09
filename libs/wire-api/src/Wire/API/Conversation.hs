@@ -25,7 +25,7 @@ module Wire.API.Conversation
     ConversationMetadata (..),
     defConversationMetadata,
     ConversationV8 (..),
-    ConversationV9 (..),
+    Conversation (..),
     conversationSchema,
     cnvType,
     cnvCreator,
@@ -307,7 +307,7 @@ conversationSchema v =
     (description ?~ "A conversation object as returned from the server")
     (conversationObjectSchema v)
 
-data ConversationV9 = ConversationV9
+data Conversation = Conversation
   { qualifiedId :: Qualified ConvId,
     metadata :: ConversationMetadata,
     -- TODO: rename to members and make it a Set
@@ -315,19 +315,19 @@ data ConversationV9 = ConversationV9
     protocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationV9)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationV9
+  deriving (Arbitrary) via (GenericUniform Conversation)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Conversation
 
-instance ToSchema ConversationV9 where
+instance ToSchema Conversation where
   schema =
     objectWithDocModifier
-      "ConversationV9"
+      "Conversation"
       (description ?~ "A conversation object as returned from the server")
       $ conversationV9ObjectSchema
 
-conversationV9ObjectSchema :: ObjectSchema SwaggerDoc ConversationV9
+conversationV9ObjectSchema :: ObjectSchema SwaggerDoc Conversation
 conversationV9ObjectSchema =
-  ConversationV9
+  Conversation
     <$> qualifiedId .= field "qualified_id" schema
     <* (qUnqualified . qualifiedId)
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
@@ -385,7 +385,7 @@ fromFlatList :: (Ord a) => [Qualified a] -> Map Domain (Set a)
 fromFlatList = fmap Set.fromList . indexQualified
 
 data CreateGroupConversation = CreateGroupConversation
-  { conversation :: ConversationV9,
+  { conversation :: Conversation,
     failedToAdd :: Map Domain (Set UserId)
   }
   deriving stock (Eq, Show, Generic)
@@ -1142,7 +1142,7 @@ instance AsHeaders '[ConvId] ConversationV8 ConversationV8 where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
   fromHeaders = snd
 
-instance AsHeaders '[ConvId] ConversationV9 ConversationV9 where
+instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified c.qualifiedId) :* Nil, c)
   fromHeaders = snd
 

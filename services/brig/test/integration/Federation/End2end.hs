@@ -225,7 +225,7 @@ testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
   connectUsersEnd2End brig1 brig2 aliceId bobId
 
   convId <-
-    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
+    fmap (.qualifiedId) . responseJsonError @_ @Conversation
       =<< createConversation galley1 (userId alice) [bobId]
         <!! const 201 === statusCode
 
@@ -267,7 +267,7 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
   connectUsersEnd2End brig1 brig2 aliceId bobId
 
   convId <-
-    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
+    fmap (.qualifiedId) . responseJsonError @_ @Conversation
       =<< createConversation galley1 (userId alice) [bobId]
         <!! const 201 === statusCode
 
@@ -308,7 +308,7 @@ testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
 
   connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
   convId <-
-    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
+    fmap (.qualifiedId) . responseJsonError @_ @Conversation
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
 
@@ -358,11 +358,11 @@ testListConversations brig1 brig2 galley1 galley2 = do
 
   -- create two group conversations with alice & bob, on each of domain1, domain2
   cnv1 <-
-    responseJsonError @_ @ConversationV9
+    responseJsonError @_ @Conversation
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
   cnv2 <-
-    responseJsonError @_ @ConversationV9
+    responseJsonError @_ @Conversation
       =<< createConversation galley2 (userId bob) [userQualifiedId alice]
         <!! const 201 === statusCode
 
@@ -423,7 +423,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
 
   -- create conversation on domain 2
   convId <-
-    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @ConversationV9
+    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @Conversation
       =<< createConversation galley2 (userId bob) [userQualifiedId alice]
         <!! const 201 === statusCode
 
@@ -486,7 +486,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
 
   -- create conversation on domain 1
   convId <-
-    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @ConversationV9
+    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @Conversation
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
 
@@ -535,12 +535,12 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
   connectUsersEnd2End brig1 brig2 alice bobDel
 
   conv1 <-
-    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
+    fmap (.qualifiedId) . responseJsonError @_ @Conversation
       =<< createConversation galley1 (qUnqualified alice) [bobDel]
         <!! const 201 === statusCode
 
   conv2 <-
-    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
+    fmap (.qualifiedId) . responseJsonError @_ @Conversation
       =<< createConversation galley2 (qUnqualified bobDel) [alice]
         <!! const 201 === statusCode
 
@@ -607,7 +607,7 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
   connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
 
   cnv <-
-    responseJsonError @_ @ConversationV9
+    responseJsonError @_ @Conversation
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
   let isTyping g u s =

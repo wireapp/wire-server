@@ -1643,7 +1643,7 @@ assertConvWithRole ::
   TestM (Qualified ConvId)
 assertConvWithRole r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
-  cnv :: ConversationV9 <- responseJsonError r
+  cnv :: Conversation <- responseJsonError r
   let otherMembers = filter (\m -> m.omQualifiedId /= s) (toList cnv.otherMembers)
   liftIO $ do
     assertEqual "id" cId cnv.qualifiedId.qUnqualified
@@ -1944,7 +1944,7 @@ decodeQualifiedConvIdV8 :: (HasCallStack) => Response (Maybe Lazy.ByteString) ->
 decodeQualifiedConvIdV8 = cnvQualifiedId . responseJsonUnsafe
 
 decodeQualifiedConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
-decodeQualifiedConvId = (.qualifiedId) . responseJsonUnsafe @ConversationV9
+decodeQualifiedConvId = (.qualifiedId) . responseJsonUnsafe @Conversation
 
 decodeConvIdList :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
@@ -2881,5 +2881,5 @@ createAndConnectUsers domains = do
       (False, False) -> pure ()
   pure users
 
-withOrderedMembers :: ConversationV9 -> ConversationV9
+withOrderedMembers :: Conversation -> Conversation
 withOrderedMembers conv = conv {otherMembers = sort conv.otherMembers}

@@ -73,11 +73,11 @@ instance
 -- to add remote members while creating a conversation or due to involved
 -- backends forming an incomplete graph.
 data CreateGroupConversationResponse
-  = GroupConversationExisted ConversationV9
+  = GroupConversationExisted Conversation
   | GroupConversationCreated CreateGroupConversation
 
 instance
-  ( ResponseType r1 ~ ConversationV9,
+  ( ResponseType r1 ~ Conversation,
     ResponseType r2 ~ CreateGroupConversation
   ) =>
   AsUnion '[r1, r2] CreateGroupConversationResponse
@@ -504,8 +504,8 @@ type ConversationAPI =
                     '[JSON]
                     '[ WithHeaders
                          ConversationHeaders
-                         ConversationV9
-                         (Respond 200 "Conversation existed" ConversationV9),
+                         Conversation
+                         (Respond 200 "Conversation existed" Conversation),
                        WithHeaders
                          ConversationHeaders
                          CreateGroupConversation

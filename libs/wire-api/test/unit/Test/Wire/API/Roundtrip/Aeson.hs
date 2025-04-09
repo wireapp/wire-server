@@ -105,7 +105,7 @@ tests =
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
       testRoundTrip @Conversation.ConversationV8,
-      testRoundTrip @Conversation.ConversationV9,
+      testRoundTrip @Conversation.Conversation,
       testRoundTrip @(Conversation.ConversationList ConvId),
       testRoundTrip @(Conversation.ConversationList Conversation.ConversationV8),
       testRoundTrip @Conversation.Access,

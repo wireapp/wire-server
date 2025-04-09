@@ -272,7 +272,7 @@ testNginzLegalHold b g n = do
     pure (c, t)
 
   qconv :: Qualified ConvId <-
-    fmap (.qualifiedId) . responseJsonError @_ @ConversationV9
+    fmap (.qualifiedId) . responseJsonError @_ @Conversation
       =<< createConversation g (userId alice) [] <!! const 201 === statusCode
 
   -- ensure nginz allows passing legalhold cookies / tokens through to /access
