@@ -254,10 +254,10 @@ soundcloudResolve env url = do
 
 soundcloudStream :: Text -> Proxy Response
 soundcloudStream url = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.soundcloud"
+  env <- ask
+  s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
   req <- Req.noRedirect . Req.queryItem "client_id" s <$> Client.parseRequest (Text.unpack url)
-  unless (Client.secure req && Client.host req == "api.soundcloud.com") $
+  unless (checkHttps env req && Client.host req == encodeUtf8 (endpoint env).host) $
     failWith "insecure stream url"
   mgr <- view manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
@@ -274,6 +274,12 @@ soundcloudStream url = do
   case Res.getHeader hLocation res of
     Nothing -> failWith "missing location header"
     Just loc -> pure (empty & setStatus status302 . addHeader hLocation loc)
+  where
+    endpoint env = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
+
+    checkHttps env req = case env ^. Proxy.Env.options . disableTlsForTest of
+      Just True -> True
+      _ -> Client.secure req
 
 x2 :: RetryPolicy
 x2 = exponentialBackoff 5000 <> limitRetries 2
