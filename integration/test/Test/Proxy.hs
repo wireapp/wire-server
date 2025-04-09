@@ -232,3 +232,45 @@ testProxySpotify = do
             postSpotify domain "api/token/invalid_segment" "{\"v\": \"my-spotify-body\"}" `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 404
         )
+
+----------------------------------------------------------------------
+-- soundcloud
+
+type SoundcloudAPI =
+  "resolve"
+    :> QueryParam' '[Required] "client_id" String
+    :> QueryParam' '[Required] "url" String
+    :> Get '[JSON] Value
+
+soundcloudApp :: Wai.Application
+soundcloudApp = serve (Proxy :: Proxy SoundcloudAPI) server
+  where
+    server :: Server SoundcloudAPI
+    server clientId url =
+      pure
+        $ A.object
+          [ "client_id" .= clientId,
+            "url" .= url
+          ]
+
+testProxySoundcloud :: App ()
+testProxySoundcloud = do
+  lowerCodensity $ do
+    port <- startMockServer def soundcloudApp
+    lift
+      $ withModifiedBackend
+        def
+          { wireProxyCfg =
+              (setField "soundcloudEndpoint" (A.object ["host" .= "localhost", "port" .= port]))
+                . (setField "disableTlsForTest" True)
+          }
+        ( \domain -> do
+            getSoundcloud domain "resolve" [("url", "https://my.url")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 200
+
+              resp.json %. "client_id" `shouldMatch` "my-soundcloud-secret"
+              resp.json %. "url" `shouldMatch` "https://my.url"
+
+            getSoundcloud domain "resolve/invalid_segment" [("url", "https://my.url")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 404
+        )
