@@ -39,6 +39,18 @@ type ProxyAPI =
                :> RawM
            )
     :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
+    :<|> ProxyAPIRoute
+           "spotify"
+           ( "spotify"
+               :> "api"
+               :> "token"
+               -- Why do we capture path segments here? We don't want to allow
+               -- access to the proxied API beyond the base path. (Who knows
+               -- what might be accessible then?!) The Handler will return HTTP
+               -- 404 if there are any illegal path segments.
+               :> Servant.CaptureAll "illegal_segments" String
+               :> RawM
+           )
 
 type ProxyAPIRoute name path = Named name (Summary (ProxyAPISummary name) :> "proxy" :> path)
 
@@ -59,6 +71,8 @@ type family ProxyAPISummary name where
     "[DEPRECATED] proxy: `get /proxy/googlemaps/api/staticmap`; see google maps API docs"
   ProxyAPISummary "gmaps-path" =
     "[DEPRECATED] proxy: `get /proxy/googlemaps/maps/api/geocode/:path`; see google maps API docs"
+  ProxyAPISummary "spotify" =
+    "proxy: `get /proxy/spotify/api/token`; see spotify API docs"
 
 data ProxyAPITag
 
