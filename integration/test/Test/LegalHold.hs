@@ -1030,7 +1030,7 @@ testBlockLHForMLSUsers = do
   -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
   (charlie, tid, []) <- createTeam OwnDomain 1
   void $ getSelfConversation charlie
-  [charlie1] <- traverse (createMLSClient def def) [charlie]
+  [charlie1] <- traverse (createMLSClient def) [charlie]
   convId <- createNewGroup def charlie1
   void $ createAddCommit charlie1 convId [charlie] >>= sendAndConsumeCommitBundle
 
@@ -1051,7 +1051,7 @@ testBlockClaimingKeyPackageForLHUsers :: (HasCallStack) => App ()
 testBlockClaimingKeyPackageForLHUsers = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
   for_ [alice, charlie] getSelfConversation
-  [alice1, charlie1] <- traverse (createMLSClient def def) [alice, charlie]
+  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
   _ <- uploadNewKeyPackage def charlie1
   _ <- createNewGroup def alice1
   legalholdWhitelistTeam tid alice >>= assertStatus 200
@@ -1075,7 +1075,7 @@ testBlockCreateMLSConvForLHUsers :: (HasCallStack) => LhApiVersion -> App ()
 testBlockCreateMLSConvForLHUsers v = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
   for_ [alice, charlie] getSelfConversation
-  [alice1, charlie1] <- traverse (createMLSClient def def) [alice, charlie]
+  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
   _ <- uploadNewKeyPackage def alice1
   legalholdWhitelistTeam tid alice >>= assertStatus 200
   withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do

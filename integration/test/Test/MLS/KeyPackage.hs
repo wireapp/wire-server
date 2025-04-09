@@ -12,7 +12,7 @@ import Testlib.Prelude
 testDeleteKeyPackages :: App ()
 testDeleteKeyPackages = do
   alice <- randomUser OwnDomain def
-  alice1 <- createMLSClient def def alice
+  alice1 <- createMLSClient def alice
   kps <- replicateM 3 (uploadNewKeyPackage def alice1)
 
   -- add an extra non-existing key package to the delete request
@@ -30,7 +30,7 @@ testKeyPackageMultipleCiphersuites = do
   let suite = def
       altSuite = Ciphersuite "0x0007"
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- replicateM 2 (createMLSClientWithCiphersuites [suite, altSuite] def alice)
+  [alice1, alice2] <- replicateM 2 (createMLSClient def {ciphersuites = [suite, altSuite]} alice)
 
   kp <- uploadNewKeyPackage suite alice2
 
@@ -73,14 +73,14 @@ testKeyPackageClaim :: App ()
 testKeyPackageClaim = do
   alice <- randomUser OwnDomain def
   alices@[alice1, _alice2] <- replicateM 2 do
-    createMLSClient def def alice
+    createMLSClient def alice
 
   for_ alices \alicei -> replicateM 3 do
     uploadNewKeyPackage def alicei
 
   bob <- randomUser OwnDomain def
   bobs <- replicateM 3 do
-    createMLSClient def def bob
+    createMLSClient def bob
 
   for_ bobs \bobi ->
     claimKeyPackages def bobi alice `bindResponse` \resp -> do
@@ -109,7 +109,7 @@ testKeyPackageSelfClaim :: App ()
 testKeyPackageSelfClaim = do
   alice <- randomUser OwnDomain def
   alices@[alice1, alice2] <- replicateM 2 do
-    createMLSClient def def alice
+    createMLSClient def alice
   for_ alices \alicei -> replicateM 3 do
     uploadNewKeyPackage def alicei
 
@@ -133,7 +133,7 @@ testKeyPackageSelfClaim = do
 
   bob <- randomUser OwnDomain def
   bobs <- replicateM 2 do
-    createMLSClient def def bob
+    createMLSClient def bob
 
   -- skip own should only apply to own keypackages, hence
   -- bob claiming alices keypackages should work as normal
@@ -152,10 +152,10 @@ testKeyPackageSelfClaim = do
 testKeyPackageRemoteClaim :: App ()
 testKeyPackageRemoteClaim = do
   alice <- randomUser OwnDomain def
-  alice1 <- createMLSClient def def alice
+  alice1 <- createMLSClient def alice
 
   charlie <- randomUser OtherDomain def
-  charlie1 <- createMLSClient def def charlie
+  charlie1 <- createMLSClient def charlie
 
   refCharlie <- uploadNewKeyPackage def charlie1
   refAlice <- uploadNewKeyPackage def alice1
@@ -182,7 +182,7 @@ testKeyPackageRemoteClaim = do
 testKeyPackageCount :: (HasCallStack) => Ciphersuite -> App ()
 testKeyPackageCount suite = do
   alice <- randomUser OwnDomain def
-  alice1 <- createMLSClient suite def alice
+  alice1 <- createMLSClient def {ciphersuites = [suite]} alice
 
   bindResponse (countKeyPackages suite alice1) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -200,7 +200,7 @@ testUnsupportedCiphersuite :: (HasCallStack) => App ()
 testUnsupportedCiphersuite = do
   let suite = Ciphersuite "0x0003"
   bob <- randomUser OwnDomain def
-  bob1 <- createMLSClient suite def bob
+  bob1 <- createMLSClient def {ciphersuites = [suite]} bob
   (kp, _) <- generateKeyPackage bob1 suite
   bindResponse (uploadKeyPackages bob1 [kp]) $ \resp -> do
     resp.status `shouldMatchInt` 400
@@ -211,7 +211,7 @@ testReplaceKeyPackages = do
   let suite = def
       altSuite = Ciphersuite "0x0007"
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- replicateM 2 $ createMLSClientWithCiphersuites [suite, altSuite] def alice
+  [alice1, alice2] <- replicateM 2 $ createMLSClient def {ciphersuites = [suite, altSuite]} alice
 
   let checkCount :: (HasCallStack) => Ciphersuite -> Int -> App ()
       checkCount cs n =
@@ -315,7 +315,7 @@ testReplaceKeyPackagesV7 = do
       altSuite = Ciphersuite "0x0007"
       oldSuite = Ciphersuite "0x0001"
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- replicateM 2 $ createMLSClientWithCiphersuites [suite, altSuite, oldSuite] def alice
+  [alice1, alice2] <- replicateM 2 $ createMLSClient def {ciphersuites = [suite, altSuite, oldSuite]} alice
 
   let checkCount :: (HasCallStack) => Ciphersuite -> Int -> App ()
       checkCount cs n =

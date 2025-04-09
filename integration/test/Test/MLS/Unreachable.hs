@@ -33,7 +33,7 @@ testAddUsersSomeReachable = do
     otherDomain <- make OtherDomain & asString
     [alice, bob, charlie] <- createAndConnectUsers [ownDomain, otherDomain, thirdDomain]
 
-    [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
+    [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
     traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
     convId <- createNewGroup def alice1
     void $ withWebSocket bob $ \ws -> do
@@ -57,7 +57,7 @@ testAddUserWithUnreachableRemoteUsers = do
       [alice, bob, brad, charlie, chris] <-
         createAndConnectUsers [own, other, other, cDom.berDomain, cDom.berDomain]
       [alice1, charlie1, chris1] <-
-        traverse (createMLSClient def def) [alice, charlie, chris]
+        traverse (createMLSClient def) [alice, charlie, chris]
       traverse_ (uploadNewKeyPackage def) [charlie1, chris1]
       convId <- createNewGroup def alice1
       void $ withWebSocket charlie $ \ws -> do
@@ -65,7 +65,7 @@ testAddUserWithUnreachableRemoteUsers = do
         awaitMatch isMemberJoinNotif ws
       pure (alice1, bob, brad, chris, convId)
 
-    [bob1, brad1] <- traverse (createMLSClient def def) [bob, brad]
+    [bob1, brad1] <- traverse (createMLSClient def) [bob, brad]
     traverse_ (uploadNewKeyPackage def) [bob1, brad1]
 
     do
@@ -98,7 +98,7 @@ testAddUnreachableUserFromFederatingBackend = do
       [alice, bob, charlie, chad] <-
         createAndConnectUsers [ownDomain, otherDomain, cDom.berDomain, cDom.berDomain]
 
-      [alice1, bob1, charlie1, chad1] <- traverse (createMLSClient def def) [alice, bob, charlie, chad]
+      [alice1, bob1, charlie1, chad1] <- traverse (createMLSClient def) [alice, bob, charlie, chad]
       traverse_ (uploadNewKeyPackage def) [bob1, charlie1, chad1]
       convId <- createNewGroup def alice1
       withWebSockets [bob, charlie] $ \wss -> do
