@@ -148,3 +148,6 @@ instance RoutesToPaths EmptyAPI where
 
 instance RoutesToPaths Raw where
   getRoutes = []
+
+instance RoutesToPaths RawM where
+  getRoutes = []
