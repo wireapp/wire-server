@@ -67,8 +67,8 @@ testAccessUpdateGuestRemoved proto = do
           >>= getJSON 201
       pure (conv, clients)
     ConversationProtocolMLS -> do
-      alice1 <- createMLSClient def def alice
-      clients <- traverse (createMLSClient def def) [bob, charlie, dee]
+      alice1 <- createMLSClient def alice
+      clients <- traverse (createMLSClient def) [bob, charlie, dee]
       traverse_ (uploadNewKeyPackage def) clients
 
       conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201

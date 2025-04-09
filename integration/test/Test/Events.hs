@@ -169,7 +169,6 @@ testMLSTempEvents = do
     traverse
       ( createMLSClient
           def
-          def
             { clientArgs =
                 def
                   { acapabilities = Just ["consumable-notifications"]
