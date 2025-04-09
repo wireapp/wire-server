@@ -155,7 +155,7 @@ acceptConv ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r Conversation
+  Sem r ConversationV8
 acceptConv lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
@@ -239,7 +239,7 @@ unblockConvUnqualified ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r Conversation
+  Sem r ConversationV8
 unblockConvUnqualified lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound

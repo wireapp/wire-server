@@ -457,7 +457,7 @@ memberToOtherMember m =
       omConvRoleName = m.memConvRoleName
     }
 
-convV8ToV9 :: Conversation -> ConversationV9
+convV8ToV9 :: ConversationV8 -> ConversationV9
 convV8ToV9 conv =
   ConversationV9
     { qualifiedId = conv.cnvQualifiedId,

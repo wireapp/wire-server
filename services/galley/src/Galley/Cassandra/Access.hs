@@ -20,7 +20,7 @@ module Galley.Cassandra.Access where
 import Cassandra
 import Galley.Data.Conversation
 import Imports hiding (Set)
-import Wire.API.Conversation hiding (Conversation)
+import Wire.API.Conversation
 
 defAccess :: ConvType -> Maybe (Set Access) -> [Access]
 defAccess SelfConv Nothing = [PrivateAccess]

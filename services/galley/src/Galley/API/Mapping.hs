@@ -49,7 +49,7 @@ conversationView ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r Conversation
+  Sem r ConversationV8
 conversationView luid conv = do
   let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers conv
       localOthers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
@@ -81,7 +81,7 @@ conversationViewWithCachedOthers ::
   [OtherMember] ->
   Data.Conversation ->
   Local UserId ->
-  Sem r Conversation
+  Sem r ConversationV8
 conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
   let mbConv = conversationViewMaybe luid remoteOthers localOthers conv
   maybe memberNotFound pure mbConv
@@ -97,13 +97,13 @@ conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
 -- | View for a given user of a stored conversation.
 --
 -- Returns 'Nothing' if the user is not part of the conversation.
-conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> Data.Conversation -> Maybe Conversation
+conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> Data.Conversation -> Maybe ConversationV8
 conversationViewMaybe luid remoteOthers localOthers conv = do
   let selfs = filter ((tUnqualified luid ==) . lmId) (Data.convLocalMembers conv)
   self <- localMemberToSelf luid <$> listToMaybe selfs
   let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
   pure $
-    Conversation
+    ConversationV8
       (tUntagged . qualifyAs luid . Data.convId $ conv)
       (Data.convMetadata conv)
       (ConvMembers self others)
@@ -114,7 +114,7 @@ remoteConversationView ::
   Local UserId ->
   MemberStatus ->
   Remote RemoteConversationV2 ->
-  Conversation
+  ConversationV8
 remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
   let mems = rconv.members
       others = mems.others
@@ -127,7 +127,7 @@ remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
               lmStatus = status,
               lmConvRoleName = mems.selfRole
             }
-   in Conversation
+   in ConversationV8
         (Qualified rconv.id rDomain)
         rconv.metadata
         (ConvMembers self others)
