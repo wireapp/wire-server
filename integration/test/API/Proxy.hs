@@ -1,7 +1,7 @@
 module API.Proxy where
 
 import Data.String.Conversions
-import Network.HTTP.Client (RequestBody (RequestBodyBS))
+import Network.HTTP.Client (Request (redirectCount), RequestBody (RequestBodyBS))
 import Testlib.Prelude
 
 getGiphy :: (HasCallStack, MakesValue caller) => caller -> String -> [(String, String)] -> App Response
@@ -27,4 +27,6 @@ callPostProxy pathPrefix caller path body = do
 callGetProxy :: (HasCallStack, MakesValue caller) => String -> caller -> String -> [(String, String)] -> App Response
 callGetProxy pathPrefix caller path qparams = do
   req <- baseRequest caller WireProxy Unversioned ("/proxy/" <> pathPrefix <> path)
-  submit "GET" (req & addQueryParams qparams)
+  -- Otherwise, we would follow HTTP 302 responses...
+  let req' = req {redirectCount = 0}
+  submit "GET" (req' & addQueryParams qparams)

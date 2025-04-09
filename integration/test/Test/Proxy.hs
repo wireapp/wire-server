@@ -23,6 +23,9 @@ import API.Proxy
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import qualified Data.Aeson as A
+import Data.CaseInsensitive
+import Data.String.Conversions
+import Network.HTTP.Types (hLocation)
 import qualified Network.Wai as Wai
 import Servant
 import Testlib.Mock
@@ -241,17 +244,29 @@ type SoundcloudAPI =
     :> QueryParam' '[Required] "client_id" String
     :> QueryParam' '[Required] "url" String
     :> Get '[JSON] Value
+    :<|> "some-stream"
+      :> QueryParam' '[Required] "client_id" String
+      :> Get '[JSON] NoContent
 
 soundcloudApp :: Wai.Application
-soundcloudApp = serve (Proxy :: Proxy SoundcloudAPI) server
+soundcloudApp = serve (Proxy :: Proxy SoundcloudAPI) (serverResolve :<|> serverStream)
   where
-    server :: Server SoundcloudAPI
-    server clientId url =
+    serverResolve :: String -> String -> Handler Value
+    serverResolve clientId url =
       pure
         $ A.object
           [ "client_id" .= clientId,
             "url" .= url
           ]
+
+    serverStream "my-soundcloud-secret" =
+      throwError
+        $ err302
+          { errHeaders =
+              [ (hLocation, cs "https://media.soundcloud.com/streams/my-song")
+              ]
+          }
+    serverStream _ = throwError err403
 
 testProxySoundcloud :: App ()
 testProxySoundcloud = do
@@ -272,5 +287,12 @@ testProxySoundcloud = do
               resp.json %. "url" `shouldMatch` "https://my.url"
 
             getSoundcloud domain "resolve/invalid_segment" [("url", "https://my.url")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 404
+
+            getSoundcloud domain "stream" [("url", "http://localhost:" ++ show port ++ "/some-stream")] `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 302
+              resp.headers `shouldContain` [(mk (cs "Location"), cs "https://media.soundcloud.com/streams/my-song")]
+
+            getSoundcloud domain "stream/invalid_segment" [("url", "http://localhost:" ++ show port ++ "/some-stream")] `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 404
         )
