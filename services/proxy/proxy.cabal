@@ -100,8 +100,6 @@ library
     , uuid
     , wai                    >=3.2
     , wai-middleware-gunzip
-    , wai-predicates         >=0.8
-    , wai-routing            >=0.12
     , wai-utilities          >=0.14.3
     , wire-api
 

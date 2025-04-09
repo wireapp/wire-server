@@ -55,6 +55,14 @@ type ProxyAPI =
                :> Servant.CaptureAll "illegal_segments" String
                :> RawM
            )
+    :<|> ProxyAPIRoute
+           "soundcloud-stream"
+           ( "soundcloud"
+               :> "stream"
+               :> QueryParam' '[Required] "url" Text
+               :> Servant.CaptureAll "illegal_segments" String
+               :> RawM
+           )
 
 type ProxyAPIRoute name path = Named name (Summary (ProxyAPISummary name) :> "proxy" :> path)
 
@@ -79,6 +87,8 @@ type family ProxyAPISummary name where
     "proxy: `get /proxy/spotify/api/token`; see spotify API docs"
   ProxyAPISummary "soundcloud-resolve" =
     "proxy: `get /proxy/soundcloud/resolve`; see soundcloud API docs"
+  ProxyAPISummary "soundcloud-stream" =
+    "proxy: `get /proxy/soundcloud/stream`; see soundcloud API docs"
 
 data ProxyAPITag
 

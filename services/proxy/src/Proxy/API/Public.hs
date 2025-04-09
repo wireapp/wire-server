@@ -15,12 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Proxy.API.Public
-  ( PublicAPI,
-    servantSitemap,
-    waiRoutingSitemap,
-  )
-where
+module Proxy.API.Public (servantSitemap) where
 
 import Bilge.Request qualified as Req
 import Bilge.Response qualified as Res
@@ -43,12 +38,7 @@ import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Internal qualified as I
-import Network.Wai.Predicate hiding (Error, err, setStatus)
-import Network.Wai.Predicate.Request (getRequest)
-import Network.Wai.Routing hiding (path, route)
-import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
 import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, soundcloudEndpoint, spotifyEndpoint, youtubeEndpoint)
 import Proxy.Proxy
@@ -64,35 +54,15 @@ type ApplicationM m = Request -> (Response -> IO ResponseReceived) -> m Response
 -- TODO: test that the switch from wai-route to servant doesn't break streaming
 -- characteristics (we don't want to turn O(1) memory requirement into O(n))
 
-type PublicAPI = ProxyAPI :<|> Servant.Raw
-
-servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy
+servantSitemap :: Env -> Servant.ServerT ProxyAPI Proxy.Proxy.Proxy
 servantSitemap e =
-  ( Named @"giphy-path" (giphyH e)
-      :<|> Named @"youtube-path" (youtubeH e)
-      :<|> Named @"gmaps-static" (gmapsStaticH e)
-      :<|> Named @"gmaps-path" (gmapsPathH e)
-      :<|> Named @"spotify" (spotifyH e)
-      :<|> Named @"soundcloud-resolve" (soundcloudH e)
-  )
-    :<|> Servant.Tagged app
-  where
-    app :: Application
-    app r k = appInProxy e r (Routing.route tree r k')
-      where
-        tree :: Tree (App Proxy)
-        tree = compile waiRoutingSitemap
-
-        k' :: Response -> Proxy.Proxy.Proxy ResponseReceived
-        k' = liftIO . k
-
--- | IF YOU MODIFY THIS, BE AWARE OF:
---
--- >>> /libs/wire-api/src/Wire/API/Routes/Public/Proxy.hs
--- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
-waiRoutingSitemap :: Routes a Proxy ()
-waiRoutingSitemap = do
-  get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
+  Named @"giphy-path" (giphyH e)
+    :<|> Named @"youtube-path" (youtubeH e)
+    :<|> Named @"gmaps-static" (gmapsStaticH e)
+    :<|> Named @"gmaps-path" (gmapsPathH e)
+    :<|> Named @"spotify" (spotifyH e)
+    :<|> Named @"soundcloud-resolve" (soundcloudResolveH e)
+    :<|> Named @"soundcloud-stream" (soundcloudStreamH e)
 
 googleMaps :: Env -> ProxyDest
 googleMaps env = getProxiedEndpoint env googleMapsEndpoint (Endpoint "www.googleapis.com" 443)
@@ -128,9 +98,18 @@ spotifyH _env illegalPaths _req _kont =
       "not-found"
       ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
 
-soundcloudH :: Env -> Text -> [String] -> ApplicationM Proxy
-soundcloudH env url [] _req kont = soundcloudResolve env (encodeUtf8 url) >>= liftIO . kont
-soundcloudH _env _url illegalPaths _req _kont =
+soundcloudResolveH :: Env -> Text -> [String] -> ApplicationM Proxy
+soundcloudResolveH env url [] _req kont = soundcloudResolve env (encodeUtf8 url) >>= liftIO . kont
+soundcloudResolveH _env _url illegalPaths _req _kont =
+  liftIO . throwM $
+    mkError
+      status404
+      "not-found"
+      ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
+
+soundcloudStreamH :: Env -> Text -> [String] -> ApplicationM Proxy
+soundcloudStreamH env url [] _req kont = soundcloudStream env url >>= liftIO . kont
+soundcloudStreamH _env _url illegalPaths _req _kont =
   liftIO . throwM $
     mkError
       status404
@@ -159,19 +138,18 @@ proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> Applicati
 proxy qparam keyname reroute path phost rq k = do
   e :: Env <- ask
   s <- liftIO $ Config.require (e ^. secrets) keyname
-  let r = getRequest rq
-  let q = renderQuery True ((qparam, Just s) : safeQuery (I.queryString r))
+  let q = renderQuery True ((qparam, Just s) : safeQuery (I.queryString rq))
   let r' =
         defaultRequest
           { I.httpVersion = http11,
-            I.requestMethod = I.requestMethod r,
+            I.requestMethod = I.requestMethod rq,
             I.rawPathInfo = case reroute of
               Static -> path
-              Prefix -> snd $ breakSubstring path (I.rawPathInfo r),
+              Prefix -> snd $ breakSubstring path (I.rawPathInfo rq),
             I.rawQueryString = q
           }
   runInIO <- askRunInIO
-  liftIO $ loop e runInIO (2 :: Int) r (waiProxyResponse e r' phost)
+  liftIO $ loop e runInIO (2 :: Int) rq (waiProxyResponse e r' phost)
   where
     loop :: Env -> (Proxy () -> IO a) -> Int -> Request -> WaiProxyResponse -> IO ResponseReceived
     loop e runInIO !n waiReq req =
@@ -252,12 +230,11 @@ soundcloudResolve env url = do
 
     endpoint = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
 
-soundcloudStream :: Text -> Proxy Response
-soundcloudStream url = do
-  env <- ask
+soundcloudStream :: Env -> Text -> Proxy Response
+soundcloudStream env url = do
   s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
   req <- Req.noRedirect . Req.queryItem "client_id" s <$> Client.parseRequest (Text.unpack url)
-  unless (checkHttps env req && Client.host req == encodeUtf8 (endpoint env).host) $
+  unless (checkHttps req && Client.host req == encodeUtf8 endpoint.host) $
     failWith "insecure stream url"
   mgr <- view manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
@@ -275,9 +252,9 @@ soundcloudStream url = do
     Nothing -> failWith "missing location header"
     Just loc -> pure (empty & setStatus status302 . addHeader hLocation loc)
   where
-    endpoint env = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
+    endpoint = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
 
-    checkHttps env req = case env ^. Proxy.Env.options . disableTlsForTest of
+    checkHttps req = case env ^. Proxy.Env.options . disableTlsForTest of
       Just True -> True
       _ -> Client.secure req
 
