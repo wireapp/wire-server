@@ -171,13 +171,14 @@ createGroupConversationV8 ::
   NewConv ->
   Sem r CreateGroupConversationResponseV8
 createGroupConversationV8 lusr conn newConv = do
-  let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
-  enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
-  checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
-  cnv <- createGroupConversationGeneric lusr conn newConv
-  conv <- conversationViewV8 lusr cnv
-  pure . GroupConversationCreatedV8 $
-    CreateGroupConversationV8 conv mempty
+  createGroupConvAndMkResponse
+    lusr
+    conn
+    newConv
+    ( \dbConv -> do
+        conv <- conversationViewV8 lusr dbConv
+        pure . GroupConversationCreatedV8 $ CreateGroupConversationV8 conv mempty
+    )
 
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in version 9 and above.
@@ -214,14 +215,51 @@ createGroupConversation ::
   NewConv ->
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr conn newConv = do
-  -- TODO: Dedupe stuff with createGroupConversationV8
+  createGroupConvAndMkResponse
+    lusr
+    conn
+    newConv
+    (\dbConv -> pure $ GroupConversationCreated $ CreateGroupConversation (conversationView lusr dbConv) mempty)
+
+createGroupConvAndMkResponse ::
+  ( Member (Input Opts) r,
+    Member (Input Env) r,
+    Member (Input UTCTime) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS ConvAccessDenied) r,
+    Member (ErrorS NotATeamMember) r,
+    Member (ErrorS NotConnected) r,
+    Member (ErrorS MLSNotEnabled) r,
+    Member (ErrorS MLSNonEmptyMemberList) r,
+    Member (ErrorS MissingLegalholdConsent) r,
+    Member (ErrorS ChannelsNotEnabled) r,
+    Member (ErrorS NotAnMlsConversation) r,
+    Member (Error FederationError) r,
+    Member (Error UnreachableBackends) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member P.TinyLog r,
+    Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
+    Member ConversationStore r,
+    Member NotificationSubsystem r,
+    Member LegalHoldStore r,
+    Member TeamStore r,
+    Member TeamFeatureStore r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  NewConv ->
+  (Conversation -> Sem r b) ->
+  Sem r b
+createGroupConvAndMkResponse lusr conn newConv mkResponse = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   dbConv <- createGroupConversationGeneric lusr conn newConv
-  let conv = conversationView lusr dbConv
-  pure . GroupConversationCreated $
-    CreateGroupConversation conv mempty
+  mkResponse dbConv
 
 createGroupConversationGeneric ::
   ( Member BackendNotificationQueueAccess r,
