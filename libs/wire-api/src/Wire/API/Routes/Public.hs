@@ -37,7 +37,7 @@ module Wire.API.Routes.Public
   )
 where
 
-import Control.Lens ((%~), (<>~))
+import Control.Lens ((%~), (<>~), (?~))
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (toByteString)
 import Data.Domain
@@ -369,3 +369,9 @@ instance (RoutesToPaths api) => RoutesToPaths (DescriptionOAuthScope scope :> ap
 
 instance HasOpenApi RawM where
   toOpenApi _ = toOpenApi (Proxy @Raw)
+
+instance (HasOpenApi api) => HasOpenApi (CaptureAll :> api) where
+  toOpenApi _ = desc $ toOpenApi (Proxy @api)
+    where
+      desc :: OpenApi -> OpenApi
+      desc = S.allOperations . S.description ?~ "Capture all following path segments."

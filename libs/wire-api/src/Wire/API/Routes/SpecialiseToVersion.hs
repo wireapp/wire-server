@@ -105,3 +105,7 @@ type instance
 type instance
   SpecialiseToVersion v (MultipartForm x b :> api) =
     MultipartForm x b :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (CaptureAll sym tipe :> api) =
+    CaptureAll sym tipe :> SpecialiseToVersion v api

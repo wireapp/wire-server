@@ -17,14 +17,27 @@
 
 module Wire.API.Routes.Public.Proxy where
 
+import Imports
 import Servant
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
+import Wire.API.Routes.Public ()
 
 type ProxyAPI =
   ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
     :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
-    :<|> ProxyAPIRoute "gmaps-static" ("googlemaps" :> "api" :> "staticmap" :> RawM)
+    :<|> ProxyAPIRoute
+           "gmaps-static"
+           ( "googlemaps"
+               :> "api"
+               :> "staticmap"
+               -- Why do we capture path segments here? We don't want to allow
+               -- access to the proxied API beyond the base path. (Who knows
+               -- what might be accessible then?!) The Handler will return HTTP
+               -- 404 if there are any illegal path segments.
+               :> Servant.CaptureAll "illegal_segments" String
+               :> RawM
+           )
     :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
 
 type ProxyAPIRoute name path = Named name (Summary (ProxyAPISummary name) :> "proxy" :> path)

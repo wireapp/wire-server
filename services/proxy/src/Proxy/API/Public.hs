@@ -52,7 +52,7 @@ import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
 import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, spotifyEndpoint, youtubeEndpoint)
 import Proxy.Proxy
-import Servant (RawM, (:<|>) (..), (:>))
+import Servant ((:<|>) (..))
 import Servant qualified
 import System.Logger.Class hiding (Error, info, render)
 import System.Logger.Class qualified as Logger
@@ -64,30 +64,15 @@ type ApplicationM m = Request -> (Response -> IO ResponseReceived) -> m Response
 -- TODO: test that the switch from wai-route to servant doesn't break streaming
 -- characteristics (we don't want to turn O(1) memory requirement into O(n))
 
-type PublicAPI =
-  ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
-    :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
-    :<|> ProxyAPIRoute
-           "gmaps-static"
-           ( "googlemaps"
-               :> "api"
-               :> "staticmap"
-               -- Why do we capture path segments here? We don't want to allow
-               -- access to the proxied API beyond the base path. (Who knows
-               -- what might be accessible then?!) The Handler will return HTTP
-               -- 404 if there are any illegal path segments.
-               :> Servant.CaptureAll "illegal_segments" String
-               :> RawM
-           )
-    :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
-    :<|> Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
+type PublicAPI = ProxyAPI :<|> Servant.Raw
 
 servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy
 servantSitemap e =
-  Named @"giphy-path" (giphyH e)
-    :<|> Named @"youtube-path" (youtubeH e)
-    :<|> Named @"gmaps-static" (gmapsStaticH e)
-    :<|> Named @"gmaps-path" (gmapsPathH e)
+  ( Named @"giphy-path" (giphyH e)
+      :<|> Named @"youtube-path" (youtubeH e)
+      :<|> Named @"gmaps-static" (gmapsStaticH e)
+      :<|> Named @"gmaps-path" (gmapsPathH e)
+  )
     :<|> Servant.Tagged app
   where
     app :: Application
