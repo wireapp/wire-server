@@ -16,12 +16,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Mapping
-  ( conversationView,
+  ( conversationViewV8,
+    conversationView,
     conversationViewWithCachedOthers,
     remoteConversationView,
     conversationToRemote,
     localMemberToSelf,
-    convToPublic,
   )
 where
 
@@ -44,23 +44,23 @@ import Wire.API.Federation.API.Galley
 -- | View for a given user of a stored conversation.
 --
 -- Throws @BadMemberState@ when the user is not part of the conversation.
-conversationView ::
+conversationViewV8 ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
   Data.Conversation ->
   Sem r ConversationV8
-conversationView luid conv = do
+conversationViewV8 luid conv = do
   let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers conv
       localOthers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
   conversationViewWithCachedOthers remoteOthers localOthers conv luid
 
-convToPublic ::
+conversationView ::
   Local x ->
   Data.Conversation ->
   Conversation
-convToPublic luid conv =
+conversationView luid conv =
   let remoteMembers = map remoteMemberToOther $ Data.convRemoteMembers conv
       localMembers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
    in Conversation

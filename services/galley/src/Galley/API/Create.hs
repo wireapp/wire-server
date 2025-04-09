@@ -174,12 +174,8 @@ createGroupConversationV8 lusr conn newConv = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
-  cnv <-
-    createGroupConversationGeneric
-      lusr
-      conn
-      newConv
-  conv <- conversationView lusr cnv
+  cnv <- createGroupConversationGeneric lusr conn newConv
+  conv <- conversationViewV8 lusr cnv
   pure . GroupConversationCreatedV8 $
     CreateGroupConversationV8 conv mempty
 
@@ -223,7 +219,7 @@ createGroupConversation lusr conn newConv = do
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   dbConv <- createGroupConversationGeneric lusr conn newConv
-  let conv = convToPublic lusr dbConv
+  let conv = conversationView lusr dbConv
   pure . GroupConversationCreated $
     CreateGroupConversation conv mempty
 
@@ -757,7 +753,7 @@ conversationCreated ::
   Local UserId ->
   Data.Conversation ->
   Sem r (ConversationResponse Public.ConversationV8)
-conversationCreated lusr cnv = Created <$> conversationView lusr cnv
+conversationCreated lusr cnv = Created <$> conversationViewV8 lusr cnv
 
 -- | The return set contains all the remote users that could not be contacted.
 -- Consequently, the unreachable users are not added to the member list. This
