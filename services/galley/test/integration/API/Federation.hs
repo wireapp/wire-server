@@ -143,7 +143,7 @@ getConversationsAllFound = do
         (map qUnqualified [cnv1Id, cnv2.qualifiedId])
 
   let c2 = find ((== cnv2.qualifiedId.qUnqualified) . (.id)) convs
-  let selfMember = find (\m -> m.omQualifiedId == bobQ) cnv2.otherMembers
+  let selfMember = find (\m -> m.omQualifiedId == bobQ) (Set.toList cnv2.members)
   liftIO $ do
     assertEqual
       "name mismatch"

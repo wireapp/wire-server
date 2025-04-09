@@ -83,7 +83,7 @@ tests =
       testProperty "self user role in remote conversation view is correct" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (tUntagged ruid) /= dom ==>
-            fmap (selfRole . members) (conversationToRemote dom ruid c)
+            fmap (selfRole . (.members)) (conversationToRemote dom ruid c)
               == Just roleNameWireMember,
       testProperty "remote conversation view metadata is correct" $
         \(ConvWithRemoteUser c ruid) dom ->

@@ -389,7 +389,7 @@ testListConversations brig1 brig2 galley1 galley2 = do
       Nothing -> assertFailure "An expected conversation was not found"
       Just actual -> do
         let actualMemIds = Set.fromList $ actual.cnvMembers.cmSelf.memId : map (.omQualifiedId) actual.cnvMembers.cmOthers
-            expectedMemIds = Set.fromList $ map (.omQualifiedId) expected.otherMembers
+            expectedMemIds = Set.map (.omQualifiedId) expected.members
         assertEqual "member mismatch" actualMemIds expectedMemIds
 
 debug :: Text -> Http ()

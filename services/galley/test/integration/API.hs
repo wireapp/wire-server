@@ -291,7 +291,7 @@ testGetConvQualifiedV2 = do
     fmap (unVersioned @'V2) . responseJsonError
       =<< getConvQualifiedV2 alice qcnv
         <!! const 200 === statusCode
-  liftIO $ withOrderedMembers conv @=? withOrderedMembers (convV8ToV9 conv')
+  liftIO $ conv @=? convV8ToV9 conv'
 
 postProteusConvOk :: TestM ()
 postProteusConvOk = do
@@ -1518,7 +1518,7 @@ getConvsOk2 = do
         assertEqual "name mismatch" expected.metadata.cnvmName actual.cnvMetadata.cnvmName
         assertEqual
           "members"
-          (Set.fromList expected.otherMembers)
+          expected.members
           (Set.fromList (memberToOtherMember actual.cnvMembers.cmSelf : actual.cnvMembers.cmOthers))
 
 getConvsFailMaxSizeV2 :: TestM ()

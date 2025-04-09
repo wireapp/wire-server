@@ -310,8 +310,7 @@ conversationSchema v =
 data Conversation = Conversation
   { qualifiedId :: Qualified ConvId,
     metadata :: ConversationMetadata,
-    -- TODO: rename to members and make it a Set
-    otherMembers :: [OtherMember],
+    members :: Set OtherMember,
     protocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
@@ -332,7 +331,7 @@ conversationV9ObjectSchema =
     <* (qUnqualified . qualifiedId)
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
     <*> metadata .= conversationMetadataObjectSchema accessRolesSchema
-    <*> otherMembers .= field "members" (array schema)
+    <*> members .= field "members" (set schema)
     <*> protocol .= protocolSchema Nothing
 
 data MLSOne2OneConversation a = MLSOne2OneConversation
