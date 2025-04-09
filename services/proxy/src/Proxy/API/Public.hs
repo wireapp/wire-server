@@ -50,7 +50,7 @@ import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
-import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, spotifyEndpoint, youtubeEndpoint)
+import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, soundcloudEndpoint, spotifyEndpoint, youtubeEndpoint)
 import Proxy.Proxy
 import Servant ((:<|>) (..))
 import Servant qualified
@@ -217,9 +217,9 @@ spotifyToken env rq = do
 
 soundcloudResolve :: ByteString -> Proxy Response
 soundcloudResolve url = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.soundcloud"
-  let req = Req.queryItem "client_id" s . Req.queryItem "url" url $ baseReq
+  env <- ask
+  s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
+  let req = Req.queryItem "client_id" s . Req.queryItem "url" url $ baseReq env
   mgr <- view manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
   when (isError (Client.responseStatus res)) $
@@ -236,12 +236,14 @@ soundcloudResolve url = do
       & setStatus (Client.responseStatus res)
         . maybeHeader hContentType res
   where
-    baseReq =
+    baseReq env =
       Req.method GET
-        . Req.host "api.soundcloud.com"
-        . Req.port 443
+        . Req.host (encodeUtf8 (endpoint env).host)
+        . Req.port (endpoint env).port
         . Req.path "/resolve"
-        $ Req.empty {Client.secure = True}
+        $ Req.empty {Client.secure = maybe True not (env ^. Proxy.Env.options . disableTlsForTest)}
+
+    endpoint env = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
 
 soundcloudStream :: Text -> Proxy Response
 soundcloudStream url = do

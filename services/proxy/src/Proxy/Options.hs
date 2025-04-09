@@ -24,6 +24,7 @@ module Proxy.Options
     youtubeEndpoint,
     googleMapsEndpoint,
     spotifyEndpoint,
+    soundcloudEndpoint,
     secretsConfig,
     httpPoolSize,
     maxConns,
@@ -49,6 +50,7 @@ data Opts = Opts
     _youtubeEndpoint :: !(Maybe Endpoint),
     _googleMapsEndpoint :: !(Maybe Endpoint),
     _spotifyEndpoint :: !(Maybe Endpoint),
+    _soundcloudEndpoint :: !(Maybe Endpoint),
     -- | File containing upstream secrets
     _secretsConfig :: !FilePath,
     -- | Number of connections for the HTTP pool

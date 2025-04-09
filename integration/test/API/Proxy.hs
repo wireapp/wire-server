@@ -13,6 +13,9 @@ getYoutube = callGetProxy "youtube/v3/"
 getGoogleMaps :: (HasCallStack, MakesValue caller) => caller -> String -> [(String, String)] -> App Response
 getGoogleMaps = callGetProxy "googlemaps/"
 
+getSoundcloud :: (HasCallStack, MakesValue caller) => caller -> String -> [(String, String)] -> App Response
+getSoundcloud = callGetProxy "soundcloud/"
+
 postSpotify :: (HasCallStack, MakesValue caller) => caller -> String -> String -> App Response
 postSpotify = callPostProxy "spotify/"
 
