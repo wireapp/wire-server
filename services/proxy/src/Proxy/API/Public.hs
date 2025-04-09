@@ -73,6 +73,7 @@ servantSitemap e =
       :<|> Named @"gmaps-static" (gmapsStaticH e)
       :<|> Named @"gmaps-path" (gmapsPathH e)
       :<|> Named @"spotify" (spotifyH e)
+      :<|> Named @"soundcloud-resolve" (soundcloudH e)
   )
     :<|> Servant.Tagged app
   where
@@ -91,8 +92,6 @@ servantSitemap e =
 -- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
 waiRoutingSitemap :: Routes a Proxy ()
 waiRoutingSitemap = do
-  get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
-
   get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
 
 googleMaps :: Env -> ProxyDest
@@ -123,6 +122,15 @@ gmapsPathH env = (proxyServant "key" "secrets.googlemaps" Prefix "/maps/api/geoc
 spotifyH :: Env -> [String] -> ApplicationM Proxy
 spotifyH env [] req kont = spotifyToken env req >>= liftIO . kont
 spotifyH _env illegalPaths _req _kont =
+  liftIO . throwM $
+    mkError
+      status404
+      "not-found"
+      ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
+
+soundcloudH :: Env -> Text -> [String] -> ApplicationM Proxy
+soundcloudH env url [] _req kont = soundcloudResolve env (encodeUtf8 url) >>= liftIO . kont
+soundcloudH _env _url illegalPaths _req _kont =
   liftIO . throwM $
     mkError
       status404
@@ -215,11 +223,10 @@ spotifyToken env rq = do
 
     endpoint = fromMaybe (Endpoint "accounts.spotify.com" 443) (env ^. Proxy.Env.options . spotifyEndpoint)
 
-soundcloudResolve :: ByteString -> Proxy Response
-soundcloudResolve url = do
-  env <- ask
+soundcloudResolve :: Env -> ByteString -> Proxy Response
+soundcloudResolve env url = do
   s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
-  let req = Req.queryItem "client_id" s . Req.queryItem "url" url $ baseReq env
+  let req = Req.queryItem "client_id" s . Req.queryItem "url" url $ baseReq
   mgr <- view manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
   when (isError (Client.responseStatus res)) $
@@ -236,14 +243,14 @@ soundcloudResolve url = do
       & setStatus (Client.responseStatus res)
         . maybeHeader hContentType res
   where
-    baseReq env =
+    baseReq =
       Req.method GET
-        . Req.host (encodeUtf8 (endpoint env).host)
-        . Req.port (endpoint env).port
+        . Req.host (encodeUtf8 endpoint.host)
+        . Req.port endpoint.port
         . Req.path "/resolve"
         $ Req.empty {Client.secure = maybe True not (env ^. Proxy.Env.options . disableTlsForTest)}
 
-    endpoint env = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
+    endpoint = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
 
 soundcloudStream :: Text -> Proxy Response
 soundcloudStream url = do
