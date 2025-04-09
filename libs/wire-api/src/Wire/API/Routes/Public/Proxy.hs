@@ -17,8 +17,7 @@
 
 module Wire.API.Routes.Public.Proxy where
 
-import Servant hiding (RawM)
-import Servant.API.Extended.RawM (RawM)
+import Servant
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
 

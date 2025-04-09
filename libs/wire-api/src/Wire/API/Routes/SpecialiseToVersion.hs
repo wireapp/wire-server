@@ -22,7 +22,6 @@ import Data.Singletons.Base.TH
 import GHC.TypeLits
 import Servant
 import Servant.API.Extended
-import Servant.API.Extended.RawM qualified as RawM
 import Servant.Multipart.API
 import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
@@ -70,8 +69,6 @@ type instance
 type instance
   SpecialiseToVersion v (MultiVerb m t r x) =
     MultiVerb m t r x
-
-type instance SpecialiseToVersion v RawM.RawM = RawM.RawM
 
 type instance
   SpecialiseToVersion v (ReqBody t x :> api) =

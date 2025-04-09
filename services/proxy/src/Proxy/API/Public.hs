@@ -52,13 +52,14 @@ import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
 import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, youtubeEndpoint)
 import Proxy.Proxy
-import Servant ((:<|>) (..), (:>))
+import Servant (RawM, (:<|>) (..), (:>))
 import Servant qualified
-import Servant.API.Extended.RawM
 import System.Logger.Class hiding (Error, info, render)
 import System.Logger.Class qualified as Logger
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Proxy
+
+type ApplicationM m = Request -> (Response -> IO ResponseReceived) -> m ResponseReceived
 
 -- TODO: test that the switch from wai-route to servant doesn't break streaming
 -- characteristics (we don't want to turn O(1) memory requirement into O(n))
