@@ -849,7 +849,7 @@ testBackendRemoveProposal suite domain = do
 testExternalCommitDuplicateClient :: (HasCallStack) => App ()
 testExternalCommitDuplicateClient = do
   alice <- randomUser OwnDomain def
-  [creator, other] <- traverse (createMLSClient def def) (replicate 2 alice)
+  [creator, other] <- traverse (createMLSClient def) (replicate 2 alice)
   (_, conv) <- createSelfGroup def creator
   convId <- objConvId conv
   void $ createAddCommit creator convId [alice] >>= sendAndConsumeCommitBundle
@@ -869,7 +869,7 @@ testExternalCommitDuplicateClient = do
 testInternalCommitDuplicateClient :: (HasCallStack) => App ()
 testInternalCommitDuplicateClient = do
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- traverse (createMLSClient def def) (replicate 2 alice)
+  [alice1, alice2] <- traverse (createMLSClient def) (replicate 2 alice)
   convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
   replicateM_ 2 $ uploadNewKeyPackage def alice2

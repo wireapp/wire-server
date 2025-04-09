@@ -391,3 +391,9 @@ legalholdLogin domain uid password = do
         [ "user" .= uid,
           "password" .= password
         ]
+
+getMLSClients :: (HasCallStack, MakesValue user) => user -> Ciphersuite -> App Response
+getMLSClients user ciphersuite = do
+  userId <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "mls", "clients", userId]
+  submit "GET" $ req & addQueryParams [("ciphersuite", ciphersuite.code)]
