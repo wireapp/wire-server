@@ -207,7 +207,7 @@ spotifyApp = serve (Proxy :: Proxy SpotifyAPI) server
     server authHeader body =
       pure
         $ A.object
-          [ "authHeader" .= show authHeader,
+          [ "authHeader" .= authHeader,
             "body" .= body
           ]
 
@@ -225,4 +225,10 @@ testProxySpotify = do
         ( \domain -> do
             postSpotify domain "api/token" "{\"v\": \"my-spotify-body\"}" `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 200
+
+              resp.json %. "authHeader" `shouldMatch` "my-spotify-secret"
+              resp.json %. "body.v" `shouldMatch` "my-spotify-body"
+
+            postSpotify domain "api/token/invalid_segment" "{\"v\": \"my-spotify-body\"}" `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 404
         )
