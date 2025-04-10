@@ -103,6 +103,11 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     lift $
       throwS @'MLSCommitMissingReferences
 
+  -- Check that the leaf node in the update path, if present, has the correct signature key
+  -- for_ commit.path $ \path -> do
+  --   info <- getClientInfo
+  --   let key = path.leaf.value.signatureKey
+
   withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch
   lift $ do
     -- no client can be directly added to a subconversation
