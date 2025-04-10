@@ -409,7 +409,7 @@ data ConversationCoverView = ConversationCoverView
   deriving (Arbitrary) via (GenericUniform ConversationCoverView)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationCoverView
 
--- | Schema is compatible to a subset of 'ConversationV8' schema, in case we
+-- | Schema is compatible to a subset of 'Conversation' schema, in case we
 -- decide to substitute 'ConversationCoverView' with it in the future.
 instance ToSchema ConversationCoverView where
   schema =
