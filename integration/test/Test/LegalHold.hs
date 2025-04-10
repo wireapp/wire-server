@@ -790,7 +790,7 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
     postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     withWebSockets [alice, bob] \[aws, bws] -> do
       connectTwoUsers alice bob
-      (convId, qConvId) <- do
+      qConvId <- do
         let (inviter, tidInviter, invitee, inviteeRole) = case admin of
               LegalholderIsAdmin -> (alice, tidAlice, bob, "wire_member")
               BothAreAdmins -> (alice, tidAlice, bob, "wire_admin")
@@ -806,7 +806,8 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
             BothAreAdmins -> "wire_admin"
             PeerIsAdmin -> "wire_member"
             LegalholderIsAdmin -> "wire_member"
-          (,) <$> resp.json %. "id" <*> resp.json %. "qualified_id"
+          resp.json %. "qualified_id"
+      let convId = objId qConvId
       for_ [aws, bws] \ws -> do
         awaitMatch isConvCreateNotifNotSelf ws >>= \pl -> pl %. "payload.0.conversation" `shouldMatch` convId
 
