@@ -22,6 +22,7 @@ import Data.Singletons.Base.TH
 import GHC.TypeLits
 import Servant
 import Servant.API.Extended
+import Servant.API.Extended.Endpath
 import Servant.Multipart.API
 import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
@@ -109,3 +110,7 @@ type instance
 type instance
   SpecialiseToVersion v (CaptureAll sym tipe :> api) =
     CaptureAll sym tipe :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Endpath :> api) =
+    Endpath :> SpecialiseToVersion v api

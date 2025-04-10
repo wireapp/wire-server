@@ -55,6 +55,7 @@ import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
 import Network.Wai qualified as Wai
 import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant.API.Extended.Endpath
 import Servant.API.Modifiers
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server.Internal.Delayed
@@ -375,3 +376,9 @@ instance (HasOpenApi api) => HasOpenApi (CaptureAll :> api) where
     where
       desc :: OpenApi -> OpenApi
       desc = S.allOperations . S.description ?~ "Capture all following path segments."
+
+instance (HasOpenApi api) => HasOpenApi (Endpath :> api) where
+  toOpenApi _ = desc $ toOpenApi (Proxy @api)
+    where
+      desc :: OpenApi -> OpenApi
+      desc = S.allOperations . S.description ?~ "no further subpath segments allowed."

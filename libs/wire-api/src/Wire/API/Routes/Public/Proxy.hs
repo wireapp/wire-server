@@ -19,14 +19,11 @@ module Wire.API.Routes.Public.Proxy where
 
 import Imports
 import Servant
+import Servant.API.Extended.Endpath
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public ()
 
--- Why do we use CaptureAll to capture path segments here? We don't want to
--- allow access to some proxied APIs beyond the base path. (Who knows what
--- might be accessible then?!) The Handlers will return HTTP
--- 404 if there are any illegal path segments.
 type ProxyAPI =
   ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
     :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
@@ -35,7 +32,7 @@ type ProxyAPI =
            ( "googlemaps"
                :> "api"
                :> "staticmap"
-               :> Servant.CaptureAll "illegal_segments" String
+               :> Endpath
                :> RawM
            )
     :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
@@ -44,7 +41,7 @@ type ProxyAPI =
            ( "spotify"
                :> "api"
                :> "token"
-               :> Servant.CaptureAll "illegal_segments" String
+               :> Endpath
                :> RawM
            )
     :<|> ProxyAPIRoute
@@ -52,7 +49,7 @@ type ProxyAPI =
            ( "soundcloud"
                :> "resolve"
                :> QueryParam' '[Required] "url" Text
-               :> Servant.CaptureAll "illegal_segments" String
+               :> Endpath
                :> RawM
            )
     :<|> ProxyAPIRoute
@@ -60,7 +57,7 @@ type ProxyAPI =
            ( "soundcloud"
                :> "stream"
                :> QueryParam' '[Required] "url" Text
-               :> Servant.CaptureAll "illegal_segments" String
+               :> Endpath
                :> RawM
            )
 
