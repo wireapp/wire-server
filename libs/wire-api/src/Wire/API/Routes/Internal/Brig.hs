@@ -484,6 +484,19 @@ type GetMLSClients =
              '[Servant.JSON]
              (Respond 200 "MLS clients" (Set ClientInfo))
     )
+    :<|> Named
+           "get-mls-client"
+           ( Summary "Return information on a single MLS client"
+               :> "client"
+               :> CanThrow 'UserNotFound
+               :> Capture "user" UserId
+               :> Capture "client" ClientId
+               :> QueryParam' '[Required, Strict] "ciphersuite" CipherSuite
+               :> MultiVerb1
+                    'GET
+                    '[Servant.JSON]
+                    (Respond 200 "MLS client" ClientInfo)
+           )
 
 type GetVerificationCode =
   Named

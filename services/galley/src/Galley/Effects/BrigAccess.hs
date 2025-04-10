@@ -50,6 +50,7 @@ module Galley.Effects.BrigAccess
 
     -- * MLS
     getLocalMLSClients,
+    getLocalMLSClient,
 
     -- * Features
     getAccountConferenceCallingConfigClient,
@@ -125,6 +126,7 @@ data BrigAccess m a where
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (Feature ConferenceCallingConfig)
   GetLocalMLSClients :: Local UserId -> CipherSuiteTag -> BrigAccess m (Set ClientInfo)
+  GetLocalMLSClient :: Local UserId -> ClientId -> CipherSuiteTag -> BrigAccess m ClientInfo
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAccess m ()
