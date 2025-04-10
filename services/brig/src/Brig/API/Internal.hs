@@ -450,18 +450,20 @@ getMLSClients usr suite = do
       | otherwise = getResult rs
 
     getInfo lusr cid suiteTag = do
-      (numKeyPackages, keys) <- getKeys lusr cid suiteTag
+      (numKeyPackages, key) <- getKeys lusr cid suiteTag
       pure
         ClientInfo
           { clientId = cid,
             hasKeyPackages = numKeyPackages > 0,
-            mlsSignatureKeys = keys
+            mlsSignatureKey = key
           }
 
     getKeys lusr cid suiteTag = do
       numKeyPackages <- Data.countKeyPackages lusr cid suiteTag
       mc <- Data.lookupClient (tUnqualified lusr) cid
-      pure (numKeyPackages, foldMap (.clientMLSPublicKeys) mc)
+      let keys = foldMap (.clientMLSPublicKeys) mc
+          ss = csSignatureScheme suiteTag
+      pure (numKeyPackages, Map.lookup ss keys)
 
 getVerificationCode :: forall r. (Member VerificationCodeSubsystem r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = runMaybeT do

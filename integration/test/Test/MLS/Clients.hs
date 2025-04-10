@@ -17,11 +17,11 @@ testGetMLSClients = do
     c
       `shouldMatch` object
         [ "has_key_packages" .= False,
-          "id" .= alice1.client,
-          "mls_signature_key" .= object []
+          "id" .= alice1.client
         ]
 
   keys <- initMLSClient def alice1
+  ss <- keys %. csSignatureScheme def
 
   bindResponse (I.getMLSClients alice def) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -31,7 +31,7 @@ testGetMLSClients = do
       `shouldMatch` object
         [ "has_key_packages" .= False,
           "id" .= alice1.client,
-          "mls_signature_key" .= keys
+          "mls_signature_key" .= ss
         ]
 
   void $ uploadNewKeyPackage def alice1
@@ -44,5 +44,5 @@ testGetMLSClients = do
       `shouldMatch` object
         [ "has_key_packages" .= True,
           "id" .= alice1.client,
-          "mls_signature_key" .= keys
+          "mls_signature_key" .= ss
         ]
