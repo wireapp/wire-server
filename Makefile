@@ -256,10 +256,16 @@ add-license:
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
+# without redirecting stdin/-out/-err, emacs does something weird that takes 3-5 seconds.
 .PHONY: treefmt
 treefmt:
-	treefmt -u debug --walk=git
- 
+	tempdir=$$(mktemp -d); \
+	  trap "rm -rf $$tempdir" EXIT; \
+	  treefmt -u debug --walk=git </dev/null >$$tempdir/treefmt.tmp 2>&1; \
+	  exit_code=$$?; \
+	  cat $$tempdir/treefmt.tmp; \
+	  exit $$exit_code
+
 .PHONY: treefmt-check
 treefmt-check:
 	treefmt --fail-on-change -u debug --walk=git
