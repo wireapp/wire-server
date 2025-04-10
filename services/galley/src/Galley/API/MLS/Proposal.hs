@@ -72,8 +72,8 @@ import Wire.API.Message
 import Wire.NotificationSubsystem
 
 data ProposalAction = ProposalAction
-  { paAdd :: GenericClientMap (LeafIndex, Maybe KeyPackage),
-    paRemove :: ClientMap
+  { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),
+    paRemove :: ClientMap LeafIndex
   }
   deriving (Show)
 
