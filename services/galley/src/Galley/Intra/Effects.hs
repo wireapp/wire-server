@@ -113,6 +113,9 @@ interpretBrigAccess = interpret $ \case
   GetLocalMLSClients qusr ss -> do
     logEffect "BrigAccess.GetLocalMLSClients"
     embedApp $ getLocalMLSClients qusr ss
+  GetLocalMLSClient qusr cid ss -> do
+    logEffect "BrigAccess.GetLocalMLSClient"
+    embedApp $ getLocalMLSClient qusr cid ss
   UpdateSearchVisibilityInbound status -> do
     logEffect "BrigAccess.UpdateSearchVisibilityInbound"
     embedApp $ updateSearchVisibilityInbound status
