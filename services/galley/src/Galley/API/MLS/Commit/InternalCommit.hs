@@ -56,6 +56,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
+import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
@@ -175,8 +176,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                                 <> Map.findWithDefault mempty qtarget cm
                             )
                     -- get list of mls clients from Brig (local or remote)
-                    getClientInfo lConvOrSub qtarget ciphersuite >>= \case
-                      Left _e -> pure (Just qtarget)
+                    runError (getClientInfo lConvOrSub qtarget ciphersuite) >>= \case
+                      Left (_ :: FederationError) -> pure (Just qtarget)
                       Right clientInfo -> do
                         let allClients = Set.map (.clientId) clientInfo
                         let infoMap :: Map ClientId ByteString =
