@@ -143,7 +143,6 @@
 , wai
 , wai-extra
 , wai-middleware-gunzip
-, wai-route
 , wai-utilities
 , warp
 , warp-tls
@@ -336,6 +335,7 @@ mkDerivation {
     servant
     servant-client
     servant-client-core
+    servant-server
     spar
     streaming-commons
     string-conversions
@@ -359,7 +359,6 @@ mkDerivation {
     vector
     wai
     wai-extra
-    wai-route
     wai-utilities
     warp
     warp-tls
