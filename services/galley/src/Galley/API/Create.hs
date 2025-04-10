@@ -798,6 +798,7 @@ conversationCreated lusr cnv = Created <$> conversationViewV8 lusr cnv
 -- behavior might be changed later on when a message/event queue per remote
 -- backend is implemented.
 notifyCreatedConversation ::
+  forall r.
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -822,12 +823,14 @@ notifyCreatedConversation lusr conn c = do
       throw FederationNotConfigured
 
   -- Notify local users
-  pushNotifications =<< mapM (toPush now) (Data.convLocalMembers c)
+  pushEvents <- mapM (toPush now) (zip [0 ..] $ Data.convLocalMembers c)
+  pushNotifications pushEvents
   where
     route
       | Data.convType c == RegularConv = PushV2.RouteAny
       | otherwise = PushV2.RouteDirect
-    toPush t m = do
+    toPush :: UTCTime -> (Int, LocalMember) -> Sem r Push
+    toPush t (i, m) = do
       let remoteOthers = remoteMemberToOther <$> Data.convRemoteMembers c
           localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
           lconv = qualifyAs lusr (Data.convId c)
@@ -838,7 +841,8 @@ notifyCreatedConversation lusr conn c = do
           { origin = Just (tUnqualified lusr),
             json = toJSONObject e,
             recipients = [localMemberToRecipient m],
-            isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+            -- only push the first event to cells
+            isCellsEvent = i == 0 && shouldPushToCells c.convMetadata (evtType e),
             route,
             conn
           }
