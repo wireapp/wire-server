@@ -89,8 +89,8 @@ data MemberStore m a where
   PlanClientRemoval :: (Foldable f) => GroupId -> f ClientIdentity -> MemberStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
   RemoveAllMLSClients :: GroupId -> MemberStore m ()
-  LookupMLSClients :: GroupId -> MemberStore m ClientMap
-  LookupMLSClientLeafIndices :: GroupId -> MemberStore m (ClientMap, IndexMap)
+  LookupMLSClients :: GroupId -> MemberStore m (ClientMap LeafIndex)
+  LookupMLSClientLeafIndices :: GroupId -> MemberStore m (ClientMap LeafIndex, IndexMap)
   GetRemoteMembersByDomain :: Domain -> MemberStore m [(ConvId, RemoteMember)]
   GetLocalMembersByDomain :: Domain -> MemberStore m [(ConvId, UserId)]
 
