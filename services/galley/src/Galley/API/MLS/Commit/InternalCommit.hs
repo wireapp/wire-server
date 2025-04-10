@@ -183,12 +183,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                               Map.fromList
                                 [ (info.clientId, key)
                                   | info <- toList clientInfo,
-                                    key <-
-                                      toList
-                                        ( Map.lookup
-                                            (csSignatureScheme ciphersuite)
-                                            info.mlsSignatureKeys
-                                        )
+                                    key <- toList info.mlsSignatureKey
                                 ]
                         let allMLSClients =
                               Set.map
