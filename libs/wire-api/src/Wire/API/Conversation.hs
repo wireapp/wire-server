@@ -328,8 +328,6 @@ conversationV9ObjectSchema :: ObjectSchema SwaggerDoc Conversation
 conversationV9ObjectSchema =
   Conversation
     <$> qualifiedId .= field "qualified_id" schema
-    <* (qUnqualified . qualifiedId)
-      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
     <*> metadata .= conversationMetadataObjectSchema accessRolesSchema
     <*> members .= field "members" (set schema)
     <*> protocol .= protocolSchema Nothing
