@@ -52,8 +52,10 @@ tests :: TestTree
 tests =
   testGroup
     "ConversationMapping"
-    [ testProperty "conversation view for a valid user is non-empty" $
+    [ testProperty "conversation view V8 for a valid user is non-empty" $
         \(ConvWithLocalUser c luid) -> isRight (run (conversationViewV8 luid c)),
+      testProperty "conversation view V9 for a valid user is non-empty" $
+        \(ConvWithLocalUser c luid) -> isRight (run (pure $ conversationView luid c)),
       testProperty "self user in conversation view is correct" $
         \(ConvWithLocalUser c luid) ->
           fmap (memId . cmSelf . cnvMembers) (run (conversationViewV8 luid c))
