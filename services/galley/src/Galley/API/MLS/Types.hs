@@ -78,24 +78,22 @@ imRemoveClient im idx = do
 -- Note that clients that are in the process of being removed from a group
 -- (i.e. there is a pending remove proposals for them) are __not__ included in
 -- this mapping.
-type ClientMap = GenericClientMap LeafIndex
+type ClientMap a = Map (Qualified UserId) (Map ClientId a)
 
-type GenericClientMap a = Map (Qualified UserId) (Map ClientId a)
-
-mkClientMap :: [(Domain, UserId, ClientId, Int32, Bool)] -> ClientMap
+mkClientMap :: [(Domain, UserId, ClientId, Int32, Bool)] -> ClientMap LeafIndex
 mkClientMap = foldr addEntry mempty
   where
-    addEntry :: (Domain, UserId, ClientId, Int32, Bool) -> ClientMap -> ClientMap
+    addEntry :: (Domain, UserId, ClientId, Int32, Bool) -> ClientMap LeafIndex -> ClientMap LeafIndex
     addEntry (dom, usr, c, leafidx, pending_removal)
       | pending_removal = id -- treat as removed, don't add to ClientMap
       | otherwise = Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral leafidx))
 
-cmLookupIndex :: ClientIdentity -> ClientMap -> Maybe LeafIndex
+cmLookupIndex :: ClientIdentity -> ClientMap LeafIndex -> Maybe LeafIndex
 cmLookupIndex cid cm = do
   clients <- Map.lookup (cidQualifiedUser cid) cm
   Map.lookup (ciClient cid) clients
 
-cmRemoveClient :: ClientIdentity -> ClientMap -> ClientMap
+cmRemoveClient :: ClientIdentity -> ClientMap LeafIndex -> ClientMap LeafIndex
 cmRemoveClient cid cm = case Map.lookup (cidQualifiedUser cid) cm of
   Nothing -> cm
   Just clients ->
@@ -104,19 +102,19 @@ cmRemoveClient cid cm = case Map.lookup (cidQualifiedUser cid) cm of
           then Map.delete (cidQualifiedUser cid) cm
           else Map.insert (cidQualifiedUser cid) clients' cm
 
-isClientMember :: ClientIdentity -> ClientMap -> Bool
+isClientMember :: ClientIdentity -> ClientMap LeafIndex -> Bool
 isClientMember ci = isJust . cmLookupIndex ci
 
-cmAssocs :: GenericClientMap a -> [(ClientIdentity, a)]
+cmAssocs :: ClientMap a -> [(ClientIdentity, a)]
 cmAssocs cm = do
   (quid, clients) <- Map.assocs cm
   (clientId, idx) <- Map.assocs clients
   pure (mkClientIdentity quid clientId, idx)
 
-cmIdentities :: GenericClientMap a -> [ClientIdentity]
+cmIdentities :: ClientMap a -> [ClientIdentity]
 cmIdentities = map fst . cmAssocs
 
-cmSingleton :: ClientIdentity -> a -> GenericClientMap a
+cmSingleton :: ClientIdentity -> a -> ClientMap a
 cmSingleton cid idx =
   Map.singleton
     (cidQualifiedUser cid)
@@ -134,7 +132,7 @@ data MLSConversation = MLSConversation
     mcMLSData :: ConversationMLSData,
     mcLocalMembers :: [LocalMember],
     mcRemoteMembers :: [RemoteMember],
-    mcMembers :: ClientMap,
+    mcMembers :: ClientMap LeafIndex,
     mcIndexMap :: IndexMap,
     mcMigrationState :: MLSMigrationState
   }
@@ -144,7 +142,7 @@ data SubConversation = SubConversation
   { scParentConvId :: ConvId,
     scSubConvId :: SubConvId,
     scMLSData :: ConversationMLSData,
-    scMembers :: ClientMap,
+    scMembers :: ClientMap LeafIndex,
     scIndexMap :: IndexMap
   }
   deriving (Eq, Show)
@@ -194,7 +192,7 @@ instance HasField "mlsMeta" ConvOrSubConv ConversationMLSData where
   getField (Conv c) = mcMLSData c
   getField (SubConv _ s) = scMLSData s
 
-instance HasField "members" ConvOrSubConv ClientMap where
+instance HasField "members" ConvOrSubConv (ClientMap LeafIndex) where
   getField (Conv c) = mcMembers c
   getField (SubConv _ s) = scMembers s
 
