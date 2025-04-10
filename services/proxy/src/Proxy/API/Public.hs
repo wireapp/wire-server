@@ -31,7 +31,6 @@ import Data.Configurator qualified as Config
 import Data.List qualified as List
 import Data.Text qualified as Text
 import Data.Text.Encoding
-import Data.Text.Lazy qualified as LText
 import Imports hiding (head)
 import Network.HTTP.Client qualified as Client
 import Network.HTTP.ReverseProxy
@@ -77,44 +76,20 @@ youtubeH env = proxyServant "key" "secrets.youtube" Prefix "/youtube/v3" phost
   where
     phost = getProxiedEndpoint env youtubeEndpoint (Endpoint "www.googleapis.com" 443)
 
-gmapsStaticH :: Env -> [String] -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
-gmapsStaticH env [] = (proxyServant "key" "secrets.googlemaps" Static "/maps/api/staticmap") (googleMaps env)
-gmapsStaticH _env illegalPaths =
-  const . const . liftIO . throwM $
-    mkError
-      status404
-      "not-found"
-      ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
+gmapsStaticH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+gmapsStaticH env = (proxyServant "key" "secrets.googlemaps" Static "/maps/api/staticmap") (googleMaps env)
 
 gmapsPathH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
 gmapsPathH env = (proxyServant "key" "secrets.googlemaps" Prefix "/maps/api/geocode") (googleMaps env)
 
-spotifyH :: Env -> [String] -> ApplicationM Proxy
-spotifyH env [] req kont = spotifyToken env req >>= liftIO . kont
-spotifyH _env illegalPaths _req _kont =
-  liftIO . throwM $
-    mkError
-      status404
-      "not-found"
-      ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
+spotifyH :: Env -> ApplicationM Proxy
+spotifyH env req kont = spotifyToken env req >>= liftIO . kont
 
-soundcloudResolveH :: Env -> Text -> [String] -> ApplicationM Proxy
-soundcloudResolveH env url [] _req kont = soundcloudResolve env (encodeUtf8 url) >>= liftIO . kont
-soundcloudResolveH _env _url illegalPaths _req _kont =
-  liftIO . throwM $
-    mkError
-      status404
-      "not-found"
-      ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
+soundcloudResolveH :: Env -> Text -> ApplicationM Proxy
+soundcloudResolveH env url _req kont = soundcloudResolve env (encodeUtf8 url) >>= liftIO . kont
 
-soundcloudStreamH :: Env -> Text -> [String] -> ApplicationM Proxy
-soundcloudStreamH env url [] _req kont = soundcloudStream env url >>= liftIO . kont
-soundcloudStreamH _env _url illegalPaths _req _kont =
-  liftIO . throwM $
-    mkError
-      status404
-      "not-found"
-      ("The path is longer then allowed. Illegal path segments: " <> LText.pack (unwords illegalPaths))
+soundcloudStreamH :: Env -> Text -> ApplicationM Proxy
+soundcloudStreamH env url _req kont = soundcloudStream env url >>= liftIO . kont
 
 getProxiedEndpoint :: Env -> Getter Opts (Maybe Endpoint) -> Endpoint -> ProxyDest
 getProxiedEndpoint env endpointInConfig defaultEndpoint = phost
