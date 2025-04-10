@@ -398,7 +398,7 @@ instance ToSchema CreateGroupConversation where
         <$> (.conversation) .= conversationV9ObjectSchema
         <*> (toFlatList . failedToAdd) .= field "failed_to_add" (fromFlatList <$> array schema)
 
--- | Limited view of a 'ConversationV8'. Is used to inform users with an invite
+-- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
 data ConversationCoverView = ConversationCoverView
   { cnvCoverConvId :: ConvId,
