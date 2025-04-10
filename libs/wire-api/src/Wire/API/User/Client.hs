@@ -370,13 +370,13 @@ qualifiedUserClientPrekeyMapFromList =
 --------------------------------------------------------------------------------
 -- ClientInfo
 
--- | A client, together with extra information about it.
+-- | A client, together with extra information about it relative to a given ciphersuite.
 data ClientInfo = ClientInfo
   { -- | The ID of this client.
     clientId :: ClientId,
-    -- | The signature keys of this client
-    mlsSignatureKeys :: MLSPublicKeys,
-    -- | Whether this client has any key packages
+    -- | The signature key for the given ciphersuite.
+    mlsSignatureKey :: Maybe ByteString,
+    -- | Whether this client has any key packages for the given ciphersuite.
     hasKeyPackages :: Bool
   }
   deriving stock (Eq, Ord, Show)
@@ -387,7 +387,7 @@ instance ToSchema ClientInfo where
     object "ClientInfo" $
       ClientInfo
         <$> (.clientId) .= field "id" schema
-        <*> (.mlsSignatureKeys) .= field "mls_signature_key" mlsPublicKeysSchema
+        <*> (.mlsSignatureKey) .= maybe_ (optField "mls_signature_key" base64Schema)
         <*> (.hasKeyPackages) .= field "has_key_packages" schema
 
 --------------------------------------------------------------------------------
