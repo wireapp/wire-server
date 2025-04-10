@@ -1,0 +1,1 @@
+Remove wai-routes, wai-predicates deps from proxy and translate routing table and handlers to servant.  New integration tests for proxy featuring mock services.
