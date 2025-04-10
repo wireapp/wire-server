@@ -862,7 +862,7 @@ testGuestLinksSuccess = do
     pure (k, v)
   bindResponse (getJoinCodeConv tm k v) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "id" `shouldMatch` objId conv
+    resp.json %. "id" `shouldMatch` (objQidObject conv & objId)
 
 testGuestLinksExpired :: (HasCallStack) => App ()
 testGuestLinksExpired = do
