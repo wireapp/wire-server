@@ -142,28 +142,30 @@ incrementEpoch (SubConv c s) = do
 
 getClientInfo ::
   ( Member BrigAccess r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (Error FederationError) r
   ) =>
   Local x ->
   Qualified UserId ->
   CipherSuiteTag ->
-  Sem r (Either FederationError (Set ClientInfo))
+  Sem r (Set ClientInfo)
 getClientInfo loc =
-  foldQualified loc (\lusr -> fmap Right . getLocalMLSClients lusr) getRemoteMLSClients
+  foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
-  ( Member FederatorAccess r
+  ( Member FederatorAccess r,
+    Member (Error FederationError) r
   ) =>
   Remote UserId ->
   CipherSuiteTag ->
-  Sem r (Either FederationError (Set ClientInfo))
+  Sem r (Set ClientInfo)
 getRemoteMLSClients rusr suite = do
   let mcr =
         MLSClientsRequest
           { userId = tUnqualified rusr,
             cipherSuite = tagCipherSuite suite
           }
-  runFederatedEither rusr $
+  (>>= either throw pure) . runFederatedEither rusr $
     fedClient @'Brig @"get-mls-clients" mcr
       <|> fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr)
 
