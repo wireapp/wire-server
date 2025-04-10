@@ -161,6 +161,7 @@ library
     Test.Login
     Test.MessageTimer
     Test.MLS
+    Test.MLS.Clients
     Test.MLS.KeyPackage
     Test.MLS.Keys
     Test.MLS.Message

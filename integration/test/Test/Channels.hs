@@ -34,9 +34,9 @@ testCreateChannelEveryone :: (HasCallStack) => App ()
 testCreateChannelEveryone = do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
   partner <- createTeamMember owner def {role = "partner"}
-  ownerClient <- createMLSClient def def owner
-  memClient <- createMLSClient def def mem
-  partnerClient <- createMLSClient def def partner
+  ownerClient <- createMLSClient def owner
+  memClient <- createMLSClient def mem
+  partnerClient <- createMLSClient def partner
   for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
@@ -48,9 +48,9 @@ testCreateChannelMembersOnly :: (HasCallStack) => App ()
 testCreateChannelMembersOnly = do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
   partner <- createTeamMember owner def {role = "partner"}
-  ownerClient <- createMLSClient def def owner
-  memClient <- createMLSClient def def mem
-  partnerClient <- createMLSClient def def partner
+  ownerClient <- createMLSClient def owner
+  memClient <- createMLSClient def mem
+  partnerClient <- createMLSClient def partner
   for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "team-members")
@@ -62,9 +62,9 @@ testCreateChannelAdminsOnly :: (HasCallStack) => App ()
 testCreateChannelAdminsOnly = do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
   partner <- createTeamMember owner def {role = "partner"}
-  ownerClient <- createMLSClient def def owner
-  memClient <- createMLSClient def def mem
-  partnerClient <- createMLSClient def def partner
+  ownerClient <- createMLSClient def owner
+  memClient <- createMLSClient def mem
+  partnerClient <- createMLSClient def partner
   for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "admins")
@@ -75,14 +75,14 @@ testCreateChannelAdminsOnly = do
 testCreateChannelFeatureDisabled :: (HasCallStack) => App ()
 testCreateChannelFeatureDisabled = do
   (owner, tid, _) <- createTeam OwnDomain 1
-  ownerClient <- createMLSClient def def owner
+  ownerClient <- createMLSClient def owner
   void $ uploadNewKeyPackage def ownerClient
   assertCreateChannelFailure "channels-not-enabled" ownerClient tid
 
 testCreateChannelNonTeamConvNotAllowed :: (HasCallStack) => App ()
 testCreateChannelNonTeamConvNotAllowed = do
   user <- randomUser OwnDomain def
-  userClient <- createMLSClient def def user
+  userClient <- createMLSClient def user
   void $ uploadNewKeyPackage def userClient
   postConversation userClient defMLS {groupConvType = Just "channel"} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
@@ -122,7 +122,7 @@ config perms =
 testTeamAdminPermissions :: (HasCallStack) => App ()
 testTeamAdminPermissions = do
   (owner, tid, mem : nonAdmin : mems) <- createTeam OwnDomain 10
-  clients@(ownerClient : memClient : nonAdminClient : _) <- for (owner : mem : nonAdmin : mems) $ createMLSClient def def
+  clients@(ownerClient : memClient : nonAdminClient : _) <- for (owner : mem : nonAdmin : mems) $ createMLSClient def
   for_ clients (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
@@ -213,7 +213,7 @@ testTeamAdminPermissions = do
 testUpdateAddPermissions :: (HasCallStack) => App ()
 testUpdateAddPermissions = do
   (alice, tid, bob : chaz : _) <- createTeam OwnDomain 3
-  clients@(aliceClient : _) <- for [alice, bob, chaz] $ createMLSClient def def
+  clients@(aliceClient : _) <- for [alice, bob, chaz] $ createMLSClient def
   for_ clients (uploadNewKeyPackage def)
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
   void $ setTeamFeatureConfig alice tid "channels" (config "everyone")
@@ -234,7 +234,7 @@ testUpdateAddPermissions = do
 testSetAddPermissionOnChannelCreation :: (HasCallStack) => App ()
 testSetAddPermissionOnChannelCreation = do
   (alice, tid, _) <- createTeam OwnDomain 1
-  aliceClient <- createMLSClient def def alice
+  aliceClient <- createMLSClient def alice
   void $ uploadNewKeyPackage def aliceClient
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
   void $ setTeamFeatureConfig alice tid "channels" (config "everyone")
@@ -249,7 +249,7 @@ testAddPermissionEveryone :: (HasCallStack) => App ()
 testAddPermissionEveryone = do
   (alice, tid, bob : chaz : delia : eric : _) <- createTeam OwnDomain 5
   gunther <- randomUser OwnDomain def
-  clients@(aliceClient : bobClient : chazClient : _ : _ : guntherClient : _) <- for [alice, bob, chaz, delia, eric, gunther] $ createMLSClient def def
+  clients@(aliceClient : bobClient : chazClient : _ : _ : guntherClient : _) <- for [alice, bob, chaz, delia, eric, gunther] $ createMLSClient def
   connectTwoUsers bob gunther
   connectTwoUsers gunther eric
   for_ clients (uploadNewKeyPackage def)
@@ -297,7 +297,7 @@ testFederatedChannel = do
   (bärbel, _, bob : _) <- createTeam OtherDomain 2
   connectTwoUsers alice bärbel
   connectTwoUsers alice bob
-  clients@(aliceClient : _ : bärbelClient : _) <- for [alice, anton, bärbel, bob] $ createMLSClient def def
+  clients@(aliceClient : _ : bärbelClient : _) <- for [alice, anton, bärbel, bob] $ createMLSClient def
   for_ clients (uploadNewKeyPackage def)
 
   setTeamFeatureLockStatus alice teamAlice "channels" "unlocked"
@@ -341,9 +341,9 @@ testWithOldBackendVersion fedDomain = replicateM_ 2 do
   horst <- randomUser fedDomain def
   connectTwoUsers bärbel horst
 
-  bärbelClient <- createMLSClient cs def bärbel
+  bärbelClient <- createMLSClient def {ciphersuites = [cs]} bärbel
   void $ uploadNewKeyPackage cs bärbelClient
-  horstClient <- createMLSClient cs def horst
+  horstClient <- createMLSClient def {ciphersuites = [cs]} horst
   void $ uploadNewKeyPackage cs horstClient
 
   setTeamFeatureLockStatus bärbel tid "channels" "unlocked"

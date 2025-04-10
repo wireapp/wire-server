@@ -148,38 +148,40 @@ createWireClient u clientArgs = do
 
 data InitMLSClient = InitMLSClient
   { credType :: CredentialType,
-    clientArgs :: AddClient
+    clientArgs :: AddClient,
+    ciphersuites :: [Ciphersuite]
   }
 
 instance Default InitMLSClient where
-  def = InitMLSClient {credType = BasicCredentialType, clientArgs = def}
+  def = InitMLSClient {credType = BasicCredentialType, clientArgs = def, ciphersuites = [def]}
 
--- | Create new mls client and register with backend.
-createMLSClient :: (MakesValue u, HasCallStack) => Ciphersuite -> InitMLSClient -> u -> App ClientIdentity
-createMLSClient ciphersuite = createMLSClientWithCiphersuites [ciphersuite]
-
--- | Create new mls client and register with backend.
-createMLSClientWithCiphersuites :: (MakesValue u, HasCallStack) => [Ciphersuite] -> InitMLSClient -> u -> App ClientIdentity
-createMLSClientWithCiphersuites ciphersuites opts u = do
-  cid <- createWireClient u opts.clientArgs
+initMLSClient :: InitMLSClient -> ClientIdentity -> App Value
+initMLSClient opts cid = do
   setClientGroupState cid def {credType = opts.credType}
 
   -- set public key
-  suitePKeys <- for ciphersuites $ \ciphersuite -> (ciphersuite,) <$> mlscli Nothing ciphersuite cid ["public-key"] Nothing
+  suitePKeys <- for opts.ciphersuites $ \ciphersuite -> (ciphersuite,) <$> mlscli Nothing ciphersuite cid ["public-key"] Nothing
+  let keys =
+        object
+          [ csSignatureScheme ciphersuite .= T.decodeUtf8 (Base64.encode pkey)
+            | (ciphersuite, pkey) <- suitePKeys
+          ]
   bindResponse
     ( updateClient
         cid
         def
-          { mlsPublicKeys =
-              Just
-                ( object
-                    [ csSignatureScheme ciphersuite .= T.decodeUtf8 (Base64.encode pkey)
-                      | (ciphersuite, pkey) <- suitePKeys
-                    ]
-                )
+          { mlsPublicKeys = Just keys
           }
     )
     $ \resp -> resp.status `shouldMatchInt` 200
+
+  pure keys
+
+-- | Create new mls client and register with backend.
+createMLSClient :: (MakesValue u, HasCallStack) => InitMLSClient -> u -> App ClientIdentity
+createMLSClient opts u = do
+  cid <- createWireClient u opts.clientArgs
+  void $ initMLSClient opts cid
   pure cid
 
 -- | create and upload to backend

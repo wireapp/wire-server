@@ -19,6 +19,7 @@ module Galley.API.MLS.Commit.Core
   ( getCommitData,
     incrementEpoch,
     getClientInfo,
+    getSingleClientInfo,
     HasProposalActionEffects,
     ProposalErrors,
     HandleMLSProposalFailures (..),
@@ -111,13 +112,13 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   evalState convOrSub.indexMap $ do
     creatorAction <-
       if epoch == Epoch 0
-        then addProposedClient senderIdentity
+        then addProposedClient (Left senderIdentity)
         else mempty
     proposals <-
       traverse
         (derefOrCheckProposal epoch ciphersuite groupId)
         bundle.commit.value.proposals
-    action <- applyProposals ciphersuite groupId proposals
+    action <- applyProposals ciphersuite proposals
     pure (creatorAction <> action)
 
 incrementEpoch ::
@@ -142,30 +143,78 @@ incrementEpoch (SubConv c s) = do
 
 getClientInfo ::
   ( Member BrigAccess r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (Error FederationError) r
   ) =>
   Local x ->
   Qualified UserId ->
   CipherSuiteTag ->
-  Sem r (Either FederationError (Set ClientInfo))
-getClientInfo loc =
-  foldQualified loc (\lusr -> fmap Right . getLocalMLSClients lusr) getRemoteMLSClients
+  Sem r (Set ClientInfo)
+getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
-  ( Member FederatorAccess r
+  ( Member FederatorAccess r,
+    Member (Error FederationError) r
   ) =>
   Remote UserId ->
   CipherSuiteTag ->
-  Sem r (Either FederationError (Set ClientInfo))
+  Sem r (Set ClientInfo)
 getRemoteMLSClients rusr suite = do
   let mcr =
         MLSClientsRequest
           { userId = tUnqualified rusr,
             cipherSuite = tagCipherSuite suite
           }
-  runFederatedEither rusr $
+  (>>= either throw pure) . runFederatedEither rusr $
     fedClient @'Brig @"get-mls-clients" mcr
       <|> fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr)
+
+getSingleClientInfo ::
+  ( Member BrigAccess r,
+    Member FederatorAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Local x ->
+  Qualified UserId ->
+  ClientId ->
+  CipherSuiteTag ->
+  Sem r ClientInfo
+getSingleClientInfo loc = foldQualified loc getLocalMLSClient getRemoteMLSClient
+
+getRemoteMLSClient ::
+  ( Member FederatorAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Remote UserId ->
+  ClientId ->
+  CipherSuiteTag ->
+  Sem r ClientInfo
+getRemoteMLSClient rusr cid suite = do
+  let mcr =
+        MLSClientsRequest
+          { userId = tUnqualified rusr,
+            cipherSuite = tagCipherSuite suite
+          }
+      mcr1 =
+        MLSClientRequest
+          { userId = tUnqualified rusr,
+            clientId = cid,
+            cipherSuite = tagCipherSuite suite
+          }
+      extractClient :: Set ClientInfo -> ClientInfo
+      extractClient infos = case filter ((== cid) . (.clientId)) (toList infos) of
+        (x : _) -> x
+        _ ->
+          ClientInfo
+            { clientId = cid,
+              hasKeyPackages = False,
+              mlsSignatureKey = Nothing
+            }
+  -- get single client if the API is available, otherwise get all clients and find the correct one
+  (>>= either throw pure) . runFederatedEither rusr $
+    fedClient @'Brig @"get-mls-client" mcr1
+      <|> fmap extractClient (fedClient @'Brig @"get-mls-clients" mcr)
+      <|> fmap extractClient (fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr))
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

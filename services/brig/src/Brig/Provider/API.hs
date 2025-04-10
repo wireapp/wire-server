@@ -829,7 +829,7 @@ addBot zuid zcon cid add = do
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
   -- Add the bot to the conversation
-  ev <- lift $ RPC.addBotMember zuid zcon cid bid (clientId clt) pid sid
+  ev <- lift $ RPC.addBotMember zuid zcon cid bid clt.clientId pid sid
   pure $
     Public.AddBotResponse
       { Public.rsAddBotId = bid,
@@ -882,7 +882,7 @@ botListPrekeys :: (Member GalleyAPIAccess r) => BotId -> (Handler r) [Public.Pre
 botListPrekeys bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
   clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
-  case clientId <$> clt of
+  case (.clientId) <$> clt of
     Nothing -> pure []
     Just ci -> lift (wrapClient $ User.lookupPrekeyIds (botUserId bot) ci)
 
@@ -894,7 +894,7 @@ botUpdatePrekeys bot upd = do
     Nothing -> throwStd (errorToWai @'E.ClientNotFound)
     Just c -> do
       let pks = updateBotPrekeyList upd
-      wrapClientE (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
+      wrapClientE (User.updatePrekeys (botUserId bot) c.clientId pks) !>> clientDataError
 
 botClaimUsersPrekeys ::
   ( Member (Concurrency 'Unsafe) r,
@@ -923,7 +923,7 @@ botGetUserClients _ uid = do
   guardSecondFactorDisabled (Just uid)
   lift $ pubClient <$$> wrapClient (User.lookupClients uid)
   where
-    pubClient c = Public.PubClient (clientId c) (clientClass c)
+    pubClient c = Public.PubClient c.clientId c.clientClass
 
 botDeleteSelf :: (Member GalleyAPIAccess r) => BotId -> ConvId -> (Handler r) ()
 botDeleteSelf bid cid = do
@@ -981,7 +981,7 @@ deleteBot zusr zcon bid cid = do
   -- Delete the bot user and client
   let buid = botUserId bid
   mbUser <- User.lookupUser NoPendingInvitations buid
-  User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
+  User.lookupClients buid >>= mapM_ (User.rmClient buid . (.clientId))
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId
