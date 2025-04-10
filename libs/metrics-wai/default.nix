@@ -18,7 +18,6 @@
 , utf8-string
 , wai
 , wai-middleware-prometheus
-, wai-route
 }:
 mkDerivation {
   pname = "metrics-wai";
@@ -36,7 +35,6 @@ mkDerivation {
     utf8-string
     wai
     wai-middleware-prometheus
-    wai-route
   ];
   testHaskellDepends = [ base containers hspec imports ];
   testToolDepends = [ hspec-discover ];

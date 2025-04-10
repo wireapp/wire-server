@@ -8,9 +8,6 @@ hself: hsuper: {
   # FUTUREWORK: investigate whether all of these tests need to fail
   # ----------------
 
-  # tests don't compile because `replicateM` isn't in scope. this dependency should be dropped asap
-  wai-route = hlib.dontCheck hsuper.wai-route;
-
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
   # tests need network access, cabal2nix disables haddocks

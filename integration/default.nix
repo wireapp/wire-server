@@ -85,7 +85,6 @@
 , uuid
 , vector
 , wai
-, wai-route
 , warp
 , warp-tls
 , websockets
@@ -188,7 +187,6 @@ mkDerivation {
     uuid
     vector
     wai
-    wai-route
     warp
     warp-tls
     websockets

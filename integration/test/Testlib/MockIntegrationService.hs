@@ -7,6 +7,8 @@ module Testlib.MockIntegrationService
     mkLegalHoldSettings,
     CreateMock (..),
     LiftedApplication,
+    liftApplication,
+    unliftApplication,
     MockServerSettings (..),
     LhApiVersion (..),
   )
@@ -39,6 +41,12 @@ openFreePortAnyAddr :: (MonadIO m) => m (Warp.Port, Socket)
 openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*6")
 
 type LiftedApplication = Request -> (Wai.Response -> App ResponseReceived) -> App ResponseReceived
+
+liftApplication :: Env -> Application -> LiftedApplication
+liftApplication env app rq k = liftIO $ app rq (runAppWithEnv env . k)
+
+unliftApplication :: Env -> LiftedApplication -> Application
+unliftApplication env app rq k = runAppWithEnv env $ app rq (liftIO . k)
 
 type Host = String
 

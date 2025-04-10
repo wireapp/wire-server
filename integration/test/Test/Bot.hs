@@ -4,16 +4,20 @@ import API.Brig
 import API.Common
 import API.Galley
 import Control.Lens hiding ((.=))
+import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.ProtoLens as Proto
+import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Network.HTTP.Types (status200, status201)
 import Network.Wai (responseLBS)
 import qualified Network.Wai as Wai
-import qualified Network.Wai.Route as Wai
 import Numeric.Lens (hex)
 import qualified Proto.Otr as Proto
 import qualified Proto.Otr_Fields as Proto
+import Servant.API
+import Servant.API.Extended.Endpath
+import Servant.Server
 import SetupHelpers
 import Testlib.Certs
 import Testlib.MockIntegrationService
@@ -118,22 +122,32 @@ data BotEvent
   deriving stock (Eq, Ord, Show)
 
 mkBotService :: Chan BotEvent -> LiftedApplication
-mkBotService chan =
-  Wai.route
-    [ (cs "/bots", onBotCreate chan),
-      (cs "/bots/:bot/messages", onBotMessage chan),
-      (cs "/alive", onBotAlive chan)
-    ]
+mkBotService chan rq k = do
+  env <- ask
+  let botApi :: Server BotAPI
+      botApi =
+        nt onBotCreate
+          :<|> (\_ -> nt onBotMessage)
+          :<|> nt onBotAlive
+      nt ::
+        (Chan BotEvent -> LiftedApplication) ->
+        Servant.Server.Tagged Servant.Server.Handler Application
+      nt handlr = Tagged (\rq' k' -> runAppWithEnv env $ (handlr chan rq' (liftIO . k')))
+  liftApplication env (serve (Proxy @BotAPI) botApi) rq k
 
+type BotAPI =
+  ("bots" :> Endpath :> Raw)
+    :<|> ("bots" :> Capture "bot" String :> "messages" :> Endpath :> Raw)
+    :<|> ("alive" :> Raw)
+
+-- (these handlers have been written for serving in `wai-{route,predicate}`.  with servant we
+-- make this nicer given the patience.)
 onBotCreate,
   onBotMessage,
   onBotAlive ::
     Chan BotEvent ->
-    [(ByteString, ByteString)] ->
-    Wai.Request ->
-    (Wai.Response -> App Wai.ResponseReceived) ->
-    App Wai.ResponseReceived
-onBotCreate chan _headers _req k = do
+    LiftedApplication
+onBotCreate chan _req k = do
   ((: []) -> pks) <- getPrekey
   writeChan chan BotCreated
   lpk <- getLastPrekey
@@ -143,9 +157,9 @@ onBotCreate chan _headers _req k = do
         [ "prekeys" .= pks,
           "last_prekey" .= lpk
         ]
-onBotMessage chan _headers req k = do
+onBotMessage chan req k = do
   body <- liftIO $ Wai.strictRequestBody req
   writeChan chan (BotMessage (cs body))
   k (responseLBS status200 mempty mempty)
-onBotAlive _chan _headers _req k = do
+onBotAlive _chan _req k = do
   k (responseLBS status200 mempty (cs "success"))
