@@ -1281,20 +1281,21 @@ createConvWithAccessRoles ars g u us =
   where
     conv =
       NewConv
-        us
-        []
-        Nothing
-        Set.empty
-        ars
-        Nothing
-        Nothing
-        Nothing
-        roleNameWireAdmin
-        BaseProtocolProteusTag
-        GroupConversation
-        False
-        Nothing
-        False
+        { newConvUsers = us,
+          newConvQualifiedUsers = [],
+          newConvName = Nothing,
+          newConvAccess = Set.empty,
+          newConvAccessRoles = ars,
+          newConvTeam = Nothing,
+          newConvMessageTimer = Nothing,
+          newConvReceiptMode = Nothing,
+          newConvUsersRole = roleNameWireAdmin,
+          newConvProtocol = BaseProtocolProteusTag,
+          newConvGroupConvType = GroupConversation,
+          newConvCells = False,
+          newConvChannelAddPermission = Nothing,
+          newConvSkipCreator = False
+        }
 
 postMessage ::
   Galley ->
