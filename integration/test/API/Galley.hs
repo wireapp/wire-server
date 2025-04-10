@@ -274,7 +274,7 @@ postMLSCommitBundle cid msg = do
 postProteusMessage :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> QualifiedNewOtrMessage -> App Response
 postProteusMessage user conv msgs = do
   convDomain <- objDomain conv
-  convId <- objId conv
+  convId <- objQidObject conv & objId
   let bytes = Proto.encodeMessage msgs
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "proteus", "messages"])
   submit "POST" (addProtobuf bytes req)
@@ -446,7 +446,7 @@ postConversationCode ::
   Maybe String ->
   App Response
 postConversationCode user conv mbpassword mbZHost = do
-  convId <- objId conv
+  convId <- objQidObject conv & objId
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
   submit
     "POST"
@@ -462,7 +462,7 @@ getConversationCode ::
   Maybe String ->
   App Response
 getConversationCode user conv mbZHost = do
-  convId <- objId conv
+  convId <- objQidObject conv & objId
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
   submit
     "GET"
@@ -473,7 +473,7 @@ getConversationCode user conv mbZHost = do
 
 deleteConversationCode :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> App Response
 deleteConversationCode user conv = do
-  convId <- objId conv
+  convId <- objQidObject conv & objId
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
   submit "DELETE" req
 
@@ -807,7 +807,7 @@ getTeamMembersCsv user tid = do
 sendTypingStatus :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> String -> App Response
 sendTypingStatus user conv status = do
   convDomain <- objDomain conv
-  convId <- objId conv
+  convId <- objQidObject conv & objId
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "typing"])
   submit "POST"
     $ addJSONObject ["status" .= status] req
