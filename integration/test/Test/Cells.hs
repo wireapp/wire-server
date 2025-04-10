@@ -75,6 +75,24 @@ testCellsCreationEvent = do
   event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
 
+  assertNoMessage q
+
+testCellsCreationEventIsSentOnlyOnce :: (HasCallStack) => App ()
+testCellsCreationEventIsSentOnlyOnce = do
+  -- start watcher before creating conversation
+  q0 <- watchCellsEvents def
+  (alice, tid, members) <- createTeam OwnDomain 2
+  conv <- postConversation alice defProteus {team = Just tid, cells = True, qualifiedUsers = members} >>= getJSON 201
+
+  let q = q0 {filter = isNotifConv conv} :: QueueConsumer
+
+  event <- getMessage q %. "payload.0"
+  event %. "type" `shouldMatch` "conversation.create"
+  event %. "conversation" `shouldMatch` (conv %. "id")
+  event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+
+  assertNoMessage q
+
 testCellsFeatureCheck :: (HasCallStack) => App ()
 testCellsFeatureCheck = do
   (alice, tid, _) <- createTeam OwnDomain 1
