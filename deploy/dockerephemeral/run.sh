@@ -35,7 +35,7 @@ if [ -z "$1" ]; then
   dc up -d
   if [ -e "${SCRIPT_DIR}/run.after.hook.local" ]; then
       # shellcheck disable=SC1091
-      . "${SCRIPT_DIR}//run.after.hook.local"
+      . "${SCRIPT_DIR}/run.after.hook.local"
   fi
   trap cleanup EXIT
   echo "All Services started successfully, press Ctrl+C to stop them"
