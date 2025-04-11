@@ -32,7 +32,7 @@ jobs:
               CURRENT_BRANCH="${GITHUB_REF#refs/heads/}"
           fi
 
-          sed -i "s|url = https://github.com/mohitrajain/wire-server.git|url = ${CURRENT_REPO_URL}|g" .gitmodules
+          sed -i "s|url = https://github.com/wireapp/wire-server.git|url = ${CURRENT_REPO_URL}|g" .gitmodules
           sed -i "s|branch = clean-wire-server-docs|branch = ${CURRENT_BRANCH}|g" .gitmodules
           
           cat .gitmodules
