@@ -64,6 +64,7 @@ import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
+import Debug.Trace (traceM)
 import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
@@ -460,10 +461,12 @@ performAction ::
   ConversationAction tag ->
   Sem r (BotsAndMembers, ConversationAction tag)
 performAction tag origUser lconv action = do
+  traceM "======> Performing action"
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   case tag of
     SConversationJoinTag -> do
+      traceM "======> Performing conversation join"
       performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
       let victims = [origUser]
@@ -657,10 +660,25 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkLHPolicyConflictsRemote _remotes = pure ()
 
     checkTeamMemberAddPermission :: Local UserId -> Sem r ()
-    checkTeamMemberAddPermission lusr =
-      forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
-        >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation))
-          . join
+    checkTeamMemberAddPermission lusr = do
+      case conv.convMetadata.cnvmTeam of
+        Just tid -> do
+          maybeTeamMember <- E.getTeamMember tid (tUnqualified lusr)
+          case maybeTeamMember of
+            Just tm -> do
+              let isChannel = conv.convMetadata.cnvmGroupConvType == Just Channel
+                  isConversationAdmin =
+                    maybe False (\m -> m.lmConvRoleName == roleNameWireAdmin) $
+                      find (\m -> m.lmId == lusr.tUntagged.qUnqualified) conv.convLocalMembers
+                  isAddPermissionEveryone = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+
+              unless (isChannel && (isConversationAdmin || isAddPermissionEveryone) || tm `hasPermission` AddRemoveConvMember) $
+                throwS @'InvalidOperation
+            -- the user is not a member of the team which owns the conversation
+            -- TODO: should this be an error?
+            Nothing -> pure ()
+        -- this is not a team conversation
+        Nothing -> pure ()
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
@@ -809,6 +827,7 @@ updateLocalConversationUnchecked ::
   ConversationAction tag ->
   Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
+  traceM "======> Updating local conversation"
   let tag = sing @tag
       lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
