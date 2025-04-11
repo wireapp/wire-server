@@ -171,8 +171,8 @@ data ServiceMap = ServiceMap
     galley :: HostPort,
     gundeck :: HostPort,
     nginz :: HostPort,
+    proxy :: HostPort, -- maps on WireProxy, but we don't want to touch config files.
     spar :: HostPort,
-    proxy :: HostPort,
     stern :: HostPort,
     wireServerEnterprise :: HostPort,
     rabbitMqVHost :: T.Text
@@ -490,6 +490,7 @@ data ServiceOverrides = ServiceOverrides
     galleyCfg :: Value -> App Value,
     gundeckCfg :: Value -> App Value,
     nginzCfg :: Value -> App Value,
+    wireProxyCfg :: Value -> App Value,
     sparCfg :: Value -> App Value,
     backgroundWorkerCfg :: Value -> App Value,
     sternCfg :: Value -> App Value,
@@ -509,6 +510,7 @@ instance Semigroup ServiceOverrides where
         galleyCfg = galleyCfg a >=> galleyCfg b,
         gundeckCfg = gundeckCfg a >=> gundeckCfg b,
         nginzCfg = nginzCfg a >=> nginzCfg b,
+        wireProxyCfg = wireProxyCfg a >=> wireProxyCfg b,
         sparCfg = sparCfg a >=> sparCfg b,
         backgroundWorkerCfg = backgroundWorkerCfg a >=> backgroundWorkerCfg b,
         sternCfg = sternCfg a >=> sternCfg b,
@@ -528,6 +530,7 @@ defaultServiceOverrides =
       galleyCfg = pure,
       gundeckCfg = pure,
       nginzCfg = pure,
+      wireProxyCfg = pure,
       sparCfg = pure,
       backgroundWorkerCfg = pure,
       sternCfg = pure,
@@ -543,6 +546,7 @@ lookupConfigOverride overrides = \case
   Galley -> overrides.galleyCfg
   Gundeck -> overrides.gundeckCfg
   Nginz -> overrides.nginzCfg
+  WireProxy -> overrides.wireProxyCfg
   Spar -> overrides.sparCfg
   BackgroundWorker -> overrides.backgroundWorkerCfg
   Stern -> overrides.sternCfg
@@ -556,6 +560,7 @@ data Service
   | Gundeck
   | Cargohold
   | Nginz
+  | WireProxy -- (`Proxy` is already taken)
   | Spar
   | BackgroundWorker
   | Stern
@@ -577,6 +582,7 @@ serviceName = \case
   Gundeck -> "gundeck"
   Cargohold -> "cargohold"
   Nginz -> "nginz"
+  WireProxy -> "proxy"
   Spar -> "spar"
   BackgroundWorker -> "backgroundWorker"
   Stern -> "stern"
@@ -592,6 +598,7 @@ configName = \case
   Gundeck -> "gundeck"
   Cargohold -> "cargohold"
   Nginz -> "nginz"
+  WireProxy -> "proxy"
   Spar -> "spar"
   BackgroundWorker -> "background-worker"
   Stern -> "stern"
