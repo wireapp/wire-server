@@ -207,6 +207,19 @@ let
       };
     };
 
+    # Replace this with upstream once > 0.20.2 has been released.
+    servant = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/servant";
+        rev = "fa8271564ebd9dff22de84aa77a687c89398a612";
+        hash = "sha256-9g3tEfHCtGyA+w4HAy6H36IyIUnDPmfJHAxCswJEVSQ=";
+      };
+      packages = {
+        servant = "servant";
+        servant-server = "servant-server";
+      };
+    };
+
     # we need HEAD, the latest release is too old
     postie = {
       src = fetchgit {
