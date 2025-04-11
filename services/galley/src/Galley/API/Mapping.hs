@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Mapping
-  ( conversationView,
+  ( conversationViewV8,
+    conversationView,
     conversationViewWithCachedOthers,
     remoteConversationView,
     conversationToRemote,
@@ -27,6 +28,7 @@ where
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
+import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.Data.Conversation qualified as Data
 import Galley.Types.Conversations.Members
@@ -42,17 +44,31 @@ import Wire.API.Federation.API.Galley
 -- | View for a given user of a stored conversation.
 --
 -- Throws @BadMemberState@ when the user is not part of the conversation.
-conversationView ::
+conversationViewV8 ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r Conversation
-conversationView luid conv = do
+  Sem r ConversationV8
+conversationViewV8 luid conv = do
   let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers conv
       localOthers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
   conversationViewWithCachedOthers remoteOthers localOthers conv luid
+
+conversationView ::
+  Local x ->
+  Data.Conversation ->
+  Conversation
+conversationView luid conv =
+  let remoteMembers = map remoteMemberToOther $ Data.convRemoteMembers conv
+      localMembers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
+   in Conversation
+        { members = Set.fromList $ localMembers <> remoteMembers,
+          qualifiedId = (tUntagged . qualifyAs luid . Data.convId $ conv),
+          metadata = conv.convMetadata,
+          protocol = conv.convProtocol
+        }
 
 -- | Like 'conversationView' but optimized for situations which could benefit
 -- from pre-computing the list of @OtherMember@s in the conversation. For
@@ -65,7 +81,7 @@ conversationViewWithCachedOthers ::
   [OtherMember] ->
   Data.Conversation ->
   Local UserId ->
-  Sem r Conversation
+  Sem r ConversationV8
 conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
   let mbConv = conversationViewMaybe luid remoteOthers localOthers conv
   maybe memberNotFound pure mbConv
@@ -81,13 +97,13 @@ conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
 -- | View for a given user of a stored conversation.
 --
 -- Returns 'Nothing' if the user is not part of the conversation.
-conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> Data.Conversation -> Maybe Conversation
+conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> Data.Conversation -> Maybe ConversationV8
 conversationViewMaybe luid remoteOthers localOthers conv = do
   let selfs = filter ((tUnqualified luid ==) . lmId) (Data.convLocalMembers conv)
   self <- localMemberToSelf luid <$> listToMaybe selfs
   let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
   pure $
-    Conversation
+    ConversationV8
       (tUntagged . qualifyAs luid . Data.convId $ conv)
       (Data.convMetadata conv)
       (ConvMembers self others)
@@ -98,7 +114,7 @@ remoteConversationView ::
   Local UserId ->
   MemberStatus ->
   Remote RemoteConversationV2 ->
-  Conversation
+  ConversationV8
 remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
   let mems = rconv.members
       others = mems.others
@@ -111,7 +127,7 @@ remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
               lmStatus = status,
               lmConvRoleName = mems.selfRole
             }
-   in Conversation
+   in ConversationV8
         (Qualified rconv.id rDomain)
         rconv.metadata
         (ConvMembers self others)
