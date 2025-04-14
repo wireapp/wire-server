@@ -70,7 +70,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
 import Network.Wai.Internal qualified as WaiInt
-import Network.Wai.Utilities.Error qualified as Error
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Prometheus qualified as Prom
@@ -389,7 +389,7 @@ logError' :: (MonadIO m) => Logger -> Maybe ByteString -> Wai.Error -> m ()
 logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
   where
     doLog
-      | statusCode (Error.code e) >= 500 = Log.err
+      | statusCode (Wai.code e) >= 500 = Log.err
       | otherwise = Log.debug
 
 logJSONResponse :: (MonadIO m) => Logger -> Maybe ByteString -> JSONResponse -> m ()
