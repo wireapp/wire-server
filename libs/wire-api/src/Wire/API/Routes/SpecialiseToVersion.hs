@@ -22,13 +22,15 @@ import Data.Singletons.Base.TH
 import GHC.TypeLits
 import Servant
 import Servant.API.Extended
-import Servant.API.Extended.RawM qualified as RawM
+import Servant.API.Extended.Endpath
 import Servant.Multipart.API
 import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
+-- | Process `From`, `Until` constraints in routing table and remove all unsupported
+-- end-points.
 type family SpecialiseToVersion (v :: k) api
 
 type instance
@@ -71,7 +73,7 @@ type instance
   SpecialiseToVersion v (MultiVerb m t r x) =
     MultiVerb m t r x
 
-type instance SpecialiseToVersion v RawM.RawM = RawM.RawM
+type instance SpecialiseToVersion v RawM = RawM
 
 type instance
   SpecialiseToVersion v (ReqBody t x :> api) =
@@ -106,3 +108,11 @@ type instance
 type instance
   SpecialiseToVersion v (MultipartForm x b :> api) =
     MultipartForm x b :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (CaptureAll sym tipe :> api) =
+    CaptureAll sym tipe :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Endpath :> api) =
+    Endpath :> SpecialiseToVersion v api

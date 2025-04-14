@@ -24,7 +24,6 @@
 , lib
 , metrics-wai
 , monad-control
-, resourcet
 , retry
 , servant
 , servant-client
@@ -63,7 +62,6 @@ mkDerivation {
     imports
     metrics-wai
     monad-control
-    resourcet
     retry
     servant
     servant-client

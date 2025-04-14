@@ -15,126 +15,136 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Proxy.API.Public
-  ( PublicAPI,
-    servantSitemap,
-    waiRoutingSitemap,
-  )
-where
+module Proxy.API.Public (servantSitemap) where
 
 import Bilge.Request qualified as Req
 import Bilge.Response qualified as Res
+import Cassandra.Options
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString (breakSubstring)
 import Data.ByteString.Lazy qualified as B
-import Data.CaseInsensitive (CI)
+import Data.CaseInsensitive
 import Data.CaseInsensitive qualified as CI
 import Data.Configurator qualified as Config
 import Data.List qualified as List
 import Data.Text qualified as Text
+import Data.Text.Encoding
 import Imports hiding (head)
 import Network.HTTP.Client qualified as Client
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Internal qualified as I
-import Network.Wai.Predicate hiding (Error, err, setStatus)
-import Network.Wai.Predicate.Request (getRequest)
-import Network.Wai.Routing hiding (path, route)
-import Network.Wai.Routing qualified as Routing
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Server (compile)
 import Proxy.Env
+import Proxy.Options (Opts, disableTlsForTest, giphyEndpoint, googleMapsEndpoint, soundcloudEndpoint, spotifyEndpoint, youtubeEndpoint)
 import Proxy.Proxy
+import Servant ((:<|>) (..))
 import Servant qualified
 import System.Logger.Class hiding (Error, info, render)
 import System.Logger.Class qualified as Logger
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Proxy
 
-type PublicAPI = Servant.Raw -- see https://wearezeta.atlassian.net/browse/WPB-1216
+type ApplicationM m = Request -> (Response -> IO ResponseReceived) -> m ResponseReceived
 
-servantSitemap :: Env -> Servant.ServerT PublicAPI Proxy.Proxy.Proxy
-servantSitemap e = Servant.Tagged app
+servantSitemap :: Env -> Servant.ServerT ProxyAPI Proxy.Proxy.Proxy
+servantSitemap e =
+  Named @"giphy-path" (giphyH e)
+    :<|> Named @"youtube-path" (youtubeH e)
+    :<|> Named @"gmaps-static" (gmapsStaticH e)
+    :<|> Named @"gmaps-path" (gmapsPathH e)
+    :<|> Named @"spotify" (spotifyH e)
+    :<|> Named @"soundcloud-resolve" (soundcloudResolveH e)
+    :<|> Named @"soundcloud-stream" (soundcloudStreamH e)
+
+googleMaps :: Env -> ProxyDest
+googleMaps env = getProxiedEndpoint env googleMapsEndpoint (Endpoint "www.googleapis.com" 443)
+
+giphyH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+giphyH env = proxyServant "api_key" "secrets.giphy" Prefix "/v1/gifs" phost
   where
-    app :: Application
-    app r k = appInProxy e r (Routing.route tree r k')
-      where
-        tree :: Tree (App Proxy)
-        tree = compile (waiRoutingSitemap e)
+    phost = getProxiedEndpoint env giphyEndpoint (Endpoint "api.giphy.com" 443)
 
-        k' :: Response -> Proxy.Proxy.Proxy ResponseReceived
-        k' = liftIO . k
+youtubeH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+youtubeH env = proxyServant "key" "secrets.youtube" Prefix "/youtube/v3" phost
+  where
+    phost = getProxiedEndpoint env youtubeEndpoint (Endpoint "www.googleapis.com" 443)
 
--- | IF YOU MODIFY THIS, BE AWARE OF:
---
--- >>> /libs/wire-api/src/Wire/API/Routes/Public/Proxy.hs
--- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
-waiRoutingSitemap :: Env -> Routes a Proxy ()
-waiRoutingSitemap e = do
-  get
-    "/proxy/youtube/v3/:path"
-    (proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
-    pure
+gmapsStaticH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+gmapsStaticH env = (proxyServant "key" "secrets.googlemaps" Static "/maps/api/staticmap") (googleMaps env)
 
-  get
-    "/proxy/googlemaps/api/staticmap"
-    (proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
-    pure
+gmapsPathH :: Env -> Request -> (Response -> IO ResponseReceived) -> Proxy ResponseReceived
+gmapsPathH env = (proxyServant "key" "secrets.googlemaps" Prefix "/maps/api/geocode") (googleMaps env)
 
-  get
-    "/proxy/googlemaps/maps/api/geocode/:path"
-    (proxy e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
-    pure
+spotifyH :: Env -> ApplicationM Proxy
+spotifyH env req kont = spotifyToken env req >>= liftIO . kont
 
-  get
-    "/proxy/giphy/v1/gifs/:path"
-    (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
-    pure
+soundcloudResolveH :: Env -> Text -> ApplicationM Proxy
+soundcloudResolveH env url _req kont = soundcloudResolve env (encodeUtf8 url) >>= liftIO . kont
 
-  post "/proxy/spotify/api/token" (continue spotifyToken) request
+soundcloudStreamH :: Env -> Text -> ApplicationM Proxy
+soundcloudStreamH env url _req kont = soundcloudStream env url >>= liftIO . kont
 
-  get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
+getProxiedEndpoint :: Env -> Getter Opts (Maybe Endpoint) -> Endpoint -> ProxyDest
+getProxiedEndpoint env endpointInConfig defaultEndpoint = phost
+  where
+    phost = ProxyDest (encodeUtf8 endpoint.host) (fromIntegral endpoint.port)
+    endpoint = fromMaybe defaultEndpoint (env ^. Proxy.Env.options . endpointInConfig)
 
-  get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
+proxyServant :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
+proxyServant qparam keyname reroute path phost rq kont = do
+  env :: Env <- ask
+  liftIO $ do
+    assertMethod rq "GET"
+    runProxy env $ proxy qparam keyname reroute path phost rq (liftIO . kont)
+  where
+    assertMethod :: Request -> ByteString -> IO ()
+    assertMethod req meth = do
+      when (mk (requestMethod req) /= mk meth) $ do
+        throwM $ mkError status405 "method-not-allowed" "Method not allowed"
 
-youtube, googleMaps, giphy :: ProxyDest
-youtube = ProxyDest "www.googleapis.com" 443
-googleMaps = ProxyDest "maps.googleapis.com" 443
-giphy = ProxyDest "api.giphy.com" 443
-
-proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
-proxy e qparam keyname reroute path phost rq k = do
+proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
+proxy qparam keyname reroute path phost rq k = do
+  e :: Env <- ask
   s <- liftIO $ Config.require (e ^. secrets) keyname
-  let r = getRequest rq
-  let q = renderQuery True ((qparam, Just s) : safeQuery (I.queryString r))
+  let q = renderQuery True ((qparam, Just s) : safeQuery (I.queryString rq))
   let r' =
         defaultRequest
           { I.httpVersion = http11,
-            I.requestMethod = I.requestMethod r,
+            I.requestMethod = I.requestMethod rq,
             I.rawPathInfo = case reroute of
               Static -> path
-              Prefix -> snd $ breakSubstring path (I.rawPathInfo r),
+              Prefix -> snd $ breakSubstring path (I.rawPathInfo rq),
             I.rawQueryString = q
           }
   runInIO <- askRunInIO
-  liftIO $ loop runInIO (2 :: Int) r (WPRModifiedRequestSecure r' phost)
+  liftIO $ loop e runInIO (2 :: Int) rq (waiProxyResponse e r' phost)
   where
-    loop runInIO !n waiReq req =
+    loop :: Env -> (Proxy () -> IO a) -> Int -> Request -> WaiProxyResponse -> IO ResponseReceived
+    loop e runInIO !n waiReq req =
       waiProxyTo (const $ pure req) (onUpstreamError runInIO) (e ^. manager) waiReq $ \res ->
         if responseStatus res == status502 && n > 0
           then do
             threadDelay 5000
-            loop runInIO (n - 1) waiReq req
-          else appInProxy e waiReq (k res)
+            loop e runInIO (n - 1) waiReq req
+          else appInProxy e waiReq (liftIO $ k res)
+
+    onUpstreamError :: (Proxy () -> IO a) -> SomeException -> p -> (Response -> IO b) -> IO b
     onUpstreamError runInIO x _ next = do
       void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
       next (errorRs error502)
 
-spotifyToken :: Request -> Proxy Response
-spotifyToken rq = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.spotify"
+    waiProxyResponse :: Env -> Request -> ProxyDest -> WaiProxyResponse
+    waiProxyResponse e = case (e ^. Proxy.Env.options . disableTlsForTest) of
+      Just True -> WPRModifiedRequest
+      _ -> WPRModifiedRequestSecure
+
+spotifyToken :: Env -> Request -> Proxy Response
+spotifyToken env rq = do
+  s <- liftIO $ Config.require (env ^. secrets) "secrets.spotify"
   b <- readBody rq
   let hdr = (hAuthorization, s) : basicHeaders (I.requestHeaders rq)
       req = baseReq {Client.requestHeaders = hdr}
@@ -156,15 +166,16 @@ spotifyToken rq = do
   where
     baseReq =
       Req.method POST
-        . Req.host "accounts.spotify.com"
-        . Req.port 443
+        . Req.host (encodeUtf8 endpoint.host)
+        . Req.port endpoint.port
         . Req.path "/api/token"
-        $ Req.empty {Client.secure = True}
+        $ Req.empty {Client.secure = maybe True not (env ^. Proxy.Env.options . disableTlsForTest)}
 
-soundcloudResolve :: ByteString -> Proxy Response
-soundcloudResolve url = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.soundcloud"
+    endpoint = fromMaybe (Endpoint "accounts.spotify.com" 443) (env ^. Proxy.Env.options . spotifyEndpoint)
+
+soundcloudResolve :: Env -> ByteString -> Proxy Response
+soundcloudResolve env url = do
+  s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
   let req = Req.queryItem "client_id" s . Req.queryItem "url" url $ baseReq
   mgr <- view manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
@@ -184,17 +195,18 @@ soundcloudResolve url = do
   where
     baseReq =
       Req.method GET
-        . Req.host "api.soundcloud.com"
-        . Req.port 443
+        . Req.host (encodeUtf8 endpoint.host)
+        . Req.port endpoint.port
         . Req.path "/resolve"
-        $ Req.empty {Client.secure = True}
+        $ Req.empty {Client.secure = maybe True not (env ^. Proxy.Env.options . disableTlsForTest)}
 
-soundcloudStream :: Text -> Proxy Response
-soundcloudStream url = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.soundcloud"
+    endpoint = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
+
+soundcloudStream :: Env -> Text -> Proxy Response
+soundcloudStream env url = do
+  s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
   req <- Req.noRedirect . Req.queryItem "client_id" s <$> Client.parseRequest (Text.unpack url)
-  unless (Client.secure req && Client.host req == "api.soundcloud.com") $
+  unless (checkHttps req && Client.host req == encodeUtf8 endpoint.host) $
     failWith "insecure stream url"
   mgr <- view manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
@@ -211,6 +223,12 @@ soundcloudStream url = do
   case Res.getHeader hLocation res of
     Nothing -> failWith "missing location header"
     Just loc -> pure (empty & setStatus status302 . addHeader hLocation loc)
+  where
+    endpoint = fromMaybe (Endpoint "api.soundcloud.com" 443) (env ^. Proxy.Env.options . soundcloudEndpoint)
+
+    checkHttps req = case env ^. Proxy.Env.options . disableTlsForTest of
+      Just True -> True
+      _ -> Client.secure req
 
 x2 :: RetryPolicy
 x2 = exponentialBackoff 5000 <> limitRetries 2

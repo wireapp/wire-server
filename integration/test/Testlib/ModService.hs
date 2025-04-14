@@ -238,7 +238,8 @@ startDynamicBackend resource beOverrides = do
           nginzCfg = setField "logLevel" ("Warn" :: String),
           backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
           sternCfg = setField "logLevel" ("Warn" :: String),
-          federatorInternalCfg = setField "logLevel" ("Warn" :: String)
+          federatorInternalCfg = setField "logLevel" ("Warn" :: String),
+          wireProxyCfg = setField "logLevel" ("Warn" :: String)
         }
 
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
@@ -615,8 +616,8 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
       (serviceName Galley, sm.galley.port),
       (serviceName Gundeck, sm.gundeck.port),
       (serviceName Nginz, sm.nginz.port),
-      (serviceName Spar, sm.spar.port),
-      ("proxy", sm.proxy.port)
+      (serviceName WireProxy, sm.proxy.port),
+      (serviceName Spar, sm.spar.port)
     ]
     \case
       (srv, p) -> do

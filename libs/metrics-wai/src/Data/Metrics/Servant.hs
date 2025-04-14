@@ -148,3 +148,9 @@ instance RoutesToPaths EmptyAPI where
 
 instance RoutesToPaths Raw where
   getRoutes = []
+
+instance RoutesToPaths RawM where
+  getRoutes = []
+
+instance (RoutesToPaths api) => RoutesToPaths (CaptureAll sym typ :> api) where
+  getRoutes = getRoutes @api
