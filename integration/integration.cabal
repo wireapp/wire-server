@@ -294,7 +294,6 @@ library
     , uuid
     , vector
     , wai
-    , wai-route
     , warp
     , warp-tls
     , websockets

@@ -51,6 +51,7 @@ import Data.List1 qualified as List1
 import Data.Map qualified as Map
 import Data.Misc
 import Data.PEM
+import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
@@ -67,14 +68,16 @@ import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Socket
 import Network.Socket qualified as Socket
-import Network.Wai (Application, responseLBS, strictRequestBody)
+import Network.Wai (responseLBS, strictRequestBody)
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Handler.Warp.Internal qualified as Warp
 import Network.Wai.Handler.WarpTLS qualified as Warp
-import Network.Wai.Route qualified as Wai
 import Network.Wai.Utilities.Error qualified as Error
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
+import Servant.API
+import Servant.API.Extended.Endpath
+import Servant.Server
 import System.IO.Temp (withSystemTempFile)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon qualified as WS
@@ -1753,15 +1756,19 @@ data TestBotEvent
   | TestBotMessage Event
   deriving (Show, Eq)
 
+type TestBotAPI =
+  "bots" :> Endpath :> Raw
+    :<|> "bots" :> Capture "bot" Text :> "messages" :> Endpath :> Raw
+
 -- TODO: Test that the authorization header is properly set
 defServiceApp :: Chan TestBotEvent -> Application
-defServiceApp buf =
-  Wai.route
-    [ ("/bots", onBotCreate),
-      ("/bots/:bot/messages", onBotMessage)
-    ]
+defServiceApp buf = serve (Proxy @TestBotAPI) testBotApi
   where
-    onBotCreate _ rq k = do
+    testBotApi :: Server TestBotAPI
+    testBotApi = onBotCreate :<|> onBotMessage
+
+    onBotCreate :: Tagged Servant.Server.Handler Application
+    onBotCreate = Tagged $ \rq k -> do
       -- TODO: Match request method
       js <- strictRequestBody rq
       case eitherDecode js of
@@ -1790,7 +1797,9 @@ defServiceApp buf =
                   }
           writeChan buf (TestBotCreated bot)
           k $ responseLBS status201 [] (encode rsp)
-    onBotMessage _ rq k = do
+
+    onBotMessage :: Text -> Tagged Servant.Server.Handler Application
+    onBotMessage _ = Tagged $ \rq k -> do
       js <- strictRequestBody rq
       case eitherDecode js of
         Left e -> k $ responseLBS status400 [] (LC8.pack e)

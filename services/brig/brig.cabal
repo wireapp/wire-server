@@ -405,6 +405,7 @@ executable brig-integration
     , data-timeout
     , email-validate
     , exceptions
+    , extended
     , extra
     , federator
     , filepath               >=1.4
@@ -446,6 +447,7 @@ executable brig-integration
     , servant
     , servant-client
     , servant-client-core
+    , servant-server
     , spar
     , streaming-commons
     , string-conversions
@@ -469,7 +471,6 @@ executable brig-integration
     , vector                 >=0.10
     , wai
     , wai-extra
-    , wai-route
     , wai-utilities          >=0.9
     , warp
     , warp-tls               >=3.2
