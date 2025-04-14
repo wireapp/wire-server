@@ -28,7 +28,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
-import Debug.Trace (traceM, traceShowId)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Commit.Core
@@ -87,7 +86,6 @@ processInternalCommit ::
   Commit ->
   Codensity (Sem r) [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdate epoch action commit = do
-  traceM "======> processInternalCommit"
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
       cm = convOrSub.members
@@ -253,13 +251,11 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                   pure [update]
             SubConv _ _ -> pure []
             Conv _ -> do
-              traceM "====> processInternalCommit: add/remove members"
               -- remove users from the conversation and send events
               removeEvents <-
                 foldMap
                   (removeMembers qusr con lConvOrSub)
                   (nonEmpty membersToRemove)
-              traceM $ "====> newUserClients: " <> show newUserClients
 
               -- add users to the conversation and send events
               addEvents <-
@@ -298,9 +294,7 @@ addMembers ::
   Sem r [LocalConversationUpdate]
 addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
-    traceM $ "====> addMembers: " <> show users
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
-    traceM $ "====> addMembers: existing members " <> show (existingMembers lconv)
     -- FUTUREWORK: update key package ref mapping to reflect conversation membership
     foldMap
       ( handleNoChanges
@@ -309,7 +303,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
           . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
           . flip ConversationJoin roleNameWireMember
       )
-      . (traceShowId . nonEmpty)
+      . nonEmpty
       . filter (flip Set.notMember (existingMembers lconv))
       . toList
       $ users

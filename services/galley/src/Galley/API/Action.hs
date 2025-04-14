@@ -64,7 +64,6 @@ import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
-import Debug.Trace (traceM)
 import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
@@ -461,12 +460,10 @@ performAction ::
   ConversationAction tag ->
   Sem r (BotsAndMembers, ConversationAction tag)
 performAction tag origUser lconv action = do
-  traceM "======> Performing action"
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   case tag of
-    SConversationJoinTag -> do
-      traceM "======> Performing conversation join"
+    SConversationJoinTag ->
       performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
       let victims = [origUser]
@@ -827,7 +824,6 @@ updateLocalConversationUnchecked ::
   ConversationAction tag ->
   Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
-  traceM "======> Updating local conversation"
   let tag = sing @tag
       lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv

@@ -367,16 +367,16 @@ testWithOldBackendVersion fedDomain = replicateM_ 2 do
   -- this will trigger a notification that the old backend cannot parse
   updateChannelAddPermission bärbel conv "admins" >>= assertSuccess
 
-testAddPermissionAdminExternaPartner :: (HasCallStack) => App ()
-testAddPermissionAdminExternaPartner = do
+testAddPermissionAdminExternalPartner :: (HasCallStack) => App ()
+testAddPermissionAdminExternalPartner = do
   _testAddtermissionExternalPartner "admins" $ \partnerClient convId mems -> do
     commit <- createAddCommit partnerClient convId mems
     postMLSCommitBundle partnerClient (mkBundle commit) `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "action-denied"
 
-testAddPermissionEveryoneExternaPartner :: (HasCallStack) => App ()
-testAddPermissionEveryoneExternaPartner = do
+testAddPermissionEveryoneExternalPartner :: (HasCallStack) => App ()
+testAddPermissionEveryoneExternalPartner = do
   _testAddtermissionExternalPartner "everyone" $ \partnerClient convId mems -> do
     resp <- createAddCommit partnerClient convId mems >>= sendAndConsumeCommitBundle
     (resp %. "events.0.data.user_ids" & asList) `shouldMatchSet` (for mems (%. "id"))
