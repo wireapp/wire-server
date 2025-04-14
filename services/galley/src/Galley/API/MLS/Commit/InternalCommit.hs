@@ -218,7 +218,13 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                           ( any
                               ( \(cid, (_, mKp :: Maybe KeyPackage)) ->
                                   case mKp of
-                                    Just kp -> Map.lookup cid infoMap /= Just kp.leafNode.signatureKey
+                                    Just kp -> case Map.lookup cid infoMap of
+                                      -- if the key could not be obtained (e.g.
+                                      -- because an older version of the brig
+                                      -- or federation endpoint has been used),
+                                      -- skip this check
+                                      Nothing -> True
+                                      key -> key /= Just kp.leafNode.signatureKey
                                     Nothing -> False
                               )
                               (Map.assocs newclients)
