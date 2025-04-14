@@ -1,1 +1,1 @@
-charts/cannon: Add the events endpoint to nginz config
+charts/{cannon,nginz}: Add the events endpoint to nginz config (#4540, ##)
