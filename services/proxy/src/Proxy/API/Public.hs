@@ -50,9 +50,6 @@ import Wire.API.Routes.Public.Proxy
 
 type ApplicationM m = Request -> (Response -> IO ResponseReceived) -> m ResponseReceived
 
--- TODO: test that the switch from wai-route to servant doesn't break streaming
--- characteristics (we don't want to turn O(1) memory requirement into O(n))
-
 servantSitemap :: Env -> Servant.ServerT ProxyAPI Proxy.Proxy.Proxy
 servantSitemap e =
   Named @"giphy-path" (giphyH e)
