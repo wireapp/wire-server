@@ -29,6 +29,8 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
+-- | Process `From`, `Until` constraints in routing table and remove all unsupported
+-- end-points.
 type family SpecialiseToVersion (v :: k) api
 
 type instance
