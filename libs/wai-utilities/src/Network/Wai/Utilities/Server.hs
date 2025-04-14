@@ -26,8 +26,6 @@ module Network.Wai.Utilities.Server
     newSettings,
     runSettingsWithShutdown,
     runSettingsWithCleanup,
-    compile,
-    route,
 
     -- * Middlewares
     requestIdMiddleware,
@@ -57,8 +55,6 @@ import Data.Aeson (decode, encode)
 import Data.ByteString (toStrict)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
-import Data.ByteString.Char8 qualified as C
-import Data.ByteString.Lazy qualified as LBS
 import Data.Domain (domainText)
 import Data.Id
 import Data.Metrics.GC (spawnGCMetricsCollector)
@@ -74,15 +70,9 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
 import Network.Wai.Internal qualified as WaiInt
-import Network.Wai.Predicate hiding (Error, err, status)
-import Network.Wai.Predicate qualified as P
-import Network.Wai.Routing.Route (App, Continue, Routes, Tree)
-import Network.Wai.Routing.Route qualified as Route
 import Network.Wai.Utilities.Error qualified as Error
-import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Network.Wai.Utilities.Request (lookupRequestId)
-import Network.Wai.Utilities.Response
 import Prometheus qualified as Prom
 import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, Settings, format)
@@ -157,38 +147,6 @@ runSettingsWithCleanup cleanup s app (fromMaybe defaultShutdownTime -> secs) = d
 
 defaultShutdownTime :: Int
 defaultShutdownTime = 30
-
-compile :: (Monad m) => Routes a m b -> Tree (App m)
-compile routes = Route.prepare (Route.renderer predicateError >> routes)
-  where
-    predicateError e = pure (encode $ Wai.mkError (P.status e) "client-error" (format e), [jsonContent])
-    -- [label] 'source' reason: message
-    format e =
-      let l = labelStr $ labels e
-          s = sourceStr <$> source e
-          r = reasonStr <$> reason e
-          t = message e
-       in case catMaybes [l, s, r] of
-            [] -> maybe defRequestId (LT.decodeUtf8With lenientDecode . LBS.fromStrict) t
-            bs -> LT.decodeUtf8With lenientDecode . toLazyByteString $ mconcat bs <> messageStr t
-    labelStr [] = Nothing
-    labelStr ls =
-      Just $
-        char7 '['
-          <> byteString (C.intercalate "," ls)
-          <> char7 ']'
-          <> char7 ' '
-    sourceStr s = char7 '\'' <> byteString s <> char7 '\'' <> char7 ' '
-    reasonStr NotAvailable = "required"
-    reasonStr TypeError = "invalid"
-    messageStr (Just t) = char7 ':' <> char7 ' ' <> byteString t
-    messageStr Nothing = mempty
-
-route :: (MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
-route rt rq k = Route.routeWith (Route.Config $ errorRs noEndpoint) rt rq (liftIO . k)
-  where
-    noEndpoint = Wai.mkError status404 "no-endpoint" "The requested endpoint does not exist"
-{-# INLINEABLE route #-}
 
 --------------------------------------------------------------------------------
 -- Middlewares
@@ -391,7 +349,7 @@ onError ::
   Logger ->
   Maybe ByteString ->
   Request ->
-  Continue IO ->
+  (Response -> IO ResponseReceived) ->
   Either Wai.Error JSONResponse ->
   m ResponseReceived
 onError g mReqId r k e = liftIO $ do

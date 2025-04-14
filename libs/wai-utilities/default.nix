@@ -33,7 +33,6 @@
 , uuid
 , wai
 , wai-predicates
-, wai-routing
 , warp
 , warp-tls
 }:
@@ -67,7 +66,6 @@ mkDerivation {
     uuid
     wai
     wai-predicates
-    wai-routing
     warp
     warp-tls
   ];

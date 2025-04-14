@@ -176,15 +176,6 @@ let
       };
     };
 
-    # we use upstream, but has not been uploaded to hackage since 2016
-    wai-routing = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/wai-routing";
-        rev = "7e996a93fec5901767f845a50316b3c18e51a61d";
-        hash = "sha256-k0IV5jTYmoWA8TrVfbNuQIsblfZCbrYF8dowmfTkLKI=";
-      };
-    };
-
     # PR: https://github.com/UnkindPartition/tasty/pull/351
     tasty = {
       src = fetchgit {
