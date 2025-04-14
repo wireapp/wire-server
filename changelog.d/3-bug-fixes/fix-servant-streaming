@@ -1,0 +1,4 @@
+Lazy streams were broken due to
+https://github.com/haskell-servant/servant/pull/1781 . So, in specific cases,
+the playload of a streamed response was realised in the application's memory
+instead of streaming it piecewise.
