@@ -672,7 +672,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
               unless (isChannel && (isConversationAdmin || isAddPermissionEveryone) || tm `hasPermission` AddRemoveConvMember) $
                 throwS @'InvalidOperation
             -- the user is not a member of the team which owns the conversation
-            -- TODO: should this be an error?
+            -- FUTUREWORK: should this be an error? breaks: add team member to conversation without connection
             Nothing -> pure ()
         -- this is not a team conversation
         Nothing -> pure ()
