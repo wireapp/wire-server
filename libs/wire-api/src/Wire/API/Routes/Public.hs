@@ -369,7 +369,10 @@ instance (RoutesToPaths api) => RoutesToPaths (DescriptionOAuthScope scope :> ap
   getRoutes = getRoutes @api
 
 instance HasOpenApi RawM where
-  toOpenApi _ = toOpenApi (Proxy @Raw)
+  toOpenApi _ = desc $ toOpenApi (Proxy @Raw)
+    where
+      desc :: OpenApi -> OpenApi
+      desc = S.allOperations . S.description ?~ "Raw `Application` handler, but with access to the custom monad."
 
 instance (HasOpenApi api) => HasOpenApi (CaptureAll :> api) where
   toOpenApi _ = desc $ toOpenApi (Proxy @api)
