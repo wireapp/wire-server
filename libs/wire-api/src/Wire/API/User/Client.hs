@@ -388,7 +388,7 @@ instance ToSchema ClientInfo where
       ClientInfo
         <$> (.clientId) .= field "id" schema
         <*> (.mlsSignatureKey) .= maybe_ (optField "mls_signature_key" base64Schema)
-        <*> (.hasKeyPackages) .= field "has_key_packages" schema
+        <*> (.hasKeyPackages) .= field "mls" schema
 
 --------------------------------------------------------------------------------
 -- UserClients

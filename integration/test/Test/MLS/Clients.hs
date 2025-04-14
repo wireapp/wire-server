@@ -16,7 +16,7 @@ testGetMLSClients = do
     c <- assertOne cs
     c
       `shouldMatch` object
-        [ "has_key_packages" .= False,
+        [ "mls" .= False,
           "id" .= alice1.client
         ]
 
@@ -29,7 +29,7 @@ testGetMLSClients = do
     c <- assertOne cs
     c
       `shouldMatch` object
-        [ "has_key_packages" .= False,
+        [ "mls" .= False,
           "id" .= alice1.client,
           "mls_signature_key" .= ss
         ]
@@ -42,7 +42,7 @@ testGetMLSClients = do
     c <- assertOne cs
     c
       `shouldMatch` object
-        [ "has_key_packages" .= True,
+        [ "mls" .= True,
           "id" .= alice1.client,
           "mls_signature_key" .= ss
         ]
