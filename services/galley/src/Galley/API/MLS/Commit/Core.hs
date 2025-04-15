@@ -165,7 +165,7 @@ getRemoteMLSClients rusr suite = do
           { userId = tUnqualified rusr,
             cipherSuite = tagCipherSuite suite
           }
-  (>>= either throw pure) . runFederatedEither rusr $
+  (either throw pure <=< runFederatedEither rusr) $
     fedClient @'Brig @"get-mls-clients" mcr
       <|> fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr)
 
@@ -211,7 +211,7 @@ getRemoteMLSClient rusr cid suite = do
               mlsSignatureKey = Nothing
             }
   -- get single client if the API is available, otherwise get all clients and find the correct one
-  (>>= either throw pure) . runFederatedEither rusr $
+  (either throw pure <=< runFederatedEither rusr) $
     fedClient @'Brig @"get-mls-client" mcr1
       <|> fmap extractClient (fedClient @'Brig @"get-mls-clients" mcr)
       <|> fmap extractClient (fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr))
