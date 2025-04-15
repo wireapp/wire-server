@@ -314,8 +314,8 @@ createGroupConversationGeneric lusr conn newConv = do
     sendCellsNotification conv = do
       now <- input
       let qcnv = tUntagged $ qualifyAs lusr conv.convId
-          e = Event qcnv Nothing (tUntagged lusr) now EdCellsConvCreate
-      when (shouldPushToCells conv.convMetadata (evtType e)) $ do
+          e = Event qcnv Nothing (tUntagged lusr) now EdConversationNoData
+      when (shouldPushToCells conv.convMetadata e) $ do
         let push =
               def
                 { origin = Just (tUnqualified lusr),
@@ -696,7 +696,7 @@ createConnectConversation lusr conn j = do
             { origin = Just (tUnqualified lusr),
               json = toJSONObject e,
               recipients = map localMemberToRecipient (Data.convLocalMembers c),
-              isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+              isCellsEvent = shouldPushToCells c.convMetadata e,
               route = PushV2.RouteDirect,
               conn
             }
@@ -740,7 +740,7 @@ createConnectConversation lusr conn j = do
                 { origin = Just (tUnqualified lusr),
                   json = toJSONObject e,
                   recipients = map localMemberToRecipient (Data.convLocalMembers conv),
-                  isCellsEvent = shouldPushToCells conv.convMetadata (evtType e),
+                  isCellsEvent = shouldPushToCells conv.convMetadata e,
                   route = PushV2.RouteDirect,
                   conn
                 }
@@ -856,7 +856,7 @@ notifyCreatedConversation lusr conn c = do
           { origin = Just (tUnqualified lusr),
             json = toJSONObject e,
             recipients = [localMemberToRecipient m],
-            isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+            isCellsEvent = shouldPushToCells c.convMetadata e,
             route,
             conn
           }

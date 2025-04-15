@@ -68,6 +68,7 @@ where
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Lens (makePrisms, (?~), _1)
+import Control.Lens.Extras
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -133,7 +134,6 @@ data EventType
   | ConvCodeUpdate
   | ConvCodeDelete
   | ConvCreate
-  | CellsConvCreate
   | ConvConnect
   | ConvDelete
   | ConvReceiptModeUpdate
@@ -161,7 +161,6 @@ instance ToSchema EventType where
           element "conversation.code-update" ConvCodeUpdate,
           element "conversation.code-delete" ConvCodeDelete,
           element "conversation.create" ConvCreate,
-          element "conversation.cells.create" CellsConvCreate,
           element "conversation.delete" ConvDelete,
           element "conversation.connect-request" ConvConnect,
           element "conversation.typing" Typing,
@@ -185,7 +184,7 @@ data EventData
   | EdConvCodeDelete
   | EdMemberUpdate MemberUpdateData
   | EdConversation ConversationV8
-  | EdCellsConvCreate
+  | EdConversationNoData
   | EdTyping TypingStatus
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
@@ -205,8 +204,7 @@ genEventData = \case
   ConvCodeUpdate -> EdConvCodeUpdate <$> arbitrary
   ConvCodeDelete -> pure EdConvCodeDelete
   ConvConnect -> EdConnect <$> arbitrary
-  ConvCreate -> EdConversation <$> arbitrary
-  CellsConvCreate -> pure EdCellsConvCreate
+  ConvCreate -> maybe EdConversationNoData EdConversation <$> arbitrary
   ConvReceiptModeUpdate -> EdConvReceiptModeUpdate <$> arbitrary
   Typing -> EdTyping <$> arbitrary
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
@@ -227,7 +225,7 @@ eventDataType (EdConvCodeUpdate _) = ConvCodeUpdate
 eventDataType EdConvCodeDelete = ConvCodeDelete
 eventDataType (EdConnect _) = ConvConnect
 eventDataType (EdConversation _) = ConvCreate
-eventDataType EdCellsConvCreate = CellsConvCreate
+eventDataType EdConversationNoData = ConvCreate
 eventDataType (EdConvReceiptModeUpdate _) = ConvReceiptModeUpdate
 eventDataType (EdTyping _) = Typing
 eventDataType (EdOtrMessage _) = OtrMessageAdd
@@ -236,15 +234,6 @@ eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
-
-isCellsConversationEvent :: EventType -> Bool
-isCellsConversationEvent MemberJoin = True
-isCellsConversationEvent MemberLeave = True
-isCellsConversationEvent MemberStateUpdate = True
-isCellsConversationEvent ConvRename = True
-isCellsConversationEvent CellsConvCreate = True
-isCellsConversationEvent ConvDelete = True
-isCellsConversationEvent _ = False
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -418,8 +407,9 @@ taggedEventDataSchema =
           (unnamed (conversationAccessDataSchema (Just V2)))
       ConvCodeUpdate -> tag _EdConvCodeUpdate (unnamed schema)
       ConvConnect -> tag _EdConnect (unnamed schema)
-      ConvCreate -> tag _EdConversation (unnamed (conversationSchema (Just V2)))
-      CellsConvCreate -> tag _EdCellsConvCreate null_
+      ConvCreate ->
+        tag _EdConversation (unnamed (conversationSchema (Just V2)))
+          <> tag _EdConversationNoData null_
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)
@@ -466,6 +456,28 @@ instance ToJSON Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
+
+isCellsConversationEvent :: Event -> Bool
+isCellsConversationEvent event =
+  case evtType event of
+    MemberJoin -> True
+    MemberLeave -> True
+    MemberStateUpdate -> True
+    ConvRename -> True
+    ConvCodeDelete -> True
+    ConvCreate -> is _EdConversationNoData event.evtData
+    ConvAccessUpdate -> False
+    ConvMessageTimerUpdate -> False
+    ConvCodeUpdate -> False
+    ConvConnect -> False
+    ConvReceiptModeUpdate -> False
+    Typing -> False
+    OtrMessageAdd -> False
+    MLSMessageAdd -> False
+    MLSWelcome -> False
+    ConvDelete -> False
+    ProtocolUpdate -> False
+    AddPermissionUpdate -> False
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

@@ -684,7 +684,7 @@ newConversationEventPush st e users =
         { origin = musr,
           json = toJSONObject e,
           recipients = map userRecipient (tUnqualified users),
-          isCellsEvent = shouldPushToCells st (evtType e)
+          isCellsEvent = shouldPushToCells st e
         }
 
 verifyReusableCode ::

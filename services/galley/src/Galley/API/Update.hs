@@ -1657,7 +1657,7 @@ addBot lusr zcon b = do
         { origin = Just (tUnqualified lusr),
           json = toJSONObject e,
           recipients = map localMemberToRecipient users,
-          isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+          isCellsEvent = shouldPushToCells c.convMetadata e,
           conn = Just zcon
         }
     ]
@@ -1720,7 +1720,7 @@ rmBot lusr zcon b = do
               { origin = Just (tUnqualified lusr),
                 json = toJSONObject e,
                 recipients = map localMemberToRecipient users,
-                isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+                isCellsEvent = shouldPushToCells c.convMetadata e,
                 conn = zcon
               }
           ]

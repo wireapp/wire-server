@@ -405,7 +405,7 @@ rmUser lusr conn = do
                   { origin = Just (tUnqualified lusr),
                     json = toJSONObject e,
                     recipients = map localMemberToRecipient (Data.convLocalMembers c),
-                    isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+                    isCellsEvent = shouldPushToCells c.convMetadata e,
                     conn,
                     route = PushV2.RouteDirect
                   }
