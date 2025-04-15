@@ -24,13 +24,17 @@ import Wire.API.Routes.Version
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary
 
-data DomainRedirectConfigV8
+type DomainRedirectConfigV8 = DomainRedirectConfig V8
+
+type DomainRedirectConfigV9 = DomainRedirectConfig V9
+
+data DomainRedirectConfig (v :: Version)
   = DomainRedirectConfigRemove
-  | DomainRedirectConfigBackend HttpsUrl
+  | DomainRedirectConfigBackend HttpsUrl (Maybe HttpsUrl)
   | DomainRedirectConfigNoRegistration
   deriving stock (Eq, Show)
 
-makePrisms ''DomainRedirectConfigV8
+makePrisms ''DomainRedirectConfig
 
 deriving via (Schema DomainRedirectConfigV8) instance A.ToJSON DomainRedirectConfigV8
 
@@ -63,7 +67,7 @@ domainRedirectConfigTagObjectSchema =
 domainRedirectConfigToTag :: DomainRedirectConfigV8 -> DomainRedirectConfigTag
 domainRedirectConfigToTag = \case
   DomainRedirectConfigRemove -> DomainRedirectConfigRemoveTag
-  DomainRedirectConfigBackend _ -> DomainRedirectConfigBackendTag
+  DomainRedirectConfigBackend _ _ -> DomainRedirectConfigBackendTag
   DomainRedirectConfigNoRegistration -> DomainRedirectConfigNoRegistrationTag
 
 domainRedirectConfigV8Schema :: ObjectSchema SwaggerDoc DomainRedirectConfigV8
@@ -76,9 +80,15 @@ domainRedirectConfigV8Schema =
   where
     domainRedirectConfigObjectSchema :: DomainRedirectConfigTag -> ObjectSchema SwaggerDoc DomainRedirectConfigV8
     domainRedirectConfigObjectSchema = \case
-      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackend backendUrlSchema
+      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackend backendConfigSchema
       DomainRedirectConfigNoRegistrationTag -> tag _DomainRedirectConfigNoRegistration (pure ())
       DomainRedirectConfigRemoveTag -> tag _DomainRedirectConfigRemove (pure ())
+
+    backendConfigSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigSchema =
+      (,)
+        <$> fst .= backendUrlSchema
+        <*> snd .= pure Nothing
 
 instance ToSchema DomainRedirectConfigV8 where
   schema = object "DomainRedirectConfigV8" domainRedirectConfigV8Schema
@@ -323,6 +333,20 @@ type DomainVerificationAPI =
         :> ReqBody '[JSON] DomainRedirectConfigV8
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
     )
+    :<|> Named
+           "update-domain-redirect"
+           ( Summary "Update the domain redirect configuration"
+               :> From V9
+               :> CanThrow DomainVerificationAuthFailure
+               :> CanThrow DomainVerificationOperationForbidden
+               :> Header' '[Required, Strict] "Authorization" (Bearer Token)
+               :> "domain-verification"
+               :> Capture "domain" Domain
+               :> "backend"
+               -- TODO: Change this to DomainRedirectConfigV9
+               :> ReqBody '[JSON] DomainRedirectConfigV8
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
+           )
     :<|> Named
            "get-domain-registration"
            ( Summary "Get domain registration configuration by email"

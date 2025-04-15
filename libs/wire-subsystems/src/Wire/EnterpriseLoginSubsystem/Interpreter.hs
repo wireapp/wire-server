@@ -574,7 +574,8 @@ updateDomainRedirectImpl token domain config = do
     computeUpdate reg = case config of
       DomainRedirectConfigRemove ->
         DomainRegistrationUpdate PreAuthorized reg.teamInvite
-      DomainRedirectConfigBackend url ->
+      -- TODO: Adjust the update to take the webapp url into account
+      DomainRedirectConfigBackend url _ ->
         DomainRegistrationUpdate (Backend url) NotAllowed
       DomainRedirectConfigNoRegistration ->
         DomainRegistrationUpdate NoRegistration reg.teamInvite
