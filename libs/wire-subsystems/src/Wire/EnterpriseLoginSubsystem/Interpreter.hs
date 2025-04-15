@@ -312,7 +312,7 @@ unauthorizeImpl domain = do
   let new = old {domainRedirect = None} :: DomainRegistration
   case old.domainRedirect of
     PreAuthorized -> audit old new *> upsert new
-    Backend _ -> audit old new *> upsert new
+    Backend _ _ -> audit old new *> upsert new
     NoRegistration -> audit old new *> upsert new
     None -> pure ()
     Locked -> throw EnterpriseLoginSubsystemOperationForbidden
@@ -496,7 +496,7 @@ validate :: (Member (Error EnterpriseLoginSubsystemError) r) => DomainRegistrati
 validate dr = do
   case dr.domainRedirect of
     Locked -> when (dr.teamInvite /= Allowed) $ throw EnterpriseLoginSubsystemOperationForbidden
-    Backend _ -> when (dr.teamInvite /= NotAllowed) $ throw EnterpriseLoginSubsystemOperationForbidden
+    Backend _ _ -> when (dr.teamInvite /= NotAllowed) $ throw EnterpriseLoginSubsystemOperationForbidden
     _ -> pure ()
 
 mkAuditMail :: EmailAddress -> EmailAddress -> Text -> LText -> Mail
@@ -574,15 +574,14 @@ updateDomainRedirectImpl token domain config = do
     computeUpdate reg = case config of
       DomainRedirectConfigRemove ->
         DomainRegistrationUpdate PreAuthorized reg.teamInvite
-      -- TODO: Adjust the update to take the webapp url into account
-      DomainRedirectConfigBackend url _ ->
-        DomainRegistrationUpdate (Backend url) NotAllowed
+      DomainRedirectConfigBackend url webappUrl ->
+        DomainRegistrationUpdate (Backend url webappUrl) NotAllowed
       DomainRedirectConfigNoRegistration ->
         DomainRegistrationUpdate NoRegistration reg.teamInvite
 
     isAllowed = \case
       PreAuthorized -> True
-      Backend _ -> True
+      Backend _ _ -> True
       NoRegistration -> True
       _ -> False
 
@@ -698,7 +697,7 @@ getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
   mReg <- getDomainRegistrationImpl domain
 
   pure $ case (mUser, maybe None (.domainRedirect) mReg) of
-    (Just _, Backend _) -> DomainRedirectResponse True NoRegistration
+    (Just _, Backend _ _) -> DomainRedirectResponse True NoRegistration
     (Just user, SSO _)
       | not (isSSOAccountFromTeam (mReg >>= (.authorizedTeam)) user) ->
           DomainRedirectResponse False NoRegistration

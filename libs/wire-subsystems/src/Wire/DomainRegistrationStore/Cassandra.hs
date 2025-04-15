@@ -62,10 +62,10 @@ deleteImpl :: (MonadClient m) => DomainKey -> m ()
 deleteImpl domain = retry x5 $ write cqlDelete (params LocalQuorum (Identity domain))
 
 cqlUpsert :: PrepQuery W (TupleType StoredDomainRegistration) ()
-cqlUpsert = "INSERT INTO domain_registration (domain, domain_redirect, team_invite, idp_id, backend_url, team, dns_verification_token, ownership_token_hash, authorized_team) VALUES (?,?,?,?,?,?,?,?,?)"
+cqlUpsert = "INSERT INTO domain_registration (domain, domain_redirect, team_invite, idp_id, backend_url, team, dns_verification_token, ownership_token_hash, authorized_team, webapp_url) VALUES (?,?,?,?,?,?,?,?,?,?)"
 
 cqlSelect :: PrepQuery R (Identity DomainKey) (TupleType StoredDomainRegistration)
-cqlSelect = "SELECT domain, domain_redirect, team_invite, idp_id, backend_url, team, dns_verification_token, ownership_token_hash, authorized_team FROM domain_registration WHERE domain = ?"
+cqlSelect = "SELECT domain, domain_redirect, team_invite, idp_id, backend_url, team, dns_verification_token, ownership_token_hash, authorized_team, webapp_url FROM domain_registration WHERE domain = ?"
 
 cqlDelete :: PrepQuery W (Identity DomainKey) ()
 cqlDelete = "DELETE FROM domain_registration WHERE domain = ?"
