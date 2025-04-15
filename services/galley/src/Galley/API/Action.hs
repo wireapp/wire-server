@@ -668,13 +668,27 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
                     maybe False (\m -> m.lmConvRoleName == roleNameWireAdmin) $
                       find (\m -> m.lmId == lusr.tUntagged.qUnqualified) conv.convLocalMembers
                   isAddPermissionEveryone = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+                  hasAddRemovePermissions = tm `hasPermission` AddRemoveConvMember
 
-              unless (isChannel && (isConversationAdmin || isAddPermissionEveryone) || tm `hasPermission` AddRemoveConvMember) $
-                throwS @'InvalidOperation
-            -- the user is not a member of the team which owns the conversation
-            -- FUTUREWORK: should this be an error? breaks: add team member to conversation without connection
+              if isChannel
+                then do
+                  -- at this point we know the conversation is a channel, the user is a team member, and when:
+                  -- - the user is a conversation admin (including external partners) => they can add members
+                  --   note: external partners can be allowed to create channels, in which case they will always be the channel's admin
+                  -- - or the add-permission is set to everyone (including exteral partners) => they can add members
+                  -- - or the user is a team admin => they can add members
+                  unless (isConversationAdmin || isAddPermissionEveryone || isAdminOrOwner (tm ^. permissions)) $ throwS @'InvalidOperation
+                else do
+                  -- we know this is a group conversation and the user is a team member and they are conversation admin.
+                  -- if they do not have the add/remove permission (which is currently only the case for external partners) they are not allowed to add members
+                  -- note: it's counterintuitive that external partners who are conversation admins are not allowed to add members,
+                  -- while guest (non-team members) who are conversation admins are allowed to add members
+                  unless hasAddRemovePermissions $ throwS @'InvalidOperation
+
+            -- at this point we know this is a team conversation and the user is not a team member (guest).
+            -- but the user is a conversation admin (which has been checked earlier) so they are allowed to add members
             Nothing -> pure ()
-        -- this is not a team conversation
+        -- this is not a team conversation and conv admin permissions have been checked earlier
         Nothing -> pure ()
 
 performConversationAccessData ::
