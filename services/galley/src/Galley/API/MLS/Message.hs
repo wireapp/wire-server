@@ -260,12 +260,10 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
   (events, newClients) <- lowerCodensity $ do
-    (events, newClients) <- case bundle.sender of
-      SenderMember _index -> do
+    (events, newClients) <- case senderIdentity.index of
+      Just _ -> do
         -- extract added/removed clients from bundle
-        action <-
-          lift $
-            getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+        action <- lift $ getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
         -- process additions and removals
         events <-
           processInternalCommit
@@ -279,14 +277,13 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
             bundle.commit.value
         -- the sender client is included in the Add action on the first commit,
         -- but it doesn't need to get a welcome message, so we filter it out here
-        let newClients = filter ((/=) senderIdentity) (cmIdentities (paAdd action))
+        let newClients = filter ((/=) senderIdentity.client) (cmIdentities (paAdd action))
         pure (events, newClients)
-      SenderExternal _ -> lift $ throw (mlsProtocolError "Unexpected sender")
-      SenderNewMemberProposal -> lift $ throw (mlsProtocolError "Unexpected sender")
-      SenderNewMemberCommit -> do
-        action <- lift $ getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+      Nothing -> do
+        action <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
+        let senderIdentity' = senderIdentity {index = Just action.add}
         processExternalCommit
-          senderIdentity
+          senderIdentity'
           lConvOrSub
           ciphersuite
           ciphersuiteUpdate
@@ -394,16 +391,17 @@ getSenderIdentity ::
   ClientId ->
   Sender ->
   Local ConvOrSubConv ->
-  Sem r ClientIdentity
+  Sem r SenderIdentity
 getSenderIdentity qusr c mSender lConvOrSubConv = do
   let cid = mkClientIdentity qusr c
   let epoch = epochNumber . cnvmlsEpoch . (.mlsMeta) . tUnqualified $ lConvOrSubConv
-  case mSender of
+  index <- case mSender of
     SenderMember idx | epoch > 0 -> do
       cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx
       unless (cid' == cid) $ throwS @'MLSClientSenderUserMismatch
-    _ -> pure ()
-  pure cid
+      pure (Just idx)
+    _ -> pure Nothing
+  pure SenderIdentity {client = cid, index}
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
