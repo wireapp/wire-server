@@ -21,7 +21,7 @@ data EnterpriseLoginSubsystem m a where
   UpdateDomainRedirect ::
     Token ->
     Domain ->
-    DomainRedirectConfigV8 ->
+    DomainRedirectConfig a ->
     EnterpriseLoginSubsystem m ()
   UpdateTeamInvite ::
     Local UserId ->

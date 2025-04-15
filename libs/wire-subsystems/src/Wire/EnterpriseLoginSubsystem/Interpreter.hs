@@ -562,7 +562,7 @@ updateDomainRedirectImpl ::
   ) =>
   Token ->
   Domain ->
-  DomainRedirectConfigV8 ->
+  DomainRedirectConfig a ->
   Sem r ()
 updateDomainRedirectImpl token domain config = do
   mDomainReg <- lookup domain
