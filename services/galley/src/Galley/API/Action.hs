@@ -668,7 +668,6 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
                     maybe False (\m -> m.lmConvRoleName == roleNameWireAdmin) $
                       find (\m -> m.lmId == lusr.tUntagged.qUnqualified) conv.convLocalMembers
                   isAddPermissionEveryone = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
-                  hasAddRemovePermissions = tm `hasPermission` AddRemoveConvMember
 
               if isChannel
                 then do
@@ -683,7 +682,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
                   -- if they do not have the add/remove permission (which is currently only the case for external partners) they are not allowed to add members
                   -- note: it's counterintuitive that external partners who are conversation admins are not allowed to add members,
                   -- while guest (non-team members) who are conversation admins are allowed to add members
-                  unless hasAddRemovePermissions $ throwS @'InvalidOperation
+                  unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation
 
             -- at this point we know this is a team conversation and the user is not a team member (guest).
             -- but the user is a conversation admin (which has been checked earlier) so they are allowed to add members
