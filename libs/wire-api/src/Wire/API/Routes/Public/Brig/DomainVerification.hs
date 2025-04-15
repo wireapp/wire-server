@@ -30,7 +30,11 @@ type DomainRedirectConfigV9 = DomainRedirectConfig V9
 
 data DomainRedirectConfig (v :: Version)
   = DomainRedirectConfigRemove
-  | DomainRedirectConfigBackend HttpsUrl (Maybe HttpsUrl)
+  | DomainRedirectConfigBackend
+      -- | Backend URL
+      HttpsUrl
+      -- | WebApp URL
+      (Maybe HttpsUrl)
   | DomainRedirectConfigNoRegistration
   deriving stock (Eq, Show)
 
