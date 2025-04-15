@@ -573,7 +573,7 @@ servantSitemap =
     domainVerificationAPI =
       Named @"update-domain-redirect@v8" updateDomainRedirect
         -- TODO: undefined shouldn't stay here, of course
-        :<|> Named @"update-domain-redirect" undefined
+        :<|> Named @"update-domain-redirect" updateDomainRedirect
         :<|> Named @"get-domain-registration" getDomainRegistration
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
@@ -1567,7 +1567,7 @@ updateDomainRedirect ::
   (_) =>
   Bearer Token ->
   Domain ->
-  DomainRedirectConfigV8 ->
+  DomainRedirectConfig a ->
   Handler r ()
 updateDomainRedirect (Bearer authToken) domain config =
   lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
