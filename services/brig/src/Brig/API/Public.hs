@@ -571,7 +571,7 @@ servantSitemap =
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
-      Named @"update-domain-redirect" updateDomainRedirect
+      Named @"update-domain-redirect@v8" updateDomainRedirect
         :<|> Named @"get-domain-registration" getDomainRegistration
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
@@ -1565,7 +1565,7 @@ updateDomainRedirect ::
   (_) =>
   Bearer Token ->
   Domain ->
-  DomainRedirectConfig ->
+  DomainRedirectConfigV8 ->
   Handler r ()
 updateDomainRedirect (Bearer authToken) domain config =
   lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config

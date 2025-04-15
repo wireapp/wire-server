@@ -987,11 +987,12 @@ authorizeTeam user emailDomain ownershipToken = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["domain-verification", emailDomain, "authorize-team"]
   submit "POST" $ req & addJSONObject ["domain_ownership_token" .= ownershipToken]
 
+-- TODO: We'll need two versions of this function: V8 and V9. And, we have to decide which tests to duplicate / run with both versions.
 -- brig expects an auth-token for this request. @mAuthToken@ is only `Maybe` for testing error cases!
 updateDomainRedirect :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> Value -> App Response
 updateDomainRedirect domain emailDomain mAuthToken config = do
   req <-
-    baseRequest domain Brig Versioned $
+    baseRequest domain Brig (ExplicitVersion 8) $
       joinHttpPath ["domain-verification", emailDomain, "backend"]
   let req' = case mAuthToken of
         Just authToken -> addHeader "Authorization" ("Bearer " <> authToken) req
