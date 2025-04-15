@@ -463,7 +463,7 @@ performAction tag origUser lconv action = do
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   case tag of
-    SConversationJoinTag -> do
+    SConversationJoinTag ->
       performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
       let victims = [origUser]
@@ -657,10 +657,38 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkLHPolicyConflictsRemote _remotes = pure ()
 
     checkTeamMemberAddPermission :: Local UserId -> Sem r ()
-    checkTeamMemberAddPermission lusr =
-      forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
-        >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation))
-          . join
+    checkTeamMemberAddPermission lusr = do
+      case conv.convMetadata.cnvmTeam of
+        Just tid -> do
+          maybeTeamMember <- E.getTeamMember tid (tUnqualified lusr)
+          case maybeTeamMember of
+            Just tm -> do
+              let isChannel = conv.convMetadata.cnvmGroupConvType == Just Channel
+                  isConversationAdmin =
+                    maybe False (\m -> m.lmConvRoleName == roleNameWireAdmin) $
+                      find (\m -> m.lmId == lusr.tUntagged.qUnqualified) conv.convLocalMembers
+                  isAddPermissionEveryone = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+
+              if isChannel
+                then do
+                  -- at this point we know the conversation is a channel, the user is a team member, and when:
+                  -- - the user is a conversation admin (including external partners) => they can add members
+                  --   note: external partners can be allowed to create channels, in which case they will always be the channel's admin
+                  -- - or the add-permission is set to everyone (including exteral partners) => they can add members
+                  -- - or the user is a team admin => they can add members
+                  unless (isConversationAdmin || isAddPermissionEveryone || isAdminOrOwner (tm ^. permissions)) $ throwS @'InvalidOperation
+                else do
+                  -- we know this is a group conversation and the user is a team member and they are conversation admin.
+                  -- if they do not have the add/remove permission (which is currently only the case for external partners) they are not allowed to add members
+                  -- note: it is a bit counterintuitive that external partners who are conversation admins are not allowed to add members,
+                  -- while guests (non-team members) who are conversation admins are allowed to add members
+                  unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation
+
+            -- at this point we know this is a team conversation and the user is not a team member (guest).
+            -- but the user is a conversation admin (which has been checked earlier) so they are allowed to add members
+            Nothing -> pure ()
+        -- this is not a team conversation and conv admin permissions have been checked earlier
+        Nothing -> pure ()
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,

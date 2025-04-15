@@ -1,0 +1,1 @@
+Fixed channel permissions for external partners. They are allowed to add members if they are channel admins or if add-permissions are set to everyone.

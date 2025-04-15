@@ -32,43 +32,46 @@ import Testlib.VersionedFed (FedDomain)
 
 testCreateChannelEveryone :: (HasCallStack) => App ()
 testCreateChannelEveryone = do
-  (owner, tid, mem : _) <- createTeam OwnDomain 2
+  (owner, tid, mem : otherTeamMembers) <- createTeam OwnDomain 4
   partner <- createTeamMember owner def {role = "partner"}
   ownerClient <- createMLSClient def def owner
   memClient <- createMLSClient def def mem
   partnerClient <- createMLSClient def def partner
-  for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
+  otherClients <- for otherTeamMembers $ createMLSClient def def
+  replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
-  assertCreateChannelSuccess ownerClient tid
-  assertCreateChannelSuccess memClient tid
-  assertCreateChannelSuccess partnerClient tid
+  assertCreateChannelSuccess ownerClient tid otherTeamMembers
+  assertCreateChannelSuccess memClient tid otherTeamMembers
+  assertCreateChannelSuccess partnerClient tid otherTeamMembers
 
 testCreateChannelMembersOnly :: (HasCallStack) => App ()
 testCreateChannelMembersOnly = do
-  (owner, tid, mem : _) <- createTeam OwnDomain 2
+  (owner, tid, mem : otherTeamMembers) <- createTeam OwnDomain 4
   partner <- createTeamMember owner def {role = "partner"}
   ownerClient <- createMLSClient def def owner
   memClient <- createMLSClient def def mem
   partnerClient <- createMLSClient def def partner
-  for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
+  otherClients <- for otherTeamMembers $ createMLSClient def def
+  replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "team-members")
-  assertCreateChannelSuccess ownerClient tid
-  assertCreateChannelSuccess memClient tid
+  assertCreateChannelSuccess ownerClient tid otherTeamMembers
+  assertCreateChannelSuccess memClient tid otherTeamMembers
   assertCreateChannelFailure "operation-denied" partnerClient tid
 
 testCreateChannelAdminsOnly :: (HasCallStack) => App ()
 testCreateChannelAdminsOnly = do
-  (owner, tid, mem : _) <- createTeam OwnDomain 2
+  (owner, tid, mem : otherTeamMembers) <- createTeam OwnDomain 4
   partner <- createTeamMember owner def {role = "partner"}
   ownerClient <- createMLSClient def def owner
   memClient <- createMLSClient def def mem
   partnerClient <- createMLSClient def def partner
-  for_ [memClient, ownerClient, partnerClient] (uploadNewKeyPackage def)
+  otherClients <- for otherTeamMembers $ createMLSClient def def
+  replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "admins")
-  assertCreateChannelSuccess ownerClient tid
+  assertCreateChannelSuccess ownerClient tid otherTeamMembers
   assertCreateChannelFailure "operation-denied" memClient tid
   assertCreateChannelFailure "operation-denied" partnerClient tid
 
@@ -97,10 +100,18 @@ testCreateChannelProteusNotAllowed = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "not-mls-conversation"
 
-assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> App ()
-assertCreateChannelSuccess client tid = do
-  conv <- postConversation client defMLS {groupConvType = Just "channel", team = Just tid} >>= getJSON 201
+assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> [Value] -> App ()
+assertCreateChannelSuccess client tid members = do
+  conv <-
+    postConversation
+      client
+      defMLS {groupConvType = Just "channel", team = Just tid, addPermission = Just "admins"}
+      >>= getJSON 201
   conv %. "group_conv_type" `shouldMatch` "channel"
+  convId <- objConvId conv
+  createGroup def client convId
+  resp <- createAddCommit client convId members >>= sendAndConsumeCommitBundle
+  (resp %. "events.0.data.user_ids" & asList) `shouldMatchSet` (for members (%. "id"))
 
 assertCreateChannelFailure :: (HasCallStack) => String -> ClientIdentity -> String -> App ()
 assertCreateChannelFailure label client tid = do
@@ -355,3 +366,37 @@ testWithOldBackendVersion fedDomain = replicateM_ 2 do
 
   -- this will trigger a notification that the old backend cannot parse
   updateChannelAddPermission bärbel conv "admins" >>= assertSuccess
+
+testAddPermissionAdminExternalPartner :: (HasCallStack) => App ()
+testAddPermissionAdminExternalPartner = do
+  _testAddtermissionExternalPartner "admins" $ \partnerClient convId mems -> do
+    commit <- createAddCommit partnerClient convId mems
+    postMLSCommitBundle partnerClient (mkBundle commit) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "action-denied"
+
+testAddPermissionEveryoneExternalPartner :: (HasCallStack) => App ()
+testAddPermissionEveryoneExternalPartner = do
+  _testAddtermissionExternalPartner "everyone" $ \partnerClient convId mems -> do
+    resp <- createAddCommit partnerClient convId mems >>= sendAndConsumeCommitBundle
+    (resp %. "events.0.data.user_ids" & asList) `shouldMatchSet` (for mems (%. "id"))
+
+_testAddtermissionExternalPartner :: (HasCallStack) => String -> (ClientIdentity -> ConvId -> [Value] -> App ()) -> App ()
+_testAddtermissionExternalPartner addPermission assertion = do
+  (owner, tid, mems) <- createTeam OwnDomain 3
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+  partner <- createTeamMember owner def {role = "partner"}
+  clients@(ownerClient : partnerClient : _) <- for (owner : partner : mems) $ createMLSClient def def
+  for_ clients (uploadNewKeyPackage def)
+  let p =
+        defMLS
+          { groupConvType = Just "channel",
+            team = Just tid,
+            addPermission = Just addPermission
+          }
+  conv <- postConversation owner p >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def ownerClient convId
+  void $ createAddCommit ownerClient convId [partner] >>= sendAndConsumeCommitBundle
+  assertion partnerClient convId mems
