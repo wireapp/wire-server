@@ -20,6 +20,7 @@ module Galley.API.MLS.IncomingMessage
     IncomingMessageContent (..),
     IncomingPublicMessageContent (..),
     IncomingBundle (..),
+    SenderIdentity (..),
     mkIncomingMessage,
     incomingMessageAuthenticatedContent,
     mkIncomingBundle,
@@ -31,9 +32,11 @@ import Imports
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.Commit
 import Wire.API.MLS.CommitBundle
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
@@ -71,6 +74,14 @@ data IncomingBundle = IncomingBundle
     welcome :: Maybe (RawMLS Welcome),
     groupInfo :: RawMLS GroupInfo,
     serialized :: ByteString
+  }
+
+-- | Client information about the sender of a message.
+data SenderIdentity = SenderIdentity
+  { -- | Sender client.
+    client :: ClientIdentity,
+    -- | Index of the client in the ratchet tree, if available.
+    index :: Maybe LeafIndex
   }
 
 mkIncomingMessage :: RawMLS Message -> Maybe IncomingMessage

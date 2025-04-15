@@ -32,6 +32,7 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
+import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Types
@@ -60,9 +61,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal qualified as Proposal
-import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
@@ -80,7 +79,7 @@ processInternalCommit ::
     Member Resource r,
     Member Random r
   ) =>
-  ClientIdentity ->
+  SenderIdentity ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
   CipherSuiteTag ->
@@ -91,7 +90,7 @@ processInternalCommit ::
   Codensity (Sem r) [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdate epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
-      qusr = cidQualifiedUser senderIdentity
+      qusr = cidQualifiedUser senderIdentity.client
       cm = convOrSub.members
       newUserClients = Map.assocs (paAdd action)
 
@@ -104,15 +103,13 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     lift $
       throwS @'MLSCommitMissingReferences
 
-  -- Check that the leaf node in the update path, if present, has the correct signature key
-  lift $ for_ commit.path $ \path -> do
-    info <- getSingleClientInfo lConvOrSub (cidQualifiedUser senderIdentity) senderIdentity.ciClient ciphersuite
-    checkSignatureKey (Just path.leaf.value) info.mlsSignatureKey
+  -- check update path
+  lift $ traverse_ (checkUpdatePath lConvOrSub senderIdentity ciphersuite) commit.path
 
   withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch
   lift $ do
     -- no client can be directly added to a subconversation
-    when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
+    when (is _SubConv convOrSub && any ((senderIdentity.client /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
     events <-
@@ -142,7 +139,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                 when (Set.null removedClients) $ throw ()
 
                 -- return error if the user is trying to remove themself
-                when (cidQualifiedUser senderIdentity == qtarget) $
+                when (cidQualifiedUser senderIdentity.client == qtarget) $
                   throwS @'MLSSelfRemovalNotAllowed
 
                 -- FUTUREWORK: add tests against this situation for conv v subconv
@@ -242,7 +239,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                   && epoch == Epoch 0 -> do
                   -- create 1-1 conversation with the users as members, set
                   -- epoch to 0 for now, it will be incremented later
-                  let senderUser = cidQualifiedUser senderIdentity
+                  let senderUser = cidQualifiedUser senderIdentity.client
                       mlsConv = fmap (.conv) lConvOrSub
                       lconv = fmap mcConv mlsConv
                   conv <- case filter ((/= senderUser) . fst) newUserClients of
@@ -375,22 +372,3 @@ existingRemoteMembers lconv =
 
 existingMembers :: Local Data.Conversation -> Set (Qualified UserId)
 existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
-
-checkSignatureKey ::
-  (Member (ErrorS MLSIdentityMismatch) r) =>
-  Maybe LeafNode ->
-  Maybe ByteString ->
-  Sem r ()
-checkSignatureKey mLeaf mKey =
-  when
-    ( case mLeaf of
-        Just leaf -> case mKey of
-          -- if the key could not be obtained (e.g.
-          -- because an older version of the brig
-          -- or federation endpoint has been used),
-          -- skip this check
-          Nothing -> False
-          key -> key /= Just leaf.signatureKey
-        Nothing -> False
-    )
-    $ throwS @'MLSIdentityMismatch

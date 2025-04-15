@@ -20,6 +20,8 @@ module Galley.API.MLS.Commit.Core
     incrementEpoch,
     getClientInfo,
     getSingleClientInfo,
+    checkSignatureKey,
+    checkUpdatePath,
     HasProposalActionEffects,
     ProposalErrors,
     HandleMLSProposalFailures (..),
@@ -61,8 +63,10 @@ import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.MLS.Validation
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
 
@@ -99,7 +103,7 @@ getCommitData ::
   ( HasProposalEffects r,
     Member (ErrorS 'MLSProposalNotFound) r
   ) =>
-  ClientIdentity ->
+  SenderIdentity ->
   Local ConvOrSubConv ->
   Epoch ->
   CipherSuiteTag ->
@@ -112,7 +116,7 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   evalState convOrSub.indexMap $ do
     creatorAction <-
       if epoch == Epoch 0
-        then addProposedClient (Left senderIdentity)
+        then addProposedClient (Left senderIdentity.client)
         else mempty
     proposals <-
       traverse
@@ -215,6 +219,54 @@ getRemoteMLSClient rusr cid suite = do
     fedClient @'Brig @"get-mls-client" mcr1
       <|> fmap extractClient (fedClient @'Brig @"get-mls-clients" mcr)
       <|> fmap extractClient (fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr))
+
+checkSignatureKey ::
+  (Member (ErrorS MLSIdentityMismatch) r) =>
+  Maybe LeafNode ->
+  Maybe ByteString ->
+  Sem r ()
+checkSignatureKey mLeaf mKey =
+  when
+    ( case mLeaf of
+        Just leaf -> case mKey of
+          -- if the key could not be obtained (e.g.
+          -- because an older version of the brig
+          -- or federation endpoint has been used),
+          -- skip this check
+          Nothing -> False
+          key -> key /= Just leaf.signatureKey
+        Nothing -> False
+    )
+    $ throwS @'MLSIdentityMismatch
+
+-- | Check that the leaf node in an update path, if present, has the correct signature key.
+checkUpdatePath ::
+  ( Member (ErrorS MLSIdentityMismatch) r,
+    Member (Error MLSProtocolError) r,
+    Member (Error FederationError) r,
+    Member BrigAccess r,
+    Member FederatorAccess r
+  ) =>
+  Local ConvOrSubConv ->
+  SenderIdentity ->
+  CipherSuiteTag ->
+  UpdatePath ->
+  Sem r ()
+checkUpdatePath lConvOrSub senderIdentity ciphersuite path = for_ senderIdentity.index $ \index -> do
+  let groupId = cnvmlsGroupId (tUnqualified lConvOrSub).mlsMeta
+  let extra = LeafNodeTBSExtraCommit groupId index
+  case validateLeafNode ciphersuite (Just senderIdentity.client) extra path.leaf.value of
+    Left errMsg ->
+      throw $
+        mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
+    Right _ -> pure ()
+  clientInfo <-
+    getSingleClientInfo
+      lConvOrSub
+      (cidQualifiedUser senderIdentity.client)
+      senderIdentity.client.ciClient
+      ciphersuite
+  checkSignatureKey (Just path.leaf.value) clientInfo.mlsSignatureKey
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution
