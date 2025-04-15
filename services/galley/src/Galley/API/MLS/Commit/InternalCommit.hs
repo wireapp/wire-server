@@ -60,8 +60,9 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal qualified as Proposal
+import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
@@ -94,7 +95,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       cm = convOrSub.members
       newUserClients = Map.assocs (paAdd action)
 
-  -- check all pending proposals are referenced in the commit
+  -- check that all pending proposals are referenced in the commit
   allPendingProposals <-
     lift $
       getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
@@ -104,9 +105,9 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       throwS @'MLSCommitMissingReferences
 
   -- Check that the leaf node in the update path, if present, has the correct signature key
-  -- for_ commit.path $ \path -> do
-  --   info <- getClientInfo
-  --   let key = path.leaf.value.signatureKey
+  lift $ for_ commit.path $ \path -> do
+    info <- getSingleClientInfo lConvOrSub (cidQualifiedUser senderIdentity) senderIdentity.ciClient ciphersuite
+    checkSignatureKey (Just path.leaf.value) info.mlsSignatureKey
 
   withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch
   lift $ do
@@ -214,22 +215,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                           throwS @'MLSClientMismatch
 
                         -- Check that new leaf nodes are using the registered signature keys.
-                        when
-                          ( any
-                              ( \(cid, (_, mKp :: Maybe KeyPackage)) ->
-                                  case mKp of
-                                    Just kp -> case Map.lookup cid infoMap of
-                                      -- if the key could not be obtained (e.g.
-                                      -- because an older version of the brig
-                                      -- or federation endpoint has been used),
-                                      -- skip this check
-                                      Nothing -> True
-                                      key -> key /= Just kp.leafNode.signatureKey
-                                    Nothing -> False
-                              )
-                              (Map.assocs newclients)
-                          )
-                          $ throwS @'MLSIdentityMismatch
+                        for_ (Map.assocs newclients) $ \(cid, (_, mKp)) ->
+                          checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid infoMap)
 
                         pure Nothing
           for_
@@ -388,3 +375,22 @@ existingRemoteMembers lconv =
 
 existingMembers :: Local Data.Conversation -> Set (Qualified UserId)
 existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
+
+checkSignatureKey ::
+  (Member (ErrorS MLSIdentityMismatch) r) =>
+  Maybe LeafNode ->
+  Maybe ByteString ->
+  Sem r ()
+checkSignatureKey mLeaf mKey =
+  when
+    ( case mLeaf of
+        Just leaf -> case mKey of
+          -- if the key could not be obtained (e.g.
+          -- because an older version of the brig
+          -- or federation endpoint has been used),
+          -- skip this check
+          Nothing -> False
+          key -> key /= Just leaf.signatureKey
+        Nothing -> False
+    )
+    $ throwS @'MLSIdentityMismatch
