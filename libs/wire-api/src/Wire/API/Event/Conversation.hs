@@ -133,6 +133,7 @@ data EventType
   | ConvCodeUpdate
   | ConvCodeDelete
   | ConvCreate
+  | CellsConvCreate
   | ConvConnect
   | ConvDelete
   | ConvReceiptModeUpdate
@@ -160,6 +161,7 @@ instance ToSchema EventType where
           element "conversation.code-update" ConvCodeUpdate,
           element "conversation.code-delete" ConvCodeDelete,
           element "conversation.create" ConvCreate,
+          element "conversation.cells.create" CellsConvCreate,
           element "conversation.delete" ConvDelete,
           element "conversation.connect-request" ConvConnect,
           element "conversation.typing" Typing,
@@ -183,6 +185,7 @@ data EventData
   | EdConvCodeDelete
   | EdMemberUpdate MemberUpdateData
   | EdConversation ConversationV8
+  | EdCellsConvCreate
   | EdTyping TypingStatus
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
@@ -203,6 +206,7 @@ genEventData = \case
   ConvCodeDelete -> pure EdConvCodeDelete
   ConvConnect -> EdConnect <$> arbitrary
   ConvCreate -> EdConversation <$> arbitrary
+  CellsConvCreate -> pure EdCellsConvCreate
   ConvReceiptModeUpdate -> EdConvReceiptModeUpdate <$> arbitrary
   Typing -> EdTyping <$> arbitrary
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
@@ -223,6 +227,7 @@ eventDataType (EdConvCodeUpdate _) = ConvCodeUpdate
 eventDataType EdConvCodeDelete = ConvCodeDelete
 eventDataType (EdConnect _) = ConvConnect
 eventDataType (EdConversation _) = ConvCreate
+eventDataType EdCellsConvCreate = CellsConvCreate
 eventDataType (EdConvReceiptModeUpdate _) = ConvReceiptModeUpdate
 eventDataType (EdTyping _) = Typing
 eventDataType (EdOtrMessage _) = OtrMessageAdd
@@ -237,7 +242,7 @@ isCellsConversationEvent MemberJoin = True
 isCellsConversationEvent MemberLeave = True
 isCellsConversationEvent MemberStateUpdate = True
 isCellsConversationEvent ConvRename = True
-isCellsConversationEvent ConvCreate = True
+isCellsConversationEvent CellsConvCreate = True
 isCellsConversationEvent ConvDelete = True
 isCellsConversationEvent _ = False
 
@@ -414,6 +419,7 @@ taggedEventDataSchema =
       ConvCodeUpdate -> tag _EdConvCodeUpdate (unnamed schema)
       ConvConnect -> tag _EdConnect (unnamed schema)
       ConvCreate -> tag _EdConversation (unnamed (conversationSchema (Just V2)))
+      CellsConvCreate -> tag _EdCellsConvCreate null_
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)

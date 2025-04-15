@@ -262,6 +262,7 @@ createGroupConvAndMkResponse lusr conn newConv mkResponse = do
   mkResponse dbConv
 
 createGroupConversationGeneric ::
+  forall r.
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -305,8 +306,25 @@ createGroupConversationGeneric lusr conn newConv = do
   conv <- E.createConversation lcnv nc
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation lusr conn conv
+  sendCellsNotification conv
   E.getConversation (tUnqualified lcnv)
     >>= note (BadConvState (tUnqualified lcnv))
+  where
+    sendCellsNotification :: Data.Conversation -> Sem r ()
+    sendCellsNotification conv = do
+      now <- input
+      let qcnv = tUntagged $ qualifyAs lusr conv.convId
+          e = Event qcnv Nothing (tUntagged lusr) now EdCellsConvCreate
+      when (shouldPushToCells conv.convMetadata (evtType e)) $ do
+        let push =
+              def
+                { origin = Just (tUnqualified lusr),
+                  json = toJSONObject e,
+                  isCellsEvent = True,
+                  route = PushV2.RouteAny,
+                  conn
+                }
+        pushNotifications [push]
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -798,7 +816,6 @@ conversationCreated lusr cnv = Created <$> conversationViewV8 lusr cnv
 -- behavior might be changed later on when a message/event queue per remote
 -- backend is implemented.
 notifyCreatedConversation ::
-  forall r.
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -823,14 +840,12 @@ notifyCreatedConversation lusr conn c = do
       throw FederationNotConfigured
 
   -- Notify local users
-  pushEvents <- mapM (toPush now) (zip [0 ..] $ Data.convLocalMembers c)
-  pushNotifications pushEvents
+  pushNotifications =<< mapM (toPush now) (Data.convLocalMembers c)
   where
     route
       | Data.convType c == RegularConv = PushV2.RouteAny
       | otherwise = PushV2.RouteDirect
-    toPush :: UTCTime -> (Int, LocalMember) -> Sem r Push
-    toPush t (i, m) = do
+    toPush t m = do
       let remoteOthers = remoteMemberToOther <$> Data.convRemoteMembers c
           localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
           lconv = qualifyAs lusr (Data.convId c)
@@ -841,8 +856,7 @@ notifyCreatedConversation lusr conn c = do
           { origin = Just (tUnqualified lusr),
             json = toJSONObject e,
             recipients = [localMemberToRecipient m],
-            -- only push the first event to cells
-            isCellsEvent = i == 0 && shouldPushToCells c.convMetadata (evtType e),
+            isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
             route,
             conn
           }

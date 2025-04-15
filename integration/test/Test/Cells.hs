@@ -72,7 +72,7 @@ testCellsCreationEvent = do
 
   event <- getMessage q %. "payload.0"
   event %. "type" `shouldMatch` "conversation.create"
-  event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
+  event %. "conversation" `shouldMatch` (conv %. "id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
 
   assertNoMessage q
@@ -87,9 +87,10 @@ testCellsCreationEventIsSentOnlyOnce = do
   let q = q0 {filter = isNotifConv conv} :: QueueConsumer
 
   event <- getMessage q %. "payload.0"
-  event %. "type" `shouldMatch` "conversation.create"
+  event %. "type" `shouldMatch` "conversation.cells.create"
   event %. "conversation" `shouldMatch` (conv %. "id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+  printJSON event
 
   assertNoMessage q
 
