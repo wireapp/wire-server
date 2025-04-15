@@ -680,8 +680,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
                 else do
                   -- we know this is a group conversation and the user is a team member and they are conversation admin.
                   -- if they do not have the add/remove permission (which is currently only the case for external partners) they are not allowed to add members
-                  -- note: it's counterintuitive that external partners who are conversation admins are not allowed to add members,
-                  -- while guest (non-team members) who are conversation admins are allowed to add members
+                  -- note: it is a bit counterintuitive that external partners who are conversation admins are not allowed to add members,
+                  -- while guests (non-team members) who are conversation admins are allowed to add members
                   unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation
 
             -- at this point we know this is a team conversation and the user is not a team member (guest).
