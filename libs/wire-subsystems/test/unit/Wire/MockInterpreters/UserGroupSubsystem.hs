@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Wire.MockInterpreters.UserGroupSubsystem
   ( runInMemoryUserGroupSubsystem,
     userGroupSubsystemTestInterpreter,
@@ -86,11 +88,14 @@ getGroupsImpl (fromMaybe 100 -> limit) mbLastKey = do
       truncated = Imports.take limit $ relevant
   pure $ UserGroupPage truncated (length truncated /= length relevant)
 
-updateGroupImpl :: (EffectStack r) => UserGroupId -> UserGroupUpdate -> Sem r UserGroup
-updateGroupImpl _ _ = do
-  _ <- input
-  _ <- get
-  undefined
+updateGroupImpl :: (EffectStack r) => UserGroupId -> UserGroupUpdate -> Sem r (Maybe UserGroup)
+updateGroupImpl gid (UserGroupUpdate newName) = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {name = newName} :: UserGroup)
+
+  modify (Map.alter f gid)
+  getGroupImpl gid
 
 deleteGroupImpl :: (EffectStack r) => UserGroupId -> Sem r ()
 deleteGroupImpl _ = do

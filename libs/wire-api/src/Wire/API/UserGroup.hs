@@ -25,6 +25,7 @@ import Data.Id
 import Data.Time
 import Imports
 import Wire.API.User.Profile
+import Wire.Arbitrary
 
 -- request bodies
 data NewUserGroup = NewUserGroup
@@ -32,13 +33,15 @@ data NewUserGroup = NewUserGroup
     members :: [UserId]
   }
   deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform NewUserGroup
 
 data UserGroupUpdate = UserGroupUpdate
   { name :: Text
   }
   deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupUpdate
 
--- response body
+-- response bodies
 data UserGroup = UserGroup
   { id_ :: UserGroupId,
     name :: Text,
@@ -47,6 +50,7 @@ data UserGroup = UserGroup
     createdAt :: UTCTime
   }
   deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroup
 
 -- | About pagination: We have 'MultiTablePage', "Wire.Sem.Paging", 'Page' from cql, in-type
 -- paging, and probably lots more.  i wonder if we should make up our minds and pick one?
@@ -55,3 +59,4 @@ data UserGroupPage = UserGroupPage
     hasMore :: Bool
   }
   deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupPage
