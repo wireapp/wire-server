@@ -20,19 +20,19 @@ spec :: Spec
 spec = describe "UserGroupSubsystem.Interpreter" do
   focus . prop "getGroup gets you what createGroup creates" $ \gname usrs ->
     let now = unsafePerformIO getCurrentTime
-        ex@(ug0, nug, ug, ug') = Mock.runInMemoryUserGroupSubsystem now do
-          ug0_ <- getGroup (Id UUID.nil)
-          let nug_ = NewUserGroup gname usrs
-          ug_ <- createGroup nug_
-          ug_' <- getGroup ug_.id_
-          pure (ug0_, nug_, ug_, ug_')
-     in counterexample (show ex) $
-          (ug0 === Nothing)
-            .&&. (ug.name === nug.name)
-            .&&. (ug.members === nug.members)
-            .&&. (ug.managedBy === ManagedByWire)
-            .&&. (ug.createdAt === now)
-            .&&. (ug' === Just ug)
+     in Mock.runInMemoryUserGroupSubsystem now do
+          ug0 <- getGroup (Id UUID.nil)
+          let nug = NewUserGroup gname usrs
+          ug <- createGroup nug
+          ug' <- getGroup ug.id_
+          pure $
+            counterexample (show (ug0, nug, ug, ug')) $
+              (ug0 === Nothing)
+                .&&. (ug.name === nug.name)
+                .&&. (ug.members === nug.members)
+                .&&. (ug.managedBy === ManagedByWire)
+                .&&. (ug.createdAt === now)
+                .&&. (ug' === Just ug)
 
   prop "getGroups gets all groups" $ \b -> b === True
 
