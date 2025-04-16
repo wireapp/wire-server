@@ -142,7 +142,7 @@ devtest:
 	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
-sanitize-pr: check-weed
+sanitize-pr: check-weed treefmt
 	make lint-all-shallow
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
