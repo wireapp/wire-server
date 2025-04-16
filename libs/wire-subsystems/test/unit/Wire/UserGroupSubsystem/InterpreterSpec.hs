@@ -78,7 +78,17 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                   else drop 8 gids
           check afterNewCreate afterGids False
 
-  prop "updateGroup updates" $ \b -> b === True
+  prop "updateGroup updates the name" $ \originalName userGroupUpdate ->
+    let now = unsafePerformIO getCurrentTime
+     in Mock.runInMemoryUserGroupSubsystem now do
+          ug0 <- createGroup (NewUserGroup originalName [])
+          ug1 <- getGroup ug0.id_
+          ug2 <- updateGroup ug0.id_ userGroupUpdate
+          ug3 <- getGroup ug0.id_
+          pure $
+            (ug1 === Just ug0)
+              .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
+              .&&. (ug3 === ug2)
 
   prop "deleteGroup deletes" $ \b -> b === True
 
