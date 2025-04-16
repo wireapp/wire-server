@@ -150,7 +150,7 @@ import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
-import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
@@ -403,6 +403,7 @@ servantSitemap ::
   ServerT BrigAPI (Handler r)
 servantSitemap =
   userAPI
+    :<|> userGroupAPI
     :<|> selfAPI
     :<|> accountAPI
     :<|> clientAPI
@@ -439,6 +440,16 @@ servantSitemap =
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
+
+    userGroupAPI :: ServerT UserGroupAPI (Handler r)
+    userGroupAPI =
+      Named @"create-user-group" createUserGroup
+        :<|> Named @"get-user-group" getUserGroup
+        :<|> Named @"get-user-groups" getUserGroups
+        :<|> Named @"update-user-group" updateUserGroup
+        :<|> Named @"delete-user-group" deleteUserGroup
+        :<|> Named @"add-user-to-group" addUserToGroup
+        :<|> Named @"remove-user-from-group" removeUserFromGroup
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1654,8 +1665,20 @@ verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
 createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
 createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
 
-getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
+getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup) -- TODO: does this get translated to 404 in servant?  shouldn't it be?
 getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
+
+updateUserGroup :: Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) UserGroup
+updateUserGroup = undefined
+
+deleteUserGroup :: Local UserId -> UserGroupId -> (Handler r) NoContent
+deleteUserGroup = undefined
+
+addUserToGroup :: Local UserId -> UserGroupId -> UserId -> (Handler r) NoContent
+addUserToGroup = undefined
+
+removeUserFromGroup :: Local UserId -> UserGroupId -> UserId -> (Handler r) NoContent
+removeUserFromGroup = undefined
 
 -- Deprecated
 
