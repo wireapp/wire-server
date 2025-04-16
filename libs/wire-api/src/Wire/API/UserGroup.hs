@@ -31,12 +31,12 @@ data NewUserGroup = NewUserGroup
   { name :: Text,
     members :: [UserId]
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
 
 data UserGroupUpdate = UserGroupUpdate
   { name :: Text
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
 
 -- response body
 data UserGroup = UserGroup
@@ -46,13 +46,12 @@ data UserGroup = UserGroup
     managedBy :: ManagedBy,
     createdAt :: UTCTime
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | About pagination: We have 'MultiTablePage', "Wire.Sem.Paging", 'Page' from cql, in-type
 -- paging, and probably lots more.  i wonder if we should make up our minds and pick one?
 data UserGroupPage = UserGroupPage
   { page :: [UserGroup],
-    hasMore :: Bool,
-    pagingState :: Maybe Text
+    hasMore :: Bool
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
