@@ -31,16 +31,21 @@ aws:
   sqsEndpoint: http://demo_wire_sqs:4568 # https://sqs.eu-west-1.amazonaws.com
   snsEndpoint: http://demo_wire_sns:4575 # https://sns.eu-west-1.amazonaws.com
 
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  vHost: federation-v2
+
 settings:
   httpPoolSize: 1024
   notificationTTL: 24192200
-  bulkPush: true
   perNativePushConcurrency: 32
   sqsThrottleMillis: 1000
   maxConcurrentNativePushes:
     hard: 30  # more than this number of threads will not be allowed
     soft: 10  # more than this number of threads will be warned about
   disabledAPIVersions: []
+  cellsEventQueue: "cells_events"
 
 logLevel: Warn
 logNetStrings: false
