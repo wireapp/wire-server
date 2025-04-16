@@ -350,10 +350,11 @@ http {
     {{- end -}}
   {{- end }}
 
-    {{- if hasKey .Values.nginx_conf "deeplink" }}
+    {{- if or (hasKey .Values.nginx_conf "deeplink") (hasKey .Values.nginx_conf "multi_ingress_deeplink") }}
     location ~* ^/deeplink.(json|html)$ {
         zauth off;
-        root /etc/wire/nginz/conf/;
+
+        alias /etc/wire/nginz/deeplink/$http_host-deeplink.$1;
         types {
             application/json  json;
             text/html         html;

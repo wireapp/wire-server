@@ -22,7 +22,6 @@ library
     Wire.Sem.FromUTC
     Wire.Sem.Jwk
     Wire.Sem.Logger
-    Wire.Sem.Logger.Level
     Wire.Sem.Logger.TinyLog
     Wire.Sem.Metrics
     Wire.Sem.Metrics.IO

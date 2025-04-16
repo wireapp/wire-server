@@ -154,7 +154,7 @@ spec = describe "API" $ do
       ctx <- mkTestCtxSimple
       c2 <- ioFromTestSP ctx $ toggleCookie @CookieName "/" (Just ("nick", defReqTTL))
       rndtrip c2 `shouldBe` Right c2
-  describe "meta" . withapp (Proxy @APIMeta') (meta "toy-sp" defSPIssuer defResponseURI) mkTestCtxSimple $ do
+  describe "meta" . withapp (Proxy @APIMeta') (meta "toy-sp" defSPIssuer defResponseURI defContactPersons) mkTestCtxSimple $ do
     it "responds with 200 and an 'SPSSODescriptor'" . runtest' $ do
       get "/meta"
         `shouldRespondWith` 200 {matchBody = bodyContains "OrganizationName xml:lang=\"EN\">toy-sp"}
@@ -195,7 +195,7 @@ spec = describe "API" $ do
             spiss <- defSPIssuer
             authnreq :: AuthnRequest <- createAuthnRequest 3600 spiss (testIdPConfig ^. idpMetadata . edIssuer)
             fromSignedAuthnResponse
-              <$> (if badTimeStamp then timeTravel 1800 else id) (mkAuthnResponse privkey testIdPConfig spmeta authnreq True)
+              <$> (if badTimeStamp then timeTravel 1800 else id) (mkAuthnResponse privkey testIdPConfig spmeta (Just authnreq) True)
           postHtmlForm "/authresp" [("SAMLResponse", cs . EL.encode . renderLBS def $ aresp)]
 
     let testAuthRespApp :: IO CtxV -> SpecWith (CtxV, Application) -> Spec
@@ -217,7 +217,7 @@ spec = describe "API" $ do
               spmeta :: SPMetadata <- mkTestSPMetadata
               spiss <- defSPIssuer
               authnreq :: AuthnRequest <- createAuthnRequest 3600 spiss (testIdPConfig ^. idpMetadata . edIssuer)
-              aresp <- fromSignedAuthnResponse <$> mkAuthnResponse privkey testIdPConfig spmeta authnreq True
+              aresp <- fromSignedAuthnResponse <$> mkAuthnResponse privkey testIdPConfig spmeta (Just authnreq) True
               timestamp <- getNow
               pure (aresp, authnreq, idpEntry, timestamp)
 
@@ -268,7 +268,7 @@ spec = describe "API" $ do
           spiss <- defSPIssuer
           createAuthnRequest 3600 spiss idpiss
       SignedAuthnResponse authnrespDoc <-
-        ioFromTestSP ctx $ mkAuthnResponse privcert testIdPConfig spmeta authnreq True
+        ioFromTestSP ctx $ mkAuthnResponse privcert testIdPConfig spmeta (Just authnreq) True
       parseFromDocument @AuthnResponse authnrespDoc `shouldSatisfy` isRight
     let check :: (HasCallStack) => Bool -> (Either SomeException () -> Bool) -> IO ()
         check certIsGood expectation = do
@@ -284,7 +284,7 @@ spec = describe "API" $ do
             spissuer :: Issuer <- defSPIssuer
             authnreq <- createAuthnRequest 3600 spissuer idpissuer
             SignedAuthnResponse authnrespDoc <-
-              liftIO . ioFromTestSP ctx $ mkAuthnResponse privkey (idpcfg ^. _1) spmeta authnreq True
+              liftIO . ioFromTestSP ctx $ mkAuthnResponse privkey (idpcfg ^. _1) spmeta (Just authnreq) True
             let authnrespLBS = renderLBS def authnrespDoc
             creds <- issuerToCreds (Just idpissuer) Nothing
             void $ simpleVerifyAuthnResponse creds authnrespLBS

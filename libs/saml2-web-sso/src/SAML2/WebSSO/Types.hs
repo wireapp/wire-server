@@ -75,7 +75,6 @@ module SAML2.WebSSO.Types
     ID (..),
     mkID,
     BaseID,
-    mkBaseID,
     baseID,
     baseIDNameQ,
     baseIDSPNameQ,
@@ -92,17 +91,12 @@ module SAML2.WebSSO.Types
     shortShowNameID,
     unsafeShowNameID,
     NameIDFormat (..),
-    nameIDFormat,
     UnqualifiedNameID (..),
     mkUNameIDUnspecified,
     mkUNameIDEmail,
-    mkUNameIDX509,
-    mkUNameIDWindows,
-    mkUNameIDKerberos,
     mkUNameIDEntity,
     mkUNameIDPersistent,
     mkUNameIDTransient,
-    unameIDFormat,
     Status (..),
     Assertion (..),
     assID,
@@ -146,13 +140,11 @@ module SAML2.WebSSO.Types
     Locality (..),
     localityAddress,
     localityDNSName,
-    normalizeAssertion,
     idPIdToST,
     assEndOfLife,
     assertionToInResponseTo,
     assertionsToUserRef,
     assertionToUserRef,
-    nelConcat,
   )
 where
 
@@ -167,6 +159,7 @@ import Data.List qualified as L
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NL
 import Data.Maybe
+import Data.Schema qualified as Schema
 import Data.String.Conversions (ST, cs)
 import Data.Text qualified as ST
 import Data.Time (NominalDiffTime, UTCTime (..), addUTCTime, defaultTimeLocale, formatTime, parseTimeM)
@@ -176,7 +169,6 @@ import Foundation.Network.IPv4 qualified as IPv4
 import Foundation.Network.IPv6 qualified as IPv6
 import Foundation.Parser qualified as IP
 import GHC.Generics (Generic)
-import GHC.Stack
 import Network.DNS.Utils qualified as DNS
 import SAML2.Util
 import SAML2.WebSSO.Orphans ()
@@ -190,6 +182,9 @@ import URI.ByteString
 -- for use cases like storing texts in a database.
 newtype XmlText = XmlText {unsafeFromXmlText :: ST}
   deriving (Eq, Ord, Show, Generic)
+
+instance Schema.ToSchema XmlText where
+  schema = mkXmlText <$> unsafeFromXmlText Schema..= (Schema.schema @ST.Text)
 
 -- | Construct an 'XmlText'
 mkXmlText :: ST -> XmlText
@@ -224,6 +219,7 @@ data DeniedReason
   = DeniedStatusFailure
   | DeniedBadUserRefs {deniedDetails :: String}
   | DeniedBadInResponseTos {deniedDetails :: String}
+  | DeniedNoInResponseTo
   | DeniedAssertionIssueInstantNotInPast {deniedTimestamp :: Time, deniedNow :: Time}
   | DeniedAuthnStatementIssueInstantNotInPast {deniedTimestamp :: Time, deniedNow :: Time}
   | DeniedBadRecipient {deniedWeExpected :: String, deniedTheyExpected :: String}
@@ -283,6 +279,18 @@ data ContactPerson = ContactPerson
   }
   deriving (Eq, Show, Generic)
 
+-- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
+instance Schema.ToSchema ContactPerson where
+  schema =
+    Schema.object "ContactPerson" $
+      ContactPerson
+        <$> (_cntType Schema..= Schema.field "type" Schema.schema)
+        <*> (_cntCompany Schema..= Schema.maybe_ (Schema.optField "company" Schema.schema))
+        <*> (_cntGivenName Schema..= Schema.maybe_ (Schema.optField "givenName" Schema.schema))
+        <*> (_cntSurname Schema..= Schema.maybe_ (Schema.optField "surname" Schema.schema))
+        <*> (_cntEmail Schema..= Schema.maybe_ (Schema.optField "email" Schema.schema))
+        <*> (_cntPhone Schema..= Schema.maybe_ (Schema.optField "phone" Schema.schema))
+
 data ContactType
   = ContactTechnical
   | ContactSupport
@@ -290,6 +298,18 @@ data ContactType
   | ContactBilling
   | ContactOther
   deriving (Eq, Enum, Bounded, Show, Generic)
+
+-- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
+instance Schema.ToSchema ContactType where
+  schema =
+    Schema.enum @ST.Text "ContactType" $
+      mconcat
+        [ Schema.element "ContactTechnical" ContactTechnical,
+          Schema.element "ContactSupport" ContactSupport,
+          Schema.element "ContactAdministrative" ContactAdministrative,
+          Schema.element "ContactBilling" ContactBilling,
+          Schema.element "ContactOther" ContactOther
+        ]
 
 data IdPMetadata = IdPMetadata
   { _edIssuer :: Issuer,
@@ -422,9 +442,6 @@ data BaseID = BaseID
   }
   deriving (Eq, Show, Generic)
 
-mkBaseID :: ST -> Maybe ST -> Maybe ST -> BaseID
-mkBaseID i n s = BaseID (mkXmlText i) (mkXmlText <$> n) (mkXmlText <$> s)
-
 -- | [1/2.2.2], [1/2.2.3], [1/3.4.1.1], see 'mkNameID' implementation for constraints on this type.
 data NameID = NameID
   { _nameID :: UnqualifiedNameID,
@@ -502,15 +519,6 @@ mkUNameIDUnspecified = UNameIDUnspecified . mkXmlText
 mkUNameIDEmail :: (MonadError String m) => ST -> m UnqualifiedNameID
 mkUNameIDEmail = either throwError (pure . UNameIDEmail) . Email.validate
 
-mkUNameIDX509 :: ST -> UnqualifiedNameID
-mkUNameIDX509 = UNameIDX509 . mkXmlText
-
-mkUNameIDWindows :: ST -> UnqualifiedNameID
-mkUNameIDWindows = UNameIDWindows . mkXmlText
-
-mkUNameIDKerberos :: ST -> UnqualifiedNameID
-mkUNameIDKerberos = UNameIDKerberos . mkXmlText
-
 mkUNameIDEntity :: URI -> UnqualifiedNameID
 mkUNameIDEntity = UNameIDEntity
 
@@ -519,28 +527,6 @@ mkUNameIDPersistent = UNameIDPersistent . mkXmlText
 
 mkUNameIDTransient :: ST -> UnqualifiedNameID
 mkUNameIDTransient = UNameIDTransient . mkXmlText
-
-nameIDFormat :: (HasCallStack) => NameIDFormat -> String
-nameIDFormat = \case
-  NameIDFUnspecified -> "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
-  NameIDFEmail -> "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-  NameIDFX509 -> "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
-  NameIDFWindows -> "urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName"
-  NameIDFKerberos -> "urn:oasis:names:tc:SAML:2.0:nameid-format:kerberos"
-  NameIDFEntity -> "urn:oasis:names:tc:SAML:2.0:nameid-format:entity"
-  NameIDFPersistent -> "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-  NameIDFTransient -> "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-
-unameIDFormat :: (HasCallStack) => UnqualifiedNameID -> String
-unameIDFormat = \case
-  UNameIDUnspecified _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
-  UNameIDEmail _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-  UNameIDX509 _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
-  UNameIDWindows _ -> "urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName"
-  UNameIDKerberos _ -> "urn:oasis:names:tc:SAML:2.0:nameid-format:kerberos"
-  UNameIDEntity _ -> "urn:oasis:names:tc:SAML:2.0:nameid-format:entity"
-  UNameIDPersistent _ -> "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-  UNameIDTransient _ -> "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 
 nameIDToST :: NameID -> CI.CI ST
 nameIDToST (NameID (UNameIDUnspecified txt) Nothing Nothing Nothing) = CI.mk $ escapeXmlText txt
@@ -690,14 +676,6 @@ data Locality = Locality
     _localityDNSName :: Maybe DNSName
   }
   deriving (Eq, Show, Generic)
-
-----------------------------------------------------------------------
--- helper functions
-
--- | pull statements from different assertions of same shape into the same assertion.
--- [1/2.3.3]
-normalizeAssertion :: [Assertion] -> [Assertion]
-normalizeAssertion = error "normalizeAssertion: not implemented"
 
 ----------------------------------------------------------------------
 -- misc instances
@@ -855,9 +833,3 @@ assertionToUserRef assertion =
   let issuer = assertion ^. assIssuer
       Subject subject _ = assertion ^. assContents . sasSubject
    in UserRef issuer subject
-
-----------------------------------------------------------------------
--- why is this not in the resp. packages?
-
-nelConcat :: NonEmpty (NonEmpty a) -> NonEmpty a
-nelConcat ((x :| xs) :| ys) = x :| mconcat (xs : (NL.toList <$> ys))

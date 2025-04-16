@@ -168,7 +168,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
       (SAML.FormRedirect _ req) -> do
         SAML.SignedAuthnResponse (XML.Document _ el _) <-
           runSimpleSP $
-            SAML.mkAuthnResponseWithSubj subject privKey idp spmeta req True
+            SAML.mkAuthnResponseWithSubj subject privKey idp spmeta (Just req) True
         either (error . show) pure $ SAML.parse [XML.NodeElement el]
   let verdict =
         if isGranted

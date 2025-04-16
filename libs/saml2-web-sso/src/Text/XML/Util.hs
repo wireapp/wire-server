@@ -39,9 +39,6 @@ nodesToElem bad = error $ show bad
 docToNodes :: (HasCallStack) => Document -> [Node]
 docToNodes (Document _ el _) = elemToNodes el
 
-nodesToDoc :: (HasCallStack) => [Node] -> Document
-nodesToDoc = mkDocument . nodesToElem
-
 mkDocument :: Element -> Document
 mkDocument el = Document defPrologue el defMiscellaneous
 

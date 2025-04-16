@@ -181,6 +181,7 @@ library
     Test.Search
     Test.Services
     Test.Spar
+    Test.Spar.MultiIngressSSO
     Test.Spar.STM
     Test.Swagger
     Test.Teams
@@ -194,6 +195,7 @@ library
     Testlib.Env
     Testlib.HTTP
     Testlib.JSON
+    Testlib.KleisliXML
     Testlib.Mock
     Testlib.MockIntegrationService
     Testlib.ModService

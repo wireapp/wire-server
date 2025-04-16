@@ -845,3 +845,44 @@ testBackendRemoveProposal suite domain = do
   -- alice commits the external proposals
   r <- createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
   shouldBeEmpty $ r %. "events"
+
+testExternalCommitDuplicateClient :: (HasCallStack) => App ()
+testExternalCommitDuplicateClient = do
+  alice <- randomUser OwnDomain def
+  [creator, other] <- traverse (createMLSClient def def) (replicate 2 alice)
+  (_, conv) <- createSelfGroup def creator
+  convId <- objConvId conv
+  void $ createAddCommit creator convId [alice] >>= sendAndConsumeCommitBundle
+
+  replicateM_ 2 $ uploadNewKeyPackage def other
+  void $ createExternalCommit convId other Nothing >>= sendAndConsumeCommitBundle
+
+  -- reset client state
+  setClientGroupState other def
+
+  -- rejoin with the same client without removing the existing leaf node
+  mp <- createExternalCommit convId other Nothing
+  bindResponse (postMLSCommitBundle other (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"
+
+testInternalCommitDuplicateClient :: (HasCallStack) => App ()
+testInternalCommitDuplicateClient = do
+  alice <- randomUser OwnDomain def
+  [alice1, alice2] <- traverse (createMLSClient def def) (replicate 2 alice)
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
+  replicateM_ 2 $ uploadNewKeyPackage def alice2
+  void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
+
+  -- wipe key store
+  setClientGroupState alice2 def
+  (kp, _) <- generateKeyPackage alice2 def
+
+  -- We cannot upload the new key package at this point, because the
+  -- signature key won't match. However, alice1 can still use it to craft an
+  -- add proposal.
+  mp <- createAddCommitWithKeyPackages alice1 convId [(alice2, kp)]
+  bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"

@@ -597,6 +597,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
           BaseProtocolProteusTag
           GroupConversation
           False
+          Nothing
   post
     ( g
         . path "/conversations"
@@ -634,7 +635,8 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
             newConvReceiptMode = Nothing,
             newConvProtocol = BaseProtocolMLSTag,
             newConvGroupConvType = GroupConversation,
-            newConvCells = False
+            newConvCells = False,
+            newConvChannelAddPermission = Nothing
           }
   r <-
     post
@@ -678,6 +680,7 @@ createOne2OneTeamConv u1 u2 n tid = do
           BaseProtocolProteusTag
           GroupConversation
           False
+          Nothing
   post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -705,6 +708,7 @@ defNewProteusConv =
     BaseProtocolProteusTag
     GroupConversation
     False
+    Nothing
 
 defNewMLSConv :: NewConv
 defNewMLSConv =
@@ -762,6 +766,7 @@ postTeamConv tid u us name a r mtimer = do
           BaseProtocolProteusTag
           GroupConversation
           False
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -813,6 +818,7 @@ postConvWithReceipt u us name a r mtimer rcpt = do
           BaseProtocolProteusTag
           GroupConversation
           False
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS

@@ -1,14 +1,15 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Strict #-}
 
--- FUTUREWORK: set `-XNoDeriveAnyClass`.
 module SAML2.WebSSO.Config where
 
-import Control.Exception
-import Control.Lens hiding (Level, (.=))
+import Control.Lens hiding (Level, element, enum, (.=))
 import Control.Monad (when)
-import Data.Aeson
+import Data.Aeson qualified as A
+import Data.Domain
+import Data.Map
+import Data.Map qualified as Map
+import Data.Schema
 import Data.String.Conversions
 import Data.Yaml qualified as Yaml
 import GHC.Generics
@@ -16,6 +17,7 @@ import SAML2.WebSSO.Types
 import System.Environment
 import System.FilePath
 import System.IO
+import System.Logger (Level (..))
 import URI.ByteString
 import URI.ByteString.QQ
 
@@ -26,41 +28,113 @@ data Config = Config
   { _cfgLogLevel :: Level,
     _cfgSPHost :: String,
     _cfgSPPort :: Int,
-    _cfgSPAppURI :: URI,
+    -- | if you don't use the multi-ingress feature, you only ever need one of these, so
+    -- you'll use the `Left` case.
+    _cfgDomainConfigs ::
+      Either MultiIngressDomainConfig (Map Domain MultiIngressDomainConfig)
+  }
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON) via Schema Config
+
+getMultiIngressDomainConfig :: Config -> Maybe Domain -> Maybe MultiIngressDomainConfig
+getMultiIngressDomainConfig config mbDomain =
+  case (_cfgDomainConfigs config, mbDomain) of
+    (Left cfg, _) -> pure cfg
+    (Right cfgMap, Just d) -> Map.lookup d cfgMap
+    (Right _, Nothing) -> Nothing
+
+data MultiIngressDomainConfig = MultiIngressDomainConfig
+  { _cfgSPAppURI :: URI,
     _cfgSPSsoURI :: URI,
     _cfgContacts :: [ContactPerson]
   }
   deriving (Eq, Show, Generic)
-
--- | this looks exactly like tinylog's type, but we redefine it here to avoid the dependency.
-data Level = Trace | Debug | Info | Warn | Error | Fatal
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic, FromJSON, ToJSON)
+  deriving (A.ToJSON, A.FromJSON) via Schema MultiIngressDomainConfig
 
 ----------------------------------------------------------------------
--- instances
+-- schema-profunctor
 
-makeLenses ''Config
+data ConfigRaw = ConfigRaw
+  { _cfgRawLogLevel :: Level,
+    _cfgRawSPHost :: String,
+    _cfgRawSPPort :: Int,
+    _cfgRawDomainConfigs :: Maybe (Map Domain MultiIngressDomainConfig),
+    _cfgRawSPAppURI :: Maybe URI,
+    _cfgRawSPSsoURI :: Maybe URI,
+    _cfgRawContacts :: Maybe [ContactPerson]
+  }
+  deriving (Show)
 
-instance ToJSON Config where
-  toJSON Config {..} =
-    object $
-      [ "logLevel" .= _cfgLogLevel,
-        "spHost" .= _cfgSPHost,
-        "spPort" .= _cfgSPPort,
-        "spAppUri" .= _cfgSPAppURI,
-        "spSsoUri" .= _cfgSPSsoURI,
-        "contacts" .= _cfgContacts
-      ]
+instance ToSchema ConfigRaw where
+  schema =
+    object "ConfigRaw" $
+      ConfigRaw
+        <$> (_cfgRawLogLevel .= field "logLevel" schema)
+        <*> (_cfgRawSPHost .= field "spHost" schema)
+        <*> (_cfgRawSPPort .= field "spPort" schema)
+        <*> (_cfgRawDomainConfigs .= maybe_ (optField "spDomainConfigs" (map_ schema)))
+        <*> (_cfgRawSPAppURI .= maybe_ (optField "spAppUri" schema))
+        <*> (_cfgRawSPSsoURI .= maybe_ (optField "spSsoUri" schema))
+        <*> (_cfgRawContacts .= maybe_ (optField "contacts" (array schema)))
 
-instance FromJSON Config where
-  parseJSON = withObject "Config" $ \obj -> do
-    _cfgLogLevel <- obj .: "logLevel"
-    _cfgSPHost <- obj .: "spHost"
-    _cfgSPPort <- obj .: "spPort"
-    _cfgSPAppURI <- obj .: "spAppUri"
-    _cfgSPSsoURI <- obj .: "spSsoUri"
-    _cfgContacts <- obj .: "contacts"
-    pure Config {..}
+instance ToSchema MultiIngressDomainConfig where
+  schema =
+    object "MultiIngressDomainConfig" $
+      MultiIngressDomainConfig
+        <$> (_cfgSPAppURI .= field "spAppUri" schema)
+        <*> (_cfgSPSsoURI .= field "spSsoUri" schema)
+        <*> (_cfgContacts .= field "contacts" (array schema))
+
+instance ToSchema Config where
+  schema = unprs .= ((schema @ConfigRaw) `withParser` prs)
+    where
+      prs :: ConfigRaw -> Yaml.Parser Config
+      prs config@(ConfigRaw {..}) =
+        case (_cfgRawDomainConfigs, _cfgRawSPAppURI, _cfgRawSPSsoURI, _cfgRawContacts) of
+          (Nothing, Just _cfgSPAppURI, Just _cfgSPSsoURI, Just _cfgContacts) ->
+            pure
+              Config
+                { _cfgLogLevel = _cfgRawLogLevel,
+                  _cfgSPHost = _cfgRawSPHost,
+                  _cfgSPPort = _cfgRawSPPort,
+                  _cfgDomainConfigs = Left MultiIngressDomainConfig {..}
+                }
+          (Just domainConfigsMap, Nothing, Nothing, Nothing) ->
+            pure
+              Config
+                { _cfgLogLevel = _cfgRawLogLevel,
+                  _cfgSPHost = _cfgRawSPHost,
+                  _cfgSPPort = _cfgRawSPPort,
+                  _cfgDomainConfigs = Right domainConfigsMap
+                }
+          _ ->
+            fail $
+              "Cannot parse to Config from ConfigRaw: "
+                ++ show config
+                ++ " (give either all of `spAppUri`, `spSsoUri`, `contacts`, or `spDomainConfigs`)"
+
+      unprs :: Config -> ConfigRaw
+      unprs (Config {..}) = case _cfgDomainConfigs of
+        Left MultiIngressDomainConfig {..} ->
+          ConfigRaw
+            { _cfgRawLogLevel = _cfgLogLevel,
+              _cfgRawSPHost = _cfgSPHost,
+              _cfgRawSPPort = _cfgSPPort,
+              _cfgRawDomainConfigs = Nothing,
+              _cfgRawSPAppURI = Just _cfgSPAppURI,
+              _cfgRawSPSsoURI = Just _cfgSPSsoURI,
+              _cfgRawContacts = Just _cfgContacts
+            }
+        Right domainConfigsMap ->
+          ConfigRaw
+            { _cfgRawLogLevel = _cfgLogLevel,
+              _cfgRawSPHost = _cfgSPHost,
+              _cfgRawSPPort = _cfgSPPort,
+              _cfgRawDomainConfigs = Just domainConfigsMap,
+              _cfgRawSPAppURI = Nothing,
+              _cfgRawSPSsoURI = Nothing,
+              _cfgRawContacts = Nothing
+            }
 
 ----------------------------------------------------------------------
 -- default
@@ -71,9 +145,13 @@ fallbackConfig =
     { _cfgLogLevel = Debug,
       _cfgSPHost = "localhost",
       _cfgSPPort = 8081,
-      _cfgSPAppURI = [uri|https://example-sp.com/landing|],
-      _cfgSPSsoURI = [uri|https://example-sp.com/sso|],
-      _cfgContacts = [fallbackContact]
+      _cfgDomainConfigs =
+        Left
+          MultiIngressDomainConfig
+            { _cfgSPAppURI = [uri|https://example-sp.com/landing|],
+              _cfgSPSsoURI = [uri|https://example-sp.com/sso|],
+              _cfgContacts = [fallbackContact]
+            }
     }
 
 fallbackContact :: ContactPerson
@@ -102,7 +180,7 @@ readConfig filepath =
   where
     info :: Config -> IO ()
     info cfg =
-      when (cfg ^. cfgLogLevel <= Info)
+      when (_cfgLogLevel cfg <= Info)
         $ hPutStrLn stderr
           . ("\n>>> server config:\n" <>)
           . cs
@@ -115,31 +193,6 @@ readConfig filepath =
           <> show err
           <> "  using default!  see SAML.WebSSO.Config for details!"
 
--- | Convenience function to write a config file if you don't already have one.  Writes to
--- `$SAML2_WEB_SSO_ROOT/server.yaml`.  Warns if env does not contain the root.
-writeConfig :: Config -> IO ()
-writeConfig cfg = (`Yaml.encodeFile` cfg) =<< configFilePath
-
-idpConfigIO :: Config -> IO [IdPConfig_]
-idpConfigIO cfg = readIdPConfig cfg =<< idpConfigFilePath
-
-idpConfigFilePath :: IO FilePath
-idpConfigFilePath = (</> "idps.yaml") <$> getEnv "SAML2_WEB_SSO_ROOT"
-
-readIdPConfig :: Config -> FilePath -> IO [IdPConfig_]
-readIdPConfig cfg filepath =
-  either (throwIO . ErrorCall . show) (\cnf -> info cnf >> pure cnf)
-    =<< Yaml.decodeFileEither filepath
-  where
-    info :: [IdPConfig_] -> IO ()
-    info idps =
-      when (cfg ^. cfgLogLevel <= Info)
-        $ hPutStrLn stderr
-          . ("\n>>>known idps:\n" <>)
-          . cs
-          . Yaml.encode
-        $ idps
-
 ----------------------------------------------------------------------
 -- class
 
@@ -148,3 +201,10 @@ class HasConfig m where
 
 instance HasConfig ((->) Config) where
   getConfig = id
+
+----------------------------------------------------------------------
+-- TH stuff at the end of the module
+
+makeLenses ''Config
+
+makeLenses ''MultiIngressDomainConfig

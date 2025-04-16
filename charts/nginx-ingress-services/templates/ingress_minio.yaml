@@ -7,7 +7,7 @@
 apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
-  name: minio-ingress
+  name: {{ include "nginx-ingress-services.getMinioIngressName" . | quote }}
   annotations:
     {{- if not $ingressFieldNotAnnotation }}
     kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"

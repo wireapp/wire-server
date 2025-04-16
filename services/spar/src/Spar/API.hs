@@ -50,6 +50,7 @@ import Cassandra as Cas
 import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
+import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
@@ -185,8 +186,8 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  Named @"sso-metadata" (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
-    :<|> Named @"sso-team-metadata" (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
+  Named @"sso-metadata" (getMetadata Nothing)
+    :<|> Named @"sso-team-metadata" (\mbHost tid -> getMetadata (Just tid) mbHost)
     :<|> Named @"auth-req-precheck" authreqPrecheck
     :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
@@ -240,6 +241,36 @@ appName = "spar"
 ----------------------------------------------------------------------------
 -- SSO API
 
+-- | NB: not providing a team id here (route `Named "sso-metadata"`) is deprecated.  Some IdPs
+-- do not allow setting different IdP issuer urls for different SPs, but only support one
+-- global issuer url.  Adding the team id here allows us to scope this global issuer url
+-- inside the team, ie. use it once per team, not once per instance.
+getMetadata ::
+  forall r.
+  ( Member SAML2 r,
+    Member SamlProtocolSettings r,
+    Member (Error SparError) r
+  ) =>
+  Maybe TeamId ->
+  Maybe Text ->
+  Sem r SAML.SPMetadata
+getMetadata mbTid mbHost = do
+  let err :: Sem r any
+      err = throwSparSem (SparSPNotFound "")
+
+  mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
+
+  let iss :: Sem r SAML.Issuer
+      iss = SamlProtocolSettings.spIssuer mbTid mbHostDom >>= maybe err pure
+
+      rsp :: Sem r URI.URI
+      rsp = SamlProtocolSettings.responseURI mbTid mbHostDom >>= maybe err pure
+
+      contactList :: Sem r [SAML.ContactPerson]
+      contactList = SamlProtocolSettings.contactPersons mbHostDom
+
+  SAML2.meta appName iss rsp contactList
+
 authreqPrecheck ::
   ( Member IdPConfigStore r,
     Member (Error SparError) r
@@ -254,6 +285,7 @@ authreqPrecheck msucc merr idpid =
       $> NoContent
 
 authreq ::
+  forall r.
   ( Member Random r,
     Member (Input Opts) r,
     Member (Logger String) r,
@@ -269,16 +301,24 @@ authreq ::
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
+  Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid = do
+authreq authreqttl msucc merr idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
+
+    let err :: Sem r any
+        err = throwSparSem (SparSPNotFound "")
+    mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
+
     let mbtid :: Maybe TeamId
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . apiVersion) of
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . team
-    SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
+        iss :: Sem r SAML.Issuer
+        iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
+    SAML2.authReq authreqttl iss idpid
   VerdictFormatStore.store authreqttl reqid vformat
   pure form
 
@@ -320,18 +360,75 @@ authresp ::
   ) =>
   Maybe TeamId ->
   SAML.AuthnResponseBody ->
+  Maybe Text ->
   Sem r Void
-authresp mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
+authresp mbtid arbody mbHost = do
+  let err :: Sem r any
+      err = throwSparSem (SparSPNotFound "")
+
+  mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
+
+  let iss :: Sem r SAML.Issuer
+      iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
+
+      rsp :: Sem r URI.URI
+      rsp = SamlProtocolSettings.responseURI mbtid mbHostDom >>= maybe err pure
+
+  logErrors $ SAML2.authResp mbtid iss rsp go arbody
   where
     go :: NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
+    go _assertions idp (SAML.AccessDenied (shouldRedirectToInit -> True)) = do
+      -- redirect back to idp for idp-initiated login.
+      redirectToInit idp
     go assertions verdict idp = do
+      -- handle the verdict
       SAML.ResponseVerdict result <- verdictHandler assertions idp verdict
       throw @SparError $ SAML.CustomServant result
 
+    -- Whenever at least one of the denied reasons is `DeniedNoInResponseTo`, try again.
+    -- there may be other reasons that will make the redirect less likely to result in a
+    -- positive authentication, but better be lenient wrt what the IdP sends us here, it is
+    -- about to get thrown away anyway.
+    shouldRedirectToInit :: [SAML.DeniedReason] -> Bool
+    shouldRedirectToInit = any (\case SAML.DeniedNoInResponseTo -> True; _ -> False)
+
+    redirectToInit :: IdP -> Sem r Void
+    redirectToInit idp = do
+      throw (SAML.CustomError (SparRequestMissingTryIdpInitiatedLogin initiateLoginEndPointText))
+      where
+        -- FUTUREWORK: success_url and error_url (used to distinguish between mobile and web)
+        -- are missing in this flow.  maybe the mobile browser can start app.wire.com, and
+        -- app.wire.com finds the app for us?  server-side solutions probably exist, but are
+        -- likely to make everything more complicated, both now and in the long run.  see
+        -- `APIAuthReq` route.
+        success_url = Nothing
+        error_url = Nothing
+
+        initiateLoginEndPoint :: URI
+        initiateLoginEndPoint =
+          ( safeLink'
+              linkURI
+              (Proxy @SparAPI)
+              (Proxy @("sso" :> "initiate-login" :> APIAuthReq))
+          )
+            success_url
+            error_url
+            (idp ^. SAML.idpId)
+
+        initiateLoginEndPointText :: T.Text
+        initiateLoginEndPointText =
+          T.pack ("/" <> uriPath initiateLoginEndPoint <> uriQuery initiateLoginEndPoint)
+
     logErrors :: Sem r Void -> Sem r Void
     logErrors action = catch @SparError action $ \case
-      e@(SAML.CustomServant _) -> throw e
+      e@(SAML.CustomServant _) ->
+        -- this is where the "you're ok, please come in" redirect response is coming from
+        throw e
+      e@(SAML.CustomError (SparRequestMissingTryIdpInitiatedLogin _)) -> do
+        -- redirect to /sso/initiate-login
+        throw e
       e -> do
+        -- something went wrong, log and fail
         throw @SparError
           . SAML.CustomServant
           $ errorPage

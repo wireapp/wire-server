@@ -1,3 +1,94 @@
+# [2025-04-07] (Chart Release 5.14.0)
+
+## Release notes
+
+
+* Update the Docker (container) image of `ldap-scim-bridge` to the latest release (0.4 -> 0.10.4) in the corresponding Helm chart. (#4451)
+
+
+## API changes
+
+
+* Freeze API version 8, create new dev version 9. (#4510, #4522)
+
+* Add a new team feature for Cells support (#4473)
+
+* The request body of `POST /conversation` can now contain a boolean field `cells`, which defaults to `false`, and determines whether Cells should be enabled for the new conversation. (#4503)
+
+
+## Features
+
+
+* Added team feature to configure channels (#4471)
+
+* Creating channels via the conversation API (#4489)
+
+* The `nginz` chart now configures nginx to configure deeplink for each domain in multi-ingress setup. Check out `nginx_conf.multi_ingress_deeplink`. (#PR_NOT_FOUND)
+
+* Team admins have conversation admin permissions in channels (#4500)
+
+* New permission for channels to allow members to add users (#4504, #4518)
+
+* Allow multiple SAML ServiceProviders (SP) to be configured in spar. The idea is
+  to have one SP per multi-ingress domain/endpoint. (#4490)
+
+* Cells integration. Conversations now have a new field "cells_state", which defaults to "disabled", but can be set to "pending" and "ready". When set to "pending" or "ready", events relevant for tracking conversation members and metadata are forwarded to a RabbitMQ queue, which can be configured in gundeck. (#4442)
+
+* Read receipts are now automatically disabled for MLS conversations and cannot be enabled. (#4508)
+
+
+## Bug fixes and other updates
+
+
+* Handle login flow for Backend and SSO domains when the user already exists (#4493)
+
+* Emulate IdP-initiated login with a redirect. (#4513)
+
+* Allow setting domain_redirect for team registered domains (#4496)
+
+* Make saml2-web-sso library more robust against forged authentication responses.
+
+  - only process *signed* xml data from authentication requests (to the extent permitted by the standards)
+  - compare issuer in stored authentication request with issuer(s) from assertions.
+
+  neither of these changes fix any known vulnerabilities, but the changes make the code more defensive in case other weaknesses are still lurking. (#4497)
+
+* Dedicated endpoint for teams to verify domain registration challenge (#4501)
+
+* Channels default feature flag can be configured for server (#4498)
+
+* Prevent duplicate clients from being added to a conversation (#4519)
+
+* When `fakeS3` is enabled, `nginx-ingress-services` creates an ingress for
+  Minio. This ingress' name is now configurable to allow multiple of them
+  ("multi-ingress".) (#4516)
+
+* Fix issue with the (redis/cannon) reaper chart, which was sometimes killing cannon pods for no good reasons during transient networking errors. (#4499)
+
+
+## Documentation
+
+
+* Migration from sphinx based documentation to mkdocs and moving the documentation to wire-docs repository and enabling versioning on the documentation (#4464)
+
+* Fix pregenerated Swagger URL for v7 (#4495)
+
+
+## Internal changes
+
+
+* Improve cassandra dump script (#4514)
+
+* Remove legacy team feature storage support (#4470)
+
+* Reduce the log level of "federation denied" errors to Warn (#4511)
+
+* Move the `saml2-web-sso` library into this project / git repository. According
+  to the Github search, this library is only used by wire-server anyways. Stopping
+  to pretend that it's of general usage, gives us opportunities to write Wire
+  specific code in a better way and simplifies CI processes. (#4492)
+
+
 # [2025-03-07] (Chart Release 5.13.0)
 
 ## Release notes

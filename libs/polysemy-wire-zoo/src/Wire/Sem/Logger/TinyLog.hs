@@ -22,7 +22,7 @@ module Wire.Sem.Logger.TinyLog
     loggerToTinyLogReqId,
     stringLoggerToTinyLog,
     discardTinyLogs,
-    module Wire.Sem.Logger.Level,
+    module System.Logger,
     LogRecorder (..),
     newLogRecorder,
     recordLogs,
@@ -33,9 +33,9 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
+import System.Logger (Level (..))
 import qualified System.Logger as Log
 import Wire.Sem.Logger
-import Wire.Sem.Logger.Level
 
 loggerToTinyLog ::
   (Member (Embed IO) r) =>
@@ -44,7 +44,7 @@ loggerToTinyLog ::
   Sem r a
 loggerToTinyLog tinylog = interpret $ \case
   Log lvl msg ->
-    embed @IO $ Log.log tinylog (toLevel lvl) msg
+    embed @IO $ Log.log tinylog lvl msg
 
 -- | Log the request ID along with the message
 loggerToTinyLogReqId ::

@@ -1,6 +1,0 @@
-Make saml2-web-sso library more robust against forged authentication responses.
-
-- only process *signed* xml data from authentication requests (to the extent permitted by the standards)
-- compare issuer in stored authentication request with issuer(s) from assertions.
-
-neither of these changes fix any known vulnerabilities, but the changes make the code more defensive in case other weaknesses are still lurking.

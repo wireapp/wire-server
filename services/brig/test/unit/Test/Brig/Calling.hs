@@ -52,7 +52,6 @@ import UnliftIO.Async qualified as Async
 import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
-import Wire.Sem.Logger.Level
 import Wire.Sem.Logger.TinyLog
 
 data FakeDNSEnv = FakeDNSEnv

@@ -155,8 +155,15 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
               fmap catMaybes . forM newUserClients $
                 \(qtarget, newclients) -> case Map.lookup qtarget cm of
                   -- user is already present, skip check in this case
-                  Just _ -> do
-                    -- new user
+                  Just existingClients -> do
+                    -- make sure none of the new clients already exist in the group
+                    when
+                      ( any
+                          (`Map.member` existingClients)
+                          (Map.keys newclients)
+                      )
+                      $ throw
+                        (mlsProtocolError "Cannot add a client that is already part of the group")
                     pure Nothing
                   Nothing -> do
                     -- final set of clients in the conversation
