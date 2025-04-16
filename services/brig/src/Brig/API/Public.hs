@@ -572,9 +572,9 @@ servantSitemap =
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
       Named @"update-domain-redirect@v8" updateDomainRedirect
-        -- TODO: undefined shouldn't stay here, of course
         :<|> Named @"update-domain-redirect" updateDomainRedirect
         :<|> Named @"get-domain-registration@v8" getDomainRegistration
+        :<|> Named @"get-domain-registration" getDomainRegistration
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
     domainVerificationTeamAPI =

@@ -272,7 +272,27 @@ deriving via Schema DomainRedirectResponseV8 instance S.ToSchema DomainRedirectR
 
 instance ToSchema DomainRedirectResponseV8 where
   schema =
-    object "DomainRedirectResponse" $
+    object "DomainRedirectResponseV8" $
+      DomainRedirectResponse
+        <$> (\r -> True <$ guard r.propagateUserExists)
+          .= maybe_
+            ( fromMaybe False <$> optField "due_to_existing_account" schema
+            )
+        <*> (.redirect) .= domainRedirectSchema
+
+type DomainRedirectResponseV9 = DomainRedirectResponse V9
+
+deriving via GenericUniform DomainRedirectResponseV9 instance Arbitrary DomainRedirectResponseV9
+
+deriving via Schema DomainRedirectResponseV9 instance A.ToJSON DomainRedirectResponseV9
+
+deriving via Schema DomainRedirectResponseV9 instance A.FromJSON DomainRedirectResponseV9
+
+deriving via Schema DomainRedirectResponseV9 instance S.ToSchema DomainRedirectResponseV9
+
+instance ToSchema DomainRedirectResponseV9 where
+  schema =
+    object "DomainRedirectResponseV9" $
       DomainRedirectResponse
         <$> (\r -> True <$ guard r.propagateUserExists)
           .= maybe_
@@ -401,4 +421,13 @@ type DomainVerificationAPI =
                :> "get-domain-registration"
                :> ReqBody '[JSON] GetDomainRegistrationRequest
                :> Post '[JSON] DomainRedirectResponseV8
+           )
+    :<|> Named
+           "get-domain-registration"
+           ( Summary "Get domain registration configuration by email"
+               :> From V9
+               :> CanThrow DomainVerificationInvalidDomain
+               :> "get-domain-registration"
+               :> ReqBody '[JSON] GetDomainRegistrationRequest
+               :> Post '[JSON] DomainRedirectResponseV9
            )
