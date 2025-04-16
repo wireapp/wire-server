@@ -149,6 +149,7 @@ import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
+import Wire.API.UserGroup
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
@@ -398,6 +399,7 @@ servantSitemap ::
   ServerT BrigAPI (Handler r)
 servantSitemap =
   userAPI
+    :<|> userGroupAPI
     :<|> selfAPI
     :<|> accountAPI
     :<|> clientAPI
@@ -433,6 +435,16 @@ servantSitemap =
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
+
+    userGroupAPI :: ServerT UserGroupAPI (Handler r)
+    userGroupAPI =
+      Named @"create-user-group" createUserGroupH
+        :<|> Named @"get-user-group" getUserGroupH
+        :<|> Named @"get-user-groups" getUserGroupsH
+        :<|> Named @"update-user-group" updateUserGroupH
+        :<|> Named @"delete-user-group" deleteUserGroupH
+        :<|> Named @"add-user-to-group" addUserToGroupH
+        :<|> Named @"remove-user-from-group" removeUserFromGroupH
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1621,6 +1633,27 @@ verifyChallengeTeam ::
 verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
   lift . liftSem . fmap DomainOwnershipToken $
     EnterpriseLogin.verifyChallenge (Just lusr) domain challengeId token
+
+createUserGroupH :: Local UserId -> NewUserGroup -> (Handler r) UserGroup
+createUserGroupH = undefined
+
+getUserGroupH :: Local UserId -> UserGroupId -> (Handler r) UserGroup
+getUserGroupH = undefined
+
+getUserGroupsH :: Local UserId -> Maybe Int -> Maybe UserGroupId -> (Handler r) UserGroupPage
+getUserGroupsH = undefined
+
+updateUserGroupH :: Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) UserGroup
+updateUserGroupH = undefined
+
+deleteUserGroupH :: Local UserId -> UserGroupId -> (Handler r) NoContent
+deleteUserGroupH = undefined
+
+addUserToGroupH :: Local UserId -> UserGroupId -> UserId -> (Handler r) NoContent
+addUserToGroupH = undefined
+
+removeUserFromGroupH :: Local UserId -> UserGroupId -> UserId -> (Handler r) NoContent
+removeUserFromGroupH = undefined
 
 -- Deprecated
 
