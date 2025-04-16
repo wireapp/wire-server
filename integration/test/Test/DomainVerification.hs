@@ -777,3 +777,39 @@ testVerificationRequiredIfEmailDomainRedirectNotSso = do
     user <- res.json >>= asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
+
+testDomainVerificationUpdateRedirectRequiresWebappUrl :: (HasCallStack) => App ()
+testDomainVerificationUpdateRedirectRequiresWebappUrl = do
+  domain <- randomDomain
+  void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
+
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
+  let ownershipToken = setup.ownershipToken
+
+  -- check that it works in general
+  updateDomainRedirect
+    OwnDomain
+    Versioned
+    domain
+    (Just ownershipToken)
+    ( object
+        [ "domain_redirect" .= "backend",
+          "backend" .= object ["config" .= "https://wire.example.com", "webapp" .= "https://webapp.wire.example.com"]
+        ]
+    )
+    >>= assertStatus 200
+
+  -- see it fail when the webapp URL is missing
+  updateDomainRedirect
+    OwnDomain
+    Versioned
+    domain
+    (Just ownershipToken)
+    ( object
+        [ "domain_redirect" .= "backend",
+          "backend" .= object ["config" .= "https://wire.example.com"]
+        ]
+    )
+    >>= assertStatus 400

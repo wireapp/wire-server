@@ -572,7 +572,7 @@ servantSitemap =
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
       Named @"update-domain-redirect@v8" updateDomainRedirect
-        :<|> Named @"update-domain-redirect" updateDomainRedirect
+        :<|> Named @"update-domain-redirect" updateDomainRedirectV9
         :<|> Named @"get-domain-registration@v8" getDomainRegistration
         :<|> Named @"get-domain-registration" getDomainRegistration
 
@@ -1571,6 +1571,22 @@ updateDomainRedirect ::
   Handler r ()
 updateDomainRedirect (Bearer authToken) domain config =
   lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
+
+updateDomainRedirectV9 ::
+  (_) =>
+  Bearer Token ->
+  Domain ->
+  DomainRedirectConfigV9 ->
+  Handler r ()
+updateDomainRedirectV9 authToken domain config =
+  updateDomainRedirect authToken domain (domainRedirectConfigV9ToV8 config)
+  where
+    domainRedirectConfigV9ToV8 :: DomainRedirectConfigV9 -> DomainRedirectConfigV8
+    domainRedirectConfigV9ToV8 DomainRedirectConfigRemoveV9 = DomainRedirectConfigRemove
+    domainRedirectConfigV9ToV8 (DomainRedirectConfigBackendV9 backendUrl webappUrl) =
+      DomainRedirectConfigBackend backendUrl (Just webappUrl)
+    domainRedirectConfigV9ToV8 DomainRedirectConfigNoRegistrationV9 =
+      DomainRedirectConfigNoRegistration
 
 updateTeamInvite ::
   (_) =>
