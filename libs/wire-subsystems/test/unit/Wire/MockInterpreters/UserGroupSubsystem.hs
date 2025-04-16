@@ -102,13 +102,17 @@ deleteGroupImpl gid = do
   modify (Map.delete gid)
 
 addUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
-addUserImpl _ _ = do
-  _ <- input
-  _ <- get
-  undefined
+addUserImpl gid uid = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = nub $ uid : g.members} :: UserGroup)
+
+  modify (Map.alter f gid)
 
 removeUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
-removeUserImpl _ _ = do
-  _ <- input
-  _ <- get
-  undefined
+removeUserImpl gid uid = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = g.members \\ [uid]} :: UserGroup)
+
+  modify (Map.alter f gid)
