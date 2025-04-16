@@ -254,15 +254,23 @@ instance ToSchema RegisteredDomains where
       RegisteredDomains
         <$> unRegisteredDomains .= field "registered_domains" (array schema)
 
-data DomainRedirectResponse = DomainRedirectResponse
+type DomainRedirectResponseV8 = DomainRedirectResponse V8
+
+data DomainRedirectResponse (v :: Version) = DomainRedirectResponse
   { propagateUserExists :: Bool,
     redirect :: DomainRedirect
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform DomainRedirectResponse
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DomainRedirectResponse)
 
-instance ToSchema DomainRedirectResponse where
+deriving via GenericUniform DomainRedirectResponseV8 instance Arbitrary DomainRedirectResponseV8
+
+deriving via Schema DomainRedirectResponseV8 instance A.ToJSON DomainRedirectResponseV8
+
+deriving via Schema DomainRedirectResponseV8 instance A.FromJSON DomainRedirectResponseV8
+
+deriving via Schema DomainRedirectResponseV8 instance S.ToSchema DomainRedirectResponseV8
+
+instance ToSchema DomainRedirectResponseV8 where
   schema =
     object "DomainRedirectResponse" $
       DomainRedirectResponse
@@ -386,10 +394,11 @@ type DomainVerificationAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
            )
     :<|> Named
-           "get-domain-registration"
+           "get-domain-registration@v8"
            ( Summary "Get domain registration configuration by email"
+               :> Until V9
                :> CanThrow DomainVerificationInvalidDomain
                :> "get-domain-registration"
                :> ReqBody '[JSON] GetDomainRegistrationRequest
-               :> Post '[JSON] DomainRedirectResponse
+               :> Post '[JSON] DomainRedirectResponseV8
            )
