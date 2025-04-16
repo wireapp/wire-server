@@ -21,7 +21,7 @@ module Gundeck.Notification
   )
 where
 
-import Bilge.IO (post)
+import Bilge.RPC
 import Bilge.Request
 import Bilge.Response
 import Control.Lens (view)
@@ -37,6 +37,7 @@ import Gundeck.Notification.Data qualified as Data
 import Gundeck.Options (brig)
 import Imports hiding (getLast)
 import Network.HTTP.Types (status400)
+import Network.HTTP.Types.Method
 import Network.Wai.Utilities.Error
 import System.Logger.Class
 import System.Logger.Class qualified as Log
@@ -75,11 +76,11 @@ updateActivity :: UserId -> ClientId -> Gundeck ()
 updateActivity uid clt = do
   r <- do
     Endpoint h p <- view $ options . brig
-    post
-      ( host (toByteString' h)
-          . port p
-          . paths ["i", "clients", toByteString' uid, toByteString' clt, "activity"]
-      )
+    rpc "brig" $
+      method POST
+        . host (toByteString' h)
+        . port p
+        . paths ["i", "clients", toByteString' uid, toByteString' clt, "activity"]
   when (statusCode r /= 200) $ do
     Log.warn $
       Log.msg ("Could not update client activity" :: ByteString)

@@ -30,6 +30,7 @@ module Gundeck.Push
 where
 
 import Bilge qualified
+import Bilge.RPC qualified as Bilge
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
@@ -209,13 +210,13 @@ getClients uids = do
     getBatch uidsChunk = do
       r <- do
         Endpoint h p <- view $ options . brig
-        Bilge.post
-          ( Bilge.host (toByteString' h)
-              . Bilge.port p
-              . Bilge.path "/i/clients/full"
-              . Bilge.json (UserSet $ Set.fromList uidsChunk)
-              . Bilge.expect2xx
-          )
+        Bilge.rpc "brig" $
+          Bilge.method POST
+            . Bilge.host (toByteString' h)
+            . Bilge.port p
+            . Bilge.path "/i/clients/full"
+            . Bilge.json (UserSet $ Set.fromList uidsChunk)
+            . Bilge.expect2xx
       Bilge.responseJsonError r
 
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogger m) => [Push] -> m ()
