@@ -7,7 +7,6 @@ import Data.Id
 import Data.Time
 import Data.UUID as UUID
 import Imports
-import Polysemy
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -21,18 +20,19 @@ spec :: Spec
 spec = describe "UserGroupSubsystem.Interpreter" do
   focus . prop "getGroup gets you what createGroup creates" $ \gname usrs ->
     let now = unsafePerformIO getCurrentTime
-        (ug0, nug, ug, ug') = run $ Mock.userGroupSubsystemTestInterpreter now do
+        ex@(ug0, nug, ug, ug') = Mock.runInMemoryUserGroupSubsystem now do
           ug0_ <- getGroup (Id UUID.nil)
           let nug_ = NewUserGroup gname usrs
           ug_ <- createGroup nug_
           ug_' <- getGroup ug_.id_
           pure (ug0_, nug_, ug_, ug_')
-     in (ug0 === Nothing)
-          .&&. (ug.name === nug.name)
-          .&&. (ug.members === nug.members)
-          .&&. (ug.managedBy === ManagedByWire)
-          .&&. (ug.createdAt === now)
-          .&&. (ug' === Just ug)
+     in counterexample (show ex) $
+          (ug0 === Nothing)
+            .&&. (ug.name === nug.name)
+            .&&. (ug.members === nug.members)
+            .&&. (ug.managedBy === ManagedByWire)
+            .&&. (ug.createdAt === now)
+            .&&. (ug' === Just ug)
 
   prop "getGroups gets all groups" $ \b -> b === True
 
