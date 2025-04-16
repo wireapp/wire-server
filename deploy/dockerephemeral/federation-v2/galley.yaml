@@ -47,10 +47,36 @@ settings:
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Brig
   federationDomain: federation-v2.example.com
+  federationProtocols: ["mls", "proteus"]
   mlsPrivateKeyPaths:
     removal:
       ed25519: /etc/wire/galley/conf/mls-private-key-ed25519.pem
+      ecdsa_secp256r1_sha256: /etc/wire/galley/conf/mls-private-key-ecdsa_secp256r1_sha256.pem
+      ecdsa_secp384r1_sha384: /etc/wire/galley/conf/mls-private-key-ecdsa_secp384r1_sha384.pem
+      ecdsa_secp521r1_sha512: /etc/wire/galley/conf/mls-private-key-ecdsa_secp521r1_sha512.pem
+
   guestLinkTTLSeconds: 604800
+  passwordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
+    algorithm: argon2id
+    iterations: 1
+    memory: 128
+    parallelism: 1
+  passwordHashingRateLimit:
+    ipAddrLimit:
+      burst: 5
+      inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+    userLimit:
+      burst: 5
+      inverseRate: 60000000 # 1 min, makes it 60 req/hour
+    internalLimit:
+      burst: 10
+      inverseRate: 0 # No rate limiting for internal use
+    ipv4CidrBlock: 32 # Only block individual IP addresses
+    ipv6CidrBlock: 64 # Block /64 range at a time.
+    ipAddressExceptions:
+      - 127.0.0.1/8
+    maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+
   disabledAPIVersions: []
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
@@ -67,13 +93,20 @@ settings:
       status: enabled
       config:
         domains: ["example.com"]
+    enforceFileDownloadLocation:
+      defaults:
+        status: disabled
+        lockStatus: unlocked
+        config:
+          enforcedDownloadLocation: "downloads"
     fileSharing:
       defaults:
         status: enabled
         lockStatus: unlocked
     conferenceCalling:
       defaults:
-        status: enabled
+        status: disabled
+        lockStatus: locked
     outlookCalIntegration:
       defaults:
         status: disabled
@@ -84,6 +117,7 @@ settings:
         config:
           verificationExpiration: 86400
           acmeDiscoveryUrl: null
+          crlProxy: https://crlproxy.example.com
         lockStatus: unlocked
     mlsMigration:
       defaults:
@@ -97,6 +131,21 @@ settings:
     limitedEventFanout:
       defaults:
         status: disabled
+    domainRegistration:
+      defaults:
+        status: disabled
+        lockStatus: locked
+    channels:
+      defaults:
+        status: disabled
+        config:
+          allowed_to_create_channels: team-members
+          allowed_to_open_channels: team-members
+        lockStatus: locked
+    cells:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
 
 logLevel: Warn
 logNetStrings: false
