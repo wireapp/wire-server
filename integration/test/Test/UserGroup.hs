@@ -60,3 +60,4 @@ testUserGroupSmoke = do
     resp.json %. "members" `shouldMatch` [mem2id, mem3id]
 
 -- TODO: check 403 when mem1 is calling
+-- TODO: events!
