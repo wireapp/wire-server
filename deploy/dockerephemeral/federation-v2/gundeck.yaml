@@ -10,13 +10,16 @@ cassandra:
   endpoint:
     host: demo_wire_cassandra
     port: 9042
-  keyspace: gundeck_test_federation_v1
+  keyspace: gundeck_test_federation_v2
   # filterNodesByDatacentre: datacenter1
 
 redis:
   host: redis-federation-v2
   port: 6379
   connectionMode: master
+  enableTls: true
+  tlsCa: ../../deploy/dockerephemeral/docker/redis-ca.pem
+  insecureSkipVerifyTls: false
 
 # redisAdditionalWrite:
 #   host: 127.0.0.1
@@ -42,8 +45,8 @@ settings:
   perNativePushConcurrency: 32
   sqsThrottleMillis: 1000
   maxConcurrentNativePushes:
-    hard: 30  # more than this number of threads will not be allowed
-    soft: 10  # more than this number of threads will be warned about
+    hard: 30 # more than this number of threads will not be allowed
+    soft: 10 # more than this number of threads will be warned about
   disabledAPIVersions: []
   cellsEventQueue: "cells_events"
 

@@ -6,7 +6,7 @@ cassandra:
   endpoint:
     host: demo_wire_cassandra
     port: 9042
-  keyspace: galley_test_federation_v1
+  keyspace: galley_test_federation_v2
   # filterNodesByDatacentre: datacenter1
 
 brig:
@@ -79,7 +79,7 @@ settings:
 
   disabledAPIVersions: []
 
-  featureFlags:  # see #RefConfigOptions in `/docs/reference`
+  featureFlags: # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: whitelist-teams-and-implicit-consent
     teamSearchVisibility: disabled-by-default

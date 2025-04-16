@@ -12,7 +12,7 @@ cassandra:
   endpoint:
     host: demo_wire_cassandra
     port: 9042
-  keyspace: gundeck_test_federation_v1
+  keyspace: gundeck_test_federation_v2
 
 rabbitmq:
   host: rabbitmq
