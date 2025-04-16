@@ -987,17 +987,27 @@ authorizeTeam user emailDomain ownershipToken = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["domain-verification", emailDomain, "authorize-team"]
   submit "POST" $ req & addJSONObject ["domain_ownership_token" .= ownershipToken]
 
--- TODO: We'll need two versions of this function: V8 and V9. And, we have to decide which tests to duplicate / run with both versions.
 -- brig expects an auth-token for this request. @mAuthToken@ is only `Maybe` for testing error cases!
-updateDomainRedirect :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> Value -> App Response
-updateDomainRedirect domain emailDomain mAuthToken config = do
+updateDomainRedirect :: (HasCallStack, MakesValue domain) => domain -> Versioned -> String -> Maybe String -> Value -> App Response
+updateDomainRedirect domain apiVersion emailDomain mAuthToken config = do
   req <-
-    baseRequest domain Brig (ExplicitVersion 8) $
+    baseRequest domain Brig apiVersion $
       joinHttpPath ["domain-verification", emailDomain, "backend"]
   let req' = case mAuthToken of
         Just authToken -> addHeader "Authorization" ("Bearer " <> authToken) req
         Nothing -> req
   submit "POST" $ req' & addJSON config
+
+-- | Generates a backend redirect `config` `Value` for `updateDomainRedirect`
+mkDomainRedirectBackend :: Versioned -> String -> String -> Value
+mkDomainRedirectBackend (ExplicitVersion v) configUrl _webappUrl
+  | v <= 8 =
+      object ["domain_redirect" .= "backend", "backend_url" .= configUrl]
+mkDomainRedirectBackend _v configUrl webappUrl =
+  object
+    [ "domain_redirect" .= "backend",
+      "backend" .= object ["config" .= configUrl, "webapp" .= webappUrl]
+    ]
 
 updateTeamInvite :: (HasCallStack, MakesValue user, MakesValue payload) => user -> String -> payload -> App Response
 updateTeamInvite user emailDomain payload = do
