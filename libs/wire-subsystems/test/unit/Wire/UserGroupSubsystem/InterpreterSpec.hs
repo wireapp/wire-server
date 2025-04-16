@@ -6,8 +6,12 @@ import Control.Lens ((.~), (^.))
 import Data.Bifunctor (first)
 import Data.Default
 import Data.Id
+import Data.Json.Util
 import Data.List.Extra
 import Data.Map qualified as Map
+import Data.String.Conversions (cs)
+import Data.Time
+import Data.UUID as UUID
 import Data.Vector qualified as V
 import Imports
 import Polysemy
@@ -57,6 +61,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
       . runDependencies (allUsers team) (galleyTeam team)
       . interpretUserGroupSubsystem
       $ do
+        noGroup <- getGroup (Id UUID.nil)
         let newUserGroup =
               NewUserGroup
                 { name = newUserGroupName,
@@ -65,7 +70,10 @@ spec = describe "UserGroupSubsystem.Interpreter" do
         createdGroup <- createGroup (ownerId team) newUserGroup
         retrievedGroup <- getGroup (ownerId team) createdGroup.id_
         pure $
-          createdGroup.name === newUserGroupName
+          noGroup === Nothing
+            .&&.
+            -- TODO: test createdAt when it's back.
+            createdGroup.name === newUserGroupName
             .&&. createdGroup.members === newUserGroup.members
             .&&. createdGroup.managedBy === ManagedByWire
             .&&. Just createdGroup === retrievedGroup
@@ -84,6 +92,11 @@ spec = describe "UserGroupSubsystem.Interpreter" do
               Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.others
           void $ createGroup (User.userId nonAdminUser) newUserGroup
           unexpected
+
+  -- TODO: remove?
+  -- describe "getGroups" $ do
+  --   let now = toUTCTimeMillis (unsafePerformIO getCurrentTime)
+  --   nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (cs $ show i) []
 
   prop "only team members are allowed in the group" $ \team otherUsers newUserGroupName ->
     let othersWithoutTeamMembers = filter (\u -> u.userTeam /= Just team.tid) otherUsers

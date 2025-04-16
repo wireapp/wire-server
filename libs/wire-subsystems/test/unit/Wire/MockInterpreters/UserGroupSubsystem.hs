@@ -7,8 +7,10 @@ module Wire.MockInterpreters.UserGroupSubsystem
 where
 
 import Data.Id
+import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Time
+import Data.UUID
 import GHC.Stack
 import Imports
 import Polysemy
@@ -25,17 +27,17 @@ type MockState = Map UserGroupId UserGroup
 
 type EffectStack r =
   ( Member (State MockState) r,
-    Member (Input UTCTime) r,
+    Member (Input UTCTimeMillis) r,
     Member Rnd.Random r,
     HasCallStack
   )
 
 runInMemoryUserGroupSubsystem ::
-  UTCTime ->
+  UTCTimeMillis ->
   Sem
     '[ UserGroupSubsystem,
        State MockState,
-       Input UTCTime,
+       Input UTCTimeMillis,
        Rnd.Random,
        State StdGen
      ]
