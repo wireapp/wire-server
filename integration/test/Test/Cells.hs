@@ -40,7 +40,7 @@ testCellsEvent = do
   do
     event <- getMessage q %. "payload.0"
     event %. "type" `shouldMatch` "conversation.member-join"
-    event %. "conversation" `shouldMatch` (conv %. "id")
+    event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
     event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
     users <- event %. "data.users" & asList
     assertOne users %. "qualified_id" `shouldMatch` chazId
@@ -51,7 +51,7 @@ testCellsEvent = do
   do
     event <- getMessage q %. "payload.0"
     event %. "type" `shouldMatch` "conversation.member-join"
-    event %. "conversation" `shouldMatch` (conv %. "id")
+    event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
     event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
     users <- event %. "data.users" & asList
     assertOne users %. "qualified_id" `shouldMatch` deanId
@@ -72,7 +72,7 @@ testCellsCreationEvent = do
 
   event <- getMessage q %. "payload.0"
   event %. "type" `shouldMatch` "conversation.create"
-  event %. "conversation" `shouldMatch` (conv %. "id")
+  event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
 
 testCellsFeatureCheck :: (HasCallStack) => App ()

@@ -51,7 +51,8 @@ testObject_NewConv_user_1 =
       newConvProtocol = BaseProtocolProteusTag,
       newConvGroupConvType = GroupConversation,
       newConvCells = False,
-      newConvChannelAddPermission = Nothing
+      newConvChannelAddPermission = Nothing,
+      newConvSkipCreator = False
     }
 
 testObject_NewConv_user_3 :: NewConv
@@ -73,5 +74,6 @@ testObject_NewConv_user_3 =
       newConvProtocol = BaseProtocolMLSTag,
       newConvGroupConvType = Channel,
       newConvCells = True,
-      newConvChannelAddPermission = Just Admins
+      newConvChannelAddPermission = Just Admins,
+      newConvSkipCreator = False
     }

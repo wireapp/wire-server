@@ -400,3 +400,14 @@ _testAddtermissionExternalPartner addPermission assertion = do
   createGroup def ownerClient convId
   void $ createAddCommit ownerClient convId [partner] >>= sendAndConsumeCommitBundle
   assertion partnerClient convId mems
+
+testTeamAdminCanCreateChannelWithoutJoining :: (HasCallStack) => App ()
+testTeamAdminCanCreateChannelWithoutJoining = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "members" `shouldMatch` ([] :: [Value])

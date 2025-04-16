@@ -111,7 +111,7 @@ withBotWithSettings settings k = do
         $ def {newServiceUrl = "https://" <> host <> ":" <> show port, newServiceKey = cs settings.publicKey}
     serviceId <- asString $ service %. "id"
     conv <- getJSON 201 =<< postConversation alice defProteus
-    convId <- conv %. "id" & asString
+    convId <- conv %. "qualified_id" & objId
     assertStatus 200 =<< updateServiceConn OwnDomain providerId serviceId do
       object ["enabled" .= True, "password" .= password]
     addBot alice providerId serviceId convId >>= k
