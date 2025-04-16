@@ -574,7 +574,7 @@ servantSitemap =
       Named @"update-domain-redirect@v8" updateDomainRedirect
         -- TODO: undefined shouldn't stay here, of course
         :<|> Named @"update-domain-redirect" updateDomainRedirect
-        :<|> Named @"get-domain-registration" getDomainRegistration
+        :<|> Named @"get-domain-registration@v8" getDomainRegistration
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
     domainVerificationTeamAPI =
@@ -1590,7 +1590,7 @@ deleteRegisteredDomain lusr tid domain = lift . liftSem $ EnterpriseLogin.delete
 getDomainRegistration ::
   (_) =>
   GetDomainRegistrationRequest ->
-  Handler r DomainRedirectResponse
+  Handler r (DomainRedirectResponse v)
 getDomainRegistration req =
   lift . liftSem $
     EnterpriseLogin.getDomainRegistrationPublic req

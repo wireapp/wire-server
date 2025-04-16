@@ -681,7 +681,7 @@ getDomainRegistrationPublicImpl ::
     Member (Input (Local ())) r
   ) =>
   GetDomainRegistrationRequest ->
-  Sem r DomainRedirectResponse
+  Sem r (DomainRedirectResponse v)
 getDomainRegistrationPublicImpl (GetDomainRegistrationRequest email) = do
   -- check if the email belongs to a registered user
   mUser <- do
