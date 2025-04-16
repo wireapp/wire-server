@@ -14,7 +14,7 @@ data UserGroupSubsystem m a where
   CreateGroup :: NewUserGroup -> UserGroupSubsystem m UserGroup
   -- exposed as GET /user-groups/:d
   GetGroup :: UserGroupId -> UserGroupSubsystem m (Maybe UserGroup)
-  -- exposed as GET /user-groups?limit=?&&last_key=?.  limit=0 means no limit.  default limit is 100.
+  -- exposed as GET /user-groups?limit=?&last_key=?.  limit=0 means no limit.  default limit is 100.
   GetGroups :: Maybe Int -> Maybe UUID -> UserGroupSubsystem m UserGroupPage
   -- exposed as PUT /user-groups/:id
   UpdateGroup :: UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)
