@@ -72,7 +72,7 @@ testCellsCreationEvent = do
 
   event <- getMessage q %. "payload.0"
   event %. "type" `shouldMatch` "conversation.create"
-  event %. "conversation" `shouldMatch` (conv %. "id")
+  event %. "qualified_conversation.id" `shouldMatch` (conv %. "id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
 
   assertNoMessage q
@@ -88,7 +88,7 @@ testCellsCreationEventIsSentOnlyOnce = do
 
   event <- getMessage q %. "payload.0"
   event %. "type" `shouldMatch` "conversation.create"
-  event %. "conversation" `shouldMatch` (conv %. "id")
+  event %. "qualified_conversation.id" `shouldMatch` (conv %. "id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
 
   assertNoMessage q
