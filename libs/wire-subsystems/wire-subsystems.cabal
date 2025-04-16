@@ -11,7 +11,7 @@ license-file:  LICENSE
 build-type:    Simple
 
 common common-all
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
@@ -152,8 +152,8 @@ common common-all
     , zauth
 
 library
-  import:           common-all
-  ghc-options:      -fplugin=Polysemy.Plugin
+  import:          common-all
+  ghc-options:     -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -251,7 +251,7 @@ library
     Wire.VerificationCodeSubsystem
     Wire.VerificationCodeSubsystem.Interpreter
 
-  hs-source-dirs:   src
+  hs-source-dirs:  src
   build-depends:
     , aeson
     , aeson-pretty
@@ -340,12 +340,9 @@ library
     , witherable
     , zauth
 
-  default-language: GHC2021
-
 test-suite wire-subsystems-tests
   import:             common-all
   type:               exitcode-stdio-1.0
-  default-language:   GHC2021
 
   -- include everything in source dirs we want to watch when running
   -- `ghcid --command 'cabal repl test:wire-subsystems-tests' --test='main'`.
