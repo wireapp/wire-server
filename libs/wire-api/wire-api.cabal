@@ -103,6 +103,7 @@ library
     Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
     Wire.API.Event.Team
+    Wire.API.Event.UserGroup
     Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
@@ -256,6 +257,7 @@ library
     Wire.API.User.Scim
     Wire.API.User.Search
     Wire.API.UserEvent
+    Wire.API.UserGroup
     Wire.API.UserMap
     Wire.API.Util.Aeson
     Wire.API.VersionInfo
