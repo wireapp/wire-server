@@ -85,6 +85,7 @@ import Wire.API.UserMap
 
 type BrigAPI =
   UserAPI
+    :<|> UserGroupAPI
     :<|> SelfAPI
     :<|> AccountAPI
     :<|> ClientAPI
@@ -287,6 +288,71 @@ type UserAPI =
                     'GET
                     '[JSON]
                     (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
+           )
+
+type UserGroupAPI =
+  Named
+    "create-user-group"
+    ( From 'V9
+        :> ZLocalUser
+        :> "user-groups"
+        :> ReqBody '[JSON] NewUserGroup
+        :> Post '[JSON] UserGroup
+    )
+    :<|> Named
+           "get-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> Get '[JSON] UserGroup
+           )
+    :<|> Named
+           "get-user-groups"
+           ( Description "limit=0 means no limit.  default limit is 100."
+               :> From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> QueryParam "limit" Int
+               :> QueryParam "last_key" UserGroupId
+               :> Get '[JSON] UserGroupPage
+           )
+    :<|> Named
+           "update-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> ReqBody '[JSON] UserGroupUpdate
+               :> Put '[JSON] UserGroup
+           )
+    :<|> Named
+           "delete-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> Delete '[JSON] NoContent
+           )
+    :<|> Named
+           "add-user-to-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> Post '[JSON] NoContent
+           )
+    :<|> Named
+           "remove-user-from-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> Delete '[JSON] NoContent
            )
 
 type SelfAPI =
