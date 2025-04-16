@@ -173,6 +173,9 @@ services:
     ports:
       - "127.0.0.1:22083:8080"
     healthcheck: *haskell_health_check
+    environment:
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 
   federator-v2:
     container_name: federator-federation-v2
@@ -206,6 +209,8 @@ services:
     healthcheck: *haskell_health_check
     depends_on:
       init_vhosts:
+        condition: service_completed_successfully
+      gundeck_schema-v2:
         condition: service_completed_successfully
     environment:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}

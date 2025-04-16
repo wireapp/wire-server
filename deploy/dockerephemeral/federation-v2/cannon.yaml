@@ -16,6 +16,11 @@ gundeck:
   host: gundeck-federation-v2
   port: 8080
 
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  vHost: federation-v2
+
 drainOpts:
   gracePeriodSeconds: 1
   millisecondsBetweenBatches: 500
