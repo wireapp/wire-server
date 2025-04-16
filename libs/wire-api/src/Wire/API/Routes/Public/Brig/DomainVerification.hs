@@ -95,7 +95,17 @@ domainRedirectConfigV8Schema =
 instance ToSchema DomainRedirectConfigV8 where
   schema = object "DomainRedirectConfigV8" domainRedirectConfigV8Schema
 
-type DomainRedirectConfigV9 = DomainRedirectConfig V9
+data DomainRedirectConfigV9
+  = DomainRedirectConfigRemoveV9
+  | DomainRedirectConfigBackendV9
+      -- | Backend URL
+      HttpsUrl
+      -- | WebApp URL
+      HttpsUrl
+  | DomainRedirectConfigNoRegistrationV9
+  deriving stock (Eq, Show)
+
+makePrisms ''DomainRedirectConfigV9
 
 deriving via (Schema DomainRedirectConfigV9) instance A.ToJSON DomainRedirectConfigV9
 
@@ -106,28 +116,32 @@ deriving via (Schema DomainRedirectConfigV9) instance S.ToSchema DomainRedirectC
 domainRedirectConfigV9Schema :: ObjectSchema SwaggerDoc DomainRedirectConfigV9
 domainRedirectConfigV9Schema =
   snd
-    <$> (domainRedirectConfigToTag &&& id)
+    <$> (domainRedirectConfigV9ToTag &&& id)
       .= bind
         (fst .= domainRedirectConfigTagObjectSchema)
         (snd .= dispatch domainRedirectConfigObjectSchema)
   where
-    -- TODO: Duplication with V8: Probably can be toplevel.
     domainRedirectConfigObjectSchema :: DomainRedirectConfigTag -> ObjectSchema SwaggerDoc DomainRedirectConfigV9
     domainRedirectConfigObjectSchema = \case
-      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackend backendObjectSchema
-      DomainRedirectConfigNoRegistrationTag -> tag _DomainRedirectConfigNoRegistration (pure ())
-      DomainRedirectConfigRemoveTag -> tag _DomainRedirectConfigRemove (pure ())
+      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackendV9 backendObjectSchema
+      DomainRedirectConfigNoRegistrationTag -> tag _DomainRedirectConfigNoRegistrationV9 (pure ())
+      DomainRedirectConfigRemoveTag -> tag _DomainRedirectConfigRemoveV9 (pure ())
 
-    backendObjectSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendObjectSchema :: ObjectSchema SwaggerDoc (HttpsUrl, HttpsUrl)
     backendObjectSchema = field "backend" backendConfigSchema
 
-    backendConfigSchema :: ValueSchema NamedSwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigSchema :: ValueSchema NamedSwaggerDoc (HttpsUrl, HttpsUrl)
     backendConfigSchema =
       object "backend_config" $
         (,)
           <$> fst .= field "config" schema
-          -- TODO: Should be discussed if this could really be optinal. However, to me it makes sense.
-          <*> snd .= maybe_ (optField "webapp" schema)
+          <*> snd .= field "webapp" schema
+
+domainRedirectConfigV9ToTag :: DomainRedirectConfigV9 -> DomainRedirectConfigTag
+domainRedirectConfigV9ToTag = \case
+  DomainRedirectConfigRemoveV9 -> DomainRedirectConfigRemoveTag
+  DomainRedirectConfigBackendV9 _ _ -> DomainRedirectConfigBackendTag
+  DomainRedirectConfigNoRegistrationV9 -> DomainRedirectConfigNoRegistrationTag
 
 instance ToSchema DomainRedirectConfigV9 where
   schema = object "DomainRedirectConfigV9" domainRedirectConfigV9Schema
