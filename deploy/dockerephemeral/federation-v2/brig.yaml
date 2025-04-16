@@ -117,6 +117,7 @@ emailSMS:
 
   team:
     tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tExistingUserInvitationUrl: http://127.0.0.1:8080/accept-invitation?team-code=${code}
     tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
@@ -148,8 +149,6 @@ optSettings:
   setVerificationTimeout: 10
   setTeamInvitationTimeout: 10
   setExpiredUserCleanupTimeout: 1
-  setTwilio: /etc/wire/brig/conf/twilio-credentials.yaml
-  setNexmo: /etc/wire/brig/conf/nexmo-credentials.yaml
   # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
   setCookieInsecure: true
@@ -195,8 +194,8 @@ optSettings:
   setFederationDomainConfigs:
     - domain: example.com
       search_policy: full_search
-  set2FACodeGenerationDelaySecs: 5
   setDisabledAPIVersions: []
+  set2FACodeGenerationDelaySecs: 5
   setNonceTtlSecs: 5
   setDpopMaxSkewSecs: 1
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
@@ -205,16 +204,32 @@ optSettings:
   # To only allow specific email address domains to register, uncomment and update the setting below
   # setAllowlistEmailDomains:
   #   - wire.com
-  # To only allow specific phone number prefixes to register uncomment and update the settings below
-  # setAllowlistPhonePrefixes:
-  #   - "+1555555"
-  # needs to be kept in sync with services/nginz/integration-test/resources/oauth/ed25519_public.jwk
   setOAuthJwkKeyPair: /etc/wire/brig/conf/oauth-ed25519.jwk
   setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
   setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
   setOAuthEnabled: true
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
   setOAuthMaxActiveRefreshTokens: 10
-
+  setPasswordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
+    algorithm: argon2id
+    iterations: 1
+    memory: 128
+    parallelism: 1
+  setPasswordHashingRateLimit:
+    ipAddrLimit:
+      burst: 5
+      inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+    userLimit:
+      burst: 5
+      inverseRate: 60000000 # 1 min, makes it 60 req/hour
+    internalLimit:
+      burst: 10
+      inverseRate: 0 # No rate limiting for internal use
+    ipv4CidrBlock: 32 # Only block individual IP addresses
+    ipv6CidrBlock: 64 # Block /64 range at a time.
+    ipAddressExceptions:
+      - 127.0.0.1/8
+    maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+  setChallengeTTL: 172800
 logLevel: Warn
 logNetStrings: false
