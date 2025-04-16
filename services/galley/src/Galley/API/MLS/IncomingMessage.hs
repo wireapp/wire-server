@@ -83,6 +83,7 @@ data SenderIdentity = SenderIdentity
     -- | Index of the client in the ratchet tree, if available.
     index :: Maybe LeafIndex
   }
+  deriving (Show)
 
 mkIncomingMessage :: RawMLS Message -> Maybe IncomingMessage
 mkIncomingMessage msg = case msg.value.content of

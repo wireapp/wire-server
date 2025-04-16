@@ -396,9 +396,10 @@ getSenderIdentity qusr c mSender lConvOrSubConv = do
   let cid = mkClientIdentity qusr c
   let epoch = epochNumber . cnvmlsEpoch . (.mlsMeta) . tUnqualified $ lConvOrSubConv
   index <- case mSender of
-    SenderMember idx | epoch > 0 -> do
-      cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx
-      unless (cid' == cid) $ throwS @'MLSClientSenderUserMismatch
+    SenderMember idx -> do
+      when (epoch > 0) $ do
+        cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx
+        unless (cid' == cid) $ throwS @'MLSClientSenderUserMismatch
       pure (Just idx)
     _ -> pure Nothing
   pure SenderIdentity {client = cid, index}
