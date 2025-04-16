@@ -105,7 +105,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
             allGroups `shouldBe` [ug2]
             allGroups' `shouldBe` [ug2]
 
-  focus . prop "addUser adds a user" $ \newGroup newUserId -> do
+  prop "addUser adds a user" $ \newGroup newUserId -> do
     -- TODO: how do we feel about dangling user ids?  maybe that should be handled on another
     -- level, and UserGroupSubsystem should be oblivious to what user ids point to?
     let now = unsafePerformIO getCurrentTime
@@ -119,7 +119,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
             ((sort . (.members)) <$> ug') `shouldBe` Just (sort (newUserId : ug.members))
             ug'' `shouldBe` ug'
 
-  focus . prop "removeUser removes a user" $ \newGroup -> do
+  prop "removeUser removes a user" $ \newGroup -> do
     let now = unsafePerformIO getCurrentTime
      in Mock.runInMemoryUserGroupSubsystem now do
           ug :: UserGroup <- createGroup newGroup
