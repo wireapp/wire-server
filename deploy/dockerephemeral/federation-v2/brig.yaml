@@ -1,0 +1,220 @@
+brig:
+  host: 0.0.0.0
+  port: 8080
+
+cassandra:
+  endpoint:
+    host: demo_wire_cassandra
+    port: 9042
+  keyspace: brig_test_federation_v1
+  # filterNodesByDatacentre: datacenter1
+
+elasticsearch:
+  url: https://demo_wire_elasticsearch:9200
+  index: directory_test_federation_v2
+  credentials: /etc/wire/brig/conf/elasticsearch-credential.yaml
+  insecureSkipVerifyTls: true
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  vHost: federation-v2
+
+cargohold:
+  host: cargohold-federation-v2
+  port: 8080
+
+galley:
+  host: galley-federation-v2
+  port: 8080
+
+gundeck:
+  host: gundeck-federation-v2
+  port: 8080
+
+federatorInternal:
+  host: federator-federation-v2
+  port: 8080
+
+multiSFT: false
+
+# You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
+aws:
+  userJournalQueue: integration-user-events-federation-v2.fifo
+  # ^ Comment this out if you don't want to journal user events
+  prekeyTable: integration-brig-prekeys-federation-v2
+  sqsEndpoint: http://fake_sqs:4568 # https://sqs.eu-west-1.amazonaws.com
+  # dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+# Uncomment to use the randomPrekey allocation strategy instead of dynamoDB
+randomPrekeys: true
+
+# Uncomment this if you want STOMP.
+#
+# stomp:
+#   stompHost: localhost
+#   stompPort: 61613
+#   stompTls: false
+
+# TODO: possibly move 'userJournalQueue' to the top level as well
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal-federation-v2
+  # queueType: stomp
+  # queueName: /queue/integration-brig-events-internal
+
+emailSMS:
+  # You can either use SES directly (in which case, ensure a feedback queue is configured)
+  # or you can use SMTP directly (blacklisting of email/phone must be otherwise handled by
+  # the operator).
+  email:
+    sesQueue: integration-brig-events-federation-v2
+    sesEndpoint: http://ses:4569 # https://email.eu-west-1.amazonaws.com
+    # If you prefer to use SMTP directly, uncomment the following lines
+    # and set the correct credentials.
+    # NOTE: In case a user tries to supply config values for both SES and SMTP,
+    #       SES takes precedence and gets used instead
+    # smtpEndpoint:
+    #   host: localhost
+    #   port: 2500
+    # smtpCredentials:
+    #   username: <username>
+    #   password: test/resources/smtp-secret.txt
+    # smtpConnType: plain
+    # ^ NOTE: blacklisting of emails (processing of bounces and complaints)  is only done
+    #         automatically IF sesQueue/sesEndpoint are used. If SMTP is used directly, the
+    #         operator must handle these notifications "manually" (there are internal endpoints)
+    #         that may be used for this
+
+  general:
+    templateDir: /usr/share/wire/templates
+    emailSender: backend-integration@wire.com
+    smsSender: "+123456789" # or MG123456789... (twilio alphanumeric sender id)
+    templateBranding:
+      brand: Wire
+      brandUrl: https://wire.com
+      brandLabelUrl: wire.com # This is the text in the label for the above URL
+      brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+      brandService: Wire Service Provider
+      copyright: © WIRE SWISS GmbH
+      misuse: misuse@wire.com
+      legal: https://wire.com/legal/
+      forgot: https://wire.com/forgot/
+      support: https://support.wire.com/
+  user:
+    activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
+    smsActivationUrl: http://127.0.0.1:8080/v/${code}
+    passwordResetUrl: http://127.0.0.1:8080/password-reset/${key}?code=${code}
+    invitationUrl: http://127.0.0.1:8080/register?invitation_code=${code}
+    deletionUrl: http://127.0.0.1:8080/users/delete?key=${key}&code=${code}
+
+  provider:
+    homeUrl: https://provider.localhost/
+    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=${key}&code=${code}
+    approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
+    approvalTo: success@simulator.amazonses.com
+    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=${key}&code=${code}
+
+  team:
+    tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
+    tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
+
+zauth:
+  privateKeys: /etc/wire/brig/conf/zauth-privkeys.txt
+  publicKeys: /etc/wire/brig/conf/zauth-pubkeys.txt
+  authSettings:
+    keyIndex: 1
+    userTokenTimeout: 120
+    sessionTokenTimeout: 20
+    accessTokenTimeout: 30
+    providerTokenTimeout: 60
+    legalHoldUserTokenTimeout: 120
+    legalHoldAccessTokenTimeout: 30
+
+turn:
+  serversSource: dns # files | dns
+  baseDomain: example.com
+  discoveryIntervalSeconds: 100
+
+  # This should be the same secret as used by the TURN servers
+  secret: /etc/wire/brig/conf/turn-secret.txt
+  configTTL: 3600
+  tokenTTL: 21600
+
+optSettings:
+  setActivationTimeout: 10
+  setVerificationTimeout: 10
+  setTeamInvitationTimeout: 10
+  setExpiredUserCleanupTimeout: 1
+  setTwilio: /etc/wire/brig/conf/twilio-credentials.yaml
+  setNexmo: /etc/wire/brig/conf/nexmo-credentials.yaml
+  # setStomp: test/resources/stomp-credentials.yaml
+  setUserMaxConnections: 16
+  setCookieInsecure: true
+  setUserCookieRenewAge: 2
+  setUserCookieLimit: 5
+  setUserCookieThrottle:
+    stdDev: 5
+    retryAfter: 3
+  setLimitFailedLogins:
+    timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
+    retryLimit: 5  # how many times can you have a failed login in that timeframe.
+  setSuspendInactiveUsers:  # if this is omitted: never suspend inactive users.
+    suspendTimeout: 10
+  setRichInfoLimit: 5000  # should be in sync with Spar
+  setDefaultUserLocale: en
+  setMaxTeamSize: 32
+  setMaxConvSize: 16
+  setEmailVisibility: visible_to_self
+  setPropertyMaxKeyLen: 1024
+  setPropertyMaxValueLen: 4096
+  setDeleteThrottleMillis: 0
+  setSqsThrottleMillis: 1000
+  setRestrictUserCreation: false
+  # setSearchSameTeamOnly: false
+  # ^ NOTE: this filters out search results for team users,
+  #   i.e., if you are a team user the search endpoints will
+  #   return only users part of the same team. For name search,
+  #   this is slightly more inefficient as it requires 2 extra DB lookups
+  # setUserMaxPermClients: 7
+  # ^ You can limit the max number of permanent clients that a user is allowed
+  #   to register, per account. The default value is '7' if the option is unset.
+
+  #   Federation domain is used to qualify local IDs and handles,
+  #   e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+  #   It should also match the SRV DNS records under which other wire-server installations can find this backend:
+  #      _wire-server-federator._tcp.<federationDomain>
+  #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+  #   Remember to keep it the same in Galley.
+  setFederationDomain: federation-v2.example.com
+  setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
+  setFederationDomainConfigsUpdateFreq: 1
+  setFederationStrategy: allowAll
+  setFederationDomainConfigs:
+    - domain: example.com
+      search_policy: full_search
+  set2FACodeGenerationDelaySecs: 5
+  setDisabledAPIVersions: []
+  setNonceTtlSecs: 5
+  setDpopMaxSkewSecs: 1
+  setDpopTokenExpirationTimeSecs: 300 # 5 minutes
+  setPublicKeyBundle: /etc/wire/brig/conf/jwt-ed25519-bundle.pem
+  setEnableMLS: true
+  # To only allow specific email address domains to register, uncomment and update the setting below
+  # setAllowlistEmailDomains:
+  #   - wire.com
+  # To only allow specific phone number prefixes to register uncomment and update the settings below
+  # setAllowlistPhonePrefixes:
+  #   - "+1555555"
+  # needs to be kept in sync with services/nginz/integration-test/resources/oauth/ed25519_public.jwk
+  setOAuthJwkKeyPair: /etc/wire/brig/conf/oauth-ed25519.jwk
+  setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
+  setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
+  setOAuthEnabled: true
+  setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
+  setOAuthMaxActiveRefreshTokens: 10
+
+logLevel: Warn
+logNetStrings: false
