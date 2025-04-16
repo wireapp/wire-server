@@ -63,6 +63,94 @@ common common-all
     UndecidableInstances
     ViewPatterns
 
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , amazonka
+    , amazonka-core
+    , amazonka-ses
+    , amqp
+    , async
+    , attoparsec
+    , base
+    , base16-bytestring
+    , base64-bytestring
+    , bilge
+    , bloodhound
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassandra-util
+    , conduit
+    , containers
+    , cql
+    , crypton
+    , currency-codes
+    , data-default
+    , data-timeout
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , hashable
+    , HaskellNet
+    , HaskellNet-SSL
+    , hex
+    , HsOpenSSL
+    , hspec
+    , html-entities
+    , http-client
+    , http-types
+    , http2-manager
+    , imports
+    , iproute
+    , iso639
+    , lens
+    , lrucaching
+    , memory
+    , mime
+    , mime-mail
+    , network
+    , network-conduit-tls
+    , polysemy
+    , polysemy-plugin
+    , polysemy-time
+    , polysemy-wire-zoo
+    , prometheus-client
+    , QuickCheck
+    , resource-pool
+    , resourcet
+    , retry
+    , saml2-web-sso
+    , schema-profunctor
+    , servant
+    , servant-client-core
+    , sodium-crypto-sign
+    , statistics
+    , stomp-queue
+    , template
+    , text
+    , text-icu-translit
+    , time
+    , time-out
+    , time-units
+    , tinylog
+    , token-bucket
+    , transformers
+    , types-common
+    , unliftio
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , vector
+    , wai-utilities
+    , wire-api
+    , wire-api-federation
+    , wire-otel
+    , witherable
+    , zauth
+
 library
   import:           common-all
   ghc-options:      -fplugin=Polysemy.Plugin
@@ -258,6 +346,9 @@ test-suite wire-subsystems-tests
   import:             common-all
   type:               exitcode-stdio-1.0
   default-language:   GHC2021
+
+  -- include everything in source dirs we want to watch when running
+  -- `ghcid --command 'cabal repl test:wire-subsystems-tests' --test='main'`.
   hs-source-dirs:     test/unit
   main-is:            ../Main.hs
   ghc-options:        -fplugin=Polysemy.Plugin
@@ -312,49 +403,10 @@ test-suite wire-subsystems-tests
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
-    , aeson
-    , async
-    , base
-    , bilge
-    , bytestring
-    , cassandra-util
-    , containers
-    , crypton
-    , data-default
-    , errors
-    , extended
     , hspec
-    , imports
-    , iproute
-    , iso639
-    , lens
-    , memory
-    , mime-mail
-    , network
-    , pipes
-    , polysemy
-    , polysemy-plugin
-    , polysemy-time
-    , polysemy-wire-zoo
-    , postie
     , QuickCheck
     , quickcheck-instances
     , random
-    , saml2-web-sso
     , scientific
-    , servant-client-core
-    , sodium-crypto-sign
-    , streaming-commons
     , string-conversions
-    , text
-    , time
-    , tinylog
-    , transformers
-    , types-common
-    , uri-bytestring
-    , uuid
-    , vector
-    , wire-api
-    , wire-api-federation
     , wire-subsystems
-    , zauth
