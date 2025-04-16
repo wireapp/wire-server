@@ -90,7 +90,20 @@ spec = describe "UserGroupSubsystem.Interpreter" do
               .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
               .&&. (ug3 === ug2)
 
-  prop "deleteGroup deletes" $ \b -> b === True
+  prop "deleteGroup deletes" $ \newGroup1 newGroup2 -> do
+    let now = unsafePerformIO getCurrentTime
+     in Mock.runInMemoryUserGroupSubsystem now do
+          ug1 <- createGroup newGroup1
+          ug2 <- createGroup newGroup2
+          deleteGroup ug1.id_
+          allGroups <- (.page) <$> getGroups Nothing Nothing
+
+          deleteGroup (Id UUID.nil)
+          allGroups' <- (.page) <$> getGroups Nothing Nothing
+
+          pure $ do
+            allGroups `shouldBe` [ug2]
+            allGroups' `shouldBe` [ug2]
 
   prop "addUser adds a user" $ \b -> b === True
 

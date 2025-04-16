@@ -98,10 +98,8 @@ updateGroupImpl gid (UserGroupUpdate newName) = do
   getGroupImpl gid
 
 deleteGroupImpl :: (EffectStack r) => UserGroupId -> Sem r ()
-deleteGroupImpl _ = do
-  _ <- input
-  _ <- get
-  undefined
+deleteGroupImpl gid = do
+  modify (Map.delete gid)
 
 addUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
 addUserImpl _ _ = do
