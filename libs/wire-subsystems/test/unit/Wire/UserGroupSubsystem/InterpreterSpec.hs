@@ -3,6 +3,7 @@
 module Wire.UserGroupSubsystem.InterpreterSpec (spec) where
 
 import Data.Id
+import Data.Json.Util
 import Data.String.Conversions (cs)
 import Data.Time
 import Data.UUID as UUID
@@ -19,7 +20,7 @@ import Wire.UserGroupSubsystem
 spec :: Spec
 spec = describe "UserGroupSubsystem.Interpreter" do
   prop "getGroup gets you what createGroup creates" $ \gname usrs ->
-    let now = unsafePerformIO getCurrentTime
+    let now = toUTCTimeMillis (unsafePerformIO getCurrentTime)
      in Mock.runInMemoryUserGroupSubsystem now do
           ug0 <- getGroup (Id UUID.nil)
           let nug = NewUserGroup gname usrs
@@ -35,7 +36,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                 .&&. (ug' === Just ug)
 
   describe "getGroups" $ do
-    let now = unsafePerformIO getCurrentTime
+    let now = toUTCTimeMillis (unsafePerformIO getCurrentTime)
         nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (cs $ show i) []
 
         check :: (HasCallStack) => UserGroupPage -> [UserGroupId] -> Bool -> Expectation
@@ -79,7 +80,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
           check afterNewCreate afterGids False
 
   prop "updateGroup updates the name" $ \originalName userGroupUpdate ->
-    let now = unsafePerformIO getCurrentTime
+    let now = toUTCTimeMillis (unsafePerformIO getCurrentTime)
      in Mock.runInMemoryUserGroupSubsystem now do
           ug0 <- createGroup (NewUserGroup originalName [])
           ug1 <- getGroup ug0.id_
@@ -91,7 +92,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
               .&&. (ug3 === ug2)
 
   prop "deleteGroup deletes" $ \newGroup1 newGroup2 -> do
-    let now = unsafePerformIO getCurrentTime
+    let now = toUTCTimeMillis (unsafePerformIO getCurrentTime)
      in Mock.runInMemoryUserGroupSubsystem now do
           ug1 <- createGroup newGroup1
           ug2 <- createGroup newGroup2
@@ -108,7 +109,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
   prop "addUser adds a user" $ \newGroup newUserId -> do
     -- TODO: how do we feel about dangling user ids?  maybe that should be handled on another
     -- level, and UserGroupSubsystem should be oblivious to what user ids point to?
-    let now = unsafePerformIO getCurrentTime
+    let now = toUTCTimeMillis (unsafePerformIO getCurrentTime)
      in Mock.runInMemoryUserGroupSubsystem now do
           ug :: UserGroup <- createGroup newGroup
           addUser ug.id_ newUserId
@@ -120,7 +121,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
             ug'' `shouldBe` ug'
 
   prop "removeUser removes a user" $ \newGroup -> do
-    let now = unsafePerformIO getCurrentTime
+    let now = toUTCTimeMillis (unsafePerformIO getCurrentTime)
      in Mock.runInMemoryUserGroupSubsystem now do
           ug :: UserGroup <- createGroup newGroup
           let removee :: UserId

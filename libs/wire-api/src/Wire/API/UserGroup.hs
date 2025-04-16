@@ -21,36 +21,67 @@ module Wire.API.UserGroup
   )
 where
 
+import Data.Aeson qualified as A
 import Data.Id
-import Data.Time
+import Data.Json.Util
+import Data.OpenApi qualified as OpenApi
+import Data.Schema
 import Imports
 import Wire.API.User.Profile
 import Wire.Arbitrary
 
 -- request bodies
+
 data NewUserGroup = NewUserGroup
   { name :: Text,
     members :: [UserId]
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform NewUserGroup
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema NewUserGroup
+
+instance ToSchema NewUserGroup where
+  schema =
+    object "NewUserGroup" $
+      NewUserGroup
+        <$> (.name) .= field "name" schema
+        <*> (.members) .= field "members" (array schema)
 
 data UserGroupUpdate = UserGroupUpdate
   { name :: Text
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroupUpdate
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupUpdate
+
+instance ToSchema UserGroupUpdate where
+  schema =
+    object "UserGroupUpdate" $
+      UserGroupUpdate
+        <$> (.name) .= field "name" schema
 
 -- response bodies
+
 data UserGroup = UserGroup
   { id_ :: UserGroupId,
     name :: Text,
     members :: [UserId],
     managedBy :: ManagedBy,
-    createdAt :: UTCTime
+    createdAt :: UTCTimeMillis
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroup
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroup
+
+instance ToSchema UserGroup where
+  schema =
+    object "UserGroup" $
+      UserGroup
+        <$> (.id_) .= field "id" schema
+        <*> (.name) .= field "name" schema
+        <*> (.members) .= field "members" (array schema)
+        <*> (.managedBy) .= field "managedBy" schema
+        <*> (.createdAt) .= field "createdAt" schema
 
 -- | About pagination: We have 'MultiTablePage', "Wire.Sem.Paging", 'Page' from cql, in-type
 -- paging, and probably lots more.  i wonder if we should make up our minds and pick one?
@@ -60,3 +91,11 @@ data UserGroupPage = UserGroupPage
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroupPage
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupPage
+
+instance ToSchema UserGroupPage where
+  schema =
+    object "UserGroupPage" $
+      UserGroupPage
+        <$> (.page) .= field "page" (array schema)
+        <*> (.hasMore) .= field "hasMore" schema
