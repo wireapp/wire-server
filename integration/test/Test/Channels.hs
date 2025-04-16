@@ -21,7 +21,7 @@ module Test.Channels where
 
 import API.Common (randomName)
 import API.Galley
-import API.GalleyInternal hiding (setTeamFeatureConfig)
+import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
 import GHC.Stack
 import MLS.Util
 import Notifications (isChannelAddPermissionUpdate)

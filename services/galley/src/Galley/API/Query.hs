@@ -22,6 +22,7 @@ module Galley.API.Query
   ( getBotConversation,
     getUnqualifiedConversation,
     getConversation,
+    getLocalConversationInternal,
     getConversationRoles,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFromV2,
@@ -176,7 +177,6 @@ getConversation lusr cnv = do
       case conversations of
         [] -> throwS @'ConvNotFound
         [conv] -> pure conv
-        -- _convs -> throw (federationUnexpectedBody "expected one conversation, got multiple")
         _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
@@ -194,6 +194,18 @@ getRemoteConversations lusr remoteConvs =
     -- throw first error
     (failed : _, _) -> throwFgcError $ failed
     ([], result) -> pure result
+
+getLocalConversationInternal ::
+  ( Member (Input (Local ())) r,
+    Member (ErrorS ConvNotFound) r,
+    Member ConversationStore r
+  ) =>
+  ConvId ->
+  Sem r Conversation
+getLocalConversationInternal cid = do
+  lcid <- qualifyLocal cid
+  conv <- getConversationWithError lcid
+  pure $ conversationView lcid conv
 
 data FailedGetConversationReason
   = FailedGetConversationLocally

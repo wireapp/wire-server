@@ -21,7 +21,7 @@ import API.BrigCommon as BrigC
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
-import API.GalleyInternal
+import API.GalleyInternal hiding (getConversation)
 import Control.Error (MaybeT (MaybeT), runMaybeT)
 import Control.Lens ((.~), (^?), (^?!))
 import Control.Monad.Extra (findM)

@@ -449,6 +449,13 @@ type IConversationAPI =
                :> "established"
                :> Get '[JSON] Bool
            )
+    :<|> Named
+           "get-conversation-by-id"
+           ( CanThrow 'ConvNotFound
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> Get '[JSON] Conversation
+           )
 
 type IMiscAPI =
   Named
