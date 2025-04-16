@@ -88,7 +88,7 @@ type BrigApi =
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
     :<|> FedEndpointWithMods '[Until V1] (Versioned 'V0 "get-mls-clients") MLSClientsRequestV0 (Set ClientInfo)
     :<|> FedEndpointWithMods '[From V1] "get-mls-clients" MLSClientsRequest (Set ClientInfo)
-    :<|> FedEndpointWithMods '[From V2] "get-mls-client" MLSClientRequest ClientInfo
+    :<|> FedEndpointWithMods '[From V3] "get-mls-client" MLSClientRequest ClientInfo
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
     :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
