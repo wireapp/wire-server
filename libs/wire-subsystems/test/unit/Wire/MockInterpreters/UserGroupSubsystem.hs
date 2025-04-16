@@ -5,8 +5,9 @@ module Wire.MockInterpreters.UserGroupSubsystem
 where
 
 import Data.Id
-import Data.Map as Map
+import Data.Map qualified as Map
 import Data.Time
+import Data.UUID
 import GHC.Stack
 import Imports
 import Polysemy
@@ -52,7 +53,7 @@ userGroupSubsystemTestInterpreter =
   interpret \case
     CreateGroup ng -> createGroupImpl ng
     GetGroup gid -> getGroupImpl gid
-    GetGroups pageState -> getGroupsImpl pageState
+    GetGroups limit lastKey -> getGroupsImpl limit lastKey
     UpdateGroup gid gup -> updateGroupImpl gid gup
     DeleteGroup gid -> deleteGroupImpl gid
     AddUser gid uid -> addUserImpl gid uid
@@ -75,15 +76,15 @@ createGroupImpl nug = do
   pure ug
 
 getGroupImpl :: (EffectStack r) => UserGroupId -> Sem r (Maybe UserGroup)
-getGroupImpl gid = do
-  userGroups <- get
-  pure $ Map.lookup gid userGroups
+getGroupImpl gid = Map.lookup gid <$> get
 
-getGroupsImpl :: (EffectStack r) => Text -> Sem r UserGroupPage
-getGroupsImpl _ = do
-  _ <- input
-  _ <- get
-  undefined
+getGroupsImpl :: (EffectStack r) => Maybe Int -> Maybe UUID -> Sem r UserGroupPage
+getGroupsImpl (fromMaybe 100 -> limit) mbLastKey = do
+  allGroups <- get
+  let cutLowerBound = maybe id (\lastKey -> filter ((> Id lastKey) . fst)) mbLastKey
+      relevant = map snd . cutLowerBound . Map.toList $ allGroups
+      truncated = Imports.take limit $ relevant
+  pure $ UserGroupPage truncated (length truncated /= length relevant)
 
 updateGroupImpl :: (EffectStack r) => UserGroupId -> UserGroupUpdate -> Sem r UserGroup
 updateGroupImpl _ _ = do
