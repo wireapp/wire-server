@@ -98,13 +98,36 @@ spec = describe "UserGroupSubsystem.Interpreter" do
           deleteGroup ug1.id_
           allGroups <- (.page) <$> getGroups Nothing Nothing
 
-          deleteGroup (Id UUID.nil)
+          deleteGroup (Id UUID.nil) -- idempotency
           allGroups' <- (.page) <$> getGroups Nothing Nothing
 
           pure $ do
             allGroups `shouldBe` [ug2]
             allGroups' `shouldBe` [ug2]
 
-  prop "addUser adds a user" $ \b -> b === True
+  focus . prop "addUser adds a user" $ \newGroup newUserId -> do
+    -- TODO: how do we feel about dangling user ids?  maybe that should be handled on another
+    -- level, and UserGroupSubsystem should be oblivious to what user ids point to?
+    let now = unsafePerformIO getCurrentTime
+     in Mock.runInMemoryUserGroupSubsystem now do
+          ug :: UserGroup <- createGroup newGroup
+          addUser ug.id_ newUserId
+          ug' :: Maybe UserGroup <- getGroup ug.id_
+          addUser ug.id_ newUserId -- idempotency
+          ug'' :: Maybe UserGroup <- getGroup ug.id_
+          pure $ do
+            ((sort . (.members)) <$> ug') `shouldBe` Just (sort (newUserId : ug.members))
+            ug'' `shouldBe` ug'
 
-  prop "removeUser removes a user" $ \b -> b === True
+  focus . prop "removeUser removes a user" $ \newGroup -> do
+    let now = unsafePerformIO getCurrentTime
+     in Mock.runInMemoryUserGroupSubsystem now do
+          ug :: UserGroup <- createGroup newGroup
+          let removee :: UserId
+              removee = case ug.members of
+                [] -> Id UUID.nil -- idempotency
+                _ : _ -> ug.members !! (length ug.members `div` 2)
+          removeUser ug.id_ removee
+          ug' :: Maybe UserGroup <- getGroup ug.id_
+          pure $ do
+            ((sort . (.members)) <$> ug') `shouldBe` Just (sort (ug.members \\ [removee]))
