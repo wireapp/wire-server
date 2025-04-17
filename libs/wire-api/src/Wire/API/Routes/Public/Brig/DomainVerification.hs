@@ -42,7 +42,6 @@ deriving via (Schema DomainRedirectConfig) instance A.FromJSON DomainRedirectCon
 
 deriving via (Schema DomainRedirectConfig) instance S.ToSchema DomainRedirectConfig
 
--- TODO: Keep the name unversioned until we know it has to be versioned
 data DomainRedirectConfigTag
   = DomainRedirectConfigRemoveTag
   | DomainRedirectConfigBackendTag
