@@ -313,13 +313,16 @@ createGroupConversationGeneric lusr conn newConv = do
     sendCellsNotification :: Data.Conversation -> Sem r ()
     sendCellsNotification conv = do
       now <- input
-      let qcnv = tUntagged $ qualifyAs lusr conv.convId
-          e = Event qcnv Nothing (tUntagged lusr) now EdConversationNoData
-      when (shouldPushToCells conv.convMetadata e) $ do
+      let remoteOthers = remoteMemberToOther <$> Data.convRemoteMembers conv
+          localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers conv
+          lconv = qualifyAs lusr (Data.convId conv)
+      eventData <- EdConversation <$> conversationViewWithCachedOthers remoteOthers localOthers conv lusr
+      let event = Event (tUntagged lconv) Nothing (tUntagged lusr) now eventData
+      when (shouldPushToCells conv.convMetadata event) $ do
         let push =
               def
                 { origin = Just (tUnqualified lusr),
-                  json = toJSONObject e,
+                  json = toJSONObject event,
                   isCellsEvent = True,
                   route = PushV2.RouteAny,
                   conn
@@ -856,7 +859,8 @@ notifyCreatedConversation lusr conn c = do
           { origin = Just (tUnqualified lusr),
             json = toJSONObject e,
             recipients = [localMemberToRecipient m],
-            isCellsEvent = shouldPushToCells c.convMetadata e,
+            -- on conversation creation we send the cells event separately to make sure it is sent exactly once
+            isCellsEvent = False,
             route,
             conn
           }
