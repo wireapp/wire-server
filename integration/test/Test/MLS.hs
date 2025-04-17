@@ -886,3 +886,19 @@ testInternalCommitDuplicateClient = do
   bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
+
+testInternalCommitWrongSignatureKey :: (HasCallStack) => App ()
+testInternalCommitWrongSignatureKey = do
+  alice <- randomUser OwnDomain def
+  [alice1, alice2] <- traverse (createMLSClient def) (replicate 2 alice)
+  convId <- createNewGroup def alice1
+  void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
+
+  -- wipe key store and make a new key package
+  setClientGroupState alice2 def
+  (kp, _) <- generateKeyPackage alice2 def
+
+  mp <- createAddCommitWithKeyPackages alice1 convId [(alice2, kp)]
+  bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "mls-identity-mismatch"
