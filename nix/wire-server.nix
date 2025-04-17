@@ -523,6 +523,7 @@ in
       pkgs.nginz
       pkgs.rabbitmqadmin
       pkgs.sbomqs
+      pkgs.postgresql
 
       pkgs.cabal-install
       pkgs.nix-prefetch-git
