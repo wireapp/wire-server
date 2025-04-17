@@ -310,7 +310,7 @@ instance ToSchema DomainRedirectResponseV9 where
           .= maybe_
             ( fromMaybe False <$> optField "due_to_existing_account" schema
             )
-        <*> (.redirect) .= domainRedirectSchema
+        <*> (.redirect) .= domainRedirectSchemaV9
 
 type DomainVerificationChallengeAPI =
   Named

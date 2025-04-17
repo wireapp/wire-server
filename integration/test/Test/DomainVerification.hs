@@ -122,7 +122,7 @@ testDomainVerificationOnPremFlow = forM_ [(ExplicitVersion 8), Versioned] \versi
         config
         >>= assertStatus 200
 
-      bindResponse (getDomainRegistrationFromEmail OwnDomain ("sven@" ++ domain)) \resp -> do
+      bindResponse (getDomainRegistrationFromEmail OwnDomain version ("sven@" ++ domain)) \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "domain_redirect" `shouldMatch` (config %. "domain_redirect")
         case version of
@@ -130,13 +130,13 @@ testDomainVerificationOnPremFlow = forM_ [(ExplicitVersion 8), Versioned] \versi
             | v <= 8 ->
                 lookupField resp.json "backend_url" `shouldMatch` (lookupField config "backend_url")
           _ -> do
-            let backendUrl = runMaybeT $ lookupFieldM config "backend" >>= flip lookupFieldM "config"
-                webappUrl = runMaybeT $ lookupFieldM config "backend" >>= flip lookupFieldM "webapp"
+            let backendUrl v = runMaybeT $ lookupFieldM v "backend" >>= flip lookupFieldM "config"
+                webappUrl v = runMaybeT $ lookupFieldM v "backend" >>= flip lookupFieldM "webapp"
 
-            lookupField resp.json "backend_url" `shouldMatch` backendUrl
-            lookupField resp.json "webapp_url" `shouldMatch` webappUrl
+            backendUrl resp.json `shouldMatch` backendUrl config
+            webappUrl resp.json `shouldMatch` webappUrl config
 
-      bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+      bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
         resp.status `shouldMatchInt` 200
         isBackend <- config %. "domain_redirect" >>= asString <&> (== "backend")
         if isBackend
@@ -185,7 +185,7 @@ testDomainVerificationOnPremFlowNoRegistration = forM_ [(ExplicitVersion 8), Ver
     (object ["domain_redirect" .= "no-registration"])
     >>= assertStatus 200
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
 
@@ -195,7 +195,7 @@ testDomainVerificationRemoveFailure = forM_ [(ExplicitVersion 8), Versioned] \ve
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
 
@@ -209,7 +209,7 @@ testDomainVerificationRemoveFailure = forM_ [(ExplicitVersion 8), Versioned] \ve
     >>= assertSuccess
 
   -- check that it's still set to preauthorized
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
 
   -- [customer admin] set it to no-registration, then remove
@@ -252,7 +252,7 @@ testDomainVerificationLockedState = forM_ [(ExplicitVersion 8), Versioned] \vers
       resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
 testUpdateTeamInvite :: (HasCallStack) => App ()
-testUpdateTeamInvite = do
+testUpdateTeamInvite = forM_ [(ExplicitVersion 8), Versioned] \version -> do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
   domain <- randomDomain
 
@@ -306,7 +306,7 @@ testUpdateTeamInvite = do
     resp.json %. "team_invite" `shouldMatch` "team"
     resp.json %. "team" `shouldMatch` tid
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "none"
 
@@ -320,7 +320,7 @@ testUpdateTeamInvite = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     resp.json %. "team_invite" `shouldMatch` "not-allowed"
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "none"
 
@@ -334,7 +334,7 @@ testUpdateTeamInvite = do
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
     resp.json %. "team_invite" `shouldMatch` "not-allowed"
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
 
@@ -348,12 +348,12 @@ testUpdateTeamInvite = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     resp.json %. "team_invite" `shouldMatch` "not-allowed"
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "none"
 
 testUpdateTeamInviteSSO :: (HasCallStack) => App ()
-testUpdateTeamInviteSSO = do
+testUpdateTeamInviteSSO = forM_ [(ExplicitVersion 8), Versioned] \version -> do
   domain <- randomDomain
   (owner, tid, _m : _) <- createTeam OwnDomain 2
   assertSuccess =<< do
@@ -384,7 +384,7 @@ testUpdateTeamInviteSSO = do
     resp.json %. "team_invite" `shouldMatch` "allowed"
     resp.json %. "sso_code" `shouldMatch` idp
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "sso_code" `shouldMatch` idp
@@ -549,20 +549,26 @@ testGetDomainRegistrationUserExistsBackend = forM_ [(ExplicitVersion 8), Version
     (mkDomainRedirectBackend version "https://wire.example.com" "https://webapp.wire.example.com")
     >>= assertStatus 200
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("sven@" <> domain)) $ \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("sven@" <> domain)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "backend"
-    resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
+    if version == (ExplicitVersion 8)
+      then resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
+      else do
+        resp.json %. "backend.config" `shouldMatch` "https://wire.example.com"
+        resp.json %. "backend.webapp" `shouldMatch` "https://webapp.wire.example.com"
     lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe Bool)
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" <> domain)) $ \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" <> domain)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
+    -- Neither old (<= V8) nor new backend URL fields should be received
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe String)
+    lookupField resp.json "backend" `shouldMatch` (Nothing :: Maybe String)
     resp.json %. "due_to_existing_account" `shouldMatch` True
 
 testGetDomainRegistrationUserExistsSso :: (HasCallStack) => App ()
-testGetDomainRegistrationUserExistsSso = do
+testGetDomainRegistrationUserExistsSso = forM_ [(ExplicitVersion 8), Versioned] \version -> do
   emailDomain <- randomDomain
   (owner, tid, mem : _) <- createTeamWithEmailDomain OwnDomain emailDomain 2
   memMail <- mem %. "email" & asString
@@ -588,7 +594,7 @@ testGetDomainRegistrationUserExistsSso = do
     >>= assertStatus 200
 
   -- newUserMail is not registered yet
-  bindResponse (getDomainRegistrationFromEmail OwnDomain newUserMail) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version newUserMail) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "sso_code" `shouldMatch` idpId
@@ -596,14 +602,14 @@ testGetDomainRegistrationUserExistsSso = do
   void $ loginWithSaml True tid newUserMail (idpId, idpMeta)
 
   -- now the account exists, and but as this is an SSO user they should be directed to the SSO flow
-  bindResponse (getDomainRegistrationFromEmail OwnDomain newUserMail) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version newUserMail) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "sso_code" `shouldMatch` idpId
 
   -- these have normal password accounts, and some are not members of the team
   for_ [memMail, paoloMail, svenMail] \email -> do
-    bindResponse (getDomainRegistrationFromEmail OwnDomain email) \resp -> do
+    bindResponse (getDomainRegistrationFromEmail OwnDomain version email) \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "domain_redirect" `shouldMatch` "no-registration"
       lookupField resp.json "sso_code" `shouldMatch` (Nothing :: Maybe String)
