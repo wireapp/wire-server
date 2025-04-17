@@ -225,7 +225,7 @@ checkSignatureKey ::
   Maybe LeafNode ->
   Maybe ByteString ->
   Sem r ()
-checkSignatureKey mLeaf mKey =
+checkSignatureKey mLeaf mKey = do
   when
     ( case mLeaf of
         Just leaf -> case mKey of

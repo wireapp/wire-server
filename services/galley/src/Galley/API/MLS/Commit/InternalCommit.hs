@@ -159,63 +159,57 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
             SubConv _ _ -> pure []
             Conv _ ->
               fmap catMaybes . forM newUserClients $
-                \(qtarget, newclients) -> case Map.lookup qtarget cm of
-                  -- user is already present, skip check in this case
-                  Just existingClients -> do
-                    -- make sure none of the new clients already exist in the group
-                    when
-                      ( any
-                          (`Map.member` existingClients)
-                          (Map.keys newclients)
-                      )
-                      $ throw
-                        (mlsProtocolError "Cannot add a client that is already part of the group")
-                    pure Nothing
-                  Nothing -> do
-                    -- final set of clients in the conversation
-                    let clients =
-                          Map.keysSet
-                            ( fmap fst newclients
-                                <> Map.findWithDefault mempty qtarget cm
-                            )
-                    -- get list of mls clients from Brig (local or remote)
-                    runError (getClientInfo lConvOrSub qtarget ciphersuite) >>= \case
-                      Left (_ :: FederationError) -> pure (Just qtarget)
-                      Right clientInfo -> do
-                        let allClients = Set.map (.clientId) clientInfo
-                        let infoMap :: Map ClientId ByteString =
-                              Map.fromList
-                                [ (info.clientId, key)
-                                  | info <- toList clientInfo,
-                                    key <- toList info.mlsSignatureKey
-                                ]
-                        let allMLSClients =
-                              Set.map
-                                (.clientId)
-                                (Set.filter (.hasKeyPackages) clientInfo)
+                \(qtarget, newclients) -> do
+                  -- get list of mls clients from Brig (local or remote)
+                  mClientData <-
+                    fmap mkClientData . hush
+                      <$> runError @FederationError (getClientInfo lConvOrSub qtarget ciphersuite)
+                  unreachable <- case (mClientData, Map.lookup qtarget cm) of
+                    -- user is already present, skip check in this case
+                    (_, Just existingClients) -> do
+                      -- make sure none of the new clients already exist in the group
+                      when
+                        ( any
+                            (`Map.member` existingClients)
+                            (Map.keys newclients)
+                        )
+                        $ throw
+                          (mlsProtocolError "Cannot add a client that is already part of the group")
+                      pure False
+                    (Nothing, Nothing) -> pure True
+                    (Just clientData, Nothing) -> do
+                      -- final set of clients in the conversation
+                      let clients =
+                            Map.keysSet
+                              ( fmap fst newclients
+                                  <> Map.findWithDefault mempty qtarget cm
+                              )
 
-                        -- We check the following condition:
-                        --   allMLSClients ⊆ clients ⊆ allClients
-                        -- i.e.
-                        -- - if a client has at least 1 key package, it has to be added
-                        -- - if a client is being added, it has to still exist
-                        --
-                        -- The reason why we can't simply check that clients == allMLSClients is
-                        -- that a client with no remaining key packages might be added by a user
-                        -- who just fetched its last key package.
-                        unless
-                          ( Set.isSubsetOf allMLSClients clients
-                              && Set.isSubsetOf clients allClients
-                          )
-                          $
-                          -- FUTUREWORK: turn this error into a proper response
-                          throwS @'MLSClientMismatch
+                      -- We check the following condition:
+                      --   allMLSClients ⊆ clients ⊆ allClients
+                      -- i.e.
+                      -- - if a client has at least 1 key package, it has to be added
+                      -- - if a client is being added, it has to still exist
+                      --
+                      -- The reason why we can't simply check that clients == allMLSClients is
+                      -- that a client with no remaining key packages might be added by a user
+                      -- who just fetched its last key package.
+                      unless
+                        ( Set.isSubsetOf clientData.allMLSClients clients
+                            && Set.isSubsetOf clients clientData.allClients
+                        )
+                        $
+                        -- FUTUREWORK: turn this error into a proper response
+                        throwS @'MLSClientMismatch
 
-                        -- Check that new leaf nodes are using the registered signature keys.
-                        for_ (Map.assocs newclients) $ \(cid, (_, mKp)) ->
-                          checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid infoMap)
+                      pure False
 
-                        pure Nothing
+                  -- Check that new leaf nodes are using the registered signature keys.
+                  for_ mClientData $ \clientData ->
+                    for_ (Map.assocs newclients) $ \(cid, (_, mKp)) ->
+                      checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid clientData.infoMap)
+
+                  pure $ guard unreachable $> qtarget
           for_
             (unreachableFromList failedAddFetching)
             (throw . unreachableUsersToUnreachableBackends)
@@ -310,6 +304,28 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     for_ lConvOrSub incrementEpoch
 
     pure events
+
+data ClientData = ClientData
+  { allClients :: Set (ClientId),
+    allMLSClients :: Set (ClientId),
+    infoMap :: Map ClientId ByteString
+  }
+
+mkClientData :: Set ClientInfo -> ClientData
+mkClientData clientInfo =
+  ClientData
+    { allClients = Set.map (.clientId) clientInfo,
+      allMLSClients =
+        Set.map
+          (.clientId)
+          (Set.filter (.hasKeyPackages) clientInfo),
+      infoMap =
+        Map.fromList
+          [ (info.clientId, key)
+            | info <- toList clientInfo,
+              key <- toList info.mlsSignatureKey
+          ]
+    }
 
 addMembers ::
   (HasProposalActionEffects r) =>
