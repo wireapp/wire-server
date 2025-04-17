@@ -56,12 +56,13 @@ testObject_DomainRegistrationResponse_3 =
       dnsVerificationToken = Nothing
     }
 
+-- TODO: Add test for `Backend` with webapp Url (kind of _4b)
 testObject_DomainRegistrationResponse_4 :: DomainRegistrationResponse
 testObject_DomainRegistrationResponse_4 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
-      domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))),
+      domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))) Nothing,
       teamInvite = Allowed,
       dnsVerificationToken = Nothing
     }
@@ -107,10 +108,11 @@ testObject_DomainRegistrationUpdate_3 =
       teamInvite = Allowed
     }
 
+-- TODO: Add test with webapp Url (kind of 4b)
 testObject_DomainRegistrationUpdate_4 :: DomainRegistrationUpdate
 testObject_DomainRegistrationUpdate_4 =
   DomainRegistrationUpdate
-    { domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))),
+    { domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))) Nothing,
       teamInvite = Allowed
     }
 
