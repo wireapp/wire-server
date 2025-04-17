@@ -626,11 +626,11 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   let quid = userQualifiedId usr
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   _rs <- addClient brig uid new <!! const 201 === statusCode
-  let Just uc = clientId <$> responseJsonMaybe _rs
+  uc :: Client <- responseJsonError _rs
   -- Create conversation
   _rs <- createConv galley uid [] <!! const 201 === statusCode
   let Just cid = qUnqualified . (.qualifiedId) <$> responseJsonMaybe @Conversation _rs
-  testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
+  testMessageBotUtil quid uc.clientId cid pid sid sref buf brig galley cannon
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testBadFingerprint config db brig galley _cannon = withFreePortAnyAddr $ \(sPort, sock) -> do
@@ -740,13 +740,13 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
   (uid, tid) <- Team.createUserWithTeam brig
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   _rs <- addClient brig uid new <!! const 201 === statusCode
-  let Just uc = clientId <$> responseJsonMaybe _rs
+  uc :: Client <- responseJsonError _rs
   -- Whitelist the bot
   whitelistService brig uid tid pid sid
   -- Create conversation
   cid <- Team.createTeamConv galley tid uid [] Nothing
   quid <- userQualifiedId . selfUser <$> getSelfProfile brig uid
-  testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
+  testMessageBotUtil quid uc.clientId cid pid sid sref buf brig galley cannon
 
 testDeleteConvBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeleteConvBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do

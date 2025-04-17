@@ -89,6 +89,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSWelcomeMismatch
                :> CanThrow MLSLegalholdIncompatible
                :> CanThrow MLSProposalFailure
+               :> CanThrow MLSIdentityMismatch
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
                :> "commit-bundles"

@@ -22,7 +22,7 @@ module Test.Spar.APISpec (spec) where
 
 import Bilge
 import Bilge.Assert
-import Cassandra as Cas hiding (Value)
+import Cassandra as Cas hiding (Client, Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Random.Class (getRandomR)
@@ -1635,7 +1635,7 @@ specReAuthSsoUserWithPassword =
 
     addClientInternal :: (HasCallStack, MonadIO m, MonadReader TestEnv m, MonadThrow m) => BrigReq -> UserId -> NewClient -> m ClientId
     addClientInternal brig uid new = do
-      c <-
+      c :: Client <-
         responseJsonError
           =<< call
             ( post $
@@ -1645,7 +1645,7 @@ specReAuthSsoUserWithPassword =
                   . body (RequestBodyLBS $ encode new)
                   . expect2xx
             )
-      pure $ clientId c
+      pure $ c.clientId
 
     defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient
     defNewClient ty pks lpk =
