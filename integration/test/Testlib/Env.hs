@@ -92,7 +92,8 @@ mkGlobalEnv cfgFile = do
           [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
             (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap),
             (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap),
-            (intConfig.federationV1.originDomain, intConfig.federationV1.beServiceMap)
+            (intConfig.federationV1.originDomain, intConfig.federationV1.beServiceMap),
+            (intConfig.federationV2.originDomain, intConfig.federationV2.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
   tempDir <- Codensity $ withSystemTempDirectory "test"
@@ -113,6 +114,7 @@ mkGlobalEnv cfgFile = do
         gIntegrationTestHostName = intConfig.integrationTestHostName,
         gFederationV0Domain = intConfig.federationV0.originDomain,
         gFederationV1Domain = intConfig.federationV1.originDomain,
+        gFederationV2Domain = intConfig.federationV2.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 9,
         gManager = manager,
@@ -158,6 +160,7 @@ mkEnv currentTestName ge = do
           integrationTestHostName = gIntegrationTestHostName ge,
           federationV0Domain = gFederationV0Domain ge,
           federationV1Domain = gFederationV1Domain ge,
+          federationV2Domain = gFederationV2Domain ge,
           dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
           -- hardcode API versions for federated domains because they don't have
