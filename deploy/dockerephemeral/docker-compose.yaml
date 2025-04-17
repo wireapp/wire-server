@@ -277,6 +277,18 @@ services:
     networks:
       - demo_wire
 
+  postgres:
+    container_name: postgres
+    image: 'postgres:17-alpine'
+    ports:
+      - 5432:5432
+    networks:
+      - demo_wire
+    environment:
+      POSTGRES_PASSWORD: "posty-the-gres"
+      POSTGRES_USER: "wire-server"
+      POSTGRES_DB: "wire-server"
+
   cassandra:
     container_name: demo_wire_cassandra
     #image: cassandra:3.11.2
