@@ -176,6 +176,9 @@ services:
     environment:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+    depends_on:
+      gundeck_schema-v2:
+        condition: service_completed_successfully
 
   federator-v2:
     container_name: federator-federation-v2
