@@ -27,7 +27,7 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22082:8080"
+      - "127.0.0.1:23082:8080"
     healthcheck: &haskell_health_check
       test: "curl --fail localhost:8080/i/status"
     depends_on:
@@ -65,7 +65,7 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22085:8080"
+      - "127.0.0.1:23085:8080"
     healthcheck: *haskell_health_check
     depends_on:
       galley_schema-v2:
@@ -89,7 +89,7 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22084:8080"
+      - "127.0.0.1:23084:8080"
     healthcheck: *haskell_health_check
     depends_on:
       aws_cli:
@@ -120,7 +120,7 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22086:8080"
+      - "127.0.0.1:23086:8080"
     healthcheck: *haskell_health_check
     depends_on:
       gundeck_schema-v2:
@@ -157,7 +157,7 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22088:8080"
+      - "127.0.0.1:23088:8080"
     healthcheck: *haskell_health_check
     depends_on:
       spar_schema-v2:
@@ -171,7 +171,7 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22083:8080"
+      - "127.0.0.1:23083:8080"
     healthcheck: *haskell_health_check
     environment:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
@@ -191,8 +191,8 @@ services:
     extra_hosts:
       - "host.docker.internal.:host-gateway"
     ports:
-      - "127.0.0.1:22097:8080"
-      - "127.0.0.1:22098:8081"
+      - "127.0.0.1:23097:8080"
+      - "127.0.0.1:23098:8081"
     # healthcheck: *haskell_health_check
     healthcheck:
       test: "true"
@@ -208,7 +208,7 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22089:8080"
+      - "127.0.0.1:23089:8080"
     healthcheck: *haskell_health_check
     depends_on:
       init_vhosts:
@@ -227,7 +227,7 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22087:8080"
+      - "127.0.0.1:23087:8080"
     healthcheck: *haskell_health_check
 
   nginz-v2:
@@ -238,8 +238,8 @@ services:
     networks:
       - demo_wire
     ports:
-      - "127.0.0.1:22080:8080"
-      - "127.0.0.1:22443:8443"
+      - "127.0.0.1:23080:8080"
+      - "127.0.0.1:23443:8443"
     depends_on:
       brig-v2:
         condition: service_healthy
