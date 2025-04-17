@@ -566,7 +566,7 @@ CREATE TABLE brig_test.domain_registration (
     ownership_token_hash blob,
     team uuid,
     team_invite int,
-    webapp_url blob,
+    webapp_url blob
 ) WITH bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
