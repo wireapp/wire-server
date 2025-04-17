@@ -16,6 +16,9 @@ instance MakesValue (FedDomain 0) where
 instance MakesValue (FedDomain 1) where
   make FedDomain = asks (String . T.pack . (.federationV1Domain))
 
+instance MakesValue (FedDomain 2) where
+  make FedDomain = asks (String . T.pack . (.federationV2Domain))
+
 instance (KnownNat n) => TestCases (FedDomain n) where
   mkTestCases =
     let v = natVal (Proxy @n)
@@ -34,6 +37,7 @@ data AnyFedDomain = AnyFedDomain Integer
 instance MakesValue AnyFedDomain where
   make (AnyFedDomain 0) = asks (String . T.pack . (.federationV0Domain))
   make (AnyFedDomain 1) = asks (String . T.pack . (.federationV1Domain))
+  make (AnyFedDomain 2) = asks (String . T.pack . (.federationV2Domain))
   make (AnyFedDomain _) = error "invalid federation version"
 
 instance TestCases AnyFedDomain where
@@ -42,7 +46,7 @@ instance TestCases AnyFedDomain where
       . concat
       <$> traverse
         (uncurry mkFedTestCase)
-        [("[domain=fed-v" <> show v <> "]", v) | v <- [0, 1]]
+        [("[domain=fed-v" <> show v <> "]", v) | v <- [0, 1, 2]]
 
 -- | This can be used as an argument for parametrised tests. It will be bound
 -- to at least 'OtherDomain', and optionally to legacy federated domains,
@@ -62,5 +66,5 @@ instance TestCases StaticDomain where
         . concat
         <$> traverse
           (uncurry mkFedTestCase)
-          [("[domain=fed-v" <> show v <> "]", v) | v <- [0, 1]]
+          [("[domain=fed-v" <> show v <> "]", v) | v <- [0, 1, 2]]
     pure $ [MkTestCase "[domain=other]" StaticDomain] <> feds
