@@ -311,6 +311,12 @@ cqlsh:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
 
+.PHONY: psql
+psql:
+	@grep -q wire-server:wire-server ~/.pgpass || \
+	  echo "consider running 'echo localhost:5432:wire-server:wire-server:posty-the-gres > ~/.pgpass ; chmod 600 ~/.pgpass '"
+	psql -h localhost -p 5432 -U wire-server -w
+
 .PHONY: db-reset-package
 db-reset-package:
 	@echo "Deprecated! Please use 'db-reset' instead"
