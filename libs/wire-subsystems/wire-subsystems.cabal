@@ -96,6 +96,9 @@ common common-all
     , hashable
     , HaskellNet
     , HaskellNet-SSL
+    , hasql
+    , hasql-pool
+    , hasql-th
     , hex
     , HsOpenSSL
     , hspec
@@ -229,6 +232,8 @@ library
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
+    Wire.UserGroupStore
+    Wire.UserGroupStore.Postgres
     Wire.UserGroupSubsystem
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra

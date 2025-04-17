@@ -36,6 +36,9 @@
 , hashable
 , HaskellNet
 , HaskellNet-SSL
+, hasql
+, hasql-pool
+, hasql-th
 , hex
 , HsOpenSSL
 , hspec
@@ -134,6 +137,9 @@ mkDerivation {
     hashable
     HaskellNet
     HaskellNet-SSL
+    hasql
+    hasql-pool
+    hasql-th
     hex
     HsOpenSSL
     hspec
@@ -222,6 +228,9 @@ mkDerivation {
     hashable
     HaskellNet
     HaskellNet-SSL
+    hasql
+    hasql-pool
+    hasql-th
     hex
     HsOpenSSL
     hspec
