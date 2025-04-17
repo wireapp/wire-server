@@ -22,7 +22,8 @@ module Test.Conversation where
 import API.Brig
 import qualified API.BrigInternal as BrigI
 import API.Galley
-import API.GalleyInternal
+import API.GalleyInternal hiding (getConversation)
+import qualified API.GalleyInternal as I
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
@@ -958,3 +959,14 @@ testNoFederationWithProteus = do
         resp.json %. "label" `shouldMatch` "federation-disabled-for-protocol"
 
       void $ postConversation bob defProteus {qualifiedUsers = [alice]} >>= getJSON 201
+
+testGetConversationInternal :: (HasCallStack) => App ()
+testGetConversationInternal = do
+  (owner, tid, mems) <- createTeam OwnDomain 2
+  conv <- postConversation owner (defProteus {team = Just tid, qualifiedUsers = mems}) >>= getJSON 201
+  I.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "qualified_id" `shouldMatch` objQidObject conv
+    members <- resp.json %. "members" & asList
+    memberIds <- for members (%. "qualified_id")
+    memberIds `shouldMatchSet` (for (owner : mems) (%. "qualified_id"))

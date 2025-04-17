@@ -262,6 +262,7 @@ createGroupConvAndMkResponse lusr conn newConv mkResponse = do
   mkResponse dbConv
 
 createGroupConversationGeneric ::
+  forall r.
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -305,8 +306,25 @@ createGroupConversationGeneric lusr conn newConv = do
   conv <- E.createConversation lcnv nc
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation lusr conn conv
+  sendCellsNotification conv
   E.getConversation (tUnqualified lcnv)
     >>= note (BadConvState (tUnqualified lcnv))
+  where
+    sendCellsNotification :: Data.Conversation -> Sem r ()
+    sendCellsNotification conv = do
+      now <- input
+      let lconv = qualifyAs lusr (Data.convId conv)
+          event = CellsEvent (tUntagged lconv) (tUntagged lusr) now CellsConvCreateNoData
+      when (conv.convMetadata.cnvmCellsState /= CellsDisabled) $ do
+        let push =
+              def
+                { origin = Just (tUnqualified lusr),
+                  json = toJSONObject event,
+                  isCellsEvent = True,
+                  route = PushV2.RouteAny,
+                  conn
+                }
+        pushNotifications [push]
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -678,7 +696,7 @@ createConnectConversation lusr conn j = do
             { origin = Just (tUnqualified lusr),
               json = toJSONObject e,
               recipients = map localMemberToRecipient (Data.convLocalMembers c),
-              isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+              isCellsEvent = shouldPushToCells c.convMetadata e,
               route = PushV2.RouteDirect,
               conn
             }
@@ -722,7 +740,7 @@ createConnectConversation lusr conn j = do
                 { origin = Just (tUnqualified lusr),
                   json = toJSONObject e,
                   recipients = map localMemberToRecipient (Data.convLocalMembers conv),
-                  isCellsEvent = shouldPushToCells conv.convMetadata (evtType e),
+                  isCellsEvent = shouldPushToCells conv.convMetadata e,
                   route = PushV2.RouteDirect,
                   conn
                 }
@@ -838,7 +856,8 @@ notifyCreatedConversation lusr conn c = do
           { origin = Just (tUnqualified lusr),
             json = toJSONObject e,
             recipients = [localMemberToRecipient m],
-            isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+            -- on conversation creation we send the cells event separately to make sure it is sent exactly once
+            isCellsEvent = False,
             route,
             conn
           }

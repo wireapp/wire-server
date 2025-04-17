@@ -28,6 +28,12 @@ module Wire.API.Event.Conversation
     AddCodeResult (..),
     isCellsConversationEvent,
 
+    -- * Cells Event
+    CellsEvent (..),
+    CellsEventType (..),
+    CellsEventData (..),
+    cellsEventType,
+
     -- * Event lenses
     _EdMembersJoin,
     _EdMembersLeave,
@@ -232,14 +238,27 @@ eventDataType EdConvDelete = ConvDelete
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
 
-isCellsConversationEvent :: EventType -> Bool
-isCellsConversationEvent MemberJoin = True
-isCellsConversationEvent MemberLeave = True
-isCellsConversationEvent MemberStateUpdate = True
-isCellsConversationEvent ConvRename = True
-isCellsConversationEvent ConvCreate = True
-isCellsConversationEvent ConvDelete = True
-isCellsConversationEvent _ = False
+isCellsConversationEvent :: Event -> Bool
+isCellsConversationEvent event =
+  case evtType event of
+    MemberJoin -> True
+    MemberLeave -> True
+    MemberStateUpdate -> True
+    ConvRename -> True
+    ConvCodeDelete -> True
+    ConvCreate -> True
+    ConvAccessUpdate -> False
+    ConvMessageTimerUpdate -> False
+    ConvCodeUpdate -> False
+    ConvConnect -> False
+    ConvReceiptModeUpdate -> False
+    Typing -> False
+    OtrMessageAdd -> False
+    MLSMessageAdd -> False
+    MLSWelcome -> False
+    ConvDelete -> False
+    ProtocolUpdate -> False
+    AddPermissionUpdate -> False
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -460,6 +479,78 @@ instance ToJSON Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
+
+--------------------------------------------------------------------------------
+-- Cells Event
+
+data CellsEvent = CellsEvent
+  { convId :: Qualified ConvId,
+    from :: Qualified UserId,
+    time :: UTCTime,
+    cellsEventData :: CellsEventData
+  }
+  deriving stock (Eq, Show, Generic)
+
+data CellsEventData = CellsConvCreateNoData
+  deriving stock (Eq, Show, Generic)
+
+cellsEventType :: CellsEvent -> CellsEventType
+cellsEventType event = case event.cellsEventData of
+  CellsConvCreateNoData -> CellsConvCreate
+
+instance Arbitrary CellsEvent where
+  arbitrary = do
+    CellsEvent
+      <$> arbitrary
+      <*> arbitrary
+      <*> (milli <$> arbitrary)
+      <*> pure CellsConvCreateNoData
+    where
+      milli = fromUTCTimeMillis . toUTCTimeMillis
+
+data CellsEventType
+  = CellsConvCreate
+  deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
+  deriving (Arbitrary) via (GenericUniform CellsEventType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CellsEventType
+
+instance ToSchema CellsEventType where
+  schema =
+    enum @Text "CellsEventType" $
+      mconcat
+        [ element "conversation.create" CellsConvCreate
+        ]
+
+makePrisms ''CellsEventData
+
+instance ToSchema CellsEvent where
+  schema =
+    object "CellsEvent" $
+      mk
+        <$> (cellsEventType &&& cellsEventData) .= taggedCellsEventDataSchema
+        <*> convId .= field "qualified_conversation" schema
+        <*> from .= field "qualified_from" schema
+        <*> (toUTCTimeMillis . time) .= field "time" (fromUTCTimeMillis <$> schema)
+    where
+      mk (_, d) cid uid tm = CellsEvent cid uid tm d
+
+      taggedCellsEventDataSchema :: ObjectSchema SwaggerDoc (CellsEventType, CellsEventData)
+      taggedCellsEventDataSchema =
+        bind
+          (fst .= field "type" schema)
+          (snd .= fieldOver _1 "data" edata)
+        where
+          edata :: SchemaP SwaggerDoc (A.Value, CellsEventType) A.Value CellsEventData CellsEventData
+          edata = dispatch $ \case
+            CellsConvCreate -> tag _CellsConvCreateNoData null_
+
+deriving via (Schema CellsEvent) instance ToJSON CellsEvent
+
+instance ToJSONObject CellsEvent where
+  toJSONObject event =
+    case A.toJSON event of
+      A.Object o -> KeyMap.delete "data" o
+      _ -> KeyMap.fromList []
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

@@ -47,9 +47,9 @@ instance HasCellsState ConversationMetadata where
 instance HasCellsState () where
   getCellsState = def
 
-shouldPushToCells :: (HasCellsState a) => a -> EventType -> Bool
-shouldPushToCells st et =
-  isCellsConversationEvent et && case getCellsState st of
+shouldPushToCells :: (HasCellsState a) => a -> Event -> Bool
+shouldPushToCells st e =
+  isCellsConversationEvent e && case getCellsState st of
     CellsDisabled -> False
     CellsPending -> True
     CellsReady -> True
