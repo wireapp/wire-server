@@ -39,6 +39,7 @@ where
 import Amazonka hiding (Error)
 import Amazonka.S3
 import Amazonka.S3.Lens
+import qualified Amazonka.S3.StreamingUpload as SU
 import CargoHold.API.Error
 import CargoHold.AWS (amazonkaEnvWithDownloadEndpoint)
 import qualified CargoHold.AWS as AWS
@@ -92,43 +93,52 @@ data S3AssetMeta = S3AssetMeta
 -- ignore the uploaded mimetype header and force it to be
 -- application/octet-stream.
 
-uploadV3 ::
-  V3.Principal ->
-  V3.AssetKey ->
-  V3.AssetHeaders ->
-  Maybe V3.AssetToken ->
-  ConduitM () ByteString (ResourceT IO) () ->
-  ExceptT Error App ()
-uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok src = do
+uploadV3
+  :: V3.Principal
+  -> V3.AssetKey
+  -> V3.AssetHeaders
+  -> Maybe V3.AssetToken
+  -> ConduitM () ByteString (ResourceT IO) ()   -- ^ streaming payload
+  -> ExceptT Error App ()
+uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
+  -- logging
   Log.info $
-    "remote" .= val "S3"
-      ~~ "asset.owner" .= toByteString prc
-      ~~ "asset.key" .= key
-      ~~ "asset.type_from_request_ignored" .= MIME.showType (V3.hdrType originalHeaders)
-      ~~ "asset.type" .= MIME.showType ct
-      ~~ "asset.size" .= cl
-      ~~ msg (val "Uploading asset")
-  void $ exec req
+       "remote"        .= val "S3"
+    ~~ "asset.owner"   .= toByteString prc
+    ~~ "asset.key"     .= key
+    ~~ "asset.type"    .= MIME.showType ct
+    ~~ "asset.size"    .= cl
+    ~~ msg (val "Uploading asset")
+
+  -- AWS environment (has bucket name & amazonka Env)
+  awsEnv <- asks (.aws)
+
+  -- build the “initiate multipart” request
+  let createReq =
+        newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
+          & createMultipartUpload_contentType ?~ MIME.showType ct
+          & createMultipartUpload_metadata   .~ metaHeaders tok prc
+
+  -- stream the conduit → multipart upload
+  result <- liftIO . runResourceT . runConduit $
+         src
+      .| chunksOfCE (fromIntegral defaultChunkSize)
+      .| isolate    (fromIntegral cl)
+      .| SU.streamUpload awsEnv.amazonkaEnv Nothing createReq
+      --                    ^ Env             ^ use library default part size
+      --                                           ^ our create‑multipart request
+
+  -- success / failure
+  case result of
+    Right _ -> pure ()   -- CompleteMultipartUploadResponse → done
+    Left  (_ :: (AbortMultipartUploadResponse, SomeException)) -> do
+      Log.err $
+           "remote"     .= val "S3"
+        ~~ "asset.key"  .= key
+        ~~ msg (val "Multipart upload failed – aborted")
+      throwE serverError
   where
-    ct :: MIME.Type
-    ct = octets -- See note on overrideMimeTypeAsOctetStream
-    stream :: ConduitM () ByteString (ResourceT IO) ()
-    stream =
-      src
-        -- Rechunk bytestream to ensure we satisfy AWS's minimum chunk size
-        -- on uploads
-        .| chunksOfCE (fromIntegral defaultChunkSize)
-        -- Ignore any 'junk' after the content; take only 'cl' bytes.
-        .| isolate (fromIntegral cl)
-
-    reqBdy :: ChunkedBody
-    reqBdy = ChunkedBody defaultChunkSize (fromIntegral cl) stream
-
-    req :: Text -> PutObject
-    req b =
-      newPutObject (BucketName b) (ObjectKey key) (toBody reqBdy)
-        & putObject_contentType ?~ MIME.showType ct
-        & putObject_metadata .~ metaHeaders tok prc
+    ct = octets   -- see note “overrideMimeTypeAsOctetStream”
 
 -- | Turn a 'ResourceT IO' action into a pure @Conduit@.
 --
