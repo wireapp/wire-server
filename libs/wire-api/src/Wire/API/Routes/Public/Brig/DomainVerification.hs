@@ -87,7 +87,10 @@ domainRedirectConfigV8Schema =
     backendConfigSchema =
       (,)
         <$> fst .= backendUrlSchema
-        <*> snd .= pure Nothing
+        <*>
+        -- the webapp URL is always empty in versions <= V8 as it was
+        -- introduced in V9
+        snd .= pure Nothing
 
 instance ToSchema DomainRedirectConfig where
   schema = object "DomainRedirectConfig" domainRedirectConfigV8Schema
