@@ -9,6 +9,7 @@ import Imports
 import Polysemy
 import Wire.API.UserGroup
 
+-- | TODO: or should we call this effect UserGroupStore?
 data UserGroupSubsystem m a where
   -- exposed as POST /user-groups
   CreateGroup :: NewUserGroup -> UserGroupSubsystem m UserGroup
