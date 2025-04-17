@@ -1017,10 +1017,9 @@ updateTeamInvite user emailDomain payload = do
   p <- make payload
   submit "POST" $ req & addJSON p
 
--- TODO: We'll need two versions of this function: V8 and V9. And, we have to decide which tests to duplicate / run with both versions.
-getDomainRegistrationFromEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-getDomainRegistrationFromEmail domain email = do
-  req <- baseRequest domain Brig (ExplicitVersion 8) $ joinHttpPath ["get-domain-registration"]
+getDomainRegistrationFromEmail :: (HasCallStack, MakesValue domain) => domain -> Versioned -> String -> App Response
+getDomainRegistrationFromEmail domain version email = do
+  req <- baseRequest domain Brig version $ joinHttpPath ["get-domain-registration"]
   submit "POST" $ req & addJSONObject ["email" .= email]
 
 getRegisteredDomainsByTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response

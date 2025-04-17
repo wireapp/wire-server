@@ -104,6 +104,33 @@ domainRedirectSchema =
         <$> fst .= backendUrlSchema
         <*> snd .= maybe_ (optField "webapp_url" schema)
 
+domainRedirectSchemaV9 :: ObjectSchema SwaggerDoc DomainRedirect
+domainRedirectSchemaV9 =
+  snd
+    <$> (domainRedirectTag &&& id)
+      .= bind
+        (fst .= domainRedirectTagSchema)
+        (snd .= dispatch domainRedirectObjectSchema)
+  where
+    domainRedirectObjectSchema :: DomainRedirectTag -> ObjectSchema SwaggerDoc DomainRedirect
+    domainRedirectObjectSchema = \case
+      NoneTag -> tag _None (pure ())
+      LockedTag -> tag _Locked (pure ())
+      SSOTag -> tag _SSO samlIdPIdObjectSchema
+      BackendTag -> tag (_Backend) backendConfigSchema
+      NoRegistrationTag -> tag _NoRegistration (pure ())
+      PreAuthorizedTag -> tag _PreAuthorized (pure ())
+
+    backendConfigSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigSchema = field "backend" backendConfigSchema'
+
+    backendConfigSchema' :: ValueSchema NamedSwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigSchema' =
+      object "BackendConfig" $
+        (,)
+          <$> fst .= field "config" schema
+          <*> snd .= maybe_ (optField "webapp" schema)
+
 samlIdPIdObjectSchema :: ObjectSchema SwaggerDoc SAML.IdPId
 samlIdPIdObjectSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_code" uuidSchema
 
