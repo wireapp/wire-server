@@ -313,12 +313,9 @@ createGroupConversationGeneric lusr conn newConv = do
     sendCellsNotification :: Data.Conversation -> Sem r ()
     sendCellsNotification conv = do
       now <- input
-      let remoteOthers = remoteMemberToOther <$> Data.convRemoteMembers conv
-          localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers conv
-          lconv = qualifyAs lusr (Data.convId conv)
-      eventData <- EdConversation <$> conversationViewWithCachedOthers remoteOthers localOthers conv lusr
-      let event = Event (tUntagged lconv) Nothing (tUntagged lusr) now eventData
-      when (shouldPushToCells conv.convMetadata event) $ do
+      let lconv = qualifyAs lusr (Data.convId conv)
+          event = CellsEvent (tUntagged lconv) (tUntagged lusr) now CellsConvCreateNoData
+      when (conv.convMetadata.cnvmCellsState /= CellsDisabled) $ do
         let push =
               def
                 { origin = Just (tUnqualified lusr),
