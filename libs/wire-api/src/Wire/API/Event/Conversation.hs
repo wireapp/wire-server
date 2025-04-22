@@ -238,15 +238,16 @@ eventDataType EdConvDelete = ConvDelete
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
 
-isCellsConversationEvent :: Event -> Bool
-isCellsConversationEvent event =
-  case evtType event of
+isCellsConversationEvent :: EventType -> Bool
+isCellsConversationEvent eventType =
+  case eventType of
     MemberJoin -> True
     MemberLeave -> True
     MemberStateUpdate -> True
     ConvRename -> True
-    ConvCodeDelete -> True
     ConvCreate -> True
+    ConvDelete -> True
+    ConvCodeDelete -> False
     ConvAccessUpdate -> False
     ConvMessageTimerUpdate -> False
     ConvCodeUpdate -> False
@@ -256,7 +257,6 @@ isCellsConversationEvent event =
     OtrMessageAdd -> False
     MLSMessageAdd -> False
     MLSWelcome -> False
-    ConvDelete -> False
     ProtocolUpdate -> False
     AddPermissionUpdate -> False
 

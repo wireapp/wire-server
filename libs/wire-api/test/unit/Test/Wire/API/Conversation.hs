@@ -24,14 +24,16 @@ import Data.Set qualified as Set
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck (testProperty, (===))
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (AddPermissionUpdate)
+import Wire.API.Event.Conversation
 
 tests :: TestTree
 tests =
   testGroup
     "Conversation"
     [ accessRoleFromLegacyToV2ToLegacy,
-      accessRoleFromV2ToLegacyToV2
+      accessRoleFromV2ToLegacyToV2,
+      testIsCellsConversationEvent
     ]
 
 accessRoleFromLegacyToV2ToLegacy :: TestTree
@@ -51,3 +53,27 @@ accessRoleFromV2ToLegacyToV2 =
         originalIsSubSetOfConverted = originalV2 `Set.isSubsetOf` convertedBackToV2
         smallerLegacy = fromAccessRoleLegacy <$> init [minBound .. convertedToLegacy]
         noSmallerLegacyIsSubsetOfOriginal = not (any (originalV2 `Set.isSubsetOf`) smallerLegacy)
+
+testIsCellsConversationEvent :: TestTree
+testIsCellsConversationEvent =
+  testProperty "conversation event should be evaluated if relevant for cells" $
+    \e ->
+      case e of
+        AddPermissionUpdate -> isCellsConversationEvent e === False
+        ConvAccessUpdate -> isCellsConversationEvent e === False
+        ConvCodeDelete -> isCellsConversationEvent e === False
+        ConvCodeUpdate -> isCellsConversationEvent e === False
+        ConvConnect -> isCellsConversationEvent e === False
+        ConvCreate -> isCellsConversationEvent e === True
+        ConvDelete -> isCellsConversationEvent e === True
+        ConvMessageTimerUpdate -> isCellsConversationEvent e === False
+        ConvReceiptModeUpdate -> isCellsConversationEvent e === False
+        ConvRename -> isCellsConversationEvent e === True
+        MemberJoin -> isCellsConversationEvent e === True
+        MemberLeave -> isCellsConversationEvent e === True
+        MemberStateUpdate -> isCellsConversationEvent e === True
+        MLSMessageAdd -> isCellsConversationEvent e === False
+        MLSWelcome -> isCellsConversationEvent e === False
+        OtrMessageAdd -> isCellsConversationEvent e === False
+        ProtocolUpdate -> isCellsConversationEvent e === False
+        Typing -> isCellsConversationEvent e === False
