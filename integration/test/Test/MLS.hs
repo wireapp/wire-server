@@ -887,6 +887,25 @@ testInternalCommitDuplicateClient = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
 
+testExternalCommitWrongSignatureKey :: (HasCallStack) => App ()
+testExternalCommitWrongSignatureKey = do
+  alice <- randomUser OwnDomain def
+  [creator, other] <- traverse (createMLSClient def) (replicate 2 alice)
+  (_, conv) <- createSelfGroup def creator
+  convId <- objConvId conv
+  void $ createAddCommit creator convId [alice] >>= sendAndConsumeCommitBundle
+
+  void $ uploadNewKeyPackage def other
+
+  -- reset client state
+  setClientGroupState other def
+
+  -- rejoin with another client and a mismatched signature key
+  mp <- createExternalCommit convId other Nothing
+  bindResponse (postMLSCommitBundle other (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "mls-identity-mismatch"
+
 testInternalCommitWrongSignatureKey :: (HasCallStack) => App ()
 testInternalCommitWrongSignatureKey = do
   alice <- randomUser OwnDomain def
