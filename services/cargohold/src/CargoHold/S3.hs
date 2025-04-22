@@ -125,17 +125,16 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
       .| chunksOfCE (fromIntegral defaultChunkSize)
       .| isolate    (fromIntegral cl)
       .| SU.streamUpload awsEnv.amazonkaEnv Nothing createReq
-      --                    ^ Env             ^ use library default part size
-      --                                           ^ our create‑multipart request
+      --                                    ^ use library default part size
 
   -- success / failure
   case result of
-    Right _ -> pure ()   -- CompleteMultipartUploadResponse → done
-    Left  (_ :: (AbortMultipartUploadResponse, SomeException)) -> do
+    Right (_ :: CompleteMultipartUploadResponse) -> pure ()
+    Left  ((abortResponse, exception) :: (AbortMultipartUploadResponse, SomeException)) -> do
       Log.err $
            "remote"     .= val "S3"
         ~~ "asset.key"  .= key
-        ~~ msg (val "Multipart upload failed – aborted")
+        ~~ msg ("Multipart upload failed – aborted: " <> (show (abortResponse, exception)))
       throwE serverError
   where
     ct = octets   -- see note “overrideMimeTypeAsOctetStream”
