@@ -10,6 +10,7 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Time
 import Data.UUID
+import Data.Vector qualified as V
 import GHC.Stack
 import Imports
 import Polysemy
@@ -63,15 +64,13 @@ userGroupSubsystemTestInterpreter =
 
 createGroupImpl :: (EffectStack r) => NewUserGroup -> Sem r UserGroup
 createGroupImpl nug = do
-  now <- input
   gid <- Id <$> Rnd.uuid
   let ug =
         UserGroup
           { id_ = gid,
             name = nug.name,
             members = nug.members,
-            managedBy = ManagedByWire,
-            createdAt = now
+            managedBy = ManagedByWire
           }
 
   modify (Map.insert gid ug)
@@ -105,7 +104,7 @@ addUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
 addUserImpl gid uid = do
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
-      f (Just g) = Just (g {members = nub $ uid : g.members} :: UserGroup)
+      f (Just g) = Just (g {members = V.fromList . nub $ uid : V.toList g.members} :: UserGroup)
 
   modify (Map.alter f gid)
 
@@ -113,6 +112,6 @@ removeUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
 removeUserImpl gid uid = do
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
-      f (Just g) = Just (g {members = g.members \\ [uid]} :: UserGroup)
+      f (Just g) = Just (g {members = V.filter (== uid) g.members} :: UserGroup)
 
   modify (Map.alter f gid)

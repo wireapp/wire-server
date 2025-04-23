@@ -42,6 +42,7 @@ module Brig.App
     federatorLens,
     wireServerEnterpriseEndpointLens,
     casClientLens,
+    hasqlPoolLens,
     smtpEnvLens,
     emailSenderLens,
     awsEnvLens,
@@ -133,6 +134,9 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
+import Hasql.Connection qualified as HasqlConn
+import Hasql.Pool qualified as HasqlPool
+import Hasql.Pool.Config qualified as HasqlPool
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
@@ -161,6 +165,7 @@ import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
+import Wire.PostgresMigrations
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
@@ -185,6 +190,7 @@ data Env = Env
     federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     wireServerEnterpriseEndpoint :: Maybe Endpoint,
     casClient :: Cas.ClientState,
+    hasqlPool :: HasqlPool.Pool,
     smtpEnv :: Maybe SMTP.SMTP,
     emailSender :: EmailAddress,
     awsEnv :: AWS.Env,
@@ -273,6 +279,7 @@ newEnv opts = do
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
+  hasqlPool <- initPostgres lgr
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -284,6 +291,7 @@ newEnv opts = do
         federator = opts.federatorInternal,
         wireServerEnterpriseEndpoint = opts.wireServerEnterprise,
         casClient = cas,
+        hasqlPool = hasqlPool,
         smtpEnv = emailSMTP,
         emailSender = opts.emailSMS.general.emailSender,
         awsEnv = aws, -- used by `journalEvent` directly
@@ -450,6 +458,17 @@ initCassandra o g =
     (Opt.discoUrl o)
     (Just schemaVersion)
     g
+
+initPostgres :: Logger -> IO HasqlPool.Pool
+initPostgres logger = do
+  pool <-
+    HasqlPool.acquire $
+      HasqlPool.settings
+        [ HasqlPool.staticConnectionSettings $
+            HasqlConn.settings "localhost" 5432 "wire-server" "posty-the-gres" "wire-server"
+        ]
+  runAllMigrations pool logger
+  pure pool
 
 teamTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)

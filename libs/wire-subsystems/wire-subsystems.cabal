@@ -91,15 +91,17 @@ common common-all
     , email-validate
     , errors
     , exceptions
-    , profunctors
     , extended
     , extra
+    , file-embed
     , hashable
     , HaskellNet
     , HaskellNet-SSL
     , hasql
+    , hasql-migration
     , hasql-pool
     , hasql-th
+    , hasql-transaction
     , hex
     , HsOpenSSL
     , hspec
@@ -121,6 +123,7 @@ common common-all
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , profunctors
     , prometheus-client
     , QuickCheck
     , resource-pool
@@ -218,6 +221,7 @@ library
     Wire.PasswordResetCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
+    Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
