@@ -22,7 +22,7 @@ module Wire.API.UserGroup
 where
 
 import Data.Id
-import Data.Time
+import Data.Vector (Vector)
 import Imports
 import Wire.API.User.Profile
 import Wire.Arbitrary
@@ -30,7 +30,7 @@ import Wire.Arbitrary
 -- request bodies
 data NewUserGroup = NewUserGroup
   { name :: Text,
-    members :: [UserId]
+    members :: Vector UserId
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform NewUserGroup
@@ -45,9 +45,8 @@ data UserGroupUpdate = UserGroupUpdate
 data UserGroup = UserGroup
   { id_ :: UserGroupId,
     name :: Text,
-    members :: [UserId],
     managedBy :: ManagedBy,
-    createdAt :: UTCTime
+    members :: Vector UserId
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroup

@@ -91,6 +91,7 @@ common common-all
     , email-validate
     , errors
     , exceptions
+    , profunctors
     , extended
     , extra
     , hashable
