@@ -54,6 +54,7 @@ import Control.Lens hiding (parts, (.=), (:<), (:>))
 import Data.Bifunctor (first)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Binary
@@ -101,7 +102,6 @@ uploadV3
   -> ConduitM () ByteString (ResourceT IO) ()   -- ^ streaming payload
   -> ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
-  -- logging
   Log.info $
        "remote"        .= val "S3"
     ~~ "asset.owner"   .= toByteString prc
@@ -110,7 +110,6 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
     ~~ "asset.size"    .= cl
     ~~ msg (val "Uploading asset")
 
-  -- AWS environment (has bucket name & amazonka Env)
   awsEnv <- asks (.aws)
 
   -- build the “initiate multipart” request
@@ -119,15 +118,26 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
           & createMultipartUpload_contentType ?~ MIME.showType ct
           & createMultipartUpload_metadata   .~ metaHeaders tok prc
 
+  cntRef <- liftIO $ newIORef (0 :: Int)
+
+  -- byte counter for validating that an upload was completely uploaded from the client
+  let countC = awaitForever $ \bs -> do
+                 liftIO $ modifyIORef' cntRef (+ BS.length bs)
+                 yield bs
+
   -- stream the conduit → multipart upload
   result <- liftIO . runResourceT . runConduit $
          src
       .| chunksOfCE (fromIntegral defaultChunkSize)
       .| isolate    (fromIntegral cl)
+      .| countC
       .| SU.streamUpload awsEnv.amazonkaEnv Nothing createReq
       --                                    ^ use library default part size
 
-  -- success / failure
+  bytesSeen <- liftIO $ readIORef cntRef
+  when (bytesSeen /= (fromIntegral cl)) $ do
+    throwE incompleteBody
+
   case result of
     Right (_ :: CompleteMultipartUploadResponse) -> pure ()
     Left  ((abortResponse, exception) :: (AbortMultipartUploadResponse, SomeException)) -> do
@@ -135,7 +145,7 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
            "remote"     .= val "S3"
         ~~ "asset.key"  .= key
         ~~ msg ("Multipart upload failed – aborted: " <> (show (abortResponse, exception)))
-      throwE serverError
+      throwE serverError -- TODO
   where
     ct = octets   -- see note “overrideMimeTypeAsOctetStream”
 
