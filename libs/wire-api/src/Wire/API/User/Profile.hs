@@ -34,6 +34,8 @@ module Wire.API.User.Profile
     -- * ManagedBy
     ManagedBy (..),
     defaultManagedBy,
+    managedByToInt32,
+    managedByFromInt32,
 
     -- * Deprecated
     Pict (..),
@@ -50,6 +52,7 @@ import Data.ByteString.Conversion
 import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
+import Data.Text qualified as Text
 import Imports
 import Wire.API.Asset (AssetKey (..))
 import Wire.API.User.Orphans ()
@@ -197,6 +200,8 @@ instance C.Cql AssetSize where
 --------------------------------------------------------------------------------
 -- ManagedBy
 
+-- TODO: This is now also used by UserGroups, the docs should reflect this.
+
 -- | Who controls changes to the user profile (where the profile is defined as "all
 -- user-editable, user-visible attributes").  See {#SparBrainDump}.
 data ManagedBy
@@ -243,15 +248,24 @@ instance FromByteString ManagedBy where
 instance C.Cql ManagedBy where
   ctype = C.Tagged C.IntColumn
 
-  fromCql (C.CqlInt 0) = pure ManagedByWire
-  fromCql (C.CqlInt 1) = pure ManagedByScim
+  fromCql (C.CqlInt n) = mapLeft Text.unpack $ managedByFromInt32 n
   fromCql n = Left $ "Unexpected ManagedBy: " ++ show n
 
-  toCql ManagedByWire = C.CqlInt 0
-  toCql ManagedByScim = C.CqlInt 1
+  toCql = C.CqlInt . managedByToInt32
 
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
+
+managedByToInt32 :: ManagedBy -> Int32
+managedByToInt32 = \case
+  ManagedByWire -> 0
+  ManagedByScim -> 1
+
+managedByFromInt32 :: Int32 -> Either Text ManagedBy
+managedByFromInt32 = \case
+  0 -> Right ManagedByWire
+  1 -> Right ManagedByScim
+  n -> Left $ "Unexpected ManagedBy: " <> Text.pack (show n)
 
 --------------------------------------------------------------------------------
 -- Deprecated
