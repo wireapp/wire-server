@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, pkg-config, postgresql, openssl, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -21,6 +21,13 @@ hself: hsuper: {
 
   HaskellNet = hlib.dontCheck hsuper.HaskellNet;
 
+  # Tests require a running postgresql
+  hasql = hlib.dontCheck hsuper.hasql;
+  hasql-pool = hlib.dontCheck hsuper.hasql-pool;
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction;
+  hasql-migration = hlib.dontCheck hsuper.hasql-migration;
+  postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
+
   # ---------------------
   # need to be jailbroken
   # (these need to be fixed upstream eventually)
@@ -30,6 +37,11 @@ hself: hsuper: {
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   postie = hlib.doJailbreak hsuper.postie;
+  polysemy-time = hlib.doJailbreak (hsuper.polysemy-time);
+  polysemy-resume = hlib.doJailbreak (hsuper.polysemy-resume);
+  polysemy-conc = hlib.doJailbreak (hsuper.polysemy-conc);
+  # depend on an old version of hedgehog
+  polysemy-test = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-test);
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -46,6 +58,18 @@ hself: hsuper: {
       }
     )));
 
+  # ------------------------------------
+  # okay but marked broken (nixpkgs bug)
+  # (we can unfortunately not do anything here but update nixpkgs)
+  # ------------------------------------
+  template = hlib.markUnbroken hsuper.template;
+  system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
+  lrucaching = hlib.markUnbroken hsuper.lrucaching;
+
+  # -----------------
+  # version overrides
+  # (these are fine but will probably need to be adjusted in a future nixpkgs update)
+  # -----------------
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
 
@@ -68,4 +92,17 @@ hself: hsuper: {
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
+  postgresql-libpq-pkgconfig = hlib.addBuildDepends
+    (hlib.markUnbroken hsuper.postgresql-libpq-pkgconfig)
+    [ pkg-config postgresql.dev openssl.dev ];
+  postgresql-libpq = hlib.overrideCabal
+    (hlib.enableCabalFlag hsuper.postgresql-libpq "use-pkg-config")
+    (drv: {
+      libraryHaskellDepends = with hself; [
+        base
+        bytestring
+        postgresql-libpq-pkgconfig
+        unix
+      ];
+    });
 }
