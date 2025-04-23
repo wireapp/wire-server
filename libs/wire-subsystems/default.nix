@@ -62,6 +62,7 @@
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
+, profunctors
 , prometheus-client
 , QuickCheck
 , quickcheck-instances
@@ -161,6 +162,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    profunctors
     prometheus-client
     QuickCheck
     resource-pool
@@ -252,6 +254,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    profunctors
     prometheus-client
     QuickCheck
     quickcheck-instances
