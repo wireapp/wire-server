@@ -36,7 +36,7 @@ getUserGroupImpl id_ = do
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
       (name, managedBy) <- MaybeT $ statement id_ getGroupMetadataStatement
-      members <- lift $ Id <$$> statement id_ getGroupMembersStatement
+      members <- lift $ statement id_ getGroupMembersStatement
       pure $ UserGroup {..}
 
     decodeMetadataRow :: (Text, Int32) -> Either Text (Text, ManagedBy)
@@ -50,9 +50,9 @@ getUserGroupImpl id_ = do
          select (name :: text), (managed_by :: int) from user_group where id = ($1 :: uuid)
          |]
 
-    getGroupMembersStatement :: Statement UserGroupId (Vector UUID)
+    getGroupMembersStatement :: Statement UserGroupId (Vector UserId)
     getGroupMembersStatement =
-      lmap (.toUUID) $
+      dimap (.toUUID) (fmap Id) $
         [vectorStatement|
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]

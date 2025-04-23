@@ -32,13 +32,16 @@
 , exceptions
 , extended
 , extra
+, file-embed
 , gitignoreSource
 , hashable
 , HaskellNet
 , HaskellNet-SSL
 , hasql
+, hasql-migration
 , hasql-pool
 , hasql-th
+, hasql-transaction
 , hex
 , HsOpenSSL
 , hspec
@@ -135,12 +138,15 @@ mkDerivation {
     exceptions
     extended
     extra
+    file-embed
     hashable
     HaskellNet
     HaskellNet-SSL
     hasql
+    hasql-migration
     hasql-pool
     hasql-th
+    hasql-transaction
     hex
     HsOpenSSL
     hspec
@@ -227,12 +233,15 @@ mkDerivation {
     exceptions
     extended
     extra
+    file-embed
     hashable
     HaskellNet
     HaskellNet-SSL
     hasql
+    hasql-migration
     hasql-pool
     hasql-th
+    hasql-transaction
     hex
     HsOpenSSL
     hspec

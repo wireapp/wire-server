@@ -295,6 +295,11 @@ let
       sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
     };
 
+    tasty-ant-xml = {
+      version = "1.1.9";
+      sha256 = "sha256-aB7B61XSAZ5V+uW+QBe/PKBmhdFfX3OoOjDE9jB7Mek=";
+    };
+
     network-run = {
       version = "0.3.0";
       sha256 = "sha256-FP2GZKwacC+TLLwEIVgKBtnKplYPf5xOIjDfvlbQV0o=";
