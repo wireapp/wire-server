@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, pkg-config, postgresql, openssl, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -23,6 +23,9 @@ hself: hsuper: {
   # Tests require a running redis
   hedis = hlib.dontCheck hsuper.hedis;
 
+  # Tests require a running postgresql
+  hasql-migration = hlib.dontCheck hsuper.hasql-migration;
+
   # ---------------------
   # need to be jailbroken
   # (these need to be fixed upstream eventually)
@@ -31,6 +34,9 @@ hself: hsuper: {
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
+  polysemy-time = hlib.doJailbreak (hsuper.polysemy-time);
+  polysemy-resume = hlib.doJailbreak (hsuper.polysemy-resume);
+  polysemy-conc = hlib.doJailbreak (hsuper.polysemy-conc);
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -66,6 +72,27 @@ hself: hsuper: {
   tls-session-manager = hsuper.tls-session-manager_0_0_6;
   crypton-connection = hsuper.crypton-connection_0_4_1; # older version doesn't allow tls 2.1
   amqp = hlib.dontCheck hsuper.amqp_0_24_0; # older version doesn't allow cryton-connection 0.4.1, this one has broken tests
+
+  tasty = hsuper.tasty_1_5;
+  time-compat = hsuper.time-compat_1_9_7;
+
+  postgresql-libpq-pkgconfig = hlib.addBuildDepends
+    (hlib.markUnbroken hsuper.postgresql-libpq-pkgconfig)
+    [ pkg-config postgresql.dev openssl.dev ];
+  postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary_0_14);
+  postgresql-libpq = hlib.overrideCabal
+    (hlib.enableCabalFlag hsuper.postgresql-libpq_0_11_0_0 "use-pkg-config")
+    (drv: {
+      libraryHaskellDepends = with hself; [
+        base
+        bytestring
+        postgresql-libpq-pkgconfig
+        unix
+      ];
+    });
+  hasql = hlib.dontCheck hsuper.hasql_1_8_1_1;
+  hasql-pool = hlib.dontCheck hsuper.hasql-pool_1_2_0_2;
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_1_1_2;
 
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];

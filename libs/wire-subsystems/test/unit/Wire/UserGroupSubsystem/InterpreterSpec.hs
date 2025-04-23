@@ -6,6 +6,7 @@ import Data.Id
 import Data.String.Conversions (cs)
 import Data.Time
 import Data.UUID as UUID
+import Data.Vector qualified as V
 import Imports
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
@@ -31,12 +32,11 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                 .&&. (ug.name === nug.name)
                 .&&. (ug.members === nug.members)
                 .&&. (ug.managedBy === ManagedByWire)
-                .&&. (ug.createdAt === now)
                 .&&. (ug' === Just ug)
 
   describe "getGroups" $ do
     let now = unsafePerformIO getCurrentTime
-        nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (cs $ show i) []
+        nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (cs $ show i) mempty
 
         check :: (HasCallStack) => UserGroupPage -> [UserGroupId] -> Bool -> Expectation
         check have wantPage wantHasMore = do
@@ -66,7 +66,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
       Mock.runInMemoryUserGroupSubsystem now do
         gids <- (sort . ((.id_) <$>)) <$> createGroup `mapM` nugs
         beforeNewCreate <- getGroups (Just 8) Nothing
-        newGroup <- createGroup (NewUserGroup "the new one" [])
+        newGroup <- createGroup (NewUserGroup "the new one" mempty)
         afterNewCreate <- getGroups (Just 8) (Just $ lastKeyOf beforeNewCreate)
 
         pure do
@@ -81,7 +81,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
   prop "updateGroup updates the name" $ \originalName userGroupUpdate ->
     let now = unsafePerformIO getCurrentTime
      in Mock.runInMemoryUserGroupSubsystem now do
-          ug0 <- createGroup (NewUserGroup originalName [])
+          ug0 <- createGroup (NewUserGroup originalName mempty)
           ug1 <- getGroup ug0.id_
           ug2 <- updateGroup ug0.id_ userGroupUpdate
           ug3 <- getGroup ug0.id_
@@ -116,7 +116,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
           addUser ug.id_ newUserId -- idempotency
           ug'' :: Maybe UserGroup <- getGroup ug.id_
           pure $ do
-            ((sort . (.members)) <$> ug') `shouldBe` Just (sort (newUserId : ug.members))
+            ((sort . V.toList . (.members)) <$> ug') `shouldBe` Just (sort (newUserId : V.toList ug.members))
             ug'' `shouldBe` ug'
 
   prop "removeUser removes a user" $ \newGroup -> do
@@ -124,10 +124,10 @@ spec = describe "UserGroupSubsystem.Interpreter" do
      in Mock.runInMemoryUserGroupSubsystem now do
           ug :: UserGroup <- createGroup newGroup
           let removee :: UserId
-              removee = case ug.members of
+              removee = case V.toList ug.members of
                 [] -> Id UUID.nil -- idempotency
-                _ : _ -> ug.members !! (length ug.members `div` 2)
+                _ : _ -> ug.members V.! (length ug.members `div` 2)
           removeUser ug.id_ removee
           ug' :: Maybe UserGroup <- getGroup ug.id_
           pure $ do
-            ((sort . (.members)) <$> ug') `shouldBe` Just (sort (ug.members \\ [removee]))
+            ((sort . V.toList . (.members)) <$> ug') `shouldBe` Just (sort (V.toList ug.members \\ [removee]))

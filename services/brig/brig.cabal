@@ -248,6 +248,8 @@ library
     , fsnotify                              >=0.4
     , galley-types                          >=0.75.3
     , hashable                              >=1.2
+    , hasql
+    , hasql-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
     , HsOpenSSL                             >=0.10
