@@ -51,10 +51,11 @@ import qualified Codec.MIME.Type as MIME
 import Conduit
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
+import Control.Monad.Catch (try)
 import Data.Bifunctor (first)
+import qualified Data.ByteString as BS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Binary
@@ -94,21 +95,22 @@ data S3AssetMeta = S3AssetMeta
 -- ignore the uploaded mimetype header and force it to be
 -- application/octet-stream.
 
-uploadV3
-  :: V3.Principal
-  -> V3.AssetKey
-  -> V3.AssetHeaders
-  -> Maybe V3.AssetToken
-  -> ConduitM () ByteString (ResourceT IO) ()   -- ^ streaming payload
-  -> ExceptT Error App ()
+uploadV3 ::
+  V3.Principal ->
+  V3.AssetKey ->
+  V3.AssetHeaders ->
+  Maybe V3.AssetToken ->
+  -- | streaming payload
+  ConduitM () ByteString (ResourceT IO) () ->
+  ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
   Log.info $
-       "remote"        .= val "S3"
-    ~~ "asset.owner"   .= toByteString prc
-    ~~ "asset.key"     .= key
-    ~~ "asset.type"    .= MIME.showType ct
-    ~~ "asset.size"    .= cl
-    ~~ msg (val "Uploading asset")
+    "remote" .= val "S3"
+      ~~ "asset.owner" .= toByteString prc
+      ~~ "asset.key" .= key
+      ~~ "asset.type" .= MIME.showType ct
+      ~~ "asset.size" .= cl
+      ~~ msg (val "Uploading asset")
 
   awsEnv <- asks (.aws)
 
@@ -116,38 +118,52 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
   let createReq =
         newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
           & createMultipartUpload_contentType ?~ MIME.showType ct
-          & createMultipartUpload_metadata   .~ metaHeaders tok prc
+          & createMultipartUpload_metadata .~ metaHeaders tok prc
 
   cntRef <- liftIO $ newIORef (0 :: Int)
 
   -- byte counter for validating that an upload was completely uploaded from the client
   let countC = awaitForever $ \bs -> do
-                 liftIO $ modifyIORef' cntRef (+ BS.length bs)
-                 yield bs
+        liftIO $ modifyIORef' cntRef (+ BS.length bs)
+        yield bs
 
-  -- stream the conduit → multipart upload
-  result <- liftIO . runResourceT . runConduit $
-         src
-      .| chunksOfCE (fromIntegral defaultChunkSize)
-      .| isolate    (fromIntegral cl)
-      .| countC
-      .| SU.streamUpload awsEnv.amazonkaEnv Nothing createReq
-      --                                    ^ use library default part size
-
-  bytesSeen <- liftIO $ readIORef cntRef
-  when (bytesSeen /= (fromIntegral cl)) $ do
-    throwE incompleteBody
+  result <-
+    liftIO . try . runResourceT . runConduit $
+      src
+        .| chunksOfCE (fromIntegral defaultChunkSize)
+        .| isolate (fromIntegral cl)
+        .| countC
+        .| SU.streamUpload awsEnv.amazonkaEnv Nothing createReq
 
   case result of
-    Right (_ :: CompleteMultipartUploadResponse) -> pure ()
-    Left  ((abortResponse, exception) :: (AbortMultipartUploadResponse, SomeException)) -> do
+    Left (e :: SomeException) -> do
       Log.err $
-           "remote"     .= val "S3"
-        ~~ "asset.key"  .= key
-        ~~ msg ("Multipart upload failed – aborted: " <> (show (abortResponse, exception)))
-      throwE serverError -- TODO
+        "remote" .= val "S3"
+          ~~ "asset.owner" .= toByteString prc
+          ~~ "asset.key" .= key
+          ~~ "asset.type" .= MIME.showType ct
+          ~~ "asset.size" .= cl
+          ~~ msg ("Unhandled error while uploading asset: " <> show e)
+      throwE serverError
+    Right uploadResult -> do
+
+      bytesSeen <- liftIO $ readIORef cntRef
+      when (bytesSeen /= (fromIntegral cl)) $ do
+        throwE incompleteBody
+
+      case uploadResult of
+        Right (_ :: CompleteMultipartUploadResponse) -> pure ()
+        Left ((abortResponse, exception) :: (AbortMultipartUploadResponse, SomeException)) -> do
+          Log.err $
+            "remote" .= val "S3"
+              ~~ "asset.owner" .= toByteString prc
+              ~~ "asset.key" .= key
+              ~~ "asset.type" .= MIME.showType ct
+              ~~ "asset.size" .= cl
+              ~~ msg ("Multipart upload failed – aborted: " <> (show (abortResponse, exception)))
+          throwE serverError
   where
-    ct = octets   -- see note “overrideMimeTypeAsOctetStream”
+    ct = octets -- see note “overrideMimeTypeAsOctetStream”
 
 -- | Turn a 'ResourceT IO' action into a pure @Conduit@.
 --
