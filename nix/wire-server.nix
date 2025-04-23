@@ -158,7 +158,7 @@ let
     ];
 
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit (pkgs) libsodium protobuf fetchpatch fetchurl curl;
+    inherit (pkgs) libsodium protobuf fetchpatch fetchurl curl pkg-config postgresql openssl;
     inherit hlib mls-test-cli;
   });
 
