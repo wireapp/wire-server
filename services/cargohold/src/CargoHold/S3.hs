@@ -146,7 +146,6 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
           ~~ msg ("Unhandled error while uploading asset: " <> show e)
       throwE serverError
     Right uploadResult -> do
-
       bytesSeen <- liftIO $ readIORef cntRef
       when (bytesSeen /= (fromIntegral cl)) $ do
         throwE incompleteBody
