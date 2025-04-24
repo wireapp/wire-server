@@ -32,7 +32,7 @@ mkFedTestCase name n = do
     then pure [MkTestCase name n]
     else pure []
 
-data AnyFedDomain = AnyFedDomain Integer
+data AnyFedDomain = AnyFedDomain {unFedDomain :: Integer}
 
 instance MakesValue AnyFedDomain where
   make (AnyFedDomain 0) = asks (String . T.pack . (.federationV0Domain))

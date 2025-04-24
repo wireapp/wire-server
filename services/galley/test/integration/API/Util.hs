@@ -2161,8 +2161,8 @@ randomClientWithCaps uid lk caps = do
       )
       <!! const rStatus
         === statusCode
-  client <- responseJsonError resp
-  pure (clientId client)
+  client :: Client <- responseJsonError resp
+  pure client.clientId
   where
     cType = PermanentClientType
     rStatus = 201
@@ -2211,7 +2211,7 @@ getInternalClientsFull userSet = do
 ensureClientCaps :: (HasCallStack) => UserId -> ClientId -> Client.ClientCapabilityList -> TestM ()
 ensureClientCaps uid cid caps = do
   UserClientsFull (Map.lookup uid -> (Just clnts)) <- getInternalClientsFull (UserSet $ Set.singleton uid)
-  clnt <- assertOne . filter ((== cid) . clientId) $ Set.toList clnts
+  clnt <- assertOne . filter ((== cid) . (.clientId)) $ Set.toList clnts
   liftIO $ assertEqual ("ensureClientCaps: " <> show (uid, cid, caps)) (clientCapabilities clnt) caps
 
 -- TODO: Refactor, as used also in brig

@@ -42,7 +42,7 @@ testApplicationMessage = do
 
   clients@[alice1, _alice2, alex1, _alex2, bob1, _bob2, _, _] <-
     traverse
-      (createMLSClient def def)
+      (createMLSClient def)
       [alice, alice, alex, alex, bob, bob, betty, betty]
   traverse_ (uploadNewKeyPackage def) clients
   convId <- createNewGroup def alice1
@@ -69,7 +69,7 @@ testAppMessageSomeReachable = do
     otherDomain <- make OtherDomain & asString
     [alice, bob, charlie] <- createAndConnectUsers [ownDomain, otherDomain, thirdDomain]
 
-    [alice1, bob1, charlie1] <- traverse (createMLSClient def def) [alice, bob, charlie]
+    [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
     traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
     convId <- createNewGroup def alice1
     void $ withWebSocket charlie $ \ws -> do
@@ -86,7 +86,7 @@ testMessageNotifications :: (HasCallStack) => Domain -> App ()
 testMessageNotifications bobDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, bobDomain]
 
-  [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def def) [alice, alice, bob, bob]
+  [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def) [alice, alice, bob, bob]
   bobClient <- bob1 %. "client_id" & asString
 
   traverse_ (uploadNewKeyPackage def) [alice1, alice2, bob1, bob2]
@@ -115,7 +115,7 @@ testMessageNotifications bobDomain = do
 testMultipleMessages :: (HasCallStack) => App ()
 testMultipleMessages = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ (uploadNewKeyPackage def) [alice1, bob1]
   convId <- createNewGroup def alice1
 

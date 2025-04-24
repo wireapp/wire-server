@@ -86,7 +86,7 @@ createAndSendRemoveProposals ::
   -- client should get the remove proposal message; in this case the recipients
   -- are a strict subset of all the clients represented by the in-memory
   -- conversation/subconversation client maps.
-  ClientMap ->
+  ClientMap LeafIndex ->
   Codensity (Sem r) ()
 createAndSendRemoveProposals lConvOrSubConv indices qusr cm = Codensity $ \k -> do
   let meta = (tUnqualified lConvOrSubConv).mlsMeta

@@ -18,7 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Brig.API.Internal
   ( servantSitemap,
-    getMLSClients,
+    getMLSClientsH,
+    getMLSClientH,
   )
 where
 
@@ -47,6 +48,7 @@ import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
+import Cassandra qualified as Cas
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, _Just)
 import Control.Lens.Extras (is)
@@ -207,7 +209,9 @@ ejpdAPI ::
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = Named @"get-mls-clients" getMLSClients
+mlsAPI =
+  Named @"get-mls-clients" getMLSClientsH
+    :<|> Named @"get-mls-client" getMLSClientH
 
 accountAPI ::
   ( Member BlockListStore r,
@@ -436,22 +440,44 @@ deleteAccountConferenceCallingConfig :: UserId -> Handler r NoContent
 deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getMLSClients :: UserId -> CipherSuite -> Handler r (Set ClientInfo)
-getMLSClients usr suite = do
+getMLSClientH :: UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
+getMLSClientH usr cid suite = do
+  lusr <- qualifyLocal usr
+  suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
+  lift . wrapClient $ getMLSClient lusr cid suiteTag
+
+getMLSClientsH :: UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClientsH usr suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  clientInfo <- lift . wrapClient $ UnliftIO.Async.pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
-  pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
+  clientInfos <- lift . wrapClient $ UnliftIO.Async.pooledMapConcurrentlyN 16 (\c -> getMLSClient lusr c suiteTag) (toList allClients)
+  pure $ Set.fromList clientInfos
   where
     getResult [] = pure mempty
     getResult ((u, cs') : rs)
       | u == usr = pure cs'
       | otherwise = getResult rs
 
-    getValidity lusr cid suiteTag =
-      (cid,) . (> 0)
-        <$> Data.countKeyPackages lusr cid suiteTag
+getMLSClient ::
+  ( MonadReader Env m,
+    Cas.MonadClient m
+  ) =>
+  Local UserId ->
+  ClientId ->
+  CipherSuiteTag ->
+  m ClientInfo
+getMLSClient lusr cid suiteTag = do
+  numKeyPackages <- Data.countKeyPackages lusr cid suiteTag
+  mc <- Data.lookupClient (tUnqualified lusr) cid
+  let keys = foldMap (.clientMLSPublicKeys) mc
+      ss = csSignatureScheme suiteTag
+  pure
+    ClientInfo
+      { clientId = cid,
+        hasKeyPackages = numKeyPackages > 0,
+        mlsSignatureKey = Map.lookup ss keys
+      }
 
 getVerificationCode :: forall r. (Member VerificationCodeSubsystem r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = runMaybeT do

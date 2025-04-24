@@ -346,7 +346,7 @@ claimPrekeyBundle protectee domain uid = do
 
 claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
-  clients <- map clientId <$> lift (wrapClient (Data.lookupClients u))
+  clients <- map (.clientId) <$> lift (wrapClient (Data.lookupClients u))
   guardLegalhold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (wrapHttp . Data.claimPrekey u) clients)
 
@@ -506,7 +506,7 @@ execDelete ::
 execDelete u con c = do
   for_ (clientCookie c) $ \l -> liftSem $ Auth.revokeCookies u [] [l]
   liftSem $ enqueueClientDeletion c.clientId u con
-  wrapClient $ Data.rmClient u (clientId c)
+  wrapClient $ Data.rmClient u c.clientId
 
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed
@@ -536,7 +536,7 @@ noPrekeys u c = do
 pubClient :: Client -> PubClient
 pubClient c =
   PubClient
-    { pubClientId = clientId c,
+    { pubClientId = c.clientId,
       pubClientClass = clientClass c
     }
 

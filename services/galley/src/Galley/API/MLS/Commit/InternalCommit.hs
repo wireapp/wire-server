@@ -32,6 +32,7 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
+import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Types
@@ -56,6 +57,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
+import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
@@ -71,12 +73,13 @@ processInternalCommit ::
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member SubConversationStore r,
     Member Resource r,
     Member Random r
   ) =>
-  ClientIdentity ->
+  SenderIdentity ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
   CipherSuiteTag ->
@@ -87,11 +90,11 @@ processInternalCommit ::
   Codensity (Sem r) [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdate epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
-      qusr = cidQualifiedUser senderIdentity
+      qusr = cidQualifiedUser senderIdentity.client
       cm = convOrSub.members
       newUserClients = Map.assocs (paAdd action)
 
-  -- check all pending proposals are referenced in the commit
+  -- check that all pending proposals are referenced in the commit
   allPendingProposals <-
     lift $
       getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
@@ -100,10 +103,13 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     lift $
       throwS @'MLSCommitMissingReferences
 
+  -- check update path
+  lift $ traverse_ (checkUpdatePath lConvOrSub senderIdentity ciphersuite) commit.path
+
   withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch
   lift $ do
     -- no client can be directly added to a subconversation
-    when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
+    when (is _SubConv convOrSub && any ((senderIdentity.client /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
     events <-
@@ -133,7 +139,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                 when (Set.null removedClients) $ throw ()
 
                 -- return error if the user is trying to remove themself
-                when (cidQualifiedUser senderIdentity == qtarget) $
+                when (cidQualifiedUser senderIdentity.client == qtarget) $
                   throwS @'MLSSelfRemovalNotAllowed
 
                 -- FUTUREWORK: add tests against this situation for conv v subconv
@@ -153,44 +159,57 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
             SubConv _ _ -> pure []
             Conv _ ->
               fmap catMaybes . forM newUserClients $
-                \(qtarget, newclients) -> case Map.lookup qtarget cm of
-                  -- user is already present, skip check in this case
-                  Just existingClients -> do
-                    -- make sure none of the new clients already exist in the group
-                    when
-                      ( any
-                          (`Map.member` existingClients)
-                          (Map.keys newclients)
-                      )
-                      $ throw
-                        (mlsProtocolError "Cannot add a client that is already part of the group")
-                    pure Nothing
-                  Nothing -> do
-                    -- final set of clients in the conversation
-                    let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
-                    -- get list of mls clients from Brig (local or remote)
-                    getClientInfo lConvOrSub qtarget ciphersuite >>= \case
-                      Left _e -> pure (Just qtarget)
-                      Right clientInfo -> do
-                        let allClients = Set.map ciId clientInfo
-                        let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
-                        -- We check the following condition:
-                        --   allMLSClients ⊆ clients ⊆ allClients
-                        -- i.e.
-                        -- - if a client has at least 1 key package, it has to be added
-                        -- - if a client is being added, it has to still exist
-                        --
-                        -- The reason why we can't simply check that clients == allMLSClients is
-                        -- that a client with no remaining key packages might be added by a user
-                        -- who just fetched its last key package.
-                        unless
-                          ( Set.isSubsetOf allMLSClients clients
-                              && Set.isSubsetOf clients allClients
-                          )
-                          $
-                          -- FUTUREWORK: turn this error into a proper response
-                          throwS @'MLSClientMismatch
-                        pure Nothing
+                \(qtarget, newclients) -> do
+                  -- get list of mls clients from Brig (local or remote)
+                  mClientData <-
+                    fmap mkClientData . hush
+                      <$> runError @FederationError (getClientInfo lConvOrSub qtarget ciphersuite)
+                  unreachable <- case (mClientData, Map.lookup qtarget cm) of
+                    -- user is already present, skip check in this case
+                    (_, Just existingClients) -> do
+                      -- make sure none of the new clients already exist in the group
+                      when
+                        ( any
+                            (`Map.member` existingClients)
+                            (Map.keys newclients)
+                        )
+                        $ throw
+                          (mlsProtocolError "Cannot add a client that is already part of the group")
+                      pure False
+                    (Nothing, Nothing) -> pure True
+                    (Just clientData, Nothing) -> do
+                      -- final set of clients in the conversation
+                      let clients =
+                            Map.keysSet
+                              ( fmap fst newclients
+                                  <> Map.findWithDefault mempty qtarget cm
+                              )
+
+                      -- We check the following condition:
+                      --   allMLSClients ⊆ clients ⊆ allClients
+                      -- i.e.
+                      -- - if a client has at least 1 key package, it has to be added
+                      -- - if a client is being added, it has to still exist
+                      --
+                      -- The reason why we can't simply check that clients == allMLSClients is
+                      -- that a client with no remaining key packages might be added by a user
+                      -- who just fetched its last key package.
+                      unless
+                        ( Set.isSubsetOf clientData.allMLSClients clients
+                            && Set.isSubsetOf clients clientData.allClients
+                        )
+                        $
+                        -- FUTUREWORK: turn this error into a proper response
+                        throwS @'MLSClientMismatch
+
+                      pure False
+
+                  -- Check that new leaf nodes are using the registered signature keys.
+                  for_ mClientData $ \clientData ->
+                    for_ (Map.assocs newclients) $ \(cid, (_, mKp)) ->
+                      checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid clientData.infoMap)
+
+                  pure $ guard unreachable $> qtarget
           for_
             (unreachableFromList failedAddFetching)
             (throw . unreachableUsersToUnreachableBackends)
@@ -214,7 +233,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                   && epoch == Epoch 0 -> do
                   -- create 1-1 conversation with the users as members, set
                   -- epoch to 0 for now, it will be incremented later
-                  let senderUser = cidQualifiedUser senderIdentity
+                  let senderUser = cidQualifiedUser senderIdentity.client
                       mlsConv = fmap (.conv) lConvOrSub
                       lconv = fmap mcConv mlsConv
                   conv <- case filter ((/= senderUser) . fst) newUserClients of
@@ -273,7 +292,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
     -- add clients to the conversation state
     for_ newUserClients $ \(qtarget, newClients) -> do
-      addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
+      addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget $
+        Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
 
     -- set cipher suite
     when ciphersuiteUpdate $ case convOrSub.id of
@@ -284,6 +304,28 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     for_ lConvOrSub incrementEpoch
 
     pure events
+
+data ClientData = ClientData
+  { allClients :: Set (ClientId),
+    allMLSClients :: Set (ClientId),
+    infoMap :: Map ClientId ByteString
+  }
+
+mkClientData :: Set ClientInfo -> ClientData
+mkClientData clientInfo =
+  ClientData
+    { allClients = Set.map (.clientId) clientInfo,
+      allMLSClients =
+        Set.map
+          (.clientId)
+          (Set.filter (.hasKeyPackages) clientInfo),
+      infoMap =
+        Map.fromList
+          [ (info.clientId, key)
+            | info <- toList clientInfo,
+              key <- toList info.mlsSignatureKey
+          ]
+    }
 
 addMembers ::
   (HasProposalActionEffects r) =>

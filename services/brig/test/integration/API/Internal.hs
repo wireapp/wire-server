@@ -23,7 +23,6 @@ module API.Internal
   )
 where
 
-import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Data.User
@@ -33,17 +32,14 @@ import Cassandra qualified as Cass
 import Cassandra.Util
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString')
-import Data.Default
 import Data.Id
 import Data.Qualified
 import Imports
-import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
 import Wire.API.User
-import Wire.API.User.Client
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 
@@ -54,7 +50,6 @@ tests opts mgr db brig brigep _gundeck galley = do
       [ test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
         test mgr "suspend non existing user and verify no db entry" $
           testSuspendNonExistingUser db brig,
-        test mgr "mls/clients" $ testGetMlsClients brig,
         test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
       ]
 
@@ -85,40 +80,6 @@ setAccountStatus brig u s =
         . contentJson
         . json (AccountStatusUpdate s)
     )
-
-testGetMlsClients :: Brig -> Http ()
-testGetMlsClients brig = do
-  qusr <- userQualifiedId <$> randomUser brig
-  c <- createClient brig qusr 0
-
-  let getClients :: Http (Set ClientInfo)
-      getClients =
-        responseJsonError
-          =<< get
-            ( brig
-                . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
-                . queryItem "ciphersuite" "0x0001"
-            )
-            <!! const 200 === statusCode
-
-  cs0 <- getClients
-  liftIO $ toList cs0 @?= [ClientInfo c False]
-
-  withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp def qusr c 2
-
-  cs1 <- getClients
-  liftIO $ toList cs1 @?= [ClientInfo c True]
-
-createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
-createClient brig u i =
-  fmap clientId $
-    responseJsonError
-      =<< addClient
-        brig
-        (qUnqualified u)
-        (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
-        <!! const 201 === statusCode
 
 testWritetimeRepresentation :: forall m. (TestConstraints m) => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
 testWritetimeRepresentation _ _mgr db brig _brigep _galley = do
