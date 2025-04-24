@@ -65,7 +65,7 @@ import Control.Error (ExceptT, runExceptT)
 import Control.Lens (view, (?~), (^.), (^?))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (throwE)
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL

@@ -46,7 +46,7 @@ import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Trans.Maybe
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Code qualified as Code

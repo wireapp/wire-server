@@ -62,7 +62,7 @@ import Control.Error hiding (bool, note)
 import Control.Lens ((.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.ByteString (fromStrict)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.Code qualified as Code

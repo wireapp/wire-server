@@ -148,6 +148,7 @@ startDynamicBackend resource beOverrides = do
         mconcat
           [ setKeyspace,
             setEsIndex,
+            setPgDb,
             setFederationSettings,
             setAwsConfigs,
             setMlsPrivateKeyPaths,
@@ -213,6 +214,11 @@ startDynamicBackend resource beOverrides = do
           sparCfg = setField "cassandra.keyspace" resource.berSparKeyspace,
           gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace
         }
+    setPgDb :: ServiceOverrides
+    setPgDb =
+      def
+        { brigCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
+        }
 
     setEsIndex :: ServiceOverrides
     setEsIndex =
@@ -230,7 +236,7 @@ startDynamicBackend resource beOverrides = do
     setLogLevel =
       def
         { sparCfg = setField "saml.logLevel" ("Warn" :: String),
-          brigCfg = setField "logLevel" ("Warn" :: String),
+          brigCfg = setField "logLevel" ("Debug" :: String),
           cannonCfg = setField "logLevel" ("Warn" :: String),
           cargoholdCfg = setField "logLevel" ("Warn" :: String),
           galleyCfg = setField "logLevel" ("Warn" :: String),
