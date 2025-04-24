@@ -83,40 +83,41 @@ library
 
   ghc-options:        -Wall -Wredundant-constraints -Wunused-packages
   build-depends:
-      aeson                >=2.1.2   && <2.2
-    , aeson-qq             >=0.8.4   && <0.9
-    , attoparsec           >=0.14.4  && <0.15
-    , base                 >=4.17.2  && <4.21
-    , bytestring           >=0.10.4  && <0.12
-    , case-insensitive     >=1.2.1   && <1.3
-    , email-validate       >=2.3.2   && <2.4
-    , hashable             >=1.4.3   && <1.5
-    , hspec                >=2.10.10 && <2.12
-    , hspec-expectations   >=0.8.2   && <0.9
-    , hspec-wai            >=0.11.1  && <0.12
-    , http-api-data        >=0.5     && <0.6
-    , http-media           >=0.8.1   && <0.9
-    , http-types           >=0.12.3  && <0.13
-    , list-t               >=1.0.5   && <1.1
-    , microlens            >=0.4.13  && <0.5
-    , mmorph               >=1.2.0   && <1.3
-    , mtl                  >=2.2.2   && <2.4
-    , network-uri          >=2.6.4   && <2.7
-    , retry                >=0.9.3   && <0.10
-    , scientific           >=0.3.7   && <0.4
-    , servant              >=0.19.1  && <0.21
-    , servant-client       >=0.19    && <0.21
-    , servant-client-core  >=0.19    && <0.21
-    , servant-server       >=0.19.2  && <0.21
-    , stm                  >=2.5.1   && <2.6
-    , stm-containers       >=1.2.0   && <1.3
-    , string-conversions   >=0.4.0   && <0.5
-    , template-haskell     >=2.19.0  && <2.21
-    , text                 >=2.0.2   && <2.1
-    , time                 >=1.12.2  && <1.13
-    , uuid                 >=1.3.15  && <1.4
-    , wai                  >=3.2.3   && <3.3
-    , wai-extra            >=3.1.13  && <3.2
+      aeson
+    , aeson-qq
+    , attoparsec
+    , attoparsec-aeson
+    , base
+    , bytestring
+    , case-insensitive
+    , email-validate
+    , hashable
+    , hspec
+    , hspec-expectations
+    , hspec-wai
+    , http-api-data
+    , http-media
+    , http-types
+    , list-t
+    , microlens
+    , mmorph
+    , mtl
+    , network-uri
+    , retry
+    , scientific
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , stm
+    , stm-containers
+    , string-conversions
+    , template-haskell
+    , text
+    , time
+    , uuid
+    , wai
+    , wai-extra
 
   default-language:   Haskell2010
 
@@ -147,14 +148,14 @@ executable hscim-server
     -Wunused-packages
 
   build-depends:
-      base            >=4.18.2 && <4.21
-    , email-validate  >=2.3.2  && <2.4
+      base
+    , email-validate
     , hscim
-    , network-uri     >=2.6.4  && <2.7
-    , stm             >=2.5.1  && <2.6
-    , stm-containers  >=1.2.1  && <1.3
-    , time            >=1.12.2 && <1.13
-    , warp            >=3      && <3.5
+    , network-uri
+    , stm
+    , stm-containers
+    , time
+    , warp
 
   default-language:   Haskell2010
 
@@ -203,25 +204,25 @@ test-suite spec
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
-      aeson                >=2.1.2  && <2.2
+      aeson
     , attoparsec
     , base
     , bytestring
-    , email-validate       >=2.3.2  && <2.4
+    , email-validate
     , hedgehog
-    , hscim                >=0.4.0  && <0.5
+    , hscim
     , hspec
     , hspec-expectations
     , hspec-wai
-    , http-types           >=0.12.4 && <0.13
+    , http-types
     , hw-hspec-hedgehog
     , indexed-traversable
     , microlens
     , network-uri
-    , servant              >=0.19   && <0.21
+    , servant
     , servant-server
     , stm-containers
-    , text                 >=2.0.2  && <2.1
+    , text
     , wai
     , wai-extra
 

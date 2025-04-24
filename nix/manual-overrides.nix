@@ -24,7 +24,10 @@ hself: hsuper: {
   hedis = hlib.dontCheck hsuper.hedis;
 
   # Tests require a running postgresql
+  hasql = hlib.dontCheck hsuper.hasql;
+  hasql-pool = hlib.dontCheck hsuper.hasql-pool;
   hasql-migration = hlib.dontCheck hsuper.hasql-migration;
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction;
 
   # ---------------------
   # need to be jailbroken
@@ -37,6 +40,9 @@ hself: hsuper: {
   polysemy-time = hlib.doJailbreak (hsuper.polysemy-time);
   polysemy-resume = hlib.doJailbreak (hsuper.polysemy-resume);
   polysemy-conc = hlib.doJailbreak (hsuper.polysemy-conc);
+  text-builder-core = hlib.doJailbreak hsuper.text-builder-core;
+  text-builder = hlib.doJailbreak hsuper.text-builder;
+  bitvec = hlib.doJailbreak hsuper.bitvec;
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -90,9 +96,14 @@ hself: hsuper: {
         unix
       ];
     });
-  hasql = hlib.dontCheck hsuper.hasql_1_8_1_1;
-  hasql-pool = hlib.dontCheck hsuper.hasql-pool_1_2_0_2;
-  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_1_1_2;
+
+  witherable = hsuper.witherable_0_5;
+  aeson = hsuper.aeson_2_2_3_0;
+  attoparsec-aeson = hsuper.attoparsec-aeson_2_2_2_0;
+  hashable = hlib.dontCheck hsuper.hashable_1_4_7_0;
+  primitive = hlib.dontCheck hsuper.primitive_0_9_0_0;
+  primitive-unlifted = hsuper.primitive-unlifted_2_2_0_0;
+  # Tasty-quickcheck = hsuper.tasty-quickcheck;
 
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];

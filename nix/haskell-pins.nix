@@ -313,6 +313,41 @@ let
       sha256 = "sha256-d/0IDjaaCLz8tlx88z8Ew8ol9PrSRPVWaUwTbim70yE=";
     };
 
+    hasql = {
+      version = "1.9.1.2";
+      sha256 = "sha256-W2pAC3wLIizmbspWHeWDQqb5AROtwA8Ok+lfZtzTlQg=";
+    };
+
+    hasql-pool = {
+      version = "1.3.0.1";
+      sha256 = "sha256-TtNrs1z8L39WnX8277V97g9Ot1DwutKLrAB1JOjQQoQ=";
+    };
+
+    hasql-transaction = {
+      version = "1.2.0.1";
+      sha256 = "sha256-gXLDMlD6E3degEUJOtFCiZf9EAsWEBJqsOfZK54iBSA=";
+    };
+
+    hasql-th = {
+      version = "0.4.0.23";
+      sha256 = "sha256-t9WgRQ60zXYpBz7qZHjz7S5ksEUfg/PHBvD0gOLad0Y=";
+    };
+
+    postgresql-syntax = {
+      version = "0.4.1.3";
+      sha256 = "sha256-afC4lQUPUL5cHe+7vTG1lFZ4wWyQzdh9MEhMT/TtP5c=";
+    };
+
+    text-builder-core = {
+      version = "0.1.1.1";
+      sha256 = "sha256-BX6JRG+K1PnS3GLvpakG7rTsARfVmGLl1gTW0a4UyDo=";
+    };
+
+    text-builder = {
+      version = "1.0.0.3";
+      sha256 = "sha256-9VCOzwebs89KosOouJjFUcAgY6PF97yJnnIp4HZOK20=";
+    };
+
     network-control = {
       version = "0.1.0";
       sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";

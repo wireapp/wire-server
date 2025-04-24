@@ -40,7 +40,7 @@ import Control.Monad.State.Class (MonadState)
 import Control.Monad.State.Class qualified as MonadState
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
 import Control.Retry
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString qualified as BS

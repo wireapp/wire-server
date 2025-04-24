@@ -27,7 +27,7 @@ import Cassandra qualified as DB
 import Codec.MIME.Type qualified as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
