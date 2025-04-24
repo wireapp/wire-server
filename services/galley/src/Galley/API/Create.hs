@@ -213,13 +213,13 @@ createGroupConversation ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r CreateGroupConversationResponse
+  Sem r CreateGroupConversation
 createGroupConversation lusr conn newConv = do
   createGroupConvAndMkResponse
     lusr
     conn
     newConv
-    (\dbConv -> pure $ GroupConversationCreated $ CreateGroupConversation (conversationView lusr dbConv) mempty)
+    (\dbConv -> pure $ CreateGroupConversation (conversationView lusr dbConv) mempty)
 
 createGroupConvAndMkResponse ::
   ( Member (Input Opts) r,
