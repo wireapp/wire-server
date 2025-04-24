@@ -374,3 +374,5 @@ spec:
       value: "1"
     - name: ENABLE_FEDERATION_V1
       value: "1"
+    - name: ENABLE_FEDERATION_V2
+      value: "1"

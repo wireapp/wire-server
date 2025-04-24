@@ -1,0 +1,15 @@
+a (blacklist (regex "(/v[0-9]+)?/provider(/.*)?")
+             (regex "(/v[0-9]+)?/bot(/.*)?")
+             (regex "(/v[0-9]+)?/i/.*"))
+
+b (whitelist (regex "(/v[0-9]+)?/bot(/.*)?"))
+
+p (whitelist (regex "(/v[0-9]+)?/provider(/.*)?"))
+
+# LegalHold Access Tokens
+# FUTUREWORK: remove /legalhold/conversations/ when support for v1 is dropped
+la (whitelist (regex "(/v[0-9]+)?/notifications")
+              (regex "(/v[0-9]+)?/assets/v3/.*")
+              (regex "(/v[0-9]+)?/users(/.*)?")
+              (regex "(/v[0-9]+)?/legalhold/conversations/[^/]+")
+              (regex "(/v[0-9]+)?/conversations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))
