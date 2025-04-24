@@ -26,9 +26,8 @@ import SAML2.WebSSO qualified as SAML
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.EnterpriseLogin
 
--- TODO: Write DomainRegistrationResponseV8 tests
-testObject_DomainRegistrationResponse_1 :: DomainRegistrationResponseV8
-testObject_DomainRegistrationResponse_1 =
+testObject_DomainRegistrationResponseV8_1 :: DomainRegistrationResponseV8
+testObject_DomainRegistrationResponseV8_1 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -37,8 +36,8 @@ testObject_DomainRegistrationResponse_1 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_2 :: DomainRegistrationResponseV8
-testObject_DomainRegistrationResponse_2 =
+testObject_DomainRegistrationResponseV8_2 :: DomainRegistrationResponseV8
+testObject_DomainRegistrationResponseV8_2 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -47,8 +46,8 @@ testObject_DomainRegistrationResponse_2 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_3 :: DomainRegistrationResponseV8
-testObject_DomainRegistrationResponse_3 =
+testObject_DomainRegistrationResponseV8_3 :: DomainRegistrationResponseV8
+testObject_DomainRegistrationResponseV8_3 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -58,8 +57,8 @@ testObject_DomainRegistrationResponse_3 =
     }
 
 -- TODO: Add test for `Backend` with webapp Url (kind of _4b)
-testObject_DomainRegistrationResponse_4 :: DomainRegistrationResponseV8
-testObject_DomainRegistrationResponse_4 =
+testObject_DomainRegistrationResponseV8_4 :: DomainRegistrationResponseV8
+testObject_DomainRegistrationResponseV8_4 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -68,8 +67,8 @@ testObject_DomainRegistrationResponse_4 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_5 :: DomainRegistrationResponseV8
-testObject_DomainRegistrationResponse_5 =
+testObject_DomainRegistrationResponseV8_5 :: DomainRegistrationResponseV8
+testObject_DomainRegistrationResponseV8_5 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Id <$> UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284",
@@ -78,8 +77,69 @@ testObject_DomainRegistrationResponse_5 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_6 :: DomainRegistrationResponseV8
-testObject_DomainRegistrationResponse_6 =
+testObject_DomainRegistrationResponseV8_6 :: DomainRegistrationResponseV8
+testObject_DomainRegistrationResponseV8_6 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = PreAuthorized,
+      teamInvite = Allowed,
+      dnsVerificationToken = Just $ DnsVerificationToken "jfdjsejsdjsdfjsdfjlwejwekljwef"
+    }
+
+testObject_DomainRegistrationResponseV9_1 :: DomainRegistrationResponseV9
+testObject_DomainRegistrationResponseV9_1 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = Locked,
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_2 :: DomainRegistrationResponseV9
+testObject_DomainRegistrationResponseV9_2 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = None,
+      teamInvite = NotAllowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_3 :: DomainRegistrationResponseV9
+testObject_DomainRegistrationResponseV9_3 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = SSO (SAML.IdPId $ fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
+      teamInvite = Team $ Id (fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
+      dnsVerificationToken = Nothing
+    }
+
+-- TODO: Add test for `Backend` with webapp Url (kind of _4b)
+testObject_DomainRegistrationResponseV9_4 :: DomainRegistrationResponseV9
+testObject_DomainRegistrationResponseV9_4 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))) Nothing,
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_5 :: DomainRegistrationResponseV9
+testObject_DomainRegistrationResponseV9_5 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Id <$> UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284",
+      domainRedirect = NoRegistration,
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_6 :: DomainRegistrationResponseV9
+testObject_DomainRegistrationResponseV9_6 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
