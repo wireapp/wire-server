@@ -16,6 +16,7 @@ import Notifications
 import SetupHelpers
 import Test.Version
 import Testlib.Prelude
+import Testlib.VersionedFed
 
 testSendMessageNoReturnToSender :: (HasCallStack) => App ()
 testSendMessageNoReturnToSender = do
@@ -921,3 +922,16 @@ testInternalCommitWrongSignatureKey = do
   bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "mls-identity-mismatch"
+
+testRemoteAddLegacy :: (HasCallStack) => AnyFedDomain -> App ()
+testRemoteAddLegacy domain = do
+  when (unFedDomain domain > 0) $ do
+    let suite = Ciphersuite "0x0001"
+    alice <- randomUser OwnDomain def
+    bob <- randomUser domain def
+    connectTwoUsers alice bob
+
+    [alice1, bob1] <- traverse (createMLSClient def {ciphersuites = [suite]}) [alice, bob]
+    void $ uploadNewKeyPackage suite bob1
+    convId <- createNewGroup suite alice1
+    void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
