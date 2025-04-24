@@ -125,6 +125,7 @@ import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Id
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Text qualified as Text
@@ -134,7 +135,9 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
-import Hasql.Connection qualified as HasqlConn
+import Hasql.Connection.Setting qualified as HasqlSetting
+import Hasql.Connection.Setting.Connection qualified as HasqlConn
+import Hasql.Connection.Setting.Connection.Param qualified as HasqlConfig
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Config qualified as HasqlPool
 import Imports
@@ -279,7 +282,7 @@ newEnv opts = do
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
-  hasqlPool <- initPostgres lgr
+  hasqlPool <- initPostgres opts.postgresql lgr
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -459,13 +462,20 @@ initCassandra o g =
     (Just schemaVersion)
     g
 
-initPostgres :: Logger -> IO HasqlPool.Pool
-initPostgres logger = do
+initPostgres :: Map Text Text -> Logger -> IO HasqlPool.Pool
+initPostgres pgConfig logger = do
+  let pgParams = Map.foldMapWithKey (\k v -> [HasqlConfig.other k v]) pgConfig
+  -- HasqlConn.params translates pgParams into connection (which just holds the connection string and is not a real connection)
+  -- HasqlSetting.connection unwraps the connection string out of connection
+  -- HasqlPool.staticConnectionSettings translates the connection string to the pool settings
+  -- HasqlPool.settings translates the pool settings into pool config
+  -- HasqlPool.acquire creates the pool.
+  -- ezpz.
   pool <-
     HasqlPool.acquire $
       HasqlPool.settings
         [ HasqlPool.staticConnectionSettings $
-            HasqlConn.settings "localhost" 5432 "wire-server" "posty-the-gres" "wire-server"
+            [HasqlSetting.connection $ HasqlConn.params pgParams]
         ]
   runAllMigrations pool logger
   pure pool
