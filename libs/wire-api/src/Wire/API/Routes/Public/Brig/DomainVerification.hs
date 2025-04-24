@@ -259,7 +259,7 @@ instance ToSchema DomainOwnershipToken where
       DomainOwnershipToken
         <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
-newtype RegisteredDomains = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse]}
+newtype RegisteredDomains = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponseV8]}
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RegisteredDomains)
 
 instance ToSchema RegisteredDomains where
@@ -378,15 +378,17 @@ type DomainVerificationTeamAPI =
                :> ReqBody '[JSON] TeamInviteConfig
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
            )
-    :<|> Named
-           "get-all-registered-domains"
-           ( Summary "Get all registered domains"
-               :> ZLocalUser
-               :> "teams"
-               :> Capture "teamId" TeamId
-               :> "registered-domains"
-               :> Get '[JSON] RegisteredDomains
-           )
+    :<|>
+    -- TODO: Needs to be versioned in its payload
+    Named
+      "get-all-registered-domains"
+      ( Summary "Get all registered domains"
+          :> ZLocalUser
+          :> "teams"
+          :> Capture "teamId" TeamId
+          :> "registered-domains"
+          :> Get '[JSON] RegisteredDomains
+      )
     :<|> Named
            "delete-registered-domain"
            ( Summary "Delete a registered domain"

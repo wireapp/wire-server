@@ -1071,7 +1071,7 @@ domRegPreAuthorize :: Domain -> SC.ClientM NoContent
 domRegUnauthorize :: Domain -> SC.ClientM NoContent
 domRegUpdate :: Domain -> DomainRegistrationUpdate -> SC.ClientM NoContent
 domRegDelete :: Domain -> SC.ClientM NoContent
-domRegGet :: Domain -> SC.ClientM DomainRegistrationResponse
+domRegGet :: Domain -> SC.ClientM DomainRegistrationResponseV9
 ( domRegLock
     :<|> domRegUnlock
     :<|> domRegPreAuthorize

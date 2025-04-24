@@ -17,7 +17,7 @@ data EnterpriseLoginSubsystem m a where
   UnAuthorizeDomain :: Domain -> EnterpriseLoginSubsystem m ()
   UpdateDomainRegistration :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
-  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistrationResponse)
+  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistrationResponseV9)
   UpdateDomainRedirect ::
     Token ->
     Domain ->

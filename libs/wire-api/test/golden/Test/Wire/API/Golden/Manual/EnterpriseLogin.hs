@@ -26,7 +26,8 @@ import SAML2.WebSSO qualified as SAML
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.EnterpriseLogin
 
-testObject_DomainRegistrationResponse_1 :: DomainRegistrationResponse
+-- TODO: Write DomainRegistrationResponseV8 tests
+testObject_DomainRegistrationResponse_1 :: DomainRegistrationResponseV8
 testObject_DomainRegistrationResponse_1 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -36,7 +37,7 @@ testObject_DomainRegistrationResponse_1 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_2 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_2 :: DomainRegistrationResponseV8
 testObject_DomainRegistrationResponse_2 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -46,7 +47,7 @@ testObject_DomainRegistrationResponse_2 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_3 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_3 :: DomainRegistrationResponseV8
 testObject_DomainRegistrationResponse_3 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -57,7 +58,7 @@ testObject_DomainRegistrationResponse_3 =
     }
 
 -- TODO: Add test for `Backend` with webapp Url (kind of _4b)
-testObject_DomainRegistrationResponse_4 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_4 :: DomainRegistrationResponseV8
 testObject_DomainRegistrationResponse_4 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -67,7 +68,7 @@ testObject_DomainRegistrationResponse_4 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_5 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_5 :: DomainRegistrationResponseV8
 testObject_DomainRegistrationResponse_5 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -77,7 +78,7 @@ testObject_DomainRegistrationResponse_5 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_6 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_6 :: DomainRegistrationResponseV8
 testObject_DomainRegistrationResponse_6 =
   DomainRegistrationResponse
     { domain = Domain "example.com",

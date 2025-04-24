@@ -170,7 +170,7 @@ getRegisteredDomainsImpl ::
   Sem r RegisteredDomains
 getRegisteredDomainsImpl lusr tid = do
   void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
-  domains <- mkDomainRegistrationResponse <$$> lookupByTeam tid
+  domains <- mkDomainRegistrationResponseV8 <$$> lookupByTeam tid
   pure $ RegisteredDomains domains
 
 authorizeTeamImpl ::
@@ -436,7 +436,7 @@ getDomainRegistrationImpl ::
     Member TinyLog r
   ) =>
   Domain ->
-  Sem r (Maybe DomainRegistrationResponse)
+  Sem r (Maybe DomainRegistrationResponseV9)
 getDomainRegistrationImpl domain = mkDomainRegistrationResponse <$$> lookup domain
 
 lookupOrThrow ::
