@@ -34,7 +34,7 @@ import Brig.Options as Opt
 import Cassandra qualified as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Lens
