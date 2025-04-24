@@ -265,7 +265,7 @@ type instance MapError 'MLSFederatedOne2OneNotSupported = 'StaticError 400 "mls-
 
 type instance MapError MLSLegalholdIncompatible = 'StaticError 409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
 
-type instance MapError 'MLSIdentityMismatch = 'StaticError 403 "mls-identity-mismatch" "Leaf node signature key does not match client's"
+type instance MapError 'MLSIdentityMismatch = 'StaticError 403 "mls-identity-mismatch" "Leaf node signature key does not match the client's key"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
