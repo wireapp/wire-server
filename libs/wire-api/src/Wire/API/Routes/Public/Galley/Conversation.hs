@@ -69,26 +69,6 @@ instance
   fromUnion (S (Z (I x))) = GroupConversationCreatedV8 x
   fromUnion (S (S x)) = case x of {}
 
--- | A type similar to 'ResponseForExistedCreated' introduced to allow for a failure
--- to add remote members while creating a conversation or due to involved
--- backends forming an incomplete graph.
-data CreateGroupConversationResponse
-  = GroupConversationExisted Conversation
-  | GroupConversationCreated CreateGroupConversation
-
-instance
-  ( ResponseType r1 ~ Conversation,
-    ResponseType r2 ~ CreateGroupConversation
-  ) =>
-  AsUnion '[r1, r2] CreateGroupConversationResponse
-  where
-  toUnion (GroupConversationExisted x) = Z (I x)
-  toUnion (GroupConversationCreated x) = S (Z (I x))
-
-  fromUnion (Z (I x)) = GroupConversationExisted x
-  fromUnion (S (Z (I x))) = GroupConversationCreated x
-  fromUnion (S (S x)) = case x of {}
-
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
 type family ConversationResponse r
@@ -504,14 +484,10 @@ type ConversationAPI =
                     '[JSON]
                     '[ WithHeaders
                          ConversationHeaders
-                         Conversation
-                         (Respond 200 "Conversation existed" Conversation),
-                       WithHeaders
-                         ConversationHeaders
                          CreateGroupConversation
                          (Respond 201 "Conversation created" CreateGroupConversation)
                      ]
-                    CreateGroupConversationResponse
+                    CreateGroupConversation
            )
     :<|> Named
            "create-self-conversation@v2"
