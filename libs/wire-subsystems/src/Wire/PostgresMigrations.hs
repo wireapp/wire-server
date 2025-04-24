@@ -14,7 +14,6 @@ import System.Logger qualified as Log
 allMigrations :: [MigrationCommand]
 allMigrations = map (uncurry MigrationScript) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
 
--- TODO: Use logger
 runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
