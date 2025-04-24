@@ -259,10 +259,31 @@ instance ToSchema DomainOwnershipToken where
       DomainOwnershipToken
         <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
-newtype RegisteredDomains = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponseV8]}
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RegisteredDomains)
+type RegisteredDomainsV8 = RegisteredDomains V8
 
-instance ToSchema RegisteredDomains where
+newtype RegisteredDomains (v :: Version) = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse v]}
+
+deriving via (Schema (RegisteredDomains V8)) instance A.ToJSON (RegisteredDomains V8)
+
+deriving via (Schema (RegisteredDomains V8)) instance A.FromJSON (RegisteredDomains V8)
+
+deriving via (Schema (RegisteredDomains V8)) instance S.ToSchema (RegisteredDomains V8)
+
+instance ToSchema (RegisteredDomains V8) where
+  schema =
+    object "RegisteredDomains" $
+      RegisteredDomains
+        <$> unRegisteredDomains .= field "registered_domains" (array schema)
+
+type RegisteredDomainsV9 = RegisteredDomains V9
+
+deriving via (Schema (RegisteredDomains V9)) instance A.ToJSON (RegisteredDomains V9)
+
+deriving via (Schema (RegisteredDomains V9)) instance A.FromJSON (RegisteredDomains V9)
+
+deriving via (Schema (RegisteredDomains V9)) instance S.ToSchema (RegisteredDomains V9)
+
+instance ToSchema (RegisteredDomains V9) where
   schema =
     object "RegisteredDomains" $
       RegisteredDomains
@@ -378,17 +399,26 @@ type DomainVerificationTeamAPI =
                :> ReqBody '[JSON] TeamInviteConfig
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
            )
-    :<|>
-    -- TODO: Needs to be versioned in its payload
-    Named
-      "get-all-registered-domains"
-      ( Summary "Get all registered domains"
-          :> ZLocalUser
-          :> "teams"
-          :> Capture "teamId" TeamId
-          :> "registered-domains"
-          :> Get '[JSON] RegisteredDomains
-      )
+    :<|> Named
+           "get-all-registered-domains@v8"
+           ( Summary "Get all registered domains"
+               :> Until V8
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "teamId" TeamId
+               :> "registered-domains"
+               :> Get '[JSON] RegisteredDomainsV8
+           )
+    :<|> Named
+           "get-all-registered-domains"
+           ( Summary "Get all registered domains"
+               :> From V9
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "teamId" TeamId
+               :> "registered-domains"
+               :> Get '[JSON] RegisteredDomainsV9
+           )
     :<|> Named
            "delete-registered-domain"
            ( Summary "Delete a registered domain"

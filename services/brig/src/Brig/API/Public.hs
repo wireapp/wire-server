@@ -581,6 +581,7 @@ servantSitemap =
       Named @"verify-challenge-team" verifyChallengeTeam
         :<|> Named @"domain-verification-authorize-team" authorizeTeam
         :<|> Named @"update-team-invite" updateTeamInvite
+        :<|> Named @"get-all-registered-domains@v8" getAllRegisteredDomains
         :<|> Named @"get-all-registered-domains" getAllRegisteredDomains
         :<|> Named @"delete-registered-domain" deleteRegisteredDomain
 
@@ -1597,7 +1598,7 @@ updateTeamInvite ::
 updateTeamInvite lusr domain config =
   lift . liftSem $ EnterpriseLogin.updateTeamInvite lusr domain config
 
-getAllRegisteredDomains :: (_) => Local UserId -> TeamId -> Handler r RegisteredDomains
+getAllRegisteredDomains :: (_) => Local UserId -> TeamId -> Handler r (RegisteredDomains v)
 getAllRegisteredDomains lusr tid = lift . liftSem $ EnterpriseLogin.getRegisteredDomains lusr tid
 
 deleteRegisteredDomain :: (_) => Local UserId -> TeamId -> Domain -> Handler r ()

@@ -17,7 +17,7 @@ data EnterpriseLoginSubsystem m a where
   UnAuthorizeDomain :: Domain -> EnterpriseLoginSubsystem m ()
   UpdateDomainRegistration :: Domain -> DomainRegistrationUpdate -> EnterpriseLoginSubsystem m ()
   DeleteDomain :: Domain -> EnterpriseLoginSubsystem m ()
-  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe DomainRegistrationResponseV9)
+  GetDomainRegistration :: Domain -> EnterpriseLoginSubsystem m (Maybe (DomainRegistrationResponse v))
   UpdateDomainRedirect ::
     Token ->
     Domain ->
@@ -41,7 +41,7 @@ data EnterpriseLoginSubsystem m a where
     Token ->
     EnterpriseLoginSubsystem m Token
   AuthorizeTeam :: Local UserId -> Domain -> DomainOwnershipToken -> EnterpriseLoginSubsystem m ()
-  GetRegisteredDomains :: Local UserId -> TeamId -> EnterpriseLoginSubsystem m RegisteredDomains
+  GetRegisteredDomains :: Local UserId -> TeamId -> EnterpriseLoginSubsystem m (RegisteredDomains v)
   DeleteTeamDomain :: Local UserId -> TeamId -> Domain -> EnterpriseLoginSubsystem m ()
 
 makeSem ''EnterpriseLoginSubsystem

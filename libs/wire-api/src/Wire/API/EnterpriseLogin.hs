@@ -241,7 +241,7 @@ instance ToSchema DomainRegistrationUpdate where
   schema =
     object "DomainRegistrationUpdate" $
       DomainRegistrationUpdate
-        <$> (.domainRedirect) .= domainRedirectSchema
+        <$> (.domainRedirect) .= domainRedirectSchemaV9
         <*> (.teamInvite) .= teamInviteObjectSchema
 
 type DomainRegistrationResponseV8 = DomainRegistrationResponse V8
@@ -264,11 +264,8 @@ deriving via Schema DomainRegistrationResponseV8 instance FromJSON DomainRegistr
 
 deriving via Schema DomainRegistrationResponseV8 instance S.ToSchema DomainRegistrationResponseV8
 
-mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponseV9
+mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse v
 mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
-
-mkDomainRegistrationResponseV8 :: DomainRegistration -> DomainRegistrationResponseV8
-mkDomainRegistrationResponseV8 DomainRegistration {..} = DomainRegistrationResponse {..}
 
 instance ToSchema DomainRegistrationResponseV8 where
   schema =
