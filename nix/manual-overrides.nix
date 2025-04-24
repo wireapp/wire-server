@@ -24,8 +24,8 @@ hself: hsuper: {
   # Tests require a running postgresql
   hasql = hlib.dontCheck hsuper.hasql;
   hasql-pool = hlib.dontCheck hsuper.hasql-pool;
-  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction;
   hasql-migration = hlib.dontCheck hsuper.hasql-migration;
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction;
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
 
   # ---------------------
@@ -40,8 +40,9 @@ hself: hsuper: {
   polysemy-time = hlib.doJailbreak (hsuper.polysemy-time);
   polysemy-resume = hlib.doJailbreak (hsuper.polysemy-resume);
   polysemy-conc = hlib.doJailbreak (hsuper.polysemy-conc);
-  # depend on an old version of hedgehog
-  polysemy-test = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-test);
+  text-builder-core = hlib.doJailbreak hsuper.text-builder-core;
+  text-builder = hlib.doJailbreak hsuper.text-builder;
+  bitvec = hlib.doJailbreak hsuper.bitvec;
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -76,6 +77,8 @@ hself: hsuper: {
   # cabal multirepl requires Cabal 3.12
   Cabal = hsuper.Cabal_3_12_1_0;
   Cabal-syntax = hsuper.Cabal-syntax_3_12_1_0;
+
+  auto-update = auto-update_0_2_1;
 
   # -----------------
   # flags and patches
