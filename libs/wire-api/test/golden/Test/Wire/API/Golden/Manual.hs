@@ -19,6 +19,7 @@ module Test.Wire.API.Golden.Manual where
 
 import Imports
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.Activate_user
 import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
@@ -330,7 +331,11 @@ tests =
                 (testObject_DomainRegistrationResponseV8_4, "testObject_DomainRegistrationResponseV8_4.json"),
                 (testObject_DomainRegistrationResponseV8_5, "testObject_DomainRegistrationResponseV8_5.json"),
                 (testObject_DomainRegistrationResponseV8_6, "testObject_DomainRegistrationResponseV8_6.json")
-              ],
+              ]
+              ++ [ testCase
+                     "non-isomorph mapping (V8 renders less data than V9)"
+                     (assertJSONIsGolden testObject_DomainRegistrationResponseV8_7 "testObject_DomainRegistrationResponseV8_7.json")
+                 ],
           testGroup "V9" $
             testObjects
               [ (testObject_DomainRegistrationResponseV9_1, "testObject_DomainRegistrationResponseV9_1.json"),
@@ -338,7 +343,8 @@ tests =
                 (testObject_DomainRegistrationResponseV9_3, "testObject_DomainRegistrationResponseV9_3.json"),
                 (testObject_DomainRegistrationResponseV9_4, "testObject_DomainRegistrationResponseV9_4.json"),
                 (testObject_DomainRegistrationResponseV9_5, "testObject_DomainRegistrationResponseV9_5.json"),
-                (testObject_DomainRegistrationResponseV9_6, "testObject_DomainRegistrationResponseV9_6.json")
+                (testObject_DomainRegistrationResponseV9_6, "testObject_DomainRegistrationResponseV9_6.json"),
+                (testObject_DomainRegistrationResponseV9_7, "testObject_DomainRegistrationResponseV9_7.json")
               ]
         ],
       testGroup "DomainRegistrationUpdate" $

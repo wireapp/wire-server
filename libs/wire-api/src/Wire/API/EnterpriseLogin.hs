@@ -103,7 +103,7 @@ domainRedirectSchema =
     backendConfigSchema =
       (,)
         <$> fst .= backendUrlSchema
-        <*> snd .= maybe_ (optField "webapp_url" schema)
+        <*> snd .= pure Nothing
 
 domainRedirectSchemaV9 :: ObjectSchema SwaggerDoc DomainRedirect
 domainRedirectSchemaV9 =

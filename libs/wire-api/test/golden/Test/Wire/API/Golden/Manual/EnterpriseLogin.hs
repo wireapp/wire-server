@@ -56,7 +56,6 @@ testObject_DomainRegistrationResponseV8_3 =
       dnsVerificationToken = Nothing
     }
 
--- TODO: Add test for `Backend` with webapp Url (kind of _4b)
 testObject_DomainRegistrationResponseV8_4 :: DomainRegistrationResponseV8
 testObject_DomainRegistrationResponseV8_4 =
   DomainRegistrationResponse
@@ -85,6 +84,19 @@ testObject_DomainRegistrationResponseV8_6 =
       domainRedirect = PreAuthorized,
       teamInvite = Allowed,
       dnsVerificationToken = Just $ DnsVerificationToken "jfdjsejsdjsdfjsdfjlwejwekljwef"
+    }
+
+testObject_DomainRegistrationResponseV8_7 :: DomainRegistrationResponseV8
+testObject_DomainRegistrationResponseV8_7 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect =
+        Backend
+          (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14")))
+          (Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://webapp.example.com")))),
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
     }
 
 testObject_DomainRegistrationResponseV9_1 :: DomainRegistrationResponseV9
@@ -117,7 +129,6 @@ testObject_DomainRegistrationResponseV9_3 =
       dnsVerificationToken = Nothing
     }
 
--- TODO: Add test for `Backend` with webapp Url (kind of _4b)
 testObject_DomainRegistrationResponseV9_4 :: DomainRegistrationResponseV9
 testObject_DomainRegistrationResponseV9_4 =
   DomainRegistrationResponse
@@ -146,6 +157,19 @@ testObject_DomainRegistrationResponseV9_6 =
       domainRedirect = PreAuthorized,
       teamInvite = Allowed,
       dnsVerificationToken = Just $ DnsVerificationToken "jfdjsejsdjsdfjsdfjlwejwekljwef"
+    }
+
+testObject_DomainRegistrationResponseV9_7 :: DomainRegistrationResponseV9
+testObject_DomainRegistrationResponseV9_7 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect =
+        Backend
+          (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14")))
+          (Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://webapp.example.com")))),
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
     }
 
 testObject_DomainRegistrationUpdate_1 :: DomainRegistrationUpdate
