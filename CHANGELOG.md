@@ -1,3 +1,44 @@
+# [2025-04-25] (Chart Release 5.15.0)
+
+## Features
+
+
+* Team admins can create a channel without joining (#4527, #4553)
+
+
+## Bug fixes and other updates
+
+
+* Only forward one conversation create event to pydio (#4535, #4551)
+
+* Fixed channel permissions for external partners. They are allowed to add members if they are channel admins or if add-permissions are set to everyone. (#4534)
+
+* charts/{cannon,nginz}: Add the events endpoint to nginz config (#4540, #4540)
+
+* Lazy streams were broken due to
+  https://github.com/haskell-servant/servant/pull/1781 . So, in specific cases,
+  the playload of a streamed response was realised in the application's memory
+  instead of streaming it piecewise. (#4538)
+
+* Use [multipart upload](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html) to S3 for all assets (#4548)
+
+
+## Internal changes
+
+
+* Remove wai-routes, wai-predicates deps from proxy and translate routing table and handlers to servant.  New integration tests for proxy featuring mock services. (#4525)
+
+* Move zauth logic from brig to wire-subsystems (part 1: Brig.ZAuth, simplify implementation) (#4479)
+
+* The backend now verifies that new leaf nodes occurring in an MLS commit match the signature key registered by the corresponding client (#4531)
+
+
+## Federation changes
+
+
+* Federation API version V2 is finalized. (#4546)
+
+
 # [2025-04-07] (Chart Release 5.14.0)
 
 ## Release notes
