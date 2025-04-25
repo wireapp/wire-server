@@ -12,7 +12,13 @@ import Control.Monad.Codensity
 import Control.Monad.RWS (asks)
 import Control.Monad.Trans.Class
 import Control.Retry
+import Control.Lens ((.~), (^?!))
 import Data.ByteString.Conversion (toByteString')
+import qualified Data.ProtoLens as Proto
+import Data.ProtoLens.Labels ()
+import Numeric.Lens
+import qualified Proto.Otr as Proto
+import qualified Proto.Otr_Fields as Proto
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import Data.Timeout
@@ -200,6 +206,39 @@ testMLSTempEvents = do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.mls-welcome"
       ackEvent ws e
 
+    assertNoEvent_ ws
+
+testSendMessageNoReturnToSenderWithConsumableNotificationsProteus :: (HasCallStack) => App ()
+testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
+  (alice, tid, bob : _) <- createTeam OwnDomain 2
+  aliceOldClient <- addClient alice def >>= getJSON 201
+  aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  aliceClientId <- objId aliceClient
+  bobClient <- addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  bobClientId <- objId bobClient
+  conv <- postConversation alice defProteus {team = Just tid, qualifiedUsers = [bob]} >>= getJSON 201
+  msg <- mkProteusRecipients alice [(bob, [bobClient]), (alice, [aliceOldClient])] "hello, bob"
+
+  let protoMsg =
+        Proto.defMessage @Proto.QualifiedNewOtrMessage
+          & #sender . Proto.client .~ (aliceClientId ^?! hex)
+          & #recipients .~ [msg]
+          & #reportAll .~ Proto.defMessage
+  postProteusMessage alice conv protoMsg >>= assertSuccess
+
+  runCodensity (createEventsWebSocket bob (Just bobClientId)) $ \ws -> do
+    assertFindsEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.otr-message-add"
+      e %. "data.event.payload.0.data.text" `shouldMatchBase64` "hello, bob"
+      ackEvent ws e
+
+  runCodensity (createEventsWebSocket alice (Just aliceClientId)) $ \ws -> do
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      ackEvent ws e
+    assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.create"
+      ackEvent ws e
     assertNoEvent_ ws
 
 testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
@@ -568,8 +607,8 @@ data EventWebSocket = EventWebSocket
   }
 
 createEventsWebSocket ::
-  (HasCallStack, MakesValue uid) =>
-  uid ->
+  (HasCallStack, MakesValue user) =>
+  user ->
   Maybe String ->
   Codensity App EventWebSocket
 createEventsWebSocket user cid = do
@@ -579,8 +618,8 @@ createEventsWebSocket user cid = do
     Right ws -> pure ws
 
 createEventsWebSocketEither ::
-  (HasCallStack, MakesValue uid) =>
-  uid ->
+  (HasCallStack, MakesValue user) =>
+  user ->
   Maybe String ->
   Codensity App (Either WS.HandshakeException EventWebSocket)
 createEventsWebSocketEither user cid = do
