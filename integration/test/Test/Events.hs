@@ -7,18 +7,16 @@ import API.BrigCommon
 import API.Common
 import API.Galley
 import API.Gundeck
+import qualified API.GundeckInternal as GundeckInternal
 import qualified Control.Concurrent.Timeout as Timeout
+import Control.Lens ((.~), (^?!))
 import Control.Monad.Codensity
 import Control.Monad.RWS (asks)
 import Control.Monad.Trans.Class
 import Control.Retry
-import Control.Lens ((.~), (^?!))
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
-import Numeric.Lens
-import qualified Proto.Otr as Proto
-import qualified Proto.Otr_Fields as Proto
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import Data.Timeout
@@ -27,6 +25,9 @@ import Network.AMQP.Extended
 import Network.RabbitMqAdmin
 import qualified Network.WebSockets as WS
 import Notifications
+import Numeric.Lens
+import qualified Proto.Otr as Proto
+import qualified Proto.Otr_Fields as Proto
 import Servant.API (AsApi, ToServant, toServant)
 import Servant.API.Generic (fromServant)
 import Servant.Client (AsClientT)
@@ -240,6 +241,47 @@ testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.create"
       ackEvent ws e
     assertNoEvent_ ws
+
+testEventsForSpecificClients :: (HasCallStack) => App ()
+testEventsForSpecificClients = do
+  alice <- randomUser OwnDomain def
+  uid <- objId alice
+  client1 <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  cid1 <- objId client1
+  client2 <- addClient alice def >>= getJSON 201
+  cid2 <- objId client2
+
+  lowerCodensity $ do
+    ws1 <- createEventsWebSocket alice (Just cid1)
+    wsTemp <- createEventsWebSocket alice Nothing
+    lift $ do
+      forM_ [ws1, wsTemp] consumeAllEvents
+
+      let eventForClient1 =
+            object
+              [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid1], "route" .= "any"]],
+                "payload" .= [object ["hello" .= "client1"]]
+              ]
+          eventForClient2 =
+            object
+              [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid2], "route" .= "any"]],
+                "payload" .= [object ["hello" .= "client2"]]
+              ]
+
+      GundeckInternal.postPush OwnDomain [eventForClient1, eventForClient2] >>= assertSuccess
+      assertEvent ws1 $ \e ->
+        e %. "data.event.payload.0.hello" `shouldMatch` "client1"
+
+      assertEvent wsTemp $ \e -> do
+        e %. "data.event.payload.0.hello" `shouldMatch` "client1"
+        ackEvent wsTemp e
+
+      assertEvent wsTemp $ \e -> do
+        e %. "data.event.payload.0.hello" `shouldMatch` "client2"
+        ackEvent wsTemp e
+
+      addFailureContext "client 1 should not get any events meant for client 2"
+        $ assertNoEvent_ ws1
 
 testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
 testConsumeEventsForDifferentUsers = do
