@@ -102,29 +102,53 @@ pushAllProp env (Pretty pushes) =
 splitPushActualRecipients :: PushWithUserClients -> Property
 splitPushActualRecipients p =
   let pushes = splitPush p.userClients p.push
-      mRabbitmqPush :: Maybe Push = justHere pushes
-      -- cassandraPush :: Maybe Push = justThere pushes
+      mRabbitMqPush :: Maybe Push = justHere pushes
+      mCassandraPush :: Maybe Push = justThere pushes
+
       clientsFor :: UserId -> Set Client
       clientsFor uid = Map.findWithDefault mempty uid p.userClients.userClientsFull
-      allRabbitmqClientsFor :: UserId -> Set Client
-      allRabbitmqClientsFor =
+
+      allRabbitMqClientsFor :: UserId -> Set Client
+      allRabbitMqClientsFor =
         Set.filter (\c -> Set.member ClientSupportsConsumableNotifications c.clientCapabilities.fromClientCapabilityList)
           . clientsFor
-      actualTempRabbitMqRecipients :: Set UserId =
-        flip foldMap mRabbitmqPush $ \rabbitmqPush ->
-          Set.map (\r -> r._recipientId) rabbitmqPush._pushRecipients
-      actualRabbitMqRecipients :: Set (UserId, ClientId) =
-        flip foldMap mRabbitmqPush $ \rabbitmqPush ->
+
+      allCassandraClientsFor :: UserId -> Set Client
+      allCassandraClientsFor =
+        Set.filter (\c -> not $ Set.member ClientSupportsConsumableNotifications c.clientCapabilities.fromClientCapabilityList)
+          . clientsFor
+
+      actualCassandraRecipients :: Set (UserId, ClientId)
+      actualCassandraRecipients =
+        flip foldMap mCassandraPush $ \cassandraPush ->
           Set.unions $
             Set.map
               ( \(r :: Recipient) ->
                   let clients = case r._recipientClients of
-                        RecipientClientsAll -> allRabbitmqClientsFor r._recipientId
-                        RecipientClientsSome cids -> Set.filter (\c -> c.clientId `elem` cids) $ allRabbitmqClientsFor r._recipientId
+                        RecipientClientsAll -> allCassandraClientsFor r._recipientId
+                        RecipientClientsSome cids -> Set.filter (\c -> c.clientId `elem` cids) $ allCassandraClientsFor r._recipientId
+                        RecipientClientsTemporaryOnly -> Set.empty
+                   in Set.map (\c -> (r._recipientId, c.clientId)) clients
+              )
+              cassandraPush._pushRecipients
+
+      actualTempRabbitMqRecipients :: Set UserId =
+        flip foldMap mRabbitMqPush $ \rabbitmqPush ->
+          Set.map (\r -> r._recipientId) rabbitmqPush._pushRecipients
+
+      actualRabbitMqRecipients :: Set (UserId, ClientId) =
+        flip foldMap mRabbitMqPush $ \rabbitmqPush ->
+          Set.unions $
+            Set.map
+              ( \(r :: Recipient) ->
+                  let clients = case r._recipientClients of
+                        RecipientClientsAll -> allRabbitMqClientsFor r._recipientId
+                        RecipientClientsSome cids -> Set.filter (\c -> c.clientId `elem` cids) $ allRabbitMqClientsFor r._recipientId
                         RecipientClientsTemporaryOnly -> Set.empty
                    in Set.map (\c -> (r._recipientId, c.clientId)) clients
               )
               rabbitmqPush._pushRecipients
+
       allExpectedPushRecipients :: Set (UserId, ClientId) =
         Set.unions $
           Set.map
@@ -136,23 +160,22 @@ splitPushActualRecipients p =
                  in Set.map (r._recipientId,) clients
             )
             p.push._pushRecipients
-      (expectedRabbitMqRecipients, _) =
+
+      (expectedRabbitMqRecipients, expectedCassandraRecipients) =
         Set.partition
           ( \(u, c) ->
-              let rmqClients = Set.map (.clientId) $ allRabbitmqClientsFor u
+              let rmqClients = Set.map (.clientId) $ allRabbitMqClientsFor u
                in Set.member c rmqClients
           )
           allExpectedPushRecipients
-      expectedTempRabbitMqRecipeints =
-        Set.map (._recipientId) p.push._pushRecipients
-   in -- Set.map fst allExpectedPushRecipients
-      -- counterexample ("actualRecipients: " <> show actualRabbitMqRecipients <> "\nallExpectedRecipients: " <> show allExpectedPushRecipients) $
-      --     actualRabbitMqRecipients `Set.isSubsetOf` allExpectedPushRecipients
-      --       .&&.
-      actualTempRabbitMqRecipients === expectedTempRabbitMqRecipeints
-        .&&. actualRabbitMqRecipients === expectedRabbitMqRecipients
 
--- .&&. cassandraPush === allCassandraRecipients
+      expectedTempRabbitMqRecipients =
+        Set.map (._recipientId) p.push._pushRecipients
+   in counterexample ("actualRecipients: " <> show actualRabbitMqRecipients <> "\nallExpectedRecipients: " <> show allExpectedPushRecipients) $
+        actualRabbitMqRecipients `Set.isSubsetOf` allExpectedPushRecipients
+          .&&. actualTempRabbitMqRecipients === expectedTempRabbitMqRecipients
+          .&&. actualCassandraRecipients === expectedCassandraRecipients
+          .&&. actualRabbitMqRecipients === expectedRabbitMqRecipients
 
 data PushWithUserClients = PushWithUserClients {push :: Push, userClients :: UserClientsFull}
   deriving (Show, Eq)
@@ -167,11 +190,15 @@ instance Arbitrary PushWithUserClients where
       userClientsForRecipient r = do
         clients <- case r._recipientClients of
           RecipientClientsSome cids -> do
-            let arbitraryClientWithId cid = (\c -> c {clientId = cid} :: Client) <$> arbitrary
             specifiedClients <- Set.fromList . Imports.toList <$> traverse arbitraryClientWithId cids
             extraClientIds <- Set.filter (`notElem` cids) <$> setOf' arbitrary
             extraClients <- Set.fromList <$> traverse arbitraryClientWithId (Set.toList extraClientIds)
             pure $ specifiedClients <> extraClients
-          RecipientClientsAll -> arbitrary
+          RecipientClientsAll -> do
+            extraClientIds <- setOf' arbitrary
+            Set.fromList <$> traverse arbitraryClientWithId (Set.toList extraClientIds)
           RecipientClientsTemporaryOnly -> arbitrary
         pure (r._recipientId, clients)
+
+      arbitraryClientWithId :: ClientId -> Gen Client
+      arbitraryClientWithId cid = (\c -> c {clientId = cid} :: Client) <$> arbitrary
