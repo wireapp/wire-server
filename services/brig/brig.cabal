@@ -128,6 +128,7 @@ library
     Brig.IO.Intra
     Brig.IO.Journal
     Brig.IO.Logging
+    Brig.Main
     Brig.Options
     Brig.Provider.API
     Brig.Provider.DB
@@ -321,6 +322,7 @@ library
     , wire-api-federation
     , wire-otel
     , wire-subsystems
+    , yaml
     , zauth                                 >=0.10.3
 
 executable brig
@@ -330,11 +332,7 @@ executable brig
     -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
     -Wredundant-constraints -Wunused-packages
 
-  build-depends:
-    , brig
-    , HsOpenSSL
-    , imports
-    , types-common
+  build-depends: brig
 
 executable brig-index
   import:        common-all
