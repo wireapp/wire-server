@@ -339,6 +339,7 @@ genPush env = do
           conns@(_ : _) -> Just <$> QC.elements conns
           where
             extract (Recipient uid _ _) | uid /= sender = []
+            extract (Recipient _ _ RecipientClientsTemporaryOnly) = []
             extract (Recipient _ _ (RecipientClientsSome cids)) = fakeConnId <$> toList cids
             extract (Recipient _ _ RecipientClientsAll) = lookupAll
               where
@@ -362,6 +363,7 @@ dropSomeDevices :: Recipient -> Gen Recipient
 dropSomeDevices =
   recipientClients %%~ \case
     RecipientClientsAll -> pure RecipientClientsAll
+    RecipientClientsTemporaryOnly -> pure RecipientClientsTemporaryOnly
     RecipientClientsSome cids -> do
       numdevs :: Int <-
         oneof
@@ -481,6 +483,7 @@ handlePushWS Push {..} = do
     let cids' = case cids of
           RecipientClientsAll -> clientIdsOfUser env uid
           RecipientClientsSome cc -> toList cc
+          RecipientClientsTemporaryOnly -> []
     forM_ cids' $ \cid -> do
       -- Condition 1: only devices with a working websocket connection will get the push.
       let isReachable = wsReachable env (uid, cid)
@@ -507,6 +510,7 @@ handlePushNative Push {..} = do
     let cids' = case cids of
           RecipientClientsAll -> clientIdsOfUser env uid
           RecipientClientsSome cc -> toList cc
+          RecipientClientsTemporaryOnly -> []
     forM_ cids' $ \cid -> do
       -- Condition 2: 'RouteDirect' pushes are not eligible for pushing via native transport.
       let isNative = route /= RouteDirect
@@ -541,6 +545,7 @@ handlePushCass Push {..} = do
           -- intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.  (here, we just
           -- store a specific 'ClientId' that signifies "no client".)
           RecipientClientsSome cc -> toList cc
+          RecipientClientsTemporaryOnly -> []
     forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
 
@@ -708,6 +713,7 @@ fakePresences' env (Recipient uid _ cids) =
   fakePresence uid <$> case cids of
     RecipientClientsAll -> clientIdsOfUser env uid
     RecipientClientsSome cc -> toList cc
+    RecipientClientsTemporaryOnly -> []
 
 -- | Currently, we only create 'Presence's from 'Push' requests, which contains 'ClientId's, but no
 -- 'ConnId's.  So in contrast to the production code where the two are generated independently, we
