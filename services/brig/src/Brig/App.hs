@@ -72,6 +72,8 @@ module Brig.App
     enableSFTFederationLens,
     rateLimitEnvLens,
     initZAuth,
+    initLogger,
+    initPostgresPool,
 
     -- * App Monad
     AppT (..),
@@ -168,7 +170,6 @@ import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
-import Wire.PostgresMigrations
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
@@ -239,7 +240,7 @@ newEnv opts = do
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
-  lgr <- Log.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
+  lgr <- initLogger opts
   cas <- initCassandra opts lgr
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
@@ -282,7 +283,7 @@ newEnv opts = do
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
-  hasqlPool <- initPostgres opts.postgresql lgr
+  hasqlPool <- initPostgresPool opts.postgresql
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -453,6 +454,10 @@ initExtGetManager = do
       let pinset = map toByteString' fprs
        in verifyRsaFingerprint sha pinset
 
+initLogger :: Opts -> IO Logger
+initLogger opts =
+  Log.mkLogger opts.logLevel opts.logNetStrings opts.logFormat
+
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g =
   initCassandraForService
@@ -462,23 +467,22 @@ initCassandra o g =
     (Just schemaVersion)
     g
 
-initPostgres :: Map Text Text -> Logger -> IO HasqlPool.Pool
-initPostgres pgConfig logger = do
+-- | Creates a pool from postgres config params
+--
+-- HasqlConn.params translates pgParams into connection (which just holds the connection string and is not a real connection)
+-- HasqlSetting.connection unwraps the connection string out of connection
+-- HasqlPool.staticConnectionSettings translates the connection string to the pool settings
+-- HasqlPool.settings translates the pool settings into pool config
+-- HasqlPool.acquire creates the pool.
+-- ezpz.
+initPostgresPool :: Map Text Text -> IO HasqlPool.Pool
+initPostgresPool pgConfig = do
   let pgParams = Map.foldMapWithKey (\k v -> [HasqlConfig.other k v]) pgConfig
-  -- HasqlConn.params translates pgParams into connection (which just holds the connection string and is not a real connection)
-  -- HasqlSetting.connection unwraps the connection string out of connection
-  -- HasqlPool.staticConnectionSettings translates the connection string to the pool settings
-  -- HasqlPool.settings translates the pool settings into pool config
-  -- HasqlPool.acquire creates the pool.
-  -- ezpz.
-  pool <-
-    HasqlPool.acquire $
-      HasqlPool.settings
-        [ HasqlPool.staticConnectionSettings $
-            [HasqlSetting.connection $ HasqlConn.params pgParams]
-        ]
-  runAllMigrations pool logger
-  pure pool
+  HasqlPool.acquire $
+    HasqlPool.settings
+      [ HasqlPool.staticConnectionSettings $
+          [HasqlSetting.connection $ HasqlConn.params pgParams]
+      ]
 
 teamTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)
