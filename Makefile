@@ -329,17 +329,31 @@ db-migrate-package:
 
 # Reset all keyspaces and reset the ES index
 .PHONY: db-reset
-db-reset: c
-	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+db-reset: c postgres-reset cassandra-reset es-reset rabbitmq-reset
+
+.PHONY: cassandra-reset
+cassandra-reset:
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
+
 	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --reset
+
+.PHONY: postgres-reset
+postgres-reset:
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname backendA
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname backendB
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-1
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-2
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-3
+
+.PHONY: es-reset
+es-reset:
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
@@ -355,7 +369,8 @@ db-reset: c
 	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 
-
+.PHONY: rabbitmq-reset
+rabbitmq-reset: rabbit-clean
 
 # Migrate all keyspaces and reset the ES index
 .PHONY: db-migrate
