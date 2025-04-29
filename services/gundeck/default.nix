@@ -223,6 +223,7 @@ mkDerivation {
     tasty-hunit
     tasty-quickcheck
     text
+    these
     tinylog
     types-common
     wire-api
