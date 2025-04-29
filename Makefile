@@ -373,6 +373,7 @@ es-reset:
 rabbitmq-reset: rabbit-clean
 
 # Migrate all keyspaces and reset the ES index
+# Does not migrate postgres as brig does that on startup.
 .PHONY: db-migrate
 db-migrate: c
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 > /dev/null
