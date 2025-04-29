@@ -14,6 +14,11 @@ import System.Logger qualified as Log
 allMigrations :: [MigrationCommand]
 allMigrations = map (uncurry MigrationScript) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
 
+data PostgresMigrationError = PostgresMigrationError MigrationError
+  deriving (Show)
+
+instance Exception PostgresMigrationError
+
 runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
@@ -28,6 +33,7 @@ runAllMigrations pool logger = do
                 Log.msg (Log.val "Unexpected error during migration")
                   . migrationName migrationCmd
                   . Log.field "error" (show err)
+              throw $ PostgresMigrationError err
 
   either throwIO pure =<< use pool session
 
