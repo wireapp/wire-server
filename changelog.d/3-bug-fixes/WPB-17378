@@ -1,1 +1,1 @@
-Prevent notifications from being send back to the sending client
+gundeck: Send notifications to temp clients only when there are no rabbitmq clients in the recipient list.  Before this, it was wrongly sending the notification to all recipients.
