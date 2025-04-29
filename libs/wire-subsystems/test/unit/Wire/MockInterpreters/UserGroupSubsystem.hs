@@ -9,8 +9,6 @@ where
 import Data.Id
 import Data.Map qualified as Map
 import Data.Time
-import Data.UUID
-import Data.Vector qualified as V
 import GHC.Stack
 import Imports
 import Polysemy
@@ -54,13 +52,14 @@ runInMemoryUserGroupSubsystem now =
 userGroupSubsystemTestInterpreter :: (EffectStack r) => InterpreterFor UserGroupSubsystem r
 userGroupSubsystemTestInterpreter =
   interpret \case
-    CreateGroup ng -> createGroupImpl ng
-    GetGroup gid -> getGroupImpl gid
-    GetGroups limit lastKey -> getGroupsImpl limit lastKey
-    UpdateGroup gid gup -> updateGroupImpl gid gup
-    DeleteGroup gid -> deleteGroupImpl gid
-    AddUser gid uid -> addUserImpl gid uid
-    RemoveUser gid uid -> removeUserImpl gid uid
+    CreateGroup _ ng -> createGroupImpl ng
+    GetGroup _ gid -> getGroupImpl gid
+
+-- GetGroups limit lastKey -> getGroupsImpl limit lastKey
+-- UpdateGroup gid gup -> updateGroupImpl gid gup
+-- DeleteGroup gid -> deleteGroupImpl gid
+-- AddUser gid uid -> addUserImpl gid uid
+-- RemoveUser gid uid -> removeUserImpl gid uid
 
 createGroupImpl :: (EffectStack r) => NewUserGroup -> Sem r UserGroup
 createGroupImpl nug = do
@@ -79,39 +78,39 @@ createGroupImpl nug = do
 getGroupImpl :: (EffectStack r) => UserGroupId -> Sem r (Maybe UserGroup)
 getGroupImpl gid = Map.lookup gid <$> get
 
-getGroupsImpl :: (EffectStack r) => Maybe Int -> Maybe UUID -> Sem r UserGroupPage
-getGroupsImpl (fromMaybe 100 -> limit) mbLastKey = do
-  allGroups <- get
-  let cutLowerBound = maybe id (\lastKey -> filter ((> Id lastKey) . fst)) mbLastKey
-      relevant = map snd . cutLowerBound . Map.toList $ allGroups
-      truncated = Imports.take limit $ relevant
-  pure $ UserGroupPage truncated (length truncated /= length relevant)
+-- getGroupsImpl :: (EffectStack r) => Maybe Int -> Maybe UUID -> Sem r UserGroupPage
+-- getGroupsImpl (fromMaybe 100 -> limit) mbLastKey = do
+--   allGroups <- get
+--   let cutLowerBound = maybe id (\lastKey -> filter ((> Id lastKey) . fst)) mbLastKey
+--       relevant = map snd . cutLowerBound . Map.toList $ allGroups
+--       truncated = Imports.take limit $ relevant
+--   pure $ UserGroupPage truncated (length truncated /= length relevant)
 
-updateGroupImpl :: (EffectStack r) => UserGroupId -> UserGroupUpdate -> Sem r (Maybe UserGroup)
-updateGroupImpl gid (UserGroupUpdate newName) = do
-  let f :: Maybe UserGroup -> Maybe UserGroup
-      f Nothing = Nothing
-      f (Just g) = Just (g {name = newName} :: UserGroup)
+-- updateGroupImpl :: (EffectStack r) => UserGroupId -> UserGroupUpdate -> Sem r (Maybe UserGroup)
+-- updateGroupImpl gid (UserGroupUpdate newName) = do
+--   let f :: Maybe UserGroup -> Maybe UserGroup
+--       f Nothing = Nothing
+--       f (Just g) = Just (g {name = newName} :: UserGroup)
 
-  modify (Map.alter f gid)
-  getGroupImpl gid
+--   modify (Map.alter f gid)
+--   getGroupImpl gid
 
-deleteGroupImpl :: (EffectStack r) => UserGroupId -> Sem r ()
-deleteGroupImpl gid = do
-  modify (Map.delete gid)
+-- deleteGroupImpl :: (EffectStack r) => UserGroupId -> Sem r ()
+-- deleteGroupImpl gid = do
+--   modify (Map.delete gid)
 
-addUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
-addUserImpl gid uid = do
-  let f :: Maybe UserGroup -> Maybe UserGroup
-      f Nothing = Nothing
-      f (Just g) = Just (g {members = V.fromList . nub $ uid : V.toList g.members} :: UserGroup)
+-- addUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
+-- addUserImpl gid uid = do
+--   let f :: Maybe UserGroup -> Maybe UserGroup
+--       f Nothing = Nothing
+--       f (Just g) = Just (g {members = V.fromList . nub $ uid : V.toList g.members} :: UserGroup)
 
-  modify (Map.alter f gid)
+--   modify (Map.alter f gid)
 
-removeUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
-removeUserImpl gid uid = do
-  let f :: Maybe UserGroup -> Maybe UserGroup
-      f Nothing = Nothing
-      f (Just g) = Just (g {members = V.filter (== uid) g.members} :: UserGroup)
+-- removeUserImpl :: (EffectStack r) => UserGroupId -> UserId -> Sem r ()
+-- removeUserImpl gid uid = do
+--   let f :: Maybe UserGroup -> Maybe UserGroup
+--       f Nothing = Nothing
+--       f (Just g) = Just (g {members = V.filter (== uid) g.members} :: UserGroup)
 
-  modify (Map.alter f gid)
+--   modify (Map.alter f gid)
