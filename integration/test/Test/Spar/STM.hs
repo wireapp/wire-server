@@ -9,6 +9,7 @@
 -- and thus get property-based integration tests!
 module Test.Spar.STM (testCreateIdpsAndScimsV7) where
 
+import API.BrigInternal (getInvitationByEmail)
 import API.Common (defPassword)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Nginz (login)
@@ -110,6 +111,7 @@ runSteps :: (HasCallStack) => [Step] -> App ()
 runSteps steps = do
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ setTeamFeatureStatus owner tid "validateSAMLEmails" "enabled"
   go owner tid emptyState steps
   where
     go :: Value -> String -> State -> [Step] -> App ()
@@ -228,6 +230,8 @@ validateStateLoginAllUsers owner tid state = do
           resp.status `shouldMatchInt` 204
         loginWithPassword 403 email
       Just idp -> do
+        -- check that no invitation was sent
+        getInvitationByEmail OwnDomain email >>= assertStatus 404
         void $ loginWithSaml True tid email idp
         bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
           resp.status `shouldMatchInt` 204
