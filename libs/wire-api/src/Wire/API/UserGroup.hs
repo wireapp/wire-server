@@ -27,7 +27,6 @@ import Imports
 import Wire.API.User.Profile
 import Wire.Arbitrary
 
--- request bodies
 data NewUserGroup = NewUserGroup
   { name :: Text,
     members :: Vector UserId
@@ -41,13 +40,11 @@ data UserGroupUpdate = UserGroupUpdate
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroupUpdate
 
--- response bodies
 data UserGroup = UserGroup
   { id_ :: UserGroupId,
     name :: Text,
-    team :: TeamId,
-    managedBy :: ManagedBy,
-    members :: Vector UserId
+    members :: Vector UserId,
+    managedBy :: ManagedBy
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroup
