@@ -8,9 +8,12 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Error
+import Wire.API.Error
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Team.Member
 import Wire.API.User.Profile
 import Wire.API.UserGroup
+import Wire.Error
 import Wire.GalleyAPIAccess
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem
@@ -31,6 +34,12 @@ data UserGroupSubsystemError
   = UserGroupCreatorIsNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   deriving (Show, Eq)
+
+userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
+userGroupSubsystemErrorToHttpError =
+  StdError . \case
+    UserGroupCreatorIsNotATeamAdmin -> errorToWai @E.UserGroupCreatorIsNotATeamAdmin
+    UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
 
 -- TODO: check that creator is admin and all members are part of the team
 createUserGroupImpl ::

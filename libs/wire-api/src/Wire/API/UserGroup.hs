@@ -21,7 +21,10 @@ module Wire.API.UserGroup
   )
 where
 
+import Data.Aeson qualified as A
 import Data.Id
+import Data.OpenApi qualified as OpenApi
+import Data.Schema
 import Data.Vector (Vector)
 import Imports
 import Wire.API.User.Profile
@@ -33,6 +36,14 @@ data NewUserGroup = NewUserGroup
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform NewUserGroup
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema NewUserGroup
+
+instance ToSchema NewUserGroup where
+  schema =
+    object "NewUserGroup" $
+      NewUserGroup
+        <$> (.name) .= field "name" schema
+        <*> (.members) .= field "members" (vector schema)
 
 data UserGroupUpdate = UserGroupUpdate
   { name :: Text
@@ -48,6 +59,16 @@ data UserGroup = UserGroup
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroup
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroup
+
+instance ToSchema UserGroup where
+  schema =
+    object "UserGroup" $
+      UserGroup
+        <$> (.id_) .= field "id" schema
+        <*> (.name) .= field "name" schema
+        <*> (.members) .= field "members" (vector schema)
+        <*> (.managedBy) .= field "managedBy" schema
 
 -- | About pagination: We have 'MultiTablePage', "Wire.Sem.Paging", 'Page' from cql, in-type
 -- paging, and probably lots more.  i wonder if we should make up our minds and pick one?
