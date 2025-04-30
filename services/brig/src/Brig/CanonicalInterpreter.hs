@@ -21,6 +21,7 @@ import Control.Lens (to, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
+import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
 import Polysemy.Async
@@ -102,6 +103,10 @@ import Wire.SparAPIAccess.Rpc
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
+import Wire.UserGroupStore
+import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
+import Wire.UserGroupSubsystem
+import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserStore
@@ -118,6 +123,7 @@ type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
      TeamInvitationSubsystem,
      EnterpriseLoginSubsystem,
+     UserGroupSubsystem,
      UserSubsystem
    ]
     `Append` BrigLowerLevelEffects
@@ -133,6 +139,7 @@ type BrigLowerLevelEffects =
      RateLimit,
      Error EnterpriseLoginSubsystemError,
      Error UserSubsystemError,
+     Error UserGroupSubsystemError,
      Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
@@ -154,8 +161,10 @@ type BrigLowerLevelEffects =
      ActivationCodeStore,
      InvitationStore,
      PropertyStore,
+     UserGroupStore,
      SFT,
      ConnectionStore InternalPaging,
+     Input Hasql.Pool,
      Input UserSubsystemConfig,
      Input VerificationCodeThrottleTTL,
      Input UTCTime,
@@ -289,8 +298,10 @@ runBrigToIO e (AppT ma) = do
               . runInputSem (embed getCurrentTime)
               . runInputConst (fromIntegral $ Opt.twoFACodeGenerationDelaySecs e.settings)
               . runInputConst userSubsystemConfig
+              . runInputConst e.hasqlPool
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
+              . interpretUserGroupStoreToPostgres
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
@@ -312,6 +323,7 @@ runBrigToIO e (AppT ma) = do
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
               . mapError teamInvitationErrorToHttpError
+              . mapError userGroupSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
               . mapError enterpriseLoginSubsystemErrorToHttpError
               . interpretRateLimit e.rateLimitEnv
@@ -322,6 +334,7 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
               . userSubsystemInterpreter
+              . interpretUserGroupSubsystem
               . maybe
                 runEnterpriseLoginSubsystemNoConfig
                 runEnterpriseLoginSubsystemWithConfig
