@@ -815,9 +815,15 @@ updateLocalConversation lcnv qusr con action = do
   where
     channelActionByTeamAdminAllowed :: Conversation -> ConversationActionTag -> Sem r Bool
     channelActionByTeamAdminAllowed conv ConversationJoinTag = do
-      todo "check that the user is a team admin"
-      pure $ conv.convMetadata.cnvmGroupConvType == Just Channel
+      mTeamMember <- foldQualified lcnv (getTeamMembership conv) (const $ pure Nothing) qusr
+      pure $ conv.convMetadata.cnvmGroupConvType == Just Channel && maybe False isTeamAdminOrOwner mTeamMember
     channelActionByTeamAdminAllowed _ _ = pure False
+
+    isTeamAdminOrOwner :: TeamMember -> Bool
+    isTeamAdminOrOwner tm = isAdminOrOwner $ tm ^. permissions
+
+getTeamMembership :: (Member TeamStore r) => Conversation -> Local UserId -> Sem r (Maybe TeamMember)
+getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
 -- 'Conversation' value directly, instead of a 'ConvId', and skips protocol
@@ -853,9 +859,6 @@ updateLocalConversationUnchecked lconv qusr con action = do
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
   performActionAndSendNotification @tag lconv qusr con action
   where
-    getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
-    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
-
     ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
     ensureConversationActionAllowed tag loc conv mTeamMember = do
       -- retrieve member
