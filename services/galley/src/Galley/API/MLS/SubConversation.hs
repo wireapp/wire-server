@@ -275,12 +275,13 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
       unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
       Eff.removeAllMLSClients gid
 
-      -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId
+      -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId fails
       let newGid =
             fromRight
-              ( convToGroupId $
+              ( convToGroupId GroupIdVersion2 $
                   groupIdParts
                     (Data.convType cnv)
+                    0
                     (flip SubConv scnvId <$> tUntagged lcnvId)
               )
               $ nextGenGroupId gid
