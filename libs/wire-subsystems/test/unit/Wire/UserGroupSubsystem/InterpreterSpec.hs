@@ -63,9 +63,12 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                   members = User.userId <$> V.fromList (allUsers team)
                 }
         createdGroup <- createGroup (ownerId team) newUserGroup
+        retrievedGroup <- getGroup (ownerId team) createdGroup.id_
         pure $
           createdGroup.name === newUserGroupName
-            .&&. createdGroup.members == newUserGroup.members
+            .&&. createdGroup.members === newUserGroup.members
+            .&&. createdGroup.managedBy === ManagedByWire
+            .&&. Just createdGroup === retrievedGroup
 
   prop "only team admins should be able to create a group" $
     \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
