@@ -149,6 +149,7 @@ import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
+import Wire.API.UserGroup (NewUserGroup, UserGroup)
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
@@ -184,6 +185,8 @@ import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
+import Wire.UserGroupSubsystem (UserGroupSubsystem)
+import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
@@ -393,7 +396,8 @@ servantSitemap ::
     Member SessionStore r,
     Member Metrics r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserGroupSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -419,6 +423,7 @@ servantSitemap =
     :<|> domainVerificationAPI
     :<|> domainVerificationTeamAPI
     :<|> domainVerificationChallengeAPI
+    :<|> userGroupAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -588,6 +593,11 @@ servantSitemap =
     domainVerificationChallengeAPI =
       Named @"domain-verification-challenge" getDomainVerificationChallenge
         :<|> Named @"verify-challenge" verifyChallenge
+
+    userGroupAPI :: ServerT UserGroupAPI (Handler r)
+    userGroupAPI =
+      Named @"create-user-group" createUserGroup
+        :<|> Named @"get-user-group" getUserGroup
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -1639,6 +1649,12 @@ verifyChallengeTeam ::
 verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
   lift . liftSem . fmap DomainOwnershipToken $
     EnterpriseLogin.verifyChallenge (Just lusr) domain challengeId token
+
+createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
+createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
+
+getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
+getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
 
 -- Deprecated
 

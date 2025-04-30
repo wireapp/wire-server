@@ -159,8 +159,8 @@ common common-all
     , zauth
 
 library
-  import:          common-all
-  ghc-options:     -fplugin=Polysemy.Plugin
+  import:             common-all
+  ghc-options:        -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -262,7 +262,8 @@ library
     Wire.VerificationCodeSubsystem
     Wire.VerificationCodeSubsystem.Interpreter
 
-  hs-source-dirs:  src
+  hs-source-dirs:     src
+  extra-source-files: postgres-migrations/*.sql
   build-depends:
     , aeson
     , aeson-pretty
