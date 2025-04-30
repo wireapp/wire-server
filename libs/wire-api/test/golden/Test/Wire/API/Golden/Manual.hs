@@ -19,6 +19,7 @@ module Test.Wire.API.Golden.Manual where
 
 import Imports
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.Activate_user
 import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
@@ -33,6 +34,7 @@ import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
 import Test.Wire.API.Golden.Manual.CreateScimTokenResponse
+import Test.Wire.API.Golden.Manual.DomainVerification
 import Test.Wire.API.Golden.Manual.EnterpriseLogin
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.FederationDomainConfig
@@ -338,5 +340,31 @@ tests =
             (testObject_DomainRegistrationUpdate_4, "testObject_DomainRegistrationUpdate_4.json"),
             (testObject_DomainRegistrationUpdate_5, "testObject_DomainRegistrationUpdate_5.json"),
             (testObject_DomainRegistrationUpdate_6, "testObject_DomainRegistrationUpdate_6.json")
+          ],
+      testGroup
+        "DomainRedirectResponse"
+        $ [ testGroup "V8" $
+              testObjects
+                [ (testObject_DomainRedirectResponseV8_1, "testObject_DomainRedirectResponseV8_1.json"),
+                  (testObject_DomainRedirectResponseV8_2, "testObject_DomainRedirectResponseV8_2.json"),
+                  (testObject_DomainRedirectResponseV8_2, "testObject_DomainRedirectResponseV8_3.json"),
+                  (testObject_DomainRedirectResponseV8_4, "testObject_DomainRedirectResponseV8_4.json"),
+                  (testObject_DomainRedirectResponseV8_6, "testObject_DomainRedirectResponseV8_6.json"),
+                  (testObject_DomainRedirectResponseV8_7, "testObject_DomainRedirectResponseV8_7.json")
+                ]
+                ++ [ testCase
+                       "non-isomorph in webappUrl"
+                       (assertJSONIsGolden testObject_DomainRedirectResponseV8_5 "testObject_DomainRedirectResponseV8_5.json")
+                   ],
+            testGroup "V9" $
+              testObjects
+                [ (testObject_DomainRedirectResponseV9_1, "testObject_DomainRedirectResponseV9_1.json"),
+                  (testObject_DomainRedirectResponseV9_2, "testObject_DomainRedirectResponseV9_2.json"),
+                  (testObject_DomainRedirectResponseV9_2, "testObject_DomainRedirectResponseV9_3.json"),
+                  (testObject_DomainRedirectResponseV9_4, "testObject_DomainRedirectResponseV9_4.json"),
+                  (testObject_DomainRedirectResponseV9_5, "testObject_DomainRedirectResponseV9_5.json"),
+                  (testObject_DomainRedirectResponseV9_6, "testObject_DomainRedirectResponseV9_6.json"),
+                  (testObject_DomainRedirectResponseV9_7, "testObject_DomainRedirectResponseV9_7.json")
+                ]
           ]
     ]
