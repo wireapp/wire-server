@@ -411,3 +411,18 @@ testTeamAdminCanCreateChannelWithoutJoining = do
   postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "members" `shouldMatch` ([] :: [Value])
+
+testTeamAdminCanAddMembersWithoutJoining :: (HasCallStack) => App ()
+testTeamAdminCanAddMembersWithoutJoining = do
+  (owner, tid, mem1 : mem2 : _) <- createTeam OwnDomain 3
+
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  conv <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+  addMembers owner conv def {users = [mem1, mem2]} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members" %. "others" & asList
+    for members (\m -> m %. "id") `shouldMatchSet` (for [mem1, mem2] (\m -> m %. "id"))
+    for_ members $ \m -> do
+      m %. "conversation_role" `shouldMatch` "wire_member"
