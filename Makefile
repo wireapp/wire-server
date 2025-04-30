@@ -332,7 +332,7 @@ db-migrate-package:
 db-reset: c postgres-reset cassandra-reset es-reset rabbitmq-reset
 
 .PHONY: cassandra-reset
-cassandra-reset:
+cassandra-reset: c
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
@@ -345,7 +345,7 @@ cassandra-reset:
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --reset
 
 .PHONY: postgres-reset
-postgres-reset:
+postgres-reset: c
 	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname backendA
 	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname backendB
 	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-1
@@ -353,7 +353,7 @@ postgres-reset:
 	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-3
 
 .PHONY: es-reset
-es-reset:
+es-reset: c
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
