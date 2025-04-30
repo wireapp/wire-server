@@ -78,7 +78,13 @@ createMLSSelfConversation lusr = do
             ncProtocol = BaseProtocolMLSTag
           }
       meta = ncMetadata nc
-      gid = convToGroupId . groupIdParts meta.cnvmType . fmap Conv . tUntagged . qualifyAs lusr $ cnv
+      gid =
+        convToGroupId GroupIdVersion2
+          . groupIdParts meta.cnvmType 0
+          . fmap Conv
+          . tUntagged
+          . qualifyAs lusr
+          $ cnv
       proto =
         ProtocolMLS
           ConversationMLSData
@@ -119,7 +125,10 @@ createConversation lcnv nc = do
       (proto, mgid) = case ncProtocol nc of
         BaseProtocolProteusTag -> (ProtocolProteus, Nothing)
         BaseProtocolMLSTag ->
-          let gid = convToGroupId . groupIdParts meta.cnvmType $ Conv <$> tUntagged lcnv
+          let gid =
+                convToGroupId GroupIdVersion2
+                  . groupIdParts meta.cnvmType 0
+                  $ Conv <$> tUntagged lcnv
            in ( ProtocolMLS
                   ConversationMLSData
                     { cnvmlsGroupId = gid,
@@ -398,7 +407,7 @@ updateToMixedProtocol ::
   ConvType ->
   Sem r ()
 updateToMixedProtocol lcnv ct = do
-  let gid = convToGroupId . groupIdParts ct $ Conv <$> tUntagged lcnv
+  let gid = convToGroupId GroupIdVersion2 . groupIdParts ct 0 $ Conv <$> tUntagged lcnv
       epoch = Epoch 0
   embedClient . retry x5 . batch $ do
     setType BatchLogged
