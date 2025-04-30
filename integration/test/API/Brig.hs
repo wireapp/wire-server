@@ -1006,7 +1006,7 @@ mkDomainRedirectBackend (ExplicitVersion v) configUrl _webappUrl
 mkDomainRedirectBackend _v configUrl webappUrl =
   object
     [ "domain_redirect" .= "backend",
-      "backend" .= object ["config" .= configUrl, "webapp" .= webappUrl]
+      "backend" .= object ["config_url" .= configUrl, "webapp_url" .= webappUrl]
     ]
 
 updateTeamInvite :: (HasCallStack, MakesValue user, MakesValue payload) => user -> String -> payload -> App Response

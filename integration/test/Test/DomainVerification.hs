@@ -130,8 +130,8 @@ testDomainVerificationOnPremFlow = forM_ [(ExplicitVersion 8), Versioned] \versi
             | v <= 8 ->
                 lookupField resp.json "backend_url" `shouldMatch` (lookupField config "backend_url")
           _ -> do
-            let backendUrl v = runMaybeT $ lookupFieldM v "backend" >>= flip lookupFieldM "config"
-                webappUrl v = runMaybeT $ lookupFieldM v "backend" >>= flip lookupFieldM "webapp"
+            let backendUrl v = runMaybeT $ lookupFieldM v "backend" >>= flip lookupFieldM "config_url"
+                webappUrl v = runMaybeT $ lookupFieldM v "backend" >>= flip lookupFieldM "webapp_url"
 
             backendUrl resp.json `shouldMatch` backendUrl config
             webappUrl resp.json `shouldMatch` webappUrl config
@@ -802,7 +802,11 @@ testDomainVerificationUpdateRedirectRequiresWebappUrl = do
     (Just ownershipToken)
     ( object
         [ "domain_redirect" .= "backend",
-          "backend" .= object ["config" .= "https://wire.example.com", "webapp" .= "https://webapp.wire.example.com"]
+          "backend"
+            .= object
+              [ "config_url" .= "https://wire.example.com",
+                "webapp_url" .= "https://webapp.wire.example.com"
+              ]
         ]
     )
     >>= assertStatus 200

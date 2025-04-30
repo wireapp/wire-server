@@ -128,8 +128,8 @@ domainRedirectSchemaV9 =
     backendConfigObjectSchema =
       object "BackendConfig" $
         (,)
-          <$> fst .= field "config" schema
-          <*> snd .= maybe_ (optField "webapp" schema)
+          <$> fst .= field "config_url" schema
+          <*> snd .= maybe_ (optField "webapp_url" schema)
 
 samlIdPIdObjectSchema :: ObjectSchema SwaggerDoc SAML.IdPId
 samlIdPIdObjectSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_code" uuidSchema

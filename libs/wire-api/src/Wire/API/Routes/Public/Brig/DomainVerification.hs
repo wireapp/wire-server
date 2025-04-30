@@ -125,8 +125,8 @@ domainRedirectConfigV9Schema =
     backendConfigObjectSchema =
       object "backend_config" $
         (,)
-          <$> fst .= field "config" schema
-          <*> snd .= field "webapp" schema
+          <$> fst .= field "config_url" schema
+          <*> snd .= field "webapp_url" schema
 
 domainRedirectConfigV9ToTag :: DomainRedirectConfigV9 -> DomainRedirectConfigTag
 domainRedirectConfigV9ToTag = \case
