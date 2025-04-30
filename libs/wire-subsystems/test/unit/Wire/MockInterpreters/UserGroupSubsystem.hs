@@ -64,10 +64,12 @@ userGroupSubsystemTestInterpreter =
 createGroupImpl :: (EffectStack r) => NewUserGroup -> Sem r UserGroup
 createGroupImpl nug = do
   gid <- Id <$> Rnd.uuid
+  tid <- Id <$> Rnd.uuid
   let ug =
         UserGroup
           { id_ = gid,
             name = nug.name,
+            team = tid,
             members = nug.members,
             managedBy = ManagedByWire
           }

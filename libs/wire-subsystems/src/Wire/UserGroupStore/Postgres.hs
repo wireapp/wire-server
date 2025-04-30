@@ -12,6 +12,9 @@ import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
+import Hasql.Transaction qualified as Transaction
+import Hasql.Transaction.Sessions qualified as Transaction
+import Hasql.Transaction.Sessions qualified as TransactionSession
 import Imports
 import Polysemy
 import Polysemy.Input
@@ -22,7 +25,7 @@ import Wire.UserGroupStore
 interpretUserGroupStoreToPostgres :: (Member (Embed IO) r, Member (Input Pool) r) => InterpreterFor UserGroupStore r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
-    CreateUserGroup newUserGroup managedBy -> createUserGroupImpl newUserGroup managedBy
+    CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup userGroupId -> getUserGroupImpl userGroupId
 
 getUserGroupImpl :: (Member (Embed IO) r, Member (Input Pool) r) => UserGroupId -> Sem r (Maybe UserGroup)
@@ -35,19 +38,19 @@ getUserGroupImpl id_ = do
   where
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
-      (name, managedBy) <- MaybeT $ statement id_ getGroupMetadataStatement
+      (name, team, managedBy) <- MaybeT $ statement id_ getGroupMetadataStatement
       members <- lift $ statement id_ getGroupMembersStatement
       pure $ UserGroup {..}
 
-    decodeMetadataRow :: (Text, Int32) -> Either Text (Text, ManagedBy)
-    decodeMetadataRow (name, managedByInt) = (name,) <$> managedByFromInt32 managedByInt
+    decodeMetadataRow :: (Text, UUID, Int32) -> Either Text (Text, TeamId, ManagedBy)
+    decodeMetadataRow (name, teamUUID, managedByInt) = (name,Id teamUUID,) <$> managedByFromInt32 managedByInt
 
-    getGroupMetadataStatement :: Statement UserGroupId (Maybe (Text, ManagedBy))
+    getGroupMetadataStatement :: Statement UserGroupId (Maybe (Text, TeamId, ManagedBy))
     getGroupMetadataStatement =
       lmap (.toUUID)
         . refineResult (mapM decodeMetadataRow)
         $ [maybeStatement|
-         select (name :: text), (managed_by :: int) from user_group where id = ($1 :: uuid)
+         select (name :: text), (team_id :: uuid), (managed_by :: int) from user_group where id = ($1 :: uuid)
          |]
 
     getGroupMembersStatement :: Statement UserGroupId (Vector UserId)
@@ -57,26 +60,26 @@ getUserGroupImpl id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
-createUserGroupImpl :: (Member (Embed IO) r, Member (Input Pool) r) => NewUserGroup -> ManagedBy -> Sem r UserGroupId
-createUserGroupImpl newUserGroup managedBy = do
+createUserGroupImpl :: (Member (Embed IO) r, Member (Input Pool) r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroupId
+createUserGroupImpl team newUserGroup managedBy = do
   pool <- input
   eitherUuid <- liftIO $ use pool session
   case eitherUuid of
+    -- TODO: Deal with this better
     Left err -> error $ show err
     Right uuid -> pure $ Id uuid
   where
-    -- TODO: Do this in a transaction
     session :: Session UUID
-    session = do
-      groupId <- statement (newUserGroup.name, managedBy) insertGroupStatement
-      statement (groupId, newUserGroup.members) insertGroupMembersStatement
+    session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
+      groupId <- Transaction.statement (newUserGroup.name, team, managedBy) insertGroupStatement
+      Transaction.statement (groupId, newUserGroup.members) insertGroupMembersStatement
       pure groupId
 
-    insertGroupStatement :: Statement (Text, ManagedBy) UUID
+    insertGroupStatement :: Statement (Text, TeamId, ManagedBy) UUID
     insertGroupStatement =
-      lmap (second managedByToInt32) $
+      lmap (\(n, t, m) -> (n, t.toUUID, managedByToInt32 m)) $
         [singletonStatement|
-         insert into user_group (name, managed_by) values ($1 :: text, $2 :: int) returning id :: uuid
+         insert into user_group (name, team_id, managed_by) values ($1 :: text, $2 :: uuid, $3 :: int) returning id :: uuid
          |]
 
     toRelationTable :: a -> Vector b -> (Vector a, Vector b)
