@@ -323,14 +323,15 @@ tests =
           [ (testObject_InvitationUserView_team_1, "testObject_InvitationUserView_team_1.json"),
             (testObject_InvitationUserView_team_2, "testObject_InvitationUserView_team_2.json")
           ],
-      testGroup "DomainRegistration" $
+      testGroup "DomainRegistrationResponse" $
         testObjects
           [ (testObject_DomainRegistrationResponse_1, "testObject_DomainRegistrationResponse_1.json"),
             (testObject_DomainRegistrationResponse_2, "testObject_DomainRegistrationResponse_2.json"),
             (testObject_DomainRegistrationResponse_3, "testObject_DomainRegistrationResponse_3.json"),
             (testObject_DomainRegistrationResponse_4, "testObject_DomainRegistrationResponse_4.json"),
             (testObject_DomainRegistrationResponse_5, "testObject_DomainRegistrationResponse_5.json"),
-            (testObject_DomainRegistrationResponse_6, "testObject_DomainRegistrationResponse_6.json")
+            (testObject_DomainRegistrationResponse_6, "testObject_DomainRegistrationResponse_6.json"),
+            (testObject_DomainRegistrationResponse_7, "testObject_DomainRegistrationResponse_7.json")
           ],
       testGroup "DomainRegistrationUpdate" $
         testObjects
@@ -339,7 +340,8 @@ tests =
             (testObject_DomainRegistrationUpdate_3, "testObject_DomainRegistrationUpdate_3.json"),
             (testObject_DomainRegistrationUpdate_4, "testObject_DomainRegistrationUpdate_4.json"),
             (testObject_DomainRegistrationUpdate_5, "testObject_DomainRegistrationUpdate_5.json"),
-            (testObject_DomainRegistrationUpdate_6, "testObject_DomainRegistrationUpdate_6.json")
+            (testObject_DomainRegistrationUpdate_6, "testObject_DomainRegistrationUpdate_6.json"),
+            (testObject_DomainRegistrationUpdate_7, "testObject_DomainRegistrationUpdate_7.json")
           ],
       testGroup
         "DomainRedirectResponse"
