@@ -67,7 +67,7 @@ spec = describe "UserSubsystem.Interpreter" do
               localBackend = def {users = [viewer] <> localTargetUsers}
               config = UserSubsystemConfig visibility miniLocale False 100 undefined
               retrievedProfiles =
-                runFederationStack localBackend federation Nothing config $
+                runFederationStack localBackend federation mempty config $
                   getUserProfiles
                     (toLocalUnsafe localDomain viewer.id)
                     (localTargets <> target1 <> target2)
@@ -101,7 +101,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe @AuthenticationSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
                 . runError @FederationError
-                . interpretFederationStack localBackend online Nothing config
+                . interpretFederationStack localBackend online mempty config
                 $ getUserProfiles
                   (toLocalUnsafe localDomain viewer.id)
                   (onlineUsers <> offlineUsers)
@@ -116,7 +116,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "returns nothing when none of the users exist" $
         \viewer targetUserIds config domain ->
           let retrievedProfiles =
-                runNoFederationStack def Nothing config $
+                runNoFederationStack def mempty config $
                   getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
            in retrievedProfiles === []
 
@@ -125,8 +125,9 @@ spec = describe "UserSubsystem.Interpreter" do
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               localBackend = def {users = [targetUser, viewer]}
+              galleyState = foldMap (\tid -> Map.singleton tid [teamMember]) viewer.teamId
               retrievedProfiles =
-                runNoFederationStack localBackend (Just teamMember) config $
+                runNoFederationStack localBackend galleyState config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
            in retrievedProfiles
                 === [ mkUserProfile
@@ -140,8 +141,9 @@ spec = describe "UserSubsystem.Interpreter" do
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               localBackend = def {users = [targetUser, viewer]}
+              galleyState = foldMap (\tid -> Map.singleton tid [teamMember]) viewer.teamId
               retrievedProfile =
-                runNoFederationStack localBackend (Just teamMember) config $
+                runNoFederationStack localBackend galleyState config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
            in retrievedProfile
                 === [ mkUserProfile
@@ -154,8 +156,9 @@ spec = describe "UserSubsystem.Interpreter" do
         \viewer (PendingStoredUser targetUser) config domain ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               localBackend = def {users = [targetUser, viewer]}
+              galleyState = foldMap (\tid -> Map.singleton tid [teamMember]) viewer.teamId
               retrievedProfile =
-                runNoFederationStack localBackend (Just teamMember) config $
+                runNoFederationStack localBackend galleyState config $
                   getLocalUserProfiles (toLocalUnsafe domain [targetUser.id])
            in retrievedProfile === []
 
@@ -167,12 +170,12 @@ spec = describe "UserSubsystem.Interpreter" do
             config = UserSubsystemConfig visibility miniLocale False 100 undefined
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStack localBackend federation Nothing config $
+              runFederationStack localBackend federation mempty config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
                   (map (flip Qualified remoteDomain . (.id)) targetUsers)
             retrievedProfiles :: [UserProfile] =
-              runFederationStack localBackend federation Nothing config $
+              runFederationStack localBackend federation mempty config $
                 getUserProfiles
                   (toLocalUnsafe domain viewer.id)
                   (map (flip Qualified remoteDomain . (.id)) targetUsers)
@@ -188,7 +191,7 @@ spec = describe "UserSubsystem.Interpreter" do
             config = UserSubsystemConfig visibility miniLocale False 100 undefined
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStack localBackend online Nothing config $
+              runFederationStack localBackend online mempty config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
                   ( map (flip Qualified remoteDomain . (.id)) $
@@ -208,7 +211,7 @@ spec = describe "UserSubsystem.Interpreter" do
             config = UserSubsystemConfig visibility miniLocale False 100 undefined
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStack localBackend online Nothing config $
+              runFederationStack localBackend online mempty config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
                   (remoteAUsers <> remoteBUsers)
@@ -220,14 +223,14 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "should retrieve a user which exists in the DB" \storedSelf otherStoredUsers domain config ->
       let localBackend = def {users = storedSelf : filter (\u -> u.id /= storedSelf.id) otherStoredUsers}
           retrievedProfile =
-            runNoFederationStack localBackend Nothing config $
+            runNoFederationStack localBackend mempty config $
               getSelfProfile (toLocalUnsafe domain storedSelf.id)
        in retrievedProfile === Just (SelfProfile $ mkUserFromStored domain config.defaultLocale storedSelf)
 
     prop "should fail when the user does not exist in the DB" \selfId otherStoredUsers domain config ->
       let localBackend = def {users = filter (\u -> u.id /= selfId) otherStoredUsers}
           retrievedProfile =
-            runNoFederationStack localBackend Nothing config $
+            runNoFederationStack localBackend mempty config $
               getSelfProfile (toLocalUnsafe domain selfId)
        in retrievedProfile === Nothing
 
@@ -240,7 +243,7 @@ spec = describe "UserSubsystem.Interpreter" do
           SelfProfile retrievedUser =
             fromJust
               . runAllErrorsUnsafe
-              . interpretNoFederationStack localBackend Nothing allFeatureConfigs susbsystemConfig
+              . interpretNoFederationStack localBackend mempty allFeatureConfigs susbsystemConfig
               $ getSelfProfile (toLocalUnsafe domain storedSelf.id)
           expectedManagedBy = case storedSelf.handle of
             Nothing -> fromMaybe ManagedByWire storedSelf.managedBy
@@ -253,7 +256,7 @@ spec = describe "UserSubsystem.Interpreter" do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             userBeforeUpdate = mkUserFromStored localDomain config.defaultLocale alice
-            result = runNoFederationStackUserSubsystemErrorEither localBackend Nothing config do
+            result = runNoFederationStackUserSubsystemErrorEither localBackend mempty config do
               updateUserProfile lusr Nothing UpdateOriginScim update
               getSelfProfile lusr
             mlsRemoval =
@@ -281,7 +284,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 if BaseProtocolMLSTag `member` (fromMaybe mempty alice.supportedProtocols)
                   then BaseProtocolMLSTag `insert` protocols
                   else protocols
-            events = runNoFederationStack localBackend Nothing config do
+            events = runNoFederationStack localBackend mempty config do
               updateUserProfile lusr connId UpdateOriginScim update {supportedProtocols = mProtocolUpdates}
               get @[MiniEvent]
          in events
@@ -333,7 +336,7 @@ spec = describe "UserSubsystem.Interpreter" do
                         )
                   }
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === []
 
@@ -368,7 +371,7 @@ spec = describe "UserSubsystem.Interpreter" do
                         )
                   }
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === [mkUserFromStored localDomain locale alice]
       prop "GetBy handle when pending fails if not explicitly allowed" $
@@ -403,7 +406,7 @@ spec = describe "UserSubsystem.Interpreter" do
                         )
                   }
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === []
 
@@ -439,7 +442,7 @@ spec = describe "UserSubsystem.Interpreter" do
                         )
                   }
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === [mkUserFromStored localDomain locale alice]
 
@@ -453,7 +456,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     userKeys = Map.singleton (mkEmailKey email) alice.id
                   }
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsByEmailNoFilter (toLocalUnsafe localDomain [email])
            in result === [mkUserFromStored localDomain locale alice]
 
@@ -468,7 +471,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     }
               localBackend = def {users = [alice]}
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === []
 
@@ -483,7 +486,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     }
               localBackend = def {users = [alice]}
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === []
 
@@ -512,7 +515,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   }
               alice = alice' {email = Just email, teamId = Just teamId}
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === [mkUserFromStored localDomain locale alice]
 
@@ -533,7 +536,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   }
               alice = alice' {email = Just email, teamId = Just teamId}
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === []
 
@@ -567,7 +570,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     handle = Just handl
                   }
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === [mkUserFromStored localDomain locale alice]
 
@@ -593,7 +596,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     handle = Just handl
                   }
               result =
-                runNoFederationStack localBackend Nothing config $
+                runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
            in result === []
 
@@ -608,7 +611,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe @AuthenticationSubsystemError
                   . runErrorUnsafe @RateLimitExceeded
                   . runError
-                  $ interpretNoFederationStack localBackend Nothing def config do
+                  $ interpretNoFederationStack localBackend mempty def config do
                     updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing, supportedProtocols = Nothing}
                     getUserProfile lusr (tUntagged lusr)
            in counterexample (show profileErr) $ isRight profileErr === True
@@ -624,7 +627,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     . runErrorUnsafe @AuthenticationSubsystemError
                     . runErrorUnsafe @RateLimitExceeded
                     . runError
-                    $ interpretNoFederationStack localBackend Nothing def config do
+                    $ interpretNoFederationStack localBackend mempty def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
                       getUserProfile lusr (tUntagged lusr)
              in profileErr === Left UserSubsystemDisplayNameManagedByScim
@@ -640,7 +643,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     . runErrorUnsafe @AuthenticationSubsystemError
                     . runErrorUnsafe @RateLimitExceeded
                     . runError
-                    $ interpretNoFederationStack localBackend Nothing def config do
+                    $ interpretNoFederationStack localBackend mempty def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
                       getUserProfile lusr (tUntagged lusr)
              in profileErr === Left UserSubsystemLocaleManagedByScim
@@ -659,7 +662,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runError
                   $ interpretNoFederationStack
                     localBackend
-                    Nothing
+                    mempty
                     ( npUpdate
                         ( def
                             { status = FeatureStatusEnabled
@@ -680,7 +683,7 @@ spec = describe "UserSubsystem.Interpreter" do
         not (isBlacklistedHandle handle) ==>
           let localBackend = def {users = [alice {managedBy = Just ManagedByWire, handle = Just handle}]}
               checkHandleResp =
-                runNoFederationStack localBackend Nothing config $ checkHandle (fromHandle handle)
+                runNoFederationStack localBackend mempty config $ checkHandle (fromHandle handle)
            in checkHandleResp === CheckHandleFound
 
     prop
@@ -689,7 +692,7 @@ spec = describe "UserSubsystem.Interpreter" do
         not (isBlacklistedHandle handle) ==>
           let localBackend = def {users = []}
               checkHandleResp =
-                runNoFederationStack localBackend Nothing config $ checkHandle (fromHandle handle)
+                runNoFederationStack localBackend mempty config $ checkHandle (fromHandle handle)
            in checkHandleResp === CheckHandleNotFound
 
     prop
@@ -700,7 +703,7 @@ spec = describe "UserSubsystem.Interpreter" do
               localBackend = def {users = users}
 
               runCheckHandles :: [Handle] -> [Handle]
-              runCheckHandles handles = runNoFederationStack localBackend Nothing config do
+              runCheckHandles handles = runNoFederationStack localBackend mempty config do
                 checkHandles handles maxCount
 
               takenHandles = snd <$> storedUsersAndHandles
@@ -721,7 +724,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe @AuthenticationSubsystemError
                   . runErrorUnsafe @RateLimitExceeded
                   . runError
-                  $ interpretNoFederationStack localBackend Nothing def config do
+                  $ interpretNoFederationStack localBackend mempty def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
 
                 localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
@@ -736,7 +739,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe @AuthenticationSubsystemError
                   . runErrorUnsafe @RateLimitExceeded
                   . runError
-                  $ interpretNoFederationStack localBackend Nothing def config do
+                  $ interpretNoFederationStack localBackend mempty def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
                 localBackend =
                   def
@@ -760,7 +763,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe @AuthenticationSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
                 . runError
-                $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
+                $ interpretNoFederationStack (def {users = [storedUser]}) mempty def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
                   updateHandle luid Nothing UpdateOriginScim rawNewHandle
@@ -775,7 +778,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe @AuthenticationSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
                 . runError
-                $ interpretNoFederationStack localBackend Nothing def config do
+                $ interpretNoFederationStack localBackend mempty def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
                   updateHandle luid Nothing UpdateOriginScim badHandle
@@ -792,7 +795,7 @@ spec = describe "UserSubsystem.Interpreter" do
             operation :: (Monad m) => Sem (MiniBackendEffects `Append` AllErrors) a -> m (Either UserSubsystemError a)
             operation op = result `seq` pure result
               where
-                result = runNoFederationStackUserSubsystemErrorEither localBackend Nothing config op
+                result = runNoFederationStackUserSubsystemErrorEither localBackend mempty config op
                 localBackend = def {users = [storedUser]}
 
             actual = runIdentity $ operation do
@@ -818,7 +821,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 }
             retrievedUser =
               runAllErrorsUnsafe
-                . interpretNoFederationStack localBackend Nothing def config
+                . interpretNoFederationStack localBackend mempty def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Just (mkUserFromStored localDomain config.defaultLocale storedUser)
 
@@ -832,7 +835,7 @@ spec = describe "UserSubsystem.Interpreter" do
             storedUser = storedUserNoEmail {email = Just email}
             retrievedUser =
               runAllErrorsUnsafe
-                . interpretNoFederationStack localBackend Nothing def config
+                . interpretNoFederationStack localBackend mempty def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain (mkEmailKey email))
          in retrievedUser === Nothing
 
@@ -845,14 +848,14 @@ spec = describe "UserSubsystem.Interpreter" do
                 }
             retrievedUser =
               runAllErrorsUnsafe
-                . interpretNoFederationStack localBackend Nothing def config
+                . interpretNoFederationStack localBackend mempty def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Nothing
   describe "Removing an email address" do
     prop "Cannot remove an email of a non-existing user" $ \lusr config ->
       let localBackend = def
           result =
-            runNoFederationStack localBackend Nothing config $
+            runNoFederationStack localBackend mempty config $
               removeEmailEither lusr
        in result === Left UserSubsystemProfileNotFound
     prop "Cannot remove an email of a no-identity user" $
@@ -860,7 +863,7 @@ spec = describe "UserSubsystem.Interpreter" do
         let localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
-              runNoFederationStack localBackend Nothing config $
+              runNoFederationStack localBackend mempty config $
                 removeEmailEither lusr
          in result === Left UserSubsystemNoIdentity
     prop "Cannot remove an email of a last-identity user" $
@@ -874,7 +877,7 @@ spec = describe "UserSubsystem.Interpreter" do
             localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
-              runNoFederationStack localBackend Nothing config $
+              runNoFederationStack localBackend mempty config $
                 removeEmailEither lusr
          in result === Left UserSubsystemLastIdentity
     prop "Successfully remove an email from an SSOId user" $
@@ -882,7 +885,7 @@ spec = describe "UserSubsystem.Interpreter" do
         let localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
-              runNoFederationStack localBackend Nothing config $ do
+              runNoFederationStack localBackend mempty config $ do
                 remRes <- removeEmailEither lusr
                 (remRes,) <$> gets users
          in result === (Right (), [user {email = Nothing}])
@@ -893,7 +896,7 @@ spec = describe "UserSubsystem.Interpreter" do
             localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
-              runNoFederationStack localBackend Nothing config $ do
+              runNoFederationStack localBackend mempty config $ do
                 c <- requestEmailChange lusr email UpdateOriginWireClient
                 (c,) <$> gets users
          in result === (ChangeEmailResponseIdempotent, [user])
@@ -905,7 +908,7 @@ spec = describe "UserSubsystem.Interpreter" do
             localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
-              runNoFederationStack localBackend Nothing config $ do
+              runNoFederationStack localBackend mempty config $ do
                 c <- requestEmailChange lusr updatedEmail UpdateOriginWireClient
                 (c,) <$> gets users
          in result
@@ -951,7 +954,7 @@ spec = describe "UserSubsystem.Interpreter" do
               . runErrorUnsafe @AuthenticationSubsystemError
               . runErrorUnsafe @RateLimitExceeded
               . runError
-              $ interpretNoFederationStack localBackend Nothing def config do
+              $ interpretNoFederationStack localBackend mempty def config do
                 DRS.upsert domreg
                 void $ requestEmailChange lusr email UpdateOriginWireClient
 
@@ -980,7 +983,7 @@ spec = describe "UserSubsystem.Interpreter" do
               . runErrorUnsafe @AuthenticationSubsystemError
               . runErrorUnsafe @RateLimitExceeded
               . runError
-              $ interpretNoFederationStack def Nothing def config do
+              $ interpretNoFederationStack def mempty def config do
                 DRS.upsert domreg
                 guardRegisterActivateUserEmailDomain email
 
@@ -1007,7 +1010,7 @@ spec = describe "UserSubsystem.Interpreter" do
               . runErrorUnsafe @AuthenticationSubsystemError
               . runErrorUnsafe @RateLimitExceeded
               . runError
-              $ interpretNoFederationStack def Nothing def config do
+              $ interpretNoFederationStack def mempty def config do
                 DRS.upsert domreg
                 guardUpgradePersonalUserToTeamEmailDomain email
 
@@ -1048,7 +1051,7 @@ spec = describe "UserSubsystem.Interpreter" do
               . runErrorUnsafe @AuthenticationSubsystemError
               . runErrorUnsafe @RateLimitExceeded
               . runError
-              $ interpretNoFederationStack def Nothing def config {maxTeamSize = 100} do
+              $ interpretNoFederationStack def mempty def config {maxTeamSize = 100} do
                 void $ InvitationStore.insertInvitation inv timeout
                 DRS.upsert domreg
                 internalFindTeamInvitation (Just $ mkEmailKey email) storedInv.code
