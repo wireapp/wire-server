@@ -93,16 +93,16 @@ domainRedirectSchema =
       NoneTag -> tag _None (pure ())
       LockedTag -> tag _Locked (pure ())
       SSOTag -> tag _SSO samlIdPIdObjectSchema
-      BackendTag -> tag (_Backend) backendConfigSchema
+      BackendTag -> tag (_Backend) backendConfigSchemaV8
       NoRegistrationTag -> tag _NoRegistration (pure ())
       PreAuthorizedTag -> tag _PreAuthorized (pure ())
 
-    -- TODO: Duplicated from the public API
-    backendConfigSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
-    backendConfigSchema =
-      (,)
-        <$> fst .= backendUrlSchema
-        <*> snd .= maybe_ (optField "webapp_url" schema)
+backendConfigSchemaV8 :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+backendConfigSchemaV8 =
+  (,)
+    <$> fst .= backendUrlSchema
+    -- API versions <= V9 ignore the WebApp URL
+    <*> const Nothing .= pure Nothing
 
 domainRedirectSchemaV9 :: ObjectSchema SwaggerDoc DomainRedirect
 domainRedirectSchemaV9 =
@@ -117,15 +117,15 @@ domainRedirectSchemaV9 =
       NoneTag -> tag _None (pure ())
       LockedTag -> tag _Locked (pure ())
       SSOTag -> tag _SSO samlIdPIdObjectSchema
-      BackendTag -> tag (_Backend) backendConfigSchema
+      BackendTag -> tag (_Backend) backendConfigFieldSchema
       NoRegistrationTag -> tag _NoRegistration (pure ())
       PreAuthorizedTag -> tag _PreAuthorized (pure ())
 
-    backendConfigSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
-    backendConfigSchema = field "backend" backendConfigSchema'
+    backendConfigFieldSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigFieldSchema = field "backend" backendConfigObjectSchema
 
-    backendConfigSchema' :: ValueSchema NamedSwaggerDoc (HttpsUrl, Maybe HttpsUrl)
-    backendConfigSchema' =
+    backendConfigObjectSchema :: ValueSchema NamedSwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigObjectSchema =
       object "BackendConfig" $
         (,)
           <$> fst .= field "config" schema

@@ -79,18 +79,9 @@ domainRedirectConfigV8Schema =
   where
     domainRedirectConfigObjectSchema :: DomainRedirectConfigTag -> ObjectSchema SwaggerDoc DomainRedirectConfig
     domainRedirectConfigObjectSchema = \case
-      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackend backendConfigSchema
+      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackend backendConfigSchemaV8
       DomainRedirectConfigNoRegistrationTag -> tag _DomainRedirectConfigNoRegistration (pure ())
       DomainRedirectConfigRemoveTag -> tag _DomainRedirectConfigRemove (pure ())
-
-    backendConfigSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
-    backendConfigSchema =
-      (,)
-        <$> fst .= backendUrlSchema
-        <*>
-        -- the webapp URL is always empty in versions <= V8 as it was
-        -- introduced in V9
-        snd .= pure Nothing
 
 instance ToSchema DomainRedirectConfig where
   schema = object "DomainRedirectConfig" domainRedirectConfigV8Schema
@@ -123,15 +114,15 @@ domainRedirectConfigV9Schema =
   where
     domainRedirectConfigObjectSchema :: DomainRedirectConfigTag -> ObjectSchema SwaggerDoc DomainRedirectConfigV9
     domainRedirectConfigObjectSchema = \case
-      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackendV9 backendObjectSchema
+      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackendV9 backendConfigFieldSchema
       DomainRedirectConfigNoRegistrationTag -> tag _DomainRedirectConfigNoRegistrationV9 (pure ())
       DomainRedirectConfigRemoveTag -> tag _DomainRedirectConfigRemoveV9 (pure ())
 
-    backendObjectSchema :: ObjectSchema SwaggerDoc (HttpsUrl, HttpsUrl)
-    backendObjectSchema = field "backend" backendConfigSchema
+    backendConfigFieldSchema :: ObjectSchema SwaggerDoc (HttpsUrl, HttpsUrl)
+    backendConfigFieldSchema = field "backend" backendConfigObjectSchema
 
-    backendConfigSchema :: ValueSchema NamedSwaggerDoc (HttpsUrl, HttpsUrl)
-    backendConfigSchema =
+    backendConfigObjectSchema :: ValueSchema NamedSwaggerDoc (HttpsUrl, HttpsUrl)
+    backendConfigObjectSchema =
       object "backend_config" $
         (,)
           <$> fst .= field "config" schema
