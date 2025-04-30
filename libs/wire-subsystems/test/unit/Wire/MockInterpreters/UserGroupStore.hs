@@ -25,4 +25,5 @@ inMemoryUserGroupStoreInterpreter = interpret $ \case
     id_ <- Id <$> Random.uuid
     modify (UserGroup {..} :)
     pure id_
-  GetUserGroup _ -> undefined
+  GetUserGroup tid gid ->
+    gets $ find \g -> g.id_ == gid && g.team == tid
