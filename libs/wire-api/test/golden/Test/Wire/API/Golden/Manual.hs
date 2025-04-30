@@ -355,7 +355,7 @@ tests =
               testObjects
                 [ (testObject_DomainRedirectResponseV8_1, "testObject_DomainRedirectResponseV8_1.json"),
                   (testObject_DomainRedirectResponseV8_2, "testObject_DomainRedirectResponseV8_2.json"),
-                  (testObject_DomainRedirectResponseV8_2, "testObject_DomainRedirectResponseV8_3.json"),
+                  (testObject_DomainRedirectResponseV8_3, "testObject_DomainRedirectResponseV8_3.json"),
                   (testObject_DomainRedirectResponseV8_4, "testObject_DomainRedirectResponseV8_4.json"),
                   (testObject_DomainRedirectResponseV8_6, "testObject_DomainRedirectResponseV8_6.json"),
                   (testObject_DomainRedirectResponseV8_7, "testObject_DomainRedirectResponseV8_7.json")
@@ -368,7 +368,7 @@ tests =
               testObjects
                 [ (testObject_DomainRedirectResponseV9_1, "testObject_DomainRedirectResponseV9_1.json"),
                   (testObject_DomainRedirectResponseV9_2, "testObject_DomainRedirectResponseV9_2.json"),
-                  (testObject_DomainRedirectResponseV9_2, "testObject_DomainRedirectResponseV9_3.json"),
+                  (testObject_DomainRedirectResponseV9_3, "testObject_DomainRedirectResponseV9_3.json"),
                   (testObject_DomainRedirectResponseV9_4, "testObject_DomainRedirectResponseV9_4.json"),
                   (testObject_DomainRedirectResponseV9_5, "testObject_DomainRedirectResponseV9_5.json"),
                   (testObject_DomainRedirectResponseV9_6, "testObject_DomainRedirectResponseV9_6.json"),
