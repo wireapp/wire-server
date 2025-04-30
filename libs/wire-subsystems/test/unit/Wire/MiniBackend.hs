@@ -174,7 +174,7 @@ data MiniBackendParams r = MiniBackendParams
         (FederationAPIAccess MiniFederationMonad)
         (Logger (Log.Msg -> Log.Msg) : Concurrency 'Unsafe : r),
     localBackend :: MiniBackend,
-    teamMember :: Maybe TeamMember,
+    teams :: Map TeamId [TeamMember],
     galleyConfigs :: AllTeamFeatures,
     cfg :: UserSubsystemConfig
   }
@@ -249,7 +249,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . runInMemoryPasswordStoreInterpreter
     . inMemoryInvitationStoreInterpreter
     . miniSparAPIAccess
-    . miniGalleyAPIAccess teamMember galleyConfigs
+    . miniGalleyAPIAccess teams galleyConfigs
     . noopEmailSubsystemInterpreter
 
 type StateEffects =
@@ -471,7 +471,7 @@ runFederationStack ::
   (HasCallStack) =>
   MiniBackend ->
   Map Domain MiniBackend ->
-  Maybe TeamMember ->
+  Map TeamId [TeamMember] ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` AllErrors) a ->
   a
@@ -489,12 +489,12 @@ interpretFederationStack ::
   MiniBackend ->
   -- | the available backends
   Map Domain MiniBackend ->
-  Maybe TeamMember ->
+  Map TeamId [TeamMember] ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r a
-interpretFederationStack localBackend remoteBackends teamMember cfg =
-  snd <$$> interpretFederationStackState localBackend remoteBackends teamMember cfg
+interpretFederationStack localBackend remoteBackends teams cfg =
+  snd <$$> interpretFederationStackState localBackend remoteBackends teams cfg
 
 interpretFederationStackState ::
   (HasCallStack, Members AllErrors r) =>
@@ -502,41 +502,41 @@ interpretFederationStackState ::
   MiniBackend ->
   -- | the available backends
   Map Domain MiniBackend ->
-  Maybe TeamMember ->
+  Map TeamId [TeamMember] ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
-interpretFederationStackState localBackend backends teamMember cfg =
+interpretFederationStackState localBackend backends teams cfg =
   interpretMaybeFederationStackState
     MiniBackendParams
       { maybeFederationAPIAccess = (miniFederationAPIAccess backends),
         localBackend = localBackend,
-        teamMember = teamMember,
+        teams = teams,
         galleyConfigs = def,
         cfg = cfg
       }
 
 runNoFederationStack ::
   MiniBackend ->
-  Maybe TeamMember ->
+  Map TeamId [TeamMember] ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` AllErrors) a ->
   a
-runNoFederationStack localBackend teamMember cfg =
+runNoFederationStack localBackend teams cfg =
   -- (A 'runNoFederationStackEither' variant of this that returns 'AllErrors' in an 'Either'
   -- would be nice, but is complicated by the fact that we not only have 'UserSubsystemErrors',
   -- but other errors as well.  Maybe just wait with this until we have a better idea how we
   -- want to do errors?)
-  runAllErrorsUnsafe . interpretNoFederationStack localBackend teamMember def cfg
+  runAllErrorsUnsafe . interpretNoFederationStack localBackend teams def cfg
 
 runNoFederationStackUserSubsystemErrorEither ::
   MiniBackend ->
-  Maybe TeamMember ->
+  Map TeamId [TeamMember] ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` AllErrors) a ->
   Either UserSubsystemError a
-runNoFederationStackUserSubsystemErrorEither localBackend teamMember cfg =
-  run . userSubsystemErrorEitherUnsafe . interpretNoFederationStack localBackend teamMember def cfg
+runNoFederationStackUserSubsystemErrorEither localBackend teams cfg =
+  run . userSubsystemErrorEitherUnsafe . interpretNoFederationStack localBackend teams def cfg
 
 userSubsystemErrorEitherUnsafe :: Sem AllErrors a -> Sem '[] (Either UserSubsystemError a)
 userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
@@ -544,28 +544,28 @@ userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsaf
 interpretNoFederationStack ::
   (Members AllErrors r) =>
   MiniBackend ->
-  Maybe TeamMember ->
+  Map TeamId [TeamMember] ->
   AllTeamFeatures ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r a
-interpretNoFederationStack localBackend teamMember galleyConfigs cfg =
-  snd <$$> interpretNoFederationStackState localBackend teamMember galleyConfigs cfg
+interpretNoFederationStack localBackend teams galleyConfigs cfg =
+  snd <$$> interpretNoFederationStackState localBackend teams galleyConfigs cfg
 
 interpretNoFederationStackState ::
   (Members AllErrors r) =>
   MiniBackend ->
-  Maybe TeamMember ->
+  Map TeamId [TeamMember] ->
   AllTeamFeatures ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
-interpretNoFederationStackState localBackend teamMember galleyConfigs cfg =
+interpretNoFederationStackState localBackend teams galleyConfigs cfg =
   interpretMaybeFederationStackState
     MiniBackendParams
       { maybeFederationAPIAccess = emptyFederationAPIAcesss,
         localBackend = localBackend,
-        teamMember = teamMember,
+        teams = teams,
         galleyConfigs = galleyConfigs,
         cfg = cfg
       }
