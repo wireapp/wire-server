@@ -25,7 +25,7 @@ interpretUserGroupSubsystem ::
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
-  GetGroup getter gid -> undefined getter gid
+  GetGroup getter gid -> getUserGroupImpl getter gid
 
 data UserGroupSubsystemError
   = UserGroupCreatorIsNotATeamAdmin
@@ -62,7 +62,7 @@ createUserGroupImpl creator newGroup = do
         ..
       }
 
--- getUserGroupImpl :: UserId -> GroupId -> Sem r UserGroup
--- getUserGroupImpl getter gid =
---   team <- getUserTeam getter
---    >>= note
+getUserGroupImpl :: (Member UserSubsystem r, Member Store.UserGroupStore r) => UserId -> UserGroupId -> Sem r (Maybe UserGroup)
+getUserGroupImpl getter gid = runMaybeT $ do
+  team <- MaybeT $ getUserTeam getter
+  MaybeT $ Store.getUserGroup team gid

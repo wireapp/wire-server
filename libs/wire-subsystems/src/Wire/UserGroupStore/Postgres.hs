@@ -26,10 +26,10 @@ interpretUserGroupStoreToPostgres :: (Member (Embed IO) r, Member (Input Pool) r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
-    GetUserGroup userGroupId -> getUserGroupImpl userGroupId
+    GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
 
-getUserGroupImpl :: (Member (Embed IO) r, Member (Input Pool) r) => UserGroupId -> Sem r (Maybe UserGroup)
-getUserGroupImpl id_ = do
+getUserGroupImpl :: (Member (Embed IO) r, Member (Input Pool) r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
+getUserGroupImpl team id_ = do
   pool <- input
   eitherUserGroup <- liftIO $ use pool session
   case eitherUserGroup of
@@ -38,19 +38,19 @@ getUserGroupImpl id_ = do
   where
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
-      (name, team, managedBy) <- MaybeT $ statement id_ getGroupMetadataStatement
+      (name, managedBy) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
       members <- lift $ statement id_ getGroupMembersStatement
       pure $ UserGroup {..}
 
-    decodeMetadataRow :: (Text, UUID, Int32) -> Either Text (Text, TeamId, ManagedBy)
-    decodeMetadataRow (name, teamUUID, managedByInt) = (name,Id teamUUID,) <$> managedByFromInt32 managedByInt
+    decodeMetadataRow :: (Text, Int32) -> Either Text (Text, ManagedBy)
+    decodeMetadataRow (name, managedByInt) = (name,) <$> managedByFromInt32 managedByInt
 
-    getGroupMetadataStatement :: Statement UserGroupId (Maybe (Text, TeamId, ManagedBy))
+    getGroupMetadataStatement :: Statement (UserGroupId, TeamId) (Maybe (Text, ManagedBy))
     getGroupMetadataStatement =
-      lmap (.toUUID)
+      lmap (\(gid, tid) -> (gid.toUUID, tid.toUUID))
         . refineResult (mapM decodeMetadataRow)
         $ [maybeStatement|
-         select (name :: text), (team_id :: uuid), (managed_by :: int) from user_group where id = ($1 :: uuid)
+         select (name :: text), (managed_by :: int) from user_group where id = ($1 :: uuid) AND team = ($2 :: uuid)
          |]
 
     getGroupMembersStatement :: Statement UserGroupId (Vector UserId)
