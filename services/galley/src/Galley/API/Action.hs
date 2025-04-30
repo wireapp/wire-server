@@ -802,13 +802,22 @@ updateLocalConversation lcnv qusr con action = do
 
   -- retrieve conversation
   conv <- getConversationWithError lcnv
+  channelActionAllowed <- channelActionByTeamAdminAllowed conv (fromSing tag)
+  if channelActionAllowed
+    then performActionAndSendNotification @tag (qualifyAs lcnv conv) qusr con action
+    else do
+      -- check that the action does not bypass the underlying protocol
+      unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
+        throwS @'InvalidOperation
 
-  -- check that the action does not bypass the underlying protocol
-  unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
-    throwS @'InvalidOperation
-
-  -- perform all authorisation checks and, if successful, then update itself
-  updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
+      -- perform all authorisation checks and, if successful, then update itself
+      updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
+  where
+    channelActionByTeamAdminAllowed :: Conversation -> ConversationActionTag -> Sem r Bool
+    channelActionByTeamAdminAllowed conv ConversationJoinTag = do
+      todo "check that the user is a team admin"
+      pure $ conv.convMetadata.cnvmGroupConvType == Just Channel
+    channelActionByTeamAdminAllowed _ _ = pure False
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
 -- 'Conversation' value directly, instead of a 'ConvId', and skips protocol
@@ -837,26 +846,12 @@ updateLocalConversationUnchecked ::
   ConversationAction tag ->
   Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
-  let tag = sing @tag
-      lcnv = fmap (.convId) lconv
+  let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
-
   -- perform checks
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
-
-  -- perform action
-  (extraTargets, action') <- performAction tag qusr lconv action
-
-  -- notify participants
-  notifyConversationAction
-    (sing @tag)
-    qusr
-    False
-    con
-    lconv
-    (convBotsAndMembers conv <> extraTargets)
-    action'
+  performActionAndSendNotification @tag lconv qusr con action
   where
     getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
     getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
@@ -877,6 +872,32 @@ updateLocalConversationUnchecked lconv qusr con action = do
 
       -- extra action-specific checks
       ensureAllowed tag loc action conv self
+
+performActionAndSendNotification ::
+  forall tag r.
+  ( SingI tag,
+    Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input UTCTime) r,
+    HasConversationActionEffects tag r
+  ) =>
+  Local Conversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationAction tag ->
+  Sem r LocalConversationUpdate
+performActionAndSendNotification lconv qusr con action = do
+  (extraTargets, action') <- performAction (sing @tag) qusr lconv action
+  notifyConversationAction
+    (sing @tag)
+    qusr
+    False
+    con
+    lconv
+    (convBotsAndMembers (tUnqualified lconv) <> extraTargets)
+    action'
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities

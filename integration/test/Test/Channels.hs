@@ -22,6 +22,7 @@ module Test.Channels where
 import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
+import qualified API.GalleyInternal as I
 import GHC.Stack
 import MLS.Util
 import Notifications (isChannelAddPermissionUpdate)
@@ -408,21 +409,38 @@ testTeamAdminCanCreateChannelWithoutJoining = do
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
 
-  postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json %. "members" `shouldMatch` ([] :: [Value])
+  conv <-
+    postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "members" `shouldMatch` ([] :: [Value])
+      pure resp.json
+
+  I.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
 
 testTeamAdminCanAddMembersWithoutJoining :: (HasCallStack) => App ()
 testTeamAdminCanAddMembersWithoutJoining = do
   (owner, tid, mem1 : mem2 : _) <- createTeam OwnDomain 3
+  -- mem1 already has a client
+  mem1Client <- createMLSClient def mem1
+  void $ uploadNewKeyPackage def mem1Client
 
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
 
   conv <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+
   addMembers owner conv def {users = [mem1, mem2]} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    members <- resp.json %. "members" %. "others" & asList
-    for members (\m -> m %. "id") `shouldMatchSet` (for [mem1, mem2] (\m -> m %. "id"))
-    for_ members $ \m -> do
-      m %. "conversation_role" `shouldMatch` "wire_member"
+
+  I.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members" & asList
+    for mems (\m -> m %. "id") `shouldMatchSet` (for [mem1, mem2] (\m -> m %. "id"))
+
+  -- mem2 creates a client after being added to the channel
+  mem2Client <- createMLSClient def mem2
+  void $ uploadNewKeyPackage def mem2Client
+
+  -- mem1 and mem2 consume their notifications and add themselves to the channel
+  undefined
