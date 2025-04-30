@@ -2,122 +2,164 @@
 
 module Wire.UserGroupSubsystem.InterpreterSpec (spec) where
 
+import Control.Lens ((.~), (^.))
+import Data.Bifunctor (first)
+import Data.Default
+import Data.Id
+import Data.List.Extra
+import Data.Map qualified as Map
+import Data.Vector qualified as V
 import Imports
+import Polysemy
+import Polysemy.Error
 import Test.Hspec
+import Test.Hspec.QuickCheck
+import Test.QuickCheck
+import Wire.API.Team.Member
+import Wire.API.Team.Member qualified as TeamMember
+import Wire.API.Team.Role
+import Wire.API.User as User
+import Wire.API.UserGroup
+import Wire.Arbitrary
+import Wire.GalleyAPIAccess
+import Wire.MockInterpreters
+import Wire.UserGroupStore (UserGroupStore)
+import Wire.UserGroupSubsystem
+import Wire.UserGroupSubsystem.Interpreter
+import Wire.UserSubsystem (UserSubsystem)
+
+runDependencies :: [User] -> Map TeamId [TeamMember] -> Sem '[UserSubsystem, GalleyAPIAccess, UserGroupStore, Error UserGroupSubsystemError] a -> Either UserGroupSubsystemError a
+runDependencies initialUsers teams =
+  run
+    . runError
+    . runInMemoryUserGroupStore
+    . miniGalleyAPIAccess teams def
+    . userSubsystemTestInterpreter initialUsers
+
+expectRight :: (Show err) => Either err Property -> Property
+expectRight = \case
+  Left err -> counterexample ("Unexpected error: " <> show err) False
+  Right p -> p
+
+expectLeft :: (Show err, Eq err) => err -> Either err Property -> Property
+expectLeft expectedErr = \case
+  Left err -> err === expectedErr
+  Right _ -> counterexample ("Expected error, but it didn't happen") False
+
+unexpected :: Sem r Property
+unexpected =
+  pure $ counterexample "An error was expected to have occured by now" False
 
 spec :: Spec
-spec = describe "UserGroupSubsystem.Interpreter" undefined
+spec = describe "UserGroupSubsystem.Interpreter" do
+  prop "team admins should be able to create and get groups" $ \team newUserGroupName ->
+    expectRight
+      . runDependencies (allUsers team) (galleyTeam team)
+      . interpretUserGroupSubsystem
+      $ do
+        let newUserGroup =
+              NewUserGroup
+                { name = newUserGroupName,
+                  members = User.userId <$> V.fromList (allUsers team)
+                }
+        createdGroup <- createGroup (ownerId team) newUserGroup
+        pure $
+          createdGroup.name === newUserGroupName
+            .&&. createdGroup.members == newUserGroup.members
 
--- do
---   prop "getGroup gets you what createGroup creates" $ \gname usrs ->
---     let now = unsafePerformIO getCurrentTime
---      in Mock.runInMemoryUserGroupSubsystem now do
---           ug0 <- getGroup (Id UUID.nil)
---           let nug = NewUserGroup gname usrs
---           ug <- createGroup nug
---           ug' <- getGroup ug.id_
---           pure $
---             counterexample (show (ug0, nug, ug, ug')) $
---               (ug0 === Nothing)
---                 .&&. (ug.name === nug.name)
---                 .&&. (ug.members === nug.members)
---                 .&&. (ug.managedBy === ManagedByWire)
---                 .&&. (ug' === Just ug)
+  prop "only team admins should be able to create a group" $
+    \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
+      expectLeft UserGroupCreatorIsNotATeamAdmin
+        . runDependencies (allUsers team) (galleyTeam team)
+        . interpretUserGroupSubsystem
+        $ do
+          let newUserGroup =
+                NewUserGroup
+                  { name = newUserGroupName,
+                    members = User.userId <$> V.fromList (allUsers team)
+                  }
+              Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.others
+          void $ createGroup (User.userId nonAdminUser) newUserGroup
+          unexpected
 
---   describe "getGroups" $ do
---     let now = unsafePerformIO getCurrentTime
---         nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (cs $ show i) mempty
+  prop "only team members are allowed in the group" $ \team otherUsers newUserGroupName ->
+    let othersWithoutTeamMembers = filter (\u -> u.userTeam /= Just team.tid) otherUsers
+     in notNull othersWithoutTeamMembers
+          ==> expectLeft UserGroupMemberIsNotInTheSameTeam
+            . runDependencies (allUsers team <> otherUsers) (galleyTeam team)
+            . interpretUserGroupSubsystem
+          $ do
+            let newUserGroup =
+                  NewUserGroup
+                    { name = newUserGroupName,
+                      members = User.userId <$> V.fromList otherUsers
+                    }
+            void $ createGroup (ownerId team) newUserGroup
+            unexpected
 
---         check :: (HasCallStack) => UserGroupPage -> [UserGroupId] -> Bool -> Expectation
---         check have wantPage wantHasMore = do
---           (have.page <&> (.id_)) `shouldBe` wantPage
---           have.hasMore `shouldBe` wantHasMore
+data TeamGenMod = AtLeastOneMember | AtLeastOneNonAdmin
 
---         lastKeyOf :: UserGroupPage -> UUID
---         lastKeyOf = toUUID . (.id_) . last . (.page)
+class KnownTeamGenMod a where
+  teamGenMod :: TeamGenMod
 
---     it "paginates" $ do
---       Mock.runInMemoryUserGroupSubsystem now do
---         gids <- (sort . ((.id_) <$>)) <$> createGroup `mapM` nugs
---         allOfThem <- getGroups Nothing Nothing
---         first3 <- getGroups (Just 3) Nothing
---         next4 <- getGroups (Just 4) (Just $ lastKeyOf first3)
---         halfPage1 <- getGroups (Just 100) Nothing
---         halfPage2 <- getGroups (Just 100) (Just $ lastKeyOf next4)
+instance KnownTeamGenMod 'AtLeastOneMember where
+  teamGenMod = AtLeastOneMember
 
---         pure do
---           check allOfThem gids False
---           check first3 (take 3 gids) True
---           check next4 (take 4 (drop 3 gids)) True
---           check halfPage1 gids False
---           check halfPage2 (drop 7 gids) False
+instance KnownTeamGenMod 'AtLeastOneNonAdmin where
+  teamGenMod = AtLeastOneNonAdmin
 
---     it "paginates well under updates" $ do
---       Mock.runInMemoryUserGroupSubsystem now do
---         gids <- (sort . ((.id_) <$>)) <$> createGroup `mapM` nugs
---         beforeNewCreate <- getGroups (Just 8) Nothing
---         newGroup <- createGroup (NewUserGroup "the new one" mempty)
---         afterNewCreate <- getGroups (Just 8) (Just $ lastKeyOf beforeNewCreate)
+applyConstraint :: forall mod. (KnownTeamGenMod mod) => Gen ArbitraryTeam -> Gen ArbitraryTeam
+applyConstraint =
+  case teamGenMod @mod of
+    AtLeastOneMember -> flip suchThat \team ->
+      not $ null team.others
+    AtLeastOneNonAdmin -> flip suchThat \team ->
+      any (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.others
 
---         pure do
---           check beforeNewCreate (take 8 gids) True
+newtype WithMods (mods :: [TeamGenMod]) a = WithMods a
+  deriving (Show, Eq)
 
---           let afterGids =
---                 if lastKeyOf beforeNewCreate < toUUID newGroup.id_
---                   then drop 8 (sort (newGroup.id_ : gids))
---                   else drop 8 gids
---           check afterNewCreate afterGids False
+class ArbitraryWithMods mods a where
+  arbitraryWithMods :: Gen a
 
---   prop "updateGroup updates the name" $ \originalName userGroupUpdate ->
---     let now = unsafePerformIO getCurrentTime
---      in Mock.runInMemoryUserGroupSubsystem now do
---           ug0 <- createGroup (NewUserGroup originalName mempty)
---           ug1 <- getGroup ug0.id_
---           ug2 <- updateGroup ug0.id_ userGroupUpdate
---           ug3 <- getGroup ug0.id_
---           pure $
---             (ug1 === Just ug0)
---               .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
---               .&&. (ug3 === ug2)
+instance (Arbitrary a) => ArbitraryWithMods '[] a where
+  arbitraryWithMods = arbitrary
 
---   prop "deleteGroup deletes" $ \newGroup1 newGroup2 -> do
---     let now = unsafePerformIO getCurrentTime
---      in Mock.runInMemoryUserGroupSubsystem now do
---           ug1 <- createGroup newGroup1
---           ug2 <- createGroup newGroup2
---           deleteGroup ug1.id_
---           allGroups <- (.page) <$> getGroups Nothing Nothing
+instance (KnownTeamGenMod mod, ArbitraryWithMods mods ArbitraryTeam) => ArbitraryWithMods (mod ': mods) ArbitraryTeam where
+  arbitraryWithMods =
+    applyConstraint @mod $ arbitraryWithMods @mods
 
---           deleteGroup (Id UUID.nil) -- idempotency
---           allGroups' <- (.page) <$> getGroups Nothing Nothing
+instance (ArbitraryWithMods mods a) => Arbitrary (WithMods mods a) where
+  arbitrary = WithMods <$> arbitraryWithMods @mods
 
---           pure $ do
---             allGroups `shouldBe` [ug2]
---             allGroups' `shouldBe` [ug2]
+data ArbitraryTeam = ArbitraryTeam
+  { tid :: TeamId,
+    owner :: (User, TeamMember),
+    others :: [(User, TeamMember)]
+  }
+  deriving (Show, Eq)
 
---   prop "addUser adds a user" $ \newGroup newUserId -> do
---     -- TODO: how do we feel about dangling user ids?  maybe that should be handled on another
---     -- level, and UserGroupSubsystem should be oblivious to what user ids point to?
---     let now = unsafePerformIO getCurrentTime
---      in Mock.runInMemoryUserGroupSubsystem now do
---           ug :: UserGroup <- createGroup newGroup
---           addUser ug.id_ newUserId
---           ug' :: Maybe UserGroup <- getGroup ug.id_
---           addUser ug.id_ newUserId -- idempotency
---           ug'' :: Maybe UserGroup <- getGroup ug.id_
---           pure $ do
---             ((sort . V.toList . (.members)) <$> ug') `shouldBe` Just (sort (newUserId : V.toList ug.members))
---             ug'' `shouldBe` ug'
+instance Arbitrary ArbitraryTeam where
+  arbitrary = do
+    tid <- arbitrary
+    let assignTeam u = u {userTeam = Just tid}
+    adminUser <- assignTeam <$> arbitrary
+    adminMember <-
+      arbitrary @TeamMember
+        <&> (permissions .~ rolePermissions RoleOwner)
+        <&> (TeamMember.userId .~ User.userId adminUser)
+    otherUsers <- listOf' arbitrary
+    otherUserWithMembers <- for otherUsers $ \u -> do
+      mem <- arbitrary
+      pure (u, mem & TeamMember.userId .~ User.userId u)
+    pure . ArbitraryTeam tid (adminUser, adminMember) $ map (first assignTeam) otherUserWithMembers
 
---   prop "removeUser removes a user" $ \newGroup -> do
---     let now = unsafePerformIO getCurrentTime
---      in Mock.runInMemoryUserGroupSubsystem now do
---           ug :: UserGroup <- createGroup newGroup
---           let removee :: UserId
---               removee = case V.toList ug.members of
---                 [] -> Id UUID.nil -- idempotency
---                 _ : _ -> ug.members V.! (length ug.members `div` 2)
---           removeUser ug.id_ removee
---           ug' :: Maybe UserGroup <- getGroup ug.id_
---           pure $ do
---             ((sort . V.toList . (.members)) <$> ug') `shouldBe` Just (sort (V.toList ug.members \\ [removee]))
+allUsers :: ArbitraryTeam -> [User]
+allUsers t = fst <$> t.owner : t.others
+
+ownerId :: ArbitraryTeam -> UserId
+ownerId t = User.userId (fst t.owner)
+
+-- | The Map is required by the mock GalleyAPIAccess
+galleyTeam :: ArbitraryTeam -> Map TeamId [TeamMember]
+galleyTeam t = Map.singleton t.tid . map snd $ t.owner : t.others

@@ -45,6 +45,7 @@ data UserGroupUpdate = UserGroupUpdate
 data UserGroup = UserGroup
   { id_ :: UserGroupId,
     name :: Text,
+    team :: TeamId,
     managedBy :: ManagedBy,
     members :: Vector UserId
   }
