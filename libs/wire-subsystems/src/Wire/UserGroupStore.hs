@@ -10,6 +10,6 @@ import Wire.API.UserGroup
 
 data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroupId
-  GetUserGroup :: UserGroupId -> UserGroupStore m (Maybe UserGroup)
+  GetUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe UserGroup)
 
 makeSem ''UserGroupStore
