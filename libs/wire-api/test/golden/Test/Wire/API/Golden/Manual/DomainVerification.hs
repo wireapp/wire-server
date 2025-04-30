@@ -125,3 +125,34 @@ testObject_DomainRedirectResponseV9_7 =
     { propagateUserExists = False,
       redirect = PreAuthorized
     }
+
+testObject_DomainRedirectConfigV8_1 :: DomainRedirectConfig
+testObject_DomainRedirectConfigV8_1 = DomainRedirectConfigRemove
+
+testObject_DomainRedirectConfigV8_2 :: DomainRedirectConfig
+testObject_DomainRedirectConfigV8_2 =
+  DomainRedirectConfigBackend
+    (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://wire.example.com/")))
+    (Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://webapp.wire.example.com/"))))
+
+testObject_DomainRedirectConfigV8_3 :: DomainRedirectConfig
+testObject_DomainRedirectConfigV8_3 =
+  DomainRedirectConfigBackend
+    (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://wire.example.com/")))
+    Nothing
+
+testObject_DomainRedirectConfigV8_4 :: DomainRedirectConfig
+testObject_DomainRedirectConfigV8_4 = DomainRedirectConfigNoRegistration
+
+testObject_DomainRedirectConfigV9_1 :: DomainRedirectConfigV9
+testObject_DomainRedirectConfigV9_1 = DomainRedirectConfigRemoveV9
+
+testObject_DomainRedirectConfigV9_2 :: DomainRedirectConfigV9
+testObject_DomainRedirectConfigV9_2 =
+  DomainRedirectConfigBackendV9
+    (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://wire.example.com/")))
+    (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://webapp.wire.example.com/")))
+
+-- The WebApp URL is mandatory. Thus, there's no test for V9 which is analog to testObject_DomainRedirectConfigV8_3.
+testObject_DomainRedirectConfigV9_4 :: DomainRedirectConfigV9
+testObject_DomainRedirectConfigV9_4 = DomainRedirectConfigNoRegistrationV9

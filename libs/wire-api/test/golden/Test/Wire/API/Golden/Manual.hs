@@ -366,5 +366,24 @@ tests =
                   (testObject_DomainRedirectResponseV9_6, "testObject_DomainRedirectResponseV9_6.json"),
                   (testObject_DomainRedirectResponseV9_7, "testObject_DomainRedirectResponseV9_7.json")
                 ]
+          ],
+      testGroup
+        "DomainRedirectConfig"
+        $ [ testGroup "V8" $
+              testObjects
+                [ (testObject_DomainRedirectConfigV8_1, "testObject_DomainRedirectConfigV8_1.json"),
+                  (testObject_DomainRedirectConfigV8_3, "testObject_DomainRedirectConfigV8_3.json"),
+                  (testObject_DomainRedirectConfigV8_4, "testObject_DomainRedirectConfigV8_4.json")
+                ]
+                ++ [ testCase
+                       "non-isomorph in webappUrl"
+                       (assertJSONIsGolden testObject_DomainRedirectConfigV8_2 "testObject_DomainRedirectConfigV8_2.json")
+                   ],
+            testGroup "V9" $
+              testObjects
+                [ (testObject_DomainRedirectConfigV9_1, "testObject_DomainRedirectConfigV9_1.json"),
+                  (testObject_DomainRedirectConfigV9_2, "testObject_DomainRedirectConfigV9_2.json"),
+                  (testObject_DomainRedirectConfigV9_4, "testObject_DomainRedirectConfigV9_4.json")
+                ]
           ]
     ]
