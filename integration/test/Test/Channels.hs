@@ -25,7 +25,7 @@ import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
 import qualified API.GalleyInternal as I
 import GHC.Stack
 import MLS.Util
-import Notifications (isChannelAddPermissionUpdate)
+import Notifications (isChannelAddPermissionUpdate, isMemberJoinNotif)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -428,19 +428,38 @@ testTeamAdminCanAddMembersWithoutJoining = do
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
 
-  conv <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+  -- the team admin creates a channel without joining
+  channel <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
 
-  addMembers owner conv def {users = [mem1, mem2]} `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
+  withWebSocket mem1 $ \ws -> do
+    -- the team admin adds members to the channel
+    addMembers owner channel def {users = [mem1, mem2]} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
 
-  I.getConversation conv `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    mems <- resp.json %. "members" & asList
-    for mems (\m -> m %. "id") `shouldMatchSet` (for [mem1, mem2] (\m -> m %. "id"))
+    -- the members are now in the channel
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      mems <- resp.json %. "members" & asList
+      for mems (\m -> m %. "id") `shouldMatchSet` (for [mem1, mem2] (\m -> m %. "id"))
+
+    -- mem1 receives a notification about being added to the channel
+    notif <- awaitMatch isMemberJoinNotif ws
+    qcid <- notif %. "payload.0.qualified_conversation"
+
+    -- they figure out that they should add themselves to the MLS group
+    conv <- getConversation mem1 qcid >>= getJSON 200
+    convId <- objConvId conv
+    createGroup def mem1Client convId
+    void $ createAddCommit mem1Client convId [mem1] >>= sendAndConsumeCommitBundle
 
   -- mem2 creates a client after being added to the channel
   mem2Client <- createMLSClient def mem2
   void $ uploadNewKeyPackage def mem2Client
 
-  -- mem1 and mem2 consume their notifications and add themselves to the channel
-  undefined
+  cidsResponse <- listConversationIds mem2 def
+  cids <- cidsResponse.json >>= (%. "qualified_conversations") & asList
+
+  for_ cids $ \qcid -> do
+    _conv <- getConversation mem2 qcid >>= getJSON 200
+    -- client should sync MLS state add itself to the MLS group
+    undefined
