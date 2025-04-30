@@ -513,7 +513,7 @@ getDomainRegistrationH ::
     Member (Polysemy.Error EnterpriseLoginSubsystemError) r
   ) =>
   Domain ->
-  Handler r DomainRegistrationResponse
+  Handler r DomainRegistrationResponseV9
 getDomainRegistrationH domain =
   lift . liftSem $
     getDomainRegistration domain

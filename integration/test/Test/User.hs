@@ -246,7 +246,7 @@ testMigratingPasswordHashingAlgorithm = do
       login domain email2 password2 >>= assertSuccess
 
 testUpdateEmailForEmailDomainForAnotherBackend :: (HasCallStack) => App ()
-testUpdateEmailForEmailDomainForAnotherBackend = do
+testUpdateEmailForEmailDomainForAnotherBackend = forM_ [(ExplicitVersion 8), Versioned] \version -> do
   emailDomain <- randomDomain
   user <- randomUser OwnDomain def
   email <- user %. "email" & asString
@@ -260,9 +260,10 @@ testUpdateEmailForEmailDomainForAnotherBackend = do
   setup <- setupOwnershipTokenForBackend OwnDomain emailDomain
   updateDomainRedirect
     OwnDomain
+    version
     emailDomain
     (Just setup.ownershipToken)
-    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    (mkDomainRedirectBackend version "https://example.com" "https://webapp.example.com")
     >>= assertStatus 200
 
   let newEmail = "galadriel@" <> emailDomain

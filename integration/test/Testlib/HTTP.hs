@@ -146,7 +146,7 @@ onFailureAddResponse r m = App $ do
     E.throw (AssertionFailure stack (Just r) ctx msg)
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
-  deriving stock (Generic)
+  deriving stock (Eq, Generic)
 
 -- | If you don't know what domain is for or what you should put in there, try `rawBaseRequest
 -- OwnDomain ...`.

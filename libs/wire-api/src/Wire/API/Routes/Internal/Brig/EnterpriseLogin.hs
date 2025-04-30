@@ -103,5 +103,5 @@ type EnterpriseLoginApi =
                :> Description "Returns the current entry in the domain table for that domain, as a JSON document"
                :> "domain-registration"
                :> Capture "domain" Domain
-               :> Get '[JSON] DomainRegistrationResponse
+               :> Get '[JSON] DomainRegistrationResponseV9
            )

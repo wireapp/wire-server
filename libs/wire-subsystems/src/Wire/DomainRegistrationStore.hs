@@ -53,7 +53,8 @@ data StoredDomainRegistration = StoredDomainRegistration
     team :: Maybe TeamId,
     dnsVerificationToken :: Maybe DnsVerificationToken,
     authTokenHash :: Maybe Token,
-    authorizedTeam :: Maybe TeamId
+    authorizedTeam :: Maybe TeamId,
+    webappUrl :: Maybe HttpsUrl
   }
   deriving (Show, Eq, Ord, Generic)
 
@@ -113,7 +114,7 @@ fromStored sdr =
   where
     getTeamInvite :: StoredDomainRegistration -> Maybe TeamInvite
     getTeamInvite = \case
-      StoredDomainRegistration _ _ ti _ _ tid _ _ _ -> case (ti, tid) of
+      StoredDomainRegistration _ _ ti _ _ tid _ _ _ _ -> case (ti, tid) of
         (Just AllowedTag, Nothing) -> Just Allowed
         (Just NotAllowedTag, Nothing) -> Just NotAllowed
         (Just TeamTag, Just teamId) -> Just $ Team teamId
@@ -122,19 +123,19 @@ fromStored sdr =
 
     getDomainRedirect :: StoredDomainRegistration -> Maybe DomainRedirect
     getDomainRedirect = \case
-      StoredDomainRegistration _ dr _ ssoId url _ _ _ _ -> case (dr, ssoId, url) of
-        (Just NoneTag, Nothing, Nothing) -> Just None
-        (Just LockedTag, Nothing, Nothing) -> Just Locked
-        (Just PreAuthorizedTag, Nothing, Nothing) -> Just PreAuthorized
-        (Just SSOTag, Just idpId, Nothing) -> Just $ SSO idpId
-        (Just BackendTag, Nothing, Just beUrl) -> Just $ Backend beUrl
-        (Just NoRegistrationTag, Nothing, Nothing) -> Just NoRegistration
-        (Nothing, Nothing, Nothing) -> Just None
+      StoredDomainRegistration _ dr _ ssoId url _ _ _ _ webappUrl -> case (dr, ssoId, url, webappUrl) of
+        (Just NoneTag, Nothing, Nothing, Nothing) -> Just None
+        (Just LockedTag, Nothing, Nothing, Nothing) -> Just Locked
+        (Just PreAuthorizedTag, Nothing, Nothing, Nothing) -> Just PreAuthorized
+        (Just SSOTag, Just idpId, Nothing, Nothing) -> Just $ SSO idpId
+        (Just BackendTag, Nothing, Just beUrl, webAppUrl) -> Just $ Backend beUrl webAppUrl
+        (Just NoRegistrationTag, Nothing, Nothing, Nothing) -> Just NoRegistration
+        (Nothing, Nothing, Nothing, Nothing) -> Just None
         _ -> Nothing
 
 toStored :: DomainRegistration -> StoredDomainRegistration
 toStored dr =
-  let (domainRedirect, idpId, backendUrl) = fromDomainRedirect dr.domainRedirect
+  let (domainRedirect, idpId, backendUrl, webappUrl) = fromDomainRedirect dr.domainRedirect
       (teamInvite, team) = fromTeamInvite dr.teamInvite
    in StoredDomainRegistration
         { domain = mkDomainKey dr.domain,
@@ -145,7 +146,8 @@ toStored dr =
           team,
           dnsVerificationToken = dr.dnsVerificationToken,
           authTokenHash = dr.authTokenHash,
-          authorizedTeam = dr.authorizedTeam
+          authorizedTeam = dr.authorizedTeam,
+          webappUrl
         }
   where
     fromTeamInvite :: TeamInvite -> (TeamInviteTag, Maybe TeamId)
@@ -153,10 +155,10 @@ toStored dr =
     fromTeamInvite NotAllowed = (NotAllowedTag, Nothing)
     fromTeamInvite (Team teamId) = (TeamTag, Just teamId)
 
-    fromDomainRedirect :: DomainRedirect -> (DomainRedirectTag, Maybe SAML.IdPId, Maybe HttpsUrl)
-    fromDomainRedirect None = (NoneTag, Nothing, Nothing)
-    fromDomainRedirect Locked = (LockedTag, Nothing, Nothing)
-    fromDomainRedirect (SSO idpId) = (SSOTag, Just idpId, Nothing)
-    fromDomainRedirect (Backend url) = (BackendTag, Nothing, Just url)
-    fromDomainRedirect NoRegistration = (NoRegistrationTag, Nothing, Nothing)
-    fromDomainRedirect PreAuthorized = (PreAuthorizedTag, Nothing, Nothing)
+    fromDomainRedirect :: DomainRedirect -> (DomainRedirectTag, Maybe SAML.IdPId, Maybe HttpsUrl, Maybe HttpsUrl)
+    fromDomainRedirect None = (NoneTag, Nothing, Nothing, Nothing)
+    fromDomainRedirect Locked = (LockedTag, Nothing, Nothing, Nothing)
+    fromDomainRedirect (SSO idpId) = (SSOTag, Just idpId, Nothing, Nothing)
+    fromDomainRedirect (Backend url webappUrl) = (BackendTag, Nothing, Just url, webappUrl)
+    fromDomainRedirect NoRegistration = (NoRegistrationTag, Nothing, Nothing, Nothing)
+    fromDomainRedirect PreAuthorized = (PreAuthorizedTag, Nothing, Nothing, Nothing)

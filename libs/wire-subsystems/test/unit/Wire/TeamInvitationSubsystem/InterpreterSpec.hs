@@ -165,7 +165,7 @@ spec = do
                       else Left TeamInvitationNotAllowedForEmail
 
               backendRedirectOrNoRegistrationFails = case domRegUpd.domainRedirect of
-                Backend _ ->
+                Backend _ _ ->
                   -- if domain-redirect is set to `backend`, then team-invite must be set to `not-allowed`
                   teamNotAllowedOrWrongTeamIdFails
                 NoRegistration ->

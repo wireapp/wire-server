@@ -988,7 +988,7 @@ spec = describe "UserSubsystem.Interpreter" do
               None -> Right ()
               Locked -> Right ()
               SSO _ -> Left $ UserSubsystemGuardFailed DomRedirSetToSSO
-              Backend _ -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
+              Backend _ _ -> Left $ UserSubsystemGuardFailed DomRedirSetToBackend
               NoRegistration -> Left $ UserSubsystemGuardFailed DomRedirSetToNoRegistration
               PreAuthorized -> Right ()
          in outcome === expected

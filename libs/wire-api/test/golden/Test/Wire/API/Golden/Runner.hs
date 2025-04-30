@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Test.Wire.API.Golden.Runner
-  ( testObjects,
+  ( assertJSONIsGolden,
+    testObjects,
     testToJSON,
     protoTestObjects,
     testFromJSONFailure,

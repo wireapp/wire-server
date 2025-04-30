@@ -1,0 +1,10 @@
+{
+    "backend": {
+      "config": "https://example.com/inv14",
+      "webapp": "https://webapp.example.com"
+    },
+    "dns_verification_token": null,
+    "domain": "example.com",
+    "domain_redirect": "backend",
+    "team_invite": "allowed"
+}

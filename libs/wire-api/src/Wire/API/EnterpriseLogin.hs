@@ -30,13 +30,14 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import Test.QuickCheck (suchThat)
 import Web.HttpApiData
 import Wire.API.Routes.Bearer
+import Wire.API.Routes.Version
 import Wire.Arbitrary
 
 data DomainRedirect
   = None
   | Locked
   | SSO SAML.IdPId
-  | Backend HttpsUrl
+  | Backend HttpsUrl (Maybe HttpsUrl)
   | NoRegistration
   | PreAuthorized
   deriving stock (Eq, Show, Generic)
@@ -61,7 +62,7 @@ domainRedirectTag :: DomainRedirect -> DomainRedirectTag
 domainRedirectTag None = NoneTag
 domainRedirectTag Locked = LockedTag
 domainRedirectTag (SSO _) = SSOTag
-domainRedirectTag (Backend _) = BackendTag
+domainRedirectTag (Backend _ _) = BackendTag
 domainRedirectTag NoRegistration = NoRegistrationTag
 domainRedirectTag PreAuthorized = PreAuthorizedTag
 
@@ -93,9 +94,43 @@ domainRedirectSchema =
       NoneTag -> tag _None (pure ())
       LockedTag -> tag _Locked (pure ())
       SSOTag -> tag _SSO samlIdPIdObjectSchema
-      BackendTag -> tag _Backend backendUrlSchema
+      BackendTag -> tag (_Backend) backendConfigSchema
       NoRegistrationTag -> tag _NoRegistration (pure ())
       PreAuthorizedTag -> tag _PreAuthorized (pure ())
+
+    -- TODO: Duplicated from the public API
+    backendConfigSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigSchema =
+      (,)
+        <$> fst .= backendUrlSchema
+        <*> snd .= pure Nothing
+
+domainRedirectSchemaV9 :: ObjectSchema SwaggerDoc DomainRedirect
+domainRedirectSchemaV9 =
+  snd
+    <$> (domainRedirectTag &&& id)
+      .= bind
+        (fst .= domainRedirectTagSchema)
+        (snd .= dispatch domainRedirectObjectSchema)
+  where
+    domainRedirectObjectSchema :: DomainRedirectTag -> ObjectSchema SwaggerDoc DomainRedirect
+    domainRedirectObjectSchema = \case
+      NoneTag -> tag _None (pure ())
+      LockedTag -> tag _Locked (pure ())
+      SSOTag -> tag _SSO samlIdPIdObjectSchema
+      BackendTag -> tag (_Backend) backendConfigSchema
+      NoRegistrationTag -> tag _NoRegistration (pure ())
+      PreAuthorizedTag -> tag _PreAuthorized (pure ())
+
+    backendConfigSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigSchema = field "backend" backendConfigSchema'
+
+    backendConfigSchema' :: ValueSchema NamedSwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigSchema' =
+      object "BackendConfig" $
+        (,)
+          <$> fst .= field "config" schema
+          <*> snd .= maybe_ (optField "webapp" schema)
 
 samlIdPIdObjectSchema :: ObjectSchema SwaggerDoc SAML.IdPId
 samlIdPIdObjectSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_code" uuidSchema
@@ -199,36 +234,68 @@ instance Arbitrary DomainRegistrationUpdate where
       validate dr =
         case dr.domainRedirect of
           Locked -> dr.teamInvite == Allowed
-          Backend _ -> dr.teamInvite == NotAllowed
+          Backend _ _ -> dr.teamInvite == NotAllowed
           _ -> True
 
 instance ToSchema DomainRegistrationUpdate where
   schema =
     object "DomainRegistrationUpdate" $
       DomainRegistrationUpdate
-        <$> (.domainRedirect) .= domainRedirectSchema
+        <$> (.domainRedirect) .= domainRedirectSchemaV9
         <*> (.teamInvite) .= teamInviteObjectSchema
 
-data DomainRegistrationResponse = DomainRegistrationResponse
+type DomainRegistrationResponseV8 = DomainRegistrationResponse V8
+
+data DomainRegistrationResponse (v :: Version) = DomainRegistrationResponse
   { domain :: Domain,
     authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
     teamInvite :: TeamInvite,
     dnsVerificationToken :: Maybe DnsVerificationToken
   }
-  deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistrationResponse
 
-mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse
+deriving instance Eq DomainRegistrationResponseV8
+
+deriving instance Show DomainRegistrationResponseV8
+
+deriving via Schema DomainRegistrationResponseV8 instance ToJSON DomainRegistrationResponseV8
+
+deriving via Schema DomainRegistrationResponseV8 instance FromJSON DomainRegistrationResponseV8
+
+deriving via Schema DomainRegistrationResponseV8 instance S.ToSchema DomainRegistrationResponseV8
+
+mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse v
 mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
 
-instance ToSchema DomainRegistrationResponse where
+instance ToSchema DomainRegistrationResponseV8 where
   schema =
     object "DomainRegistrationResponse" $
       DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
         <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
         <*> (.domainRedirect) .= domainRedirectSchema
+        <*> (.teamInvite) .= teamInviteObjectSchema
+        <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
+
+type DomainRegistrationResponseV9 = DomainRegistrationResponse V9
+
+deriving instance Eq DomainRegistrationResponseV9
+
+deriving instance Show DomainRegistrationResponseV9
+
+deriving via Schema DomainRegistrationResponseV9 instance ToJSON DomainRegistrationResponseV9
+
+deriving via Schema DomainRegistrationResponseV9 instance FromJSON DomainRegistrationResponseV9
+
+deriving via Schema DomainRegistrationResponseV9 instance S.ToSchema DomainRegistrationResponseV9
+
+instance ToSchema DomainRegistrationResponseV9 where
+  schema =
+    object "DomainRegistrationResponse" $
+      DomainRegistrationResponse
+        <$> (.domain) .= field "domain" schema
+        <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
+        <*> (.domainRedirect) .= domainRedirectSchemaV9
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
