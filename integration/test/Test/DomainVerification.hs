@@ -555,8 +555,8 @@ testGetDomainRegistrationUserExistsBackend = forM_ [ExplicitVersion 8, Versioned
     if version == ExplicitVersion 8
       then resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
       else do
-        resp.json %. "backend.config" `shouldMatch` "https://wire.example.com"
-        resp.json %. "backend.webapp" `shouldMatch` "https://webapp.wire.example.com"
+        resp.json %. "backend.config_url" `shouldMatch` "https://wire.example.com"
+        resp.json %. "backend.webapp_url" `shouldMatch` "https://webapp.wire.example.com"
     lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe Bool)
 
   bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" <> domain)) $ \resp -> do
