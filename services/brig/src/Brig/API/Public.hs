@@ -1567,7 +1567,7 @@ updateDomainRedirectV8 ::
   (_) =>
   Bearer Token ->
   Domain ->
-  DomainRedirectConfig ->
+  DomainRedirectConfigV8 ->
   Handler r ()
 updateDomainRedirectV8 (Bearer authToken) domain config =
   lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
@@ -1581,12 +1581,12 @@ updateDomainRedirect ::
 updateDomainRedirect authToken domain config =
   updateDomainRedirectV8 authToken domain (domainRedirectConfigV9ToV8 config)
   where
-    domainRedirectConfigV9ToV8 :: DomainRedirectConfigV9 -> DomainRedirectConfig
-    domainRedirectConfigV9ToV8 DomainRedirectConfigRemoveV9 = DomainRedirectConfigRemove
+    domainRedirectConfigV9ToV8 :: DomainRedirectConfigV9 -> DomainRedirectConfigV8
+    domainRedirectConfigV9ToV8 DomainRedirectConfigRemoveV9 = DomainRedirectConfigRemoveV8
     domainRedirectConfigV9ToV8 (DomainRedirectConfigBackendV9 backendUrl webappUrl) =
-      DomainRedirectConfigBackend backendUrl (Just webappUrl)
+      DomainRedirectConfigBackendV8 backendUrl (Just webappUrl)
     domainRedirectConfigV9ToV8 DomainRedirectConfigNoRegistrationV9 =
-      DomainRedirectConfigNoRegistration
+      DomainRedirectConfigNoRegistrationV8
 
 updateTeamInvite ::
   (_) =>
