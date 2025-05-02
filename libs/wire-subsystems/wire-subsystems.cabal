@@ -241,7 +241,6 @@ library
     Wire.UserGroupStore.Postgres
     Wire.UserGroupSubsystem
     Wire.UserGroupSubsystem.Interpreter
-    Wire.UserGroupSubsystem.Postgres
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
     Wire.UserSearch.Metrics

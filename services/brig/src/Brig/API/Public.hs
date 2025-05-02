@@ -403,7 +403,6 @@ servantSitemap ::
   ServerT BrigAPI (Handler r)
 servantSitemap =
   userAPI
-    :<|> userGroupAPI
     :<|> selfAPI
     :<|> accountAPI
     :<|> clientAPI
@@ -605,11 +604,6 @@ servantSitemap =
     domainVerificationChallengeAPI =
       Named @"domain-verification-challenge" getDomainVerificationChallenge
         :<|> Named @"verify-challenge" verifyChallenge
-
-    userGroupAPI :: ServerT UserGroupAPI (Handler r)
-    userGroupAPI =
-      Named @"create-user-group" createUserGroup
-        :<|> Named @"get-user-group" getUserGroup
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -1667,6 +1661,9 @@ createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnq
 
 getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup) -- TODO: does this get translated to 404 in servant?  shouldn't it be?
 getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
+
+getUserGroups :: (_) => Local UserId -> Maybe Int -> Maybe UserGroupId -> Handler r UserGroupPage
+getUserGroups = undefined
 
 updateUserGroup :: Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) UserGroup
 updateUserGroup = undefined
