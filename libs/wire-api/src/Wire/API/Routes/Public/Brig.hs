@@ -318,9 +318,9 @@ type UserGroupAPI =
                :> From 'V9
                :> ZLocalUser
                :> "user-groups"
-               -- TODO: user Range?
+               -- TODO: use Range?
                :> QueryParam "limit" Int
-               -- TODO: user PagingState?
+               -- TODO: use PagingState?
                :> QueryParam "last_key" UserGroupId
                :> Get '[JSON] UserGroupPage
            )
