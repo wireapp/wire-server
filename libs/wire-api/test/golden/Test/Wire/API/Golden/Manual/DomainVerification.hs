@@ -144,15 +144,15 @@ testObject_DomainRedirectConfigV8_3 =
 testObject_DomainRedirectConfigV8_4 :: DomainRedirectConfigV8
 testObject_DomainRedirectConfigV8_4 = DomainRedirectConfigNoRegistrationV8
 
-testObject_DomainRedirectConfigV9_1 :: DomainRedirectConfigV9
-testObject_DomainRedirectConfigV9_1 = DomainRedirectConfigRemoveV9
+testObject_DomainRedirectConfig_1 :: DomainRedirectConfig
+testObject_DomainRedirectConfig_1 = DomainRedirectConfigRemove
 
-testObject_DomainRedirectConfigV9_2 :: DomainRedirectConfigV9
-testObject_DomainRedirectConfigV9_2 =
-  DomainRedirectConfigBackendV9
+testObject_DomainRedirectConfig_2 :: DomainRedirectConfig
+testObject_DomainRedirectConfig_2 =
+  DomainRedirectConfigBackend
     (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://wire.example.com/")))
     (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://webapp.wire.example.com/")))
 
 -- The WebApp URL is mandatory. Thus, there's no test for V9 which is analog to testObject_DomainRedirectConfigV8_3.
-testObject_DomainRedirectConfigV9_4 :: DomainRedirectConfigV9
-testObject_DomainRedirectConfigV9_4 = DomainRedirectConfigNoRegistrationV9
+testObject_DomainRedirectConfig_4 :: DomainRedirectConfig
+testObject_DomainRedirectConfig_4 = DomainRedirectConfigNoRegistration

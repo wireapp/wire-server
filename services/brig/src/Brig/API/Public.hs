@@ -1576,16 +1576,16 @@ updateDomainRedirect ::
   (_) =>
   Bearer Token ->
   Domain ->
-  DomainRedirectConfigV9 ->
+  DomainRedirectConfig ->
   Handler r ()
 updateDomainRedirect authToken domain config =
-  updateDomainRedirectV8 authToken domain (domainRedirectConfigV9ToV8 config)
+  updateDomainRedirectV8 authToken domain (domainRedirectConfigToV8 config)
   where
-    domainRedirectConfigV9ToV8 :: DomainRedirectConfigV9 -> DomainRedirectConfigV8
-    domainRedirectConfigV9ToV8 DomainRedirectConfigRemoveV9 = DomainRedirectConfigRemoveV8
-    domainRedirectConfigV9ToV8 (DomainRedirectConfigBackendV9 backendUrl webappUrl) =
+    domainRedirectConfigToV8 :: DomainRedirectConfig -> DomainRedirectConfigV8
+    domainRedirectConfigToV8 DomainRedirectConfigRemove = DomainRedirectConfigRemoveV8
+    domainRedirectConfigToV8 (DomainRedirectConfigBackend backendUrl webappUrl) =
       DomainRedirectConfigBackendV8 backendUrl (Just webappUrl)
-    domainRedirectConfigV9ToV8 DomainRedirectConfigNoRegistrationV9 =
+    domainRedirectConfigToV8 DomainRedirectConfigNoRegistration =
       DomainRedirectConfigNoRegistrationV8
 
 updateTeamInvite ::

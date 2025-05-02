@@ -389,9 +389,9 @@ tests =
                    ],
             testGroup "V9" $
               testObjects
-                [ (testObject_DomainRedirectConfigV9_1, "testObject_DomainRedirectConfigV9_1.json"),
-                  (testObject_DomainRedirectConfigV9_2, "testObject_DomainRedirectConfigV9_2.json"),
-                  (testObject_DomainRedirectConfigV9_4, "testObject_DomainRedirectConfigV9_4.json")
+                [ (testObject_DomainRedirectConfig_1, "testObject_DomainRedirectConfig_1.json"),
+                  (testObject_DomainRedirectConfig_2, "testObject_DomainRedirectConfig_2.json"),
+                  (testObject_DomainRedirectConfig_4, "testObject_DomainRedirectConfig_4.json")
                 ]
           ]
     ]
