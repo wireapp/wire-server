@@ -80,8 +80,8 @@ instance ToSchema DomainRedirectTag where
 domainRedirectTagSchema :: ObjectSchema SwaggerDoc DomainRedirectTag
 domainRedirectTagSchema = field "domain_redirect" schema
 
-domainRedirectSchema :: ObjectSchema SwaggerDoc DomainRedirect
-domainRedirectSchema =
+domainRedirectSchemaV8 :: ObjectSchema SwaggerDoc DomainRedirect
+domainRedirectSchemaV8 =
   snd
     <$> (domainRedirectTag &&& id)
       .= bind
@@ -104,8 +104,8 @@ backendConfigSchemaV8 =
     -- API versions <= V9 ignore the WebApp URL
     <*> const Nothing .= pure Nothing
 
-domainRedirectSchemaV9 :: ObjectSchema SwaggerDoc DomainRedirect
-domainRedirectSchemaV9 =
+domainRedirectSchema :: ObjectSchema SwaggerDoc DomainRedirect
+domainRedirectSchema =
   snd
     <$> (domainRedirectTag &&& id)
       .= bind
