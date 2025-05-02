@@ -228,7 +228,7 @@ testInvitePersonalUserToTeamMultipleInvitations = do
   acceptTeamInvitation user code (Just defPassword) >>= assertStatus 400
 
 testInvitePersonalUserToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
-testInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
+testInvitePersonalUserToTeamEmailDomainForAnotherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
 
   (owner, _, _) <- createTeam OwnDomain 0
@@ -240,9 +240,10 @@ testInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
-    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    (mkDomainRedirectBackend version "https://example.com" "https://webapp.example.com")
     >>= assertStatus 200
 
   postInvitation owner (PostInvitation (Just email) Nothing) `bindResponse` \resp -> do
@@ -250,7 +251,7 @@ testInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
     resp.json %. "label" `shouldMatch` "condition-failed"
 
 testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
-testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
+testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
 
   (owner, _, _) <- createTeam OwnDomain 0
@@ -265,9 +266,10 @@ testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend = do
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
-    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    (mkDomainRedirectBackend version "https://example.com" "https://webapp.example.com")
     >>= assertStatus 200
 
   acceptTeamInvitation user code (Just defPassword) `bindResponse` \resp -> do
@@ -369,7 +371,7 @@ testUpgradePersonalToTeamAlreadyInATeam = do
     resp.json %. "label" `shouldMatch` "user-already-in-a-team"
 
 testUpgradePersonalToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
-testUpgradePersonalToTeamEmailDomainForAnotherBackend = do
+testUpgradePersonalToTeamEmailDomainForAnotherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   let email = "alice@" <> domain
   alice <- randomUser OwnDomain def {I.email = Just email}
@@ -380,9 +382,10 @@ testUpgradePersonalToTeamEmailDomainForAnotherBackend = do
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
-    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    (mkDomainRedirectBackend version "https://example.com" "https://webapp.example.com")
     >>= assertStatus 200
 
   bindResponse (upgradePersonalToTeam alice "wonderland") $ \resp -> do

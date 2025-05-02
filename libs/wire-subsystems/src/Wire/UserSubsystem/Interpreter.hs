@@ -241,7 +241,7 @@ guardRegisterActivateUserEmailDomainImpl email = do
       None -> pure ()
       Locked -> pure ()
       SSO _ -> throwGuardFailed DomRedirSetToSSO
-      Backend _ -> throwGuardFailed DomRedirSetToBackend
+      Backend _ _ -> throwGuardFailed DomRedirSetToBackend
       NoRegistration -> throwGuardFailed DomRedirSetToNoRegistration
       PreAuthorized -> pure ()
 

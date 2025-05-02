@@ -571,7 +571,9 @@ servantSitemap =
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
-      Named @"update-domain-redirect" updateDomainRedirect
+      Named @"update-domain-redirect@v8" updateDomainRedirectV8
+        :<|> Named @"update-domain-redirect" updateDomainRedirect
+        :<|> Named @"get-domain-registration@v8" getDomainRegistration
         :<|> Named @"get-domain-registration" getDomainRegistration
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
@@ -1561,14 +1563,30 @@ authorizeTeam ::
 authorizeTeam lusr domain token =
   lift . liftSem $ EnterpriseLogin.authorizeTeam lusr domain token
 
+updateDomainRedirectV8 ::
+  (_) =>
+  Bearer Token ->
+  Domain ->
+  DomainRedirectConfigV8 ->
+  Handler r ()
+updateDomainRedirectV8 (Bearer authToken) domain config =
+  lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
+
 updateDomainRedirect ::
   (_) =>
   Bearer Token ->
   Domain ->
   DomainRedirectConfig ->
   Handler r ()
-updateDomainRedirect (Bearer authToken) domain config =
-  lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
+updateDomainRedirect authToken domain config =
+  updateDomainRedirectV8 authToken domain (domainRedirectConfigToV8 config)
+  where
+    domainRedirectConfigToV8 :: DomainRedirectConfig -> DomainRedirectConfigV8
+    domainRedirectConfigToV8 DomainRedirectConfigRemove = DomainRedirectConfigRemoveV8
+    domainRedirectConfigToV8 (DomainRedirectConfigBackend backendUrl webappUrl) =
+      DomainRedirectConfigBackendV8 backendUrl (Just webappUrl)
+    domainRedirectConfigToV8 DomainRedirectConfigNoRegistration =
+      DomainRedirectConfigNoRegistrationV8
 
 updateTeamInvite ::
   (_) =>
@@ -1588,7 +1606,7 @@ deleteRegisteredDomain lusr tid domain = lift . liftSem $ EnterpriseLogin.delete
 getDomainRegistration ::
   (_) =>
   GetDomainRegistrationRequest ->
-  Handler r DomainRedirectResponse
+  Handler r (DomainRedirectResponse v)
 getDomainRegistration req =
   lift . liftSem $
     EnterpriseLogin.getDomainRegistrationPublic req

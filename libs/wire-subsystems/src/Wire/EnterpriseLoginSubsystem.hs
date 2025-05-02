@@ -21,7 +21,7 @@ data EnterpriseLoginSubsystem m a where
   UpdateDomainRedirect ::
     Token ->
     Domain ->
-    DomainRedirectConfig ->
+    DomainRedirectConfigV8 ->
     EnterpriseLoginSubsystem m ()
   UpdateTeamInvite ::
     Local UserId ->
@@ -30,7 +30,7 @@ data EnterpriseLoginSubsystem m a where
     EnterpriseLoginSubsystem m ()
   GetDomainRegistrationPublic ::
     GetDomainRegistrationRequest ->
-    EnterpriseLoginSubsystem m DomainRedirectResponse
+    EnterpriseLoginSubsystem m (DomainRedirectResponse v)
   CreateDomainVerificationChallenge ::
     Domain ->
     EnterpriseLoginSubsystem m DomainVerificationChallenge

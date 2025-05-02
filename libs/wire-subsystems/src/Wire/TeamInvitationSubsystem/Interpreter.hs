@@ -280,7 +280,7 @@ guardEmailDomainRegistration invitationFlow tid email = do
       None -> pure ()
       Locked -> pure ()
       SSO _ -> pure ()
-      Backend _ ->
+      Backend _ _ ->
         -- The 'teamInvite' attribute for this should be 'NotAllowed', so we
         -- don't have to check here.
         pure ()
