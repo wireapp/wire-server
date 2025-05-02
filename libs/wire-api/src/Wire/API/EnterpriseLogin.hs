@@ -240,7 +240,7 @@ instance ToSchema DomainRegistrationUpdate where
   schema =
     object "DomainRegistrationUpdate" $
       DomainRegistrationUpdate
-        <$> (.domainRedirect) .= domainRedirectSchema
+        <$> (.domainRedirect) .= domainRedirectSchemaV8
         <*> (.teamInvite) .= teamInviteObjectSchema
 
 data DomainRegistrationResponse = DomainRegistrationResponse
@@ -262,7 +262,7 @@ instance ToSchema DomainRegistrationResponse where
       DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
         <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
-        <*> (.domainRedirect) .= domainRedirectSchema
+        <*> (.domainRedirect) .= domainRedirectSchemaV8
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
