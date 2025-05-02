@@ -53,7 +53,7 @@ let
       ''
         mkdir docs charts services
         cp -rH ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* docs/
-        # GrepInclude snippets in the docs refer to files under ../charts/ and ../services/, 
+        # GrepInclude snippets in the docs refer to files under ../charts/ and ../services/,
         # so we need to copy these too before building.
         # FUTUREWORK: perhaps there is a nicer way to copy everything that does not need 3 separate lines,
         # however the statement `../` inside `cp -rH $#{pkgs.nix-gitignore.gitignoreSource [] ../}* .` is not valid.
