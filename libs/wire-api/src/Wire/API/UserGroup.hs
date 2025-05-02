@@ -23,10 +23,8 @@ where
 
 import Data.Aeson qualified as A
 import Data.Id
-import Data.Json.Util
 import Data.OpenApi qualified as OpenApi
 import Data.Schema
-import Data.Time
 import Data.Vector (Vector)
 import Imports
 import Wire.API.User.Profile
