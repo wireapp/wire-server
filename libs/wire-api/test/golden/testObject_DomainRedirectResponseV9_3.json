@@ -1,3 +1,5 @@
 {
-    "domain_redirect": "locked"
+    "domain_redirect": "sso",
+    "due_to_existing_account": true,
+    "sso_code": "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284"
 }
