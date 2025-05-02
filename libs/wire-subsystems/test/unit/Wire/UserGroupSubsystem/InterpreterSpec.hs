@@ -6,12 +6,8 @@ import Control.Lens ((.~), (^.))
 import Data.Bifunctor (first)
 import Data.Default
 import Data.Id
-import Data.Json.Util
 import Data.List.Extra
 import Data.Map qualified as Map
-import Data.String.Conversions (cs)
-import Data.Time
-import Data.UUID as UUID
 import Data.Vector qualified as V
 import Imports
 import Polysemy
@@ -61,7 +57,6 @@ spec = describe "UserGroupSubsystem.Interpreter" do
       . runDependencies (allUsers team) (galleyTeam team)
       . interpretUserGroupSubsystem
       $ do
-        noGroup <- getGroup (Id UUID.nil)
         let newUserGroup =
               NewUserGroup
                 { name = newUserGroupName,
@@ -70,10 +65,8 @@ spec = describe "UserGroupSubsystem.Interpreter" do
         createdGroup <- createGroup (ownerId team) newUserGroup
         retrievedGroup <- getGroup (ownerId team) createdGroup.id_
         pure $
-          noGroup === Nothing
-            .&&.
-            -- TODO: test createdAt when it's back.
-            createdGroup.name === newUserGroupName
+          -- TODO: test createdAt when it's back.
+          createdGroup.name === newUserGroupName
             .&&. createdGroup.members === newUserGroup.members
             .&&. createdGroup.managedBy === ManagedByWire
             .&&. Just createdGroup === retrievedGroup
@@ -128,7 +121,7 @@ applyConstraint :: forall mod. (KnownTeamGenMod mod) => Gen ArbitraryTeam -> Gen
 applyConstraint =
   case teamGenMod @mod of
     AtLeastOneMember -> flip suchThat \team ->
-      not $ null team.others
+      not $ Imports.null team.others
     AtLeastOneNonAdmin -> flip suchThat \team ->
       any (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.others
 

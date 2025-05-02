@@ -79,7 +79,8 @@ instance ToSchema UserGroup where
         <*> (.name) .= field "name" schema
         <*> (.members) .= field "members" (vector schema)
         <*> (.managedBy) .= field "managedBy" schema
-        <*> (.createdAt) .= field "createdAt" schema
+
+--  <*> (.createdAt) .= field "createdAt" schema
 
 -- | About pagination: We have 'MultiTablePage', "Wire.Sem.Paging", 'Page' from cql, in-type
 -- paging, and probably lots more.  i wonder if we should make up our minds and pick one?

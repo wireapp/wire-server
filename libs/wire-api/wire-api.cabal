@@ -663,6 +663,7 @@ test-suite wire-api-golden-tests
     , types-common             >=0.16
     , uri-bytestring
     , uuid
+    , vector
     , wire-api
     , wire-message-proto-lens
 
