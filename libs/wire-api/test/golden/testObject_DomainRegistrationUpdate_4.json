@@ -1,5 +1,7 @@
 {
-    "backend_url": "https://example.com/inv14",
+    "backend": {
+        "config_url": "https://example.com/inv14"
+    },
     "domain_redirect": "backend",
     "team_invite": "allowed"
 }
