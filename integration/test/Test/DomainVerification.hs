@@ -52,7 +52,7 @@ testVerifyChallengeFailsIfNotPreauthorized = do
     resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
 testDomainVerificationOnPremFlow :: (HasCallStack) => App ()
-testDomainVerificationOnPremFlow = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testDomainVerificationOnPremFlow = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
 
@@ -148,7 +148,7 @@ testDomainVerificationOnPremFlow = forM_ [(ExplicitVersion 8), Versioned] \versi
             lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe Bool)
 
 testDomainVerificationWrongAuth :: (HasCallStack) => App ()
-testDomainVerificationWrongAuth = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testDomainVerificationWrongAuth = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   wrongDomain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
@@ -171,7 +171,7 @@ testDomainVerificationWrongAuth = forM_ [(ExplicitVersion 8), Versioned] \versio
       resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
 testDomainVerificationOnPremFlowNoRegistration :: (HasCallStack) => App ()
-testDomainVerificationOnPremFlowNoRegistration = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testDomainVerificationOnPremFlowNoRegistration = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
@@ -190,7 +190,7 @@ testDomainVerificationOnPremFlowNoRegistration = forM_ [(ExplicitVersion 8), Ver
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
 
 testDomainVerificationRemoveFailure :: (HasCallStack) => App ()
-testDomainVerificationRemoveFailure = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testDomainVerificationRemoveFailure = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
@@ -230,7 +230,7 @@ testDomainVerificationRemoveFailure = forM_ [(ExplicitVersion 8), Versioned] \ve
     >>= assertStatus 200
 
 testDomainVerificationLockedState :: (HasCallStack) => App ()
-testDomainVerificationLockedState = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testDomainVerificationLockedState = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
@@ -252,7 +252,7 @@ testDomainVerificationLockedState = forM_ [(ExplicitVersion 8), Versioned] \vers
       resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
 testUpdateTeamInvite :: (HasCallStack) => App ()
-testUpdateTeamInvite = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testUpdateTeamInvite = forM_ [ExplicitVersion 8, Versioned] \version -> do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
   domain <- randomDomain
 
@@ -353,7 +353,7 @@ testUpdateTeamInvite = forM_ [(ExplicitVersion 8), Versioned] \version -> do
     resp.json %. "domain_redirect" `shouldMatch` "none"
 
 testUpdateTeamInviteSSO :: (HasCallStack) => App ()
-testUpdateTeamInviteSSO = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testUpdateTeamInviteSSO = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   (owner, tid, _m : _) <- createTeam OwnDomain 2
   assertSuccess =<< do
@@ -436,7 +436,7 @@ testDisabledEnterpriseService = do
     resp.json %. "label" `shouldMatch` "enterprise-service-not-enabled"
 
 testOverwriteOwnershipToken :: (HasCallStack) => App ()
-testOverwriteOwnershipToken = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testOverwriteOwnershipToken = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
@@ -533,7 +533,7 @@ testGetAndDeleteRegisteredDomains = do
   checkDelete expectedDomains
 
 testGetDomainRegistrationUserExistsBackend :: (HasCallStack) => App ()
-testGetDomainRegistrationUserExistsBackend = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testGetDomainRegistrationUserExistsBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
@@ -552,7 +552,7 @@ testGetDomainRegistrationUserExistsBackend = forM_ [(ExplicitVersion 8), Version
   bindResponse (getDomainRegistrationFromEmail OwnDomain version ("sven@" <> domain)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "backend"
-    if version == (ExplicitVersion 8)
+    if version == ExplicitVersion 8
       then resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
       else do
         resp.json %. "backend.config" `shouldMatch` "https://wire.example.com"
@@ -568,7 +568,7 @@ testGetDomainRegistrationUserExistsBackend = forM_ [(ExplicitVersion 8), Version
     resp.json %. "due_to_existing_account" `shouldMatch` True
 
 testGetDomainRegistrationUserExistsSso :: (HasCallStack) => App ()
-testGetDomainRegistrationUserExistsSso = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testGetDomainRegistrationUserExistsSso = forM_ [ExplicitVersion 8, Versioned] \version -> do
   emailDomain <- randomDomain
   (owner, tid, mem : _) <- createTeamWithEmailDomain OwnDomain emailDomain 2
   memMail <- mem %. "email" & asString

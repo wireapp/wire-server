@@ -11,7 +11,7 @@ import SetupHelpers
 import Testlib.Prelude
 
 testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend :: (HasCallStack) => App ()
-testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
@@ -31,7 +31,7 @@ testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = forM_ [(Explici
     resp.json %. "label" `shouldMatch` "condition-failed"
 
 testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration :: (HasCallStack) => App ()
-testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
 
   -- [backoffice] preauth
@@ -166,7 +166,7 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
         }
 
 testDisallowAcceptingInvitesAfterDomainIsClaimed :: (HasCallStack) => App ()
-testDisallowAcceptingInvitesAfterDomainIsClaimed = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testDisallowAcceptingInvitesAfterDomainIsClaimed = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   (owner, _, _) <- createTeam OwnDomain 1
   let email = "user@" <> domain

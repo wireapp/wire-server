@@ -246,7 +246,7 @@ testMigratingPasswordHashingAlgorithm = do
       login domain email2 password2 >>= assertSuccess
 
 testUpdateEmailForEmailDomainForAnotherBackend :: (HasCallStack) => App ()
-testUpdateEmailForEmailDomainForAnotherBackend = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testUpdateEmailForEmailDomainForAnotherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   emailDomain <- randomDomain
   user <- randomUser OwnDomain def
   email <- user %. "email" & asString

@@ -228,7 +228,7 @@ testInvitePersonalUserToTeamMultipleInvitations = do
   acceptTeamInvitation user code (Just defPassword) >>= assertStatus 400
 
 testInvitePersonalUserToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
-testInvitePersonalUserToTeamEmailDomainForAnotherBackend = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testInvitePersonalUserToTeamEmailDomainForAnotherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
 
   (owner, _, _) <- createTeam OwnDomain 0
@@ -251,7 +251,7 @@ testInvitePersonalUserToTeamEmailDomainForAnotherBackend = forM_ [(ExplicitVersi
     resp.json %. "label" `shouldMatch` "condition-failed"
 
 testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
-testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testAcceptInvitePersonalUserToTeamEmailDomainForAnotherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
 
   (owner, _, _) <- createTeam OwnDomain 0
@@ -371,7 +371,7 @@ testUpgradePersonalToTeamAlreadyInATeam = do
     resp.json %. "label" `shouldMatch` "user-already-in-a-team"
 
 testUpgradePersonalToTeamEmailDomainForAnotherBackend :: (HasCallStack) => App ()
-testUpgradePersonalToTeamEmailDomainForAnotherBackend = forM_ [(ExplicitVersion 8), Versioned] \version -> do
+testUpgradePersonalToTeamEmailDomainForAnotherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   let email = "alice@" <> domain
   alice <- randomUser OwnDomain def {I.email = Just email}
