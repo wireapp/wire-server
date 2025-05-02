@@ -41,7 +41,6 @@ userGroupSubsystemErrorToHttpError =
     UserGroupCreatorIsNotATeamAdmin -> errorToWai @E.UserGroupCreatorIsNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
 
--- TODO: check that creator is admin and all members are part of the team
 createUserGroupImpl ::
   ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
@@ -60,7 +59,7 @@ createUserGroupImpl creator newGroup = do
       guard (isAdminOrOwner (creatorTeamMember ^. permissions))
       pure team
   for_ newGroup.members \member -> do
-    memberTeam <- getUserTeam member
+    memberTeam <- getUserTeam member -- TODO: pull all users in one db request.
     when (memberTeam /= Just team) $
       throw UserGroupMemberIsNotInTheSameTeam
   id_ <- Store.createUserGroup team newGroup managedBy
@@ -71,7 +70,20 @@ createUserGroupImpl creator newGroup = do
         ..
       }
 
-getUserGroupImpl :: (Member UserSubsystem r, Member Store.UserGroupStore r) => UserId -> UserGroupId -> Sem r (Maybe UserGroup)
+getUserGroupImpl ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Sem r (Maybe UserGroup)
 getUserGroupImpl getter gid = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
-  MaybeT $ Store.getUserGroup team gid
+  getterCanSeeAll <- do
+    creatorTeamMember <- MaybeT $ getTeamMember getter team
+    pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+  userGroup <- MaybeT $ Store.getUserGroup team gid
+  if getterCanSeeAll || getter `elem` (toList userGroup.members)
+    then pure userGroup
+    else MaybeT $ pure Nothing

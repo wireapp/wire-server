@@ -86,11 +86,6 @@ spec = describe "UserGroupSubsystem.Interpreter" do
           void $ createGroup (User.userId nonAdminUser) newUserGroup
           unexpected
 
-  -- TODO: remove?
-  -- describe "getGroups" $ do
-  --   let now = toUTCTimeMillis (unsafePerformIO getCurrentTime)
-  --   nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (cs $ show i) []
-
   prop "only team members are allowed in the group" $ \team otherUsers newUserGroupName ->
     let othersWithoutTeamMembers = filter (\u -> u.userTeam /= Just team.tid) otherUsers
      in notNull othersWithoutTeamMembers
@@ -105,6 +100,48 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                     }
             void $ createGroup (ownerId team) newUserGroup
             unexpected
+
+  prop "team admins can get all groups in their team; outsiders can see nothing" $ \team otherTeam userGroupName ->
+    expectRight
+      . runDependencies (allUsers team) (galleyTeam team)
+      . interpretUserGroupSubsystem
+      $ do
+        let newUserGroup =
+              NewUserGroup
+                { name = userGroupName,
+                  members = V.empty
+                }
+        group1 <- createGroup (ownerId team) newUserGroup
+        view1admin <- getGroup (ownerId team) group1.id_
+        view1outsider <- getGroup (ownerId otherTeam) group1.id_
+        pure $
+          ((.id_) <$> view1admin) === Just group1.id_
+            .&&. ((.id_) <$> view1outsider) === Nothing
+
+  prop "team members can only get their own groups" $ \team userGroupName1 userGroupName2 ->
+    let (memSet1, memSet2) = splitAt (length team.others `div` 2) (User.userId . fst <$> team.others)
+     in all notNull [memSet1, memSet2]
+          ==> expectRight
+            . runDependencies (allUsers team) (galleyTeam team)
+            . interpretUserGroupSubsystem
+          $ do
+            let newUserGroup1 =
+                  NewUserGroup
+                    { name = userGroupName1,
+                      members = V.fromList memSet1
+                    }
+                newUserGroup2 =
+                  NewUserGroup
+                    { name = userGroupName2,
+                      members = V.fromList memSet2
+                    }
+            group1 <- createGroup (ownerId team) newUserGroup1
+            group2 <- createGroup (ownerId team) newUserGroup2
+            view1memSet1 <- getGroup (head memSet1) group1.id_
+            view2memSet1 <- getGroup (head memSet1) group2.id_
+            pure $
+              ((.id_) <$> view1memSet1) === Just group1.id_
+                .&&. ((.id_) <$> view2memSet1) === Nothing
 
 data TeamGenMod = AtLeastOneMember | AtLeastOneNonAdmin
 
