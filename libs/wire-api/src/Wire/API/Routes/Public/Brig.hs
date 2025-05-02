@@ -85,7 +85,6 @@ import Wire.API.UserMap
 
 type BrigAPI =
   UserAPI
-    :<|> UserGroupAPI
     :<|> SelfAPI
     :<|> AccountAPI
     :<|> ClientAPI
@@ -305,7 +304,13 @@ type UserGroupAPI =
                :> ZLocalUser
                :> "user-groups"
                :> Capture "gid" UserGroupId
-               :> Get '[JSON] UserGroup
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    [ ErrorResponse 'UserGroupNotFound,
+                      Respond 200 "User Group Found" UserGroup
+                    ]
+                    (Maybe UserGroup)
            )
     :<|> Named
            "get-user-groups"
@@ -313,7 +318,9 @@ type UserGroupAPI =
                :> From 'V9
                :> ZLocalUser
                :> "user-groups"
+               -- TODO: user Range?
                :> QueryParam "limit" Int
+               -- TODO: user PagingState?
                :> QueryParam "last_key" UserGroupId
                :> Get '[JSON] UserGroupPage
            )
@@ -1976,28 +1983,4 @@ type SystemSettingsAPI =
                :> "system"
                :> "settings"
                :> Get '[JSON] SystemSettings
-           )
-
-type UserGroupAPI =
-  Named
-    "create-user-group"
-    ( From 'V9
-        :> ZLocalUser
-        :> "user-groups"
-        :> ReqBody '[JSON] NewUserGroup
-        :> Post '[JSON] UserGroup
-    )
-    :<|> Named
-           "get-user-group"
-           ( From 'V9
-               :> ZLocalUser
-               :> "user-groups"
-               :> Capture "gid" UserGroupId
-               :> MultiVerb
-                    'GET
-                    '[JSON]
-                    [ ErrorResponse 'UserGroupNotFound,
-                      Respond 200 "User Group Found" UserGroup
-                    ]
-                    (Maybe UserGroup)
            )
