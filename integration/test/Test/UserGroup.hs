@@ -11,7 +11,7 @@ testUserGroupSmoke = do
   (owner, _team, [mem1, mem2, mem3]) <- createTeam OwnDomain 4
   mem1id <- asString $ mem1 %. "id"
   mem2id <- asString $ mem2 %. "id"
-  mem3id <- asString $ mem3 %. "id"
+  _mem3id <- asString $ mem3 %. "id"
 
   let badGid = "225c4d54-1ae7-11f0-8e9c-cbb31865d602"
 
