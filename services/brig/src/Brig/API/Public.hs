@@ -1659,23 +1659,23 @@ verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
 createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
 createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
 
-getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup) -- TODO: does this get translated to 404 in servant?  shouldn't it be?
+getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
 getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
 
 getUserGroups :: (_) => Local UserId -> Maybe Int -> Maybe UserGroupId -> Handler r UserGroupPage
-getUserGroups = undefined
+getUserGroups lusr pageSize lastKeyRetrieved = lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) pageSize lastKeyRetrieved
 
 updateUserGroup :: Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) UserGroup
-updateUserGroup = undefined
+updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd
 
 deleteUserGroup :: Local UserId -> UserGroupId -> (Handler r) NoContent
-deleteUserGroup = undefined
+deleteUserGroup lusr gid = lift . liftSem $ UserGroup.deleteGroup (tUnqualified lusr) gid
 
 addUserToGroup :: Local UserId -> UserGroupId -> UserId -> (Handler r) NoContent
-addUserToGroup = undefined
+addUserToGroup lusr gid mid = lift . liftSem $ UserGroup.addUser (tUnqualified lusr) gid mid
 
 removeUserFromGroup :: Local UserId -> UserGroupId -> UserId -> (Handler r) NoContent
-removeUserFromGroup = undefined
+removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
 
 -- Deprecated
 
