@@ -612,7 +612,7 @@ liftUserKeyStoreState = interpret $ \case
 liftUserStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredUser] : r) a -> Sem r a
 liftUserStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.users)
-  Put newUsers -> modify $ \b -> b {users = newUsers}
+  Put newUsers -> modify $ \b -> (b :: MiniBackend) {users = newUsers}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
 runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
