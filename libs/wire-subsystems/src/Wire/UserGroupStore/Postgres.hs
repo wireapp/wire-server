@@ -98,7 +98,7 @@ createUserGroupImpl team newUserGroup managedBy = do
           insert into user_group_member (user_group_id, user_id) select * from unnest ($1 :: uuid[], $2 :: uuid[])
           |]
 
-getGroupsImpl :: TeamId -> Maybe Int -> Maybe UUID -> Sem r UserGroupPage
+getGroupsImpl :: TeamId -> Maybe Int -> Maybe UserGroupId -> Sem r UserGroupPage
 getGroupsImpl tid limit lastKey = undefined tid limit lastKey
 
 updateGroupImpl :: TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe UserGroup)
