@@ -4,7 +4,6 @@
 module Wire.UserGroupSubsystem where
 
 import Data.Id
-import Data.UUID
 import Imports
 import Polysemy
 import Wire.API.UserGroup
@@ -12,7 +11,7 @@ import Wire.API.UserGroup
 data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup
   GetGroup :: UserId -> UserGroupId -> UserGroupSubsystem m (Maybe UserGroup)
-  GetGroups :: UserId -> Maybe Int -> Maybe UUID -> UserGroupSubsystem m UserGroupPage
+  GetGroups :: UserId -> Maybe Int -> Maybe UserGroupId -> UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
   AddUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()

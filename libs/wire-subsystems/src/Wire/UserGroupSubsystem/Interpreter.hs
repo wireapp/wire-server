@@ -5,7 +5,6 @@ module Wire.UserGroupSubsystem.Interpreter where
 import Control.Error (MaybeT (..))
 import Control.Lens ((^.))
 import Data.Id
-import Data.UUID
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -101,7 +100,7 @@ getGroupsImpl ::
   ) =>
   UserId ->
   Maybe Int ->
-  Maybe UUID ->
+  Maybe UserGroupId ->
   Sem r UserGroupPage
 getGroupsImpl getter range lastKey = undefined
 
