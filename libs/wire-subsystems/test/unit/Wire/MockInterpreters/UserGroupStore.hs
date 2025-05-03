@@ -8,7 +8,6 @@ module Wire.MockInterpreters.UserGroupStore where
 
 import Data.Id
 import Data.Map qualified as Map
-import Data.UUID
 import Data.Vector (fromList)
 import GHC.Stack
 import Imports
@@ -74,7 +73,7 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = Map.lookup (tid, gid) <$> get
 
-getGroupsImpl :: (EffectConstraints r) => TeamId -> Maybe Int -> Maybe UUID -> Sem r UserGroupPage
+getGroupsImpl :: (EffectConstraints r) => TeamId -> Maybe Int -> Maybe UserGroupId -> Sem r UserGroupPage
 getGroupsImpl tid (fromMaybe 100 -> limit) mbLastKey = do
   allGroups :: [(UserGroupId, UserGroup)] <- do
     let f :: ((TeamId, a), b) -> [(a, b)] -> [(a, b)]
@@ -82,7 +81,7 @@ getGroupsImpl tid (fromMaybe 100 -> limit) mbLastKey = do
     foldr f [] . Map.toList <$> get
 
   let cutLowerBound :: forall a. (a ~ [(UserGroupId, UserGroup)]) => a -> a
-      cutLowerBound = maybe id (\lastKey -> filter ((> Id lastKey) . fst)) mbLastKey
+      cutLowerBound = maybe id (\lastKey -> filter ((> lastKey) . fst)) mbLastKey
 
       relevant :: [UserGroup]
       relevant = map snd . cutLowerBound $ allGroups
