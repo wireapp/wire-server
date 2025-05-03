@@ -12,6 +12,8 @@ import Data.Vector qualified as V
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.State
+import System.Random (StdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -23,17 +25,31 @@ import Wire.API.UserGroup
 import Wire.Arbitrary
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters
+import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserSubsystem (UserSubsystem)
 
-runDependencies :: [User] -> Map TeamId [TeamMember] -> Sem '[UserSubsystem, GalleyAPIAccess, UserGroupStore, Error UserGroupSubsystemError] a -> Either UserGroupSubsystemError a
-runDependencies initialUsers teams =
+runDependencies ::
+  [User] ->
+  Map TeamId [TeamMember] ->
+  Sem
+    '[ UserSubsystem,
+       GalleyAPIAccess,
+       UserGroupStore,
+       State MockState,
+       Rnd.Random,
+       State StdGen,
+       Error UserGroupSubsystemError
+     ]
+    a ->
+  Either UserGroupSubsystemError a
+runDependencies initialUsers initialTeams =
   run
     . runError
     . runInMemoryUserGroupStore
-    . miniGalleyAPIAccess teams def
+    . miniGalleyAPIAccess initialTeams def
     . userSubsystemTestInterpreter initialUsers
 
 expectRight :: (Show err) => Either err Property -> Property
