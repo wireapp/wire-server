@@ -28,7 +28,6 @@ import Wire.MockInterpreters.SessionStore as MockInterpreters
 import Wire.MockInterpreters.SparAPIAccess as MockInterpreters
 import Wire.MockInterpreters.TinyLog as MockInterpreters
 import Wire.MockInterpreters.UserGroupStore as MockInterpreters
-import Wire.MockInterpreters.UserGroupSubsystem as MockInterpreters
 import Wire.MockInterpreters.UserKeyStore as MockInterpreters
 import Wire.MockInterpreters.UserStore as MockInterpreters
 import Wire.MockInterpreters.UserSubsystem as MockInterpreters

@@ -396,7 +396,6 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.SparAPIAccess
     Wire.MockInterpreters.TinyLog
     Wire.MockInterpreters.UserGroupStore
-    Wire.MockInterpreters.UserGroupSubsystem
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
