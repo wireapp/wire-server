@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Test.Wire.API.Golden.Manual.UserGroup where
 
 import Data.Id
