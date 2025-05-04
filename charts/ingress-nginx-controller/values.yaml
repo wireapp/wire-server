@@ -39,7 +39,7 @@ ingress-nginx:
       # As a Wire employee, for Wire-internal discussions and context see *
       # https://wearezeta.atlassian.net/browse/FS-33 *
       # https://wearezeta.atlassian.net/browse/FS-444
-      ssl-protocols: "TLSv1.2 TLSv1.3"
+      ssl-protocols: "TLSv1.3"
       # override cipher suites used in TLS 1.2 (only, if TLS 1.2 is used)
       ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
       # override cipher suites used in TLS 1.3 (only, if TLS 1.3 is used)
