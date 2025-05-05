@@ -96,7 +96,15 @@ getGroupsImpl ::
   Maybe Int ->
   Maybe UserGroupId ->
   Sem r UserGroupPage
-getGroupsImpl getter range lastKey = undefined
+getGroupsImpl getter range lastKey = fmap (fromMaybe empty) <$> runMaybeT $ do
+  team <- MaybeT $ getUserTeam getter
+  getterCanSeeAll <- (isAdminOrOwner . (^. permissions)) <$> MaybeT (getTeamMember getter team)
+  lift $
+    if getterCanSeeAll
+      then Store.getUserGroups team range lastKey
+      else Store.getUserGroupsForUser getter range lastKey
+  where
+    empty = UserGroupPage [] False
 
 updateGroupImpl ::
   ( Member UserSubsystem r,
