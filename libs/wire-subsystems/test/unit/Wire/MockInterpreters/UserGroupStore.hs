@@ -6,7 +6,9 @@
 
 module Wire.MockInterpreters.UserGroupStore where
 
+import Data.Default
 import Data.Id
+import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Vector (fromList)
 import GHC.Stack
@@ -21,7 +23,15 @@ import Wire.MockInterpreters.Random
 import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore
 
-type MockState = Map (TeamId, UserGroupId) UserGroup
+-- TODO: this is not a mock state, but maybe an InMemState
+data MockState = MockState
+  { userGroups :: Map (TeamId, UserGroupId) UserGroup,
+    now :: UTCTimeMillis
+  }
+  deriving (Eq, Show)
+
+instance Default MockState where
+  def = MockState mempty (fromJust (readUTCTimeMillis "2021-05-12T10:52:02Z"))
 
 type EffectConstraints r =
   ( Member (State MockState) r,
@@ -36,11 +46,11 @@ type EffectStack =
      State StdGen
    ]
 
-runInMemoryUserGroupStore :: Sem (EffectStack `Append` r) a -> Sem r a
-runInMemoryUserGroupStore =
+runInMemoryUserGroupStore :: MockState -> Sem (EffectStack `Append` r) a -> Sem r a
+runInMemoryUserGroupStore mockState =
   evalState (mkStdGen 3)
     . randomToStatefulStdGen
-    . evalState mempty
+    . evalState mockState
     . userGroupStoreTestInterpreter
 
 userGroupStoreTestInterpreter :: (EffectConstraints r) => InterpreterFor UserGroupStore r
@@ -54,31 +64,31 @@ userGroupStoreTestInterpreter =
     AddUser tid gid uid -> addUserImpl tid gid uid
     RemoveUser tid gid uid -> removeUserImpl tid gid uid
 
-createUserGroupImpl :: (EffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroupId
+createUserGroupImpl :: (EffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
-  -- now <- (.now) <$> get
+  now <- (.now) <$> get
   gid <- Id <$> Rnd.uuid
   let ug =
         UserGroup
           { id_ = gid,
             name = nug.name,
             members = nug.members,
-            managedBy = managedBy
-            -- createdAt = now
+            managedBy = managedBy,
+            createdAt = now
           }
 
-  modify (Map.insert (tid, gid) ug)
-  pure gid
+  modifyUserGroups (Map.insert (tid, gid) ug)
+  pure ug
 
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
-getUserGroupImpl tid gid = Map.lookup (tid, gid) <$> get
+getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
 
 getGroupsImpl :: (EffectConstraints r) => TeamId -> Maybe Int -> Maybe UserGroupId -> Sem r UserGroupPage
 getGroupsImpl tid (fromMaybe 100 -> limit) mbLastKey = do
   allGroups :: [(UserGroupId, UserGroup)] <- do
     let f :: ((TeamId, a), b) -> [(a, b)] -> [(a, b)]
         f ((tidx, gid), grp) acc = if tidx == tid then (gid, grp) : acc else acc
-    foldr f [] . Map.toList <$> get
+    (foldr f [] . Map.toList . (.userGroups)) <$> get
 
   let cutLowerBound :: forall a. (a ~ [(UserGroupId, UserGroup)]) => a -> a
       cutLowerBound = maybe id (\lastKey -> filter ((> lastKey) . fst)) mbLastKey
@@ -97,12 +107,12 @@ updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
       f Nothing = Nothing
       f (Just g) = Just (g {name = newName} :: UserGroup)
 
-  modify (Map.alter f (tid, gid))
+  modifyUserGroups (Map.alter f (tid, gid))
   getUserGroupImpl tid gid
 
 deleteUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r ()
 deleteUserGroupImpl tid gid = do
-  modify (Map.delete (tid, gid))
+  modifyUserGroups (Map.delete (tid, gid))
 
 addUserImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserId -> Sem r ()
 addUserImpl tid gid uid = do
@@ -110,7 +120,7 @@ addUserImpl tid gid uid = do
       f Nothing = Nothing
       f (Just g) = Just (g {members = fromList . nub $ uid : toList g.members} :: UserGroup)
 
-  modify (Map.alter f (tid, gid))
+  modifyUserGroups (Map.alter f (tid, gid))
 
 removeUserImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserId -> Sem r ()
 removeUserImpl tid gid uid = do
@@ -118,4 +128,11 @@ removeUserImpl tid gid uid = do
       f Nothing = Nothing
       f (Just g) = Just (g {members = fromList $ toList g.members \\ [uid]} :: UserGroup)
 
-  modify (Map.alter f (tid, gid))
+  modifyUserGroups (Map.alter f (tid, gid))
+
+modifyUserGroups ::
+  forall r m.
+  (EffectConstraints r, m ~ Map (TeamId, UserGroupId) UserGroup) =>
+  (m -> m) ->
+  Sem r ()
+modifyUserGroups u = modify (\ms -> ms {userGroups = u ms.userGroups})

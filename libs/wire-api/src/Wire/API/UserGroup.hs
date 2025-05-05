@@ -23,6 +23,7 @@ where
 
 import Data.Aeson qualified as A
 import Data.Id
+import Data.Json.Util
 import Data.OpenApi qualified as OpenApi
 import Data.Schema
 import Data.Vector (Vector)
@@ -62,8 +63,8 @@ data UserGroup = UserGroup
   { id_ :: UserGroupId,
     name :: Text,
     members :: Vector UserId,
-    managedBy :: ManagedBy
-    -- createdAt :: UTCTimeMillis -- TODO
+    managedBy :: ManagedBy,
+    createdAt :: UTCTimeMillis
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroup
@@ -77,8 +78,7 @@ instance ToSchema UserGroup where
         <*> (.name) .= field "name" schema
         <*> (.members) .= field "members" (vector schema)
         <*> (.managedBy) .= field "managedBy" schema
-
---  <*> (.createdAt) .= field "createdAt" schema
+        <*> (.createdAt) .= field "createdAt" schema
 
 -- | About pagination: We have 'MultiTablePage', "Wire.Sem.Paging", 'Page' from cql, in-type
 -- paging, and probably lots more.  i wonder if we should make up our minds and pick one?
