@@ -67,13 +67,7 @@ createUserGroupImpl creator newGroup = do
     memberTeam <- getUserTeam member -- TODO: pull all users in one db request.
     when (memberTeam /= Just team) $
       throw UserGroupMemberIsNotInTheSameTeam
-  id_ <- Store.createUserGroup team newGroup managedBy
-  pure $
-    UserGroup
-      { name = newGroup.name,
-        members = newGroup.members,
-        ..
-      }
+  Store.createUserGroup team newGroup managedBy
 
 getUserGroupImpl ::
   ( Member UserSubsystem r,

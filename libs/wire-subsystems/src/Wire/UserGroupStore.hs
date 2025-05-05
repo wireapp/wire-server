@@ -9,7 +9,7 @@ import Wire.API.User.Profile
 import Wire.API.UserGroup
 
 data UserGroupStore m a where
-  CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroupId
+  CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
   GetUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe UserGroup)
   GetUserGroups :: TeamId -> Maybe Int -> Maybe UserGroupId -> UserGroupStore m UserGroupPage
   UpdateUserGroup :: TeamId -> UserGroupId -> UserGroupUpdate -> UserGroupStore m (Maybe UserGroup)

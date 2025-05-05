@@ -48,7 +48,7 @@ runDependencies ::
 runDependencies initialUsers initialTeams =
   run
     . runError
-    . runInMemoryUserGroupStore
+    . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
     . userSubsystemTestInterpreter initialUsers
 
@@ -82,11 +82,12 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                 }
         createdGroup <- createGroup (ownerId team) newUserGroup
         retrievedGroup <- getGroup (ownerId team) createdGroup.id_
+        now <- (.now) <$> get
         pure $
           createdGroup.name === newUserGroupName
             .&&. createdGroup.members === newUserGroup.members
             .&&. createdGroup.managedBy === ManagedByWire
-            -- .&&. (ug.createdAt === now) -- TODO: test createdAt when it's back.
+            .&&. createdGroup.createdAt === now
             .&&. Just createdGroup === retrievedGroup
 
   prop "only team admins should be able to create a group" $
@@ -135,11 +136,18 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                   members = V.empty
                 }
         group1 <- createGroup (ownerId team) newUserGroup
-        view1admin <- getGroup (ownerId team) group1.id_
-        view1outsider <- getGroup (ownerId otherTeam) group1.id_
+
+        getGroupAdmin <- getGroup (ownerId team) group1.id_
+        getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
+
+        getGroupsAdmin <- getGroups (ownerId team) Nothing Nothing
+        getGroupsOutsider <- getGroups (ownerId otherTeam) Nothing Nothing
+
         pure $
-          ((.id_) <$> view1admin) === Just group1.id_
-            .&&. ((.id_) <$> view1outsider) === Nothing
+          ((.id_) <$> getGroupAdmin) === Just group1.id_
+            .&&. ((.id_) <$> getGroupOutsider) === Nothing
+            .&&. ((.id_) <$> getGroupsAdmin.page) === [group1.id_]
+            .&&. getGroupsOutsider.page === []
 
   prop "team members can only get their own groups" $ \team userGroupName1 userGroupName2 ->
     let (memSet1, memSet2) = splitAt (length team.others `div` 2) (User.userId . fst <$> team.others)
@@ -158,14 +166,21 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                     { name = userGroupName2,
                       members = V.fromList memSet2
                     }
+
             group1 <- createGroup (ownerId team) newUserGroup1
             group2 <- createGroup (ownerId team) newUserGroup2
-            view1memSet1 <- getGroup (head memSet1) group1.id_
-            view2memSet1 <- getGroup (head memSet1) group2.id_
-            pure $
-              ((.id_) <$> view1memSet1) === Just group1.id_
-                .&&. ((.id_) <$> view2memSet1) === Nothing
 
+            -- user from group 1 wants to see both group1 and group2
+            getOwnGroup <- getGroup (head memSet1) group1.id_
+            getOtherGroup <- getGroup (head memSet1) group2.id_
+            getAllGroups <- getGroups (head memSet1) Nothing Nothing
+
+            pure $
+              ((.id_) <$> getOwnGroup) === Just group1.id_ -- TODO: remove .id_ everywhere in this block.
+                .&&. ((.id_) <$> getOtherGroup) === Nothing
+                .&&. ((.id_) <$> getAllGroups.page) === [group1.id_]
+
+{-
   describe "GetGroups :: UserId -> Maybe Int -> Maybe UUID -> UserGroupSubsystem m UserGroupPage" $ do
     prop "team admins can get all groups in their team; outsiders can see nothing" $
       \_team _otherTeam _userGroupName -> False === True
@@ -292,6 +307,8 @@ spec = describe "UserGroupSubsystem.Interpreter" do
 
       prop "only team admins can and remove users to groups" $ \() -> False === True
 
+-}
+
 data TeamGenMod = AtLeastOneMember | AtLeastOneNonAdmin
 
 class KnownTeamGenMod a where
@@ -330,7 +347,7 @@ instance (ArbitraryWithMods mods a) => Arbitrary (WithMods mods a) where
 data ArbitraryTeam = ArbitraryTeam
   { tid :: TeamId,
     owner :: (User, TeamMember),
-    others :: [(User, TeamMember)]
+    others :: [(User, TeamMember)] -- TODO: rename to "members"?
   }
   deriving (Show, Eq)
 
