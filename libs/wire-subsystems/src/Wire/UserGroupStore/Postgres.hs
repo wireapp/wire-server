@@ -69,7 +69,7 @@ getUserGroupImpl team id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
-getGroupsImpl :: TeamId -> Maybe Int -> Maybe UserGroupId -> Sem r UserGroupPage
+getGroupsImpl :: (Member (Embed IO) r, Member (Input Pool) r) => TeamId -> Maybe Int -> Maybe UserGroupId -> Sem r UserGroupPage
 getGroupsImpl tid limit lastKey = do
   pool <- input
   eitherUserGroupPage <- liftIO $ use pool session
@@ -79,8 +79,45 @@ getGroupsImpl tid limit lastKey = do
   where
     session :: Session UserGroupPage
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Read do
-      (userGroups, nextKey) <- Transaction.statement (tid, limit, lastKey) getGroupsStatement
+      userGroups <- Transaction.statement (tid, limit, lastKey) getGroupsStatement
       pure UserGroupPage {..}
+
+    decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, Text, ManagedBy, UTCTimeMillis)
+    decodeMetadataRow (id_, name, managedByInt, utcTime) =
+      (Id id_,name,,toUTCTimeMillis utcTime) <$> managedByFromInt32 managedByInt
+
+    getGroupsStatement :: Statement (TeamId, Maybe Int, Maybe UserGroupId) (Vector (UserGroupId, Text, ManagedBy, UTCTimeMillis))
+    getGroupsStatement =
+      lmap (\(tid, limit_, lastKey_) -> (tid.toUUID, maybe 100 fromIntegral limit_, lastKey_.toUUID))
+        . refineResult (mapM decodeMetadataRow)
+        $ [vectorStatement|
+         select (id :: uuid), (name :: text), (managed_by :: int), (created_at :: timestamptz)
+           from user_group
+           order by id
+           where team = ($1 :: uuid)
+             and (($3 :: uuid) is null or (id > ($3 :: uuid)))
+           limit ($2 :: int)
+         |]
+
+{-
+
+    getGroupsStatement :: Statement (TeamId, Maybe Int) (Vector (UserGroupId, Text, ManagedBy, UTCTimeMillis))
+    getGroupsStatement =
+      lmap (\(tid, limit_) -> (tid.toUUID, maybe 100 fromIntegral limit_)
+        . refineResult (mapM decodeMetadataRow)
+        $ [vectorStatement|
+         select (id :: uuid), (name :: text), (managed_by :: int), (created_at :: timestamptz)
+           from user_group
+           where team = ($1 :: uuid)
+           limit ($2 :: int)
+         |]
+
+    getGroupMembersStatement :: Statement UserGroupId (Vector UserId)
+    getGroupMembersStatement =
+      dimap (.toUUID) (fmap Id) $
+        [vectorStatement|
+          select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
+          |]
 
     getGroupsStatement :: Statement (TeamId, Maybe Int, Maybe UserGroupId) (Vector UserGroup, Maybe UserGroupId)
     getGroupsStatement =
@@ -91,6 +128,7 @@ getGroupsImpl tid limit lastKey = do
             from user_group where team_id = ($1 :: uuid)
             order by created_at desc limit ($2 :: int) offset ($3 :: int)
           |]
+-}
 
 createUserGroupImpl :: (Member (Embed IO) r, Member (Input Pool) r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl team newUserGroup managedBy = do
