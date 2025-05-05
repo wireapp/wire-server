@@ -284,8 +284,13 @@ testActivateEmailForEmailDomainForAnotherBackend = do
   sso <- randomId
   object
     [ "domain_redirect" .= "backend",
-      "backend_url" .= "https://example.com",
-      "team_invite" .= "not-allowed"
+      "backend"
+        .= object
+          [ "config_url" .= "https://example.com",
+            "webapp_url" .= "https://webapp.example.com"
+          ],
+      "team_invite"
+        .= "not-allowed"
     ]
     & testActivateEmailShouldBeAllowed False
   object
