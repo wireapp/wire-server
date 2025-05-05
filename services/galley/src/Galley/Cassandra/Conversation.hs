@@ -252,6 +252,13 @@ updateConvCellsState cid ps =
       Cql.updateConvCellsState
       (params LocalQuorum (ps, cid))
 
+resetConversation :: ConvId -> GroupId -> Client ()
+resetConversation cid groupId =
+  retry x5 $
+    write
+      Cql.resetConversation
+      (params LocalQuorum (groupId, cid))
+
 setGroupInfo :: ConvId -> GroupInfoData -> Client ()
 setGroupInfo conv gid =
   write Cql.updateGroupInfo (params LocalQuorum (gid, conv))
@@ -496,6 +503,9 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationCellsState cid ps -> do
     logEffect "ConversationStore.SetConversationCellsState"
     embedClient $ updateConvCellsState cid ps
+  ResetConversation cid groupId -> do
+    logEffect "ConversationStore.ResetConversation"
+    embedClient $ resetConversation cid groupId
   DeleteConversation cid -> do
     logEffect "ConversationStore.DeleteConversation"
     embedClient $ deleteConversation cid
