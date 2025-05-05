@@ -84,6 +84,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -1081,9 +1082,9 @@ deleteSubConv ::
   UserId ->
   Qualified ConvId ->
   SubConvId ->
-  DeleteSubConversationRequest ->
+  MLSReset ->
   TestM ResponseLBS
-deleteSubConv u qcnv sconv dsc = do
+deleteSubConv u qcnv sconv reset = do
   g <- viewGalley
   delete $
     g
@@ -1096,7 +1097,7 @@ deleteSubConv u qcnv sconv dsc = do
         ]
       . zUser u
       . contentJson
-      . json dsc
+      . json reset
 
 leaveSubConv ::
   UserId ->

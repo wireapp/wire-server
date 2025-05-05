@@ -301,6 +301,9 @@ updateConvCipherSuite = "update conversation set cipher_suite = ? where conv = ?
 updateConvCellsState :: PrepQuery W (CellsState, ConvId) ()
 updateConvCellsState = "update conversation set cells_state = ? where conv = ?"
 
+resetConversation :: PrepQuery W (GroupId, ConvId) ()
+resetConversation = "update conversation set group_id = ?, epoch = 0 where conv = ?"
+
 deleteConv :: PrepQuery W (Identity ConvId) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
 

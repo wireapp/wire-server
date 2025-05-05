@@ -103,6 +103,7 @@ library
     Galley.API.MLS.Propagate
     Galley.API.MLS.Proposal
     Galley.API.MLS.Removal
+    Galley.API.MLS.Reset
     Galley.API.MLS.SubConversation
     Galley.API.MLS.Types
     Galley.API.MLS.Util
