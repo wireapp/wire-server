@@ -18,6 +18,7 @@
 module Galley.API.Public.MLS where
 
 import Galley.API.MLS
+import Galley.API.MLS.Reset
 import Galley.App
 import Imports
 import Wire.API.Routes.API
@@ -28,3 +29,4 @@ mlsAPI =
   mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
     <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
     <@> mkNamedAPI @"mls-public-keys" (const getMLSPublicKeys)
+    <@> mkNamedAPI @"mls-reset-conversation" resetMLSConversation
