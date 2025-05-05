@@ -100,7 +100,7 @@ domainRedirectSchemaV8 =
 backendConfigSchemaV8 :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
 backendConfigSchemaV8 =
   (,)
-    <$> fst .= backendUrlSchema
+    <$> fst .= field "backend_url" schema
     -- API versions <= V9 ignore the WebApp URL
     <*> const Nothing .= pure Nothing
 
@@ -133,9 +133,6 @@ domainRedirectSchema =
 
 samlIdPIdObjectSchema :: ObjectSchema SwaggerDoc SAML.IdPId
 samlIdPIdObjectSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_code" uuidSchema
-
-backendUrlSchema :: ObjectSchema SwaggerDoc HttpsUrl
-backendUrlSchema = field "backend_url" schema
 
 instance ToSchema DomainRedirect where
   schema = object "DomainRedirect " domainRedirectSchema
