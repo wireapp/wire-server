@@ -59,6 +59,7 @@ userGroupStoreTestInterpreter =
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid -> getUserGroupImpl tid gid
     GetUserGroups tid limit lastKey -> getGroupsImpl tid limit lastKey
+    GetUserGroupsForUser lusr limit lastKey -> error "TODO(leif): implement GetUserGroupsForUser"
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser tid gid uid -> addUserImpl tid gid uid
