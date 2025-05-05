@@ -174,20 +174,3 @@ deriving via Schema ConvOrSubConvId instance FromJSON ConvOrSubConvId
 deriving via Schema ConvOrSubConvId instance ToJSON ConvOrSubConvId
 
 deriving via Schema ConvOrSubConvId instance S.ToSchema ConvOrSubConvId
-
--- | The body of the delete subconversation request
-data DeleteSubConversationRequest = DeleteSubConversationRequest
-  { dscGroupId :: GroupId,
-    dscEpoch :: Epoch
-  }
-  deriving (Eq, Show)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DeleteSubConversationRequest)
-
-instance ToSchema DeleteSubConversationRequest where
-  schema =
-    objectWithDocModifier
-      "DeleteSubConversationRequest"
-      (description ?~ "Delete an MLS subconversation")
-      $ DeleteSubConversationRequest
-        <$> dscGroupId .= field "group_id" schema
-        <*> dscEpoch .= field "epoch" schema
