@@ -126,9 +126,13 @@ spec = describe "UserGroupSubsystem.Interpreter" do
 
   -- TODO: describe "GetGroup :: UserId -> UserGroupId -> UserGroupSubsystem m (Maybe UserGroup)"
 
-  it "key misses produce 404" $ do
-    -- TODO
-    pendingWith "TODO"
+  focus . prop "key misses produce 404" $ \team groupId ->
+    expectRight
+      . runDependencies (allUsers team) (galleyTeam team)
+      . interpretUserGroupSubsystem
+      $ do
+        mGroup <- getGroup (ownerId team) groupId
+        pure $ mGroup === Nothing
 
   prop "team admins can get all groups in their team; outsiders can see nothing" $ \team otherTeam userGroupName ->
     expectRight
