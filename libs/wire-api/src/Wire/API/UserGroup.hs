@@ -82,7 +82,9 @@ instance ToSchema UserGroup where
 
 -- | About pagination: We have 'MultiTablePage', "Wire.Sem.Paging", 'Page' from cql, in-type
 -- paging, and probably lots more.  i wonder if we should make up our minds and pick one?
-data UserGroupPage = UserGroupPage -- TODO: rework this to "data Page payload = ..."
+data UserGroupPage = UserGroupPage
+  -- TODO: rework this to "data Page payload = ..."
+  -- TODO: add nextKey field?
   { page :: [UserGroup],
     hasMore :: Bool
   }
