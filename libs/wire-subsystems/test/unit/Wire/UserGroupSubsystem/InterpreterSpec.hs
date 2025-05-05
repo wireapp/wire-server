@@ -8,6 +8,10 @@ import Data.Default
 import Data.Id
 import Data.List.Extra
 import Data.Map qualified as Map
+import Data.Qualified
+import Data.String.Conversions (cs)
+-- import Data.Time
+-- import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
 import Polysemy
@@ -123,6 +127,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
   -- TODO: describe "GetGroup :: UserId -> UserGroupId -> UserGroupSubsystem m (Maybe UserGroup)"
 
   it "key misses produce 404" $ do
+    -- TODO
     pendingWith "TODO"
 
   prop "team admins can get all groups in their team; outsiders can see nothing" $ \team otherTeam userGroupName ->
@@ -180,68 +185,58 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                 .&&. ((.id_) <$> getOtherGroup) === Nothing
                 .&&. ((.id_) <$> getAllGroups.page) === [group1.id_]
 
-{-
   describe "GetGroups :: UserId -> Maybe Int -> Maybe UUID -> UserGroupSubsystem m UserGroupPage" $ do
-    prop "team admins can get all groups in their team; outsiders can see nothing" $
-      \_team _otherTeam _userGroupName -> False === True
+    let nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (cs $ show i) mempty
 
-    prop "team members can only get their own groups" $
-      \_team _userGroupName1 _userGroupName2 -> False === True
+        check :: UserGroupPage -> [UserGroupId] -> Bool -> Property
+        check have wantPage wantHasMore = (have.page <&> (.id_)) === wantPage .&&. have.hasMore === wantHasMore
 
-    let -- now = unsafePerformIO getCurrentTime
-        nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (cs $ show i) []
-
-        check :: (HasCallStack) => UserGroupPage -> [UserGroupId] -> Bool -> Expectation
-        check have wantPage wantHasMore = do
-          (have.page <&> (.id_)) `shouldBe` wantPage
-          have.hasMore `shouldBe` wantHasMore
-
-        lastKeyOf :: UserGroupPage -> UUID
-        lastKeyOf = toUUID . (.id_) . last . (.page)
+        lastKeyOf :: UserGroupPage -> UserGroupId
+        lastKeyOf = Id . toUUID . (.id_) . last . (.page)
 
     prop "pagination (static case): eventually gives you the entire data set (nothing gets removed or duplicated)" $
-      \team userGroups ->
-        Mock.runInMemoryUserGroupSubsystem now do
-          gids <- (sort . ((.id_) <$>)) <$> createGroup `mapM` nugs
-          allOfThem <- getGroups Nothing Nothing
-          first3 <- getGroups (Just 3) Nothing
-          next4 <- getGroups (Just 4) (Just $ lastKeyOf first3)
-          halfPage1 <- getGroups (Just 100) Nothing
-          halfPage2 <- getGroups (Just 100) (Just $ lastKeyOf next4)
+      \team ->
+        expectRight
+          . runDependencies (allUsers team) (galleyTeam team)
+          . interpretUserGroupSubsystem
+          $ do
+            let owner = qUnqualified (fst team.owner).userQualifiedId
+            gids <- (sort . ((.id_) <$>)) <$> createGroup owner `mapM` nugs
+            allOfThem <- getGroups owner Nothing Nothing
+            first3 <- getGroups owner (Just 3) Nothing
+            next4 <- getGroups owner (Just 4) (Just $ lastKeyOf first3)
 
-          pure do
-            check allOfThem gids False
-            check first3 (take 3 gids) True
-            check next4 (take 4 (drop 3 gids)) True
-            check halfPage1 gids False
-            check halfPage2 (drop 7 gids) False
+            pure $
+              check allOfThem gids False
+                .&&. check first3 (take 3 gids) True
+                .&&. check next4 (take 4 (drop 3 gids)) True
 
-    it "paginates well under updates" $ do
-      Mock.runInMemoryUserGroupSubsystem now do
-        gids <- (sort . ((.id_) <$>)) <$> createGroup `mapM` nugs
-        beforeNewCreate <- getGroups (Just 8) Nothing
-        newGroup <- createGroup (NewUserGroup "the new one" [])
-        afterNewCreate <- getGroups (Just 8) (Just $ lastKeyOf beforeNewCreate)
+    prop "paginates well under updates" $ do
+      \team ->
+        expectRight
+          . runDependencies (allUsers team) (galleyTeam team)
+          . interpretUserGroupSubsystem
+          $ do
+            let owner = qUnqualified (fst team.owner).userQualifiedId
+            gids <- (sort . ((.id_) <$>)) <$> createGroup owner `mapM` nugs
 
-        pure do
-          check beforeNewCreate (take 8 gids) True
+            -- read first page
+            beforeNewCreate <- getGroups owner (Just 8) Nothing
+            -- mess with database
+            newGroup <- createGroup owner (NewUserGroup "the new one" mempty)
+            -- read second page
+            afterNewCreate <- getGroups owner Nothing (Just $ lastKeyOf beforeNewCreate)
 
-          let afterGids =
-                if lastKeyOf beforeNewCreate < toUUID newGroup.id_
-                  then drop 8 (sort (newGroup.id_ : gids))
-                  else drop 8 gids
-          check afterNewCreate afterGids False
+            pure $
+              check beforeNewCreate (take 8 gids) True
+                .&&. let afterGids = drop 8 (sort (newGroup.id_ : gids))
+                      in check afterNewCreate afterGids False
 
-    -- (...  or write this property?)
-    prop "pagination (dynamic case): when writing and removing between getting pages, result is as good as we can expect" $ \() ->
-      -- take the initial table, apply some removes and adds (which ones?), and you should get what you also get from paginating
-      False === True
-
+{-
   describe "UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)" $ do
     prop "updateGroup updates the name" $ \originalName userGroupUpdate ->
       let now = unsafePerformIO getCurrentTime
-       in Mock.runInMemoryUserGroupSubsystem
-            now
+       in (runDependencies mempty mempty)
             do
               ug0 <- createGroup (NewUserGroup originalName [])
               ug1 <- getGroup ug0.id_
@@ -262,7 +257,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
   describe "DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()" $ do
     prop "deleteGroup deletes" $ \newGroup1 newGroup2 -> do
       let now = unsafePerformIO getCurrentTime
-       in Mock.runInMemoryUserGroupSubsystem now do
+       in runDependencies mempty mempty do
             ug1 <- createGroup newGroup1
             ug2 <- createGroup newGroup2
             deleteGroup ug1.id_
@@ -282,7 +277,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
       -- TODO: how do we feel about dangling user ids?  maybe that should be handled on another
       -- level, and UserGroupSubsystem should be oblivious to what user ids point to?
       let now = unsafePerformIO getCurrentTime
-       in Mock.runInMemoryUserGroupSubsystem now do
+       in runDependencies mempty mempty do
             ug :: UserGroup <- createGroup newGroup
             addUser ug.id_ newUserId
             ug' :: Maybe UserGroup <- getGroup ug.id_
@@ -294,7 +289,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
 
     prop "removeUser removes a user" $ \newGroup -> do
       let now = unsafePerformIO getCurrentTime
-       in Mock.runInMemoryUserGroupSubsystem now do
+       in runDependencies mempty mempty do
             ug :: UserGroup <- createGroup newGroup
             let removee :: UserId
                 removee = case ug.members of
