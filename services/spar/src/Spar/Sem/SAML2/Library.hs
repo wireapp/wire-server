@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
@@ -25,6 +26,7 @@ import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Id (TeamId)
 import qualified Data.Text.Lazy as LText
+import Data.Time
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -90,7 +92,14 @@ instance (Member (Embed IO) r) => MonadIO (SPImpl r) where
 
 instance (Member (Embed IO) r) => HasCreateUUID (SPImpl r)
 
-instance (Member (Embed IO) r) => HasNow (SPImpl r)
+instance (Member (Embed IO) r) => HasNow (SPImpl r) where
+  getNow = do
+    UTCTime day veryPreciseDayTime <- liftIO $ getCurrentTime
+    let dayTimePicos = diffTimeToPicoseconds veryPreciseDayTime
+        dayTimeSeconds = dayTimePicos `div` 1_000_000_000_000
+        --                                    m   μ   n   p
+        dayTimePreciseUptoSeconds = secondsToDiffTime dayTimeSeconds
+    pure $ Time $ UTCTime day dayTimePreciseUptoSeconds
 
 instance
   ( Member (Error SparError) r,
