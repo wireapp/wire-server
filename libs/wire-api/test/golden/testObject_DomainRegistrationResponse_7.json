@@ -1,5 +1,8 @@
 {
-    "backend_url": "https://example.com/inv14",
+    "backend": {
+        "config_url": "https://example.com/inv14",
+        "webapp_url": "https://webapp.example.com/inv14"
+    },
     "dns_verification_token": null,
     "domain": "example.com",
     "domain_redirect": "backend",
