@@ -95,6 +95,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.NotificationSubsystem
@@ -761,7 +762,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
     . mapToGalleyError @MLSDeleteSubConvStaticErrors
     $ do
       let qusr = Qualified dscreqUser domain
-          dsc = DeleteSubConversationRequest dscreqGroupId dscreqEpoch
+          dsc = MLSReset dscreqGroupId dscreqEpoch
       lconv <- qualifyLocal dscreqConv
       deleteLocalSubConversation qusr lconv dscreqSubConv dsc
 
