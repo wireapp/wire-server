@@ -40,14 +40,14 @@ runAllMigrations pool logger = do
 
 migrationName :: MigrationCommand -> (Log.Msg -> Log.Msg)
 migrationName = \case
-  MigrationInitialization -> Log.field "migration" ("Initiatize Migration Schema" :: ByteString)
+  MigrationInitialization -> Log.field "migration" ("Initialize Migration Schema" :: ByteString)
   MigrationScript name _ -> Log.field "migration" name
   MigrationValidation cmd -> Log.field "type" ("validation" :: ByteString) . migrationName cmd
 
 -- | Only to be used to reset the development DB
 resetSchema :: Pool -> Logger -> IO ()
 resetSchema pool logger = do
-  Log.warn logger $ Log.msg (Log.val "reseting postgres schema")
+  Log.warn logger $ Log.msg (Log.val "resetting postgres schema")
   let session = do
         sql "DROP SCHEMA IF EXISTS public CASCADE"
         sql "CREATE SCHEMA IF NOT EXISTS public"
