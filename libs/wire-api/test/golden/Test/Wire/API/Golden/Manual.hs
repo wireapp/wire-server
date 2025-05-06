@@ -25,7 +25,6 @@ import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.Contact
-import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationEvent
 import Test.Wire.API.Golden.Manual.ConversationPagingState
@@ -123,11 +122,6 @@ tests =
             (testObject_ConversationPagingState_2, "testObject_ConversationPagingState_2.json"),
             (testObject_ConversationPagingState_3, "testObject_ConversationPagingState_3.json"),
             (testObject_ConversationPagingState_4, "testObject_ConversationPagingState_4.json")
-          ],
-      testGroup "ConvIdsPage" $
-        testObjects
-          [ (testObject_ConvIdsPage_1, "testObject_ConvIdsPage_1.json"),
-            (testObject_ConvIdsPage_2, "testObject_ConvIdsPage_2.json")
           ],
       testGroup "ClientCapability" $
         testObjects

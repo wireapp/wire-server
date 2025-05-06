@@ -293,7 +293,7 @@ type UserGroupAPI =
   Named
     "create-user-group"
     ( From 'V9
-        :> CanThrow 'UserGroupCreatorIsNotATeamAdmin
+        :> CanThrow 'UserGroupNotATeamAdmin
         :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
         :> ZLocalUser
         :> "user-groups"
@@ -313,6 +313,43 @@ type UserGroupAPI =
                       Respond 200 "User Group Found" UserGroup
                     ]
                     (Maybe UserGroup)
+           )
+    :<|> Named
+           "update-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> ReqBody '[JSON] UserGroupUpdate -- TODO: user not found error! (like in get above)
+               :> Put '[JSON] NoContent
+           )
+    :<|> Named
+           "delete-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> Delete '[JSON] NoContent -- TODO: user not found error! (like in get above)
+           )
+    :<|> Named
+           "add-user-to-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> Post '[JSON] NoContent -- TODO: user not found error!
+           )
+    :<|> Named
+           "remove-user-from-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> Delete '[JSON] NoContent -- TODO: user not found error!
            )
 
 type SelfAPI =
