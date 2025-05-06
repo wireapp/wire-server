@@ -25,14 +25,30 @@ import Data.Aeson qualified as A
 import Data.Id
 import Data.Json.Util
 import Data.OpenApi qualified as OpenApi
+import Data.Range
 import Data.Schema
+import Data.Text qualified as Text
 import Data.Vector (Vector)
 import Imports
 import Wire.API.User.Profile
 import Wire.Arbitrary
 
+newtype UserGroupName = UserGroupName {unUserGroupName :: Range 1 4000 Text}
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupName
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupName
+
+userGroupNameFromText :: Text -> Either Text UserGroupName
+userGroupNameFromText = mapLeft Text.pack . fmap UserGroupName . (checkedEither @Text @1 @4000)
+
+userGroupNameToText :: UserGroupName -> Text
+userGroupNameToText = fromRange . unUserGroupName
+
+instance ToSchema UserGroupName where
+  schema = UserGroupName <$> unUserGroupName .= schema
+
 data NewUserGroup = NewUserGroup
-  { name :: Text,
+  { name :: UserGroupName,
     members :: Vector UserId
   }
   deriving (Eq, Ord, Show, Generic)
@@ -47,7 +63,7 @@ instance ToSchema NewUserGroup where
         <*> (.members) .= field "members" (vector schema)
 
 data UserGroupUpdate = UserGroupUpdate
-  { name :: Text
+  { name :: UserGroupName
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserGroupUpdate
@@ -61,7 +77,7 @@ instance ToSchema UserGroupUpdate where
 
 data UserGroup = UserGroup
   { id_ :: UserGroupId,
-    name :: Text,
+    name :: UserGroupName,
     members :: Vector UserId,
     managedBy :: ManagedBy,
     createdAt :: UTCTimeMillis
