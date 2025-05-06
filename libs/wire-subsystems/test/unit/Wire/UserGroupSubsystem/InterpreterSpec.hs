@@ -99,7 +99,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                   { name = newUserGroupName,
                     members = User.userId <$> V.fromList (allUsers team)
                   }
-              Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.others
+              Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
           void $ createGroup (User.userId nonAdminUser) newUserGroup
           unexpected
 
@@ -146,7 +146,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
             .&&. ((.id_) <$> getGroupOutsider) === Nothing
 
   prop "team members can only get their own groups" $ \team userGroupName1 userGroupName2 ->
-    let (memSet1, memSet2) = splitAt (length team.others `div` 2) (User.userId . fst <$> team.others)
+    let (memSet1, memSet2) = splitAt (length team.members `div` 2) (User.userId . fst <$> team.members)
      in all notNull [memSet1, memSet2]
           ==> expectRight
             . runDependencies (allUsers team) (galleyTeam team)
@@ -171,8 +171,8 @@ spec = describe "UserGroupSubsystem.Interpreter" do
             getOtherGroup <- getGroup (head memSet1) group2.id_
 
             pure $
-              ((.id_) <$> getOwnGroup) === Just group1.id_ -- TODO: remove .id_ everywhere in this block.
-                .&&. ((.id_) <$> getOtherGroup) === Nothing
+              getOwnGroup === Just group1
+                .&&. getOtherGroup === Nothing
 
 data TeamGenMod = AtLeastOneMember | AtLeastOneNonAdmin
 
@@ -189,9 +189,9 @@ applyConstraint :: forall mod. (KnownTeamGenMod mod) => Gen ArbitraryTeam -> Gen
 applyConstraint =
   case teamGenMod @mod of
     AtLeastOneMember -> flip suchThat \team ->
-      not $ Imports.null team.others
+      not $ Imports.null team.members
     AtLeastOneNonAdmin -> flip suchThat \team ->
-      any (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.others
+      any (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
 
 newtype WithMods (mods :: [TeamGenMod]) a = WithMods a
   deriving (Show, Eq)
@@ -212,7 +212,7 @@ instance (ArbitraryWithMods mods a) => Arbitrary (WithMods mods a) where
 data ArbitraryTeam = ArbitraryTeam
   { tid :: TeamId,
     owner :: (User, TeamMember),
-    others :: [(User, TeamMember)] -- TODO: rename to "members"?
+    members :: [(User, TeamMember)]
   }
   deriving (Show, Eq)
 
@@ -232,11 +232,11 @@ instance Arbitrary ArbitraryTeam where
     pure . ArbitraryTeam tid (adminUser, adminMember) $ map (first assignTeam) otherUserWithMembers
 
 allUsers :: ArbitraryTeam -> [User]
-allUsers t = fst <$> t.owner : t.others
+allUsers t = fst <$> t.owner : t.members
 
 ownerId :: ArbitraryTeam -> UserId
 ownerId t = User.userId (fst t.owner)
 
 -- | The Map is required by the mock GalleyAPIAccess
 galleyTeam :: ArbitraryTeam -> Map TeamId [TeamMember]
-galleyTeam t = Map.singleton t.tid . map snd $ t.owner : t.others
+galleyTeam t = Map.singleton t.tid . map snd $ t.owner : t.members
