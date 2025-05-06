@@ -149,8 +149,6 @@ verifyFingerprint hash fprs ssl = do
         unless (now >= notBefore && now <= notAfter) $
           throwIO PinInvalidCert
 
--- [Note: Hostname verification]
-
 -- RSA ------------------------------------------------------------------------
 
 -- | Compute a simple (non-standard) fingerprint of an RSA
@@ -170,7 +168,8 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
     Nothing -> pure Nothing
     Just k -> Just <$> rsaFingerprint d (k :: RSAPubKey)
 
--- [Note: Hostname verification]
+-- Note [Hostname verification]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- Ideally, we would like to perform proper hostname verification, which
 -- is not done automatically by OpenSSL [1]. However, the necessary APIs
 -- are not yet available via HsOpenSSL. Note though that public key pinning

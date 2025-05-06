@@ -24,3 +24,9 @@ We have hence decided to not use the error-prone and hard-to-read `cs` in produc
 and services, and instead only allow for use in test suites in general and `integration/` more specifically.
 
 As a consequence we also decided to drop `cs` from `Imports`.
+
+## Source Notes
+
+We're using [*Source
+Notes*](https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/coding-style#2-using-notes)
+to explain bigger contexts that don't fit into code related comments.

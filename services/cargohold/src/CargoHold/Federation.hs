@@ -33,7 +33,8 @@ import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 
--- [Note]
+-- Note [Asset streaming]
+-- ~~~~~~~~~~~~~~~~~~~~~~
 -- There are several ways a remote asset could be streamed to the client:
 --
 -- "all-the-way": the remote federator streams the asset back to us in the RPC

@@ -626,7 +626,8 @@ instance ToSchema PubClient where
 --------------------------------------------------------------------------------
 -- Client Type/Class
 
--- [Note: LegalHold]
+-- Note [LegalHold]
+-- ~~~~~~~~~~~~~~~~
 --
 -- Short feature description:
 -- LegalHold is an enterprise feature, enabled on a per-team basis, and within a
