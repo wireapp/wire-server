@@ -21,6 +21,7 @@ import Control.Lens (to, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
+import Hasql.Pool (UsageError)
 import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
@@ -137,6 +138,8 @@ type BrigLowerLevelEffects =
      Wire.Events.Events,
      NotificationSubsystem,
      RateLimit,
+     UserGroupStore,
+     Error UsageError,
      Error EnterpriseLoginSubsystemError,
      Error UserSubsystemError,
      Error UserGroupSubsystemError,
@@ -161,7 +164,6 @@ type BrigLowerLevelEffects =
      ActivationCodeStore,
      InvitationStore,
      PropertyStore,
-     UserGroupStore,
      SFT,
      ConnectionStore InternalPaging,
      Input Hasql.Pool,
@@ -301,7 +303,6 @@ runBrigToIO e (AppT ma) = do
               . runInputConst e.hasqlPool
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
-              . interpretUserGroupStoreToPostgres
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
@@ -326,6 +327,8 @@ runBrigToIO e (AppT ma) = do
               . mapError userGroupSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
               . mapError enterpriseLoginSubsystemErrorToHttpError
+              . mapError postgresUsageErrorToHttpError
+              . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents

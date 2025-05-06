@@ -19,24 +19,35 @@ import Hasql.Transaction.Sessions qualified as Transaction
 import Hasql.Transaction.Sessions qualified as TransactionSession
 import Imports
 import Polysemy
+import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.UserGroupStore
 
-interpretUserGroupStoreToPostgres :: (Member (Embed IO) r, Member (Input Pool) r) => InterpreterFor UserGroupStore r
+interpretUserGroupStoreToPostgres ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  InterpreterFor UserGroupStore r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
 
-getUserGroupImpl :: (Member (Embed IO) r, Member (Input Pool) r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
+getUserGroupImpl ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  Sem r (Maybe UserGroup)
 getUserGroupImpl team id_ = do
   pool <- input
   eitherUserGroup <- liftIO $ use pool session
-  case eitherUserGroup of
-    Left err -> error $ show err
-    Right g -> pure g
+  either throw pure eitherUserGroup
   where
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
@@ -66,14 +77,19 @@ getUserGroupImpl team id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
-createUserGroupImpl :: (Member (Embed IO) r, Member (Input Pool) r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
+createUserGroupImpl ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  TeamId ->
+  NewUserGroup ->
+  ManagedBy ->
+  Sem r UserGroup
 createUserGroupImpl team newUserGroup managedBy = do
   pool <- input
   eitherUuid <- liftIO $ use pool session
-  case eitherUuid of
-    -- TODO: Deal with this better
-    Left err -> error $ show err
-    Right grp -> pure grp
+  either throw pure eitherUuid
   where
     session :: Session UserGroup
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
