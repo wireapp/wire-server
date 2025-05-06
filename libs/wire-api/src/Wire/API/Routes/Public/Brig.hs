@@ -314,6 +314,49 @@ type UserGroupAPI =
                     ]
                     (Maybe UserGroup)
            )
+    :<|> Named
+           "update-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> ReqBody '[JSON] UserGroupUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    [ ErrorResponse 'UserGroupNotFound,
+                      Respond 200 "User Group Found" UserGroup
+                    ]
+                    (Maybe UserGroup)
+           )
+    :<|> Named
+           "delete-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> Delete '[JSON] NoContent
+           )
+    :<|> Named
+           "add-user-to-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> Post '[JSON] NoContent
+           )
+    :<|> Named
+           "remove-user-from-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> Delete '[JSON] NoContent
+           )
 
 type SelfAPI =
   Named

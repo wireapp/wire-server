@@ -38,6 +38,10 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
+  UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
+  DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
+  AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
+  RemoveUser remover groupId removeeId -> removeUserImpl remover groupId removeeId
 
 data UserGroupSubsystemError
   = UserGroupCreatorIsNotATeamAdmin
@@ -111,3 +115,46 @@ getUserGroupImpl getter gid = runMaybeT $ do
   if getterCanSeeAll || getter `elem` (toList userGroup.members)
     then pure userGroup
     else MaybeT $ pure Nothing
+
+updateGroupImpl ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  UserGroupUpdate ->
+  Sem r (Maybe UserGroup)
+updateGroupImpl updater groupId groupUpdate = undefined
+
+deleteGroupImpl ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Sem r ()
+deleteGroupImpl deleter groupId = undefined
+
+addUserImpl ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  UserId ->
+  Sem r ()
+addUserImpl adder groupId addeeId = undefined
+
+removeUserImpl ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  UserId ->
+  Sem r ()
+removeUserImpl remover groupId removeeId = undefined

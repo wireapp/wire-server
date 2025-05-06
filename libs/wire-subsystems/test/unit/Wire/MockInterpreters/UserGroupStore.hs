@@ -9,6 +9,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Vector (fromList)
 import GHC.Stack
 import Imports
 import Polysemy
@@ -55,6 +56,10 @@ userGroupStoreTestInterpreter =
   interpret \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid -> getUserGroupImpl tid gid
+    UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
+    DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
+    AddUser tid gid uid -> addUserImpl tid gid uid
+    RemoveUser tid gid uid -> removeUserImpl tid gid uid
 
 createUserGroupImpl :: (EffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
@@ -74,6 +79,35 @@ createUserGroupImpl tid nug managedBy = do
 
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
+
+updateUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe UserGroup)
+updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {name = newName} :: UserGroup)
+
+  modifyUserGroups (Map.alter f (tid, gid))
+  getUserGroupImpl tid gid
+
+deleteUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r ()
+deleteUserGroupImpl tid gid = do
+  modifyUserGroups (Map.delete (tid, gid))
+
+addUserImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserId -> Sem r ()
+addUserImpl tid gid uid = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = fromList . nub $ uid : toList g.members} :: UserGroup)
+
+  modifyUserGroups (Map.alter f (tid, gid))
+
+removeUserImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserId -> Sem r ()
+removeUserImpl tid gid uid = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = fromList $ toList g.members \\ [uid]} :: UserGroup)
+
+  modifyUserGroups (Map.alter f (tid, gid))
 
 modifyUserGroups ::
   forall r m.

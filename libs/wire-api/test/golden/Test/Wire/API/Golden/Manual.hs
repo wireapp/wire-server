@@ -124,11 +124,6 @@ tests =
             (testObject_ConversationPagingState_3, "testObject_ConversationPagingState_3.json"),
             (testObject_ConversationPagingState_4, "testObject_ConversationPagingState_4.json")
           ],
-      testGroup "ConvIdsPage" $
-        testObjects
-          [ (testObject_ConvIdsPage_1, "testObject_ConvIdsPage_1.json"),
-            (testObject_ConvIdsPage_2, "testObject_ConvIdsPage_2.json")
-          ],
       testGroup "ClientCapability" $
         testObjects
           [ (testObject_ClientCapability_1, "testObject_ClientCapability_1.json"),

@@ -35,6 +35,10 @@ interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
+    UpdateUserGroup tid gid gup -> updateGroupImpl tid gid gup
+    DeleteUserGroup tid gid -> deleteGroupImpl tid gid
+    AddUser tid gid uid -> addUserImpl tid gid uid
+    RemoveUser tid gid uid -> removeUserImpl tid gid uid
 
 getUserGroupImpl ::
   ( Member (Embed IO) r,
@@ -123,3 +127,15 @@ createUserGroupImpl team newUserGroup managedBy = do
         [resultlessStatement|
           insert into user_group_member (user_group_id, user_id) select * from unnest ($1 :: uuid[], $2 :: uuid[])
           |]
+
+updateGroupImpl :: TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe UserGroup)
+updateGroupImpl tid gid gup = undefined tid gid gup
+
+deleteGroupImpl :: TeamId -> UserGroupId -> Sem r ()
+deleteGroupImpl tid gid = undefined tid gid
+
+addUserImpl :: TeamId -> UserGroupId -> UserId -> Sem r ()
+addUserImpl tid gid uid = undefined tid gid uid
+
+removeUserImpl :: TeamId -> UserGroupId -> UserId -> Sem r ()
+removeUserImpl tid gid uid = undefined tid gid uid
