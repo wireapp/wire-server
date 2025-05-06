@@ -3,25 +3,29 @@ module Wire.UserGroupSubsystem.Interpreter where
 import Control.Error (MaybeT (..))
 import Control.Lens ((^.))
 import Data.Id
+import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
+import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Team.Member
-import Wire.API.User.Profile
+import Wire.API.User
 import Wire.API.UserGroup
 import Wire.Error
 import Wire.GalleyAPIAccess
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem
-import Wire.UserSubsystem (UserSubsystem, getUserTeam)
+import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
 
 interpretUserGroupSubsystem ::
   ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member (Input (Local ())) r
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
@@ -43,7 +47,8 @@ createUserGroupImpl ::
   ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   NewUserGroup ->
@@ -56,11 +61,20 @@ createUserGroupImpl creator newGroup = do
       creatorTeamMember <- MaybeT $ getTeamMember creator team
       guard (isAdminOrOwner (creatorTeamMember ^. permissions))
       pure team
-  for_ newGroup.members \member -> do
-    memberTeam <- getUserTeam member -- TODO: pull all users in one db request.
-    when (memberTeam /= Just team) $
-      throw UserGroupMemberIsNotInTheSameTeam
+  luids <- qualifyLocal $ toList newGroup.members
+  profiles <- getLocalUserProfiles luids
+  let existingIds = Set.fromList $ fmap (qUnqualified . profileQualifiedId) profiles
+  let actualIds = Set.fromList $ toList newGroup.members
+  let allInSameTeam = all (\p -> p.profileTeam == Just team) profiles
+  when (existingIds /= actualIds || not allInSameTeam) $
+    throw $
+      UserGroupMemberIsNotInTheSameTeam
   Store.createUserGroup team newGroup managedBy
+
+qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
+qualifyLocal a = do
+  l <- input
+  pure $ qualifyAs l a
 
 getUserGroupImpl ::
   ( Member UserSubsystem r,

@@ -5,13 +5,16 @@ module Wire.UserGroupSubsystem.InterpreterSpec (spec) where
 import Control.Lens ((.~), (^.))
 import Data.Bifunctor (first)
 import Data.Default
+import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.List.Extra
 import Data.Map qualified as Map
+import Data.Qualified (Local, toLocalUnsafe)
 import Data.Vector qualified as V
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (Input, runInputConst)
 import Polysemy.State
 import System.Random (StdGen)
 import Test.Hspec
@@ -41,6 +44,7 @@ runDependencies ::
        State MockState,
        Rnd.Random,
        State StdGen,
+       Input (Local ()),
        Error UserGroupSubsystemError
      ]
     a ->
@@ -48,6 +52,7 @@ runDependencies ::
 runDependencies initialUsers initialTeams =
   run
     . runError
+    . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
     . userSubsystemTestInterpreter initialUsers
