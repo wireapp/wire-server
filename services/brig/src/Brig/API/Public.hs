@@ -443,11 +443,6 @@ servantSitemap =
     userGroupAPI =
       Named @"create-user-group" createUserGroup
         :<|> Named @"get-user-group" getUserGroup
-        :<|> Named @"get-user-groups" getUserGroups
-        :<|> Named @"update-user-group" updateUserGroup
-        :<|> Named @"delete-user-group" deleteUserGroup
-        :<|> Named @"add-user-to-group" addUserToGroup
-        :<|> Named @"remove-user-from-group" removeUserFromGroup
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1660,21 +1655,6 @@ createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnq
 
 getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
 getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
-
-getUserGroups :: (_) => Local UserId -> Maybe Int -> Maybe UserGroupId -> Handler r UserGroupPage
-getUserGroups lusr pageSize lastKeyRetrieved = lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) pageSize lastKeyRetrieved
-
-updateUserGroup :: Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) UserGroup
-updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd
-
-deleteUserGroup :: Local UserId -> UserGroupId -> (Handler r) NoContent
-deleteUserGroup lusr gid = lift . liftSem $ UserGroup.deleteGroup (tUnqualified lusr) gid
-
-addUserToGroup :: Local UserId -> UserGroupId -> UserId -> (Handler r) NoContent
-addUserToGroup lusr gid mid = lift . liftSem $ UserGroup.addUser (tUnqualified lusr) gid mid
-
-removeUserFromGroup :: Local UserId -> UserGroupId -> UserId -> (Handler r) NoContent
-removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
 
 -- Deprecated
 

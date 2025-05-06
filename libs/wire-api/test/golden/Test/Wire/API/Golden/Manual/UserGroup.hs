@@ -20,8 +20,8 @@ userId1, userId2 :: UserId
 userId1 = Id (fromJust (UUID.fromString "1ea397ae-1adc-11f0-93ea-ff4ed7af095b"))
 userId2 = Id (fromJust (UUID.fromString "19bdd268-1adc-11f0-9a71-d351719dd165"))
 
-_someUTCTime :: UTCTimeMillis
-Just _someUTCTime = readUTCTimeMillis "2025-04-16T16:22:21.703Z"
+someUTCTime :: UTCTimeMillis
+Just someUTCTime = readUTCTimeMillis "2025-04-16T16:22:21.703Z"
 
 testObject_NewUserGroup_1 :: NewUserGroup
 testObject_NewUserGroup_1 = NewUserGroup "some name @@~~ii" mempty
@@ -36,10 +36,10 @@ testObject_UserGroupUpdate_2 :: UserGroupUpdate
 testObject_UserGroupUpdate_2 = UserGroupUpdate "some name @@~~ii"
 
 testObject_UserGroup_1 :: UserGroup
-testObject_UserGroup_1 = UserGroup userGroupId1 "name" mempty ManagedByWire -- someUTCTime
+testObject_UserGroup_1 = UserGroup userGroupId1 "name" mempty ManagedByWire someUTCTime
 
 testObject_UserGroup_2 :: UserGroup
-testObject_UserGroup_2 = UserGroup userGroupId2 "yet another one" (fromList [userId1, userId2]) ManagedByScim -- someUTCTime
+testObject_UserGroup_2 = UserGroup userGroupId2 "yet another one" (fromList [userId1, userId2]) ManagedByScim someUTCTime
 
 testObject_UserGroupPage_1 :: UserGroupPage
 testObject_UserGroupPage_1 = UserGroupPage [] False

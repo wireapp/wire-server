@@ -10,7 +10,6 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
-import Data.Vector (fromList)
 import GHC.Stack
 import Imports
 import Polysemy
@@ -58,12 +57,6 @@ userGroupStoreTestInterpreter =
   interpret \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid -> getUserGroupImpl tid gid
-    GetUserGroups tid limit lastKey -> getGroupsImpl tid limit lastKey
-    GetUserGroupsForUser lusr limit lastKey -> error "TODO(leif): implement GetUserGroupsForUser"
-    UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
-    DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
-    AddUser tid gid uid -> addUserImpl tid gid uid
-    RemoveUser tid gid uid -> removeUserImpl tid gid uid
 
 createUserGroupImpl :: (EffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
@@ -83,53 +76,6 @@ createUserGroupImpl tid nug managedBy = do
 
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
-
-getGroupsImpl :: (EffectConstraints r) => TeamId -> Maybe Int -> Maybe UserGroupId -> Sem r UserGroupPage
-getGroupsImpl tid (fromMaybe 100 -> limit) mbLastKey = do
-  allGroups :: [(UserGroupId, UserGroup)] <- do
-    let f :: ((TeamId, a), b) -> [(a, b)] -> [(a, b)]
-        f ((tidx, gid), grp) acc = if tidx == tid then (gid, grp) : acc else acc
-    (foldr f [] . Map.toList . (.userGroups)) <$> get
-
-  let cutLowerBound :: forall a. (a ~ [(UserGroupId, UserGroup)]) => a -> a
-      cutLowerBound = maybe id (\lastKey -> filter ((> lastKey) . fst)) mbLastKey
-
-      relevant :: [UserGroup]
-      relevant = map snd . cutLowerBound $ allGroups
-
-      truncated :: [UserGroup]
-      truncated = Imports.take limit $ relevant
-
-  pure $ UserGroupPage truncated (length truncated /= length relevant)
-
-updateUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe UserGroup)
-updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
-  let f :: Maybe UserGroup -> Maybe UserGroup
-      f Nothing = Nothing
-      f (Just g) = Just (g {name = newName} :: UserGroup)
-
-  modifyUserGroups (Map.alter f (tid, gid))
-  getUserGroupImpl tid gid
-
-deleteUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r ()
-deleteUserGroupImpl tid gid = do
-  modifyUserGroups (Map.delete (tid, gid))
-
-addUserImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserId -> Sem r ()
-addUserImpl tid gid uid = do
-  let f :: Maybe UserGroup -> Maybe UserGroup
-      f Nothing = Nothing
-      f (Just g) = Just (g {members = fromList . nub $ uid : toList g.members} :: UserGroup)
-
-  modifyUserGroups (Map.alter f (tid, gid))
-
-removeUserImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserId -> Sem r ()
-removeUserImpl tid gid uid = do
-  let f :: Maybe UserGroup -> Maybe UserGroup
-      f Nothing = Nothing
-      f (Just g) = Just (g {members = fromList $ toList g.members \\ [uid]} :: UserGroup)
-
-  modifyUserGroups (Map.alter f (tid, gid))
 
 modifyUserGroups ::
   forall r m.
