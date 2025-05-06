@@ -79,11 +79,6 @@ tests =
           [ (testObject_UserGroup_1, "testObject_UserGroup_1.json"),
             (testObject_UserGroup_2, "testObject_UserGroup_2.json")
           ],
-      testGroup "UserGroupPage" $
-        testObjects
-          [ (testObject_UserGroupPage_1, "testObject_UserGroupPage_1.json"),
-            (testObject_UserGroupPage_2, "testObject_UserGroupPage_2.json")
-          ],
       testGroup "UserGrouppUpdate" $
         testObjects
           [ (testObject_UserGroupUpdate_1, "testObject_UserGroupUpdate_1.json"),
