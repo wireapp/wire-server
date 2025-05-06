@@ -43,5 +43,10 @@ httpErrorToJSONResponse e@(RichError werr _ headers) =
     }
 
 postgresUsageErrorToHttpError :: UsageError -> HttpError
-postgresUsageErrorToHttpError =
-  StdError . \err -> Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err)
+postgresUsageErrorToHttpError err = case err of
+  SessionUsageError se ->
+    -- TODO: this case should be more nuanced.  eg., if a foreign key is dangling, we should
+    -- return "404 group not found", not "database crashed".
+    StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+  ConnectionUsageError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+  AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
