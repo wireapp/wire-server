@@ -44,10 +44,13 @@ getUserGroupImpl team id_ = do
       members <- lift $ statement id_ getGroupMembersStatement
       pure $ UserGroup {..}
 
-    decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (Text, ManagedBy, UTCTimeMillis)
-    decodeMetadataRow (name, managedByInt, utcTime) = (name,,toUTCTimeMillis utcTime) <$> managedByFromInt32 managedByInt
+    decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
+    decodeMetadataRow (name, managedByInt, utcTime) =
+      (,,toUTCTimeMillis utcTime)
+        <$> userGroupNameFromText name
+        <*> managedByFromInt32 managedByInt
 
-    getGroupMetadataStatement :: Statement (UserGroupId, TeamId) (Maybe (Text, ManagedBy, UTCTimeMillis))
+    getGroupMetadataStatement :: Statement (UserGroupId, TeamId) (Maybe (UserGroupName, ManagedBy, UTCTimeMillis))
     getGroupMetadataStatement =
       lmap (\(gid, tid) -> (gid.toUUID, tid.toUUID))
         . refineResult (mapM decodeMetadataRow)
@@ -74,17 +77,22 @@ createUserGroupImpl team newUserGroup managedBy = do
   where
     session :: Session UserGroup
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
-      (id_, name, managedBy_, createdAt) <- Transaction.statement (newUserGroup.name, team, managedBy) insertGroupStatement
+      (id_, name, managedBy_, createdAt) <-
+        Transaction.statement
+          (newUserGroup.name, team, managedBy)
+          insertGroupStatement
       Transaction.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
       pure UserGroup {members = newUserGroup.members, managedBy = managedBy_, ..}
 
-    decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, Text, ManagedBy, UTCTimeMillis)
+    decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (groupId, name, managedByInt, utcTime) =
-      (Id groupId,name,,toUTCTimeMillis utcTime) <$> managedByFromInt32 managedByInt
+      (Id groupId,,,toUTCTimeMillis utcTime)
+        <$> userGroupNameFromText name
+        <*> managedByFromInt32 managedByInt
 
-    insertGroupStatement :: Statement (Text, TeamId, ManagedBy) (UserGroupId, Text, ManagedBy, UTCTimeMillis)
+    insertGroupStatement :: Statement (UserGroupName, TeamId, ManagedBy) (UserGroupId, UserGroupName, ManagedBy, UTCTimeMillis)
     insertGroupStatement =
-      lmap (\(n, t, m) -> (n, t.toUUID, managedByToInt32 m))
+      lmap (\(n, t, m) -> (userGroupNameToText n, t.toUUID, managedByToInt32 m))
         . refineResult decodeMetadataRow
         $ [singletonStatement|
             insert into user_group (name, team_id, managed_by)
