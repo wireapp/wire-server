@@ -34,6 +34,7 @@
   wire-otel = hself.callPackage ../libs/wire-otel/default.nix { inherit gitignoreSource; };
   wire-subsystems = hself.callPackage ../libs/wire-subsystems/default.nix { inherit gitignoreSource; };
   zauth = hself.callPackage ../libs/zauth/default.nix { inherit gitignoreSource; };
+  postgresql-libpq = hself.callPackage ../postgresql-libpq-0.11.0.0/default.nix { inherit gitignoreSource; };
   background-worker = hself.callPackage ../services/background-worker/default.nix { inherit gitignoreSource; };
   brig = hself.callPackage ../services/brig/default.nix { inherit gitignoreSource; };
   cannon = hself.callPackage ../services/cannon/default.nix { inherit gitignoreSource; };
