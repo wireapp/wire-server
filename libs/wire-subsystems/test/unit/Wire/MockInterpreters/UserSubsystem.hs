@@ -1,5 +1,6 @@
 module Wire.MockInterpreters.UserSubsystem where
 
+import Data.LegalHold
 import Data.Qualified
 import Imports
 import Polysemy
@@ -23,7 +24,9 @@ userSubsystemTestInterpreter initialUsers =
     IsBlocked _ -> pure False
     GetUserProfiles _ _ -> error "GetUserProfiles: implement on demand (userSubsystemInterpreter)"
     GetUserProfilesWithErrors _ _ -> error "GetUserProfilesWithErrors: implement on demand (userSubsystemInterpreter)"
-    GetLocalUserProfiles _ -> error "GetLocalUserProfiles: implement on demand (userSubsystemInterpreter)"
+    GetLocalUserProfiles luids ->
+      let uids = qUnqualified $ tUntagged luids
+       in pure (toProfile <$> filter (\u -> userId u `elem` uids) initialUsers)
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
     GetAccountNoFilter _ -> error "GetAccountNoFilter: implement on demand (userSubsystemInterpreter)"
     UpdateUserProfile {} -> error "UpdateUserProfile: implement on demand (userSubsystemInterpreter)"
@@ -43,3 +46,22 @@ userSubsystemTestInterpreter initialUsers =
     RemoveEmailEither _ -> error "RemoveEmailEither: implement on demand (userSubsystemInterpreter)"
     SearchUsers {} -> error "SearchUsers: implement on demand (userSubsystemInterpreter)"
     BrowseTeam {} -> error "BrowseTeam: implement on demand (userSubsystemInterpreter)"
+
+toProfile :: User -> UserProfile
+toProfile u =
+  UserProfile
+    { profileQualifiedId = userQualifiedId u,
+      profileHandle = userHandle u,
+      profileName = userDisplayName u,
+      profileTextStatus = userTextStatus u,
+      profilePict = userPict u,
+      profileAssets = userAssets u,
+      profileAccentId = userAccentId u,
+      profileService = userService u,
+      profileDeleted = userDeleted u,
+      profileExpire = userExpire u,
+      profileTeam = userTeam u,
+      profileEmail = userEmail u,
+      profileLegalholdStatus = UserLegalHoldDisabled,
+      profileSupportedProtocols = userSupportedProtocols u
+    }
