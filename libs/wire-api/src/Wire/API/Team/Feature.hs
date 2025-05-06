@@ -283,7 +283,7 @@ resolveDbFeature defFeature dbFeature =
         LockStatusUnlocked -> feat
 
 newtype DbConfig = DbConfig {unDbConfig :: A.Value}
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 instance Default DbConfig where
   def = DbConfig (A.object [])
@@ -531,7 +531,7 @@ invalidTTLErrorString = "Invalid FeatureTTLSeconds: must be a positive integer o
 -- LockStatus
 
 data LockStatus = LockStatusLocked | LockStatusUnlocked
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform LockStatus)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LockStatus)
 

@@ -45,6 +45,7 @@ packages:
   , services/spar/
   , tools/db/assets/
   , tools/db/auto-whitelist/
+  , tools/db/feature-configs/
   , tools/db/find-undead/
   , tools/db/inconsistencies/
   , tools/db/migrate-sso-feature-flag/
