@@ -79,22 +79,3 @@ instance ToSchema UserGroup where
         <*> (.members) .= field "members" (vector schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
-
--- | About pagination: We have 'MultiTablePage', "Wire.Sem.Paging", 'Page' from cql, in-type
--- paging, and probably lots more.  i wonder if we should make up our minds and pick one?
-data UserGroupPage = UserGroupPage
-  -- TODO: rework this to "data Page payload = ..."
-  -- TODO: add nextKey field?
-  { page :: [UserGroup],
-    hasMore :: Bool
-  }
-  deriving (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via GenericUniform UserGroupPage
-  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupPage
-
-instance ToSchema UserGroupPage where
-  schema =
-    object "UserGroupPage" $
-      UserGroupPage
-        <$> (.page) .= field "page" (array schema)
-        <*> (.hasMore) .= field "hasMore" schema

@@ -312,55 +312,6 @@ type UserGroupAPI =
                     ]
                     (Maybe UserGroup)
            )
-    :<|> Named
-           "get-user-groups"
-           ( Description "limit=0 means no limit.  default limit is 100."
-               :> From 'V9
-               :> ZLocalUser
-               :> "user-groups"
-               -- TODO: use Range?
-               :> QueryParam "limit" Int
-               -- TODO: use PagingState?
-               :> QueryParam "last_key" UserGroupId
-               :> Get '[JSON] UserGroupPage
-           )
-    :<|> Named
-           "update-user-group"
-           ( From 'V9
-               :> ZLocalUser
-               :> "user-groups"
-               :> Capture "gid" UserGroupId
-               :> ReqBody '[JSON] UserGroupUpdate
-               :> Put '[JSON] UserGroup
-           )
-    :<|> Named
-           "delete-user-group"
-           ( From 'V9
-               :> ZLocalUser
-               :> "user-groups"
-               :> Capture "gid" UserGroupId
-               :> Delete '[JSON] NoContent
-           )
-    :<|> Named
-           "add-user-to-group"
-           ( From 'V9
-               :> ZLocalUser
-               :> "user-groups"
-               :> Capture "gid" UserGroupId
-               :> "users"
-               :> Capture "uid" UserId
-               :> Post '[JSON] NoContent
-           )
-    :<|> Named
-           "remove-user-from-group"
-           ( From 'V9
-               :> ZLocalUser
-               :> "user-groups"
-               :> Capture "gid" UserGroupId
-               :> "users"
-               :> Capture "uid" UserId
-               :> Delete '[JSON] NoContent
-           )
 
 type SelfAPI =
   Named

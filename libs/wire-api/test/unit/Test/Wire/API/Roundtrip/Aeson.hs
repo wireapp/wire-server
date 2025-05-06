@@ -345,7 +345,6 @@ tests =
       testRoundTrip @UserGroup.NewUserGroup,
       testRoundTrip @UserGroup.UserGroupUpdate,
       testRoundTrip @UserGroup.UserGroup,
-      testRoundTrip @UserGroup.UserGroupPage,
       testRoundTrip @EventWebSocketProtocol.MessageServerToClient,
       testRoundTrip @EventWebSocketProtocol.MessageClientToServer,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
