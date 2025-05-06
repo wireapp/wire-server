@@ -67,7 +67,7 @@ getUserGroupImpl team id_ = do
         . refineResult (mapM decodeMetadataRow)
         $ [maybeStatement|
          select (name :: text), (managed_by :: int), (created_at :: timestamptz)
-           from user_group where id = ($1 :: uuid) AND team = ($2 :: uuid)
+           from user_group where id = ($1 :: uuid) AND team_id = ($2 :: uuid)
          |]
 
     getGroupMembersStatement :: Statement UserGroupId (Vector UserId)
@@ -93,10 +93,7 @@ createUserGroupImpl team newUserGroup managedBy = do
   where
     session :: Session UserGroup
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
-      (id_, name, managedBy_, createdAt) <-
-        Transaction.statement
-          (newUserGroup.name, team, managedBy)
-          insertGroupStatement
+      (id_, name, managedBy_, createdAt) <- Transaction.statement (newUserGroup.name, team, managedBy) insertGroupStatement
       Transaction.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
       pure UserGroup {members = newUserGroup.members, managedBy = managedBy_, ..}
 
@@ -123,6 +120,6 @@ createUserGroupImpl team newUserGroup managedBy = do
     insertGroupMembersStatement :: Statement (UUID, Vector UserId) ()
     insertGroupMembersStatement =
       lmap (second (fmap (.toUUID)) . uncurry toRelationTable) $
-        [singletonStatement|
+        [resultlessStatement|
           insert into user_group_member (user_group_id, user_id) select * from unnest ($1 :: uuid[], $2 :: uuid[])
           |]

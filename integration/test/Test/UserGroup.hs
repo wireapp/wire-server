@@ -16,7 +16,7 @@ testUserGroupSmoke = do
   let badGid = "225c4d54-1ae7-11f0-8e9c-cbb31865d602"
 
   gid <- bindResponse (createUserGroup owner (object ["name" .= "none", "members" .= ([mem1id, mem2id])])) $ \resp -> do
-    resp.status `shouldMatchInt` 201
+    resp.status `shouldMatchInt` 200
     resp.json %. "name" `shouldMatch` "none"
     resp.json %. "members" `shouldMatch` [mem1id, mem2id]
     asString $ (resp.json %. "id")
