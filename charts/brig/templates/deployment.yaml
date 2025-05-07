@@ -69,7 +69,9 @@ spec:
           secret:
             secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
         {{- end }}
-
+        {{- if .Values.additionalVolumes }}
+        {{ toYaml .Values.additionalVolumes | nindent 8 }}
+        {{- end }}
       containers:
         - name: brig
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -102,6 +104,9 @@ spec:
           {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/brig/rabbitmq-ca/"
+          {{- end }}
+          {{- if .Values.additionalVolumeMounts }}
+          {{ toYaml .Values.additionalVolumeMounts | nindent 10 }}
           {{- end }}
           env:
           - name: LOG_LEVEL
@@ -152,6 +157,10 @@ spec:
               secretKeyRef:
                 name: brig
                 key: rabbitmqPassword
+          {{- end }}
+          {{- if hasKey .Values.secrets  "pgPassfile" }}
+          - name: PGPASSFILE
+            value: /etc/wire/brig/secrets/pgPassfile
           {{- end }}
           ports:
             - containerPort: {{ .Values.service.internalPort }}
