@@ -41,7 +41,7 @@ runDependencies ::
     '[ UserSubsystem,
        GalleyAPIAccess,
        UserGroupStore,
-       State MockState,
+       State UserGroupInMemState,
        Rnd.Random,
        State StdGen,
        Input (Local ()),
