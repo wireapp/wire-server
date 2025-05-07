@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
--- TODO: move this next to Postgres interpreter; write integration tests that run random,
+-- FUTUREWORK: move this next to Postgres interpreter; write integration tests that run random,
 -- valid command sequences against both and compare.
 
 module Wire.MockInterpreters.UserGroupStore where
@@ -21,34 +21,33 @@ import Wire.MockInterpreters.Random
 import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore
 
--- TODO: this is not a mock state, but maybe an InMemState
-data MockState = MockState
+data UserGroupInMemState = UserGroupInMemState
   { userGroups :: Map (TeamId, UserGroupId) UserGroup,
     now :: UTCTimeMillis
   }
   deriving (Eq, Show)
 
-instance Default MockState where
-  def = MockState mempty (fromJust (readUTCTimeMillis "2021-05-12T10:52:02Z"))
+instance Default UserGroupInMemState where
+  def = UserGroupInMemState mempty (fromJust (readUTCTimeMillis "2021-05-12T10:52:02Z"))
 
 type EffectConstraints r =
-  ( Member (State MockState) r,
+  ( Member (State UserGroupInMemState) r,
     Member Rnd.Random r,
     HasCallStack
   )
 
 type EffectStack =
   '[ UserGroupStore,
-     State MockState,
+     State UserGroupInMemState,
      Rnd.Random,
      State StdGen
    ]
 
-runInMemoryUserGroupStore :: MockState -> Sem (EffectStack `Append` r) a -> Sem r a
-runInMemoryUserGroupStore mockState =
+runInMemoryUserGroupStore :: UserGroupInMemState -> Sem (EffectStack `Append` r) a -> Sem r a
+runInMemoryUserGroupStore state =
   evalState (mkStdGen 3)
     . randomToStatefulStdGen
-    . evalState mockState
+    . evalState state
     . userGroupStoreTestInterpreter
 
 userGroupStoreTestInterpreter :: (EffectConstraints r) => InterpreterFor UserGroupStore r
