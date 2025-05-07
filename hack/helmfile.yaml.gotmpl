@@ -77,6 +77,9 @@ repositories:
   - name: opensearch
     url: 'https://opensearch-project.github.io/helm-charts/'
 
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
@@ -161,6 +164,42 @@ releases:
   - name: 'cassandra-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/cassandra-ephemeral'
+
+  - name: "postgresql"
+    namespace: "{{ .Values.namespace1 }}"
+    chart: "bitnami/postgresql"
+    values:
+      - auth:
+          user: wire-server
+          postgresPassword: "posty-the-gres"
+        primary:
+          initdb:
+            scripts:
+              init: |
+                CREATE DATABASE "wire-server";
+                CREATE DATABASE "dyn-1";
+                CREATE DATABASE "dyn-2";
+                CREATE DATABASE "dyn-3";
+
+                GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
+                GRANT ALL PRIVILEGES ON DATABASE "dyn-1" TO "wire-server";
+                GRANT ALL PRIVILEGES ON DATABASE "dyn-2" TO "wire-server";
+                GRANT ALL PRIVILEGES ON DATABASE "dyn-3" TO "wire-server";
+
+  - name: "postgresql"
+    namespace: "{{ .Values.namespace2 }}"
+    chart: "bitnami/postgresql"
+    values:
+      - auth:
+          user: wire-server
+          postgresPassword: "posty-the-gres"
+        primary:
+          initdb:
+            scripts:
+              init: |
+                CREATE DATABASE "wire-server";
+
+                GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
 
   - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
@@ -267,42 +306,6 @@ releases:
     needs:
       - 'ingress'
 
-  - name: "postgresql"
-    namespace: "{{ .Values.namespace1 }}"
-    chart: "bitnami/postgresql"
-    values:
-      - auth:
-          user: wire-server
-          postgresPassword: "posty-the-gres"
-        primary:
-          initdb:
-            scripts:
-              init: |
-                CREATE DATABASE "wire-server";
-                CREATE DATABASE "dyn-1";
-                CREATE DATABASE "dyn-2";
-                CREATE DATABASE "dyn-3";
-
-                GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
-                GRANT ALL PRIVILEGES ON DATABASE "dyn-1" TO "wire-server";
-                GRANT ALL PRIVILEGES ON DATABASE "dyn-2" TO "wire-server";
-                GRANT ALL PRIVILEGES ON DATABASE "dyn-3" TO "wire-server";
-
-  - name: "postgresql"
-    namespace: "{{ .Values.namespace2 }}"
-    chart: "bitnami/postgresql"
-    values:
-      - auth:
-          user: wire-server
-          postgresPassword: "posty-the-gres"
-        primary:
-          initdb:
-            scripts:
-              init: |
-                CREATE DATABASE "wire-server";
-
-                GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
-
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a
   # parallel way, it's expected to see some wire-server pods (namely the
@@ -326,6 +329,7 @@ releases:
     needs:
       - 'cassandra-ephemeral'
       - 'redis-ephemeral'
+      - 'postgresql'
 
   - name: 'wire-server'
     namespace: '{{ .Values.namespace2 }}'
@@ -343,6 +347,7 @@ releases:
     needs:
       - 'cassandra-ephemeral'
       - 'redis-ephemeral'
+      - 'postgresql'
 
   - name: wire-server-enterprise
     namespace: '{{ .Values.namespace1 }}'
