@@ -3,6 +3,7 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation
+, aeson
 , barbies
 , base
 , cassandra-util
@@ -29,6 +30,7 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [
+    aeson
     barbies
     base
     cassandra-util
