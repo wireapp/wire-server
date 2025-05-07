@@ -21,11 +21,14 @@ import Cassandra qualified as C
 import Data.Text qualified as Text
 import Imports
 import Options.Applicative
+import Selector
 
 data Settings = Settings
   { casGalley :: !CassandraSettings,
     granularity :: Int,
-    feature :: Text
+    feature :: Text,
+    selector :: Maybe Selector,
+    update :: Maybe UpdateOperation
   }
   deriving (Show)
 
@@ -53,6 +56,20 @@ settingsParser =
           <> short 'f'
           <> metavar "FEATURE"
           <> help "Name of the feature"
+      )
+    <*> optional
+      ( option
+          (eitherReader parseSelector)
+          ( long "selector"
+              <> help "Select configs based on their values like 'status=enabled', 'status=enabled && lockStatus=locked && config.defaultProtocol=1'"
+          )
+      )
+    <*> optional
+      ( option
+          (eitherReader parseUpdateOperation)
+          ( long "update"
+              <> help "Update configs, example: 'status=disabled', ''"
+          )
       )
 
 cassandraSettingsParser :: String -> Parser CassandraSettings
