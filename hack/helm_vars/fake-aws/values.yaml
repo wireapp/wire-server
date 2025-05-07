@@ -2,6 +2,10 @@ fake-aws-ses:
   enabled: true
   sesSender: "backend-integrationk8s@wire.com"
 
+fake-aws-s3:
+  minio:
+    mcImage: {}
+
 fake-aws-sqs:
   queueNames:
   - "integration-brig-events"
