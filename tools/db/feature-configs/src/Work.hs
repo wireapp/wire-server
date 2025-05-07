@@ -71,7 +71,7 @@ runCommand opts = do
         . Log.field "config_count" (Map.size configs)
   let mostPopularConfigs =
         take 20
-          . sortOn (length . snd)
+          . sortOn ((0 -) . length . snd)
           $ Map.toList configs
   for_ mostPopularConfigs $ \((status, lockStatus, cfg), teams) ->
     Log.info opts.logger $
