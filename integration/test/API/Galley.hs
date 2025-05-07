@@ -823,3 +823,9 @@ getSelfMember user conv = do
   (domain, cnv) <- objQid conv
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "self"])
   submit "GET" req
+
+resetConversation :: (MakesValue user) => user -> String -> Word64 -> App Response
+resetConversation user groupId epoch = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["mls", "reset-conversation"])
+  let payload = object ["group_id" .= groupId, "epoch" .= epoch]
+  submit "POST" $ req & addJSON payload
