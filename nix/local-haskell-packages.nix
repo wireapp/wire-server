@@ -46,6 +46,7 @@
   wire-server-enterprise = hself.callPackage ../services/wire-server-enterprise/default.nix { inherit gitignoreSource; };
   assets = hself.callPackage ../tools/db/assets/default.nix { inherit gitignoreSource; };
   auto-whitelist = hself.callPackage ../tools/db/auto-whitelist/default.nix { inherit gitignoreSource; };
+  feature-configs = hself.callPackage ../tools/db/feature-configs/default.nix { inherit gitignoreSource; };
   find-undead = hself.callPackage ../tools/db/find-undead/default.nix { inherit gitignoreSource; };
   inconsistencies = hself.callPackage ../tools/db/inconsistencies/default.nix { inherit gitignoreSource; };
   migrate-features = hself.callPackage ../tools/db/migrate-features/default.nix { inherit gitignoreSource; };
