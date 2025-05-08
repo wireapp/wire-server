@@ -320,6 +320,12 @@ let
       sha256 = "sha256-45qWTqfY4fwCjTQsQg/f0EPkC5KZ8CFZYH4cwcw3Y18=";
     };
 
+    # Dependency of our overwritten tasty-ant-xml package. Once that's
+    # upstreamed, remove this as well.
+    tasty = {
+      version = "1.4.3";
+      sha256 = "sha256-TEiefKBOjKMxY0/M4aBhvsisg/xw7Gop1wHu/Kze3O4=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
