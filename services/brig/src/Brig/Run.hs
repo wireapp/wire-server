@@ -113,7 +113,7 @@ run opts = withTracer \tracer -> do
 migratePostres :: Opts -> Bool -> IO ()
 migratePostres opts resetFirst = do
   logger <- initLogger opts
-  pool <- initPostgresPool opts.postgresql
+  pool <- initPostgresPool opts.postgresql opts.postgresqlPassword
   when resetFirst $ resetSchema pool logger
   runAllMigrations pool logger
   flush logger

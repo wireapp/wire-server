@@ -283,7 +283,7 @@ newEnv opts = do
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
-  hasqlPool <- initPostgresPool opts.postgresql
+  hasqlPool <- initPostgresPool opts.postgresql opts.postgresqlPassword
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -475,9 +475,11 @@ initCassandra o g =
 -- HasqlPool.settings translates the pool settings into pool config
 -- HasqlPool.acquire creates the pool.
 -- ezpz.
-initPostgresPool :: Map Text Text -> IO HasqlPool.Pool
-initPostgresPool pgConfig = do
-  let pgParams = Map.foldMapWithKey (\k v -> [HasqlConfig.other k v]) pgConfig
+initPostgresPool :: Map Text Text -> Maybe FilePathSecrets -> IO HasqlPool.Pool
+initPostgresPool pgConfig mFpSecrets = do
+  mPw <- for mFpSecrets initCredentials
+  let pgConfigWithPw = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
+  let pgParams = Map.foldMapWithKey (\k v -> [HasqlConfig.other k v]) pgConfigWithPw
   HasqlPool.acquire $
     HasqlPool.settings
       [ HasqlPool.staticConnectionSettings $
