@@ -218,7 +218,6 @@ data ResetConversationRequest = ResetConversationRequest
 
 data ResetConversationResponse
   = ResetConversationMLSProtocolError Text
-  | ResetConversationNotLocal
   | ResetConversationError GalleyError
   | ResetConversationOk
   deriving stock (Eq, Show, Generic)
