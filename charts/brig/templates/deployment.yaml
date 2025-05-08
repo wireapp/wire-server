@@ -158,11 +158,6 @@ spec:
                 name: brig
                 key: rabbitmqPassword
           {{- end }}
-          {{- if hasKey .Values.secrets  "pgPassfile" }}
-          # TODO: this file must have permissions set to 600, however then brig cannot read it
-          - name: PGPASSFILE
-            value: /etc/wire/brig/secrets/pgPassfile
-          {{- end }}
           ports:
             - containerPort: {{ .Values.service.internalPort }}
           startupProbe:
