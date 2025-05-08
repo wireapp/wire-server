@@ -33,6 +33,9 @@ data:
       {{- end }}
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
+    {{- if hasKey $.Values.secrets  "pgPassfile" }}
+    postgresqlPassword: /etc/wire/brig/secrets/pgPassfile
+    {{- end }}
 
     elasticsearch:
       url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
