@@ -45,6 +45,7 @@ import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Message
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Removal
+import Galley.API.MLS.Reset
 import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome
@@ -83,7 +84,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley
+import Wire.API.Federation.API.Galley hiding (id)
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
@@ -123,6 +124,7 @@ federationSitemap =
     :<|> Named @"leave-sub-conversation" leaveSubConversation
     :<|> Named @"get-one2one-conversation@v1" getOne2OneConversationV1
     :<|> Named @"get-one2one-conversation" getOne2OneConversation
+    :<|> Named @"reset-conversation" resetConversation
     :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
@@ -823,6 +825,52 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
         getLocal
         (const (pure GetOne2OneConversationV2BackendMismatch))
         (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
+
+type ResetConversationStaticErrors =
+  '[ ErrorS MLSNotEnabled,
+     ErrorS ConvAccessDenied,
+     ErrorS ConvNotFound,
+     ErrorS InvalidOperation,
+     ErrorS MLSStaleMessage
+   ]
+
+resetConversation ::
+  ( Member (Input (Local ())) r,
+    Member (Input Env) r,
+    Member ConversationStore r,
+    Member MemberStore r,
+    Member Resource r,
+    Member SubConversationStore r
+  ) =>
+  Domain ->
+  ResetConversationRequest ->
+  Sem r ResetConversationResponse
+resetConversation domain req = handleErrors . mapToGalleyError @ResetConversationStaticErrors $ do
+  loc <- qualifyLocal ()
+  let rusr = toRemoteUnsafe domain req.userId
+  (ctype, qcnvOrSub) <- getConvFromGroupId req.groupId
+  -- only local conversations can be reset via the federation endpoint
+  lcnvOrSub <- foldQualified loc pure (const (throw ResetConversationNotLocal)) qcnvOrSub
+  let reset = MLSReset {groupId = req.groupId, epoch = req.epoch}
+  resetLocalMLSConversation (tUntagged rusr) ctype lcnvOrSub reset
+  where
+    handleErrors ::
+      Sem
+        ( Error GalleyError
+            : Error ResetConversationResponse
+            : Error MLSProtocolError
+            : r
+        )
+        () ->
+      Sem r ResetConversationResponse
+    handleErrors =
+      fmap (either (ResetConversationMLSProtocolError . untag) id)
+        . runError
+        . fmap (either id id)
+        . runError
+        . fmap (either ResetConversationError id)
+        . runError
+        . ($> ResetConversationOk)
 
 --------------------------------------------------------------------------------
 -- Error handling machinery
