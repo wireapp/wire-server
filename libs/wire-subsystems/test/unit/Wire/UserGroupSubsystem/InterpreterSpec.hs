@@ -9,7 +9,10 @@ import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.List.Extra
 import Data.Map qualified as Map
-import Data.Qualified (Local, toLocalUnsafe)
+import Data.Qualified
+import Data.String.Conversions (cs)
+-- import Data.Time
+-- import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
 import Polysemy
@@ -17,6 +20,7 @@ import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.State
 import System.Random (StdGen)
+-- import System.Timeout (timeout)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -72,30 +76,10 @@ unexpected =
   pure $ counterexample "An error was expected to have occured by now" False
 
 spec :: Spec
-spec = describe "UserGroupSubsystem.Interpreter" do
-  prop "team admins should be able to create and get groups" $ \team newUserGroupName ->
-    expectRight
-      . runDependencies (allUsers team) (galleyTeam team)
-      . interpretUserGroupSubsystem
-      $ do
-        let newUserGroup =
-              NewUserGroup
-                { name = newUserGroupName,
-                  members = User.userId <$> V.fromList (allUsers team)
-                }
-        createdGroup <- createGroup (ownerId team) newUserGroup
-        retrievedGroup <- getGroup (ownerId team) createdGroup.id_
-        now <- (.now) <$> get
-        pure $
-          createdGroup.name === newUserGroupName
-            .&&. createdGroup.members === newUserGroup.members
-            .&&. createdGroup.managedBy === ManagedByWire
-            .&&. createdGroup.createdAt === now
-            .&&. Just createdGroup === retrievedGroup
-
-  prop "only team admins should be able to create a group" $
-    \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
-      expectLeft UserGroupCreatorIsNotATeamAdmin
+spec = describe "UserGroupSubsystem.Interpreter" $ do
+  describe "CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup" $ do
+    prop "team admins should be able to create and get groups" $ \team newUserGroupName ->
+      expectRight
         . runDependencies (allUsers team) (galleyTeam team)
         . interpretUserGroupSubsystem
         $ do
@@ -104,80 +88,234 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                   { name = newUserGroupName,
                     members = User.userId <$> V.fromList (allUsers team)
                   }
-              Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
-          void $ createGroup (User.userId nonAdminUser) newUserGroup
-          unexpected
+          createdGroup <- createGroup (ownerId team) newUserGroup
+          retrievedGroup <- getGroup (ownerId team) createdGroup.id_
+          now <- (.now) <$> get
+          pure $
+            createdGroup.name === newUserGroupName
+              .&&. createdGroup.members === newUserGroup.members
+              .&&. createdGroup.managedBy === ManagedByWire
+              .&&. createdGroup.createdAt === now
+              .&&. Just createdGroup === retrievedGroup
 
-  prop "only team members are allowed in the group" $ \team otherUsers newUserGroupName ->
-    let othersWithoutTeamMembers = filter (\u -> u.userTeam /= Just team.tid) otherUsers
-     in notNull othersWithoutTeamMembers
-          ==> expectLeft UserGroupMemberIsNotInTheSameTeam
-            . runDependencies (allUsers team <> otherUsers) (galleyTeam team)
-            . interpretUserGroupSubsystem
+    prop "only team admins should be able to create a group" $
+      \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
+        expectLeft UserGroupCreatorIsNotATeamAdmin
+          . runDependencies (allUsers team) (galleyTeam team)
+          . interpretUserGroupSubsystem
           $ do
             let newUserGroup =
                   NewUserGroup
                     { name = newUserGroupName,
-                      members = User.userId <$> V.fromList otherUsers
+                      members = User.userId <$> V.fromList (allUsers team)
                     }
-            void $ createGroup (ownerId team) newUserGroup
+                Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
+            void $ createGroup (User.userId nonAdminUser) newUserGroup
             unexpected
 
-  prop "key misses produce 404" $ \team groupId ->
-    expectRight
-      . runDependencies (allUsers team) (galleyTeam team)
-      . interpretUserGroupSubsystem
-      $ do
-        mGroup <- getGroup (ownerId team) groupId
-        pure $ mGroup === Nothing
+    prop "only team members are allowed in the group" $ \team otherUsers newUserGroupName ->
+      let othersWithoutTeamMembers = filter (\u -> u.userTeam /= Just team.tid) otherUsers
+       in notNull othersWithoutTeamMembers
+            ==> expectLeft UserGroupMemberIsNotInTheSameTeam
+              . runDependencies (allUsers team <> otherUsers) (galleyTeam team)
+              . interpretUserGroupSubsystem
+            $ do
+              let newUserGroup =
+                    NewUserGroup
+                      { name = newUserGroupName,
+                        members = User.userId <$> V.fromList otherUsers
+                      }
+              void $ createGroup (ownerId team) newUserGroup
+              unexpected
 
-  prop "team admins can get all groups in their team; outsiders can see nothing" $ \team otherTeam userGroupName ->
-    expectRight
-      . runDependencies (allUsers team) (galleyTeam team)
-      . interpretUserGroupSubsystem
-      $ do
-        let newUserGroup =
-              NewUserGroup
-                { name = userGroupName,
-                  members = V.empty
-                }
-        group1 <- createGroup (ownerId team) newUserGroup
+  describe "GetGroup :: UserId -> UserGroupId -> UserGroupSubsystem m (Maybe UserGroup) (and some GetGroups, GetGroupsForUser)" $ do
+    prop "key misses produce 404" $ \team groupId ->
+      expectRight
+        . runDependencies (allUsers team) (galleyTeam team)
+        . interpretUserGroupSubsystem
+        $ do
+          mGroup <- getGroup (ownerId team) groupId
+          pure $ mGroup === Nothing
 
-        getGroupAdmin <- getGroup (ownerId team) group1.id_
-        getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
+    prop "team admins can get all groups in their team; outsiders can see nothing" $ \team otherTeam userGroupName ->
+      expectRight
+        . runDependencies (allUsers team) (galleyTeam team)
+        . interpretUserGroupSubsystem
+        $ do
+          let newUserGroup =
+                NewUserGroup
+                  { name = userGroupName,
+                    members = V.empty
+                  }
+          group1 <- createGroup (ownerId team) newUserGroup
 
-        pure $
-          ((.id_) <$> getGroupAdmin) === Just group1.id_
-            .&&. ((.id_) <$> getGroupOutsider) === Nothing
+          getGroupAdmin <- getGroup (ownerId team) group1.id_
+          getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
 
-  prop "team members can only get their own groups" $ \team userGroupName1 userGroupName2 ->
-    let (memSet1, memSet2) = splitAt (length team.members `div` 2) (User.userId . fst <$> team.members)
-     in all notNull [memSet1, memSet2]
-          ==> expectRight
+          getGroupsAdmin <- getGroups (ownerId team) Nothing Nothing
+          getGroupsOutsider <- getGroups (ownerId otherTeam) Nothing Nothing
+
+          pure $
+            ((.id_) <$> getGroupAdmin) === Just group1.id_
+              .&&. ((.id_) <$> getGroupOutsider) === Nothing
+              .&&. ((.id_) <$> getGroupsAdmin.page) === [group1.id_]
+              .&&. getGroupsOutsider.page === []
+
+    {-
+    timeoutHook :: Spec -> Spec
+    timeoutHook = around_ $ maybe (fail "exceeded timeout") pure <=< timeout 1_000_000
+
+            focus . prop "team members can only get their own groups" $ \team userGroupName1 userGroupName2 ->
+              let (memSet1, memSet2) = splitAt (length team.members `div` 2) (User.userId . fst <$> team.members)
+               in all notNull [memSet1, memSet2]
+                    ==> expectRight
+                      . runDependencies (allUsers team) (galleyTeam team)
+                      . interpretUserGroupSubsystem
+                    $ do
+                      let newUserGroup1 =
+                            NewUserGroup
+                              { name = userGroupName1,
+                                members = V.fromList memSet1
+                              }
+                          newUserGroup2 =
+                            NewUserGroup
+                              { name = userGroupName2,
+                                members = V.fromList memSet2
+                              }
+
+                      group1 <- createGroup (ownerId team) newUserGroup1
+                      group2 <- createGroup (ownerId team) newUserGroup2
+
+                      -- user from group 1 wants to see both group1 and group2
+                      getOwnGroup <- getGroup (head memSet1) group1.id_
+                      getOtherGroup <- getGroup (head memSet1) group2.id_
+                      getAllGroups <- getGroups (head memSet1) Nothing Nothing
+
+                      pure $
+                        getOwnGroup === Just group1
+                          .&&. getOtherGroup === Nothing
+                          .&&. getAllGroups.page === [group1]
+        -}
+
+    describe "GetGroups :: UserId -> Maybe Int -> Maybe UUID -> UserGroupSubsystem m UserGroupPage" $ do
+      let nugs = [1 .. 15] <&> \(i :: Int) -> NewUserGroup (either (error . show) id $ userGroupNameFromText $ cs $ show i) mempty
+
+          check :: UserGroupPage -> [UserGroupId] -> Bool -> Property
+          check have wantPage wantHasMore = (have.page <&> (.id_)) === wantPage .&&. have.hasMore === wantHasMore
+
+          lastKeyOf :: UserGroupPage -> UserGroupId
+          lastKeyOf = Id . toUUID . (.id_) . last . (.page)
+
+      prop "pagination (static case): eventually gives you the entire data set (nothing gets removed or duplicated)" $
+        \team ->
+          expectRight
             . runDependencies (allUsers team) (galleyTeam team)
             . interpretUserGroupSubsystem
-          $ do
-            let newUserGroup1 =
-                  NewUserGroup
-                    { name = userGroupName1,
-                      members = V.fromList memSet1
-                    }
-                newUserGroup2 =
-                  NewUserGroup
-                    { name = userGroupName2,
-                      members = V.fromList memSet2
-                    }
+            $ do
+              let owner = qUnqualified (fst team.owner).userQualifiedId
+              gids <- (sort . ((.id_) <$>)) <$> createGroup owner `mapM` nugs
+              allOfThem <- getGroups owner Nothing Nothing
+              first3 <- getGroups owner (Just 3) Nothing
+              next4 <- getGroups owner (Just 4) (Just $ lastKeyOf first3)
 
-            group1 <- createGroup (ownerId team) newUserGroup1
-            group2 <- createGroup (ownerId team) newUserGroup2
+              pure $
+                check allOfThem gids False
+                  .&&. check first3 (take 3 gids) True
+                  .&&. check next4 (take 4 (drop 3 gids)) True
 
-            -- user from group 1 wants to see both group1 and group2
-            getOwnGroup <- getGroup (head memSet1) group1.id_
-            getOtherGroup <- getGroup (head memSet1) group2.id_
+      prop "paginates well under updates" $ do
+        \team ->
+          expectRight
+            . runDependencies (allUsers team) (galleyTeam team)
+            . interpretUserGroupSubsystem
+            $ do
+              let owner = qUnqualified (fst team.owner).userQualifiedId
+              gids <- (sort . ((.id_) <$>)) <$> createGroup owner `mapM` nugs
 
-            pure $
-              getOwnGroup === Just group1
-                .&&. getOtherGroup === Nothing
+              -- read first page
+              beforeNewCreate <- getGroups owner (Just 8) Nothing
+              -- mess with database
+              newGroup <- createGroup owner (NewUserGroup (either (error . show) id $ userGroupNameFromText "the new one") mempty)
+              -- read second page
+              afterNewCreate <- getGroups owner Nothing (Just $ lastKeyOf beforeNewCreate)
+
+              pure $
+                check beforeNewCreate (take 8 gids) True
+                  .&&. let afterGids = drop 8 (sort (newGroup.id_ : gids))
+                        in check afterNewCreate afterGids False
+
+{-
+
+  describe "UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)" $ do
+    prop "updateGroup updates the name" $ \originalName userGroupUpdate ->
+      let now = unsafePerformIO getCurrentTime
+       in (runDependencies mempty mempty)
+            do
+              ug0 <- createGroup (NewUserGroup originalName [])
+              ug1 <- getGroup ug0.id_
+              ug2 <- updateGroup ug0.id_ userGroupUpdate
+              ug3 <- getGroup ug0.id_
+              pure $
+                (ug1 === Just ug0)
+                  .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
+                  .&&. (ug3 === ug2)
+            prop
+            "only team admins can update user groups"
+            $ \() -> False
+              === True
+                prop
+                "only team members are allowed in the group"
+              $ \() -> False === True
+
+  describe "DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()" $ do
+    prop "deleteGroup deletes" $ \newGroup1 newGroup2 -> do
+      let now = unsafePerformIO getCurrentTime
+       in runDependencies mempty mempty do
+            ug1 <- createGroup newGroup1
+            ug2 <- createGroup newGroup2
+            deleteGroup ug1.id_
+            allGroups <- (.page) <$> getGroups Nothing Nothing
+
+            deleteGroup (Id UUID.nil) -- idempotency
+            allGroups' <- (.page) <$> getGroups Nothing Nothing
+
+            pure $ do
+              allGroups `shouldBe` [ug2]
+              allGroups' `shouldBe` [ug2]
+
+      prop "only team admins can delete user groups" $ \() -> False === True
+
+  describe "AddUser, RemoveUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()" $ do
+    prop "addUser adds a user" $ \newGroup newUserId -> do
+      -- TODO: how do we feel about dangling user ids?  maybe that should be handled on another
+      -- level, and UserGroupSubsystem should be oblivious to what user ids point to?
+      let now = unsafePerformIO getCurrentTime
+       in runDependencies mempty mempty do
+            ug :: UserGroup <- createGroup newGroup
+            addUser ug.id_ newUserId
+            ug' :: Maybe UserGroup <- getGroup ug.id_
+            addUser ug.id_ newUserId -- idempotency
+            ug'' :: Maybe UserGroup <- getGroup ug.id_
+            pure $ do
+              ((sort . (.members)) <$> ug') `shouldBe` Just (sort (newUserId : ug.members))
+              ug'' `shouldBe` ug'
+
+    prop "removeUser removes a user" $ \newGroup -> do
+      let now = unsafePerformIO getCurrentTime
+       in runDependencies mempty mempty do
+            ug :: UserGroup <- createGroup newGroup
+            let removee :: UserId
+                removee = case ug.members of
+                  [] -> Id UUID.nil -- idempotency
+                  _ : _ -> ug.members !! (length ug.members `div` 2)
+            removeUser ug.id_ removee
+            ug' :: Maybe UserGroup <- getGroup ug.id_
+            pure $ do
+              ((sort . (.members)) <$> ug') `shouldBe` Just (sort (ug.members \\ [removee]))
+
+      prop "only team admins can and remove users to groups" $ \() -> False === True
+
+-}
 
 data TeamGenMod = AtLeastOneMember | AtLeastOneNonAdmin
 
