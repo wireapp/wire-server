@@ -301,11 +301,6 @@ let
       version = "0.1.0";
       sha256 = "sha256-WRe9LZrOIPJVBFk0vMN2IMoxgP0a0psQCiCiOFWJc74=";
     };
-    auto-update = {
-      version = "0.2.0";
-      sha256 = "sha256-d/0IDjaaCLz8tlx88z8Ew8ol9PrSRPVWaUwTbim70yE=";
-    };
-
     network-control = {
       version = "0.1.0";
       sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
