@@ -144,6 +144,11 @@ type GalleyApi =
            "get-one2one-conversation"
            GetOne2OneConversationRequest
            GetOne2OneConversationResponseV2
+    :<|> FedEndpointWithMods
+           '[From 'V2]
+           "reset-conversation"
+           ResetConversationRequest
+           ResetConversationResponse
     -- All the notification endpoints that go through the queue-based
     -- federation client ('fedQueueClient').
     :<|> GalleyNotificationAPI
@@ -201,6 +206,23 @@ data GetOne2OneConversationRequest = GetOne2OneConversationRequest
   deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationRequest)
 
 instance ToSchema GetOne2OneConversationRequest
+
+data ResetConversationRequest = ResetConversationRequest
+  { -- | Implicitly qualified by sender's domain
+    userId :: UserId,
+    groupId :: GroupId,
+    epoch :: Epoch
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ResetConversationRequest)
+
+data ResetConversationResponse
+  = ResetConversationMLSProtocolError Text
+  | ResetConversationNotLocal
+  | ResetConversationError GalleyError
+  | ResetConversationOk
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ResetConversationResponse)
 
 data RemoteConvMembers = RemoteConvMembers
   { selfRole :: RoleName,
