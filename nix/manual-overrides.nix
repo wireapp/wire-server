@@ -24,7 +24,9 @@ hself: hsuper: {
   hedis = hlib.dontCheck hsuper.hedis;
 
   HaskellNet = hlib.markUnbroken (hlib.dontCheck hsuper.HaskellNet);
-  amazonka-dynamo-db = hlib.markUnbroken (hlib.dontCheck hsuper.amazonka-dynamo-db);
+  amazonka-dynamodb = hlib.markUnbroken (hlib.dontCheck hsuper.amazonka-dynamodb);
+  amazonka-s3-streaming = hlib.markUnbroken (hlib.dontCheck hsuper.amazonka-s3-streaming);
+
   # ---------------------
   # need to be jailbroken
   # (these need to be fixed upstream eventually)
