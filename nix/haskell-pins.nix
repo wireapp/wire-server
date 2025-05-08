@@ -232,8 +232,8 @@ let
     tasty-ant-xml = {
       src = fetchgit {
         url = "https://github.com/wireapp/tasty-ant-xml";
-        rev = "34ff294d805e62e73678dccc0be9d3da13540fbe";
-        hash = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
+        rev = "11c53e976e2e941f25a33e8768669eb576d19ea8";
+        hash = "sha256-Aj/iTVECsCGq4f+32FXWyYj/iLH5e4Gm4hYRmewnJJM=";
       };
     };
 
@@ -313,13 +313,6 @@ let
       sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
     };
     # end pinned dependencies for http2
-
-    # Dependency of our overwritten tasty-ant-xml package. Once that's
-    # upstreamed, remove this as well.
-    tasty = {
-      version = "1.4.3";
-      sha256 = "sha256-TEiefKBOjKMxY0/M4aBhvsisg/xw7Gop1wHu/Kze3O4=";
-    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
