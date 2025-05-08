@@ -41,7 +41,8 @@ import Polysemy.Input
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
 import Proto.TeamEvents_Fields qualified as T
 
--- [Note: journaling]
+-- Note [journaling]
+-- ~~~~~~~~~~~~~~~~~
 -- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 

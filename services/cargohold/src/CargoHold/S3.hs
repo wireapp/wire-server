@@ -84,7 +84,8 @@ data S3AssetMeta = S3AssetMeta
   }
   deriving (Show)
 
--- [Note: overrideMimeTypeAsOctetStream]
+-- Note [overrideMimeTypeAsOctetStream]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- The asset V3 upload API allows setting arbitrary Asset MIME types on the
 -- "outside" of an uploaded (generally encrypted, exception: public profile
 -- pictures) asset. (outside meaning outside the encrypted blob in the second

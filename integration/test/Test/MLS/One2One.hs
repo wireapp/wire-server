@@ -393,7 +393,8 @@ testMLSGhostOne2OneConv = do
     liftIO $ putMVar doneVar ()
     wait a
 
--- [NOTE: Federated 1:1 MLS Conversations]
+-- Note [Federated 1:1 MLS Conversations]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- 1:1 Conversations shouldn't work when there is no way for the creator to know
 -- the MLS public keys of the backend which will host this conversation. In
 -- federation API V2, this will always work and has been tested above. When one
