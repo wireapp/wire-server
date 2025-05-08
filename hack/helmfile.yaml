@@ -170,8 +170,9 @@ releases:
     chart: "bitnami/postgresql"
     values:
       - auth:
-          user: wire-server
           postgresPassword: "posty-the-gres"
+          username: wire-server
+          password: "posty-the-gres"
         primary:
           initdb:
             scripts:
@@ -191,8 +192,9 @@ releases:
     chart: "bitnami/postgresql"
     values:
       - auth:
-          user: wire-server
           postgresPassword: "posty-the-gres"
+          username: wire-server
+          password: "posty-the-gres"
         primary:
           initdb:
             scripts:
