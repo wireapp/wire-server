@@ -23,6 +23,8 @@ hself: hsuper: {
   # Tests require a running redis
   hedis = hlib.dontCheck hsuper.hedis;
 
+  HaskellNet = hlib.markUnbroken (hlib.dontCheck hsuper.HaskellNet);
+  amazonka-dynamo-db = hlib.markUnbroken (hlib.dontCheck hsuper.amazonka-dynamo-db);
   # ---------------------
   # need to be jailbroken
   # (these need to be fixed upstream eventually)
