@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.Reset (resetMLSConversation) where
+module Galley.API.MLS.Reset
+  ( resetMLSConversation,
+    resetLocalMLSConversation,
+  )
+where
 
 import Control.Monad.Codensity hiding (reset)
 import Data.Id
