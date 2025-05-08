@@ -173,11 +173,10 @@ releases:
           postgresPassword: "posty-the-gres"
           username: wire-server
           password: "posty-the-gres"
-          database: "wire-server"
         primary:
           initdb:
             scripts:
-              init: |
+              init.sql: |
                 CREATE DATABASE "wire-server";
                 CREATE DATABASE "dyn-1";
                 CREATE DATABASE "dyn-2";
@@ -196,11 +195,10 @@ releases:
           postgresPassword: "posty-the-gres"
           username: wire-server
           password: "posty-the-gres"
-          database: "wire-server"
         primary:
           initdb:
             scripts:
-              init: |
+              init.sql: |
                 CREATE DATABASE "wire-server";
 
                 GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
