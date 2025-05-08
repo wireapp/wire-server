@@ -95,15 +95,6 @@ let
       };
     };
 
-    # PR: https://github.com/dpwright/HaskellNet-SSL/pull/33
-    HaskellNet-SSL = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/HaskellNet-SSL";
-        rev = "c2844b63a39f458ffbfe62f2ac824017f1f84453";
-        hash = "sha256-1mu/yEAWr3POY4MHRomum0DDvs5Qty1JvP3v5GS2u64=";
-      };
-    };
-
     # PR https://github.com/dylex/hsaml2/pull/20
     hsaml2 = {
       src = fetchgit {
