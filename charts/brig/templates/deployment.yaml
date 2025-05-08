@@ -44,6 +44,7 @@ spec:
         - name: "brig-secrets"
           secret:
             secretName: "brig"
+            defaultMode: 0600  # Sets permissions to rw-------
         {{- if eq $.Values.turn.serversSource "files" }}
         - name: "turn-servers"
           configMap:
