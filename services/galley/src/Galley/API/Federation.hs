@@ -826,14 +826,6 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
         (const (pure GetOne2OneConversationV2BackendMismatch))
         (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
 
-type ResetConversationStaticErrors =
-  '[ ErrorS MLSNotEnabled,
-     ErrorS ConvAccessDenied,
-     ErrorS ConvNotFound,
-     ErrorS InvalidOperation,
-     ErrorS MLSStaleMessage
-   ]
-
 resetConversation ::
   ( Member (Input (Local ())) r,
     Member (Input Env) r,
@@ -850,23 +842,15 @@ resetConversation domain req = handleErrors . mapToGalleyError @ResetConversatio
   let rusr = toRemoteUnsafe domain req.userId
   (ctype, qcnvOrSub) <- getConvFromGroupId req.groupId
   -- only local conversations can be reset via the federation endpoint
-  lcnvOrSub <- foldQualified loc pure (const (throw ResetConversationNotLocal)) qcnvOrSub
+  lcnvOrSub <- foldQualified loc pure (const (throwS @InvalidOperation)) qcnvOrSub
   let reset = MLSReset {groupId = req.groupId, epoch = req.epoch}
   resetLocalMLSConversation (tUntagged rusr) ctype lcnvOrSub reset
   where
     handleErrors ::
-      Sem
-        ( Error GalleyError
-            : Error ResetConversationResponse
-            : Error MLSProtocolError
-            : r
-        )
-        () ->
+      Sem (Error GalleyError : Error MLSProtocolError : r) () ->
       Sem r ResetConversationResponse
     handleErrors =
       fmap (either (ResetConversationMLSProtocolError . untag) id)
-        . runError
-        . fmap (either id id)
         . runError
         . fmap (either ResetConversationError id)
         . runError
