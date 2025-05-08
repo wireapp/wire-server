@@ -18,6 +18,7 @@
 module Galley.API.MLS.Reset
   ( resetMLSConversation,
     resetLocalMLSConversation,
+    ResetConversationStaticErrors,
   )
 where
 
@@ -31,6 +32,7 @@ import Galley.API.Util
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.ConversationStore
+import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Env
 import Imports
@@ -42,6 +44,9 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
@@ -56,6 +61,8 @@ resetMLSConversation ::
     Member (ErrorS InvalidOperation) r,
     Member Resource r,
     Member ConversationStore r,
+    Member FederatorAccess r,
+    Member (Error FederationError) r,
     Member MemberStore r,
     Member SubConversationStore r
   ) =>
@@ -68,7 +75,7 @@ resetMLSConversation lusr reset = do
   foldQualified
     lusr
     (\lcnvOrSub -> resetLocalMLSConversation (tUntagged lusr) ctype lcnvOrSub reset)
-    (\_ -> resetRemoteMLSConversation lusr reset)
+    (\r -> resetRemoteMLSConversation r lusr reset)
     qcnvOrSub
 
 resetLocalMLSConversation ::
@@ -119,5 +126,36 @@ resetLocalMLSConversation qusr ctype lcnvOrSub reset =
 
           resetConversation cnvId newGid
 
-resetRemoteMLSConversation :: Local UserId -> MLSReset -> Sem r ()
-resetRemoteMLSConversation = error "TODO"
+type ResetConversationStaticErrors =
+  '[ ErrorS MLSNotEnabled,
+     ErrorS ConvAccessDenied,
+     ErrorS ConvNotFound,
+     ErrorS InvalidOperation,
+     ErrorS MLSStaleMessage
+   ]
+
+resetRemoteMLSConversation ::
+  ( Member FederatorAccess r,
+    Member (Error FederationError) r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS MLSNotEnabled) r,
+    Member (ErrorS MLSStaleMessage) r,
+    Member (ErrorS ConvAccessDenied) r,
+    Member (ErrorS InvalidOperation) r,
+    Member (ErrorS ConvNotFound) r
+  ) =>
+  Remote x ->
+  Local UserId ->
+  MLSReset ->
+  Sem r ()
+resetRemoteMLSConversation r lusr reset = do
+  let req =
+        ResetConversationRequest
+          { userId = tUnqualified lusr,
+            groupId = reset.groupId,
+            epoch = reset.epoch
+          }
+  runFederated r (fedClient @'Galley @"reset-conversation" req) >>= \case
+    ResetConversationError e -> rethrowErrors @ResetConversationStaticErrors e
+    ResetConversationMLSProtocolError msg -> throw (mlsProtocolError msg)
+    ResetConversationOk -> pure ()
