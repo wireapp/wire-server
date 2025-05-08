@@ -314,12 +314,6 @@ let
     };
     # end pinned dependencies for http2
 
-    # PR: https://github.com/wireapp/wire-server/pull/4027
-    HsOpenSSL = {
-      version = "0.11.7.7";
-      sha256 = "sha256-45qWTqfY4fwCjTQsQg/f0EPkC5KZ8CFZYH4cwcw3Y18=";
-    };
-
     # Dependency of our overwritten tasty-ant-xml package. Once that's
     # upstreamed, remove this as well.
     tasty = {
