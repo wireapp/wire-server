@@ -91,6 +91,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
+          GetTeamAdmins tid -> getTeamAdmins tid
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -346,6 +347,23 @@ getTeamMembers tid = do
     req =
       method GET
         . paths ["i", "teams", toByteString' tid, "members"]
+        . expect2xx
+
+getTeamAdmins ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  Sem r TeamMemberList
+getTeamAdmins tid = do
+  debug $ remote "galley" . msg (val "Get team admins")
+  galleyRequest req >>= decodeBodyOrThrow "galley"
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", "admins"]
         . expect2xx
 
 memberIsTeamOwner ::
