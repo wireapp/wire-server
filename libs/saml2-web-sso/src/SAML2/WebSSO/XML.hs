@@ -246,7 +246,7 @@ wrapParse ::
   [Node] ->
   m us
 wrapParse imprt [NodeElement el] =
-  either (die (Proxy @us) . (,el)) imprt $
+  either (die (Proxy @us)) imprt $
     HS.xmlToSAML (renderLBS def $ Document defPrologue el defMiscellaneous)
 wrapParse _ badxml = error $ "internal error: " <> show badxml
 
