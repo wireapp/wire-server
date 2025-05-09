@@ -34,13 +34,14 @@ tests =
     [ testProperty "roundtrip serialise and parse groupId" $ roundtripGroupId
     ]
 
-roundtripGroupId :: ConvType -> Qualified ConvOrSubConvId -> GroupIdGen -> Property
-roundtripGroupId ct convId gen =
+roundtripGroupId :: GroupIdVersion -> ConvType -> Qualified ConvOrSubConvId -> GroupIdGen -> Property
+roundtripGroupId v ct convId gen =
   let gen' = case qUnqualified convId of
-        (Conv _) -> GroupIdGen 0
-        (SubConv _ _) -> gen
+        Conv _ | v < GroupIdVersion2 -> GroupIdGen 0
+        _ -> gen
    in groupIdToConv
         ( convToGroupId
+            v
             GroupIdParts
               { convType = ct,
                 qConvId = convId,
@@ -48,7 +49,8 @@ roundtripGroupId ct convId gen =
               }
         )
         === Right
-          ( GroupIdParts
+          ( v,
+            GroupIdParts
               { convType = ct,
                 qConvId = convId,
                 gidGen = gen'

@@ -84,6 +84,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -542,7 +543,9 @@ setupFakeMLSGroup ::
   MLSTest (GroupId, Qualified ConvId)
 setupFakeMLSGroup creator mSubId = do
   qcnv <- randomQualifiedId (ciDomain creator)
-  let groupId = convToGroupId . groupIdParts RegularConv $ maybe (Conv <$> qcnv) ((<$> qcnv) . flip SubConv) mSubId
+  let groupId =
+        convToGroupId GroupIdVersion2 . groupIdParts RegularConv 0 $
+          maybe (Conv <$> qcnv) ((<$> qcnv) . flip SubConv) mSubId
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
 
@@ -1078,9 +1081,9 @@ deleteSubConv ::
   UserId ->
   Qualified ConvId ->
   SubConvId ->
-  DeleteSubConversationRequest ->
+  MLSReset ->
   TestM ResponseLBS
-deleteSubConv u qcnv sconv dsc = do
+deleteSubConv u qcnv sconv reset = do
   g <- viewGalley
   delete $
     g
@@ -1093,7 +1096,7 @@ deleteSubConv u qcnv sconv dsc = do
         ]
       . zUser u
       . contentJson
-      . json dsc
+      . json reset
 
 leaveSubConv ::
   UserId ->
