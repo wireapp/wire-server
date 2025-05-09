@@ -386,6 +386,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.HashPassword
     Wire.MockInterpreters.IndexedUserStore
     Wire.MockInterpreters.InvitationStore
+    Wire.MockInterpreters.NotificationSubsystem
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
     Wire.MockInterpreters.PasswordStore

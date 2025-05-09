@@ -18,6 +18,7 @@ import Wire.MockInterpreters.GalleyAPIAccess as MockInterpreters
 import Wire.MockInterpreters.HashPassword as MockInterpreters
 import Wire.MockInterpreters.IndexedUserStore as MockInterpreters
 import Wire.MockInterpreters.InvitationStore as MockInterpreters
+import Wire.MockInterpreters.NotificationSubsystem as MockInterpreters
 import Wire.MockInterpreters.Now as MockInterpreters
 import Wire.MockInterpreters.PasswordResetCodeStore as MockInterpreters
 import Wire.MockInterpreters.PasswordStore as MockInterpreters
