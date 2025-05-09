@@ -66,7 +66,6 @@ hself: hsuper: {
   # version overrides
   # (these are fine but will probably need to be adjusted in a future nixpkgs update)
   # -----------------
-  tls = hsuper.tls_2_1_9;
   crypton-connection = hsuper.crypton-connection_0_4_4; # older version doesn't allow tls 2.1
 
   # warp requires curl in its testsuite
