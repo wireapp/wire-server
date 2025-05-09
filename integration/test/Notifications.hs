@@ -227,7 +227,6 @@ isConnectionNotif status n =
 isUserGroupCreatedNotif :: (MakesValue a) => a -> App Bool
 isUserGroupCreatedNotif = notifTypeIsEqual "user-group.created"
 
-
 assertLeaveNotification ::
   ( HasCallStack,
     MakesValue fromUser,
