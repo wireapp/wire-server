@@ -206,8 +206,8 @@ let
     postie = {
       src = fetchgit {
         url = "https://github.com/alexbiehl/postie";
-        rev = "7321b977a2b427e0be782b7239901e4edfbb027f";
-        hash = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
+        rev = "13404b8cb7164cd9010c9be6cda5423194dd0c06";
+        hash = "sha256-nNivtyBpr4DFsbaXxlCznX+MYtzNshU7vfVpnhMh52c=";
       };
     };
 
