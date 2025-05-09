@@ -35,6 +35,7 @@ hself: hsuper: {
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
+  postie = hlib.doJailbreak hsuper.postie;
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
