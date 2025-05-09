@@ -285,6 +285,20 @@ let
         hash = "sha256-VIM60sXCVC25ULf/2yPvqANK/h9BY6dEYY3o3/xiEEQ=";
       };
     };
+
+    # Latest master. Broken on nixpkgs due to missing
+    # amazonka-dynamodb-attributevalue package.
+    amazonka = {
+      src = fetchgit {
+        url = "https://github.com/brendanhay/amazonka";
+        rev = "7645bd335f008912b9e5257486f622b674de7afa";
+        hash = "sha256-ObamDnJdcLA2BlX9iGIxkaknUeL3Po3madKO4JA/em0=";
+      };
+      packages = {
+        amazonka-dynamodb = "lib/services/amazonka-dynamodb";
+        amazonka-dynamodb-attributevalue = "lib/amazonka-dynamodb-attributevalue";
+      };
+    };
   };
 
   hackagePins = {
