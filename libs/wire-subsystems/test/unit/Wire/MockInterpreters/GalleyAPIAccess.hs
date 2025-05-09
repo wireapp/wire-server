@@ -43,6 +43,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"
   UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
+  GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
 
 getFeatureConfigForTeamImpl :: forall feature. (IsFeatureConfig feature) => AllTeamFeatures -> TeamId -> LockableFeature feature
 getFeatureConfigForTeamImpl allfeatures _ = npProject' (Proxy @(feature)) allfeatures
