@@ -1,0 +1,3 @@
+Fix Redis replication in our docker-compose env (used to run integration tests
+locally): We allow only TLS connections to the Redis nodes. Thus, replication
+has to use TLS as well (by default it doesn't.)
