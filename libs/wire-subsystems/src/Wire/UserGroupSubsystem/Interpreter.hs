@@ -13,7 +13,9 @@ import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Team.Member
+import Wire.API.Team.Member qualified as TM
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
@@ -76,13 +78,12 @@ createUserGroupImpl creator newGroup = do
     throw $
       UserGroupMemberIsNotInTheSameTeam
   ug <- Store.createUserGroup team newGroup managedBy
-  admins <- todo "get admins from galley" team
-  let e = UserGroupEvent $ UserGroupCreated ug.id_
+  admins <- getTeamAdmins team
   let push =
         def
           { origin = Just creator,
-            json = toJSONObject e,
-            recipients = admins,
+            json = toJSONObject $ UserGroupEvent $ UserGroupCreated ug.id_,
+            recipients = (\tm -> Recipient (tm ^. TM.userId) RecipientClientsAll) <$> admins ^. teamMembers,
             transient = True
           }
   pushNotifications [push]
