@@ -260,12 +260,13 @@ let
       };
     };
 
-    # hs-opentelemetry-* has not been released for a while on hackage
+    # hs-opentelemetry-* has not been released for a while on hackage. Thus,
+    # we're following main.
     hs-opentelemetry = {
       src = fetchgit {
         url = "https://github.com/iand675/hs-opentelemetry";
-        rev = "0b3c854a88113fc18df8561202a76357e593a294";
-        hash = "sha256-N5FzKz6T1sE9xffGCeWa+iTW8a1GCLsy2TlAjzIed34=";
+        rev = "ee8a6dad7db306eb67748ddcd77df4974ad8259e";
+        hash = "sha256-UirBRxY9gAv5x/t87RZcWCy6GtsigzFMABKqrhS9b7s=";
       };
       packages = {
         hs-opentelemetry-sdk = "sdk";
