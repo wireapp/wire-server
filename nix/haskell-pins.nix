@@ -285,6 +285,21 @@ let
         hash = "sha256-VIM60sXCVC25ULf/2yPvqANK/h9BY6dEYY3o3/xiEEQ=";
       };
     };
+
+    # Latest master. Broken on nixpkgs due to missing
+    # amazonka-dynamodb-attributevalue package.
+    amazonka = {
+      src = fetchgit {
+        url = "https://github.com/brendanhay/amazonka";
+        rev = "7645bd335f008912b9e5257486f622b674de7afa";
+        hash = "sha256-ObamDnJdcLA2BlX9iGIxkaknUeL3Po3madKO4JA/em0=";
+      };
+      packages = {
+        amazonka-dynamodb = "lib/services/amazonka-dynamodb";
+        amazonka-dynamodb-attributevalue = "lib/amazonka-dynamodb-attributevalue";
+        amazonka-s3 = "lib/services/amazonka-s3";
+      };
+    };
   };
 
   hackagePins = {
@@ -307,6 +322,13 @@ let
       sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
     };
     # end pinned dependencies for http2
+
+    # This pin should not be necessary. However, without it, Nix tries to fetch
+    # the sources from the `amazonka` package and fails.
+    amazonka-s3-streaming = {
+      version = "2.0.0.0";
+      sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
