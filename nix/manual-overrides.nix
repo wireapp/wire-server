@@ -21,7 +21,7 @@ hself: hsuper: {
   singletons-base = hlib.markUnbroken (hlib.dontCheck hsuper.singletons-base);
 
   # Tests require a running redis
-  hedis = hlib.dontCheck hsuper.hedis;
+  hedis = hlib.dontCheck (hlib.doJailbreak hsuper.hedis);
 
   HaskellNet = hlib.markUnbroken (hlib.dontCheck hsuper.HaskellNet);
   amazonka-dynamodb = hlib.markUnbroken (hlib.dontCheck hsuper.amazonka-dynamodb);
