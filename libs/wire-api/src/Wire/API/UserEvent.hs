@@ -107,7 +107,7 @@ instance ToSchema EventType where
           element "user.client-add" EventTypeClientAdded,
           element "user.client-remove" EventTypeClientRemoved,
           element "user.connection" EventTypeConnection,
-          element "user-group.created" EventTypeConnection
+          element "user-group.created" EventTypeUserGroupCreated
         ]
 
 data UserEvent
