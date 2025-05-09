@@ -4,9 +4,9 @@ module Test.UserGroup where
 
 import API.Brig
 import API.Galley
+import Notifications (isUserGroupCreatedNotif)
 import SetupHelpers
 import Testlib.Prelude
-import Notifications (isUserGroupCreatedNotif)
 
 testUserGroupSmoke :: (HasCallStack) => App ()
 testUserGroupSmoke = do
@@ -26,7 +26,7 @@ testUserGroupSmoke = do
       asString $ (resp.json %. "id")
     for_ wss $ \ws -> do
       notif <- awaitMatch isUserGroupCreatedNotif ws
-      notif %. "payload.0.data.id" `shouldMatch` gid
+      notif %. "payload.0.user_group.id" `shouldMatch` gid
     pure gid
 
   bindResponse (getUserGroup owner badGid) $ \resp -> do
