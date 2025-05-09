@@ -48,6 +48,7 @@ module Galley.API.Teams
     uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
     uncheckedUpdateTeamMember,
+    uncheckedGetTeamAdmins,
     userIsTeamOwner,
     canUserJoinTeam,
     ensureNotTooLargeForLegalHold,
@@ -629,6 +630,12 @@ uncheckedAddTeamMember tid nmem = do
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem
   owners <- E.getBillingTeamMembers tid
   Journal.teamUpdate tid (sizeBeforeAdd + 1) owners
+
+uncheckedGetTeamAdmins :: forall r. (Member TeamStore r) => TeamId -> Sem r TeamMemberList
+uncheckedGetTeamAdmins tid = do
+  admins <- E.getTeamAdmins tid
+  membs <- E.selectTeamMembers tid admins
+  pure $ newTeamMemberList membs ListComplete
 
 uncheckedUpdateTeamMember ::
   forall r.
