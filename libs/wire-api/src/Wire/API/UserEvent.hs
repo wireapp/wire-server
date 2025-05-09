@@ -379,7 +379,7 @@ eventObjectSchema =
               _UserGroupEvent
               ( tag
                   _UserGroupCreated
-                  (field "id" (idObjectSchema schema))
+                  (field "user_group" (idObjectSchema schema))
               )
       )
   where
