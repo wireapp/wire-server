@@ -1,1 +1,1 @@
-With this commit a dependency to postgres is introduced. Postgres must be available in the deployment environment and brig and galley must be configured with the correct connection credentials.
+With this commit a dependency to postgres is introduced. Postgres must be available in the deployment environment and brig must be configured with the correct connection credentials.
