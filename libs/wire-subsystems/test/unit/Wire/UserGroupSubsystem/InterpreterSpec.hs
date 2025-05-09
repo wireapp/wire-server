@@ -1,8 +1,9 @@
-{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 
 module Wire.UserGroupSubsystem.InterpreterSpec (spec) where
 
 import Control.Lens ((.~), (^.))
+import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.Default
 import Data.Domain (Domain (Domain))
@@ -15,19 +16,24 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
+import Polysemy.Internal.Kind (Append)
 import Polysemy.State
 import System.Random (StdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll), Route (RouteAny))
 import Wire.API.Team.Member
+import Wire.API.Team.Member qualified as TM
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User as User
+import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.Arbitrary
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
+import Wire.NotificationSubsystem
 import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupSubsystem
@@ -45,6 +51,8 @@ runDependencies ::
        Rnd.Random,
        State StdGen,
        Input (Local ()),
+       NotificationSubsystem,
+       State [Push],
        Error UserGroupSubsystemError
      ]
     a ->
@@ -52,6 +60,34 @@ runDependencies ::
 runDependencies initialUsers initialTeams =
   run
     . runError
+    . evalState mempty
+    . inMemoryNotificationSubsystemInterpreter
+    . runInputConst (toLocalUnsafe (Domain "example.com") ())
+    . runInMemoryUserGroupStore def
+    . miniGalleyAPIAccess initialTeams def
+    . userSubsystemTestInterpreter initialUsers
+
+runDependenciesWithReturnState ::
+  [User] ->
+  Map TeamId [TeamMember] ->
+  Sem
+    ( '[ UserSubsystem,
+         GalleyAPIAccess
+       ]
+        `Append` EffectStack
+        `Append` '[ Input (Local ()),
+                    NotificationSubsystem,
+                    State [Push],
+                    Error UserGroupSubsystemError
+                  ]
+    )
+    a ->
+  Either UserGroupSubsystemError ([Push], a)
+runDependenciesWithReturnState initialUsers initialTeams =
+  run
+    . runError
+    . runState mempty
+    . inMemoryNotificationSubsystemInterpreter
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
@@ -92,6 +128,38 @@ spec = describe "UserGroupSubsystem.Interpreter" do
             .&&. createdGroup.managedBy === ManagedByWire
             .&&. createdGroup.createdAt === now
             .&&. Just createdGroup === retrievedGroup
+
+  prop "only team admins and owners should get a group created notification" $ \team name (tm :: TeamMember) role ->
+    let extraTeamMember = tm & permissions .~ rolePermissions role
+        resultOrError =
+          runDependenciesWithReturnState (allUsers team) (galleyTeamWithExtra team [extraTeamMember])
+            . interpretUserGroupSubsystem
+            $ do
+              let nug = NewUserGroup {name = name, members = mempty}
+              createGroup (ownerId team) nug
+
+        expectedRecipient = Recipient (tm ^. TM.userId) RecipientClientsAll
+
+        assertPushEvents :: UserGroup -> [Push] -> Property
+        assertPushEvents ug [push] = case A.fromJSON @Event (A.Object push.json) of
+          A.Success (UserGroupEvent (UserGroupCreated ugid)) ->
+            push.origin === Just (ownerId team)
+              .&&. push.transient === True
+              .&&. push.route === RouteAny
+              .&&. push.nativePriority === Nothing
+              .&&. push.isCellsEvent === False
+              .&&. push.conn === Nothing
+              .&&. ugid === ug.id_
+              .&&. ( case role of
+                       RoleAdmin -> (expectedRecipient `elem` push.recipients) === True
+                       RoleOwner -> (expectedRecipient `elem` push.recipients) === True
+                       RoleMember -> (expectedRecipient `elem` push.recipients) === False
+                       RoleExternalPartner -> (expectedRecipient `elem` push.recipients) === False
+                   )
+          _ -> counterexample ("Failed to decode push: " <> show push) False
+     in case resultOrError of
+          Left err -> counterexample ("Unexpected error: " <> show err) False
+          Right (pushes, ug) -> assertPushEvents ug pushes
 
   prop "only team admins should be able to create a group" $
     \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
@@ -244,4 +312,7 @@ ownerId t = User.userId (fst t.owner)
 
 -- | The Map is required by the mock GalleyAPIAccess
 galleyTeam :: ArbitraryTeam -> Map TeamId [TeamMember]
-galleyTeam t = Map.singleton t.tid . map snd $ t.owner : t.members
+galleyTeam t = galleyTeamWithExtra t []
+
+galleyTeamWithExtra :: ArbitraryTeam -> [TeamMember] -> Map TeamId [TeamMember]
+galleyTeamWithExtra t tm = Map.singleton t.tid $ tm <> map snd (t.owner : t.members)
