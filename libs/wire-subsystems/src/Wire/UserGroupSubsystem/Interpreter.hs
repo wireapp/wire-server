@@ -2,7 +2,9 @@ module Wire.UserGroupSubsystem.Interpreter where
 
 import Control.Error (MaybeT (..))
 import Control.Lens ((^.))
+import Data.Default
 import Data.Id
+import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
 import Data.Set qualified as Set
 import Imports
@@ -13,9 +15,11 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Team.Member
 import Wire.API.User
+import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.Error
 import Wire.GalleyAPIAccess
+import Wire.NotificationSubsystem
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
@@ -25,7 +29,8 @@ interpretUserGroupSubsystem ::
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member GalleyAPIAccess r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member NotificationSubsystem r
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
@@ -48,7 +53,8 @@ createUserGroupImpl ::
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member GalleyAPIAccess r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   NewUserGroup ->
@@ -69,7 +75,18 @@ createUserGroupImpl creator newGroup = do
   when (existingIds /= actualIds || not allInSameTeam) $
     throw $
       UserGroupMemberIsNotInTheSameTeam
-  Store.createUserGroup team newGroup managedBy
+  ug <- Store.createUserGroup team newGroup managedBy
+  admins <- todo "get admins from galley" team
+  let e = UserGroupEvent $ UserGroupCreated ug.id_
+  let push =
+        def
+          { origin = Just creator,
+            json = toJSONObject e,
+            recipients = admins,
+            transient = True
+          }
+  pushNotifications [push]
+  pure ug
 
 qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
 qualifyLocal a = do
