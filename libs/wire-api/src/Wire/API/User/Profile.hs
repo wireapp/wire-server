@@ -34,6 +34,8 @@ module Wire.API.User.Profile
     -- * ManagedBy
     ManagedBy (..),
     defaultManagedBy,
+    managedByToInt32,
+    managedByFromInt32,
 
     -- * Deprecated
     Pict (..),
@@ -50,6 +52,7 @@ import Data.ByteString.Conversion
 import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
+import Data.Text qualified as Text
 import Imports
 import Wire.API.Asset (AssetKey (..))
 import Wire.API.User.Orphans ()
@@ -197,12 +200,13 @@ instance C.Cql AssetSize where
 --------------------------------------------------------------------------------
 -- ManagedBy
 
--- | Who controls changes to the user profile (where the profile is defined as "all
--- user-editable, user-visible attributes").  See {#SparBrainDump}.
+-- | If a thing can be provisioned both with scim and without, this type can be used to tell
+-- which values have been provisioned in what way.  Use cases: user account information (see
+-- {#SparBrainDump}); `UserGroups`.
 data ManagedBy
-  = -- | The profile can be changed in-app; user doesn't show up via SCIM at all.
+  = -- | The user profile can be changed in-app; user doesn't show up via SCIM at all.
     ManagedByWire
-  | -- | The profile can only be changed via SCIM, with several exceptions:
+  | -- | The user profile can only be changed via SCIM, with several exceptions:
     --
     --   1. User properties can still be set (because they are used internally by clients
     --      and none of them can be modified via SCIM now or in the future).
@@ -210,12 +214,8 @@ data ManagedBy
     --   2. Password can be changed by the user (SCIM doesn't support setting passwords yet,
     --      but currently SCIM only works with SSO-users who don't even have passwords).
     --
-    --   3. The user can still be deleted normally (SCIM doesn't support deleting users yet;
-    --      but it's questionable whether this should even count as a /change/ of a user
-    --      profile).
-    --
     -- There are some other things that SCIM can't do yet, like setting accent IDs, but they
-    -- are not essential, unlike e.g. passwords.
+    -- are not essential, unlike e.g. passwords, so they can still be modified.
     ManagedByScim
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ManagedBy)
@@ -243,15 +243,24 @@ instance FromByteString ManagedBy where
 instance C.Cql ManagedBy where
   ctype = C.Tagged C.IntColumn
 
-  fromCql (C.CqlInt 0) = pure ManagedByWire
-  fromCql (C.CqlInt 1) = pure ManagedByScim
+  fromCql (C.CqlInt n) = mapLeft Text.unpack $ managedByFromInt32 n
   fromCql n = Left $ "Unexpected ManagedBy: " ++ show n
 
-  toCql ManagedByWire = C.CqlInt 0
-  toCql ManagedByScim = C.CqlInt 1
+  toCql = C.CqlInt . managedByToInt32
 
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
+
+managedByToInt32 :: ManagedBy -> Int32
+managedByToInt32 = \case
+  ManagedByWire -> 0
+  ManagedByScim -> 1
+
+managedByFromInt32 :: Int32 -> Either Text ManagedBy
+managedByFromInt32 = \case
+  0 -> Right ManagedByWire
+  1 -> Right ManagedByScim
+  n -> Left $ "Unexpected ManagedBy: " <> Text.pack (show n)
 
 --------------------------------------------------------------------------------
 -- Deprecated

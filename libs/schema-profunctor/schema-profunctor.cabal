@@ -62,7 +62,7 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson         >=2.0.1.0 && <2.2
+      aeson         >=2.0.1.0
     , base          >=4       && <5
     , bifunctors
     , comonad

@@ -32,10 +32,16 @@
 , exceptions
 , extended
 , extra
+, file-embed
 , gitignoreSource
 , hashable
 , HaskellNet
 , HaskellNet-SSL
+, hasql
+, hasql-migration
+, hasql-pool
+, hasql-th
+, hasql-transaction
 , hex
 , HsOpenSSL
 , hspec
@@ -55,12 +61,11 @@
 , mime-mail
 , network
 , network-conduit-tls
-, pipes
 , polysemy
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
-, postie
+, profunctors
 , prometheus-client
 , QuickCheck
 , quickcheck-instances
@@ -76,7 +81,6 @@
 , sodium-crypto-sign
 , statistics
 , stomp-queue
-, streaming-commons
 , string-conversions
 , template
 , text
@@ -134,9 +138,15 @@ mkDerivation {
     exceptions
     extended
     extra
+    file-embed
     hashable
     HaskellNet
     HaskellNet-SSL
+    hasql
+    hasql-migration
+    hasql-pool
+    hasql-th
+    hasql-transaction
     hex
     HsOpenSSL
     hspec
@@ -158,6 +168,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    profunctors
     prometheus-client
     QuickCheck
     resource-pool
@@ -194,49 +205,101 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    aeson-pretty
+    amazonka
+    amazonka-core
+    amazonka-ses
+    amqp
     async
+    attoparsec
     base
+    base16-bytestring
+    base64-bytestring
     bilge
+    bloodhound
     bytestring
+    bytestring-conversion
+    case-insensitive
     cassandra-util
+    conduit
     containers
+    cql
     crypton
+    currency-codes
     data-default
+    data-timeout
+    email-validate
     errors
+    exceptions
     extended
+    extra
+    file-embed
+    hashable
+    HaskellNet
+    HaskellNet-SSL
+    hasql
+    hasql-migration
+    hasql-pool
+    hasql-th
+    hasql-transaction
+    hex
+    HsOpenSSL
     hspec
+    html-entities
+    http-client
+    http-types
+    http2-manager
     imports
     iproute
     iso639
     lens
+    lrucaching
     memory
+    mime
     mime-mail
     network
-    pipes
+    network-conduit-tls
     polysemy
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
-    postie
+    profunctors
+    prometheus-client
     QuickCheck
     quickcheck-instances
     random
+    resource-pool
+    resourcet
+    retry
     saml2-web-sso
+    schema-profunctor
     scientific
+    servant
     servant-client-core
     sodium-crypto-sign
-    streaming-commons
+    statistics
+    stomp-queue
     string-conversions
+    template
     text
+    text-icu-translit
     time
+    time-out
+    time-units
     tinylog
+    token-bucket
     transformers
     types-common
+    unliftio
+    unordered-containers
     uri-bytestring
     uuid
     vector
+    wai-utilities
     wire-api
     wire-api-federation
+    wire-otel
+    witherable
     zauth
   ];
   testToolDepends = [ hspec-discover ];

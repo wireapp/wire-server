@@ -50,6 +50,8 @@
 , galley-types
 , gitignoreSource
 , hashable
+, hasql
+, hasql-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , hscim
@@ -200,6 +202,8 @@ mkDerivation {
     fsnotify
     galley-types
     hashable
+    hasql
+    hasql-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     HsOpenSSL
@@ -272,6 +276,7 @@ mkDerivation {
     wire-api-federation
     wire-otel
     wire-subsystems
+    yaml
     zauth
   ];
   executableHaskellDepends = [
