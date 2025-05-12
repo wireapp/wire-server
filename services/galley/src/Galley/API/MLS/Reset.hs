@@ -98,7 +98,7 @@ resetLocalMLSConversation ::
   Sem r ()
 resetLocalMLSConversation qusr ctype lcnvOrSub reset =
   case tUnqualified lcnvOrSub of
-    SubConv c s -> deleteLocalSubConversation qusr (c <$ lcnvOrSub) s reset -- TODO: extract
+    SubConv c s -> deleteLocalSubConversation qusr (c <$ lcnvOrSub) s reset
     Conv cnvId -> do
       let lcnvId = qualifyAs lcnvOrSub cnvId
       cnv <- getConversationAndCheckMembership qusr lcnvId
