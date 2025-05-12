@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, attoparsec
 , barbies
 , base
 , cassandra-util
@@ -17,10 +18,12 @@
 , lib
 , optparse-applicative
 , schema-profunctor
+, scientific
 , text
 , time
 , tinylog
 , types-common
+, vector
 , wire-api
 }:
 mkDerivation {
@@ -31,6 +34,7 @@ mkDerivation {
   isExecutable = true;
   executableHaskellDepends = [
     aeson
+    attoparsec
     barbies
     base
     cassandra-util
@@ -42,10 +46,12 @@ mkDerivation {
     lens
     optparse-applicative
     schema-profunctor
+    scientific
     text
     time
     tinylog
     types-common
+    vector
     wire-api
   ];
   description = "Meddle with feature-configs en-masse";

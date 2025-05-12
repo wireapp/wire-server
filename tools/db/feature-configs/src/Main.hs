@@ -40,7 +40,8 @@ main = do
       { granularity = s.granularity,
         logger = lgr,
         clientState = cs,
-        feature = s.feature
+        feature = s.feature,
+        selector = s.selector
       }
   where
     desc =

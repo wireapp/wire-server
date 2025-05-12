@@ -68,6 +68,7 @@ executable feature-configs
 
   build-depends:
       aeson
+    , attoparsec
     , barbies
     , base
     , cassandra-util
@@ -77,13 +78,14 @@ executable feature-configs
     , exceptions
     , imports
     , lens
-    , attoparsec
     , optparse-applicative
     , schema-profunctor
+    , scientific
     , text
     , time
     , tinylog
     , types-common
+    , vector
     , wire-api
 
   default-language:   GHC2021

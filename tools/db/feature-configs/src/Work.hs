@@ -22,10 +22,16 @@ module Work where
 import Cassandra
 import Conduit
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KM
 import Data.Conduit.List qualified as C
 import Data.Id
 import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Data.Vector qualified as V
+import Debug.Trace qualified as Debug
 import Imports
+import Selector
 import System.Logger qualified as Log
 import Wire.API.Team.Feature
 
@@ -33,7 +39,8 @@ data Opts = Opts
   { granularity :: Int,
     logger :: Log.Logger,
     clientState :: ClientState,
-    feature :: Text
+    feature :: Text,
+    selector :: Maybe Selector
   }
 
 runCommand :: Opts -> IO ()
@@ -53,6 +60,7 @@ runCommand opts = do
         .| C.map (filter $ \(_, feature, _, _, _) -> feature == opts.feature)
         .| C.concat
         .| C.mapM (<$ updateTeamCount)
+        .| C.filter (applySelector opts.selector)
         .| C.mapM_
           ( \(tid, _, status, lockStatus, cfg) -> do
               modifyIORef uniqConfigs $
@@ -80,6 +88,45 @@ runCommand opts = do
         . Log.field "lockStatus" (show lockStatus)
         . Log.field "config" (Aeson.encode $ (.unDbConfig) <$> cfg)
         . Log.field "team_count" (length teams)
+
+applySelector :: Maybe Selector -> FeatureRow -> Bool
+applySelector Nothing _ = True
+applySelector (Just sel) row@(_, _, status, lockStatus, config) =
+  case sel of
+    SelectorFeatureStatusEq expectedStatus ->
+      Just expectedStatus == status
+    SelectorLockStatusEq expectedLockStatus ->
+      Just expectedLockStatus == lockStatus
+    SelectorDbConfigCompare path op compVal ->
+      compareDbConfig path op compVal config
+    SelectorAnd sel1 sel2 ->
+      applySelector (Just sel1) row && applySelector (Just sel2) row
+    SelectorOr sel1 sel2 ->
+      applySelector (Just sel1) row || applySelector (Just sel2) row
+
+compareDbConfig :: [Text] -> Ordering -> Val -> Maybe DbConfig -> Bool
+compareDbConfig _ _ _ Nothing = False
+compareDbConfig path expectedOrder compVal (Just config) =
+  let mActualVal = retrieveVal path config.unDbConfig
+   in case mActualVal of
+        Nothing -> False
+        Just actualVal ->
+          let actualOrder = compVal `compare` actualVal
+           in expectedOrder == actualOrder
+
+retrieveVal :: [Text] -> Aeson.Value -> Maybe Val
+retrieveVal [] config =
+  case config of
+    Aeson.String str -> Just $ ValStr str
+    Aeson.Number n -> Just $ ValNum n
+    _ -> Nothing
+retrieveVal (segment : remaining) config =
+  Debug.trace ("following segment: " <> Text.unpack segment) $ case (readMaybe @Int (Text.unpack segment), config) of
+    (Just n, Aeson.Array arr) ->
+      retrieveVal remaining =<< (arr V.!? n)
+    (_, Aeson.Object obj) ->
+      retrieveVal remaining =<< KM.lookup (Key.fromText segment) obj
+    _ -> Nothing
 
 pageSize :: Int32
 pageSize = 10000
