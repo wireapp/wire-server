@@ -86,6 +86,7 @@ library
       aeson                >=2.1.2
     , aeson-qq             >=0.8.4   && <0.9
     , attoparsec           >=0.14.4  && <0.15
+    , attoparsec-aeson
     , base                 >=4.17.2  && <4.21
     , bytestring           >=0.10.4  && <0.13
     , case-insensitive     >=1.2.1   && <1.3
