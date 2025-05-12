@@ -101,7 +101,7 @@ backendConfigSchemaV8 :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
 backendConfigSchemaV8 =
   (,)
     <$> fst .= field "backend_url" schema
-    -- API versions <= V9 ignore the WebApp URL
+    -- API versions <= V8 ignore the WebApp URL
     <*> const Nothing .= pure Nothing
 
 domainRedirectSchema :: ObjectSchema SwaggerDoc DomainRedirect
