@@ -92,7 +92,7 @@ import Data.Function
 import Data.Functor
 import Data.Functor.Identity
 import Data.Int
-import Data.List hiding (delete, insert, singleton)
+import Data.List hiding (delete, insert, singleton, unzip)
 import Data.Map (Map)
 import Data.Maybe
 import Data.Monoid hiding (First (..), Last (..))
