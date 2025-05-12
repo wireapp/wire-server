@@ -29,7 +29,6 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.Vector qualified as V
-import Debug.Trace qualified as Debug
 import Imports
 import Selector
 import System.Logger qualified as Log
@@ -40,11 +39,23 @@ data Opts = Opts
     logger :: Log.Logger,
     clientState :: ClientState,
     feature :: Text,
-    selector :: Maybe Selector
+    selector :: Maybe Selector,
+    update :: Maybe UpdateOperation,
+    dryRun :: Bool
   }
 
+accumulateConfigs :: (MonadIO m, Ord cfg) => IORef (Map cfg [tid]) -> cfg -> tid -> m ()
+accumulateConfigs configsRef cfg tid = do
+  modifyIORef configsRef $
+    Map.insertWith (<>) cfg [tid]
+
 runCommand :: Opts -> IO ()
-runCommand opts = do
+runCommand opts =
+  selectConfigs opts
+    >>= updateConfigs opts
+
+selectConfigs :: Opts -> IO (Map PersistedConfig [TeamId])
+selectConfigs opts = do
   uniqConfigs :: IORef (Map (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig) [TeamId]) <- newIORef mempty
   teamCount :: IORef Int <- newIORef 0
   let updateTeamCount = do
@@ -61,11 +72,7 @@ runCommand opts = do
         .| C.concat
         .| C.mapM (<$ updateTeamCount)
         .| C.filter (applySelector opts.selector)
-        .| C.mapM_
-          ( \(tid, _, status, lockStatus, cfg) -> do
-              modifyIORef uniqConfigs $
-                Map.insertWith (<>) (status, lockStatus, cfg) [tid]
-          )
+        .| C.mapM_ (\(tid, _, status, lock, cfg) -> accumulateConfigs uniqConfigs (status, lock, cfg) tid)
   finalCount <- readIORef teamCount
   configs <- readIORef uniqConfigs
   Log.info opts.logger $
@@ -73,8 +80,38 @@ runCommand opts = do
       . Log.field "team_feature" opts.feature
       . Log.field "team_count" finalCount
       . Log.field "unique_configs" (Map.size configs)
+  printMostPopularConfigs opts.logger configs
+  pure configs
+
+updateConfigs :: Opts -> Map PersistedConfig [TeamId] -> IO ()
+updateConfigs Opts {update = Nothing, logger} _ =
+  Log.info logger $ Log.msg (Log.val "No updates")
+updateConfigs opts@Opts {update = Just upd} oldConfigs = do
+  let computedUpdate = computeUpdate upd
+  newUniqConfigs :: IORef (Map (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig) [TeamId]) <- newIORef mempty
+  runClient opts.clientState . runConduit $
+    C.sourceList (Map.toList oldConfigs)
+      .| C.mapFoldable distributeTuple
+      .| C.mapM
+        ( \(cfg, tid) -> do
+            newCfg <- applyUpdate opts.feature opts.logger opts.dryRun computedUpdate cfg tid
+            pure (newCfg, tid)
+        )
+      .| C.mapM_ (uncurry $ accumulateConfigs newUniqConfigs)
+  newConfigs <- readIORef newUniqConfigs
+  Log.info opts.logger $
+    Log.msg (Log.val "Finished updating configs")
+      . Log.field "dryRun" opts.dryRun
+      . Log.field "unique_configs" (Map.size newConfigs)
+  printMostPopularConfigs opts.logger newConfigs
+
+distributeTuple :: (a, [b]) -> [(a, b)]
+distributeTuple (a, bs) = (a,) <$> bs
+
+printMostPopularConfigs :: (MonadIO m) => Log.Logger -> Map PersistedConfig [TeamId] -> m ()
+printMostPopularConfigs lgr configs = do
   when (Map.size configs > 20) $
-    Log.warn opts.logger $
+    Log.warn lgr $
       Log.msg (Log.val "Too many different configs found, printing only 20 most popular configs.")
         . Log.field "config_count" (Map.size configs)
   let mostPopularConfigs =
@@ -82,12 +119,92 @@ runCommand opts = do
           . sortOn ((0 -) . length . snd)
           $ Map.toList configs
   for_ mostPopularConfigs $ \((status, lockStatus, cfg), teams) ->
-    Log.info opts.logger $
+    Log.info lgr $
       Log.msg (Log.val "feature config")
         . Log.field "status" (show status)
         . Log.field "lockStatus" (show lockStatus)
         . Log.field "config" (Aeson.encode $ (.unDbConfig) <$> cfg)
         . Log.field "team_count" (length teams)
+
+type PersistedConfig = (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
+
+applyUpdate :: Text -> Log.Logger -> Bool -> ComputedUpdate -> PersistedConfig -> TeamId -> Client PersistedConfig
+applyUpdate feature lgr dryRun upd (mOldStatus, mOldLock, mOldConfig) tid = do
+  let mNewStatus = upd.status <|> mOldStatus
+      mNewLock = upd.lockStatus <|> mOldLock
+      mNewConfig = maybe id (Just .) upd.dbConfig $ mOldConfig
+  Log.debug lgr $
+    Log.msg (Log.val "Feature config update")
+      . Log.field "status" (show mNewStatus)
+      . Log.field "lockStatus" (show mNewLock)
+      . Log.field "config" (show mNewConfig)
+      . Log.field "team" (idToText tid)
+  unless dryRun $ do
+    let mStatusUpdate = if mOldStatus /= mNewStatus then mNewStatus else Nothing
+        mLockUpdate = if mOldLock /= mNewLock then mNewLock else Nothing
+        mConfigUpdate = if mOldConfig /= mNewConfig then mNewConfig else Nothing
+    updateConfig feature tid (mStatusUpdate, mLockUpdate, mConfigUpdate)
+  pure (mNewStatus, mNewLock, mNewConfig)
+
+data ComputedUpdate = ComputedUpdate
+  { status :: Maybe FeatureStatus,
+    lockStatus :: Maybe LockStatus,
+    dbConfig :: Maybe (Maybe DbConfig -> DbConfig)
+  }
+
+computeUpdate :: UpdateOperation -> ComputedUpdate
+computeUpdate = \case
+  UpdateStatus newStatus -> ComputedUpdate (Just newStatus) Nothing Nothing
+  UpdateLockStatus newLock -> ComputedUpdate Nothing (Just newLock) Nothing
+  UpdateDbConfig path newVal ->
+    ComputedUpdate Nothing Nothing . Just $ \mDbConfig ->
+      DbConfig
+        . dbConfigUpdate path newVal
+        $ maybe Aeson.Null (.unDbConfig) mDbConfig
+  UpdateMultiple upd1 upd2 -> mergeUpdates (computeUpdate upd1) (computeUpdate upd2)
+
+mergeUpdates :: ComputedUpdate -> ComputedUpdate -> ComputedUpdate
+mergeUpdates upd1 upd2 =
+  ComputedUpdate
+    { status = upd1.status <|> upd2.status,
+      lockStatus = upd1.lockStatus <|> upd2.lockStatus,
+      dbConfig = case (upd1.dbConfig, upd2.dbConfig) of
+        (Just u1, Just u2) -> Just $ u1 . Just . u2
+        (Just u1, _) -> Just u1
+        (_, u2) -> u2
+    }
+
+dbConfigUpdate :: [Text] -> Val -> Aeson.Value -> Aeson.Value
+dbConfigUpdate [] _ cfg = cfg
+dbConfigUpdate (seg : remaining) val cfg =
+  let valJson = case val of
+        ValStr s -> Aeson.String s
+        ValNum n -> Aeson.Number n
+      newVal previousVal =
+        case remaining of
+          [] -> valJson
+          _ -> dbConfigUpdate remaining val previousVal
+   in case (readMaybe @Int (Text.unpack seg), cfg) of
+        (Just n, Aeson.Array arr) ->
+          if
+            | n < 0 -> cfg
+            | n < V.length arr ->
+                let previousVal = arr V.! n
+                 in Aeson.Array $ arr V.// [(n, newVal previousVal)]
+            | n == V.length arr -> Aeson.Array $ V.snoc arr (newVal Aeson.Null)
+            | otherwise -> cfg
+        (Just 0, Aeson.Null) ->
+          Aeson.Array . V.singleton $ newVal Aeson.Null
+        (Just _, Aeson.Null) ->
+          error "invalid update"
+        (_, Aeson.Object obj) ->
+          let key = Key.fromText seg
+              previousVal = fromMaybe Aeson.Null $ KM.lookup key obj
+           in Aeson.Object $ KM.insert key (newVal previousVal) obj
+        (Nothing, Aeson.Null) ->
+          let key = Key.fromText seg
+           in Aeson.Object $ KM.singleton key (newVal Aeson.Null)
+        _ -> cfg
 
 applySelector :: Maybe Selector -> FeatureRow -> Bool
 applySelector Nothing _ = True
@@ -121,7 +238,7 @@ retrieveVal [] config =
     Aeson.Number n -> Just $ ValNum n
     _ -> Nothing
 retrieveVal (segment : remaining) config =
-  Debug.trace ("following segment: " <> Text.unpack segment) $ case (readMaybe @Int (Text.unpack segment), config) of
+  case (readMaybe @Int (Text.unpack segment), config) of
     (Just n, Aeson.Array arr) ->
       retrieveVal remaining =<< (arr V.!? n)
     (_, Aeson.Object obj) ->
@@ -141,3 +258,21 @@ getConfigs =
   where
     q :: PrepQuery R () FeatureRow
     q = "select team, feature, status, lock_status, config from team_features_dyn"
+
+updateConfig :: Text -> TeamId -> PersistedConfig -> Client ()
+updateConfig feature tid (mUpdateStatus, mUpdateLock, mUpdateConfig) = do
+  batch $ do
+    setConsistency LocalQuorum
+    for_ mUpdateStatus $ \status ->
+      addPrepQuery qStatus (tid, feature, status)
+    for_ mUpdateLock $ \lock ->
+      addPrepQuery qLock (tid, feature, lock)
+    for_ mUpdateConfig $ \cfg ->
+      addPrepQuery qConfig (tid, feature, cfg)
+  where
+    qStatus :: PrepQuery W (TeamId, Text, FeatureStatus) ()
+    qStatus = "update team_features_dyn where team = ? and feature = ? set status = ?"
+    qLock :: PrepQuery W (TeamId, Text, LockStatus) ()
+    qLock = "update team_features_dyn where team = ? and feature = ? set lock_status = ?"
+    qConfig :: PrepQuery W (TeamId, Text, DbConfig) ()
+    qConfig = "update team_features_dyn where team = ? and feature = ? set config = ?"

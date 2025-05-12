@@ -136,6 +136,7 @@ library
     Test.FeatureFlags.Cells
     Test.FeatureFlags.Channels
     Test.FeatureFlags.ClassifiedDomains
+    Test.FeatureFlags.CLI
     Test.FeatureFlags.ConferenceCalling
     Test.FeatureFlags.DigitalSignatures
     Test.FeatureFlags.DomainRegistration

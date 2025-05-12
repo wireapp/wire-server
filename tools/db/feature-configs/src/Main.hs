@@ -41,12 +41,14 @@ main = do
         logger = lgr,
         clientState = cs,
         feature = s.feature,
-        selector = s.selector
+        selector = s.selector,
+        update = s.update,
+        dryRun = s.dryRun
       }
   where
     desc =
-      header "migrate-features"
-        <> progDesc "Migrate features to team_features_dyn"
+      header "feature-configs"
+        <> progDesc "DB Operations on feature-configs"
         <> fullDesc
     initLogger =
       Log.new

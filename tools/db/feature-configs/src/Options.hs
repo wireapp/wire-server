@@ -28,7 +28,8 @@ data Settings = Settings
     granularity :: Int,
     feature :: Text,
     selector :: Maybe Selector,
-    update :: Maybe UpdateOperation
+    update :: Maybe UpdateOperation,
+    dryRun :: Bool
   }
   deriving (Show)
 
@@ -71,6 +72,7 @@ settingsParser =
               <> help "Update configs, example: 'status=disabled', ''"
           )
       )
+    <*> switch (long "dry-run" <> help "Do not apply the update, only print the new config stats")
 
 cassandraSettingsParser :: String -> Parser CassandraSettings
 cassandraSettingsParser ks =

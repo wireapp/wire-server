@@ -84,16 +84,26 @@ data UpdateOperation
   = UpdateStatus FeatureStatus
   | UpdateLockStatus LockStatus
   | UpdateDbConfig [Text] Val
+  | UpdateMultiple UpdateOperation UpdateOperation
   deriving (Show)
 
 parseUpdateOperation :: String -> Either String UpdateOperation
 parseUpdateOperation input = parseOnly (updateOperationParser <* endOfInput) (Text.pack input)
 
 updateOperationParser :: Parser UpdateOperation
-updateOperationParser =
-  (UpdateStatus <$> featureStatusParser)
-    <|> (UpdateLockStatus <$> lockStatusParser)
-    <|> ( dbConfigSelectorParser >>= \(path, op, val) -> do
-            unless (op /= EQ) $ fail "Invalid use of non '=' operator"
-            pure $ UpdateDbConfig path val
-        )
+updateOperationParser = do
+  upd1 <-
+    (UpdateStatus <$> featureStatusParser)
+      <|> (UpdateLockStatus <$> lockStatusParser)
+      <|> ( dbConfigSelectorParser >>= \(path, op, val) -> do
+              when (op /= EQ) $ fail $ "Invalid use of non '=' operator: " <> show op
+              pure $ UpdateDbConfig path val
+          )
+  _ <- skipSpace
+  c <- peekChar
+  case c of
+    Just ',' -> do
+      _ <- char ','
+      _ <- skipSpace
+      UpdateMultiple upd1 <$> updateOperationParser
+    _ -> pure upd1
