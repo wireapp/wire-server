@@ -19,6 +19,7 @@ import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind (Append)
 import Polysemy.State
 import System.Random (StdGen)
+import System.Timeout (timeout)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -107,13 +108,19 @@ unexpected :: Sem r Property
 unexpected =
   pure $ counterexample "An error was expected to have occured by now" False
 
+timeoutHook :: Spec -> Spec
+timeoutHook = around_ $ maybe (fail "exceeded timeout") pure <=< timeout 1_000_000
+
 spec :: Spec
--- TODO re-activate (but: timeout)
-spec = xdescribe "UserGroupSubsystem.Interpreter" do
+spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
+  focus . prop "bzzp" $
+    \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) (newUserGroupName :: UserGroupName) ->
+      False === True
+
   -- TODO: add these "describe" sections once #4545 is merged.
   -- describe "CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup" $ do
   prop "only team admins should be able to create a group" $
-    \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
+    \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) (newUserGroupName :: UserGroupName) ->
       expectLeft UserGroupCreatorIsNotATeamAdmin
         . runDependencies (allUsers team) (galleyTeam team)
         . interpretUserGroupSubsystem
@@ -205,9 +212,6 @@ spec = xdescribe "UserGroupSubsystem.Interpreter" do
         pure $ mGroup === Nothing
 
   {-
-  timeoutHook :: Spec -> Spec
-  timeoutHook = around_ $ maybe (fail "exceeded timeout") pure <=< timeout 1_000_000
-
           focus . prop "team members can only get their own groups" $ \team userGroupName1 userGroupName2 ->
             let (memSet1, memSet2) = splitAt (length team.members `div` 2) (User.userId . fst <$> team.members)
              in all notNull [memSet1, memSet2]
@@ -440,6 +444,7 @@ instance Arbitrary ArbitraryTeam where
       mem <- arbitrary
       pure (u, mem & TeamMember.userId .~ User.userId u)
     pure . ArbitraryTeam tid (adminUser, adminMember) $ map (first assignTeam) otherUserWithMembers
+  shrink _ = []
 
 allUsers :: ArbitraryTeam -> [User]
 allUsers t = fst <$> t.owner : t.members

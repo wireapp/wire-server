@@ -468,12 +468,14 @@ newtype Ranged m n a = Ranged {fromRanged :: a}
 
 instance (Arbitrary (Range m n a)) => Arbitrary (Ranged m n a) where
   arbitrary = Ranged . fromRange <$> arbitrary @(Range m n a)
+  shrink _ = [] -- the default implementation doesn't always terminate.
 
 instance
   (KnownNat n, KnownNat m, n <= m, Arbitrary a, Show a) =>
   Arbitrary (Range n m [a])
   where
   arbitrary = genRangeList @n @m @a arbitrary
+  shrink _ = [] -- the default implementation doesn't always terminate.
 
 genRangeList ::
   forall (n :: Nat) (m :: Nat) (a :: Type).
@@ -487,6 +489,7 @@ instance
   Arbitrary (Range n m (Set a))
   where
   arbitrary = genRangeSet @n @m @a arbitrary
+  shrink _ = [] -- the default implementation doesn't always terminate.
 
 -- | This has a risk of not terminating if the set is requested to be bigger
 -- than the number of possible distinct values.
