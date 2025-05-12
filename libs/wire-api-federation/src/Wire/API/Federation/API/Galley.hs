@@ -145,7 +145,7 @@ type GalleyApi =
            GetOne2OneConversationRequest
            GetOne2OneConversationResponseV2
     :<|> FedEndpointWithMods
-           '[From 'V2]
+           '[From 'V3]
            "reset-conversation"
            ResetConversationRequest
            ResetConversationResponse

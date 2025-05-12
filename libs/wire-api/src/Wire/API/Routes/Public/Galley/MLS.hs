@@ -151,6 +151,7 @@ type MLSMessagingAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
+               :> CanThrow 'MLSFederatedResetNotSupported
                :> CanThrow MLSProtocolErrorTag
                :> MultiVerb1
                     'POST
