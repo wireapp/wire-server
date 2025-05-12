@@ -56,6 +56,8 @@ userGroupStoreTestInterpreter =
   interpret \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid -> getUserGroupImpl tid gid
+    GetUserGroups tid limit lastKey -> getUserGroupsImpl tid limit lastKey
+    GetUserGroupsForUser lusr limit lastKey -> getUserGroupsForUserImpl lusr limit lastKey
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser tid gid uid -> addUserImpl tid gid uid
@@ -79,6 +81,27 @@ createUserGroupImpl tid nug managedBy = do
 
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
+
+getUserGroupsImpl :: (EffectConstraints r) => TeamId -> Maybe Int -> Maybe UserGroupId -> Sem r UserGroupPage
+getUserGroupsImpl tid (fromMaybe 100 -> limit) mbLastKey = do
+  allGroups :: [(UserGroupId, UserGroup)] <- do
+    let f :: ((TeamId, a), b) -> [(a, b)] -> [(a, b)]
+        f ((tidx, gid), grp) acc = if tidx == tid then (gid, grp) : acc else acc
+    (foldr f [] . Map.toList . (.userGroups)) <$> get
+
+  let cutLowerBound :: forall a. (a ~ [(UserGroupId, UserGroup)]) => a -> a
+      cutLowerBound = maybe id (\lastKey -> filter ((> lastKey) . fst)) mbLastKey
+
+      relevant :: [UserGroup]
+      relevant = map snd . cutLowerBound $ allGroups
+
+      truncated :: [UserGroup]
+      truncated = Imports.take limit $ relevant
+
+  pure $ UserGroupPage truncated (length truncated /= length relevant)
+
+getUserGroupsForUserImpl :: (EffectConstraints r) => UserId -> Maybe Int -> Maybe UserGroupId -> Sem r UserGroupPage
+getUserGroupsForUserImpl = undefined
 
 updateUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe UserGroup)
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do

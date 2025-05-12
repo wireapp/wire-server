@@ -315,6 +315,18 @@ type UserGroupAPI =
                     (Maybe UserGroup)
            )
     :<|> Named
+           "get-user-groups"
+           ( Description "limit=0 means no limit.  default limit is 100."
+               :> From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               -- TODO: use Range?
+               :> QueryParam "limit" Int
+               -- TODO: use PagingState?
+               :> QueryParam "last_key" UserGroupId
+               :> Get '[JSON] UserGroupPage
+           )
+    :<|> Named
            "update-user-group"
            ( From 'V9
                :> ZLocalUser

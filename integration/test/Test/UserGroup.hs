@@ -39,6 +39,15 @@ testUserGroupSmoke = do
     resp.status `shouldMatchInt` 200
     resp.json %. "members" `shouldMatch` [mem1id, mem2id]
 
+  bindResponse (getUserGroups owner (Just 1) Nothing) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members" `shouldMatch` [mem1id]
+
+  bindResponse (getUserGroups owner (Just 3) (Just mem1id)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "page" `shouldMatch` [mem2id]
+    resp.json %. "hasMore" `shouldMatch` False
+
   bindResponse (updateUserGroup owner badGid (object ["name" .= ""])) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
