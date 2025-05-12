@@ -45,6 +45,7 @@ module Galley.Effects.ConversationStore
     setConversationEpoch,
     setConversationCipherSuite,
     setConversationCellsState,
+    resetConversation,
     acceptConnectConversation,
     setGroupInfo,
     updateToMixedProtocol,
@@ -102,6 +103,7 @@ data ConversationStore m a where
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
   SetConversationCellsState :: ConvId -> CellsState -> ConversationStore m ()
+  ResetConversation :: ConvId -> GroupId -> ConversationStore m ()
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired

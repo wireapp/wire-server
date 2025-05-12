@@ -1,0 +1,1 @@
+Add a new endpoint `/mls/reset-conversation` which can be used to restore an MLS group that ended up in an invalid state for any reason. After resetting, the conversation has the same users, but the corresponding MLS group gets a new group ID and resets to epoch 0 with no clients.
