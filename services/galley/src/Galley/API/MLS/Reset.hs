@@ -59,6 +59,7 @@ resetMLSConversation ::
     Member (ErrorS ConvNotFound) r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS InvalidOperation) r,
+    Member (ErrorS MLSFederatedResetNotSupported) r,
     Member Resource r,
     Member ConversationStore r,
     Member FederatorAccess r,
@@ -142,7 +143,8 @@ resetRemoteMLSConversation ::
     Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS ConvAccessDenied) r,
     Member (ErrorS InvalidOperation) r,
-    Member (ErrorS ConvNotFound) r
+    Member (ErrorS ConvNotFound) r,
+    Member (ErrorS MLSFederatedResetNotSupported) r
   ) =>
   Remote x ->
   Local UserId ->
@@ -155,7 +157,10 @@ resetRemoteMLSConversation r lusr reset = do
             groupId = reset.groupId,
             epoch = reset.epoch
           }
-  runFederated r (fedClient @'Galley @"reset-conversation" req) >>= \case
-    ResetConversationError e -> rethrowErrors @ResetConversationStaticErrors e
-    ResetConversationMLSProtocolError msg -> throw (mlsProtocolError msg)
-    ResetConversationOk -> pure ()
+  runFederatedEither r (fedClient @'Galley @"reset-conversation" req) >>= \case
+    Left (FederationCallFailure FederatorClientVersionMismatch) ->
+      throwS @MLSFederatedResetNotSupported
+    Left e -> throw e
+    Right (ResetConversationError e) -> rethrowErrors @ResetConversationStaticErrors e
+    Right (ResetConversationMLSProtocolError msg) -> throw (mlsProtocolError msg)
+    Right ResetConversationOk -> pure ()
