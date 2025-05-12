@@ -38,6 +38,7 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
+  GetGroups getter range lastKey -> getGroupsImpl getter range lastKey
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -115,6 +116,25 @@ getUserGroupImpl getter gid = runMaybeT $ do
   if getterCanSeeAll || getter `elem` (toList userGroup.members)
     then pure userGroup
     else MaybeT $ pure Nothing
+
+getGroupsImpl ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  Maybe Int ->
+  Maybe UserGroupId ->
+  Sem r UserGroupPage
+getGroupsImpl getter range lastKey = fmap (fromMaybe empty) <$> runMaybeT $ do
+  team <- MaybeT $ getUserTeam getter
+  getterCanSeeAll <- (isAdminOrOwner . (^. permissions)) <$> MaybeT (getTeamMember getter team)
+  lift $
+    if getterCanSeeAll
+      then Store.getUserGroups team range lastKey
+      else Store.getUserGroupsForUser getter range lastKey
+  where
+    empty = UserGroupPage [] False
 
 updateGroupImpl ::
   ( Member UserSubsystem r,

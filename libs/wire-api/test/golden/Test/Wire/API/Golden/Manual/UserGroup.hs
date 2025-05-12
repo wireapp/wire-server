@@ -41,3 +41,9 @@ testObject_UserGroup_1 = UserGroup userGroupId1 (unsafeToUserGroupName "name") m
 
 testObject_UserGroup_2 :: UserGroup
 testObject_UserGroup_2 = UserGroup userGroupId2 (unsafeToUserGroupName "yet another one") (fromList [userId1, userId2]) ManagedByScim someUTCTime
+
+testObject_UserGroupPage_1 :: UserGroupPage
+testObject_UserGroupPage_1 = UserGroupPage [] False
+
+testObject_UserGroupPage_2 :: UserGroupPage
+testObject_UserGroupPage_2 = UserGroupPage [testObject_UserGroup_1, testObject_UserGroup_2] True
