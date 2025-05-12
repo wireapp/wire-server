@@ -124,12 +124,13 @@ parseAuthnResponseBody mbSPId base64 = do
   -- '=', and probably other noise, this seems the safe thing to do.  It is no less secure than
   -- rejecting some noise characters and ignoring others.
   let xmltxt :: LBS = EL.decodeLenient (cs base64 :: LBS)
+      mkErr errmsg = BadSamlResponseXmlError (cs $ "error message: " <> cs errmsg <> "; base64-encoded saml authentication response: " <> base64)
 
   (signedAssertions, idp, status) <- do
     resp <-
       -- do not use `resp` as a result of `parseAuthnResponseBody`!  only use what comes back
       -- from `simpleVerifyAuthnResponse`!
-      either (throwError . BadSamlResponseXmlError . cs) pure $
+      either (throwError . mkErr) pure $
         decode @_ @AuthnResponse (cs xmltxt)
     issuer <- do
       respIssuer :: Issuer <-
