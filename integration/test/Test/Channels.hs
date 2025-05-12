@@ -19,6 +19,7 @@
 
 module Test.Channels where
 
+import API.Brig (createUserGroup)
 import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
@@ -420,13 +421,18 @@ testTeamAdminCanCreateChannelWithoutJoining = do
 
 testTeamAdminCanAddMembersWithoutJoining :: (HasCallStack) => App ()
 testTeamAdminCanAddMembersWithoutJoining = do
-  (owner, tid, mem1 : mem2 : _) <- createTeam OwnDomain 3
+  (owner, tid, mem1 : mem2 : mem3 : mem4 : _) <- createTeam OwnDomain 5
   -- mem1 already has a client
   mem1Client <- createMLSClient def mem1
   void $ uploadNewKeyPackage def mem1Client
 
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  mem3id <- asString $ mem3 %. "id"
+  mem4id <- asString $ mem4 %. "id"
+  _gid <- bindResponse (createUserGroup owner (object ["name" .= "test user group", "members" .= ([mem3id, mem4id])])) $ \resp -> do
+    asString $ (resp.json %. "id")
 
   -- the team admin creates a channel without joining
   channel <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
@@ -460,6 +466,5 @@ testTeamAdminCanAddMembersWithoutJoining = do
   cids <- cidsResponse.json >>= (%. "qualified_conversations") & asList
 
   for_ cids $ \qcid -> do
-    _conv <- getConversation mem2 qcid >>= getJSON 200
     -- client should sync MLS state add itself to the MLS group
-    undefined
+    void $ getConversation mem2 qcid >>= getJSON 200
