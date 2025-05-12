@@ -892,7 +892,7 @@ instance ToSchema NewOne2OneConv where
       "NewOne2OneConv"
       (description ?~ "JSON object to create a new 1:1 conversation. When using 'qualified_users' (preferred), you can omit 'users'")
       $ NewOne2OneConv
-        <$> users
+        <$> (.users)
           .= ( fieldWithDocModifier
                  "users"
                  ( (S.deprecated ?~ True)
@@ -946,9 +946,10 @@ instance ToSchema Invite where
           .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 
 data InviteQualified = InviteQualified
-  { invQUsers :: NonEmpty (Qualified UserId),
+  { users :: NonEmpty (Qualified UserId),
     -- | This role name is to be applied to all users
-    invQRoleName :: RoleName
+    roleName :: RoleName,
+    userGroups :: [UserGroupId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InviteQualified)
@@ -958,9 +959,9 @@ instance ToSchema InviteQualified where
   schema =
     object "InviteQualified" $
       InviteQualified
-        <$> invQUsers .= field "qualified_users" (nonEmptyArray schema)
-        <*> invQRoleName
-          .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+        <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
+        <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+        <*> userGroups .= (fromMaybe mempty <$> optField "user_groups" (array schema))
 
 --------------------------------------------------------------------------------
 -- update

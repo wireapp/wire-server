@@ -39,6 +39,7 @@ interpretUserGroupStoreToPostgres =
     DeleteUserGroup tid gid -> deleteGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
     RemoveUser gid uid -> removeUserImpl gid uid
+    AddUserGroupsToChannel convId ugids -> addUserGroupsToChannelImpl convId ugids
 
 getUserGroupImpl ::
   ( Member (Embed IO) r,
@@ -116,9 +117,6 @@ createUserGroupImpl team newUserGroup managedBy = do
               values ($1 :: text, $2 :: uuid, $3 :: int)
               returning id :: uuid, name :: text, managed_by :: int, created_at :: timestamptz
             |]
-
-    toRelationTable :: a -> Vector b -> (Vector a, Vector b)
-    toRelationTable a bs = (a <$ bs, bs)
 
     -- This can perhaps be simplified using rel8
     insertGroupMembersStatement :: Statement (UUID, Vector UserId) ()
@@ -230,3 +228,30 @@ crudUser op gid uid = do
       Transaction.statement
         (gid, uid)
         (lmap (\(gid_, uid_) -> (gid_.toUUID, uid_.toUUID)) op)
+
+addUserGroupsToChannelImpl ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  ConvId ->
+  Vector UserGroupId ->
+  Sem r ()
+addUserGroupsToChannelImpl cid ugids = do
+  pool <- input
+  eitherUuid <- liftIO $ use pool session
+  either throw pure eitherUuid
+  where
+    session :: Session ()
+    session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
+      Transaction.statement (cid.toUUID, ugids) insertGroupsToChannelStatement
+
+    insertGroupsToChannelStatement :: Statement (UUID, Vector UserGroupId) ()
+    insertGroupsToChannelStatement =
+      lmap (second (fmap (.toUUID)) . uncurry toRelationTable) $
+        [resultlessStatement|
+          insert into channel_user_group (channel_id, user_group_id) select * from unnest ($1 :: uuid[], $2 :: uuid[])
+          |]
+
+toRelationTable :: a -> Vector b -> (Vector a, Vector b)
+toRelationTable a bs = (a <$ bs, bs)
