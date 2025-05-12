@@ -286,18 +286,31 @@ let
       };
     };
 
-    # Latest master. Broken on nixpkgs due to missing
-    # amazonka-dynamodb-attributevalue package.
+    # Our fork of 2.0.0. This release hasn't been updated for a while and Nix
+    # is bad in coping with Hackage patched revisions and overriding
+    # ghc-options. So, we have our fork to gain GHC 9.8 compatibility.
+    #
+    # N.B. only the listed packages work. If you want to use another:
+    # - list it here
+    # - patch it on the fork (if required)
     amazonka = {
       src = fetchgit {
-        url = "https://github.com/brendanhay/amazonka";
-        rev = "7645bd335f008912b9e5257486f622b674de7afa";
-        hash = "sha256-ObamDnJdcLA2BlX9iGIxkaknUeL3Po3madKO4JA/em0=";
+        url = "https://github.com/wireapp/amazonka";
+        rev = "b482e255d1fe8f33ceced7b55aa1f6e93081dea8";
+        hash = "sha256-p/07Hge/QwMldpnqV7Ic5GRiQFoaTxzrAjhmu554J4U=";
       };
       packages = {
+        amazonka = "lib/amazonka";
+        amazonka-core = "lib/amazonka-core";
         amazonka-dynamodb = "lib/services/amazonka-dynamodb";
-        amazonka-dynamodb-attributevalue = "lib/amazonka-dynamodb-attributevalue";
         amazonka-s3 = "lib/services/amazonka-s3";
+        amazonka-sts = "lib/services/amazonka-sts";
+        amazonka-sqs = "lib/services/amazonka-sqs";
+        amazonka-ses = "lib/services/amazonka-ses";
+        amazonka-sns = "lib/services/amazonka-sns";
+        amazonka-sso = "lib/services/amazonka-sso";
+        amazonka-gen = "gen/";
+        amazonka-test = "lib/amazonka-test";
       };
     };
   };
