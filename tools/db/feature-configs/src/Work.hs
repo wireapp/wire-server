@@ -170,7 +170,7 @@ mergeUpdates upd1 upd2 =
       lockStatus = upd2.lockStatus <|> upd1.lockStatus,
       dbConfig = case (upd1.dbConfig, upd2.dbConfig) of
         (Just u1, Just u2) -> Just $ u2 . Just . u1
-        (Just u1, _) -> Just u1
+        (Just u1, Nothing) -> Just u1
         (_, u2) -> u2
     }
 
