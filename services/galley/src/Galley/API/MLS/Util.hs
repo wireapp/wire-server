@@ -141,4 +141,4 @@ getConvFromGroupId ::
   Sem r (ConvType, Qualified ConvOrSubConvId)
 getConvFromGroupId gid = case groupIdToConv gid of
   Left e -> throw (mlsProtocolError (T.pack e))
-  Right (_, parts) -> pure (parts.convType, parts.qConvId)
+  Right parts -> pure (parts.convType, parts.qConvId)
