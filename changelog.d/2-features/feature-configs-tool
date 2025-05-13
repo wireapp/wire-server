@@ -1,0 +1,3 @@
+Introduce a tool to manage feature-configs. It can be used using the image
+[here](quay.io/wire/feature-configs). Documentation is in
+[[tools/db/feture-configs/README.md]]
