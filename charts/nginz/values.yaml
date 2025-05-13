@@ -685,9 +685,6 @@ nginx_conf:
       - all
       max_body_size: 70m
       body_buffer_size: 256k
-    - path: /mls/reset-conversation
-      envs:
-      - all
     - path: /mls/public-keys
       envs:
       - all

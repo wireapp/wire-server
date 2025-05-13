@@ -43,7 +43,6 @@ import Wire.API.OAuth
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
-import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -609,7 +608,7 @@ type ConversationAPI =
                :> QualifiedCapture "cnv" ConvId
                :> "subconversations"
                :> Capture "subconv" SubConvId
-               :> ReqBody '[JSON] MLSReset
+               :> ReqBody '[JSON] DeleteSubConversationRequest
                :> MultiVerb1
                     'DELETE
                     '[JSON]

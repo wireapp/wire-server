@@ -16,8 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.Group.Serialisation
-  ( GroupIdVersion (..),
-    GroupIdParts (..),
+  ( GroupIdParts (..),
     groupIdParts,
     convToGroupId,
     groupIdToConv,
@@ -41,23 +40,6 @@ import Web.HttpApiData (FromHttpApiData (parseHeader))
 import Wire.API.Conversation
 import Wire.API.MLS.Group
 import Wire.API.MLS.SubConversation
-import Wire.Arbitrary
-
-data GroupIdVersion = GroupIdVersion1 | GroupIdVersion2
-  deriving (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via GenericUniform GroupIdVersion
-
-groupIdVersionNumber :: GroupIdVersion -> Word16
-groupIdVersionNumber GroupIdVersion1 = 1
-groupIdVersionNumber GroupIdVersion2 = 2
-
-getVersion :: Get GroupIdVersion
-getVersion = do
-  n <- getWord16be
-  case n of
-    1 -> pure GroupIdVersion1
-    2 -> pure GroupIdVersion2
-    _ -> fail ("unsupported GroupId version " <> show n)
 
 data GroupIdParts = GroupIdParts
   { convType :: ConvType,
@@ -66,60 +48,56 @@ data GroupIdParts = GroupIdParts
   }
   deriving (Show, Eq)
 
-groupIdParts :: ConvType -> Word32 -> Qualified ConvOrSubConvId -> GroupIdParts
-groupIdParts ct gen qcs =
+groupIdParts :: ConvType -> Qualified ConvOrSubConvId -> GroupIdParts
+groupIdParts ct qcs =
   GroupIdParts
     { convType = ct,
       qConvId = qcs,
-      gidGen = GroupIdGen gen
+      gidGen = GroupIdGen 0
     }
 
 -- | Return the group ID associated to a conversation ID. Note that is not
 -- assumed to be stable over time or even consistent among different backends.
-convToGroupId :: GroupIdVersion -> GroupIdParts -> GroupId
-convToGroupId v parts = GroupId . L.toStrict . runPut $ do
+convToGroupId :: GroupIdParts -> GroupId
+convToGroupId parts = GroupId . L.toStrict . runPut $ do
   let cs = qUnqualified parts.qConvId
       subId = foldMap unSubConvId cs.subconv
-  putWord16be (groupIdVersionNumber v)
+  putWord16be 1 -- Version 1 of the GroupId format
   putWord16be (fromIntegral $ fromEnum parts.convType)
   putLazyByteString . UUID.toByteString . toUUID $ cs.conv
   putWord8 $ fromIntegral (T.length subId)
   putByteString $ T.encodeUtf8 subId
-  when (v > GroupIdVersion1 || isJust cs.subconv) $
-    putWord32be (unGroupIdGen parts.gidGen)
+  maybe (pure ()) (const $ putWord32be (unGroupIdGen parts.gidGen)) cs.subconv
   putLazyByteString . toByteString $ qDomain parts.qConvId
 
-groupIdToConv :: GroupId -> Either String (GroupIdVersion, GroupIdParts)
+groupIdToConv :: GroupId -> Either String GroupIdParts
 groupIdToConv gid = do
-  (rem', _, (v, ct, conv, gen)) <- first (\(_, _, msg) -> msg) $ runGetOrFail readConv (L.fromStrict (unGroupId gid))
+  (rem', _, (ct, conv, gen)) <- first (\(_, _, msg) -> msg) $ runGetOrFail readConv (L.fromStrict (unGroupId gid))
   domain <- first displayException . T.decodeUtf8' . L.toStrict $ rem'
   pure
-    ( v,
-      GroupIdParts
-        { convType = toEnum $ fromIntegral ct,
-          qConvId = Qualified conv (Domain domain),
-          gidGen = gen
-        }
-    )
+    GroupIdParts
+      { convType = toEnum $ fromIntegral ct,
+        qConvId = Qualified conv (Domain domain),
+        gidGen = gen
+      }
   where
     readConv = do
-      version <- getVersion
+      version <- getWord16be
       ct <- getWord16be
+      unless (version == 1) $ fail "unsupported groupId version"
       mUUID <- UUID.fromByteString . L.fromStrict <$> getByteString 16
       uuid <- maybe (fail "invalid conversation UUID in groupId") pure mUUID
       n <- getWord8
       if n == 0
-        then do
-          gen <- if version == GroupIdVersion1 then pure 0 else getWord32be
-          pure $ (version, ct, Conv (Id uuid), GroupIdGen gen)
+        then pure $ (ct, Conv (Id uuid), GroupIdGen 0)
         else do
           subConvIdBS <- getByteString $ fromIntegral n
           subConvId <- either (fail . T.unpack) pure $ parseHeader subConvIdBS
           gen <- getWord32be
-          pure $ (version, ct, SubConv (Id uuid) (SubConvId subConvId), GroupIdGen gen)
+          pure $ (ct, SubConv (Id uuid) (SubConvId subConvId), GroupIdGen gen)
 
 nextGenGroupId :: GroupId -> Either String GroupId
-nextGenGroupId gid = convToGroupId GroupIdVersion2 . succGen . snd <$> groupIdToConv gid
+nextGenGroupId gid = convToGroupId . succGen <$> groupIdToConv gid
   where
     succGen parts =
       parts

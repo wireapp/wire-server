@@ -40,7 +40,6 @@ import Control.Exception qualified as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.Except
-import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor (first)
@@ -351,7 +350,7 @@ runVersionedFederatorClientToCodensity env =
     . runMaybeT
     . unFederatorClient
   where
-    unmaybe = (maybe (lift (throwE FederatorClientVersionMismatch)) pure =<<)
+    unmaybe = (maybe (E.throw FederatorClientVersionMismatch) pure =<<)
 
 versionNegotiation :: Set Version -> FederatorClient 'Brig Version
 versionNegotiation localVersions =
