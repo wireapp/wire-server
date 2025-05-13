@@ -166,10 +166,10 @@ computeUpdate = \case
 mergeUpdates :: ComputedUpdate -> ComputedUpdate -> ComputedUpdate
 mergeUpdates upd1 upd2 =
   ComputedUpdate
-    { status = upd1.status <|> upd2.status,
-      lockStatus = upd1.lockStatus <|> upd2.lockStatus,
+    { status = upd2.status <|> upd1.status,
+      lockStatus = upd2.lockStatus <|> upd1.lockStatus,
       dbConfig = case (upd1.dbConfig, upd2.dbConfig) of
-        (Just u1, Just u2) -> Just $ u1 . Just . u2
+        (Just u1, Just u2) -> Just $ u2 . Just . u1
         (Just u1, _) -> Just u1
         (_, u2) -> u2
     }
