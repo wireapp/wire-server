@@ -110,6 +110,7 @@ run opts = withTracer \tracer -> do
     brig = opts.brig
     server e = defaultServer (unpack $ brig.host) brig.port e.appLogger
 
+-- | For running the brig executable in migrate-only mode.
 migratePostres :: Opts -> Bool -> IO ()
 migratePostres opts resetFirst = do
   logger <- initLogger opts
