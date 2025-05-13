@@ -18,7 +18,6 @@ import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind (Append)
 import Polysemy.State
-import System.Random (StdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -34,54 +33,33 @@ import Wire.Arbitrary
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
-import Wire.Sem.Random qualified as Rnd
-import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserSubsystem (UserSubsystem)
 
+type UGEffects =
+  '[ UserSubsystem,
+     GalleyAPIAccess
+   ]
+    `Append` Mock.EffectStack
+    `Append` '[ Input (Local ()),
+                NotificationSubsystem,
+                State [Push],
+                Error UserGroupSubsystemError
+              ]
+
 runDependencies ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem
-    '[ UserSubsystem,
-       GalleyAPIAccess,
-       UserGroupStore,
-       State UserGroupInMemState,
-       Rnd.Random,
-       State StdGen,
-       Input (Local ()),
-       NotificationSubsystem,
-       State [Push],
-       Error UserGroupSubsystemError
-     ]
-    a ->
+  Sem UGEffects a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
-  run
-    . runError
-    . evalState mempty
-    . inMemoryNotificationSubsystemInterpreter
-    . runInputConst (toLocalUnsafe (Domain "example.com") ())
-    . runInMemoryUserGroupStore def
-    . miniGalleyAPIAccess initialTeams def
-    . userSubsystemTestInterpreter initialUsers
+  snd <$$> runDependenciesWithReturnState initialUsers initialTeams
 
 runDependenciesWithReturnState ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem
-    ( '[ UserSubsystem,
-         GalleyAPIAccess
-       ]
-        `Append` EffectStack
-        `Append` '[ Input (Local ()),
-                    NotificationSubsystem,
-                    State [Push],
-                    Error UserGroupSubsystemError
-                  ]
-    )
-    a ->
+  Sem UGEffects a ->
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run
@@ -215,8 +193,8 @@ spec = describe "UserGroupSubsystem.Interpreter" do
         getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
 
         pure $
-          ((.id_) <$> getGroupAdmin) === Just group1.id_
-            .&&. ((.id_) <$> getGroupOutsider) === Nothing
+          (getGroupAdmin) === Just group1
+            .&&. getGroupOutsider === Nothing
 
   prop "team members can only get their own groups" $ \team userGroupName1 userGroupName2 ->
     let (memSet1, memSet2) = splitAt (length team.members `div` 2) (User.userId . fst <$> team.members)
