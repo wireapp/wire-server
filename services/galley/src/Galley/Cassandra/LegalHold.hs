@@ -44,7 +44,7 @@ import Galley.Env
 import Galley.External.LegalHoldService.Internal
 import Galley.Monad
 import Galley.Types.Teams
-import Imports
+import Imports hiding (unsnoc)
 import OpenSSL.EVP.Digest qualified as SSL
 import OpenSSL.EVP.PKey qualified as SSL
 import OpenSSL.PEM qualified as SSL
