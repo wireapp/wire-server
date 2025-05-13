@@ -385,7 +385,9 @@ executable brig-integration
     Util.AWS
 
   hs-source-dirs: test/integration
-  ghc-options:    -funbox-strict-fields -threaded -with-rtsopts=-N
+  ghc-options:
+    -funbox-strict-fields -threaded -with-rtsopts=-N -Wno-x-partial
+
   build-depends:
     , aeson
     , async
