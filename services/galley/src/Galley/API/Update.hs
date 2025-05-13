@@ -1645,7 +1645,7 @@ addBot lusr zcon b = do
           (tUntagged lusr)
           t
           ( EdMembersJoin
-              ( SimpleMembers
+              ( MembersJoin
                   [ SimpleMember
                       (tUntagged (qualifyAs lusr (botUserId (botMemId bm))))
                       roleNameWireAdmin
