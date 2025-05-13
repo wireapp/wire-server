@@ -26,14 +26,15 @@ import Control.Monad.Codensity hiding (reset)
 import Data.Id
 import Data.Qualified
 import Galley.API.MLS.Enabled
-import Galley.API.MLS.SubConversation
+import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Data.Conversation.Types
 import Galley.Effects
-import Galley.Effects.ConversationStore
-import Galley.Effects.FederatorAccess
-import Galley.Effects.MemberStore
+import Galley.Effects.ConversationStore qualified as Eff
+import Galley.Effects.FederatorAccess qualified as Eff
+import Galley.Effects.MemberStore qualified as Eff
+import Galley.Effects.SubConversationStore qualified as Eff
 import Galley.Env
 import Imports
 import Polysemy
@@ -80,12 +81,9 @@ resetMLSConversation lusr reset = do
     qcnvOrSub
 
 resetLocalMLSConversation ::
-  ( Member (Input Env) r,
-    Member (ErrorS MLSNotEnabled) r,
-    Member (ErrorS MLSStaleMessage) r,
+  ( Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS ConvAccessDenied) r,
     Member (ErrorS ConvNotFound) r,
-    Member (ErrorS InvalidOperation) r,
     Member Resource r,
     Member ConversationStore r,
     Member MemberStore r,
@@ -97,35 +95,50 @@ resetLocalMLSConversation ::
   MLSReset ->
   Sem r ()
 resetLocalMLSConversation qusr ctype lcnvOrSub reset =
-  case tUnqualified lcnvOrSub of
-    SubConv c s -> deleteLocalSubConversation qusr (c <$ lcnvOrSub) s reset
-    Conv cnvId -> do
-      let lcnvId = qualifyAs lcnvOrSub cnvId
-      cnv <- getConversationAndCheckMembership qusr lcnvId
-      mlsData <- case convProtocol cnv of
-        ProtocolMLS md -> pure md
-        ProtocolMixed md -> pure md
-        ProtocolProteus -> throwS @'InvalidOperation
+  lowerCodensity $ do
+    withCommitLock lcnvOrSub reset.groupId reset.epoch
+    lift $ do
+      mlsData <- getMLSData qusr lcnvOrSub
       epoch <- case mlsData.cnvmlsActiveData of
-        Nothing -> throwS @'InvalidOperation
+        Nothing -> throwS @'MLSStaleMessage
         Just ad -> pure ad.epoch
       let gid = mlsData.cnvmlsGroupId
+      unless (reset.groupId == gid) $ throwS @'ConvNotFound
+      unless (reset.epoch == epoch) $ throwS @'MLSStaleMessage
+      Eff.removeAllMLSClients gid
+      let gid' = nextGroupIdForConv ctype (tUntagged lcnvOrSub) gid
+      resetConvOrSub lcnvOrSub gid'
 
-      lowerCodensity $ do
-        withCommitLock lcnvOrSub reset.groupId reset.epoch
-        lift $ do
-          unless (reset.groupId == gid) $ throwS @'ConvNotFound
-          unless (reset.epoch == epoch) $ throwS @'MLSStaleMessage
-          removeAllMLSClients gid
+getMLSData ::
+  ( Member (ErrorS ConvNotFound) r,
+    Member (ErrorS ConvAccessDenied) r,
+    Member SubConversationStore r,
+    Member ConversationStore r
+  ) =>
+  Qualified UserId ->
+  Local ConvOrSubConvId ->
+  Sem r ConversationMLSData
+getMLSData qusr lcnvOrSub = case tUnqualified lcnvOrSub of
+  SubConv cnvId scnvId -> do
+    sconv <- Eff.getSubConversation cnvId scnvId >>= noteS @'ConvNotFound
+    pure sconv.scMLSData
+  Conv cnvId -> do
+    cnv <- getConversationAndCheckMembership qusr (qualifyAs lcnvOrSub cnvId)
+    case convProtocol cnv of
+      ProtocolMLS md -> pure md
+      ProtocolMixed md -> pure md
+      ProtocolProteus -> throwS @'ConvNotFound
 
-          let newGid = case nextGenGroupId gid of
-                Left _ ->
-                  convToGroupId
-                    GroupIdVersion2
-                    (groupIdParts ctype 0 (tUntagged lcnvOrSub))
-                Right gid' -> gid'
-
-          resetConversation cnvId newGid
+resetConvOrSub ::
+  ( Member SubConversationStore r,
+    Member ConversationStore r
+  ) =>
+  Local ConvOrSubConvId ->
+  GroupId ->
+  Sem r ()
+resetConvOrSub lcnvOrSub gid = case tUnqualified lcnvOrSub of
+  SubConv cnvId scnvId -> void $ Eff.createSubConversation cnvId scnvId gid
+  Conv cnvId -> Eff.resetConversation cnvId gid
 
 type ResetConversationStaticErrors =
   '[ ErrorS MLSNotEnabled,
@@ -157,7 +170,7 @@ resetRemoteMLSConversation r lusr reset = do
             groupId = reset.groupId,
             epoch = reset.epoch
           }
-  runFederatedEither r (fedClient @'Galley @"reset-conversation" req) >>= \case
+  Eff.runFederatedEither r (fedClient @'Galley @"reset-conversation" req) >>= \case
     Left (FederationCallFailure FederatorClientVersionMismatch) ->
       throwS @MLSFederatedResetNotSupported
     Left e -> throw e

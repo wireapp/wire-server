@@ -22,6 +22,7 @@ module Wire.API.MLS.Group.Serialisation
     convToGroupId,
     groupIdToConv,
     nextGenGroupId,
+    nextGroupIdForConv,
   )
 where
 
@@ -125,3 +126,9 @@ nextGenGroupId gid = convToGroupId GroupIdVersion2 . succGen . snd <$> groupIdTo
       parts
         { gidGen = GroupIdGen (succ $ unGroupIdGen parts.gidGen)
         }
+
+-- swallow the error and starting with GroupIdGen 0 if nextGenGroupId fails
+nextGroupIdForConv :: ConvType -> Qualified ConvOrSubConvId -> GroupId -> GroupId
+nextGroupIdForConv ctype qcnvOrSub gid = case nextGenGroupId gid of
+  Left _ -> convToGroupId GroupIdVersion2 (groupIdParts ctype 0 qcnvOrSub)
+  Right gid' -> gid'

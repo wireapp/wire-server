@@ -4,6 +4,7 @@ import API.Galley
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.VersionedFed
 
 testResetGroupConversation :: (HasCallStack) => Domain -> App ()
 testResetGroupConversation domain = do
@@ -57,3 +58,19 @@ testResetMixedConversation domain = do
   conv' %. "epoch" `shouldMatchInt` 0
   otherMember <- assertOne =<< asList (conv' %. "members.others")
   otherMember %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+
+testResetConversationWithLegacyFed :: (HasCallStack) => AnyFedDomain -> App ()
+testResetConversationWithLegacyFed domain = when (unFedDomain domain > 0) $ do
+  let suite = Ciphersuite "0x0001"
+  [alice, bob] <- createAndConnectUsers [make domain, make OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def {ciphersuites = [suite]}) [alice, bob]
+  void $ uploadNewKeyPackage suite bob1
+  conv <- createNewGroup suite alice1
+  void $ createAddCommit alice1 conv [bob] >>= sendAndConsumeCommitBundle
+  mlsConv <- getMLSConv conv
+  bindResponse (resetConversation bob mlsConv.groupId mlsConv.epoch) $ \resp -> do
+    if unFedDomain domain >= 4
+      then resp.status `shouldMatchInt` 200
+      else do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "mls-federated-reset-not-supported"
