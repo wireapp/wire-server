@@ -2,7 +2,7 @@
 
 Allows doing DB operations on feature-configs. It is highly recommended to use
 the `--dry-run** flag before doing any updates to prod-like environments.
-**There is no rollback***
+**There is no rollback**
 
 ## Usage
 
@@ -56,7 +56,7 @@ Examples:
 
 `status=enabled`
 `status=disabled, lockStatus=unlocked`
-`config.cipherSuites.0=1 && config.cipherSuites.1=2`
+`config.cipherSuites.0=1, config.cipherSuites.1=2`
 
 #### Special note on Arrays in `config`
 
