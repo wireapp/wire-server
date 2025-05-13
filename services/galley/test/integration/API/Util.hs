@@ -1189,7 +1189,7 @@ postQualifiedMembers ::
   m ResponseLBS
 postQualifiedMembers zusr invitees conv = do
   g <- viewGalley
-  let invite = InviteQualified invitees roleNameWireAdmin
+  let invite = InviteQualified invitees roleNameWireAdmin mempty
   post $
     g
       . paths
@@ -1220,7 +1220,7 @@ postMembersWithRole ::
   m ResponseLBS
 postMembersWithRole u us c r = do
   g <- viewGalley
-  let i = InviteQualified us r
+  let i = InviteQualified us r mempty
   post $
     g
       . paths
