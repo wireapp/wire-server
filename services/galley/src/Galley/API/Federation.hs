@@ -828,7 +828,6 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
 
 resetConversation ::
   ( Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member ConversationStore r,
     Member MemberStore r,
     Member Resource r,
