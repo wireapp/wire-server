@@ -24,7 +24,7 @@ runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
         forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
-          Log.info logger $ Log.msg (Log.val "Starting migrations") . migrationName migrationCmd
+          Log.info logger $ Log.msg (Log.val "Starting migration") . migrationName migrationCmd
           mErr <- transaction Serializable Write $ runMigration migrationCmd
           case mErr of
             Nothing ->
