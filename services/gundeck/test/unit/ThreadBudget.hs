@@ -48,7 +48,7 @@ import Test.Tasty.QuickCheck
 -- helpers
 
 newtype NumberOfThreads = NumberOfThreads {fromNumberOfThreads :: Int}
-  deriving (Eq, Ord, Show, Generic, ToExpr)
+  deriving (Eq, Ord, Show, Generic, CanDiff)
 
 -- | 'microseconds' determines how long one unit lasts.  there is a trade-off of fast
 -- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.
@@ -56,7 +56,7 @@ newtype NumberOfThreads = NumberOfThreads {fromNumberOfThreads :: Int}
 -- There is also `Milliseconds` (with small `s` after `Milli`) in "Data.Misc".  maybe this
 -- should be cleaned up...
 newtype MilliSeconds = MilliSeconds {fromMilliSeconds :: Int}
-  deriving (Eq, Ord, Show, Generic, ToExpr)
+  deriving (Eq, Ord, Show, Generic, CanDiff)
 
 instance Arbitrary NumberOfThreads where
   arbitrary = NumberOfThreads <$> choose (1, 30)
@@ -183,9 +183,9 @@ type State = Reference (Opaque (ThreadBudgetState, Async (), LogHistory))
 newtype Model r = Model (Maybe (State r))
   deriving (Show, Generic)
 
-instance ToExpr (Model Symbolic)
+instance CanDiff (Model Symbolic)
 
-instance ToExpr (Model Concrete)
+instance CanDiff (Model Concrete)
 
 data Command r
   = Init NumberOfThreads
