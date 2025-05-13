@@ -451,10 +451,12 @@ testTeamAdminCanAddMembersWithoutJoining = do
     -- mem1 receives a notification about being added to the channel
     notif <- awaitMatch isMemberJoinNotif ws
     qcid <- notif %. "payload.0.qualified_conversation"
+    notif %. "payload.0.data.add_type" `shouldMatch` "external_create"
 
     -- they figure out that they should add themselves to the MLS group
     conv <- getConversation mem1 qcid >>= getJSON 200
     convId <- objConvId conv
+    -- only if epoch=0
     createGroup def mem1Client convId
     void $ createAddCommit mem1Client convId [mem1] >>= sendAndConsumeCommitBundle
 

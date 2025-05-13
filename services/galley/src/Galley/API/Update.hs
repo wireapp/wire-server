@@ -904,6 +904,7 @@ joinConversation lusr zcon conv access = do
         (Just zcon)
         (qualifyAs lusr conv)
         (convBotsAndMembers conv <> extraTargets)
+        Nothing
         action
 
 addMembers ::
@@ -1650,6 +1651,7 @@ addBot lusr zcon b = do
                       (tUntagged (qualifyAs lusr (botUserId (botMemId bm))))
                       roleNameWireAdmin
                   ]
+                  InternalAdd
               )
           )
   pushNotifications

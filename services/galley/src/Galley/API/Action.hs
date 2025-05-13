@@ -804,7 +804,9 @@ updateLocalConversation lcnv qusr con action = do
   conv <- getConversationWithError lcnv
   channelActionAllowed <- channelActionByTeamAdminAllowed conv (fromSing tag)
   if channelActionAllowed
-    then performActionAndSendNotification @tag (qualifyAs lcnv conv) qusr con action
+    then do
+      mAddType <- todo "detemine add type"
+      performActionAndSendNotification @tag (qualifyAs lcnv conv) qusr con mAddType action
     else do
       -- check that the action does not bypass the underlying protocol
       unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
@@ -857,7 +859,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
   -- perform checks
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
-  performActionAndSendNotification @tag lconv qusr con action
+  performActionAndSendNotification @tag lconv qusr con Nothing action
   where
     ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
     ensureConversationActionAllowed tag loc conv mTeamMember = do
@@ -889,9 +891,10 @@ performActionAndSendNotification ::
   Local Conversation ->
   Qualified UserId ->
   Maybe ConnId ->
+  Maybe AddType ->
   ConversationAction tag ->
   Sem r LocalConversationUpdate
-performActionAndSendNotification lconv qusr con action = do
+performActionAndSendNotification lconv qusr con mAddType action = do
   (extraTargets, action') <- performAction (sing @tag) qusr lconv action
   notifyConversationAction
     (sing @tag)
@@ -900,6 +903,7 @@ performActionAndSendNotification lconv qusr con action = do
     con
     lconv
     (convBotsAndMembers (tUnqualified lconv) <> extraTargets)
+    mAddType
     action'
 
 -- --------------------------------------------------------------------------------
@@ -935,13 +939,14 @@ notifyConversationAction ::
   Maybe ConnId ->
   Local Conversation ->
   BotsAndMembers ->
+  Maybe AddType ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction tag quid notifyOrigDomain con lconv targets mAddType action = do
   now <- input
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
+      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing mAddType action
       mkUpdate uids =
         ConversationUpdate
           now
@@ -1049,7 +1054,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing action
+    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
@@ -1130,6 +1135,7 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     Nothing
     lconv
     (targets <> extraTargets)
+    Nothing
     (ConversationRemoveMembers (pure victim) EdReasonRemoved)
 
 notifyTypingIndicator ::

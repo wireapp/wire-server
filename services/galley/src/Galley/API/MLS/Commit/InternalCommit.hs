@@ -263,6 +263,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                       con
                       lconv
                       bm
+                      Nothing
                       ConversationJoin
                         { cjUsers = members,
                           cjRole = roleNameWireMember

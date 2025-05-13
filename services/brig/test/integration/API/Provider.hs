@@ -1833,7 +1833,7 @@ wsAssertMemberJoin ws conv usr new = void $
         evtConv e @?= conv
         evtType e @?= MemberJoin
         evtFrom e @?= usr
-        evtData e @?= EdMembersJoin (MembersJoin (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
+        evtData e @?= EdMembersJoin (MembersJoin (fmap (\u -> SimpleMember u roleNameWireAdmin) new) InternalAdd)
 
 wsAssertMemberLeave :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $
@@ -1876,7 +1876,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
     Just (TestBotMessage e) -> do
-      let msg = MembersJoin $ fmap (\u -> SimpleMember u roleNameWireAdmin) new
+      let msg = MembersJoin (fmap (\u -> SimpleMember u roleNameWireAdmin) new) InternalAdd
       assertEqual "event type" MemberJoin (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
