@@ -62,7 +62,7 @@ import Control.Error hiding (bool, note)
 import Control.Lens ((.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.ByteString (fromStrict)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.Code qualified as Code
@@ -89,6 +89,7 @@ import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
+import Language.Haskell.TH (unTypeCode)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities (CacheControl (..), (!>>))
 import Network.Wai.Utilities qualified as Utilities
@@ -237,7 +238,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V9)) =
         <> serviceSwagger @OAuthAPITag @'V9
     )
       & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
+      & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
       & S.servers .~ [S.Server ("/" <> toUrlPiece V9) Nothing mempty]
       & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V8)) = swaggerPregenUIServer $(pregenSwagger V8)
