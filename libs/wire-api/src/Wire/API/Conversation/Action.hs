@@ -193,7 +193,7 @@ conversationActionToEvent tag now quid qcnv subconv action =
   let edata = case tag of
         SConversationJoinTag ->
           let ConversationJoin newMembers role = action
-           in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
+           in EdMembersJoin $ MembersJoin (map (`SimpleMember` role) (toList newMembers))
         SConversationLeaveTag ->
           EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->

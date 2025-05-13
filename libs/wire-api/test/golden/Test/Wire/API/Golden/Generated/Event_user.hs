@@ -259,7 +259,7 @@ testObject_Event_user_12 =
     (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
     (read "1864-05-12 20:29:47.483 UTC")
     ( EdMembersJoin
-        ( SimpleMembers
+        ( MembersJoin
             { mMembers =
                 [ SimpleMember
                     { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000055-0000-004d-0000-005100000037"))) (Domain "faraway.example.com"),

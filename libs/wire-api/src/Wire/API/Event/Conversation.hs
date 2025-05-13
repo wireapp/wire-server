@@ -56,7 +56,7 @@ module Wire.API.Event.Conversation
     -- * Event data helpers
     SimpleMember (..),
     smId,
-    SimpleMembers (..),
+    MembersJoin (..),
     Connect (..),
     MemberUpdateData (..),
     OtrMessage (..),
@@ -177,7 +177,7 @@ instance ToSchema EventType where
         ]
 
 data EventData
-  = EdMembersJoin SimpleMembers
+  = EdMembersJoin MembersJoin
   | EdMembersLeave EdMemberLeftReason QualifiedUserIdList
   | EdConnect Connect
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
@@ -263,17 +263,17 @@ isCellsConversationEvent eventType =
 --------------------------------------------------------------------------------
 -- Event data helpers
 
-newtype SimpleMembers = SimpleMembers
+newtype MembersJoin = MembersJoin
   { mMembers :: [SimpleMember]
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SimpleMembers
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MembersJoin
 
-instance ToSchema SimpleMembers where
+instance ToSchema MembersJoin where
   schema =
-    object "SimpleMembers" $
-      SimpleMembers
+    object "MembersJoin" $
+      MembersJoin
         <$> mMembers .= field "users" (array schema)
         <* (fmap smId . mMembers)
           .= optional

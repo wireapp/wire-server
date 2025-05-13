@@ -377,7 +377,7 @@ memberJoinEvent ::
   Event
 memberJoinEvent lorig qconv t lmems rmems =
   Event qconv Nothing (tUntagged lorig) t $
-    EdMembersJoin (SimpleMembers (map localToSimple lmems <> map remoteToSimple rmems))
+    EdMembersJoin (MembersJoin (map localToSimple lmems <> map remoteToSimple rmems))
   where
     localToSimple u = SimpleMember (tUntagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
     remoteToSimple u = SimpleMember (tUntagged (rmId u)) (rmConvRoleName u)
