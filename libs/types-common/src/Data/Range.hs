@@ -504,7 +504,12 @@ instance (KnownNat n, KnownNat m, n <= m) => Arbitrary (Range n m Text) where
   arbitrary = genRangeText arbitrary
 
   -- FUTUREWORK: the shrinking could be more general (like genRange) and offer more options
-  shrink (fromRange -> txt) = [unsafeRange @Text @n @m $ T.take (fromKnownNat (Proxy @n)) txt]
+  shrink (fromRange -> txt) =
+    let oldlen = T.length txt
+        newlen = max (fromKnownNat (Proxy @n)) (T.length txt `div` 3)
+     in if oldlen == newlen
+          then []
+          else [unsafeRange @Text @n @m $ T.take newlen txt]
 
 genRangeText ::
   forall (n :: Nat) (m :: Nat).
