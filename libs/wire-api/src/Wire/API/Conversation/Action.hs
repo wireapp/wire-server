@@ -187,13 +187,14 @@ conversationActionToEvent ::
   Qualified UserId ->
   Qualified ConvId ->
   Maybe SubConvId ->
+  Maybe AddType ->
   ConversationAction tag ->
   Event
-conversationActionToEvent tag now quid qcnv subconv action =
+conversationActionToEvent tag now quid qcnv subconv mAddType action =
   let edata = case tag of
         SConversationJoinTag ->
           let ConversationJoin newMembers role = action
-           in EdMembersJoin $ MembersJoin (map (`SimpleMember` role) (toList newMembers))
+           in EdMembersJoin $ MembersJoin (map (`SimpleMember` role) (toList newMembers)) (fromMaybe InternalAdd mAddType)
         SConversationLeaveTag ->
           EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->

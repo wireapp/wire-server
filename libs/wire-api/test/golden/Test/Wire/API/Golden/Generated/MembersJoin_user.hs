@@ -25,7 +25,7 @@ import Data.Qualified
 import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Conversation.Role (parseRoleName)
-import Wire.API.Event.Conversation (MembersJoin (..), SimpleMember (..))
+import Wire.API.Event.Conversation
 
 testObject_MembersJoin_user_1 :: MembersJoin
 testObject_MembersJoin_user_1 =
@@ -35,9 +35,10 @@ testObject_MembersJoin_user_1 =
             { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-002b-0000-005500000013"))) (Domain "faraway.example.com"),
               smConvRoleName = fromJust (parseRoleName "n0_wu2h66nj3lerw_blivsh6by09a")
             }
-        ]
+        ],
+      addType = InternalAdd
     }
 
 testObject_MembersJoin_user_2 :: MembersJoin
 testObject_MembersJoin_user_2 =
-  MembersJoin {mMembers = []}
+  MembersJoin {mMembers = [], addType = InternalAdd}
