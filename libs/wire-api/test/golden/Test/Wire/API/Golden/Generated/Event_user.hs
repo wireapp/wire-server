@@ -269,7 +269,8 @@ testObject_Event_user_12 =
                     { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-001f-0000-001500000009"))) (Domain "faraway.example.com"),
                       smConvRoleName = fromJust (parseRoleName "2e")
                     }
-                ]
+                ],
+              addType = ExternalAdd
             }
         )
     )
