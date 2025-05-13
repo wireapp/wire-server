@@ -23,7 +23,7 @@ where
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson.QQ (aesonQQ)
 import Imports
 import Test.Tasty
