@@ -88,7 +88,7 @@ localMLSOne2OneConversationMetadata convId =
         (defConversationMetadata Nothing)
           { cnvmType = One2OneConv
           }
-      groupId = convToGroupId GroupIdVersion2 $ groupIdParts One2OneConv 0 (fmap Conv convId)
+      groupId = newGroupId One2OneConv (fmap Conv convId)
       mlsData =
         ConversationMLSData
           { cnvmlsGroupId = groupId,
