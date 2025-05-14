@@ -10,16 +10,15 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
-import Data.Id
+import Data.Id (UserId)
 import Data.Text.Encoding qualified as TE
 import Imports
 import System.Logger (Logger)
 import System.Logger qualified as Log
 import Text.Email.Validate qualified as Email
 import UnliftIO (pooledMapConcurrentlyN)
-import Wire.API.Team.Permission
 import Wire.API.User (AccountStatus)
-import Wire.API.User.EmailAddress (EmailAddress)
+-- import Wire.API.User.EmailAddress (EmailAddress)
 
 -- Problem statement:
 -- Upon brig re-index, we look up the user table and create a
