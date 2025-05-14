@@ -37,7 +37,7 @@ tests =
 roundtripGroupId :: GroupIdVersion -> ConvType -> Qualified ConvOrSubConvId -> GroupIdGen -> Property
 roundtripGroupId v ct convId gen =
   let gen' = case qUnqualified convId of
-        Conv _ | v < GroupIdVersion2 -> GroupIdGen 0
+        Conv _ | v == GroupIdVersion1 -> GroupIdGen 0
         _ -> gen
    in groupIdToConv
         ( convToGroupId

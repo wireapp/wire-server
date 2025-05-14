@@ -167,8 +167,7 @@ newSubConversationFromParent ::
   SubConversation
 newSubConversationFromParent lconv sconv =
   let qcs = flip SubConv sconv <$> tUntagged lconv
-      parts = groupIdParts RegularConv 0 qcs
-      groupId = convToGroupId GroupIdVersion2 parts
+      groupId = newGroupId RegularConv qcs
    in newSubConversation (tUnqualified lconv) sconv groupId
 
 toPublicSubConv :: Qualified SubConversation -> PublicSubConversation
