@@ -75,9 +75,9 @@ executable inconsistencies
     , bytestring
     , cassandra-util
     , conduit
+    , email-validate
     , extended
     , extra
-    , email-validate
     , imports
     , optparse-applicative
     , text
