@@ -174,12 +174,12 @@ mergeUpdates upd1 upd2 =
         (_, u2) -> u2
     }
 
-dbConfigUpdate :: [Text] -> Val -> Aeson.Value -> Aeson.Value
+dbConfigUpdate :: [Text] -> Aeson.Value -> Aeson.Value -> Aeson.Value
 dbConfigUpdate [] _ cfg = cfg
 dbConfigUpdate (seg : remaining) val cfg =
   let newVal previousVal =
         case remaining of
-          [] -> Aeson.toJSON val
+          [] -> val
           _ -> dbConfigUpdate remaining val previousVal
    in case (readMaybe @Int (Text.unpack seg), cfg) of
         (Just n, Aeson.Array arr) ->
@@ -218,14 +218,14 @@ applySelector (Just sel) row@(_, _, status, lockStatus, config) =
     SelectorOr sel1 sel2 ->
       applySelector (Just sel1) row || applySelector (Just sel2) row
 
-compareDbConfig :: [Text] -> Ordering -> Val -> Maybe DbConfig -> Bool
+compareDbConfig :: [Text] -> Ordering -> Aeson.Value -> Maybe DbConfig -> Bool
 compareDbConfig _ _ _ Nothing = False
 compareDbConfig path expectedOrder compVal (Just config) =
   let mActualVal = retrieveVal path config.unDbConfig
    in case mActualVal of
         Nothing -> False
         Just actualVal ->
-          let actualOrder = Aeson.toJSON compVal `compare` actualVal
+          let actualOrder = compVal `compare` actualVal
            in expectedOrder == actualOrder
 
 retrieveVal :: [Text] -> Aeson.Value -> Maybe Aeson.Value

@@ -3,9 +3,7 @@ module Selector where
 import Data.Aeson
 import Data.Attoparsec.Text
 import Data.Char qualified as Char
-import Data.Scientific (Scientific)
 import Data.Text qualified as Text
-import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Imports
 import Wire.API.Team.Feature
@@ -13,19 +11,10 @@ import Wire.API.Team.Feature
 data Selector
   = SelectorFeatureStatusEq FeatureStatus
   | SelectorLockStatusEq LockStatus
-  | SelectorDbConfigCompare [Text] Ordering Val
+  | SelectorDbConfigCompare [Text] Ordering Value
   | SelectorAnd Selector Selector
   | SelectorOr Selector Selector
   deriving (Show)
-
-data Val = ValNum Scientific | ValStr Text | ValArr (Vector Val)
-  deriving (Show, Eq, Ord)
-
-instance ToJSON Val where
-  toJSON = \case
-    ValNum n -> Number n
-    ValStr s -> String s
-    ValArr a -> Array $ toJSON <$> a
 
 parseSelector :: String -> Either String Selector
 parseSelector input = parseOnly (selectorParser <* endOfInput) (Text.pack input)
@@ -68,7 +57,7 @@ lockStatusParser = do
   (LockStatusLocked <$ string "locked")
     <|> (LockStatusUnlocked <$ string "unlocked")
 
-dbConfigSelectorParser :: Parser ([Text], Ordering, Val)
+dbConfigSelectorParser :: Parser ([Text], Ordering, Value)
 dbConfigSelectorParser = do
   _ <- string "config"
   _ <- char '.'
@@ -82,36 +71,43 @@ dbConfigSelectorParser = do
   val <- valParser
   pure $ (path, op, val)
 
-valParser :: Parser Val
+valParser :: Parser Value
 valParser =
   numberParser
     <|> strParser
     <|> arrParser
 
-numberParser :: Parser Val
-numberParser = (ValNum <$> signed scientific)
+numberParser :: Parser Value
+numberParser = Number <$> signed scientific
 
-strParser :: Parser Val
+strParser :: Parser Value
 strParser =
-  ValStr <$> do
+  String <$> do
     _ <- char '"'
     str <- Text.pack <$> many1' (satisfy (\c -> c /= '"'))
     _ <- char '"'
     pure str
 
-arrParser :: Parser Val
+arrParser :: Parser Value
 arrParser = do
   _ <- char '['
   skipSpace
   elements <- V.fromList <$> sepBy valParser (skipSpace >> char ',' >> skipSpace)
   skipSpace
   _ <- char ']'
-  pure $ ValArr elements
+  pure $ Array elements
+
+nullParser :: Parser Value
+nullParser = do
+  skipSpace
+  void $ string "null"
+  skipSpace
+  pure Null
 
 data UpdateOperation
   = UpdateStatus FeatureStatus
   | UpdateLockStatus LockStatus
-  | UpdateDbConfig [Text] Val
+  | UpdateDbConfig [Text] Value
   | UpdateMultiple UpdateOperation UpdateOperation
   deriving (Show)
 
