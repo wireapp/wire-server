@@ -18,6 +18,7 @@ executable inconsistencies
     HandleLessUsers
     Options
     Paths_inconsistencies
+    UsersInUnknownTeams
 
   hs-source-dirs:     src
   default-extensions:
