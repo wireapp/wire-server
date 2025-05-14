@@ -15,6 +15,7 @@ executable inconsistencies
     DanglingHandles
     DanglingUserKeys
     EmailLessUsers
+    EmailUnparseableUsers
     HandleLessUsers
     Options
     Paths_inconsistencies
