@@ -1,9 +1,12 @@
 module Selector where
 
+import Data.Aeson
 import Data.Attoparsec.Text
 import Data.Char qualified as Char
 import Data.Scientific (Scientific)
 import Data.Text qualified as Text
+import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Imports
 import Wire.API.Team.Feature
 
@@ -15,8 +18,14 @@ data Selector
   | SelectorOr Selector Selector
   deriving (Show)
 
-data Val = ValNum Scientific | ValStr Text
+data Val = ValNum Scientific | ValStr Text | ValArr (Vector Val)
   deriving (Show, Eq, Ord)
+
+instance ToJSON Val where
+  toJSON = \case
+    ValNum n -> Number n
+    ValStr s -> String s
+    ValArr a -> Array $ toJSON <$> a
 
 parseSelector :: String -> Either String Selector
 parseSelector input = parseOnly (selectorParser <* endOfInput) (Text.pack input)
@@ -70,15 +79,34 @@ dbConfigSelectorParser = do
           -- complicated configs.
   path <- sepBy1' pathSegmentParser (char '.')
   op <- (EQ <$ char '=') <|> (GT <$ char '>') <|> (LT <$ char '<')
-  val <-
-    (ValNum <$> signed scientific)
-      <|> ( ValStr <$> do
-              _ <- char '"'
-              str <- Text.pack <$> many1' (satisfy (\c -> c /= '"'))
-              _ <- char '"'
-              pure str
-          )
+  val <- valParser
   pure $ (path, op, val)
+
+valParser :: Parser Val
+valParser =
+  numberParser
+    <|> strParser
+    <|> arrParser
+
+numberParser :: Parser Val
+numberParser = (ValNum <$> signed scientific)
+
+strParser :: Parser Val
+strParser =
+  ValStr <$> do
+    _ <- char '"'
+    str <- Text.pack <$> many1' (satisfy (\c -> c /= '"'))
+    _ <- char '"'
+    pure str
+
+arrParser :: Parser Val
+arrParser = do
+  _ <- char '['
+  skipSpace
+  elements <- V.fromList <$> sepBy valParser (skipSpace >> char ',' >> skipSpace)
+  skipSpace
+  _ <- char ']'
+  pure $ ValArr elements
 
 data UpdateOperation
   = UpdateStatus FeatureStatus

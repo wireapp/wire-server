@@ -177,12 +177,9 @@ mergeUpdates upd1 upd2 =
 dbConfigUpdate :: [Text] -> Val -> Aeson.Value -> Aeson.Value
 dbConfigUpdate [] _ cfg = cfg
 dbConfigUpdate (seg : remaining) val cfg =
-  let valJson = case val of
-        ValStr s -> Aeson.String s
-        ValNum n -> Aeson.Number n
-      newVal previousVal =
+  let newVal previousVal =
         case remaining of
-          [] -> valJson
+          [] -> Aeson.toJSON val
           _ -> dbConfigUpdate remaining val previousVal
    in case (readMaybe @Int (Text.unpack seg), cfg) of
         (Just n, Aeson.Array arr) ->
@@ -228,15 +225,11 @@ compareDbConfig path expectedOrder compVal (Just config) =
    in case mActualVal of
         Nothing -> False
         Just actualVal ->
-          let actualOrder = compVal `compare` actualVal
+          let actualOrder = Aeson.toJSON compVal `compare` actualVal
            in expectedOrder == actualOrder
 
-retrieveVal :: [Text] -> Aeson.Value -> Maybe Val
-retrieveVal [] config =
-  case config of
-    Aeson.String str -> Just $ ValStr str
-    Aeson.Number n -> Just $ ValNum n
-    _ -> Nothing
+retrieveVal :: [Text] -> Aeson.Value -> Maybe Aeson.Value
+retrieveVal [] config = Just config
 retrieveVal (segment : remaining) config =
   case (readMaybe @Int (Text.unpack segment), config) of
     (Just n, Aeson.Array arr) ->
