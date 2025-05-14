@@ -83,7 +83,7 @@ library
 
   ghc-options:        -Wall -Wredundant-constraints -Wunused-packages
   build-depends:
-      aeson                >=2.1.2   && <2.3
+      aeson                >=2.1.2
     , aeson-qq             >=0.8.4   && <0.9
     , attoparsec           >=0.14.4  && <0.15
     , base                 >=4.17.2  && <4.21
@@ -203,7 +203,7 @@ test-suite spec
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
-      aeson                >=2.1.2  && <2.3
+      aeson                >=2.1.2
     , attoparsec
     , base
     , bytestring
