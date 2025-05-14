@@ -1,0 +1,133 @@
+module Selector where
+
+import Data.Aeson
+import Data.Attoparsec.Text
+import Data.Char qualified as Char
+import Data.Text qualified as Text
+import Data.Vector qualified as V
+import Imports
+import Wire.API.Team.Feature
+
+data Selector
+  = SelectorFeatureStatusEq FeatureStatus
+  | SelectorLockStatusEq LockStatus
+  | SelectorDbConfigCompare [Text] Ordering Value
+  | SelectorAnd Selector Selector
+  | SelectorOr Selector Selector
+  deriving (Show)
+
+parseSelector :: String -> Either String Selector
+parseSelector input = parseOnly (selectorParser <* endOfInput) (Text.pack input)
+
+-- | Doesn't support brackets, maybe do it later.
+selectorParser :: Parser Selector
+selectorParser = do
+  sel1 <-
+    (SelectorFeatureStatusEq <$> featureStatusParser)
+      <|> (SelectorLockStatusEq <$> lockStatusParser)
+      <|> (dbConfigSelectorParser <&> \(path, op, val) -> SelectorDbConfigCompare path op val)
+  _ <- skipSpace
+  c <- peekChar
+  case c of
+    Just '&' -> do
+      _ <- string "&&"
+      _ <- skipSpace
+      SelectorAnd sel1 <$> selectorParser
+    Just '|' -> do
+      _ <- string "||"
+      _ <- skipSpace
+      SelectorOr sel1 <$> selectorParser
+    _ -> pure sel1
+
+featureStatusParser :: Parser FeatureStatus
+featureStatusParser = do
+  _ <- string "status"
+  _ <- skipSpace
+  _ <- char '='
+  _ <- skipSpace
+  (FeatureStatusEnabled <$ string "enabled")
+    <|> (FeatureStatusDisabled <$ string "disabled")
+
+lockStatusParser :: Parser LockStatus
+lockStatusParser = do
+  _ <- string "lockStatus"
+  _ <- skipSpace
+  _ <- char '='
+  _ <- skipSpace
+  (LockStatusLocked <$ string "locked")
+    <|> (LockStatusUnlocked <$ string "unlocked")
+
+dbConfigSelectorParser :: Parser ([Text], Ordering, Value)
+dbConfigSelectorParser = do
+  _ <- string "config"
+  _ <- char '.'
+  let pathSegmentParser = fmap Text.pack . many1' . satisfy $ \c ->
+        not (Char.isSpace c) -- Avoid complications of spaces in paths
+          && not (inClass ".>=<\"" c) -- Avoid parsing symbols which may come
+          -- after the path, no support for escapes here. Hope we don't make
+          -- complicated configs.
+  path <- sepBy1' pathSegmentParser (char '.')
+  op <- (EQ <$ char '=') <|> (GT <$ char '>') <|> (LT <$ char '<')
+  val <- valParser
+  pure $ (path, op, val)
+
+valParser :: Parser Value
+valParser =
+  numberParser
+    <|> strParser
+    <|> arrParser
+
+numberParser :: Parser Value
+numberParser = Number <$> signed scientific
+
+strParser :: Parser Value
+strParser =
+  String <$> do
+    _ <- char '"'
+    str <- Text.pack <$> many1' (satisfy (\c -> c /= '"'))
+    _ <- char '"'
+    pure str
+
+arrParser :: Parser Value
+arrParser = do
+  _ <- char '['
+  skipSpace
+  elements <- V.fromList <$> sepBy valParser (skipSpace >> char ',' >> skipSpace)
+  skipSpace
+  _ <- char ']'
+  pure $ Array elements
+
+nullParser :: Parser Value
+nullParser = do
+  skipSpace
+  void $ string "null"
+  skipSpace
+  pure Null
+
+data UpdateOperation
+  = UpdateStatus FeatureStatus
+  | UpdateLockStatus LockStatus
+  | UpdateDbConfig [Text] Value
+  | UpdateMultiple UpdateOperation UpdateOperation
+  deriving (Show)
+
+parseUpdateOperation :: String -> Either String UpdateOperation
+parseUpdateOperation input = parseOnly (updateOperationParser <* endOfInput) (Text.pack input)
+
+updateOperationParser :: Parser UpdateOperation
+updateOperationParser = do
+  upd1 <-
+    (UpdateStatus <$> featureStatusParser)
+      <|> (UpdateLockStatus <$> lockStatusParser)
+      <|> ( dbConfigSelectorParser >>= \(path, op, val) -> do
+              when (op /= EQ) $ fail $ "Invalid use of non '=' operator: " <> show op
+              pure $ UpdateDbConfig path val
+          )
+  _ <- skipSpace
+  c <- peekChar
+  case c of
+    Just ',' -> do
+      _ <- char ','
+      _ <- skipSpace
+      UpdateMultiple upd1 <$> updateOperationParser
+    _ -> pure upd1
