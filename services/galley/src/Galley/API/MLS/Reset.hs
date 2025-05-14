@@ -119,10 +119,7 @@ resetLocalMLSConversation qusr ctype lcnvOrSub reset =
           removeAllMLSClients gid
 
           let newGid = case nextGenGroupId gid of
-                Left _ ->
-                  convToGroupId
-                    GroupIdVersion2
-                    (groupIdParts ctype 0 (tUntagged lcnvOrSub))
+                Left _ -> newGroupId ctype (tUntagged lcnvOrSub)
                 Right gid' -> gid'
 
           resetConversation cnvId newGid

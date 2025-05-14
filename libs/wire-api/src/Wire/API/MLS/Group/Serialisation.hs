@@ -16,11 +16,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.Group.Serialisation
-  ( GroupIdVersion (..),
+  ( GroupIdVersion (GroupIdVersion1),
     GroupIdParts (..),
     groupIdParts,
     convToGroupId,
     groupIdToConv,
+    newGroupId,
     nextGenGroupId,
   )
 where
@@ -117,6 +118,9 @@ groupIdToConv gid = do
           subConvId <- either (fail . T.unpack) pure $ parseHeader subConvIdBS
           gen <- getWord32be
           pure $ (version, ct, SubConv (Id uuid) (SubConvId subConvId), GroupIdGen gen)
+
+newGroupId :: ConvType -> Qualified ConvOrSubConvId -> GroupId
+newGroupId ctype qcs = convToGroupId GroupIdVersion1 (groupIdParts ctype 0 qcs)
 
 nextGenGroupId :: GroupId -> Either String GroupId
 nextGenGroupId gid = convToGroupId GroupIdVersion2 . succGen . snd <$> groupIdToConv gid
