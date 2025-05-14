@@ -103,7 +103,6 @@ hself: hsuper: {
   hashable = hlib.dontCheck hsuper.hashable_1_4_7_0;
   primitive = hlib.dontCheck hsuper.primitive_0_9_0_0;
   primitive-unlifted = hsuper.primitive-unlifted_2_2_0_0;
-  # Tasty-quickcheck = hsuper.tasty-quickcheck;
 
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
