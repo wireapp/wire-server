@@ -205,7 +205,7 @@ simpleVerifyAuthnResponse creds raw = do
   let err = throwError . BadSamlResponseSamlError . cs . show
   doc :: Cursor <- do
     either err (pure . fromDocument) (parseLBS def raw)
-  assertions <- do
+  assertions :: NonEmpty Element <- do
     let elemOnly (NodeElement el) = Just el
         elemOnly _ = Nothing
     case mapMaybe (elemOnly . node) (doc $/ element "{urn:oasis:names:tc:SAML:2.0:assertion}Assertion") of

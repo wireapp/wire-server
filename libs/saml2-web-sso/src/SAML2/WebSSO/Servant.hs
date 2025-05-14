@@ -24,6 +24,8 @@ type PostRedir = Verb 'POST 303
 
 -- | There is a tiny package `servant-xml`, which does essentially what this type and its
 -- 'Mime{,Un}Render' instances do, but inlining this package seems easier.
+--
+-- FUTUREWORK: there is also `RawXML` in wire-api, we should probably drop one of the two.
 data XML
 
 instance Accept XML where
