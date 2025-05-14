@@ -77,6 +77,7 @@ executable inconsistencies
     , conduit
     , extended
     , extra
+    , email-validate
     , imports
     , optparse-applicative
     , text

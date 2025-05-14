@@ -17,7 +17,12 @@ import System.Logger qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
 import Wire.API.Team.Permission
 import Wire.API.User (AccountStatus)
-import Wire.API.User.EmailAddress
+import Wire.API.User.EmailAddress (EmailAddress)
+
+import qualified Text.Email.Validate      as Email
+import qualified Data.Text.Encoding       as TE
+import           Data.Aeson               ((.=), object)
+import qualified Data.ByteString          as BS
 
 -- Problem statement:
 -- Upon brig re-index, we look up the user table and create a
@@ -42,17 +47,39 @@ runCommand l brig inconsistenciesFile = do
         .| C.mapM
           ( \(i, userDetails) -> do
               Log.info l (Log.field "userIds" (show ((i - 1) * pageSize + fromIntegral (length userDetails))))
-              pure $ mapMaybe toDoSomething userDetails
+              pure $ mapMaybe toOffender userDetails
           )
-        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (checkUser brig))
+        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 checkOffender)
         .| C.map ((<> "\n") . BS.intercalate "\n" . map (BS.toStrict . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
+-- | Parse and keep only rows whose email fails to validate.
+toOffender :: UserDetailsRow -> Maybe Offender
+toOffender row@(_, _, _, _, Just rawEmail) =
+  case Email.validate (TE.encodeUtf8 rawEmail) of
+    Left err -> Just (row, err)   -- keep error message
+    Right _  -> Nothing           -- good email → ignore
+toOffender _ = Nothing            -- no email stored
+
+-- | Transform an offending row into JSON
+checkOffender :: Offender -> IO (Maybe Aeson.Value)
+checkOffender ((uid, activated, accStat, wt, Just rawEmail), err) =
+  pure . Just $ object
+    [ "userId"          .= uid
+    , "email"           .= rawEmail
+    , "activated"       .= activated
+    , "accountStatus"   .= accStat
+    , "statusWritetime" .= wt
+    , "parseError"      .= err
+    ]
+checkOffender _ = pure Nothing -- impossible
 
 pageSize :: Int32
 pageSize = 10000
 
 type UserDetailsRow = (UserId, Maybe Bool, Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Text)
+
+type Offender = (UserDetailsRow, String) -- ^ row plus parse-error msg
 
 getUsers :: ConduitM () [UserDetailsRow] Client ()
 getUsers = paginateC cql (paramsP LocalQuorum () pageSize) x5
