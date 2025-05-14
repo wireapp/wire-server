@@ -264,15 +264,15 @@ updateConfig feature tid (mUpdateStatus, mUpdateLock, mUpdateConfig) = do
   batch $ do
     setConsistency LocalQuorum
     for_ mUpdateStatus $ \status ->
-      addPrepQuery qStatus (tid, feature, status)
+      addPrepQuery qStatus (status, tid, feature)
     for_ mUpdateLock $ \lock ->
-      addPrepQuery qLock (tid, feature, lock)
+      addPrepQuery qLock (lock, tid, feature)
     for_ mUpdateConfig $ \cfg ->
-      addPrepQuery qConfig (tid, feature, cfg)
+      addPrepQuery qConfig (cfg, tid, feature)
   where
-    qStatus :: PrepQuery W (TeamId, Text, FeatureStatus) ()
-    qStatus = "update team_features_dyn where team = ? and feature = ? set status = ?"
-    qLock :: PrepQuery W (TeamId, Text, LockStatus) ()
-    qLock = "update team_features_dyn where team = ? and feature = ? set lock_status = ?"
-    qConfig :: PrepQuery W (TeamId, Text, DbConfig) ()
-    qConfig = "update team_features_dyn where team = ? and feature = ? set config = ?"
+    qStatus :: PrepQuery W (FeatureStatus, TeamId, Text) ()
+    qStatus = "update team_features_dyn set status = ? where team = ? and feature = ?"
+    qLock :: PrepQuery W (LockStatus, TeamId, Text) ()
+    qLock = "update team_features_dyn set lock_status = ? where team = ? and feature = ?"
+    qConfig :: PrepQuery W (DbConfig, TeamId, Text) ()
+    qConfig = "update team_features_dyn set config = ? where team = ? and feature = ?"
