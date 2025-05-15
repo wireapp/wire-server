@@ -8,6 +8,7 @@
 , bytestring
 , cassandra-util
 , conduit
+, email-validate
 , extended
 , extra
 , gitignoreSource
@@ -33,6 +34,7 @@ mkDerivation {
     bytestring
     cassandra-util
     conduit
+    email-validate
     extended
     extra
     imports
