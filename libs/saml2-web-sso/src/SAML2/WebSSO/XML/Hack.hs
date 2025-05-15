@@ -25,6 +25,8 @@ docToXMLWithRoot = xshowBlob . (: [])
 -- | this is called in `xshowBlob` below and used to come from "Text.XML.HXT.DOM.TypeDefs".
 -- the original in hxt used Data.ByteString.Lazy.Char8.pack for rendering XText, which caused
 -- some valid unicode characters to get corrupted.
+--
+-- See also: https://github.com/UweSchmidt/hxt/pull/101/files
 stringToBlob :: String -> BSL.ByteString
 stringToBlob = LBSUTF8.fromString
 
