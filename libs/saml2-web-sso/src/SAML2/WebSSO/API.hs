@@ -224,7 +224,7 @@ simpleVerifyAuthnResponse creds raw = do
 allVerifies :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> NonEmpty String -> m (NonEmpty Assertion)
 allVerifies creds raw nodeids = do
   let workArounds = verifyADFS creds raw nodeids
-  xmls <- case verify creds raw `mapM` nodeids of
+  xmls :: NonEmpty XmlTree <- case verify creds raw `mapM` nodeids of
     Right assertions -> pure assertions
     Left err -> case workArounds of
       Right ws -> pure ws

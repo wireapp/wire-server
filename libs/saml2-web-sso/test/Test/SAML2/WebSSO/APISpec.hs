@@ -327,10 +327,10 @@ spec = describe "API" $ do
   --  * onelogin
   --  * jives [https://community.jivesoftware.com/docs/DOC-240217#jive_content_id_IdP_Metadata]
 
-  focus . describe "simpleVerifyAuthnResponse, second attempt" $ do
+  describe "simpleVerifyAuthnResponse, second attempt" $ do
     let check :: FilePath -> FilePath -> Expectation
         check metaFile respFile = do
-          resp :: LBS <- cs <$> readSampleIO respFile
+          resp :: LBS <- readSampleIOLBS respFile
           assertions <- liftIO $ do
             idpCfg :: IdPConfig_ <- do
               raw :: LBS <- cs <$> readSampleIO metaFile
@@ -345,5 +345,5 @@ spec = describe "API" $ do
 
           length assertions `shouldBe` 1
 
-    it "works" $ do
+    it "utf8 characters in authentication response are parsed correctly (not as Char8)" $ do
       check "microsoft-azure-utf8-issue-metadata.base64" "microsoft-azure-utf8-issue-authentication-request.base64"

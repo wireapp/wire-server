@@ -6,6 +6,7 @@ module SAML2.WebSSO.Test.Util.Misc where
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString.Base64.Lazy qualified as EL (encode)
+import Data.ByteString.Lazy qualified as LBS
 import Data.EitherR
 import Data.Generics.Uniplate.Data
 import Data.List (sort)
@@ -34,6 +35,13 @@ readSampleIO fpath =
   liftIO $
     LT.readFile $
       $(fileRelativeToProject "test/samples") </> fpath
+
+readSampleIOLBS :: (MonadIO m) => FilePath -> m LBS
+readSampleIOLBS fpath =
+  liftIO
+    $ LBS.readFile
+    $ $(fileRelativeToProject "test/samples")
+    </> fpath
 
 doesSampleExistIO :: (MonadIO m) => FilePath -> m Bool
 doesSampleExistIO fpath =
