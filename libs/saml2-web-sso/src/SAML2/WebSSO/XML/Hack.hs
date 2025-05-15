@@ -104,11 +104,11 @@ showXmlTrees cf af =
     -- ------------------------------------------------------------
 
     showTrees :: XmlTrees -> StringFct
-    showTrees = foldr (.) id . map showXmlTree
+    showTrees = foldr (((.)) . showXmlTree) id
     {-# INLINE showTrees #-}
 
     showTrees' :: XmlTrees -> StringFct
-    showTrees' = foldr (\x y -> x . showNL . y) id . map showXmlTree
+    showTrees' = foldr ((\x y -> x . showNL . y) . showXmlTree) id
     {-# INLINE showTrees' #-}
 
     -- ------------------------------------------------------------
@@ -152,7 +152,7 @@ showXmlTrees cf af =
     showXmlTree (NTree (XPi n al) _) =
       showString "<?"
         . showQName n
-        . (foldr (.) id . map showPiAttr) al
+        . (foldr (((.)) . showPiAttr) id) al
         . showString "?>"
       where
         showPiAttr :: XmlTree -> StringFct
@@ -334,8 +334,7 @@ showXmlTrees cf af =
           && (not . null) cs =
           showLpar
             . showString v_pcdata
-            . ( foldr (.) id
-                  . map (mixedContent . selAttrl . getNode)
+            . ( foldr (((.)) . mixedContent . selAttrl . getNode) id
               )
               cs1
             . showRpar
@@ -351,8 +350,7 @@ showXmlTrees cf af =
           showLpar
             . showRpar
       | t == k_peref =
-          foldr (.) id
-            . map showContent
+          foldr (((.)) . showContent) id
             $ cs
       | otherwise = showString t
       where

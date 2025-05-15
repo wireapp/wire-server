@@ -38,10 +38,10 @@ readSampleIO fpath =
 
 readSampleIOLBS :: (MonadIO m) => FilePath -> m LBS
 readSampleIOLBS fpath =
-  liftIO
-    $ LBS.readFile
-    $ $(fileRelativeToProject "test/samples")
-    </> fpath
+  liftIO $
+    LBS.readFile $
+      $(fileRelativeToProject "test/samples")
+        </> fpath
 
 doesSampleExistIO :: (MonadIO m) => FilePath -> m Bool
 doesSampleExistIO fpath =
