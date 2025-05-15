@@ -406,13 +406,24 @@ noChanges = throw NoChanges
 
 ensureAllowed ::
   forall tag mem r x.
-  (IsConvMember mem, HasConversationActionEffects tag r) =>
+  ( IsConvMember mem,
+    HasConversationActionEffects tag r,
+    Member (ErrorS InvalidOperation) r
+  ) =>
   Sing tag ->
   Local x ->
   ConversationAction tag ->
   Conversation ->
   ConvOrTeamMember mem ->
   Sem r ()
+ensureAllowed tag _ action conv (TeamMember tm) = do
+  case tag of
+    SConversationJoinTag -> do
+      case action of
+        ConversationJoin _ _ InternalAdd -> throwS @'InvalidOperation
+        ConversationJoin _ _ ExternalCreate -> ensureChannelAndTeamAdmin conv tm
+        ConversationJoin _ _ ExternalAdd -> ensureChannelAndTeamAdmin conv tm
+    _ -> throwS @'InvalidOperation
 ensureAllowed tag loc action conv (ConvMember origUser) = do
   case tag of
     SConversationJoinTag ->
@@ -799,32 +810,12 @@ updateLocalConversation ::
   Sem r LocalConversationUpdate
 updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
-
-  -- retrieve conversation
   conv <- getConversationWithError lcnv
-  channelActionAllowed <- channelActionByTeamAdminAllowed conv (fromSing tag)
-  if channelActionAllowed
-    then do
-      performActionAndSendNotification @tag (qualifyAs lcnv conv) qusr con action
-    else do
-      -- check that the action does not bypass the underlying protocol
-      unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
-        throwS @'InvalidOperation
-
-      -- perform all authorisation checks and, if successful, then update itself
-      updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
-  where
-    channelActionByTeamAdminAllowed :: Conversation -> ConversationActionTag -> Sem r Bool
-    channelActionByTeamAdminAllowed conv ConversationJoinTag = do
-      mTeamMember <- foldQualified lcnv (getTeamMembership conv) (const $ pure Nothing) qusr
-      pure $ conv.convMetadata.cnvmGroupConvType == Just Channel && maybe False isTeamAdminOrOwner mTeamMember
-    channelActionByTeamAdminAllowed _ _ = pure False
-
-    isTeamAdminOrOwner :: TeamMember -> Bool
-    isTeamAdminOrOwner tm = isAdminOrOwner $ tm ^. permissions
-
-getTeamMembership :: (Member TeamStore r) => Conversation -> Local UserId -> Sem r (Maybe TeamMember)
-getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
+  -- check that the action does not bypass the underlying protocol
+  unless (protocolValidAction (convProtocol conv) tag action) $
+    throwS @'InvalidOperation
+  -- perform all authorisation checks and, if successful, then update itself
+  updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
 -- 'Conversation' value directly, instead of a 'ConvId', and skips protocol
@@ -855,44 +846,8 @@ updateLocalConversationUnchecked ::
 updateLocalConversationUnchecked lconv qusr con action = do
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
-  -- perform checks
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
-  performActionAndSendNotification @tag lconv qusr con action
-  where
-    ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
-    ensureConversationActionAllowed tag loc conv mTeamMember = do
-      -- retrieve member
-      self <- noteS @'ConvNotFound $ getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember)
-
-      -- general action check
-      case (tag, conv.convMetadata.cnvmChannelAddPermission, mTeamMember) of
-        (SConversationJoinTag, Just AddPermission.Everyone, Just _) -> pure ()
-        _ -> ensureActionAllowed (sConversationActionPermission tag) self
-
-      -- check if it is a group conversation (except for rename actions)
-      when (fromSing tag /= ConversationRenameTag) $
-        ensureGroupConversation conv
-
-      -- extra action-specific checks
-      ensureAllowed tag loc action conv (ConvMember self)
-
-performActionAndSendNotification ::
-  forall tag r.
-  ( SingI tag,
-    Member BackendNotificationQueueAccess r,
-    Member (Error FederationError) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    HasConversationActionEffects tag r
-  ) =>
-  Local Conversation ->
-  Qualified UserId ->
-  Maybe ConnId ->
-  ConversationAction tag ->
-  Sem r LocalConversationUpdate
-performActionAndSendNotification lconv qusr con action = do
   (extraTargets, action') <- performAction (sing @tag) qusr lconv action
   notifyConversationAction
     (sing @tag)
@@ -902,6 +857,32 @@ performActionAndSendNotification lconv qusr con action = do
     lconv
     (convBotsAndMembers (tUnqualified lconv) <> extraTargets)
     action'
+  where
+    getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
+    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
+
+    ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
+    ensureConversationActionAllowed tag loc conv mTeamMember = do
+      self <-
+        noteS @'ConvNotFound $
+          ConvMember <$> getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember) <|> TeamMember <$> mTeamMember
+
+      unless
+        (skipConversationRoleCheck tag conv mTeamMember)
+        case self of
+          ConvMember mem -> ensureActionAllowed (sConversationActionPermission tag) mem
+          TeamMember _ -> throwS @'ConvNotFound
+
+      -- check if it is a group conversation (except for rename actions)
+      when (fromSing tag /= ConversationRenameTag) $
+        ensureGroupConversation conv
+
+      -- extra action-specific checks
+      ensureAllowed tag loc action conv self
+
+    skipConversationRoleCheck :: Sing tag -> Conversation -> Maybe TeamMember -> Bool
+    skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+    skipConversationRoleCheck _ _ _ = False
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
