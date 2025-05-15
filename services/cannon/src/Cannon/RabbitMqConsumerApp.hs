@@ -95,9 +95,10 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
     handleClientMisbehaving wsConn =
       Handler $ \(err :: WebSocketServerError) -> do
         case err of
-          FailedToParseClientMessage _ -> do
+          FailedToParseClientMessage parseError -> do
             Log.info e.logg $
               Log.msg (Log.val "Failed to parse received message, closing websocket")
+                . Log.field "parse_error" parseError
                 . logClient
             WS.sendCloseCode wsConn 1003 ("failed-to-parse" :: ByteString)
           UnexpectedAck -> do
