@@ -972,7 +972,6 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
               zcon
               (qualifyAs lusr dc)
               targets
-              Nothing
               ( ConversationRemoveMembers
                   (pure . tUntagged . qualifyAs lusr $ remove)
                   EdReasonDeleted

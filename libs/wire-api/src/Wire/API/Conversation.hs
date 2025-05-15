@@ -81,6 +81,7 @@ module Wire.API.Conversation
     conversationAccessDataSchema,
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
+    JoinType (..),
     ConversationJoin (..),
     ConversationMemberUpdate (..),
     ConversationRemoveMembers (..),
@@ -1040,9 +1041,27 @@ instance ToSchema ConversationMessageTimerUpdate where
       $ ConversationMessageTimerUpdate
         <$> cupMessageTimer .= optField "message_timer" (maybeWithDefault A.Null schema)
 
+data JoinType = ExternalCreate | ExternalAdd | InternalAdd
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform JoinType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema JoinType
+
+instance Default JoinType where
+  def = InternalAdd
+
+instance ToSchema JoinType where
+  schema =
+    enum @Text "JoinType" $
+      mconcat
+        [ element "external_create" ExternalCreate,
+          element "external_add" ExternalAdd,
+          element "internal_add" InternalAdd
+        ]
+
 data ConversationJoin = ConversationJoin
-  { cjUsers :: NonEmpty (Qualified UserId),
-    cjRole :: RoleName
+  { users :: NonEmpty (Qualified UserId),
+    role :: RoleName,
+    joinType :: JoinType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationJoin)
@@ -1054,8 +1073,9 @@ instance ToSchema ConversationJoin where
       "ConversationJoin"
       (description ?~ "The action of some users joining a conversation")
       $ ConversationJoin
-        <$> cjUsers .= field "users" (nonEmptyArray schema)
-        <*> cjRole .= field "role" schema
+        <$> (.users) .= field "users" (nonEmptyArray schema)
+        <*> role .= field "role" schema
+        <*> joinType .= field "join_type" schema
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTarget :: Qualified UserId,

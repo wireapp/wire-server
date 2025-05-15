@@ -453,6 +453,10 @@ instance IsConvMemberId LocalConvMember (Either LocalMember RemoteMember) where
 
 data LocalConvMember = ConvMemberNoTeam (Qualified UserId) | ConvMemberTeam TeamMember
 
+data ConvOrTeamMember mem where
+  ConvMember :: (IsConvMember mem) => mem -> ConvOrTeamMember mem
+  TeamMember :: TeamMember -> ConvOrTeamMember mem
+
 class IsConvMember mem where
   convMemberRole :: mem -> RoleName
   convMemberId :: Local x -> mem -> Qualified UserId
@@ -874,8 +878,9 @@ registerRemoteConversationMemberships ::
   UTCTime ->
   Local UserId ->
   Local Data.Conversation ->
+  JoinType ->
   Sem r ()
-registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
+registerRemoteConversationMemberships now lusr lc joinType = deleteOnUnreachable $ do
   let c = tUnqualified lc
       rc = toConversationCreated now lusr c
       allRemoteMembers = nubOrd {- (but why would there be duplicates?) -} (Data.convRemoteMembers c)
@@ -943,7 +948,7 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
               (sing @'ConversationJoinTag)
               -- FUTUREWORK(md): replace the member role with whatever is provided in
               -- the NewConv input
-              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember)
+              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember joinType)
         }
 
     deleteOnUnreachable ::
