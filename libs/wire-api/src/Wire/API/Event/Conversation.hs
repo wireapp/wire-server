@@ -55,7 +55,7 @@ module Wire.API.Event.Conversation
 
     -- * Event data helpers
     SimpleMember (..),
-    AddType (..),
+    JoinType (..),
     smId,
     MembersJoin (..),
     Connect (..),
@@ -264,23 +264,9 @@ isCellsConversationEvent eventType =
 --------------------------------------------------------------------------------
 -- Event data helpers
 
-data AddType = ExternalCreate | ExternalAdd | InternalAdd
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform AddType)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddType
-
-instance ToSchema AddType where
-  schema =
-    enum @Text "AddType" $
-      mconcat
-        [ element "external_create" ExternalCreate,
-          element "external_add" ExternalAdd,
-          element "internal_add" InternalAdd
-        ]
-
 data MembersJoin = MembersJoin
   { mMembers :: [SimpleMember],
-    addType :: AddType
+    joinType :: JoinType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MembersJoin)
@@ -300,7 +286,7 @@ instance ToSchema MembersJoin where
                 )
                 (array schema)
             )
-        <*> addType .= field "add_type" schema
+        <*> (.joinType) .= field "add_type" schema
 
 data SimpleMember = SimpleMember
   { smQualifiedId :: Qualified UserId,

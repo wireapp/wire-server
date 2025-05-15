@@ -411,13 +411,13 @@ ensureAllowed ::
   Local x ->
   ConversationAction tag ->
   Conversation ->
-  mem ->
+  ConvOrTeamMember mem ->
   Sem r ()
-ensureAllowed tag loc action conv origUser = do
+ensureAllowed tag loc action conv (ConvMember origUser) = do
   case tag of
     SConversationJoinTag ->
       mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $
-        ensureConvRoleNotElevated origUser (cjRole action)
+        ensureConvRoleNotElevated origUser (role action)
     SConversationDeleteTag ->
       for_ (convTeam conv) $ \tid -> do
         lusr <- ensureLocal loc (convMemberId loc origUser)
@@ -555,7 +555,7 @@ performConversationJoin ::
   Local Conversation ->
   ConversationJoin ->
   Sem r (BotsAndMembers, ConversationJoin)
-performConversationJoin qusr lconv (ConversationJoin invited role) = do
+performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
   let newMembers = ulNewMembers lconv conv . toUserList lconv $ invited
 
   lusr <- ensureLocal lconv qusr
@@ -568,7 +568,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
   checkTeamMemberAddPermission lusr
-  addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
+  addMembersToLocalConversation (fmap (.convId) lconv) newMembers role joinType
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
     checkRemoteBackendsConnected loc = do
@@ -805,8 +805,7 @@ updateLocalConversation lcnv qusr con action = do
   channelActionAllowed <- channelActionByTeamAdminAllowed conv (fromSing tag)
   if channelActionAllowed
     then do
-      mAddType <- todo "detemine add type"
-      performActionAndSendNotification @tag (qualifyAs lcnv conv) qusr con mAddType action
+      performActionAndSendNotification @tag (qualifyAs lcnv conv) qusr con action
     else do
       -- check that the action does not bypass the underlying protocol
       unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
@@ -859,7 +858,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
   -- perform checks
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
-  performActionAndSendNotification @tag lconv qusr con Nothing action
+  performActionAndSendNotification @tag lconv qusr con action
   where
     ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
     ensureConversationActionAllowed tag loc conv mTeamMember = do
@@ -876,7 +875,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
         ensureGroupConversation conv
 
       -- extra action-specific checks
-      ensureAllowed tag loc action conv self
+      ensureAllowed tag loc action conv (ConvMember self)
 
 performActionAndSendNotification ::
   forall tag r.
@@ -891,10 +890,9 @@ performActionAndSendNotification ::
   Local Conversation ->
   Qualified UserId ->
   Maybe ConnId ->
-  Maybe AddType ->
   ConversationAction tag ->
   Sem r LocalConversationUpdate
-performActionAndSendNotification lconv qusr con mAddType action = do
+performActionAndSendNotification lconv qusr con action = do
   (extraTargets, action') <- performAction (sing @tag) qusr lconv action
   notifyConversationAction
     (sing @tag)
@@ -903,7 +901,6 @@ performActionAndSendNotification lconv qusr con mAddType action = do
     con
     lconv
     (convBotsAndMembers (tUnqualified lconv) <> extraTargets)
-    mAddType
     action'
 
 -- --------------------------------------------------------------------------------
@@ -918,11 +915,12 @@ addMembersToLocalConversation ::
   Local ConvId ->
   UserList UserId ->
   RoleName ->
+  JoinType ->
   Sem r (BotsAndMembers, ConversationJoin)
-addMembersToLocalConversation lcnv users role = do
+addMembersToLocalConversation lcnv users role joinType = do
   (lmems, rmems) <- E.createMembers (tUnqualified lcnv) (fmap (,role) users)
   neUsers <- note NoChanges $ nonEmpty (ulAll lcnv users)
-  let action = ConversationJoin neUsers role
+  let action = ConversationJoin neUsers role joinType
   pure (bmFromMembers lmems rmems, action)
 
 notifyConversationAction ::
@@ -939,14 +937,13 @@ notifyConversationAction ::
   Maybe ConnId ->
   Local Conversation ->
   BotsAndMembers ->
-  Maybe AddType ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets mAddType action = do
+notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing mAddType action
+      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
       mkUpdate uids =
         ConversationUpdate
           now
@@ -1012,13 +1009,13 @@ updateLocalStateOfRemoteConv rcu con = do
   (mActualAction, extraTargets) <- case cu.action of
     sca@(SomeConversationAction singTag action) -> case singTag of
       SConversationJoinTag -> do
-        let ConversationJoin toAdd role = action
+        let ConversationJoin toAdd role joinType = action
         let (localUsers, remoteUsers) = partitionQualified loc toAdd
         addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId cu.origUserId localUsers
         let allAddedUsers = map (tUntagged . qualifyAs loc) addedLocalUsers <> map tUntagged remoteUsers
         pure $
           ( fmap
-              (\users -> SomeConversationAction SConversationJoinTag (ConversationJoin users role))
+              (\users -> SomeConversationAction SConversationJoinTag (ConversationJoin users role joinType))
               (nonEmpty allAddedUsers),
             addedLocalUsers
           )
@@ -1054,7 +1051,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing Nothing action
+    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
@@ -1135,7 +1132,6 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     Nothing
     lconv
     (targets <> extraTargets)
-    Nothing
     (ConversationRemoveMembers (pure victim) EdReasonRemoved)
 
 notifyTypingIndicator ::
