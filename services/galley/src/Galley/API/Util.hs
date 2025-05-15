@@ -205,6 +205,11 @@ ensureReAuthorised ::
 ensureReAuthorised u secret mbAction mbCode =
   reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither
 
+ensureChannelAndTeamAdmin :: (Member (ErrorS 'InvalidOperation) r) => Data.Conversation -> TeamMember -> Sem r ()
+ensureChannelAndTeamAdmin conv tm = do
+  unless (conv.convMetadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions)) $
+    throwS @'InvalidOperation
+
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, or if it has a
 -- custom role, throw 'ActionDenied'.
@@ -453,6 +458,8 @@ instance IsConvMemberId LocalConvMember (Either LocalMember RemoteMember) where
 
 data LocalConvMember = ConvMemberNoTeam (Qualified UserId) | ConvMemberTeam TeamMember
 
+-- | This type indicates whether a member is a conversation member or a team member.
+-- This is a simplification because a user could be both a conversation member and a team member.
 data ConvOrTeamMember mem where
   ConvMember :: (IsConvMember mem) => mem -> ConvOrTeamMember mem
   TeamMember :: TeamMember -> ConvOrTeamMember mem

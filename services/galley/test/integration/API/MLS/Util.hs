@@ -958,7 +958,8 @@ receiveOnConvUpdated conv origUser joiner = do
                 SConversationJoinTag
                 ConversationJoin
                   { users = pure joiner,
-                    role = roleNameWireMember
+                    role = roleNameWireMember,
+                    joinType = InternalAdd
                   }
           }
   void $

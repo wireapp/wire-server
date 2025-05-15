@@ -1626,7 +1626,7 @@ paginateConvListIds = do
               origUserId = qChad,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1642,7 +1642,7 @@ paginateConvListIds = do
               origUserId = qDee,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -1687,7 +1687,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               origUserId = qChad,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1705,7 +1705,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               origUserId = qDee,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -3006,7 +3006,7 @@ putRemoteConvMemberOk update = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
 
@@ -3151,7 +3151,7 @@ putRemoteReceiptModeOk = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin InternalAdd)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
 
@@ -3166,7 +3166,7 @@ putRemoteReceiptModeOk = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember InternalAdd)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
 
