@@ -28,6 +28,7 @@ module Wire.API.Conversation.Action
     conversationActionPermission,
     ConversationActionPermission,
     sConversationActionPermission,
+    protocolValidAction,
   )
 where
 
@@ -45,7 +46,7 @@ import Data.Time.Clock
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Action.Tag
-import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.Conversation.Protocol hiding (protocolTag)
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
@@ -210,3 +211,18 @@ conversationActionToEvent tag now quid qcnv subconv action =
         SConversationUpdateProtocolTag -> EdProtocolUpdate action
         SConversationUpdateAddPermissionTag -> EdAddPermissionUpdate action
    in Event qcnv subconv quid now edata
+
+-- | Certain actions need to be performed at the level of the underlying
+-- protocol (MLS, mostly) before being applied to conversations. This function
+-- returns whether a given action tag is directly applicable to a conversation
+-- with the given protocol.
+protocolValidAction :: Protocol -> Sing tag -> ConversationAction tag -> Bool
+protocolValidAction ProtocolProteus _ _ = True
+protocolValidAction (ProtocolMixed _) _ _ = True
+protocolValidAction (ProtocolMLS _) SConversationJoinTag (ConversationJoin _ _ InternalAdd) = False
+protocolValidAction (ProtocolMLS _) SConversationJoinTag (ConversationJoin _ _ ExternalCreate) = True
+protocolValidAction (ProtocolMLS _) SConversationJoinTag (ConversationJoin _ _ ExternalAdd) = True
+protocolValidAction (ProtocolMLS _) SConversationLeaveTag _ = True
+protocolValidAction (ProtocolMLS _) SConversationRemoveMembersTag _ = False
+protocolValidAction (ProtocolMLS _) SConversationDeleteTag _ = True
+protocolValidAction (ProtocolMLS _) _ _ = True

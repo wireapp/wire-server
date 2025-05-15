@@ -19,14 +19,17 @@
 
 module Test.Channels where
 
-import API.Brig (createUserGroup)
 import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
 import qualified API.GalleyInternal as I
+import Control.Monad.Codensity (Codensity (Codensity), lowerCodensity)
+import Control.Monad.Trans.Class
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import GHC.Stack
 import MLS.Util
-import Notifications (isChannelAddPermissionUpdate, isMemberJoinNotif)
+import Notifications (isChannelAddPermissionUpdate, isMemberJoinNotif, isWelcomeNotif)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -421,52 +424,101 @@ testTeamAdminCanCreateChannelWithoutJoining = do
 
 testTeamAdminCanAddMembersWithoutJoining :: (HasCallStack) => App ()
 testTeamAdminCanAddMembersWithoutJoining = do
-  (owner, tid, mem1 : mem2 : mem3 : mem4 : _) <- createTeam OwnDomain 5
-  -- mem1 already has a client
-  mem1Client <- createMLSClient def mem1
-  void $ uploadNewKeyPackage def mem1Client
+  (owner, tid, mems@(m1 : m2 : m3 : m4 : _)) <- createTeam OwnDomain 5
+  cs@(c1 : c2 : c3 : c4 : _) <- for mems $ createMLSClient def
+  for_ cs $ uploadNewKeyPackage def
 
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
-  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
-
-  mem3id <- asString $ mem3 %. "id"
-  mem4id <- asString $ mem4 %. "id"
-  _gid <- bindResponse (createUserGroup owner (object ["name" .= "test user group", "members" .= ([mem3id, mem4id])])) $ \resp -> do
-    asString $ (resp.json %. "id")
+  void $ setTeamFeatureConfig owner tid "channels" (config "admins")
 
   -- the team admin creates a channel without joining
   channel <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
 
-  withWebSocket mem1 $ \ws -> do
+  withWebSockets [c1, c2, c3] $ \wss@[_ws1, ws2, ws3] -> do
     -- the team admin adds members to the channel
-    addMembers owner channel def {users = [mem1, mem2]} `bindResponse` \resp -> do
+    addMembers owner channel def {users = [m1, m2, m3], role = Just "wire_member"} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
 
     -- the members are now in the channel
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      mems <- resp.json %. "members" & asList
-      for mems (\m -> m %. "id") `shouldMatchSet` (for [mem1, mem2] (\m -> m %. "id"))
+      convMems <- resp.json %. "members" & asList
+      for [m1, m2, m3] (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
 
-    -- mem1 receives a notification about being added to the channel
-    notif <- awaitMatch isMemberJoinNotif ws
-    qcid <- notif %. "payload.0.qualified_conversation"
-    notif %. "payload.0.data.add_type" `shouldMatch` "external_create"
+    qcid : _ <- for wss $ \ws -> do
+      notif <- awaitMatch isMemberJoinNotif ws
+      notif %. "payload.0.data.add_type" `shouldMatch` "external_create"
+      notif %. "payload.0.qualified_conversation"
 
-    -- they figure out that they should add themselves to the MLS group
-    conv <- getConversation mem1 qcid >>= getJSON 200
+    conv <- getConversation m1 qcid >>= getJSON 200
+    convMems <- conv %. "members.others" & asList
+    let self = m1
     convId <- objConvId conv
-    -- only if epoch=0
-    createGroup def mem1Client convId
-    void $ createAddCommit mem1Client convId [mem1] >>= sendAndConsumeCommitBundle
+    createGroup def c1 convId
+    void $ createAddCommit c1 convId (self : convMems) >>= sendAndConsumeCommitBundleExternalAdd
 
-  -- mem2 creates a client after being added to the channel
-  mem2Client <- createMLSClient def mem2
-  void $ uploadNewKeyPackage def mem2Client
+    -- the members that were added receive a welcome message
+    for_ [ws2, ws3] $ \ws -> do
+      awaitMatch isWelcomeNotif ws
 
-  cidsResponse <- listConversationIds mem2 def
-  cids <- cidsResponse.json >>= (%. "qualified_conversations") & asList
+  withWebSocket c4 $ \ws -> do
+    addMembers owner channel def {users = [m4], role = Just "wire_member"} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
 
-  for_ cids $ \qcid -> do
-    -- client should sync MLS state add itself to the MLS group
-    void $ getConversation mem2 qcid >>= getJSON 200
+    notif <- awaitMatch isMemberJoinNotif ws
+    notif %. "payload.0.data.add_type" `shouldMatch` "external_add"
+    qcid <- notif %. "payload.0.qualified_conversation"
+
+    -- c4 adds itself with an external add
+    conv <- getConversation m4 qcid >>= getJSON 200
+    convId <- objConvId conv
+    void $ createExternalCommit convId c4 Nothing >>= sendAndConsumeCommitBundleExternalAdd
+
+sendAndConsumeCommitBundleExternalAdd :: (HasCallStack) => MessagePackage -> App Value
+sendAndConsumeCommitBundleExternalAdd mp = do
+  lowerCodensity $ do
+    consumingMessagesExpectNoMemberJoin mp
+    lift $ do
+      r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
+
+      -- if the sender is a new member (i.e. it's an external commit), then
+      -- process the welcome message directly
+      do
+        conv <- getMLSConv mp.convId
+        when (Set.member mp.sender conv.newMembers)
+          $ traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
+
+      -- increment epoch and add new/remove clients
+      modifyMLSState $ \mls ->
+        mls
+          { convs =
+              Map.adjust
+                ( \conv ->
+                    conv
+                      { epoch = conv.epoch + 1,
+                        members = (conv.members <> conv.newMembers) Set.\\ conv.membersToBeRemoved,
+                        membersToBeRemoved = mempty,
+                        newMembers = mempty
+                      }
+                )
+                mp.convId
+                mls.convs
+          }
+
+      pure r
+
+consumingMessagesExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> Codensity App ()
+consumingMessagesExpectNoMemberJoin mp = Codensity $ \k -> do
+  conv <- getMLSConv mp.convId
+  let oldClients = Set.delete mp.sender conv.members
+  let newClients = Set.delete mp.sender conv.newMembers
+  let clients =
+        map (,MLSNotificationMessageTag) (toList oldClients)
+          <> map (,MLSNotificationWelcomeTag) (toList newClients)
+
+  withWebSockets (map fst clients) $ \wss -> do
+    r <- k ()
+    for_ (zip clients wss) $ \((cid, t), ws) -> case t of
+      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
+      MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
+    pure r
