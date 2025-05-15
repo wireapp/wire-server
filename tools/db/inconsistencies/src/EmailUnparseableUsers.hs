@@ -18,6 +18,7 @@ import System.Logger qualified as Log
 import Text.Email.Validate qualified as Email
 import UnliftIO (pooledMapConcurrentlyN)
 import Wire.API.User (AccountStatus)
+
 -- import Wire.API.User.EmailAddress (EmailAddress)
 
 -- Problem statement:
