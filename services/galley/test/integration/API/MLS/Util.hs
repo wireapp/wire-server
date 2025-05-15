@@ -960,8 +960,8 @@ receiveOnConvUpdated conv origUser joiner = do
               SomeConversationAction
                 SConversationJoinTag
                 ConversationJoin
-                  { cjUsers = pure joiner,
-                    cjRole = roleNameWireMember
+                  { users = pure joiner,
+                    role = roleNameWireMember
                   }
           }
   void $

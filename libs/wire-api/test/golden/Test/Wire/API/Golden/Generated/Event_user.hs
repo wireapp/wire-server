@@ -270,7 +270,7 @@ testObject_Event_user_12 =
                       smConvRoleName = fromJust (parseRoleName "2e")
                     }
                 ],
-              addType = ExternalAdd
+              joinType = ExternalAdd
             }
         )
     )

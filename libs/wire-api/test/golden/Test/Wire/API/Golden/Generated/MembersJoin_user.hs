@@ -36,9 +36,9 @@ testObject_MembersJoin_user_1 =
               smConvRoleName = fromJust (parseRoleName "n0_wu2h66nj3lerw_blivsh6by09a")
             }
         ],
-      addType = InternalAdd
+      joinType = InternalAdd
     }
 
 testObject_MembersJoin_user_2 :: MembersJoin
 testObject_MembersJoin_user_2 =
-  MembersJoin {mMembers = [], addType = InternalAdd}
+  MembersJoin {mMembers = [], joinType = InternalAdd}
