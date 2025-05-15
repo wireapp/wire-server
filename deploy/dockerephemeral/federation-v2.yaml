@@ -280,4 +280,4 @@ services:
       - /coredns-config/Corefile
     networks:
       coredns:
-        ipv4_address: 172.20.1.4
+        ipv4_address: 172.20.1.5
