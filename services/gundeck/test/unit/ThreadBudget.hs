@@ -38,6 +38,8 @@ import System.Logger.Class qualified as LC
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 import Test.StateMachine
+import Test.StateMachine.TreeDiff
+import Test.StateMachine.TreeDiff.Class ()
 import Test.StateMachine.Types qualified as STM
 import Test.StateMachine.Types.Rank2 qualified as Rank2
 import Test.Tasty
@@ -48,7 +50,7 @@ import Test.Tasty.QuickCheck
 -- helpers
 
 newtype NumberOfThreads = NumberOfThreads {fromNumberOfThreads :: Int}
-  deriving (Eq, Ord, Show, Generic, CanDiff)
+  deriving (Eq, Ord, Show, Generic, ToExpr)
 
 -- | 'microseconds' determines how long one unit lasts.  there is a trade-off of fast
 -- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.
@@ -56,7 +58,7 @@ newtype NumberOfThreads = NumberOfThreads {fromNumberOfThreads :: Int}
 -- There is also `Milliseconds` (with small `s` after `Milli`) in "Data.Misc".  maybe this
 -- should be cleaned up...
 newtype MilliSeconds = MilliSeconds {fromMilliSeconds :: Int}
-  deriving (Eq, Ord, Show, Generic, CanDiff)
+  deriving (Eq, Ord, Show, Generic, ToExpr)
 
 instance Arbitrary NumberOfThreads where
   arbitrary = NumberOfThreads <$> choose (1, 30)
@@ -183,9 +185,9 @@ type State = Reference (Opaque (ThreadBudgetState, Async (), LogHistory))
 newtype Model r = Model (Maybe (State r))
   deriving (Show, Generic)
 
-instance CanDiff (Model Symbolic)
+instance ToExpr (Model Symbolic)
 
-instance CanDiff (Model Concrete)
+instance ToExpr (Model Concrete)
 
 data Command r
   = Init NumberOfThreads
