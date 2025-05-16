@@ -102,8 +102,7 @@ instance (ArbitraryFramedContent fc) => Arbitrary (MessageGenerator fc) where
         <$> arbitrary
         <*> fmap
           MessagePublic
-          ( PublicMessage (mkRawMLS fc)
-              <$> (mkRawMLS <$> (FramedContentAuthData <$> arbitrary <*> pure confirmationTag))
+          ( (PublicMessage (mkRawMLS fc) . mkRawMLS <$> (FramedContentAuthData <$> arbitrary <*> pure confirmationTag))
               <*> pure mt
           )
 

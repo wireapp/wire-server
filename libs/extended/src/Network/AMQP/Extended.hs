@@ -294,6 +294,5 @@ logException l m (SomeException e) = do
 
 readCredsFromEnv :: IO (Text, Text)
 readCredsFromEnv =
-  (,)
-    <$> (Text.pack <$> getEnv "RABBITMQ_USERNAME")
+  ((,) . Text.pack <$> getEnv "RABBITMQ_USERNAME")
     <*> (Text.pack <$> getEnv "RABBITMQ_PASSWORD")
