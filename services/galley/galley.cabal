@@ -391,7 +391,6 @@ executable galley
 executable galley-integration
   import:             common-all
   main-is:            ../integration.hs
-  ghc-options:        -Wno-unused-packages -Wno-x-partial
 
   -- cabal-fmt: expand test/integration
   other-modules:
@@ -416,8 +415,6 @@ executable galley-integration
     TestHelpers
     TestSetup
 
-  ghc-options:        -threaded -with-rtsopts=-N -rtsopts
-  hs-source-dirs:     test/integration
   hs-source-dirs:     test/integration
   default-extensions:
     AllowAmbiguousTypes
