@@ -81,6 +81,7 @@ module Wire.API.Conversation
     conversationAccessDataSchema,
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
+    JoinType (..),
     ConversationJoin (..),
     ConversationMemberUpdate (..),
     ConversationRemoveMembers (..),
@@ -892,7 +893,7 @@ instance ToSchema NewOne2OneConv where
       "NewOne2OneConv"
       (description ?~ "JSON object to create a new 1:1 conversation. When using 'qualified_users' (preferred), you can omit 'users'")
       $ NewOne2OneConv
-        <$> users
+        <$> (.users)
           .= ( fieldWithDocModifier
                  "users"
                  ( (S.deprecated ?~ True)
@@ -946,9 +947,10 @@ instance ToSchema Invite where
           .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 
 data InviteQualified = InviteQualified
-  { invQUsers :: NonEmpty (Qualified UserId),
+  { users :: NonEmpty (Qualified UserId),
     -- | This role name is to be applied to all users
-    invQRoleName :: RoleName
+    roleName :: RoleName,
+    userGroups :: [UserGroupId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InviteQualified)
@@ -958,9 +960,9 @@ instance ToSchema InviteQualified where
   schema =
     object "InviteQualified" $
       InviteQualified
-        <$> invQUsers .= field "qualified_users" (nonEmptyArray schema)
-        <*> invQRoleName
-          .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+        <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
+        <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+        <*> userGroups .= (fromMaybe mempty <$> optField "user_groups" (array schema))
 
 --------------------------------------------------------------------------------
 -- update
@@ -1039,9 +1041,27 @@ instance ToSchema ConversationMessageTimerUpdate where
       $ ConversationMessageTimerUpdate
         <$> cupMessageTimer .= optField "message_timer" (maybeWithDefault A.Null schema)
 
+data JoinType = ExternalCreate | ExternalAdd | InternalAdd
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform JoinType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema JoinType
+
+instance Default JoinType where
+  def = InternalAdd
+
+instance ToSchema JoinType where
+  schema =
+    enum @Text "JoinType" $
+      mconcat
+        [ element "external_create" ExternalCreate,
+          element "external_add" ExternalAdd,
+          element "internal_add" InternalAdd
+        ]
+
 data ConversationJoin = ConversationJoin
-  { cjUsers :: NonEmpty (Qualified UserId),
-    cjRole :: RoleName
+  { users :: NonEmpty (Qualified UserId),
+    role :: RoleName,
+    joinType :: JoinType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationJoin)
@@ -1053,8 +1073,9 @@ instance ToSchema ConversationJoin where
       "ConversationJoin"
       (description ?~ "The action of some users joining a conversation")
       $ ConversationJoin
-        <$> cjUsers .= field "users" (nonEmptyArray schema)
-        <*> cjRole .= field "role" schema
+        <$> (.users) .= field "users" (nonEmptyArray schema)
+        <*> role .= field "role" schema
+        <*> joinType .= (fromMaybe def <$> optField "join_type" schema)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTarget :: Qualified UserId,

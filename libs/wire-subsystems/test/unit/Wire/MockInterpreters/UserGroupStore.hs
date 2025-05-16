@@ -63,6 +63,7 @@ userGroupStoreTestInterpreter =
   interpret \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid -> getUserGroupImpl tid gid
+    AddUserGroupsToChannel _ _ -> error "AddUserGroupsToChannel not implemented in mock interpreter"
 
 createUserGroupImpl :: (EffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
