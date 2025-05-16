@@ -474,6 +474,7 @@ testTeamAdminCanAddMembersWithoutJoining = do
     convId <- objConvId conv
     void $ createExternalCommit convId c4 Nothing >>= sendAndConsumeCommitBundleExternalAdd
 
+-- TODO: refactor
 sendAndConsumeCommitBundleExternalAdd :: (HasCallStack) => MessagePackage -> App Value
 sendAndConsumeCommitBundleExternalAdd mp = do
   lowerCodensity $ do

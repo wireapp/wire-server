@@ -110,7 +110,8 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSGroupConversationMismatch,
-     ErrorS 'MLSSubConvClientNotInParent
+     ErrorS 'MLSSubConvClientNotInParent,
+     ErrorS 'MLSMissingNewUsers
    ]
 
 type MLSBundleStaticErrors =
@@ -135,7 +136,8 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (ErrorS 'MLSMissingNewUsers) r
   ) =>
   Local UserId ->
   ClientId ->
@@ -366,7 +368,8 @@ postMLSMessage ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (ErrorS 'MLSMissingNewUsers) r
   ) =>
   Local x ->
   Qualified UserId ->
