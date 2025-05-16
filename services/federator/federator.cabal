@@ -273,7 +273,7 @@ executable federator-integration
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -Wredundant-constraints -Wunused-packages -threaded
-    -with-rtsopts=-N1
+    -with-rtsopts=-N1 -Wno-x-partial
 
   build-depends:
       aeson
@@ -375,7 +375,7 @@ test-suite federator-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
-    -Wunused-packages
+    -Wunused-packages -Wno-x-partial
 
   build-depends:
       aeson

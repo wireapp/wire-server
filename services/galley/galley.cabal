@@ -463,7 +463,7 @@ executable galley-integration
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
-    -Wunused-packages
+    -Wunused-packages -Wno-x-partial
 
   build-depends:
     , aeson
@@ -606,7 +606,7 @@ test-suite galley-tests
     Test.Galley.Intra.User
     Test.Galley.Mapping
 
-  ghc-options:    -threaded -with-rtsopts=-N
+  ghc-options:    -threaded -with-rtsopts=-N -Wno-x-partial
   hs-source-dirs: test/unit
   build-depends:
     , base
