@@ -350,8 +350,8 @@ showXmlTrees cf af =
           showLpar
             . showRpar
       | t == k_peref =
-          foldr (((.)) . showContent) id
-            $ cs
+          foldr (((.)) . showContent) id $
+            cs
       | otherwise = showString t
       where
         [(NTree (XDTD CONTENT al1) cs1)] = cs
