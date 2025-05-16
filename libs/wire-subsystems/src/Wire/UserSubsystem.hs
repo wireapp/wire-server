@@ -178,6 +178,7 @@ data UserSubsystem m a where
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
   GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
   RemoveEmailEither :: Local UserId -> UserSubsystem m (Either UserSubsystemError ())
+  GetUserTeam :: UserId -> UserSubsystem m (Maybe TeamId)
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

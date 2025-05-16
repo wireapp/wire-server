@@ -36,7 +36,7 @@ import Control.Arrow ((&&&))
 import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens
 import Data.Aeson.Lens qualified as AesonL

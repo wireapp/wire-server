@@ -391,6 +391,10 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | Postgresql settings, the key values must be in libpq format.
+    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    postgresql :: !(Map Text Text),
+    postgresqlPassword :: !(Maybe FilePathSecrets),
     -- | SFT Federation
     multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.

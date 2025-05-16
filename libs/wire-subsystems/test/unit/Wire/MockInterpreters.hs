@@ -18,6 +18,7 @@ import Wire.MockInterpreters.GalleyAPIAccess as MockInterpreters
 import Wire.MockInterpreters.HashPassword as MockInterpreters
 import Wire.MockInterpreters.IndexedUserStore as MockInterpreters
 import Wire.MockInterpreters.InvitationStore as MockInterpreters
+import Wire.MockInterpreters.NotificationSubsystem as MockInterpreters
 import Wire.MockInterpreters.Now as MockInterpreters
 import Wire.MockInterpreters.PasswordResetCodeStore as MockInterpreters
 import Wire.MockInterpreters.PasswordStore as MockInterpreters
@@ -27,6 +28,7 @@ import Wire.MockInterpreters.RateLimit as MockInterpreters
 import Wire.MockInterpreters.SessionStore as MockInterpreters
 import Wire.MockInterpreters.SparAPIAccess as MockInterpreters
 import Wire.MockInterpreters.TinyLog as MockInterpreters
+import Wire.MockInterpreters.UserGroupStore as MockInterpreters
 import Wire.MockInterpreters.UserKeyStore as MockInterpreters
 import Wire.MockInterpreters.UserStore as MockInterpreters
 import Wire.MockInterpreters.UserSubsystem as MockInterpreters
