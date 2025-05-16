@@ -110,6 +110,7 @@ data GalleyError
     -- tries to create an MLS group while being under legalhold
     MLSLegalholdIncompatible
   | MLSIdentityMismatch
+  | MLSMissingNewUsers
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -269,6 +270,8 @@ type instance MapError 'MLSFederatedResetNotSupported = 'StaticError 400 "mls-fe
 type instance MapError MLSLegalholdIncompatible = 'StaticError 409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
 
 type instance MapError 'MLSIdentityMismatch = 'StaticError 403 "mls-identity-mismatch" "Leaf node signature key does not match the client's key"
+
+type instance MapError 'MLSMissingNewUsers = 'StaticError 403 "mls-missing-new-users" "Some new users that were expected are missing from the proposal"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
