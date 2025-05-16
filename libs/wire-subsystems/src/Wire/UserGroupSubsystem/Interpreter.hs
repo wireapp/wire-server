@@ -68,12 +68,7 @@ createUserGroupImpl ::
   Sem r UserGroup
 createUserGroupImpl creator newGroup = do
   let managedBy = ManagedByWire
-  team <-
-    note UserGroupCreatorIsNotATeamAdmin =<< runMaybeT do
-      team <- MaybeT $ getUserTeam creator
-      creatorTeamMember <- MaybeT $ getTeamMember creator team
-      guard (isAdminOrOwner (creatorTeamMember ^. permissions))
-      pure team
+  team <- getTeamAsAdmin creator
   luids <- qualifyLocal $ toList newGroup.members
   profiles <- getLocalUserProfiles luids
   let existingIds = Set.fromList $ fmap (qUnqualified . profileQualifiedId) profiles
@@ -84,15 +79,31 @@ createUserGroupImpl creator newGroup = do
       UserGroupMemberIsNotInTheSameTeam
   ug <- Store.createUserGroup team newGroup managedBy
   admins <- getTeamAdmins team
-  let push =
-        def
-          { origin = Just creator,
-            json = toJSONObject $ UserGroupEvent $ UserGroupCreated ug.id_,
-            recipients = (\tm -> Recipient (tm ^. TM.userId) RecipientClientsAll) <$> admins ^. teamMembers,
-            transient = True
-          }
-  pushNotifications [push]
+  pushNotifications [mkEvent creator (UserGroupCreated ug.id_) admins]
   pure ug
+
+getTeamAsAdmin ::
+  ( Member UserSubsystem r,
+    Member (Error UserGroupSubsystemError) r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  Sem r TeamId
+getTeamAsAdmin creator = do
+  note UserGroupCreatorIsNotATeamAdmin =<< runMaybeT do
+    team <- MaybeT $ getUserTeam creator
+    creatorTeamMember <- MaybeT $ getTeamMember creator team
+    guard (isAdminOrOwner (creatorTeamMember ^. permissions))
+    pure team
+
+mkEvent :: UserId -> UserGroupEvent -> TeamMemberList -> Push
+mkEvent author evt recipients =
+  def
+    { origin = Just author,
+      json = toJSONObject $ UserGroupEvent evt,
+      recipients = (\tm -> Recipient (tm ^. TM.userId) RecipientClientsAll) <$> admins ^. recipients,
+      transient = True
+    }
 
 qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
 qualifyLocal a = do

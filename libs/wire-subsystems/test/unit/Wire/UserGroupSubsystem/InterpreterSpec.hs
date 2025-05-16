@@ -258,6 +258,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
                 .&&. (ug3 === ug2)
 
+    prop "update sends events to all admins and owners" $ \() ->
+      -- TODO
+      False === True
+
     prop "only team admins should be able to update a group" $
       \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
         expectLeft UserGroupUpdaterIsNotATeamAdmin
@@ -293,6 +297,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
               .&&. after2 === Nothing
               .&&. after3 === Nothing
               .&&. afterOther === Just ug2
+
+    prop "delete sends events to all admins and owners" $ \() ->
+      -- TODO
+      False === True
 
     prop "only team admins can delete user groups" $ \() ->
       -- TODO
