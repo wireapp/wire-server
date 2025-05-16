@@ -11,7 +11,8 @@ import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.List.Extra
 import Data.Map qualified as Map
-import Data.Qualified (Local, toLocalUnsafe)
+import Data.Qualified
+import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
 import Polysemy
@@ -19,6 +20,7 @@ import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind (Append)
 import Polysemy.State
+import System.Timeout (timeout)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -87,8 +89,13 @@ unexpected :: Sem r Property
 unexpected =
   pure $ counterexample "An error was expected to have occured by now" False
 
+timeoutHook :: Spec -> Spec
+timeoutHook = around_ $ maybe (fail "exceeded timeout") pure <=< timeout 1_000_000
+
 spec :: Spec
-spec = describe "UserGroupSubsystem.Interpreter" do
+spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
+  -- TODO: add these "describe" sections once #4545 is merged.
+  -- describe "CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup" $ do
   prop "team admins should be able to create and get groups" $ \team newUserGroupName ->
     expectRight
       . runDependencies (allUsers team) (galleyTeam team)
@@ -143,7 +150,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
 
   prop "only team admins should be able to create a group" $
     \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
-      expectLeft UserGroupCreatorIsNotATeamAdmin
+      expectLeft UserGroupNotATeamAdmin
         . runDependencies (allUsers team) (galleyTeam team)
         . interpretUserGroupSubsystem
         $ do
@@ -152,7 +159,7 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                   { name = newUserGroupName,
                     members = User.userId <$> V.fromList (allUsers team)
                   }
-              Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
+              [nonAdminUser] = someAdminsOrOwners 1 team
           void $ createGroup (User.userId nonAdminUser) newUserGroup
           unexpected
 
@@ -171,6 +178,8 @@ spec = describe "UserGroupSubsystem.Interpreter" do
             void $ createGroup (ownerId team) newUserGroup
             unexpected
 
+  -- TODO: add these "describe" sections once #4545 is merged.
+  -- describe "GetGroup, GetGroups, GetGroupsForUser" $ do
   prop "key misses produce 404" $ \team groupId ->
     expectRight
       . runDependencies (allUsers team) (galleyTeam team)
@@ -193,9 +202,13 @@ spec = describe "UserGroupSubsystem.Interpreter" do
 
         getGroupAdmin <- getGroup (ownerId team) group1.id_
         getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
+        -- getGroupsAdmin <- getGroups (ownerId team) Nothing Nothing
+        -- getGroupsOutsider <- getGroups (ownerId otherTeam) Nothing Nothing
 
         pure $
-          (getGroupAdmin) === Just group1
+          -- .&&. getGroupsAdmin.page === [group1]
+          -- .&&. getGroupsOutsider.page === []
+          getGroupAdmin === Just group1
             .&&. getGroupOutsider === Nothing
 
   prop "team members can only get their own groups" $ \team userGroupName1 userGroupName2 ->
@@ -222,18 +235,212 @@ spec = describe "UserGroupSubsystem.Interpreter" do
             -- user from group 1 wants to see both group1 and group2
             getOwnGroup <- getGroup (head memSet1) group1.id_
             getOtherGroup <- getGroup (head memSet1) group2.id_
+            -- getAllGroups <- getGroups (head memSet1) Nothing Nothing
 
             pure $
+              -- .&&. getAllGroups.page === [group1]
               getOwnGroup === Just group1
                 .&&. getOtherGroup === Nothing
 
-data TeamGenMod = AtLeastOneMember | AtLeastOneNonAdmin
+  describe "UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)" $ do
+    prop "updateGroup updates the name" $
+      \(team :: ArbitraryTeam) (originalName :: UserGroupName) (userGroupUpdate :: UserGroupUpdate) ->
+        expectRight
+          . runDependencies (allUsers team) (galleyTeam team)
+          . interpretUserGroupSubsystem
+          $ do
+            ug0 :: UserGroup <- createGroup (ownerId team) (NewUserGroup originalName mempty)
+            ug1 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_
+            ug2 :: Maybe UserGroup <- updateGroup (ownerId team) ug0.id_ userGroupUpdate
+            ug3 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_
+            pure $
+              (ug1 === Just ug0)
+                .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
+                .&&. (ug3 === ug2)
+
+    prop "update sends events to all admins and owners" $ \team name newName (tm :: TeamMember) role ->
+      let extraTeamMember = tm & permissions .~ rolePermissions role
+          resultOrError =
+            runDependenciesWithReturnState (allUsers team) (galleyTeamWithExtra team [extraTeamMember])
+              . interpretUserGroupSubsystem
+              $ do
+                let nug = NewUserGroup {name = name, members = mempty}
+                ug <- createGroup (ownerId team) nug
+                fromJust <$> updateGroup (ownerId team) ug.id_ (UserGroupUpdate (UserGroupName newName))
+
+          expectedRecipient = Recipient (tm ^. TM.userId) RecipientClientsAll
+
+          assertPushEvents :: UserGroup -> [Push] -> Property
+          assertPushEvents ug [push, _createEvent] = case A.fromJSON @Event (A.Object push.json) of
+            A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
+              push.origin === Just (ownerId team)
+                .&&. push.transient === True
+                .&&. push.route === RouteAny
+                .&&. push.nativePriority === Nothing
+                .&&. push.isCellsEvent === False
+                .&&. push.conn === Nothing
+                .&&. ugid === ug.id_
+                .&&. ( case role of
+                         RoleAdmin -> (expectedRecipient `elem` push.recipients) === True
+                         RoleOwner -> (expectedRecipient `elem` push.recipients) === True
+                         RoleMember -> (expectedRecipient `elem` push.recipients) === False
+                         RoleExternalPartner -> (expectedRecipient `elem` push.recipients) === False
+                     )
+            _ -> counterexample ("Failed to decode push: " <> show push) False
+       in case resultOrError of
+            Left err -> counterexample ("Unexpected error: " <> show err) False
+            Right (pushes, ug) -> assertPushEvents ug pushes
+
+    prop "only team admins should be able to update a group" $
+      \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName newUserGroupName2 ->
+        expectLeft UserGroupNotATeamAdmin
+          . runDependencies (allUsers team) (galleyTeam team)
+          . interpretUserGroupSubsystem
+          $ do
+            let newUserGroup =
+                  NewUserGroup
+                    { name = newUserGroupName,
+                      members = User.userId <$> V.fromList (allUsers team)
+                    }
+                [nonAdminUser] = someAdminsOrOwners 1 team
+            grp <- createGroup (ownerId team) newUserGroup
+            void $ updateGroup (User.userId nonAdminUser) grp.id_ (UserGroupUpdate newUserGroupName2)
+            unexpected
+
+  describe "DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()" $ do
+    prop "deleteGroup deletes" $ \team groupName1 groupName2 team2 groupNameTeam2 -> do
+      expectRight
+        . runDependencies (allUsers team <> allUsers team2) (galleyTeam team <> galleyTeam team2)
+        . interpretUserGroupSubsystem
+        $ do
+          ug1 <- createGroup (ownerId team) (NewUserGroup groupName1 mempty)
+          ug2 <- createGroup (ownerId team) (NewUserGroup groupName2 mempty)
+          ugt2 <- createGroup (ownerId team2) (NewUserGroup groupNameTeam2 mempty)
+
+          before0 <- getGroup (ownerId team) ug1.id_
+          before1 <- deleteGroup (ownerId team) (Id UUID.nil) >> getGroup (ownerId team) ug1.id_ -- unknown id
+          before2 <- deleteGroup (ownerId team) ugt2.id_ >> getGroup (ownerId team) ug1.id_ -- if of a group of another team
+          after1 <- deleteGroup (ownerId team) ug1.id_ >> getGroup (ownerId team) ug1.id_
+          after2 <- deleteGroup (ownerId team) ug1.id_ >> getGroup (ownerId team) ug1.id_ -- idempotency
+          afterOther <- getGroup (ownerId team) ug2.id_
+
+          pure $
+            before0 === Just ug1
+              .&&. before1 === Just ug1
+              .&&. before2 === Just ug1
+              .&&. after1 === Nothing
+              .&&. after2 === Nothing
+              .&&. afterOther === Just ug2
+
+    prop "delete sends events to all admins and owners" $ \team name (tm :: TeamMember) role ->
+      let extraTeamMember = tm & permissions .~ rolePermissions role
+          resultOrError =
+            runDependenciesWithReturnState (allUsers team) (galleyTeamWithExtra team [extraTeamMember])
+              . interpretUserGroupSubsystem
+              $ do
+                let nug = NewUserGroup name mempty
+                ug <- createGroup (ownerId team) nug
+                deleteGroup (ownerId team) ug.id_
+                pure ug
+
+          expectedRecipient = Recipient (tm ^. TM.userId) RecipientClientsAll
+
+          assertPushEvents :: UserGroup -> [Push] -> Property
+          assertPushEvents ug [push, _createEvent] = case A.fromJSON @Event (A.Object push.json) of
+            A.Success (UserGroupEvent (UserGroupDeleted ugid)) ->
+              push.origin === Just (ownerId team)
+                .&&. push.transient === True
+                .&&. push.route === RouteAny
+                .&&. push.nativePriority === Nothing
+                .&&. push.isCellsEvent === False
+                .&&. push.conn === Nothing
+                .&&. ugid === ug.id_
+                .&&. ( case role of
+                         RoleAdmin -> (expectedRecipient `elem` push.recipients) === True
+                         RoleOwner -> (expectedRecipient `elem` push.recipients) === True
+                         RoleMember -> (expectedRecipient `elem` push.recipients) === False
+                         RoleExternalPartner -> (expectedRecipient `elem` push.recipients) === False
+                     )
+            _ -> counterexample ("Failed to decode push: " <> show push) False
+       in case resultOrError of
+            Left err -> counterexample ("Unexpected error: " <> show err) False
+            Right (pushes, ug) -> assertPushEvents ug pushes
+
+    prop "only team admins can delete user groups" $
+      \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) groupName ->
+        expectLeft UserGroupNotATeamAdmin
+          . runDependencies (allUsers team) (galleyTeam team)
+          . interpretUserGroupSubsystem
+          $ do
+            grp <- createGroup (ownerId team) (NewUserGroup groupName mempty)
+            let [nonAdminUser] = someAdminsOrOwners 1 team
+            void $ deleteGroup (User.userId nonAdminUser) grp.id_
+            unexpected
+
+  describe "AddUser, RemoveUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()" $ do
+    prop "addUser, removeUser adds, removes a user" $
+      \((WithMods team) :: WithMods '[AtLeastSixMembers] ArbitraryTeam) newGroupName ->
+        expectRight
+          . runDependencies (allUsers team) (galleyTeam team)
+          . interpretUserGroupSubsystem
+          $ do
+            let [mbr1, mbr2] = someMembersWithRoles 2 team Nothing
+            ug :: UserGroup <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
+
+            addUser (ownerId team) ug.id_ (User.userId mbr1)
+            ugWithFirst <- getGroup (ownerId team) ug.id_
+
+            addUser (ownerId team) ug.id_ (User.userId mbr1)
+            ugWithIdemP <- getGroup (ownerId team) ug.id_
+
+            addUser (ownerId team) ug.id_ (User.userId mbr2)
+            ugWithSecond <- getGroup (ownerId team) ug.id_
+
+            removeUser (ownerId team) ug.id_ (User.userId mbr1)
+            ugWithoutFirst <- getGroup (ownerId team) ug.id_
+            removeUser (ownerId team) ug.id_ (User.userId mbr1) -- idemp
+            pure $
+              ((.members) <$> ugWithFirst) === Just (V.fromList [User.userId mbr1])
+                .&&. ((.members) <$> ugWithIdemP) === Just (V.fromList [User.userId mbr1])
+                .&&. ((sort . V.toList . (.members)) <$> ugWithSecond) === Just (sort [User.userId mbr1, User.userId mbr2])
+                .&&. ((.members) <$> ugWithoutFirst) === Just (V.fromList [User.userId mbr2])
+
+    prop "added/removed user must be team member." $
+      \((WithMods team) :: WithMods '[AtLeastSixMembers] ArbitraryTeam)
+       newGroupName
+       (team2 :: ArbitraryTeam)
+       (addOrRemove :: Bool) ->
+          expectLeft UserGroupMemberIsNotInTheSameTeam
+            . runDependencies (allUsers team) (galleyTeam team)
+            . interpretUserGroupSubsystem
+            $ do
+              ug <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
+              (if addOrRemove then addUser else removeUser) (ownerId team) ug.id_ (ownerId team2)
+              unexpected
+
+    prop "adding/removing user must be team admin." $
+      \((WithMods team) :: WithMods '[AtLeastSixMembers] ArbitraryTeam)
+       newGroupName
+       (team2 :: ArbitraryTeam)
+       (addOrRemove :: Bool) ->
+          expectLeft UserGroupNotATeamAdmin
+            . runDependencies (allUsers team) (galleyTeam team)
+            . interpretUserGroupSubsystem
+            $ do
+              ug <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
+              (if addOrRemove then addUser else removeUser) (ownerId team2) ug.id_ (ownerId team)
+              unexpected
+
+data TeamGenMod = AtLeastOneMember | AtLeastSixMembers | AtLeastOneNonAdmin
 
 class KnownTeamGenMod a where
   teamGenMod :: TeamGenMod
 
 instance KnownTeamGenMod 'AtLeastOneMember where
   teamGenMod = AtLeastOneMember
+
+instance KnownTeamGenMod 'AtLeastSixMembers where
+  teamGenMod = AtLeastSixMembers
 
 instance KnownTeamGenMod 'AtLeastOneNonAdmin where
   teamGenMod = AtLeastOneNonAdmin
@@ -243,6 +450,8 @@ applyConstraint =
   case teamGenMod @mod of
     AtLeastOneMember -> flip suchThat \team ->
       not $ Imports.null team.members
+    AtLeastSixMembers -> flip suchThat \team ->
+      length team.members > 6
     AtLeastOneNonAdmin -> flip suchThat \team ->
       any (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
 
@@ -296,3 +505,13 @@ galleyTeam t = galleyTeamWithExtra t []
 
 galleyTeamWithExtra :: ArbitraryTeam -> [TeamMember] -> Map TeamId [TeamMember]
 galleyTeamWithExtra t tm = Map.singleton t.tid $ tm <> map snd (t.owner : t.members)
+
+someAdminsOrOwners :: Int -> ArbitraryTeam -> [User]
+someAdminsOrOwners num team = someMembersWithRoles num team (Just [RoleMember, RoleExternalPartner])
+
+someMembersWithRoles :: Int -> ArbitraryTeam -> Maybe [Role] -> [User]
+someMembersWithRoles num team mbRoles = fst <$> take num (filter f team.members)
+  where
+    f (_, mem) = case mbRoles of
+      Just roles -> permissionsRole (mem ^. permissions) `elem` (Just <$> roles)
+      Nothing -> True
