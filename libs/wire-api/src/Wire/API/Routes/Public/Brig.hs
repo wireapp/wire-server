@@ -293,7 +293,7 @@ type UserGroupAPI =
   Named
     "create-user-group"
     ( From 'V9
-        :> CanThrow 'UserGroupCreatorIsNotATeamAdmin
+        :> CanThrow 'UserGroupNotATeamAdmin
         :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
         :> ZLocalUser
         :> "user-groups"

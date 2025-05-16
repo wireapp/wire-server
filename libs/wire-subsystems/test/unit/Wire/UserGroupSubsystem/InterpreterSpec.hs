@@ -150,7 +150,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
   prop "only team admins should be able to create a group" $
     \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
-      expectLeft UserGroupCreatorIsNotATeamAdmin
+      expectLeft UserGroupNotATeamAdmin
         . runDependencies (allUsers team) (galleyTeam team)
         . interpretUserGroupSubsystem
         $ do
@@ -258,13 +258,42 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
                 .&&. (ug3 === ug2)
 
-    prop "update sends events to all admins and owners" $ \() ->
-      -- TODO
-      False === True
+    prop "update sends events to all admins and owners" $ \team name newName (tm :: TeamMember) role ->
+      let extraTeamMember = tm & permissions .~ rolePermissions role
+          resultOrError =
+            runDependenciesWithReturnState (allUsers team) (galleyTeamWithExtra team [extraTeamMember])
+              . interpretUserGroupSubsystem
+              $ do
+                let nug = NewUserGroup {name = name, members = mempty}
+                ug <- createGroup (ownerId team) nug
+                fromJust <$> updateGroup (ownerId team) ug.id_ (UserGroupUpdate (UserGroupName newName))
+
+          expectedRecipient = Recipient (tm ^. TM.userId) RecipientClientsAll
+
+          assertPushEvents :: UserGroup -> [Push] -> Property
+          assertPushEvents ug [push, _createEvent] = case A.fromJSON @Event (A.Object push.json) of
+            A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
+              push.origin === Just (ownerId team)
+                .&&. push.transient === True
+                .&&. push.route === RouteAny
+                .&&. push.nativePriority === Nothing
+                .&&. push.isCellsEvent === False
+                .&&. push.conn === Nothing
+                .&&. ugid === ug.id_
+                .&&. ( case role of
+                         RoleAdmin -> (expectedRecipient `elem` push.recipients) === True
+                         RoleOwner -> (expectedRecipient `elem` push.recipients) === True
+                         RoleMember -> (expectedRecipient `elem` push.recipients) === False
+                         RoleExternalPartner -> (expectedRecipient `elem` push.recipients) === False
+                     )
+            _ -> counterexample ("Failed to decode push: " <> show push) False
+       in case resultOrError of
+            Left err -> counterexample ("Unexpected error: " <> show err) False
+            Right (pushes, ug) -> assertPushEvents ug pushes
 
     prop "only team admins should be able to update a group" $
       \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
-        expectLeft UserGroupUpdaterIsNotATeamAdmin
+        expectLeft UserGroupNotATeamAdmin
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do

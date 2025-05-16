@@ -44,15 +44,14 @@ interpretUserGroupSubsystem = interpret $ \case
   RemoveUser remover groupId removeeId -> removeUserImpl remover groupId removeeId
 
 data UserGroupSubsystemError
-  = UserGroupCreatorIsNotATeamAdmin
-  | UserGroupUpdaterIsNotATeamAdmin
+  = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
 userGroupSubsystemErrorToHttpError =
   StdError . \case
-    UserGroupCreatorIsNotATeamAdmin -> errorToWai @E.UserGroupCreatorIsNotATeamAdmin
+    UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
 
 createUserGroupImpl ::
@@ -90,7 +89,7 @@ getTeamAsAdmin ::
   UserId ->
   Sem r TeamId
 getTeamAsAdmin creator = do
-  note UserGroupCreatorIsNotATeamAdmin =<< runMaybeT do
+  note UserGroupNotATeamAdmin =<< runMaybeT do
     team <- MaybeT $ getUserTeam creator
     creatorTeamMember <- MaybeT $ getTeamMember creator team
     guard (isAdminOrOwner (creatorTeamMember ^. permissions))
@@ -101,7 +100,7 @@ mkEvent author evt recipients =
   def
     { origin = Just author,
       json = toJSONObject $ UserGroupEvent evt,
-      recipients = (\tm -> Recipient (tm ^. TM.userId) RecipientClientsAll) <$> admins ^. recipients,
+      recipients = (\tm -> Recipient (tm ^. TM.userId) RecipientClientsAll) <$> recipients ^. teamMembers,
       transient = True
     }
 
@@ -131,17 +130,26 @@ getUserGroupImpl getter gid = runMaybeT $ do
 updateGroupImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
     Member GalleyAPIAccess r
   ) =>
   UserId ->
   UserGroupId ->
   UserGroupUpdate ->
   Sem r (Maybe UserGroup)
-updateGroupImpl updater groupId groupUpdate = undefined
+updateGroupImpl updater groupId groupUpdate = do
+  team <- getTeamAsAdmin updater
+  updatedGroup <- Store.updateUserGroup team groupId groupUpdate
+  admins <- getTeamAdmins team
+  pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
+  pure updatedGroup
 
 deleteGroupImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
     Member GalleyAPIAccess r
   ) =>
   UserId ->
@@ -152,6 +160,7 @@ deleteGroupImpl deleter groupId = undefined
 addUserImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
     Member GalleyAPIAccess r
   ) =>
   UserId ->
@@ -163,6 +172,7 @@ addUserImpl adder groupId addeeId = undefined
 removeUserImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
     Member GalleyAPIAccess r
   ) =>
   UserId ->
