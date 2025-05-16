@@ -86,8 +86,7 @@ instance ToJSON Error where
 
 instance FromJSON Error where
   parseJSON = withObject "Error" $ \o ->
-    Error
-      <$> (toEnum <$> o .: "code")
+    (Error . toEnum <$> (o .: "code"))
       <*> o .: "label"
       <*> o .: "message"
       <*> o .:? "data"

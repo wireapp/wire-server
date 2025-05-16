@@ -528,14 +528,14 @@ updateConnectionInternal = \case
 
 createLocalConnectionUnchecked :: Local UserId -> Local UserId -> (AppT r) ()
 createLocalConnectionUnchecked self other = do
-  qcnv <- liftIO $ tUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
+  qcnv <- liftIO $ ((tUntagged . qualifyAs self) . Id <$> UUID.nextRandom)
   wrapClient $ do
     void $ Data.insertConnection self (tUntagged other) AcceptedWithHistory qcnv
     void $ Data.insertConnection other (tUntagged self) AcceptedWithHistory qcnv
 
 createRemoteConnectionUnchecked :: Local UserId -> Remote UserId -> (AppT r) ()
 createRemoteConnectionUnchecked self other = do
-  qcnv <- liftIO $ tUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
+  qcnv <- liftIO $ ((tUntagged . qualifyAs self) . Id <$> UUID.nextRandom)
   void . wrapClient $ Data.insertConnection self (tUntagged other) AcceptedWithHistory qcnv
 
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> (AppT r) UserConnectionList

@@ -12,6 +12,7 @@ import Test.Tasty.HUnit
 import Wire.API.Routes.Version
 
 {-# ANN tests ("HLint: ignore Functor law" :: String) #-}
+{-# ANN tests ("HLint: ignore Redundant <$>" :: String) #-}
 tests :: TestTree
 tests =
   testGroup
