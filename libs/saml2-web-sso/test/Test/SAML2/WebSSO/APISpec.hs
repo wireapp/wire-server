@@ -346,4 +346,4 @@ spec = describe "API" $ do
           length assertions `shouldBe` 1
 
     it "utf8 characters in authentication response are parsed correctly (not as Char8)" $ do
-      check "microsoft-azure-utf8-issue-metadata.base64" "microsoft-azure-utf8-issue-authentication-request.base64"
+      check "microsoft-azure-utf8-issue-metadata.xml" "microsoft-azure-utf8-issue-authentication-request.xml"
