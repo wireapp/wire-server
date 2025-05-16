@@ -160,8 +160,7 @@ deleteFederationV0AndV1Queues env = do
   where
     readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
     readCredsFromEnvWithSuffix suffix =
-      (,)
-        <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
+      ((,) . fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
         <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_" <> suffix))
 
 deleteFederationQueues :: [String] -> RabbitMqAdminOpts -> Text -> Text -> IO ()
