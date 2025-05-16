@@ -66,6 +66,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
 import Imports
+import Test.QuickCheck (oneof)
 import Wire.API.Message (Priority (..))
 import Wire.API.Push.V2.Token
 import Wire.Arbitrary
@@ -104,21 +105,45 @@ data Recipient = Recipient
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Recipient)
+  deriving (Arbitrary) via GenericUniform Recipient
 
 data RecipientClients
   = -- | All clients of some user
     RecipientClientsAll
   | -- | An explicit list of clients
     RecipientClientsSome (List1 ClientId)
+  | -- | Only temporary clients receive these events.
+    -- It not supposed to be used by consumers of gundeck, only here for
+    -- internal gundeck use.
+    --
+    -- This is a little hack to make the 'splitPush' function work properly so
+    -- that temporary clients receive notifications over rabbitmq even when there
+    -- are no real clients which support consumable-notifications. This should
+    -- go away when we drop support for Cassandra.
+    RecipientClientsTemporaryOnly
   deriving (Eq, Show, Ord, Generic)
-  deriving (Arbitrary) via GenericUniform RecipientClients
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema RecipientClients)
+
+-- | This doesn't produce the 'RecipientClientsTemporaryOnly' case becasue we
+-- don't expect it to come from outside gundeck.
+instance Arbitrary RecipientClients where
+  arbitrary =
+    oneof [allClients, someClients]
+    where
+      allClients = pure RecipientClientsAll
+      someClients =
+        RecipientClientsSome <$> do
+          firstClientId <- arbitrary
+          (List1.list1 firstClientId . filter (/= firstClientId) . Set.toList <$> setOf' arbitrary)
 
 instance Semigroup RecipientClients where
   RecipientClientsAll <> _ = RecipientClientsAll
   _ <> RecipientClientsAll = RecipientClientsAll
   RecipientClientsSome cs1 <> RecipientClientsSome cs2 =
     RecipientClientsSome (cs1 <> cs2)
+  RecipientClientsTemporaryOnly <> x =
+    x
+  x <> RecipientClientsTemporaryOnly = x
 
 instance ToSchema Recipient where
   schema =
@@ -138,6 +163,7 @@ instance ToSchema RecipientClients where
           & (S.schema . S.description ?~ "List of clientIds. Empty means `all clients`.")
 
       i :: A.Value -> A.Parser RecipientClients
+      i (A.String "temp-only") = pure RecipientClientsTemporaryOnly
       i v =
         parseJSON @[ClientId] v >>= \case
           [] -> pure RecipientClientsAll
@@ -145,9 +171,10 @@ instance ToSchema RecipientClients where
 
       o :: RecipientClients -> Maybe A.Value
       o =
-        pure . toJSON . \case
-          RecipientClientsSome cs -> toList cs
-          RecipientClientsAll -> []
+        pure . \case
+          RecipientClientsSome cs -> toJSON cs
+          RecipientClientsAll -> A.Array mempty
+          RecipientClientsTemporaryOnly -> A.String "temp-only"
 
 makeLenses ''Recipient
 
@@ -258,8 +285,9 @@ data Push = Push
     _pushPayload :: !(List1 Object),
     _pushIsCellsEvent :: !Bool
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
+  deriving (Arbitrary) via (GenericUniform Push)
 
 newPush :: Maybe UserId -> Set Recipient -> List1 Object -> Push
 newPush from to pload =

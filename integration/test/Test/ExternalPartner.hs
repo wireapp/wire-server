@@ -60,7 +60,7 @@ testExternalPartnerPermissionsMls = do
   -- external partners should not be able to create (MLS) conversations
   (owner, _, _) <- createTeam OwnDomain 2
   bobExt <- createTeamMember owner def {role = "partner"}
-  bobExtClient <- createMLSClient def def bobExt
+  bobExtClient <- createMLSClient def bobExt
   bindResponse (postConversation bobExtClient defMLS) $ \resp -> do
     resp.status `shouldMatchInt` 403
 
@@ -80,3 +80,19 @@ testExternalPartnerPermissionsConvName = do
 
   bindResponse (changeConversationName partner conv "new name") $ \resp -> do
     resp.status `shouldMatchInt` 403
+
+testExternalPartnerCannotBecomeConversationAdmin :: (HasCallStack) => App ()
+testExternalPartnerCannotBecomeConversationAdmin = do
+  (owner, tid, tm1 : tm2 : _) <- createTeam OwnDomain 3
+  partner <- createTeamMember owner def {role = "partner"}
+  conv <- postConversation owner (defProteus {team = Just tid, qualifiedUsers = [partner, tm1], newUsersRole = "wire_admin"}) >>= getJSON 201
+
+  bindResponse (getConversation owner conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members.others" & asList
+    for_ members $ \m -> do
+      m %. "conversation_role" `shouldMatch` "wire_admin"
+
+  bindResponse (addMembers partner conv def {users = [tm2]}) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "invalid-op"

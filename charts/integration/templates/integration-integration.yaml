@@ -68,6 +68,14 @@ spec:
       configMap:
         name: "backoffice"
 
+    - name: "proxy-config"
+      configMap:
+        name: "proxy"
+
+    - name: "proxy-secrets"
+      secret:
+        secretName: "proxy"
+
     - name: "nginz-config"
       configMap:
         name: "nginz"
@@ -245,6 +253,12 @@ spec:
     - name: stern-config
       mountPath: /etc/wire/stern/conf
 
+    - name: proxy-config
+      mountPath: /etc/wire/proxy/conf
+
+    - name: proxy-secrets
+      mountPath: /etc/wire/proxy/secrets
+
     - name: nginz-config
       mountPath: /etc/wire/nginz/conf
 
@@ -359,4 +373,6 @@ spec:
     - name: ENABLE_FEDERATION_V0
       value: "1"
     - name: ENABLE_FEDERATION_V1
+      value: "1"
+    - name: ENABLE_FEDERATION_V2
       value: "1"

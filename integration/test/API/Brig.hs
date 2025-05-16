@@ -988,15 +988,26 @@ authorizeTeam user emailDomain ownershipToken = do
   submit "POST" $ req & addJSONObject ["domain_ownership_token" .= ownershipToken]
 
 -- brig expects an auth-token for this request. @mAuthToken@ is only `Maybe` for testing error cases!
-updateDomainRedirect :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> Value -> App Response
-updateDomainRedirect domain emailDomain mAuthToken config = do
+updateDomainRedirect :: (HasCallStack, MakesValue domain) => domain -> Versioned -> String -> Maybe String -> Value -> App Response
+updateDomainRedirect domain apiVersion emailDomain mAuthToken config = do
   req <-
-    baseRequest domain Brig Versioned $
+    baseRequest domain Brig apiVersion $
       joinHttpPath ["domain-verification", emailDomain, "backend"]
   let req' = case mAuthToken of
         Just authToken -> addHeader "Authorization" ("Bearer " <> authToken) req
         Nothing -> req
   submit "POST" $ req' & addJSON config
+
+-- | Generates a backend redirect `config` `Value` for `updateDomainRedirect`
+mkDomainRedirectBackend :: Versioned -> String -> String -> Value
+mkDomainRedirectBackend (ExplicitVersion v) configUrl _webappUrl
+  | v <= 8 =
+      object ["domain_redirect" .= "backend", "backend_url" .= configUrl]
+mkDomainRedirectBackend _v configUrl webappUrl =
+  object
+    [ "domain_redirect" .= "backend",
+      "backend" .= object ["config_url" .= configUrl, "webapp_url" .= webappUrl]
+    ]
 
 updateTeamInvite :: (HasCallStack, MakesValue user, MakesValue payload) => user -> String -> payload -> App Response
 updateTeamInvite user emailDomain payload = do
@@ -1006,9 +1017,9 @@ updateTeamInvite user emailDomain payload = do
   p <- make payload
   submit "POST" $ req & addJSON p
 
-getDomainRegistrationFromEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-getDomainRegistrationFromEmail domain email = do
-  req <- baseRequest domain Brig Versioned $ joinHttpPath ["get-domain-registration"]
+getDomainRegistrationFromEmail :: (HasCallStack, MakesValue domain) => domain -> Versioned -> String -> App Response
+getDomainRegistrationFromEmail domain version email = do
+  req <- baseRequest domain Brig version $ joinHttpPath ["get-domain-registration"]
   submit "POST" $ req & addJSONObject ["email" .= email]
 
 getRegisteredDomainsByTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response

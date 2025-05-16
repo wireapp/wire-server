@@ -299,7 +299,8 @@ instance Cass.Cql DbConfig where
 ----------------------------------------------------------------------
 -- LockableFeature
 
--- [Note: unsettable features]
+-- Note [unsettable features]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~
 --
 -- Some feature flags (e.g. sso) don't have a lock status stored in the
 -- database. Instead, they are considered unlocked by default, but behave as if
@@ -629,7 +630,7 @@ instance ToSchema LegalholdConfig where
 --------------------------------------------------------------------------------
 -- SSO feature
 
--- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+-- | This feature does not have a PUT endpoint. See Note [unsettable features].
 data SSOConfig = SSOConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform SSOConfig)
@@ -674,7 +675,7 @@ type instance DeprecatedFeatureName SearchVisibilityAvailableConfig = "search-vi
 --------------------------------------------------------------------------------
 -- ValidateSAMLEmails feature
 
--- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+-- | This feature does not have a PUT endpoint. See Note [unsettable features].
 data ValidateSAMLEmailsConfig = ValidateSAMLEmailsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform ValidateSAMLEmailsConfig)
@@ -697,7 +698,7 @@ type instance DeprecatedFeatureName ValidateSAMLEmailsConfig = "validate-saml-em
 --------------------------------------------------------------------------------
 -- DigitalSignatures feature
 
--- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+-- | This feature does not have a PUT endpoint. See Note [unsettable features].
 data DigitalSignaturesConfig = DigitalSignaturesConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform DigitalSignaturesConfig)
@@ -1368,7 +1369,7 @@ instance IsFeatureConfig EnforceFileDownloadLocationConfig where
 -- months of its introduction, namely once all clients get a chance to adapt to
 -- a limited event fanout.
 
--- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+-- | This feature does not have a PUT endpoint. See Note [unsettable features].
 data LimitedEventFanoutConfig = LimitedEventFanoutConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform LimitedEventFanoutConfig)
@@ -1389,7 +1390,7 @@ instance ToSchema LimitedEventFanoutConfig where
 --------------------------------------------------------------------------------
 -- DomainRegistration feature
 
--- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+-- | This feature does not have a PUT endpoint. See Note [unsettable features].
 data DomainRegistrationConfig = DomainRegistrationConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform DomainRegistrationConfig)
@@ -1410,7 +1411,7 @@ instance IsFeatureConfig DomainRegistrationConfig where
 --------------------------------------------------------------------------------
 -- Cells feature
 
--- | This feature does not have a PUT endpoint. See [Note: unsettable features].
+-- | This feature does not have a PUT endpoint. See Note [unsettable features].
 data CellsConfig = CellsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform CellsConfig)
@@ -1601,7 +1602,8 @@ deriving via (Schema AllTeamFeatures) instance (S.ToSchema AllTeamFeatures)
 --------------------------------------------------------------------------------
 -- DB feature parsing
 
--- [Note: default values for configuration fields]
+-- Note [default values for configuration fields]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 --
 -- When reading values for configuration types with multiple fields, we fall
 -- back to default values for each field independently, instead of treating the

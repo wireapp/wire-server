@@ -36,8 +36,6 @@ import Data.Id
 import Data.Qualified
 import Data.Range
 import Imports
-import Wire.API.Connection (UserConnection)
-import Wire.API.Team.Member (HardTruncationLimit, TeamMember)
 import qualified Wire.Sem.Paging as E
 
 -- | This paging system uses Cassandra's 'PagingState' to keep track of state,
@@ -92,13 +90,7 @@ type instance E.PagingState InternalPaging a = InternalPagingState a
 
 type instance E.Page InternalPaging a = InternalPage a
 
-type instance E.PagingBounds InternalPaging TeamMember = Range 1 HardTruncationLimit Int32
-
-type instance E.PagingBounds CassandraPaging TeamMember = Range 1 HardTruncationLimit Int32
-
 type instance E.PagingBounds InternalPaging TeamId = Range 1 100 Int32
-
-type instance E.PagingBounds InternalPaging (Remote UserConnection) = Range 1 1000 Int32
 
 instance E.Paging InternalPaging where
   pageItems (InternalPage (_, _, items)) = items

@@ -18,6 +18,7 @@ rabbitmq:
   host: 127.0.0.1
   port: 5671
   vHost: /
+  adminHost: 127.0.0.1
   adminPort: 15671
   enableTls: true
   caCert: test/resources/rabbitmq-ca.pem

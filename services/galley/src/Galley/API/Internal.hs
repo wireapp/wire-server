@@ -182,6 +182,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
     <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
     <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
+    <@> mkNamedAPI @"get-conversation-by-id" Query.getLocalConversationInternal
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -405,7 +406,7 @@ rmUser lusr conn = do
                   { origin = Just (tUnqualified lusr),
                     json = toJSONObject e,
                     recipients = map localMemberToRecipient (Data.convLocalMembers c),
-                    isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+                    isCellsEvent = shouldPushToCells c.convMetadata e,
                     conn,
                     route = PushV2.RouteDirect
                   }

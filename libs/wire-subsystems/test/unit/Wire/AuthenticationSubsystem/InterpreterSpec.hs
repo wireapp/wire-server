@@ -8,6 +8,8 @@ import Data.Misc
 import Data.Qualified
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time
+import Data.ZAuth.CryptoSign (CryptoSign)
+import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -24,15 +26,19 @@ import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.AuthenticationSubsystem.ZAuth (randomConnId)
 import Wire.EmailSubsystem
 import Wire.HashPassword
+import Wire.MiniBackend
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
 import Wire.RateLimit
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
 import Wire.SessionStore
 import Wire.StoredUser
 import Wire.UserKeyStore
@@ -43,11 +49,12 @@ type AllEffects =
     Error AuthenticationSubsystemError,
     Error RateLimitExceeded,
     RateLimit,
+    Random,
     HashPassword,
+    CryptoSign,
     Now,
     State UTCTime,
-    Input (Local ()),
-    Input (Maybe AllowlistEmailDomains),
+    Input AuthenticationSubsystemConfig,
     SessionStore,
     State (Map UserId [Cookie ()]),
     PasswordStore,
@@ -62,26 +69,32 @@ type AllEffects =
 
 runAllEffects :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
 runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
-  run
-    . evalState mempty
-    . evalState mempty
-    . inMemoryUserStoreInterpreter
-    . inMemoryEmailSubsystemInterpreter
-    . discardTinyLogs
-    . evalState mempty
-    . inMemoryPasswordResetCodeStore
-    . runInMemoryPasswordStoreInterpreter
-    . evalState mempty
-    . inMemorySessionStoreInterpreter
-    . runInputConst (AllowlistEmailDomains <$> mAllowedEmailDomains)
-    . runInputConst (toLocalUnsafe localDomain ())
-    . evalState defaultTime
-    . interpretNowAsState
-    . staticHashPasswordInterpreter
-    . noRateLimit
-    . runErrorUnsafe
-    . runError
-    . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
+  let cfg =
+        defaultAuthenticationSubsystemConfig
+          { allowlistEmailDomains = AllowlistEmailDomains <$> mAllowedEmailDomains,
+            local = toLocalUnsafe localDomain ()
+          }
+   in run
+        . evalState mempty
+        . evalState mempty
+        . inMemoryUserStoreInterpreter
+        . inMemoryEmailSubsystemInterpreter
+        . discardTinyLogs
+        . evalState mempty
+        . inMemoryPasswordResetCodeStore
+        . runInMemoryPasswordStoreInterpreter
+        . evalState mempty
+        . inMemorySessionStoreInterpreter
+        . runInputConst cfg
+        . evalState defaultTime
+        . interpretNowAsState
+        . runCryptoSignUnsafe
+        . staticHashPasswordInterpreter
+        . runRandomPure
+        . noRateLimit
+        . runErrorUnsafe
+        . runError
+        . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
 
 verifyPasswordPure :: PlainTextPassword' t -> Password -> Bool
 verifyPasswordPure plain hashed =
@@ -326,6 +339,47 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 for_ mLookupRes $ \(_, resetCode) -> resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
                 lookupHashedPassword uid
          in verifyPasswordProp newPassword passwordHashInDB
+  describe "newCookie" $ do
+    prop "trivial attributes: plain user cookie" $
+      \localDomain uid cid typ mLabel ->
+        let Right (plainCookie, lhCookie) = runAllEffects localDomain [] Nothing $ do
+              plain <- newCookie @_ @ZAuth.U uid cid typ mLabel
+              lh <- newCookie @_ @ZAuth.U uid cid typ mLabel
+              pure (plain, lh)
+            assertCookie cookie =
+              cookie.cookieCreated === defaultTime
+                .&&. cookie.cookieLabel === mLabel
+                .&&. cookie.cookieType === typ
+                .&&. cookie.cookieSucc === Nothing
+         in assertCookie plainCookie
+              .&&. assertCookie lhCookie
+
+    prop "persistent plain cookie expires at configured time" $
+      \localDomain uid cid mLabel ->
+        let Right cookie = runAllEffects localDomain [] Nothing $ do
+              newCookie @_ @ZAuth.U uid cid PersistentCookie mLabel
+         in cookie.cookieExpires === addUTCTime (fromIntegral defaultZAuthSettings.userTokenTimeout.userTokenTimeoutSeconds) defaultTime
+
+    prop "persistent LH cookie expires at configured time" $
+      \localDomain uid cid mLabel ->
+        let Right cookie = runAllEffects localDomain [] Nothing $ do
+              newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel
+         in cookie.cookieExpires === addUTCTime (fromIntegral defaultZAuthSettings.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds) defaultTime
+
+    modifyMaxSuccess (const 3) . prop "cookie is persisted" $
+      \localDomain uid cid mLabel -> do
+        let Right (cky, sto) = runAllEffects localDomain [] Nothing $ do
+              c <- newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel
+              s <- listCookies uid
+              pure (c, s)
+        length sto `shouldBe` 1
+        (head sto).cookieId `shouldBe` cky.cookieId
+
+  describe "randomConnId" $ do
+    it "generates different connection ids" $ do
+      let connIds = run . runRandomPure $ replicateM 100 randomConnId
+          uniqueConnIds = nub connIds
+      length connIds `shouldBe` length uniqueConnIds
 
 newtype Upto4 = Upto4 Int
   deriving newtype (Show, Eq)

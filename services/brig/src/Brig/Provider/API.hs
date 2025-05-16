@@ -42,7 +42,6 @@ import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
 import Brig.Provider.RPC qualified as RPC
-import Brig.ZAuth qualified as ZAuth
 import Cassandra (MonadClient)
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
@@ -74,6 +73,7 @@ import Data.Set qualified as Set
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text
+import Data.ZAuth.CryptoSign (CryptoSign)
 import GHC.TypeNats
 import Imports
 import Network.HTTP.Types
@@ -86,6 +86,7 @@ import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
@@ -123,6 +124,8 @@ import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.AuthenticationSubsystem as Authentication
+import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.Error
@@ -132,6 +135,8 @@ import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.Sem.Now (Now)
+import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -143,7 +148,11 @@ botAPI ::
   ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member SessionStore r,
+    Member Now r,
+    Member CryptoSign r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -189,7 +198,10 @@ providerAPI ::
     Member EmailSending r,
     Member HashPassword r,
     Member VerificationCodeSubsystem r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member CryptoSign r,
+    Member Now r
   ) =>
   ServerT ProviderAPI (Handler r)
 providerAPI =
@@ -312,7 +324,10 @@ getPasswordResetCode email = do
 
 login ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member CryptoSign r,
+    Member Now r
   ) =>
   ProviderLogin ->
   Handler r ProviderTokenCookie
@@ -323,7 +338,7 @@ login l = do
       >>= maybeBadCredentials
   unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid l.providerLoginPassword)) do
     throwStd (errorToWai @E.BadCredentials)
-  token <- ZAuth.newProviderToken pid
+  token <- lift . liftSem $ ZAuth.newProviderToken pid
   s <- asks (.settings)
   pure $ ProviderTokenCookie (ProviderToken token) (not s.cookieInsecure)
 
@@ -724,7 +739,10 @@ updateServiceWhitelist uid con tid upd = do
 
 addBot ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member Now r,
+    Member CryptoSign r
   ) =>
   UserId ->
   ConnId ->
@@ -769,7 +787,7 @@ addBot zuid zcon cid add = do
   -- Prepare a user ID, client ID and token for the bot.
   bid <- BotId <$> randomId
   domain <- viewFederationDomain
-  btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
+  btk <- lift . liftSem $ Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
   let bcl = ClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
   let zQualifiedUid = Qualified zuid domain
@@ -811,7 +829,7 @@ addBot zuid zcon cid add = do
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
   -- Add the bot to the conversation
-  ev <- lift $ RPC.addBotMember zuid zcon cid bid (clientId clt) pid sid
+  ev <- lift $ RPC.addBotMember zuid zcon cid bid clt.clientId pid sid
   pure $
     Public.AddBotResponse
       { Public.rsAddBotId = bid,
@@ -845,7 +863,7 @@ removeBot zusr zcon cid bid = do
     Just _ -> do
       lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
 
-guardConvAdmin :: Conversation -> ExceptT HttpError (AppT r) ()
+guardConvAdmin :: ConversationV8 -> ExceptT HttpError (AppT r) ()
 guardConvAdmin conv = do
   let selfMember = cmSelf . cnvMembers $ conv
   unless (memConvRoleName selfMember == roleNameWireAdmin) $ (throwStd (errorToWai @'E.AccessDenied))
@@ -864,7 +882,7 @@ botListPrekeys :: (Member GalleyAPIAccess r) => BotId -> (Handler r) [Public.Pre
 botListPrekeys bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
   clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
-  case clientId <$> clt of
+  case (.clientId) <$> clt of
     Nothing -> pure []
     Just ci -> lift (wrapClient $ User.lookupPrekeyIds (botUserId bot) ci)
 
@@ -876,12 +894,13 @@ botUpdatePrekeys bot upd = do
     Nothing -> throwStd (errorToWai @'E.ClientNotFound)
     Just c -> do
       let pks = updateBotPrekeyList upd
-      wrapClientE (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
+      wrapClientE (User.updatePrekeys (botUserId bot) c.clientId pks) !>> clientDataError
 
 botClaimUsersPrekeys ::
   ( Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   BotId ->
   Public.UserClients ->
@@ -904,7 +923,7 @@ botGetUserClients _ uid = do
   guardSecondFactorDisabled (Just uid)
   lift $ pubClient <$$> wrapClient (User.lookupClients uid)
   where
-    pubClient c = Public.PubClient (clientId c) (clientClass c)
+    pubClient c = Public.PubClient c.clientId c.clientClass
 
 botDeleteSelf :: (Member GalleyAPIAccess r) => BotId -> ConvId -> (Handler r) ()
 botDeleteSelf bid cid = do
@@ -962,7 +981,7 @@ deleteBot zusr zcon bid cid = do
   -- Delete the bot user and client
   let buid = botUserId bid
   mbUser <- User.lookupUser NoPendingInvitations buid
-  User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
+  User.lookupClients buid >>= mapM_ (User.rmClient buid . (.clientId))
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId

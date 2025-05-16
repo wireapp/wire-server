@@ -61,7 +61,7 @@ testObject_DomainRegistrationResponse_4 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
-      domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))),
+      domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))) Nothing,
       teamInvite = Allowed,
       dnsVerificationToken = Nothing
     }
@@ -84,6 +84,19 @@ testObject_DomainRegistrationResponse_6 =
       domainRedirect = PreAuthorized,
       teamInvite = Allowed,
       dnsVerificationToken = Just $ DnsVerificationToken "jfdjsejsdjsdfjsdfjlwejwekljwef"
+    }
+
+testObject_DomainRegistrationResponse_7 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_7 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect =
+        Backend
+          (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14")))
+          (Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://webapp.example.com/inv14")))),
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
     }
 
 testObject_DomainRegistrationUpdate_1 :: DomainRegistrationUpdate
@@ -110,7 +123,7 @@ testObject_DomainRegistrationUpdate_3 =
 testObject_DomainRegistrationUpdate_4 :: DomainRegistrationUpdate
 testObject_DomainRegistrationUpdate_4 =
   DomainRegistrationUpdate
-    { domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))),
+    { domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))) Nothing,
       teamInvite = Allowed
     }
 
@@ -126,4 +139,14 @@ testObject_DomainRegistrationUpdate_6 =
   DomainRegistrationUpdate
     { domainRedirect = NoRegistration,
       teamInvite = Team $ Id (fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284"))
+    }
+
+testObject_DomainRegistrationUpdate_7 :: DomainRegistrationUpdate
+testObject_DomainRegistrationUpdate_7 =
+  DomainRegistrationUpdate
+    { domainRedirect =
+        Backend
+          (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14")))
+          (Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://webapp.example.com/inv14")))),
+      teamInvite = Allowed
     }

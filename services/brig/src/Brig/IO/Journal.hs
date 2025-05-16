@@ -43,7 +43,8 @@ import Proto.UserEvents (UserEvent, UserEvent'EventType (..))
 import Proto.UserEvents_Fields qualified as U
 import Wire.API.User
 
--- [Note: journaling]
+-- Note [journaling]
+-- ~~~~~~~~~~~~~~~~~
 -- User journal operations to SQS are a no-op when the service is started
 -- without journaling arguments for user updates
 

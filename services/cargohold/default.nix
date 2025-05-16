@@ -6,6 +6,7 @@
 , aeson
 , amazonka
 , amazonka-s3
+, amazonka-s3-streaming
 , attoparsec
 , auto-update
 , base
@@ -80,6 +81,7 @@ mkDerivation {
     aeson
     amazonka
     amazonka-s3
+    amazonka-s3-streaming
     attoparsec
     auto-update
     base

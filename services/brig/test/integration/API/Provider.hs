@@ -51,6 +51,7 @@ import Data.List1 qualified as List1
 import Data.Map qualified as Map
 import Data.Misc
 import Data.PEM
+import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
@@ -67,14 +68,16 @@ import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Socket
 import Network.Socket qualified as Socket
-import Network.Wai (Application, responseLBS, strictRequestBody)
+import Network.Wai (responseLBS, strictRequestBody)
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Handler.Warp.Internal qualified as Warp
 import Network.Wai.Handler.WarpTLS qualified as Warp
-import Network.Wai.Route qualified as Wai
 import Network.Wai.Utilities.Error qualified as Error
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
+import Servant.API
+import Servant.API.Extended.Endpath
+import Servant.Server
 import System.IO.Temp (withSystemTempFile)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon qualified as WS
@@ -208,8 +211,8 @@ testLoginProvider db brig = do
     assertEqual "cookie name" "zprovider" (setCookieName cok)
     assertEqual "cookie http-only" True (setCookieHttpOnly cok)
     assertBool "cookie timeout" (ttl > Just 0)
-  let Just tok = fromByteString (setCookieValue cok)
-  liftIO $ assertEqual "principal" pid (Id (tok ^. ZAuth.body . ZAuth.provider))
+  let Just (tok :: ZAuth.Token ZAuth.P) = fromByteString (setCookieValue cok)
+  liftIO $ assertEqual "principal" pid (Id tok.body.provider)
 
 testUpdateProvider :: DB.ClientState -> Brig -> Http ()
 testUpdateProvider db brig = do
@@ -457,8 +460,8 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
       luid1 = toLocalUnsafe localDomain uid1
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  cnv <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
-  let (cid, qcid) = (qUnqualified &&& id) (cnvQualifiedId cnv)
+  cnv :: Conversation <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
+  let (cid, qcid) = (qUnqualified &&& id) cnv.qualifiedId
   -- Add two bots there
   bid1 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   bid2 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
@@ -488,8 +491,8 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
       uid2 = userId u2
   -- Create conversation
   _rs <- createConv galley uid1 [uid2] <!! const 201 === statusCode
-  let Just cnv = responseJsonMaybe _rs
-  let cid = qUnqualified . cnvQualifiedId $ cnv
+  let Just cnv = responseJsonMaybe @Conversation _rs
+  let cid = cnv.qualifiedId.qUnqualified
   testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 
 testAddBotForbidden :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
@@ -498,8 +501,8 @@ testAddBotForbidden config db brig galley = withTestService config db brig defSe
   -- Create conversation without the service access role
   let accessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole]
   _rs <- createConvWithAccessRoles (Just accessRoles) galley uid1 [uid2] <!! const 201 === statusCode
-  let Just cnv = responseJsonMaybe _rs
-  let cid = qUnqualified . cnvQualifiedId $ cnv
+  let Just cnv = responseJsonMaybe @Conversation _rs
+  let cid = qUnqualified . (.qualifiedId) $ cnv
   addBot brig uid1 pid sid cid !!! do
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
@@ -509,8 +512,8 @@ testClaimUserPrekeys config db brig galley = withTestService config db brig defS
   (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
   cid <- do
     rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
-    let Just cnv = responseJsonMaybe rs
-    let cid = qUnqualified . cnvQualifiedId $ cnv
+    let Just cnv = responseJsonMaybe @Conversation rs
+    let cid = qUnqualified . (.qualifiedId) $ cnv
     pure cid
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
@@ -532,8 +535,8 @@ testListUserProfiles config db brig galley = withTestService config db brig defS
   (pid, sid, u1, u2, _h) <- prepareUsers sref brig
   cid <- do
     rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
-    let Just cnv = responseJsonMaybe rs
-    let cid = qUnqualified . cnvQualifiedId $ cnv
+    let Just cnv = responseJsonMaybe @Conversation rs
+    let cid = qUnqualified . (.qualifiedId) $ cnv
     pure cid
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
@@ -545,8 +548,8 @@ testGetUserClients config db brig galley = withTestService config db brig defSer
   (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
   cid <- do
     rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
-    let Just cnv = responseJsonMaybe rs
-    let cid = qUnqualified . cnvQualifiedId $ cnv
+    let Just cnv = responseJsonMaybe @Conversation rs
+    let cid = qUnqualified . (.qualifiedId) $ cnv
     pure cid
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
@@ -623,11 +626,11 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   let quid = userQualifiedId usr
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   _rs <- addClient brig uid new <!! const 201 === statusCode
-  let Just uc = clientId <$> responseJsonMaybe _rs
+  uc :: Client <- responseJsonError _rs
   -- Create conversation
   _rs <- createConv galley uid [] <!! const 201 === statusCode
-  let Just cid = qUnqualified . cnvQualifiedId <$> responseJsonMaybe _rs
-  testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
+  let Just cid = qUnqualified . (.qualifiedId) <$> responseJsonMaybe @Conversation _rs
+  testMessageBotUtil quid uc.clientId cid pid sid sref buf brig galley cannon
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testBadFingerprint config db brig galley _cannon = withFreePortAnyAddr $ \(sPort, sock) -> do
@@ -647,7 +650,7 @@ testBadFingerprint config db brig galley _cannon = withFreePortAnyAddr $ \(sPort
     _rs <- addClient brig uid new <!! const 201 === statusCode
     -- Create conversation
     _rs <- createConv galley uid [] <!! const 201 === statusCode
-    let Just cid = qUnqualified . cnvQualifiedId <$> responseJsonMaybe _rs
+    let Just cid = qUnqualified . (.qualifiedId) <$> responseJsonMaybe @Conversation _rs
     -- Try to add a bot and observe failure
     addBot brig uid pid sid cid
       !!! const 502 === statusCode
@@ -737,13 +740,13 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
   (uid, tid) <- Team.createUserWithTeam brig
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   _rs <- addClient brig uid new <!! const 201 === statusCode
-  let Just uc = clientId <$> responseJsonMaybe _rs
+  uc :: Client <- responseJsonError _rs
   -- Whitelist the bot
   whitelistService brig uid tid pid sid
   -- Create conversation
   cid <- Team.createTeamConv galley tid uid [] Nothing
   quid <- userQualifiedId . selfUser <$> getSelfProfile brig uid
-  testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
+  testMessageBotUtil quid uc.clientId cid pid sid sref buf brig galley cannon
 
 testDeleteConvBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeleteConvBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -1276,7 +1279,23 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag GroupConversation False Nothing
+    conv =
+      NewConv
+        { newConvUsers = us,
+          newConvQualifiedUsers = [],
+          newConvName = Nothing,
+          newConvAccess = Set.empty,
+          newConvAccessRoles = ars,
+          newConvTeam = Nothing,
+          newConvMessageTimer = Nothing,
+          newConvReceiptMode = Nothing,
+          newConvUsersRole = roleNameWireAdmin,
+          newConvProtocol = BaseProtocolProteusTag,
+          newConvGroupConvType = GroupConversation,
+          newConvCells = False,
+          newConvChannelAddPermission = Nothing,
+          newConvSkipCreator = False
+        }
 
 postMessage ::
   Galley ->
@@ -1753,15 +1772,19 @@ data TestBotEvent
   | TestBotMessage Event
   deriving (Show, Eq)
 
+type TestBotAPI =
+  "bots" :> Endpath :> Raw
+    :<|> "bots" :> Capture "bot" Text :> "messages" :> Endpath :> Raw
+
 -- TODO: Test that the authorization header is properly set
 defServiceApp :: Chan TestBotEvent -> Application
-defServiceApp buf =
-  Wai.route
-    [ ("/bots", onBotCreate),
-      ("/bots/:bot/messages", onBotMessage)
-    ]
+defServiceApp buf = serve (Proxy @TestBotAPI) testBotApi
   where
-    onBotCreate _ rq k = do
+    testBotApi :: Server TestBotAPI
+    testBotApi = onBotCreate :<|> onBotMessage
+
+    onBotCreate :: Tagged Servant.Server.Handler Application
+    onBotCreate = Tagged $ \rq k -> do
       -- TODO: Match request method
       js <- strictRequestBody rq
       case eitherDecode js of
@@ -1790,7 +1813,9 @@ defServiceApp buf =
                   }
           writeChan buf (TestBotCreated bot)
           k $ responseLBS status201 [] (encode rsp)
-    onBotMessage _ rq k = do
+
+    onBotMessage :: Text -> Tagged Servant.Server.Handler Application
+    onBotMessage _ = Tagged $ \rq k -> do
       js <- strictRequestBody rq
       case eitherDecode js of
         Left e -> k $ responseLBS status400 [] (LC8.pack e)
@@ -2009,11 +2034,11 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
   let bid = rsAddBotId rs
       buid = botUserId bid
       -- Check that the bot token grants access to the right user and conversation
-      Just tok = fromByteString (Text.encodeUtf8 (testBotToken bot))
+      Just (tok :: ZAuth.Token ZAuth.B) = fromByteString (Text.encodeUtf8 (testBotToken bot))
   liftIO $ do
-    assertEqual "principal" bid (BotId (Id (tok ^. ZAuth.body . ZAuth.bot)))
-    assertEqual "conversation" cid (Id (tok ^. ZAuth.body . ZAuth.conv))
-    assertEqual "provider" pid (Id (tok ^. ZAuth.body . ZAuth.prov))
+    assertEqual "principal" bid (BotId (Id tok.body.bot))
+    assertEqual "conversation" cid (Id tok.body.conv)
+    assertEqual "provider" pid (Id tok.body.prov)
   let u1Handle = Ext.botUserViewHandle $ testBotOrigin bot
   -- Check that the preferred locale defaults to the locale of the
   -- user who requsted the bot.

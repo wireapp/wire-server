@@ -100,6 +100,10 @@ nginx_conf:
       envs:
       - all
       use_websockets: true
+    - path: /events
+      envs:
+      - all
+      use_websockets: true
 
 # FUTUREWORK: allow resources for cannon and nginz to be different
 resources:

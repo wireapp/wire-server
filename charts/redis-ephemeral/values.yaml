@@ -1,4 +1,6 @@
 redis-ephemeral:
+  image:
+    tag: 6.2.16
   # We use a single node redis for now.
   architecture: standalone
   auth:

@@ -74,6 +74,7 @@ import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.SessionStore (SessionStore)
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -87,7 +88,8 @@ federationSitemap ::
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -101,6 +103,7 @@ federationSitemap =
     :<|> Named @"get-user-clients" getUserClients
     :<|> Named @(Versioned 'V0 "get-mls-clients") getMLSClientsV0
     :<|> Named @"get-mls-clients" getMLSClients
+    :<|> Named @"get-mls-client" getMLSClient
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
     :<|> Named @"get-not-fully-connected-backends" getFederationStatus
@@ -178,7 +181,7 @@ getUsersByIds _ uids = do
   luids <- qualifyLocal uids
   lift $ liftSem $ UserSubsystem.getLocalUserProfiles luids
 
-claimPrekey :: (Member DeleteQueue r) => Domain -> (UserId, ClientId) -> (Handler r) (Maybe ClientPrekey)
+claimPrekey :: (Member DeleteQueue r, Member SessionStore r) => Domain -> (UserId, ClientId) -> (Handler r) (Maybe ClientPrekey)
 claimPrekey _ (user, client) = do
   API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
 
@@ -187,7 +190,7 @@ claimPrekeyBundle _ user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
 claimMultiPrekeyBundle ::
-  (Member (Concurrency 'Unsafe) r, Member DeleteQueue r) =>
+  (Member (Concurrency 'Unsafe) r, Member DeleteQueue r, Member SessionStore r) =>
   Domain ->
   UserClients ->
   Handler r UserClientPrekeyMap
@@ -272,7 +275,11 @@ getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> 
 
 getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
-  Internal.getMLSClients mcr.userId mcr.cipherSuite
+  Internal.getMLSClientsH mcr.userId mcr.cipherSuite
+
+getMLSClient :: Domain -> MLSClientRequest -> Handler r ClientInfo
+getMLSClient _domain mcr =
+  Internal.getMLSClientH mcr.userId mcr.clientId mcr.cipherSuite
 
 getMLSClientsV0 :: Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
 getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0)

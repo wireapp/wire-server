@@ -320,6 +320,7 @@ library
     , openapi3
     , pem                        >=0.2
     , polysemy
+    , polysemy-wire-zoo
     , profunctors
     , proto-lens
     , protobuf                   >=0.2
@@ -603,6 +604,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
     Test.Wire.API.Golden.Manual.CreateScimTokenResponse
+    Test.Wire.API.Golden.Manual.DomainVerification
     Test.Wire.API.Golden.Manual.EnterpriseLogin
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
     Test.Wire.API.Golden.Manual.FederationDomainConfig

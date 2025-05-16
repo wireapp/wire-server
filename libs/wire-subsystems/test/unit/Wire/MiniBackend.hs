@@ -15,6 +15,8 @@ module Wire.MiniBackend
     runNoFederationStackUserSubsystemErrorEither,
     runErrorUnsafe,
     miniLocale,
+    defaultAuthenticationSubsystemConfig,
+    defaultZAuthSettings,
 
     -- * Mini events
     MiniEvent (..),
@@ -39,6 +41,9 @@ import Data.Proxy
 import Data.Qualified
 import Data.Time
 import Data.Type.Equality
+import Data.Vector qualified as Vector
+import Data.ZAuth.Creation
+import Data.ZAuth.CryptoSign
 import GHC.Generics
 import Imports
 import Polysemy
@@ -63,6 +68,8 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Password
 import Wire.ActivationCodeStore
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
 import Wire.DeleteQueue
@@ -87,6 +94,7 @@ import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics.IO (ignoreMetrics)
 import Wire.Sem.Now hiding (get)
+import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.StoredUser
@@ -197,6 +205,8 @@ type MiniBackendLowerEffects =
      HashPassword,
      DeleteQueue,
      Events,
+     CryptoSign,
+     Random,
      Now
    ]
     `Append` InputEffects
@@ -221,6 +231,8 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . ignoreMetrics
     . inputEffectsInterpreters cfg localBackend.teamIdps
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . runRandomPure
+    . runCryptoSignUnsafe
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticHashPasswordInterpreter
@@ -268,16 +280,53 @@ stateEffectsInterpreters MiniBackendParams {..} =
 
 type InputEffects =
   '[ Input UserSubsystemConfig,
-     Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
-     Input (Map TeamId IdPList)
+     Input (Map TeamId IdPList),
+     Input AuthenticationSubsystemConfig
    ]
+
+defaultZAuthSettings :: ZAuthSettings
+defaultZAuthSettings =
+  ZAuthSettings
+    1
+    (UserTokenTimeout (60 * 60 * 24 * 28)) -- 28 days
+    (SessionTokenTimeout (60 * 60 * 24)) -- 1 day
+    (AccessTokenTimeout 900) -- 15 minutes
+    (ProviderTokenTimeout (60 * 60 * 24 * 7)) -- 7 days
+    (LegalHoldUserTokenTimeout (60 * 60 * 24 * 56)) -- 56 days
+    (LegalHoldAccessTokenTimeout (60 * 15)) -- 15 minutes
+
+defaultZAuthEnv :: ZAuthEnv
+defaultZAuthEnv =
+  ZAuthEnv
+    { private =
+        SigningKey
+          { keyIdx = 1,
+            key = read "Z-x7AIRMxXYbY2BBan0dFUH0WR_hUqoNF_EJzQ7cSdBrLBirXOBCsdTEKibIJ1WGgeshXkGdYMWh7EMsJ_X9UA=="
+          },
+      publicKeys = Vector.singleton $ read "aywYq1zgQrHUxComyCdVhoHrIV5BnWDFoexDLCf1_VA=",
+      settings = defaultZAuthSettings
+    }
+
+defaultAuthenticationSubsystemConfig :: AuthenticationSubsystemConfig
+defaultAuthenticationSubsystemConfig =
+  AuthenticationSubsystemConfig
+    { zauthEnv = defaultZAuthEnv,
+      allowlistEmailDomains = Nothing,
+      local = defaultLocalDomain,
+      userCookieRenewAge = 2,
+      userCookieLimit = 5,
+      userCookieThrottle = StdDevThrottle 5 3
+    }
+
+defaultLocalDomain :: Local ()
+defaultLocalDomain = (toLocalUnsafe (Domain "localdomain") ())
 
 inputEffectsInterpreters :: forall r a. UserSubsystemConfig -> Map TeamId IdPList -> Sem (InputEffects `Append` r) a -> Sem r a
 inputEffectsInterpreters cfg teamIdps =
-  runInputConst teamIdps
+  runInputConst defaultAuthenticationSubsystemConfig
+    . runInputConst teamIdps
     . runInputConst Nothing
-    . runInputConst (toLocalUnsafe (Domain "localdomain") ())
     . runInputConst cfg
 
 ----------------------------------------------------------------------

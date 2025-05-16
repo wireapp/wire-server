@@ -558,6 +558,7 @@ test-suite gundeck-tests
     , tasty-hunit
     , tasty-quickcheck
     , text
+    , these
     , tinylog
     , types-common
     , wire-api

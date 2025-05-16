@@ -119,7 +119,7 @@ claimLocalKeyPackages qusr skipOwn suite target = do
 
   -- skip own client when the target is the requesting user itself
   let own = guard (qusr == tUntagged target) *> skipOwn
-  clients <- map clientId <$> wrapClientE (Data.lookupClients (tUnqualified target))
+  clients <- map (.clientId) <$> wrapClientE (Data.lookupClients (tUnqualified target))
   foldQualified
     target
     ( \lusr ->

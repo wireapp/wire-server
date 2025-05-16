@@ -28,6 +28,7 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Time
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (local, lookup)
 import Polysemy
 import Polysemy.Error
@@ -35,11 +36,12 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger
-import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Allowlists qualified as AllowLists
 import Wire.API.User
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.Cookie
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
 import Wire.HashPassword
@@ -49,6 +51,7 @@ import Wire.PasswordStore qualified as PasswordStore
 import Wire.RateLimit
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.SessionStore
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -63,25 +66,30 @@ interpretAuthenticationSubsystem ::
     Member TinyLog r,
     Member HashPassword r,
     Member SessionStore r,
-    Member (Input (Local ())) r,
-    Member (Input (Maybe AllowlistEmailDomains)) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member PasswordStore r,
     Member EmailSubsystem r,
     Member UserStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
     userSubsystemInterpreter . \case
-      AuthenticateEither uid pwd -> authenticateEitherImpl uid pwd
-      ReauthenticateEither uid pwd -> reauthenticateEitherImpl uid pwd
+      -- Password Management
       CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
       ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
+      -- Password Verification
+      AuthenticateEither uid pwd -> authenticateEitherImpl uid pwd
+      ReauthenticateEither uid pwd -> reauthenticateEitherImpl uid pwd
       VerifyUserPassword uid plaintext -> verifyUserPasswordImpl uid plaintext
       VerifyUserPasswordError luid plaintext -> verifyUserPasswordErrorImpl luid plaintext
       VerifyProviderPassword pid plaintext -> verifyProviderPasswordImpl pid plaintext
+      -- Cookie Management
+      NewCookie uid mcid typ mLabel -> newCookieImpl uid mcid typ mLabel
       -- Testing
       InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
 
@@ -140,7 +148,7 @@ authenticateEitherImpl uid plaintext = do
 reauthenticateEitherImpl ::
   ( Member UserStore r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member HashPassword r,
     Member RateLimit r
   ) =>
@@ -162,7 +170,7 @@ reauthenticateEitherImpl user plaintextMaybe =
     rateLimitKey = RateLimitUser user
     maybeReAuth pw' = case plaintextMaybe of
       Nothing -> do
-        local <- input
+        local <- inputs (.local)
         musr <- getLocalAccountBy NoPendingInvitations (qualifyAs local user)
         let isSaml = maybe False isSamlUser musr
         -- If this is a SAML user, re-auth should be no-op so no error is thrown.
@@ -175,9 +183,8 @@ reauthenticateEitherImpl user plaintextMaybe =
 createPasswordResetCodeImpl ::
   forall r.
   ( Member PasswordResetCodeStore r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
-    Member (Input (Local ())) r,
-    Member (Input (Maybe AllowlistEmailDomains)) r,
     Member TinyLog r,
     Member UserSubsystem r,
     Member EmailSubsystem r
@@ -186,7 +193,7 @@ createPasswordResetCodeImpl ::
   Sem r ()
 createPasswordResetCodeImpl target =
   logPasswordResetError =<< runError do
-    allowListOk <- (\e -> AllowLists.verify e (emailKeyOrig target)) <$> input
+    allowListOk <- (\e -> AllowLists.verify e (emailKeyOrig target)) <$> inputs (.allowlistEmailDomains)
     unless allowListOk $ throw AllowListError
     user <- lookupActiveUserByUserKey target >>= maybe (throw InvalidResetKey) pure
     let uid = userId user
@@ -218,7 +225,7 @@ createPasswordResetCodeImpl target =
 
 lookupActiveUserIdByUserKey ::
   ( Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input AuthenticationSubsystemConfig) r
   ) =>
   EmailKey ->
   Sem r (Maybe UserId)
@@ -227,12 +234,12 @@ lookupActiveUserIdByUserKey target =
 
 lookupActiveUserByUserKey ::
   ( Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input AuthenticationSubsystemConfig) r
   ) =>
   EmailKey ->
   Sem r (Maybe User)
 lookupActiveUserByUserKey target = do
-  localUnit <- input
+  localUnit <- inputs (.local)
   let ltarget = qualifyAs localUnit [emailKeyOrig target]
   mUser <- User.getAccountsByEmailNoFilter ltarget
   case mUser of
@@ -246,7 +253,7 @@ lookupActiveUserByUserKey target = do
 internalLookupPasswordResetCodeImpl ::
   ( Member PasswordResetCodeStore r,
     Member Now r,
-    Member (Input (Local ())) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member UserSubsystem r
   ) =>
   EmailKey ->
@@ -278,7 +285,7 @@ resetPasswordImpl ::
   forall r.
   ( Member PasswordResetCodeStore r,
     Member Now r,
-    Member (Input (Local ())) r,
+    Member (Input AuthenticationSubsystemConfig) r,
     Member (Error AuthenticationSubsystemError) r,
     Member TinyLog r,
     Member UserSubsystem r,

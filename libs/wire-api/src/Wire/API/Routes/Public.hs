@@ -37,7 +37,7 @@ module Wire.API.Routes.Public
   )
 where
 
-import Control.Lens ((%~), (<>~))
+import Control.Lens ((%~), (<>~), (?~))
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (toByteString)
 import Data.Domain
@@ -55,6 +55,7 @@ import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
 import Network.Wai qualified as Wai
 import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant.API.Extended.Endpath
 import Servant.API.Modifiers
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server.Internal.Delayed
@@ -366,3 +367,21 @@ instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) c
 
 instance (RoutesToPaths api) => RoutesToPaths (DescriptionOAuthScope scope :> api) where
   getRoutes = getRoutes @api
+
+instance HasOpenApi RawM where
+  toOpenApi _ = desc $ toOpenApi (Proxy @Raw)
+    where
+      desc :: OpenApi -> OpenApi
+      desc = S.allOperations . S.description ?~ "Raw `Application` handler, but with access to the custom monad."
+
+instance (HasOpenApi api) => HasOpenApi (CaptureAll :> api) where
+  toOpenApi _ = desc $ toOpenApi (Proxy @api)
+    where
+      desc :: OpenApi -> OpenApi
+      desc = S.allOperations . S.description ?~ "Capture all following path segments."
+
+instance (HasOpenApi api) => HasOpenApi (Endpath :> api) where
+  toOpenApi _ = desc $ toOpenApi (Proxy @api)
+    where
+      desc :: OpenApi -> OpenApi
+      desc = S.allOperations . S.description ?~ "no further subpath segments allowed."

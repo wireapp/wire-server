@@ -88,6 +88,7 @@ type BrigApi =
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
     :<|> FedEndpointWithMods '[Until V1] (Versioned 'V0 "get-mls-clients") MLSClientsRequestV0 (Set ClientInfo)
     :<|> FedEndpointWithMods '[From V1] "get-mls-clients" MLSClientsRequest (Set ClientInfo)
+    :<|> FedEndpointWithMods '[From V3] "get-mls-client" MLSClientRequest ClientInfo
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
     :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
@@ -139,6 +140,16 @@ data MLSClientsRequest = MLSClientsRequest
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequest)
 
 instance ToSchema MLSClientsRequest
+
+data MLSClientRequest = MLSClientRequest
+  { userId :: UserId, -- implicitly qualified by the local domain
+    clientId :: ClientId,
+    cipherSuite :: CipherSuite
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientRequest)
+
+instance ToSchema MLSClientRequest
 
 mlsClientsRequestToV0 :: MLSClientsRequest -> MLSClientsRequestV0
 mlsClientsRequestToV0 mcr =

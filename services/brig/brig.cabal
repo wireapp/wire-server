@@ -188,6 +188,7 @@ library
     Brig.Schema.V88_DomainRegistrationTable
     Brig.Schema.V89_UpdateDomainRegistrationSchema
     Brig.Schema.V90_DomainRegistrationTeamIndex
+    Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl
     Brig.Team.API
     Brig.Team.Email
     Brig.Team.Template
@@ -195,13 +196,11 @@ library
     Brig.User.API.Handle
     Brig.User.Auth
     Brig.User.Auth.Cookie
-    Brig.User.Auth.Cookie.Limit
     Brig.User.EJPD
     Brig.User.Search.Index
     Brig.User.Search.SearchIndex
     Brig.User.Template
     Brig.Version
-    Brig.ZAuth
 
   hs-source-dirs:  src
   ghc-options:
@@ -294,10 +293,8 @@ library
     , servant-openapi3
     , servant-server
     , servant-swagger-ui
-    , sodium-crypto-sign                    >=0.1
     , split                                 >=0.2
     , ssl-util
-    , statistics                            >=0.13
     , stomp-queue                           >=0.3
     , template                              >=0.2
     , template-haskell
@@ -315,7 +312,6 @@ library
     , uri-bytestring                        >=0.2
     , utf8-string
     , uuid                                  >=1.3.5
-    , vector                                >=0.11
     , wai                                   >=3.0
     , wai-extra                             >=3.0
     , wai-middleware-gunzip                 >=0.0.2
@@ -410,6 +406,7 @@ executable brig-integration
     , data-timeout
     , email-validate
     , exceptions
+    , extended
     , extra
     , federator
     , filepath               >=1.4
@@ -451,6 +448,7 @@ executable brig-integration
     , servant
     , servant-client
     , servant-client-core
+    , servant-server
     , spar
     , streaming-commons
     , string-conversions
@@ -474,7 +472,6 @@ executable brig-integration
     , vector                 >=0.10
     , wai
     , wai-extra
-    , wai-route
     , wai-utilities          >=0.9
     , warp
     , warp-tls               >=3.2

@@ -171,6 +171,11 @@ nginx_conf:
       - all
       use_websockets: true
       doc: true
+    - path: /events
+      envs:
+      - all
+      use_websockets: true
+      doc: true
     brig:
     - path: /api-version
       envs:

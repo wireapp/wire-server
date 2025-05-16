@@ -112,6 +112,7 @@ data GlobalEnv = GlobalEnv
     gIntegrationTestHostName :: String,
     gFederationV0Domain :: String,
     gFederationV1Domain :: String,
+    gFederationV2Domain :: String,
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
@@ -133,6 +134,7 @@ data IntegrationConfig = IntegrationConfig
     backendTwo :: BackendConfig,
     federationV0 :: BackendConfig,
     federationV1 :: BackendConfig,
+    federationV2 :: BackendConfig,
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMqAdminOpts,
@@ -152,6 +154,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "backendTwo"
         <*> o .: fromString "federation-v0"
         <*> o .: fromString "federation-v1"
+        <*> o .: fromString "federation-v2"
         <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
@@ -171,8 +174,8 @@ data ServiceMap = ServiceMap
     galley :: HostPort,
     gundeck :: HostPort,
     nginz :: HostPort,
+    proxy :: HostPort, -- maps on WireProxy, but we don't want to touch config files.
     spar :: HostPort,
-    proxy :: HostPort,
     stern :: HostPort,
     wireServerEnterprise :: HostPort,
     rabbitMqVHost :: T.Text
@@ -234,6 +237,7 @@ data Env = Env
     integrationTestHostName :: String,
     federationV0Domain :: String,
     federationV1Domain :: String,
+    federationV2Domain :: String,
     dynamicDomains :: [String],
     defaultAPIVersion :: Int,
     apiVersionByDomain :: Map String Int,
@@ -490,6 +494,7 @@ data ServiceOverrides = ServiceOverrides
     galleyCfg :: Value -> App Value,
     gundeckCfg :: Value -> App Value,
     nginzCfg :: Value -> App Value,
+    wireProxyCfg :: Value -> App Value,
     sparCfg :: Value -> App Value,
     backgroundWorkerCfg :: Value -> App Value,
     sternCfg :: Value -> App Value,
@@ -509,6 +514,7 @@ instance Semigroup ServiceOverrides where
         galleyCfg = galleyCfg a >=> galleyCfg b,
         gundeckCfg = gundeckCfg a >=> gundeckCfg b,
         nginzCfg = nginzCfg a >=> nginzCfg b,
+        wireProxyCfg = wireProxyCfg a >=> wireProxyCfg b,
         sparCfg = sparCfg a >=> sparCfg b,
         backgroundWorkerCfg = backgroundWorkerCfg a >=> backgroundWorkerCfg b,
         sternCfg = sternCfg a >=> sternCfg b,
@@ -528,6 +534,7 @@ defaultServiceOverrides =
       galleyCfg = pure,
       gundeckCfg = pure,
       nginzCfg = pure,
+      wireProxyCfg = pure,
       sparCfg = pure,
       backgroundWorkerCfg = pure,
       sternCfg = pure,
@@ -543,6 +550,7 @@ lookupConfigOverride overrides = \case
   Galley -> overrides.galleyCfg
   Gundeck -> overrides.gundeckCfg
   Nginz -> overrides.nginzCfg
+  WireProxy -> overrides.wireProxyCfg
   Spar -> overrides.sparCfg
   BackgroundWorker -> overrides.backgroundWorkerCfg
   Stern -> overrides.sternCfg
@@ -556,6 +564,7 @@ data Service
   | Gundeck
   | Cargohold
   | Nginz
+  | WireProxy -- (`Proxy` is already taken)
   | Spar
   | BackgroundWorker
   | Stern
@@ -577,6 +586,7 @@ serviceName = \case
   Gundeck -> "gundeck"
   Cargohold -> "cargohold"
   Nginz -> "nginz"
+  WireProxy -> "proxy"
   Spar -> "spar"
   BackgroundWorker -> "backgroundWorker"
   Stern -> "stern"
@@ -592,6 +602,7 @@ configName = \case
   Gundeck -> "gundeck"
   Cargohold -> "cargohold"
   Nginz -> "nginz"
+  WireProxy -> "proxy"
   Spar -> "spar"
   BackgroundWorker -> "background-worker"
   Stern -> "stern"

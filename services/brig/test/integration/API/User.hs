@@ -30,16 +30,16 @@ import API.User.RichInfo qualified
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Brig.AWS qualified as AWS
+import Brig.App (initZAuth)
 import Brig.Options qualified as Opt
-import Brig.ZAuth qualified as ZAuth
 import Cassandra qualified as DB
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Qualified
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
 import Util.AWS (UserJournalWatcher)
-import Util.Options.Common
 import Wire.API.Federation.Component
+import Wire.AuthenticationSubsystem.Config
 
 tests ::
   Opt.Opts ->
@@ -57,20 +57,24 @@ tests ::
 tests conf fbc p b c ch g n aws db userJournalWatcher = do
   let cl = ConnectionLimit conf.settings.userMaxConnections
   let at = conf.settings.activationTimeout
-  z <- mkZAuthEnv (Just conf)
+  zauthEnv <- initZAuth conf
+  let localUnit = toLocalUnsafe conf.settings.federationDomain ()
+      authenticationSubsystemConfig =
+        AuthenticationSubsystemConfig
+          { zauthEnv = zauthEnv,
+            allowlistEmailDomains = conf.settings.allowlistEmailDomains,
+            local = localUnit,
+            userCookieRenewAge = conf.settings.userCookieRenewAge,
+            userCookieLimit = conf.settings.userCookieLimit,
+            userCookieThrottle = conf.settings.userCookieThrottle
+          }
   pure $
     testGroup
       "user"
       [ API.User.Client.tests cl at conf p db n b c g,
         API.User.Account.tests cl at conf p b c ch g aws userJournalWatcher,
-        API.User.Auth.tests conf p z db b g n,
+        API.User.Auth.tests conf p authenticationSubsystemConfig db b g n,
         API.User.Connection.tests cl at p b c g fbc db,
         API.User.Handles.tests cl at conf p b c g,
         API.User.RichInfo.tests cl at conf p b c g
       ]
-
-mkZAuthEnv :: Maybe Opt.Opts -> IO ZAuth.Env
-mkZAuthEnv config = do
-  Just (sk :| sks) <- join $ optOrEnv (ZAuth.readKeys . Opt.privateKeys . Opt.zauth) config ZAuth.readKeys "ZAUTH_PRIVKEYS"
-  Just (pk :| pks) <- join $ optOrEnv (ZAuth.readKeys . Opt.privateKeys . Opt.zauth) config ZAuth.readKeys "ZAUTH_PUBKEYS"
-  ZAuth.mkEnv (sk :| sks) (pk :| pks) ZAuth.defSettings

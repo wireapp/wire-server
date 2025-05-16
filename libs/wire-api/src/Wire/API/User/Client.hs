@@ -370,12 +370,14 @@ qualifiedUserClientPrekeyMapFromList =
 --------------------------------------------------------------------------------
 -- ClientInfo
 
--- | A client, together with extra information about it.
+-- | A client, together with extra information about it relative to a given ciphersuite.
 data ClientInfo = ClientInfo
   { -- | The ID of this client.
-    ciId :: ClientId,
-    -- | Whether this client is MLS-capable.
-    ciMLS :: Bool
+    clientId :: ClientId,
+    -- | The signature key for the given ciphersuite.
+    mlsSignatureKey :: Maybe ByteString,
+    -- | Whether this client has any key packages for the given ciphersuite.
+    hasKeyPackages :: Bool
   }
   deriving stock (Eq, Ord, Show)
   deriving (Swagger.ToSchema, FromJSON, ToJSON) via Schema ClientInfo
@@ -384,8 +386,9 @@ instance ToSchema ClientInfo where
   schema =
     object "ClientInfo" $
       ClientInfo
-        <$> ciId .= field "id" schema
-        <*> ciMLS .= field "mls" schema
+        <$> (.clientId) .= field "id" schema
+        <*> (.mlsSignatureKey) .= maybe_ (optField "mls_signature_key" base64Schema)
+        <*> (.hasKeyPackages) .= field "mls" schema
 
 --------------------------------------------------------------------------------
 -- UserClients
@@ -536,7 +539,7 @@ clientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Client
 clientSchema mVersion =
   object (versionedName mVersion "Client") $
     Client
-      <$> clientId .= field "id" schema
+      <$> (.clientId) .= field "id" schema
       <*> clientType .= field "type" schema
       <*> clientTime .= field "time" schema
       <*> clientClass .= maybe_ (optField "class" schema)
@@ -582,7 +585,7 @@ mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
 
 instance AsHeaders '[ClientId] Client Client where
-  toHeaders c = (I (clientId c) :* Nil, c)
+  toHeaders c = (I c.clientId :* Nil, c)
   fromHeaders = snd
 
 --------------------------------------------------------------------------------
@@ -623,7 +626,8 @@ instance ToSchema PubClient where
 --------------------------------------------------------------------------------
 -- Client Type/Class
 
--- [Note: LegalHold]
+-- Note [LegalHold]
+-- ~~~~~~~~~~~~~~~~
 --
 -- Short feature description:
 -- LegalHold is an enterprise feature, enabled on a per-team basis, and within a

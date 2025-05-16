@@ -21,18 +21,17 @@ module Proxy.Run
 where
 
 import Bilge.Request (requestIdName)
+import Cassandra.Options (host, port)
 import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Data.Id (RequestId (RequestId), defRequestId)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddlewarePaths)
 import Data.Metrics.Servant
-import Data.Metrics.Types
-import Data.Metrics.WaiRoute
+import Data.Text qualified as T
 import Imports hiding (head)
 import Network.Wai (Middleware, Request, requestHeaders)
 import Network.Wai.Middleware.Gunzip qualified as GZip
-import Network.Wai.Routing.Route
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Proxy.API.Internal as I
 import Proxy.API.Public as P
@@ -40,10 +39,11 @@ import Proxy.Env
 import Proxy.Options
 import Proxy.Proxy
 import Servant qualified
+import Wire.API.Routes.Public.Proxy
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 
-type CombinedAPI = InternalAPI Servant.:<|> PublicAPI
+type CombinedAPI = InternalAPI Servant.:<|> ProxyAPI
 
 combinedSitemap :: Env -> Servant.ServerT CombinedAPI Proxy
 combinedSitemap env = I.servantSitemap Servant.:<|> P.servantSitemap env
@@ -51,17 +51,10 @@ combinedSitemap env = I.servantSitemap Servant.:<|> P.servantSitemap env
 run :: Opts -> IO ()
 run o = do
   e <- createEnv o
-  s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e ^. applog)
+  s <- newSettings $ defaultServer (o ^. proxy . to (T.unpack . host)) (o ^. proxy . to port) (e ^. applog)
 
   let metricsMW :: Middleware
-      metricsMW =
-        -- FUTUREWORK: once wai-routing has been removed from proxy: use `servantPrometheusMiddleware
-        -- (Servant.Proxy @CombinedAPI)` here (and probably inline the whole thing).
-        waiPrometheusMiddlewarePaths (pub <> int)
-        where
-          pub, int :: Paths
-          pub = treeToPaths $ prepare (P.waiRoutingSitemap e)
-          int = routesToPaths @InternalAPI
+      metricsMW = waiPrometheusMiddlewarePaths (routesToPaths @ProxyAPI <> routesToPaths @InternalAPI)
 
       middleware :: Middleware
       middleware =

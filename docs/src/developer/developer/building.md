@@ -89,7 +89,9 @@ make ci-safe # run the ci
 ```
 
 If the former command fails, make sure you have a working installation of `docker`
-or continue to the troubleshooting section right below.
+or continue to the troubleshooting section right below.  `run.sh` sources
+`run.{before,after}.hook.local` before and after starting the docker
+images if they exist.
 
 #### with nix
 

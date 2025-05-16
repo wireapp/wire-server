@@ -207,3 +207,11 @@ testLegacyFedFederation domain = do
 
   bob' <- BrigP.getUser alice bob >>= getJSON 200
   bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+
+testLegacyFedFederationV2 :: (HasCallStack) => FedDomain 2 -> App ()
+testLegacyFedFederationV2 fedDomainV2 = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser fedDomainV2 def
+
+  bob' <- BrigP.getUser alice bob >>= getJSON 200
+  bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")

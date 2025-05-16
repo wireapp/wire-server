@@ -72,8 +72,12 @@ library
     Wire.ActivationCodeStore
     Wire.ActivationCodeStore.Cassandra
     Wire.AuthenticationSubsystem
+    Wire.AuthenticationSubsystem.Config
+    Wire.AuthenticationSubsystem.Cookie
+    Wire.AuthenticationSubsystem.Cookie.Limit
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
+    Wire.AuthenticationSubsystem.ZAuth
     Wire.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
@@ -222,6 +226,8 @@ library
     , schema-profunctor
     , servant
     , servant-client-core
+    , sodium-crypto-sign
+    , statistics
     , stomp-queue
     , template
     , text
@@ -237,11 +243,13 @@ library
     , unordered-containers
     , uri-bytestring
     , uuid
+    , vector
     , wai-utilities
     , wire-api
     , wire-api-federation
     , wire-otel
     , witherable
+    , zauth
 
   default-language: GHC2021
 
@@ -264,6 +272,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.BlockListStore
+    Wire.MockInterpreters.CryptoSign
     Wire.MockInterpreters.DomainRegistrationStore
     Wire.MockInterpreters.DomainVerificationChallengeStore
     Wire.MockInterpreters.EmailSending
@@ -316,6 +325,7 @@ test-suite wire-subsystems-tests
     , iproute
     , iso639
     , lens
+    , memory
     , mime-mail
     , network
     , pipes
@@ -330,6 +340,7 @@ test-suite wire-subsystems-tests
     , saml2-web-sso
     , scientific
     , servant-client-core
+    , sodium-crypto-sign
     , streaming-commons
     , string-conversions
     , text
@@ -339,6 +350,8 @@ test-suite wire-subsystems-tests
     , types-common
     , uri-bytestring
     , uuid
+    , vector
     , wire-api
     , wire-api-federation
     , wire-subsystems
+    , zauth

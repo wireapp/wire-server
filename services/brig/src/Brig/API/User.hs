@@ -111,7 +111,6 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import Prometheus qualified as Prom
 import System.Logger.Message
-import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -146,6 +145,7 @@ import Wire.PropertySubsystem as PropertySubsystem
 import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra
+import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem as User
@@ -590,7 +590,8 @@ changeAccountStatus ::
   ( Member (Embed HttpClientIO) r,
     Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member SessionStore r
   ) =>
   List1 UserId ->
   AccountStatus ->
@@ -610,7 +611,9 @@ changeAccountStatus usrs status = do
 
 changeSingleAccountStatus ::
   ( Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r
   ) =>
   UserId ->
   AccountStatus ->
@@ -623,12 +626,12 @@ changeSingleAccountStatus uid status = do
     liftSem $ User.internalUpdateSearchIndex uid
     liftSem $ Events.generateUserEvent uid Nothing (ev uid)
 
-mkUserEvent :: (Traversable t) => t UserId -> AccountStatus -> ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
+mkUserEvent :: (Traversable t, Member (Concurrency Unsafe) r, Member SessionStore r) => t UserId -> AccountStatus -> ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
 mkUserEvent usrs status =
   case status of
     Active -> pure UserResumed
     Suspended -> do
-      lift $ wrapHttpClient (mapConcurrently_ Auth.revokeAllCookies usrs)
+      lift $ liftSem (unsafePooledMapConcurrentlyN_ 16 Auth.revokeAllCookies usrs)
       pure UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
@@ -813,7 +816,8 @@ changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SessionStore r
   ) =>
   UserId ->
   PasswordChange ->
@@ -835,7 +839,7 @@ changePassword uid cp = do
         throwE InvalidCurrentPassword
       whenM (lift . liftSem $ HashPassword.verifyPassword rateLimitKey newpw pw) $
         throwE ChangePasswordMustDiffer
-      lift $ liftSem (upsertHashedPassword uid hashedNewPw) >> wrapClient (Auth.revokeAllCookies uid)
+      lift $ liftSem (upsertHashedPassword uid hashedNewPw >> Auth.revokeAllCookies uid)
 
 -------------------------------------------------------------------------------
 -- User Deletion
@@ -866,7 +870,8 @@ deleteSelfUser ::
     Member UserSubsystem r,
     Member PropertySubsystem r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -937,7 +942,8 @@ verifyDeleteUser ::
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member SessionStore r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -964,7 +970,8 @@ ensureAccountDeleted ::
     Member UserStore r,
     Member Events r,
     Member UserSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   AppT r DeleteUserResult
@@ -1012,7 +1019,8 @@ deleteAccount ::
     Member UserStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member SessionStore r
   ) =>
   User ->
   Sem r ()
@@ -1028,7 +1036,7 @@ deleteAccount user = do
     deleteUser user
 
   Intra.rmUser uid (userAssets user)
-  embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
+  embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . (.clientId))
   luid <- embed $ qualifyLocal uid
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing (UserDeleted (tUntagged luid))
@@ -1036,7 +1044,7 @@ deleteAccount user = do
     -- Note: Connections can only be deleted afterwards, since
     --       they need to be notified.
     Data.deleteConnections uid
-    Auth.revokeAllCookies uid
+  Auth.revokeAllCookies uid
 
 -------------------------------------------------------------------------------
 -- Lookups

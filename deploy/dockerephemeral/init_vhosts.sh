@@ -1,7 +1,10 @@
 #!/usr/bin/env sh
 
 exec_until_ready() {
-        until $1; do echo 'service not ready yet'; sleep 1; done
+  until $1; do
+    echo 'service not ready yet'
+    sleep 1
+  done
 }
 
 create_vhost() {
@@ -17,5 +20,6 @@ create_vhost d2.example.com
 create_vhost d3.example.com
 create_vhost federation-v0
 create_vhost federation-v1
+create_vhost federation-v2
 
 echo 'RabbitMQ resources created successfully!'

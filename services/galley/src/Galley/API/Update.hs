@@ -155,12 +155,12 @@ acceptConv ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r Conversation
+  Sem r ConversationV8
 acceptConv lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   conv' <- acceptOne2One lusr conv conn
-  conversationView lusr conv'
+  conversationViewV8 lusr conv'
 
 blockConv ::
   ( Member ConversationStore r,
@@ -239,14 +239,14 @@ unblockConvUnqualified ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r Conversation
+  Sem r ConversationV8
 unblockConvUnqualified lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
   conv' <- acceptOne2One lusr conv conn
-  conversationView lusr conv'
+  conversationViewV8 lusr conv'
 
 unblockRemoteConv ::
   ( Member MemberStore r
@@ -1657,7 +1657,7 @@ addBot lusr zcon b = do
         { origin = Just (tUnqualified lusr),
           json = toJSONObject e,
           recipients = map localMemberToRecipient users,
-          isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+          isCellsEvent = shouldPushToCells c.convMetadata e,
           conn = Just zcon
         }
     ]
@@ -1720,7 +1720,7 @@ rmBot lusr zcon b = do
               { origin = Just (tUnqualified lusr),
                 json = toJSONObject e,
                 recipients = map localMemberToRecipient users,
-                isCellsEvent = shouldPushToCells c.convMetadata (evtType e),
+                isCellsEvent = shouldPushToCells c.convMetadata e,
                 conn = zcon
               }
           ]

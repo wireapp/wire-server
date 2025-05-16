@@ -29,12 +29,9 @@ import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
 import Brig.Options qualified as Opts
-import Brig.ZAuth (ZAuth, runZAuth)
-import Brig.ZAuth qualified as ZAuth
-import Cassandra hiding (Value)
+import Cassandra hiding (Client, Value)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
-import Control.Lens (set, (^.))
 import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.ByteString qualified as BS
@@ -43,7 +40,6 @@ import Data.ByteString.Lazy qualified as Lazy
 import Data.Handle (parseHandle)
 import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsafe)
-import Data.Proxy
 import Data.Qualified
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -51,18 +47,20 @@ import Data.Text.IO (hPutStrLn)
 import Data.Text.Lazy qualified as Lazy
 import Data.Time.Clock
 import Data.UUID.V4 qualified as UUID
+import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Client (equivCookie)
 import Network.Wai.Utilities.Error qualified as Error
 import Polysemy
+import Polysemy.Input
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import Util.Timeout
-import Wire.API.Conversation (Conversation (..))
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Password as Password
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
@@ -70,7 +68,12 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.HashPassword.Interpreter
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO
+import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
@@ -92,8 +95,8 @@ onlyIfLhWhitelisted action = do
           \(the 'withLHWhitelist' trick does not work because it does not allow \
           \brig to talk to the dynamically spawned galley)."
 
-tests :: Opts.Opts -> Manager -> ZAuth.Env -> DB.ClientState -> Brig -> Galley -> Nginz -> TestTree
-tests conf m z db b g n =
+tests :: Opts.Opts -> Manager -> AuthenticationSubsystemConfig -> DB.ClientState -> Brig -> Galley -> Nginz -> TestTree
+tests conf m authCfg db b g n =
   testGroup
     "auth"
     [ testGroup
@@ -130,14 +133,12 @@ tests conf m z db b g n =
         ],
       testGroup
         "refresh /access"
-        [ test m "testInvalidCookie - invalid-cookie" (testInvalidCookie @ZAuth.User z b),
-          test m "testInvalidCookie - invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser z b),
-          test m "invalid-token" (testInvalidToken z b),
-          test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access z b),
-          test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess z b),
-          test m "unknown-cookie" (testUnknownCookie @ZAuth.User z b),
-          test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LegalHoldUser z b),
-          test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
+        [ test m "invalid-token" (testInvalidToken authCfg b),
+          test m "missing-cookie" (testMissingCookie @ZAuth.U authCfg b),
+          test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LU authCfg b),
+          test m "unknown-cookie" (testUnknownCookie @ZAuth.U authCfg b),
+          test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LU authCfg b),
+          test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold authCfg b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
           testGroup "suspend-inactive" $ do
@@ -154,8 +155,8 @@ tests conf m z db b g n =
         "update /access/self/email"
         [ test m "valid token (idempotency case) (with cookie)" (testAccessSelfEmailAllowed n b True),
           test m "valid token (idempotency case) (without cookie)" (testAccessSelfEmailAllowed n b False),
-          test m "invalid or missing token (with cookie)" (testAccessSelfEmailDenied z n b True),
-          test m "invalid or missing token (without cookie)" (testAccessSelfEmailDenied z n b False)
+          test m "invalid or missing token (with cookie)" (testAccessSelfEmailDenied authCfg n b True),
+          test m "invalid or missing token (without cookie)" (testAccessSelfEmailDenied authCfg n b False)
         ],
       testGroup
         "cookies"
@@ -210,10 +211,10 @@ testLoginWith6CharPassword opts brig db = do
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
 
-randomAccessToken :: forall u a. (ZAuth.TokenPair u a) => ZAuth (ZAuth.Token a)
+randomAccessToken :: forall u r. (ZAuth.UserTokenLike u, Member (Input AuthenticationSubsystemConfig) r, Member (Embed IO) r, Member CryptoSign r, Member Now r, Member Random r) => Sem r AccessToken
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
-randomUserToken :: (ZAuth.UserTokenLike u) => ZAuth (ZAuth.Token u)
+randomUserToken :: (ZAuth.UserTokenLike u, Member (Embed IO) r, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r, Member Random r) => Sem r (ZAuth.Token u)
 randomUserToken = do
   r <- Id <$> liftIO UUID.nextRandom
   ZAuth.newUserToken r Nothing
@@ -264,14 +265,14 @@ testNginzLegalHold b g n = do
     rsLhDev <-
       legalHoldLogin b (LegalHoldLogin (userId alice) (Just defPassword) Nothing) PersistentCookie
         <!! const 200 === statusCode
-    let t = decodeToken' @ZAuth.LegalHoldAccess rsLhDev
+    let t = decodeToken' @ZAuth.LA rsLhDev
         c = cLhDev {cookie_domain = cookie_domain cUsr}
         cLhDev = decodeCookie rsLhDev
         cUsr = decodeCookie rsUsr
     pure (c, t)
 
-  qconv <-
-    fmap cnvQualifiedId . responseJsonError
+  qconv :: Qualified ConvId <-
+    fmap (.qualifiedId) . responseJsonError @_ @Conversation
       =<< createConversation g (userId alice) [] <!! const 201 === statusCode
 
   -- ensure nginz allows passing legalhold cookies / tokens through to /access
@@ -351,7 +352,7 @@ testEmailLogin brig = do
     login brig (defEmailLogin email) PersistentCookie
       <!! const 200 === statusCode
   liftIO $ do
-    assertSanePersistentCookie @ZAuth.User (decodeCookie rs)
+    assertSanePersistentCookie @ZAuth.U (decodeCookie rs)
     assertSaneAccessToken now (userId u) (decodeToken rs)
   -- Login again, but with capitalised email address
   let loc = localPart email
@@ -456,8 +457,8 @@ testTeamUserLegalHoldLogin brig galley = do
       <!! const 200 === statusCode
   -- check for the correct (legalhold) token and cookie
   liftIO $ do
-    assertSanePersistentCookie @ZAuth.LegalHoldUser (decodeCookie _rs)
-    assertSaneAccessToken now alice (decodeToken' @ZAuth.LegalHoldAccess _rs)
+    assertSanePersistentCookie @ZAuth.LU (decodeCookie _rs)
+    assertSaneAccessToken now alice (decodeToken' @ZAuth.LA _rs)
 
 testLegalHoldSessionCookie :: Brig -> Galley -> Http ()
 testLegalHoldSessionCookie brig galley = do
@@ -467,7 +468,7 @@ testLegalHoldSessionCookie brig galley = do
     legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) SessionCookie
       <!! const 200 === statusCode
   -- ensure server always returns a refreshable PersistentCookie irrespective of argument passed
-  liftIO $ assertSanePersistentCookie @ZAuth.LegalHoldUser (decodeCookie rs)
+  liftIO $ assertSanePersistentCookie @ZAuth.LU (decodeCookie rs)
 
 -- | Check that @/i/legalhold-login/@ can not be used to login as a suspended
 -- user.
@@ -506,7 +507,7 @@ testLegalHoldLogout :: Brig -> Galley -> Http ()
 testLegalHoldLogout brig galley = do
   uid <- prepareLegalHoldUser brig galley
   _rs <- legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie <!! const 200 === statusCode
-  let (t, c) = (decodeToken' @ZAuth.LegalHoldAccess _rs, decodeCookie _rs)
+  let (t, c) = (decodeToken' @ZAuth.LA _rs, decodeCookie _rs)
   post (unversioned . brig . path "/access" . cookie c)
     !!! const 200 === statusCode
   post (unversioned . brig . path "/access/logout" . cookie c . queryItem "access_token" (toByteString' t))
@@ -537,7 +538,7 @@ testEmailSsoLogin brig = do
     ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
       <!! const 200 === statusCode
   liftIO $ do
-    assertSanePersistentCookie @ZAuth.User (decodeCookie rs)
+    assertSanePersistentCookie @ZAuth.U (decodeCookie rs)
     assertSaneAccessToken now uid (decodeToken rs)
 
 testEmailSsoLoginNonSsoUser :: Brig -> Http ()
@@ -575,31 +576,10 @@ testNoUserSsoLogin brig = do
 -------------------------------------------------------------------------------
 -- Token Refresh
 
--- The testInvalidCookie test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @TSFI.NTP @S2
---
--- Test that invalid and expired tokens do not work.
-testInvalidCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
-testInvalidCookie z b = do
-  -- Syntactically invalid
-  post (unversioned . b . path "/access" . cookieRaw "zuid" "xxx") !!! do
-    const 403 === statusCode
-    const (Just "Invalid user token") =~= responseBody
-  -- Expired
+testInvalidToken :: AuthenticationSubsystemConfig -> Brig -> Http ()
+testInvalidToken authCfg b = do
   user <- Public.userId <$> randomUser b
-  let f = set (ZAuth.userTTL (Proxy @u)) 0
-  t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user Nothing))
-  liftIO $ threadDelay 1000000
-  post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
-    const 403 === statusCode
-    const (Just "expired") =~= responseBody
-
--- @END
-
-testInvalidToken :: ZAuth.Env -> Brig -> Http ()
-testInvalidToken z b = do
-  user <- Public.userId <$> randomUser b
-  t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user Nothing)
+  t <- toByteString' <$> runZAuth authCfg (ZAuth.newUserToken @ZAuth.U user Nothing)
 
   -- Syntactically invalid
   post (unversioned . b . path "/access" . queryItem "access_token" "xxx" . cookieRaw "zuid" t)
@@ -609,14 +589,14 @@ testInvalidToken z b = do
   where
     errResponse = do
       const 403 === statusCode
-      const (Just "Invalid access token") =~= responseBody
+      const (Just "Invalid token") =~= responseBody
 
-testMissingCookie :: forall u a. (ZAuth.TokenPair u a) => ZAuth.Env -> Brig -> Http ()
-testMissingCookie z b = do
+testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => AuthenticationSubsystemConfig -> Brig -> Http ()
+testMissingCookie authCfg b = do
   -- Missing cookie, i.e. token refresh mandates a cookie.
   post (unversioned . b . path "/access")
     !!! errResponse
-  t <- toByteString' <$> runZAuth z (randomAccessToken @u @a)
+  t <- BS.toStrict . (.access) <$> runZAuth authCfg (randomAccessToken @u)
   post (unversioned . b . path "/access" . header "Authorization" ("Bearer " <> t))
     !!! errResponse
   post (unversioned . b . path "/access" . queryItem "access_token" t)
@@ -627,16 +607,16 @@ testMissingCookie z b = do
       const (Just "Missing cookie") =~= responseBody
       const (Just "invalid-credentials") =~= responseBody
 
-testUnknownCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
-testUnknownCookie z b = do
+testUnknownCookie :: forall u. (ZAuth.UserTokenLike u) => AuthenticationSubsystemConfig -> Brig -> Http ()
+testUnknownCookie authCfg b = do
   -- Valid cookie but unknown to the server.
-  t <- toByteString' <$> runZAuth z (randomUserToken @u)
+  t <- toByteString' <$> runZAuth authCfg (randomUserToken @u)
   post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") =~= responseBody
 
-testTokenMismatchLegalhold :: ZAuth.Env -> Brig -> Galley -> Http ()
-testTokenMismatchLegalhold z brig galley = do
+testTokenMismatchLegalhold :: AuthenticationSubsystemConfig -> Brig -> Galley -> Http ()
+testTokenMismatchLegalhold authCfg brig galley = do
   u <- randomUser brig
   let Just email = userEmail u
   _rs <-
@@ -644,7 +624,7 @@ testTokenMismatchLegalhold z brig galley = do
       <!! const 200 === statusCode
   -- try refresh with a regular UserCookie but a LegalHoldAccessToken
   let c = decodeCookie _rs
-  t <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess)
+  t <- BS.toStrict . (.access) <$> runZAuth authCfg (randomAccessToken @ZAuth.LU)
   post (unversioned . brig . path "/access" . cookie c . header "Authorization" ("Bearer " <> t)) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
@@ -653,7 +633,7 @@ testTokenMismatchLegalhold z brig galley = do
   putLHWhitelistTeam galley tid !!! const 200 === statusCode
   _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
   let c' = decodeCookie _rs
-  t' <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
+  t' <- BS.toStrict . (.access) <$> runZAuth authCfg (randomAccessToken @ZAuth.U)
   post (unversioned . brig . path "/access" . cookie c' . header "Authorization" ("Bearer " <> t')) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
@@ -686,7 +666,7 @@ testAccessSelfEmailAllowed nginz brig withCookie = do
     !!! const (if withCookie then 204 else 403) === statusCode
 
 -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
-testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Bool -> Http ()
+testAccessSelfEmailDenied :: AuthenticationSubsystemConfig -> Nginz -> Brig -> Bool -> Http ()
 testAccessSelfEmailDenied zenv nginz brig withCookie = do
   usr <- randomUser brig
   let Just email = userEmail usr
@@ -700,7 +680,7 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
           (if withCookie then Just (decodeCookie rsp) else Nothing)
       else do
         pure Nothing
-  tok <- runZAuth zenv (randomAccessToken @ZAuth.User @ZAuth.Access)
+  tok <- runZAuth zenv (randomAccessToken @ZAuth.U)
   let req =
         unversioned
           . nginz
@@ -713,8 +693,8 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
   put (req . header "Authorization" "xxx")
     !!! errResponse "invalid-credentials" "Invalid authorization scheme"
   put (req . header "Authorization" "Bearer xxx")
-    !!! errResponse "client-error" "Failed reading: Invalid access token"
-  put (req . header "Authorization" ("Bearer " <> toByteString' tok))
+    !!! errResponse "client-error" "Failed reading: Invalid token"
+  put (req . header "Authorization" ("Bearer " <> BS.toStrict tok.access))
     !!! errResponse "invalid-credentials" "Invalid token"
   where
     errResponse label msg = do
@@ -797,7 +777,7 @@ testAccessWithClientId brig = do
       PersistentCookie
       <!! const 200 === statusCode
   let c = decodeCookie rs
-  cl <-
+  cl :: Client <-
     responseJsonError
       =<< addClient
         brig
@@ -809,19 +789,19 @@ testAccessWithClientId brig = do
       ( unversioned
           . brig
           . path "/access"
-          . queryItem "client_id" (toByteString' (clientId cl))
+          . queryItem "client_id" (toByteString' cl.clientId)
           . cookie c
       )
       <!! const 200 === statusCode
   now <- liftIO getCurrentTime
   liftIO $ do
     let ck = decodeCookie r
-        Just token = fromByteString (cookie_value ck)
-        atoken = decodeToken' @ZAuth.Access r
-    assertSanePersistentCookie @ZAuth.User ck
-    ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
-    assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
-    ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+    let Just token = fromByteString @(ZAuth.Token ZAuth.U) (cookie_value ck)
+        atoken = decodeToken' @ZAuth.A r
+    assertSanePersistentCookie @ZAuth.U ck
+    token.body.client @?= Just (clientToText cl.clientId)
+    assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.A r)
+    atoken.body.clientId @?= Just (clientToText cl.clientId)
 
 -- here a fresh client gets a token without client_id first, then allocates a
 -- new client ID and finally calls access again with the new client_id
@@ -840,7 +820,7 @@ testAccessWithClientIdAndOldToken brig = do
       <!! const 200 === statusCode
   let c = decodeCookie rs
   token0 <-
-    fmap (decodeToken' @ZAuth.Access) $
+    fmap (decodeToken' @ZAuth.A) $
       post
         ( unversioned
             . brig
@@ -848,7 +828,7 @@ testAccessWithClientIdAndOldToken brig = do
             . cookie c
         )
         <!! const 200 === statusCode
-  cl <-
+  cl :: Client <-
     responseJsonError
       =<< addClient
         brig
@@ -860,7 +840,7 @@ testAccessWithClientIdAndOldToken brig = do
       ( unversioned
           . brig
           . path "/access"
-          . queryItem "client_id" (toByteString' (clientId cl))
+          . queryItem "client_id" (toByteString' cl.clientId)
           . header "Authorization" ("Bearer " <> toByteString' token0)
           . cookie c
       )
@@ -868,12 +848,12 @@ testAccessWithClientIdAndOldToken brig = do
   now <- liftIO getCurrentTime
   liftIO $ do
     let ck = decodeCookie r
-        Just token = fromByteString (cookie_value ck)
-        atoken = decodeToken' @ZAuth.Access r
-    assertSanePersistentCookie @ZAuth.User ck
-    ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+        Just token = fromByteString @(ZAuth.Token ZAuth.U) (cookie_value ck)
+        atoken = decodeToken' @ZAuth.A r
+    assertSanePersistentCookie @ZAuth.U ck
+    token.body.client @?= Just (clientToText cl.clientId)
     assertSaneAccessToken now (userId u) atoken
-    ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+    atoken.body.clientId @?= Just (clientToText cl.clientId)
 
 testAccessWithIncorrectClientId :: Brig -> Http ()
 testAccessWithIncorrectClientId brig = do
@@ -917,7 +897,7 @@ testAccessWithExistingClientId brig = do
       PersistentCookie
       <!! const 200 === statusCode
   let c0 = decodeCookie rs
-  cl <-
+  cl :: Client <-
     responseJsonError
       =<< addClient
         brig
@@ -933,7 +913,7 @@ testAccessWithExistingClientId brig = do
         ( unversioned
             . brig
             . path "/access"
-            . queryItem "client_id" (toByteString' (clientId cl))
+            . queryItem "client_id" (toByteString' cl.clientId)
             . cookie c0
         )
         <!! const 200 === statusCode
@@ -951,17 +931,17 @@ testAccessWithExistingClientId brig = do
         <!! const 200 === statusCode
     liftIO $ do
       let ck = decodeCookie r
-          Just token = fromByteString (cookie_value ck)
-          atoken = decodeToken' @ZAuth.Access r
-      assertSanePersistentCookie @ZAuth.User ck
-      ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
-      assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
-      ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+          Just token = fromByteString @(ZAuth.Token ZAuth.U) (cookie_value ck)
+          atoken = decodeToken' @ZAuth.A r
+      assertSanePersistentCookie @ZAuth.U ck
+      token.body.client @?= Just (clientToText cl.clientId)
+      assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.A r)
+      atoken.body.clientId @?= Just (clientToText cl.clientId)
     pure (decodeCookie r)
 
   -- now access with a different client ID
   do
-    cl2 <-
+    cl2 :: Client <-
       responseJsonError
         =<< addClient
           brig
@@ -972,7 +952,7 @@ testAccessWithExistingClientId brig = do
       ( unversioned
           . brig
           . path "/access"
-          . queryItem "client_id" (toByteString' (clientId cl2))
+          . queryItem "client_id" (toByteString' cl2.clientId)
           . cookie c2
       )
       !!! const 403 === statusCode
@@ -1171,27 +1151,26 @@ listCookiesWithLabel b u l = do
 -- | Check that the cookie returned after login is sane.
 --
 -- Doesn't check everything, just some basic properties.
-assertSanePersistentCookie :: forall u. (ZAuth.UserTokenLike u) => Http.Cookie -> Assertion
+assertSanePersistentCookie :: forall t. (ZAuth.Body t ~ ZAuth.User, ZAuth.KnownType t) => Http.Cookie -> Assertion
 assertSanePersistentCookie ck = do
   assertBool "type" (cookie_persistent ck)
   assertBool "http-only" (cookie_http_only ck)
   assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
   assertBool "domain" (cookie_domain ck /= "")
   assertBool "path" (cookie_path ck /= "")
-  let Just (token :: ZAuth.Token u) = fromByteString (cookie_value ck)
-      tokentype = ZAuth.zauthType @u
-  assertBool "type field (t=)" $ token ^. ZAuth.header . ZAuth.typ == tokentype
+  let mToken = fromByteString @(ZAuth.Token t) (cookie_value ck)
+  assertBool "token parses as the correct type" $ isJust mToken
 
 -- | Check that the access token returned after login is sane.
 assertSaneAccessToken ::
-  (ZAuth.AccessTokenLike a) =>
-  -- | Some moment in time before the user was created
+  -- \| Some moment in time before the user was created
+  (ZAuth.Body t ~ ZAuth.Access) =>
   UTCTime ->
   UserId ->
-  ZAuth.Token a ->
+  ZAuth.Token t ->
   Assertion
 assertSaneAccessToken now uid tk = do
-  assertEqual "user" uid (ZAuth.accessTokenOf tk)
+  assertEqual "user" uid (Id tk.body.userId)
   assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
 
 -- | Get error label from the response (for use in assertions).
@@ -1205,3 +1184,6 @@ remJson p l ids =
       "labels" .= l,
       "ids" .= ids
     ]
+
+runZAuth :: (MonadIO m) => AuthenticationSubsystemConfig -> Sem '[Input AuthenticationSubsystemConfig, CryptoSign, Now, Random, Embed IO] a -> m a
+runZAuth zenv = liftIO . runM . randomToIO . nowToIO . runCryptoSign . runInputConst zenv

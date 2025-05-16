@@ -159,7 +159,7 @@ messageTimerChangeO2O = do
   rsp <-
     postO2OConv alice bob Nothing
       <!! const 200 === statusCode
-  qcid <- assertConv rsp One2OneConv (Just alice) qalice [qbob] Nothing Nothing
+  qcid <- assertConvV8 rsp One2OneConv (Just alice) qalice [qbob] Nothing Nothing
   let cid = qUnqualified qcid
   -- Try to change the timer and observe failure
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do

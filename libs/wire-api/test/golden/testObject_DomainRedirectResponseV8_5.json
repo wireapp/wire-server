@@ -1,0 +1,4 @@
+{
+    "backend_url": "https://wire.example.com/",
+    "domain_redirect": "backend"
+}

@@ -68,6 +68,7 @@
 , scientific
 , servant
 , servant-client
+, servant-server
 , split
 , stm
 , streaming-commons
@@ -84,7 +85,6 @@
 , uuid
 , vector
 , wai
-, wai-route
 , warp
 , warp-tls
 , websockets
@@ -170,6 +170,7 @@ mkDerivation {
     scientific
     servant
     servant-client
+    servant-server
     split
     stm
     streaming-commons
@@ -186,7 +187,6 @@ mkDerivation {
     uuid
     vector
     wai
-    wai-route
     warp
     warp-tls
     websockets

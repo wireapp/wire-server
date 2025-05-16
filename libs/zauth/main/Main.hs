@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -24,172 +23,42 @@ module Main
   )
 where
 
-import Control.Error
-import Control.Lens
-import Data.ByteString.Base64.URL
-import Data.ByteString.Conversion
-import Data.ByteString.Lazy.Char8 qualified as L
-import Data.UUID (UUID, fromASCIIBytes)
-import Data.ZAuth.Creation as C
-import Data.ZAuth.Token
-import Data.ZAuth.Validation as V
 import Imports
 import Options.Applicative hiding (header)
 import Options.Applicative qualified as O
 import Options.Applicative.Types
 import Sodium.Crypto.Sign
-import System.Exit
 
 data Mode
-  = CreateUser
-  | CreateSession
-  | CreateAccess
-  | CreateBot
-  | CreateProvider
-  | VerifyUser
-  | VerifyAccess
-  | VerifyBot
-  | VerifyProvider
-  | GenKeyPair
+  = GenKeyPair
   deriving (Eq, Show, Enum)
-
-data ZOpts = ZOpts
-  { _dur :: !Integer,
-    _skey :: !ByteString,
-    _idx :: !Int,
-    _mode :: !Mode,
-    _dat :: [ByteString]
-  }
-  deriving (Eq, Show)
-
-makeLenses ''ZOpts
 
 main :: IO ()
 main = do
-  o <- execParser (info (helper <*> options) desc)
-  go (o ^. mode) o
+  mode <- execParser (info (helper <*> options) desc)
+  go mode
   where
-    desc = O.header "Create/Validate access tokens." <> fullDesc
+    desc = O.header "Generate key-pair used for creating/validation access tokens." <> fullDesc
 
-go :: Mode -> ZOpts -> IO ()
-go VerifyUser o = check' (o ^. skey) (tkn (o ^. dat) fromByteString :: Token User)
-go VerifyAccess o = check' (o ^. skey) (tkn (o ^. dat) fromByteString :: Token Access)
-go VerifyBot o = check' (o ^. skey) (tkn (o ^. dat) fromByteString :: Token Bot)
-go VerifyProvider o = check' (o ^. skey) (tkn (o ^. dat) fromByteString :: Token Provider)
-go CreateSession o = do
-  when (length (o ^. dat) /= 2) $
-    error "invalid --data, must have 2 elements"
-  let u = uuid . head $ o ^. dat
-  case fromByteString ((o ^. dat) !! 1) of
-    Nothing -> error "invalid random int"
-    Just rn -> runCreate' o $ toByteString <$> sessionToken (o ^. dur) u Nothing rn
-go CreateUser o = do
-  when (length (o ^. dat) /= 2) $
-    error "invalid --data, must have 2 elements"
-  let u = uuid . head $ o ^. dat
-  case fromByteString ((o ^. dat) !! 1) of
-    Nothing -> error "invalid random int"
-    Just rn -> runCreate' o $ toByteString <$> userToken (o ^. dur) u Nothing rn
-go CreateAccess o = do
-  when (null (o ^. dat)) $
-    error "invalid --data, must have 1 or 2 elements"
-  let u = uuid . head $ o ^. dat
-  case length (o ^. dat) of
-    1 -> runCreate' o $ toByteString <$> accessToken1 (o ^. dur) u Nothing
-    2 -> case fromByteString ((o ^. dat) !! 1) of
-      Nothing -> error "invalid connection"
-      Just c -> runCreate' o $ toByteString <$> accessToken (o ^. dur) u Nothing c
-    _ -> error "invalid --data, must have 1 or 2 elements"
-go CreateBot o = do
-  when (length (o ^. dat) /= 3) $
-    error "invalid --data, must have 3 elements"
-  let p = uuid $ head (o ^. dat)
-      b = uuid $ (o ^. dat) !! 1
-      c = uuid $ (o ^. dat) !! 2
-  runCreate' o $ toByteString <$> botToken p b c
-go CreateProvider o = do
-  when (length (o ^. dat) /= 1) $
-    error "missing --data"
-  let p = uuid $ head (o ^. dat)
-  runCreate' o $ toByteString <$> providerToken (o ^. dur) p
-go GenKeyPair _ = do
+go :: Mode -> IO ()
+go GenKeyPair = do
   (p, s) <- newKeyPair
   putStrLn $ "public: " <> show p
   putStrLn $ "secret: " <> show s
 
-tkn :: [ByteString] -> (ByteString -> Maybe (Token a)) -> Token a
-tkn xs f = fromMaybe (error "Failed to read token") . f $ headDef "missing token data" xs
-
-uuid :: ByteString -> UUID
-uuid s = fromMaybe (error $ "Invalid UUID: " ++ show s) $ fromASCIIBytes s
-
-check' :: (ToByteString a) => ByteString -> Token a -> IO ()
-check' k t = exceptT (\e -> putStrLn e >> exitFailure) (const $ pure ()) $ do
-  p <- hoistEither $ PublicKey <$> decode k
-  e <- liftIO $ runValidate (V.mkEnv p (replicate (t ^. header . key) p)) (check t)
-  hoistEither $ fmapL show e
-
-runCreate' :: ZOpts -> Create LByteString -> IO ()
-runCreate' o m = exceptT putStrLn L.putStrLn $ do
-  s <- hoistEither $ SecretKey <$> decode (o ^. skey)
-  z <- lift $ C.mkEnv s (replicate (o ^. idx) s)
-  lift $ runCreate z (o ^. idx) m
-
-options :: Parser ZOpts
+options :: Parser Mode
 options =
-  ZOpts
-    <$> optDuration
-    <*> optKey
-    <*> optIdx
-    <*> optMode
-    <*> optData
+  -- Seems absurd to have only one mode, this only exist for backwards
+  -- compatibility. There used to be a lot of modes, but they were never used.
+  -- There was a different mode than 'GenKeyPair' as the deafult, so making this
+  -- the new default will be a breaking change which could fly under the radar.
+  option toMode $
+    long "mode"
+      <> short 'm'
+      <> metavar "STRING"
+      <> help "gen-keypair"
   where
-    optDuration =
-      fmap read . strOption $
-        long "duration"
-          <> short 'd'
-          <> metavar "STRING"
-          <> value "3600"
-          <> showDefault
-          <> help "token validity duration in seconds"
-    optKey =
-      fmap fromString . strOption $
-        long "key"
-          <> short 'k'
-          <> value ""
-          <> metavar "STRING"
-          <> help "public or private key"
-    optIdx =
-      fmap read . strOption $
-        long "index"
-          <> short 'i'
-          <> metavar "INT"
-          <> help "key index"
-    optMode =
-      option toMode $
-        long "mode"
-          <> short 'm'
-          <> metavar "STRING"
-          <> value CreateAccess
-          <> showDefaultWith (const "create-access")
-          <> help
-            "create-user | create-access | create-session | create-bot | create-provider \
-            \ verify-user | verify-access | verify-bot | verify-provider | gen-keypair"
-    optData =
-      many <$> fmap fromString . strOption $
-        long "data"
-          <> metavar "STRING"
-          <> help "token data"
     toMode =
       readerAsk >>= \case
-        "create-user" -> pure CreateUser
-        "create-session" -> pure CreateSession
-        "create-access" -> pure CreateAccess
-        "create-bot" -> pure CreateBot
-        "create-provider" -> pure CreateProvider
-        "verify-user" -> pure VerifyUser
-        "verify-access" -> pure VerifyAccess
-        "verify-bot" -> pure VerifyBot
-        "verify-provider" -> pure VerifyProvider
         "gen-keypair" -> pure GenKeyPair
         other -> readerError $ "invalid mode: " <> other

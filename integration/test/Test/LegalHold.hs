@@ -21,9 +21,10 @@ import API.BrigCommon as BrigC
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
-import API.GalleyInternal
+import API.GalleyInternal hiding (getConversation)
 import Control.Error (MaybeT (MaybeT), runMaybeT)
 import Control.Lens ((.~), (^?), (^?!))
+import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks, local)
 import Control.Monad.Trans.Class (lift)
 import Data.Aeson.Lens
@@ -789,7 +790,7 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
     postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     withWebSockets [alice, bob] \[aws, bws] -> do
       connectTwoUsers alice bob
-      (convId, qConvId) <- do
+      qConvId <- do
         let (inviter, tidInviter, invitee, inviteeRole) = case admin of
               LegalholderIsAdmin -> (alice, tidAlice, bob, "wire_member")
               BothAreAdmins -> (alice, tidAlice, bob, "wire_admin")
@@ -797,12 +798,16 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
 
         let createConv = defProteus {qualifiedUsers = [invitee], newUsersRole = inviteeRole, team = Just tidInviter}
         postConversation inviter createConv `bindResponse` \resp -> do
-          resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
-          resp.json %. "members.others.0.conversation_role" `shouldMatch` case admin of
+          allMembers <- resp.json %. "members" & asList
+          selfMember <- findM (\m -> (==) <$> m %. "qualified_id" <*> inviter %. "qualified_id") allMembers
+          otherMember <- findM (\m -> (==) <$> m %. "qualified_id" <*> invitee %. "qualified_id") allMembers
+          selfMember %. "conversation_role" `shouldMatch` "wire_admin"
+          otherMember %. "conversation_role" `shouldMatch` case admin of
             BothAreAdmins -> "wire_admin"
             PeerIsAdmin -> "wire_member"
             LegalholderIsAdmin -> "wire_member"
-          (,) <$> resp.json %. "id" <*> resp.json %. "qualified_id"
+          resp.json %. "qualified_id"
+      let convId = objId qConvId
       for_ [aws, bws] \ws -> do
         awaitMatch isConvCreateNotifNotSelf ws >>= \pl -> pl %. "payload.0.conversation" `shouldMatch` convId
 
@@ -1025,7 +1030,7 @@ testBlockLHForMLSUsers = do
   -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
   (charlie, tid, []) <- createTeam OwnDomain 1
   void $ getSelfConversation charlie
-  [charlie1] <- traverse (createMLSClient def def) [charlie]
+  [charlie1] <- traverse (createMLSClient def) [charlie]
   convId <- createNewGroup def charlie1
   void $ createAddCommit charlie1 convId [charlie] >>= sendAndConsumeCommitBundle
 
@@ -1046,7 +1051,7 @@ testBlockClaimingKeyPackageForLHUsers :: (HasCallStack) => App ()
 testBlockClaimingKeyPackageForLHUsers = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
   for_ [alice, charlie] getSelfConversation
-  [alice1, charlie1] <- traverse (createMLSClient def def) [alice, charlie]
+  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
   _ <- uploadNewKeyPackage def charlie1
   _ <- createNewGroup def alice1
   legalholdWhitelistTeam tid alice >>= assertStatus 200
@@ -1070,7 +1075,7 @@ testBlockCreateMLSConvForLHUsers :: (HasCallStack) => LhApiVersion -> App ()
 testBlockCreateMLSConvForLHUsers v = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
   for_ [alice, charlie] getSelfConversation
-  [alice1, charlie1] <- traverse (createMLSClient def def) [alice, charlie]
+  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
   _ <- uploadNewKeyPackage def alice1
   legalholdWhitelistTeam tid alice >>= assertStatus 200
   withMockServer def (lhMockAppV v) \lhDomAndPort _chan -> do

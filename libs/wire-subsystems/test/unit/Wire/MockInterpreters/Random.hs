@@ -24,10 +24,10 @@ randomToStatefulStdGen = interpret $ \case
   NDigitNumber n -> withStatefulGen $ randomR (0, 10 ^ n - 1)
 
 runRandomPure :: InterpreterFor Random r
-runRandomPure = evalState defaulGen . randomToStatefulStdGen . raiseUnder
+runRandomPure = evalState defaultGen . randomToStatefulStdGen . raiseUnder
 
-defaulGen :: StdGen
-defaulGen = mkStdGen 0xBAD
+defaultGen :: StdGen
+defaultGen = mkStdGen 0xBAD
 
 withStatefulGen :: (Member (State StdGen) r) => (StdGen -> (a, StdGen)) -> Sem r a
 withStatefulGen f = do

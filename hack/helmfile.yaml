@@ -323,5 +323,6 @@ releases:
   - name: technitium-dnsserver
     namespace: '{{ .Values.namespace1 }}'
     chart: obeone/technitium-dnsserver
+    version: 1.5.4 # FUTUREWORK: Upgrade to later version (values need to be adjusted)
     values:
       - './helm_vars/technitium/values.yaml.gotmpl'

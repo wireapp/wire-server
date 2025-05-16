@@ -18,6 +18,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
+import Data.UUID
 import Data.Yaml qualified as Yaml
 import Network.Wai.Test
 import SAML2.Util
@@ -322,6 +323,27 @@ spec = describe "API" $ do
 
     vendorCompatibility "centrify.com" [uri|https://prod-nginz-https.wire.com/sso/finalize-login|]
 
--- TODO:
---  * onelogin
---  * jives [https://community.jivesoftware.com/docs/DOC-240217#jive_content_id_IdP_Metadata]
+  -- TODO:
+  --  * onelogin
+  --  * jives [https://community.jivesoftware.com/docs/DOC-240217#jive_content_id_IdP_Metadata]
+
+  describe "simpleVerifyAuthnResponse, second attempt" $ do
+    let check :: FilePath -> FilePath -> Expectation
+        check metaFile respFile = do
+          resp :: LBS <- readSampleIOLBS respFile
+          assertions <- liftIO $ do
+            idpCfg :: IdPConfig_ <- do
+              raw :: LBS <- cs <$> readSampleIO metaFile
+              idpMeta <- either (error . show) pure (mimeUnrender @_ @IdPMetadata (Proxy @XML) raw)
+              pure $ IdPConfig (IdPId nil) idpMeta ()
+            ctx <- mkTestCtxSimple
+            modifyMVar_ ctx (pure . (ctxIdPs .~ [(idpCfg, SampleIdP undefined undefined undefined undefined)]))
+            ioFromTestSP ctx $ do
+              let issuer = idpCfg ^. idpMetadata . edIssuer
+              creds <- issuerToCreds (Just issuer) Nothing
+              simpleVerifyAuthnResponse creds resp
+
+          length assertions `shouldBe` 1
+
+    it "utf8 characters in authentication response are parsed correctly (not as Char8)" $ do
+      check "microsoft-azure-utf8-issue-metadata.xml" "microsoft-azure-utf8-issue-authentication-request.xml"

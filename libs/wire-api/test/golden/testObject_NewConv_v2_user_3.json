@@ -15,5 +15,6 @@
     "group_conv_type": "channel",
     "protocol": "mls",
     "qualified_users": [],
+    "skip_creator": false,
     "users": []
 }

@@ -73,7 +73,7 @@ library
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson                  >=2.0.1.0 && <2.2
+      aeson                  >=2.0.1.0
     , base                   >=4.5     && <5
     , bilge                  >=0.12
     , brig-types             >=0.9.6

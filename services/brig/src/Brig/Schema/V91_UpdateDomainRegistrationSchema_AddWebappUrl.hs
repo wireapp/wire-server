@@ -1,8 +1,8 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,13 +17,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | wai-route-0.4.0 uses a 'Tree' type for route construction.  This module lets you
--- construct the simpler metrics routing tree from that.
-module Data.Metrics.WaiRoute where
+module Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl
+  ( migration,
+  )
+where
 
-import Data.Metrics.Types
+import Cassandra.Schema
 import Imports
-import Network.Wai.Route.Tree as Tree
+import Text.RawString.QQ
 
-treeToPaths :: (HasCallStack) => Tree a -> Paths
-treeToPaths = either error id . mkTree . fmap (Tree.segments . path) . Tree.toList
+migration :: Migration
+migration =
+  Migration 91 "add webapp_url column" $ do
+    schema'
+      [r|
+        ALTER TABLE domain_registration ADD
+          ( webapp_url blob )
+      |]

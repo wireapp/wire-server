@@ -3,6 +3,7 @@ module Test.EnterpriseLogin where
 
 import API.BrigInternal
 import API.Common
+import Control.Monad.Trans.Maybe
 import Testlib.Prelude
 
 testDomainRegistrationLock :: App ()
@@ -121,6 +122,8 @@ testDomainRegistrationPreAuthorizeDoesNotAlterTeamInvite = do
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
     resp.json %. "team_invite" `shouldMatch` "team"
     resp.json %. "team" `shouldMatch` "3bc23f21-dc03-4922-9563-c3beedf895db"
+    -- Check that neither the old nor the new fields are there.
+    lookupField resp.json "backend" `shouldMatch` (Nothing :: Maybe Value)
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe Value)
 
 testDomainRegistrationQueriesDoNotCreateEntry :: App ()
@@ -139,7 +142,11 @@ testDomainRegistrationUpdate = do
   updateDomain domain
     $ object
       [ "domain_redirect" .= "backend",
-        "backend_url" .= "https://example.com",
+        "backend"
+          .= object
+            [ "config_url" .= "https://example.com",
+              "webapp_url" .= "https://webapp.example.com"
+            ],
         "team_invite" .= "not-allowed"
       ]
   updateDomain domain
@@ -155,7 +162,7 @@ testDomainRegistrationUpdate = do
         "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
       ]
   where
-    updateDomain :: String -> Value -> App ()
+    updateDomain :: (HasCallStack) => String -> Value -> App ()
     updateDomain domain update = do
       -- update
       assertStatus 204 =<< updateDomainRegistration OwnDomain domain update
@@ -167,17 +174,43 @@ testDomainRegistrationUpdate = do
         resp.json %. "domain" `shouldMatch` domain
         resp.json %. "domain_redirect" `shouldMatch` (update %. "domain_redirect")
         resp.json %. "team_invite" `shouldMatch` (update %. "team_invite")
-        lookupField resp.json "backend_url" `shouldMatch` lookupField update "backend_url"
+        getBackendCfgField resp.json "config_url" `shouldMatch` getBackendCfgField update "config_url"
+        getBackendCfgField resp.json "webapp_url" `shouldMatch` getBackendCfgField update "webapp_url"
         lookupField resp.json "sso_code" `shouldMatch` lookupField update "sso_code"
         lookupField resp.json "team" `shouldMatch` lookupField update "team"
+
+    getBackendCfgField :: (MakesValue a) => a -> String -> App (Maybe Value)
+    getBackendCfgField cfg field =
+      runMaybeT
+        $ lookupFieldM cfg "backend"
+        >>= flip lookupFieldM field
 
 testDomainRegistrationUpdateInvalidCases :: App ()
 testDomainRegistrationUpdateInvalidCases = do
   domain <- randomDomain
   checkUpdateFails domain $ object ["domain_redirect" .= "locked", "team_invite" .= "not-allowed"]
   checkUpdateFails domain $ object ["domain_redirect" .= "locked", "team_invite" .= "team", "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"]
-  checkUpdateFails domain $ object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com", "team_invite" .= "team", "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"]
-  checkUpdateFails domain $ object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com", "team_invite" .= "allowed"]
+  checkUpdateFails domain
+    $ object
+      [ "domain_redirect" .= "backend",
+        "backend"
+          .= object
+            [ "config_url" .= "https://example.com",
+              "webapp_url" .= "https://webapp.example.com"
+            ],
+        "team_invite" .= "team",
+        "team" .= "3bc23f21-dc03-4922-9563-c3beedf895db"
+      ]
+  checkUpdateFails domain
+    $ object
+      [ "domain_redirect" .= "backend",
+        "backend"
+          .= object
+            [ "config_url" .= "https://example.com",
+              "webapp_url" .= "https://webapp.example.com"
+            ],
+        "team_invite" .= "allowed"
+      ]
   where
     checkUpdateFails :: String -> Value -> App ()
     checkUpdateFails domain update = do
@@ -208,7 +241,11 @@ testDomainRegistrationBackendToUnAuthorize = do
   let update =
         object
           [ "domain_redirect" .= "backend",
-            "backend_url" .= "https://example.com",
+            "backend"
+              .= object
+                [ "config_url" .= "https://example.com",
+                  "webapp_url" .= "https://webapp.example.com"
+                ],
             "team_invite" .= "not-allowed"
           ]
   assertStatus 204 =<< updateDomainRegistration OwnDomain domain update

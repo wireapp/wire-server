@@ -28,6 +28,7 @@ where
 import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
 import API.MLS qualified
+import API.MLS.Util (convV8ToV9, memberToOtherMember)
 import API.MessageTimer qualified as MessageTimer
 import API.Roles qualified as Roles
 import API.SQS
@@ -276,7 +277,7 @@ testGetConvQualifiedV2 = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (list1 bob [])
-  conv <-
+  conv :: Conversation <-
     responseJsonError
       =<< postConvQualified
         alice
@@ -285,12 +286,12 @@ testGetConvQualifiedV2 = do
           { newConvUsers = [bob]
           }
         <!! const 201 === statusCode
-  let qcnv = cnvQualifiedId conv
+  let qcnv = conv.qualifiedId
   conv' <-
     fmap (unVersioned @'V2) . responseJsonError
       =<< getConvQualifiedV2 alice qcnv
         <!! const 200 === statusCode
-  liftIO $ conv @=? conv'
+  liftIO $ conv @=? convV8ToV9 conv'
 
 postProteusConvOk :: TestM ()
 postProteusConvOk = do
@@ -1495,34 +1496,30 @@ getConvsOk2 = do
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (singleton carl)
-  cnv2 <-
+  cnv2 :: Conversation <-
     responseJsonError
       =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
         <!! const 201 === statusCode
   do
     r <-
       responseJsonError
-        =<< getConvs alice [cnvQualifiedId cnv2] <!! do
+        =<< getConvs alice [cnv2.qualifiedId] <!! do
           const 200 === statusCode
     liftIO $
-      [cnvQualifiedId cnv2] @=? map cnvQualifiedId (crFound r)
+      [cnv2.qualifiedId] @=? map cnvQualifiedId (crFound r)
   -- get both
   convs <- getAllConvs alice
   let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) convs
-  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) convs
-  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
-    assertEqual
-      "name mismatch"
-      (Just $ C.cnvName expected)
-      (C.cnvName <$> actual)
-    assertEqual
-      "self member mismatch"
-      (Just . cmSelf $ cnvMembers expected)
-      (cmSelf . cnvMembers <$> actual)
-    assertEqual
-      "other members mismatch"
-      (Just [])
-      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+  let c2 = find ((== cnv2.qualifiedId) . cnvQualifiedId) convs
+  liftIO . forM_ [(convV8ToV9 cnv1, c1), (cnv2, c2)] $ \(expected, mActual) ->
+    case mActual of
+      Nothing -> assertFailure $ "Did not find expected conversation: " <> show expected
+      Just actual -> do
+        assertEqual "name mismatch" expected.metadata.cnvmName actual.cnvMetadata.cnvmName
+        assertEqual
+          "members"
+          expected.members
+          (Set.fromList (memberToOtherMember actual.cnvMembers.cmSelf : actual.cnvMembers.cmOthers))
 
 getConvsFailMaxSizeV2 :: TestM ()
 getConvsFailMaxSizeV2 = do
@@ -1934,6 +1931,7 @@ postConvHelper g zusr newUsers = do
           GroupConversation
           False
           Nothing
+          False
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -1942,8 +1940,8 @@ postSelfConvOk = do
   let alice = qUnqualified qalice
   m <- postSelfConv alice <!! const 200 === statusCode
   n <- postSelfConv alice <!! const 200 === statusCode
-  mId <- assertConv m SelfConv (Just alice) qalice [] Nothing Nothing
-  nId <- assertConv n SelfConv (Just alice) qalice [] Nothing Nothing
+  mId <- assertConvV8 m SelfConv (Just alice) qalice [] Nothing Nothing
+  nId <- assertConvV8 n SelfConv (Just alice) qalice [] Nothing Nothing
   liftIO $ mId @=? nId
 
 postO2OConvOk :: TestM ()
@@ -1953,8 +1951,8 @@ postO2OConvOk = do
   connectUsers alice (singleton bob)
   a <- postO2OConv alice bob Nothing <!! const 200 === statusCode
   c <- postO2OConv alice bob Nothing <!! const 200 === statusCode
-  aId <- assertConv a One2OneConv (Just alice) qalice [qbob] Nothing Nothing
-  cId <- assertConv c One2OneConv (Just alice) qalice [qbob] Nothing Nothing
+  aId <- assertConvV8 a One2OneConv (Just alice) qalice [qbob] Nothing Nothing
+  cId <- assertConvV8 c One2OneConv (Just alice) qalice [qbob] Nothing Nothing
   liftIO $ aId @=? cId
 
 postConvO2OFailWithSelf :: TestM ()
@@ -1976,6 +1974,7 @@ postConvO2OFailWithSelf = do
           GroupConversation
           False
           Nothing
+          False
   post (g . path "one2one-conversations" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -1991,16 +1990,16 @@ postConnectConvOk = do
   n <-
     postConnectConv alice bob "Alice" "connect with me!" Nothing
       <!! const 200 === statusCode
-  mId <- assertConv m ConnectConv (Just alice) qalice [] (Just "Alice") Nothing
-  nId <- assertConv n ConnectConv (Just alice) qalice [] (Just "Alice") Nothing
+  mId <- assertConvV8 m ConnectConv (Just alice) qalice [] (Just "Alice") Nothing
+  nId <- assertConvV8 n ConnectConv (Just alice) qalice [] (Just "Alice") Nothing
   liftIO $ mId @=? nId
 
 postConnectConvOk2 :: TestM ()
 postConnectConvOk2 = do
   alice <- randomUser
   bob <- randomUser
-  m <- decodeConvId <$> req alice bob
-  n <- decodeConvId <$> req alice bob
+  m <- decodeConvIdV8 <$> req alice bob
+  n <- decodeConvIdV8 <$> req alice bob
   liftIO $ m @=? n
   where
     req alice bob =
@@ -2010,7 +2009,7 @@ putConvAcceptOk :: TestM ()
 putConvAcceptOk = do
   alice <- randomUser
   bob <- randomUser
-  qcnv <- decodeQualifiedConvId <$> postConnectConv alice bob "Alice" "come to zeta!" Nothing
+  qcnv <- decodeQualifiedConvIdV8 <$> postConnectConv alice bob "Alice" "come to zeta!" Nothing
   putConvAccept bob (qUnqualified qcnv) !!! const 200 === statusCode
   getConvQualified alice qcnv !!! do
     const 200 === statusCode
@@ -2024,7 +2023,7 @@ putConvAcceptRetry = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
-  cnv <- decodeConvId <$> postO2OConv alice bob (Just "chat")
+  cnv <- decodeConvIdV8 <$> postO2OConv alice bob (Just "chat")
   -- If the conversation type is already One2One, everything is 200 OK
   putConvAccept bob cnv !!! const 200 === statusCode
 
@@ -2037,13 +2036,13 @@ postMutualConnectConvOk = do
   ac <-
     postConnectConv alice bob "A" "a" Nothing
       <!! const 201 === statusCode
-  acId <- assertConv ac ConnectConv (Just alice) qalice [] (Just "A") Nothing
+  acId <- assertConvV8 ac ConnectConv (Just alice) qalice [] (Just "A") Nothing
   bc <-
     postConnectConv bob alice "B" "b" Nothing
       <!! const 200 === statusCode
   -- The connect conversation was simply accepted, thus the
   -- conversation name and message sent in Bob's request ignored.
-  bcId <- assertConv bc One2OneConv (Just alice) qbob [qalice] (Just "A") Nothing
+  bcId <- assertConvV8 bc One2OneConv (Just alice) qbob [qalice] (Just "A") Nothing
   liftIO $ acId @=? bcId
 
 postRepeatConnectConvCancel :: TestM ()
@@ -2246,7 +2245,7 @@ testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do
   alice <- randomUser
   convId <- decodeQualifiedConvId <$> postConv alice [] (Just "gossip") [] Nothing Nothing
-  conv :: Conversation <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
+  conv :: ConversationV8 <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
   liftIO $ do
     assertEqual "conversation id" convId (C.cnvQualifiedId conv)
     assertEqual "conversation name" (Just "gossip") (C.cnvName conv)
@@ -2337,8 +2336,8 @@ testBulkGetQualifiedConvs = do
   connectWithRemoteUser alice carlQ
   connectWithRemoteUser alice deeQ
 
-  localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
-  let localConvId = cnvQualifiedId localConv
+  localConv :: Conversation <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
+  let localConvId = localConv.qualifiedId
 
   remoteConvIdA <- randomQualifiedId remoteDomainA
   remoteConvIdB <- randomQualifiedId remoteDomainB
@@ -2388,11 +2387,11 @@ testBulkGetQualifiedConvs = do
   liftIO $ do
     let expectedFound =
           sortOn
-            cnvQualifiedId
-            $ pure (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
-              <> pure (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
-              <> [localConv]
-        actualFound = sortOn cnvQualifiedId $ crFound convs
+            (.qualifiedId)
+            $ convV8ToV9 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
+              : convV8ToV9 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
+              : [localConv]
+        actualFound = sortOn (.qualifiedId) . map convV8ToV9 $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
 
     -- Assumes only one request is made
@@ -2716,7 +2715,7 @@ removeRemoteMemberConvQualifiedFail = do
 deleteMembersQualifiedFailSelf :: TestM ()
 deleteMembersQualifiedFailSelf = do
   (alice, qalice) <- randomUserTuple
-  self <- decodeConvId <$> postSelfConv alice
+  self <- decodeConvIdV8 <$> postSelfConv alice
   qself <- Qualified self <$> viewFederationDomain
   deleteMemberQualified alice qalice qself !!! const 403 === statusCode
 
@@ -2725,7 +2724,7 @@ deleteMembersQualifiedFailO2O = do
   alice <- randomUser
   (bob, qbob) <- randomUserTuple
   connectUsers alice (singleton bob)
-  o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
+  o2o <- decodeConvIdV8 <$> postO2OConv alice bob (Just "foo")
   qo2o <- Qualified o2o <$> viewFederationDomain
   deleteMemberQualified alice qbob qo2o !!! const 403 === statusCode
 
@@ -2746,7 +2745,7 @@ putQualifiedConvRenameOk = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  conv <- decodeConvIdV8 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
@@ -2765,7 +2764,7 @@ putConvDeprecatedRenameOk = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  conv <- decodeConvIdV8 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     unversionedGalley <- view tsUnversionedGalley
@@ -2795,7 +2794,7 @@ putConvRenameOk = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  conv <- decodeConvIdV8 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
@@ -2938,7 +2937,7 @@ putMemberOk update = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  conv <- decodeConvIdV8 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   getConv alice conv !!! const 200 === statusCode
   -- Expected member state
@@ -3217,7 +3216,7 @@ postTypingIndicatorsV2 = do
 
   connectUsers alice (singleton bob)
 
-  conv <- decodeConvId <$> postO2OConv alice bob Nothing
+  conv <- decodeConvIdV8 <$> postO2OConv alice bob Nothing
   lcnv <- qualifyLocal conv
 
   WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
@@ -3263,7 +3262,7 @@ postTypingIndicators = do
 
   connectUsers alice (singleton bob)
 
-  conv <- decodeConvId <$> postO2OConv alice bob Nothing
+  conv <- decodeConvIdV8 <$> postO2OConv alice bob Nothing
   lcnv <- qualifyLocal conv
 
   WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
@@ -3306,7 +3305,7 @@ postTypingIndicatorsHandlesNonsense = do
   bob <- randomUser
 
   connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob Nothing
+  conv <- decodeConvIdV8 <$> postO2OConv alice bob Nothing
 
   post
     ( g

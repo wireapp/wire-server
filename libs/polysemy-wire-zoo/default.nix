@@ -27,7 +27,6 @@
 , types-common
 , unliftio
 , uuid
-, wire-api
 }:
 mkDerivation {
   pname = "polysemy-wire-zoo";
@@ -54,7 +53,6 @@ mkDerivation {
     types-common
     unliftio
     uuid
-    wire-api
   ];
   testHaskellDepends = [
     base

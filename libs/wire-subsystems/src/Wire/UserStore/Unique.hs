@@ -61,7 +61,7 @@ withClaim u v t act = do
     [u'] | u == u' -> claim -- Claimed by 'u' (retries are allowed).
     _ -> pure Nothing -- Conflicting claims, TTL must expire.
   where
-    -- [Note: Guarantees]
+    -- See Note [Guarantees]
     claim = do
       let ttl = max minTtl (fromIntegral (t #> Second))
       retry x5 $ write upsertQuery $ params LocalQuorum (ttl * 2, C.Set [u], v)
@@ -111,7 +111,7 @@ clientToIO act = do
 minTtl :: Int32
 minTtl = 60 -- Seconds
 
--- [Note: Guarantees]
+-- Note [Guarantees]
 -- ~~~~~~~~~~~~~~~~~~
 -- Correct operation (i.e. uniqueness of claims) rests on the following
 -- properties of the implementation, which must have a negligible probability

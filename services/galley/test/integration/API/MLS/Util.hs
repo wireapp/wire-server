@@ -427,11 +427,11 @@ setupMLSGroupWithConv convAction creator = do
   let groupId =
         fromJust
           ( asum
-              [ preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv,
-                preview (to cnvProtocol . _ProtocolMixed . to cnvmlsGroupId) conv
+              [ preview (to (.protocol) . _ProtocolMLS . to cnvmlsGroupId) conv,
+                preview (to (.protocol) . _ProtocolMixed . to cnvmlsGroupId) conv
               ]
           )
-  let qcnv = cnvQualifiedId conv
+  let qcnv = conv.qualifiedId
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
 
@@ -449,12 +449,30 @@ setupMLSGroup creator = setupMLSGroupWithConv action creator
           )
           <!! const 201 === statusCode
 
+memberToOtherMember :: Member -> OtherMember
+memberToOtherMember m =
+  OtherMember
+    { omService = m.memService,
+      omQualifiedId = m.memId,
+      omConvRoleName = m.memConvRoleName
+    }
+
+convV8ToV9 :: ConversationV8 -> Conversation
+convV8ToV9 conv =
+  Conversation
+    { qualifiedId = conv.cnvQualifiedId,
+      members = Set.fromList $ memberToOtherMember conv.cnvMembers.cmSelf : conv.cnvMembers.cmOthers,
+      metadata = conv.cnvMetadata,
+      protocol = conv.cnvProtocol
+    }
+
 -- | Create self-conversation and corresponding group.
 setupMLSSelfGroup :: (HasCallStack) => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
 setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
   where
     action =
-      responseJsonError
+      fmap convV8ToV9
+        . responseJsonError
         =<< liftTest
           (getSelfConv (ciUser creator))
           <!! const 200 === statusCode

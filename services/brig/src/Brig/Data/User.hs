@@ -53,7 +53,6 @@ where
 import Brig.App
 import Brig.Options
 import Brig.Types.Intra
-import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
@@ -73,6 +72,7 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
+import Wire.AuthenticationSubsystem.Config
 
 -- | Preconditions:
 --
@@ -101,7 +101,7 @@ newAccount u inv tid mbHandle = do
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
       e <- asks (.zauthEnv)
-      let ZAuth.SessionTokenTimeout defTTL = e ^. ZAuth.settings . ZAuth.sessionTokenTimeout
+      let SessionTokenTimeout defTTL = e.settings.sessionTokenTimeout
           ttl = maybe defTTL fromRange (newUserExpiresIn u)
       now <- liftIO =<< asks (.currentTime)
       pure . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now

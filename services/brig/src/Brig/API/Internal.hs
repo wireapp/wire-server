@@ -18,7 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Brig.API.Internal
   ( servantSitemap,
-    getMLSClients,
+    getMLSClientsH,
+    getMLSClientH,
   )
 where
 
@@ -47,6 +48,7 @@ import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
+import Cassandra qualified as Cas
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, _Just)
 import Control.Lens.Extras (is)
@@ -64,6 +66,7 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Clock.System
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
 import Polysemy
@@ -94,6 +97,7 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.DomainRegistrationStore hiding (domain)
@@ -119,6 +123,9 @@ import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Concurrency
+import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
+import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
@@ -165,7 +172,12 @@ servantSitemap ::
     Member EnterpriseLoginSubsystem r,
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SessionStore r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member Now r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -197,7 +209,9 @@ ejpdAPI ::
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = Named @"get-mls-clients" getMLSClients
+mlsAPI =
+  Named @"get-mls-clients" getMLSClientsH
+    :<|> Named @"get-mls-client" getMLSClientH
 
 accountAPI ::
   ( Member BlockListStore r,
@@ -226,7 +240,9 @@ accountAPI ::
     Member DomainRegistrationStore r,
     Member RateLimit r,
     Member SparAPIAccess r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member SessionStore r,
+    Member (Concurrency Unsafe) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -279,7 +295,8 @@ teamsAPI ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member SessionStore r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -307,7 +324,13 @@ authAPI ::
     Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r,
+    Member Now r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -417,22 +440,44 @@ deleteAccountConferenceCallingConfig :: UserId -> Handler r NoContent
 deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getMLSClients :: UserId -> CipherSuite -> Handler r (Set ClientInfo)
-getMLSClients usr suite = do
+getMLSClientH :: UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
+getMLSClientH usr cid suite = do
+  lusr <- qualifyLocal usr
+  suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
+  lift . wrapClient $ getMLSClient lusr cid suiteTag
+
+getMLSClientsH :: UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClientsH usr suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  clientInfo <- lift . wrapClient $ UnliftIO.Async.pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
-  pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
+  clientInfos <- lift . wrapClient $ UnliftIO.Async.pooledMapConcurrentlyN 16 (\c -> getMLSClient lusr c suiteTag) (toList allClients)
+  pure $ Set.fromList clientInfos
   where
     getResult [] = pure mempty
     getResult ((u, cs') : rs)
       | u == usr = pure cs'
       | otherwise = getResult rs
 
-    getValidity lusr cid suiteTag =
-      (cid,) . (> 0)
-        <$> Data.countKeyPackages lusr cid suiteTag
+getMLSClient ::
+  ( MonadReader Env m,
+    Cas.MonadClient m
+  ) =>
+  Local UserId ->
+  ClientId ->
+  CipherSuiteTag ->
+  m ClientInfo
+getMLSClient lusr cid suiteTag = do
+  numKeyPackages <- Data.countKeyPackages lusr cid suiteTag
+  mc <- Data.lookupClient (tUnqualified lusr) cid
+  let keys = foldMap (.clientMLSPublicKeys) mc
+      ss = csSignatureScheme suiteTag
+  pure
+    ClientInfo
+      { clientId = cid,
+        hasKeyPackages = numKeyPackages > 0,
+        mlsSignatureKey = Map.lookup ss keys
+      }
 
 getVerificationCode :: forall r. (Member VerificationCodeSubsystem r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = runMaybeT do
@@ -483,7 +528,8 @@ addClientInternalH ::
     Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member SessionStore r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -501,7 +547,7 @@ legalHoldClientRequestedH :: (Member Events r) => UserId -> LegalHoldClientReque
 legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
-removeLegalHoldClientH :: (Member DeleteQueue r, Member Events r) => UserId -> (Handler r) NoContent
+removeLegalHoldClientH :: (Member DeleteQueue r, Member Events r, Member SessionStore r) => UserId -> (Handler r) NoContent
 removeLegalHoldClientH uid = do
   lift $ NoContent <$ API.removeLegalHoldClient uid
 
@@ -571,7 +617,8 @@ deleteUserNoAuthH ::
     Member UserKeyStore r,
     Member Events r,
     Member UserSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member SessionStore r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -721,7 +768,9 @@ getPasswordResetCode email =
 
 changeAccountStatusH ::
   ( Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Concurrency Unsafe) r,
+    Member SessionStore r
   ) =>
   UserId ->
   AccountStatusUpdate ->

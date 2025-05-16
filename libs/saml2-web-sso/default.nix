@@ -39,6 +39,7 @@
 , http-media
 , http-types
 , hxt
+, hxt-regex-xmlschema
 , imports
 , invertible-hxt
 , lens
@@ -67,6 +68,7 @@
 , types-common
 , uniplate
 , uri-bytestring
+, utf8-string
 , uuid
 , wai
 , wai-extra
@@ -116,6 +118,7 @@ mkDerivation {
     http-media
     http-types
     hxt
+    hxt-regex-xmlschema
     imports
     invertible-hxt
     lens
@@ -143,6 +146,7 @@ mkDerivation {
     types-common
     uniplate
     uri-bytestring
+    utf8-string
     uuid
     wai
     wai-extra
