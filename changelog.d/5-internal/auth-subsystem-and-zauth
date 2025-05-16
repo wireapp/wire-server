@@ -1,1 +1,0 @@
-Move zauth logic from brig to wire-subsystems (part 1: Brig.ZAuth, simplify implementation)

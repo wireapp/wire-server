@@ -1,1 +1,0 @@
-Include untouched base64-encoded authentication response from http request body in error messages, not some intermediate parse result.
