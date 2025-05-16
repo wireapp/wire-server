@@ -1,0 +1,4 @@
+Upgrade nixpkgs to
+https://github.com/NixOS/nixpkgs/commits/b3582c75c7f21ce0b429898980eddbbf05c68e55
+. This not only updates our Haskell dependencies to a current state, but also
+leads to an implicit upgrade of the used GHC to version 9.8.
