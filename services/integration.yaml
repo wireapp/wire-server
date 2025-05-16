@@ -167,6 +167,7 @@ dynamicBackends:
 rabbitmq:
   host: localhost
   port: 5671
+  adminHost: localhost
   adminPort: 15671
   enableTls: true
   insecureSkipVerifyTls: true
@@ -175,12 +176,14 @@ rabbitmq:
 rabbitmq-v0:
   host: localhost
   port: 5671
+  adminHost: localhost
   adminPort: 15672
   vHost: federation-v0
 
 rabbitmq-v1:
   host: localhost
   port: 5671
+  adminHost: localhost
   adminPort: 15672
   vHost: federation-v1
 
