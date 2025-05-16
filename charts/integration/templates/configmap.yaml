@@ -86,12 +86,14 @@ data:
     rabbitmq-v0:
       host: rabbitmq.wire-federation-v0.svc.cluster.local
       port: 5671
+      adminHost: rabbitmq.wire-federation-v0.svc.cluster.local
       adminPort: 15672
       vHost: /
 
     rabbitmq-v1:
       host: rabbitmq.wire-federation-v1.svc.cluster.local
       port: 5671
+      adminHost: rabbitmq.wire-federation-v1.svc.cluster.local
       adminPort: 15672
       vHost: /
 
