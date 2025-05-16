@@ -8,6 +8,7 @@ import Data.Bifunctor (first)
 import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Qualified (Local, toLocalUnsafe)
@@ -33,6 +34,7 @@ import Wire.Arbitrary
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
+import Wire.Sem.Now qualified as Now
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserSubsystem (UserSubsystem)
@@ -99,12 +101,12 @@ spec = describe "UserGroupSubsystem.Interpreter" do
                 }
         createdGroup <- createGroup (ownerId team) newUserGroup
         retrievedGroup <- getGroup (ownerId team) createdGroup.id_
-        now <- (.now) <$> get
+        now <- Now.get
         pure $
           createdGroup.name === newUserGroupName
             .&&. createdGroup.members === newUserGroup.members
             .&&. createdGroup.managedBy === ManagedByWire
-            .&&. createdGroup.createdAt === now
+            .&&. createdGroup.createdAt === toUTCTimeMillis now
             .&&. Just createdGroup === retrievedGroup
 
   prop "only team admins and owners should get a group created notification" $ \team name (tm :: TeamMember) role ->
