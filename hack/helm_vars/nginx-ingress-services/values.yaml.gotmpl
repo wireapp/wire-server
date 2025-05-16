@@ -22,8 +22,8 @@ config:
     fakeS3: "assets.{{ .Release.Namespace }}-integration.example.com"
     teamSettings: "teams.{{ .Release.Namespace }}-integration.example.com"
     accountPages: "account.{{ .Release.Namespace }}-integration.example.com"
-    # federator: dynamically set by hack/helmfile.yaml
-    # certificateDomain: dynamically set by hack/helmfile.yaml
+    # federator: dynamically set by hack/helmfile.yaml.gotmpl
+    # certificateDomain: dynamically set by hack/helmfile.yaml.gotmpl
 
 secrets:
   tlsClientCA: {{ .Values.federationCACertificate | quote }}
