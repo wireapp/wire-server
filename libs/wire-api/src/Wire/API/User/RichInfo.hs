@@ -349,8 +349,7 @@ instance ToSchema RichField where
 
 instance Arbitrary RichField where
   arbitrary =
-    RichField
-      <$> (CI.mk . Text.pack . QC.getPrintableString <$> arbitrary)
+    (RichField . CI.mk . Text.pack . QC.getPrintableString <$> arbitrary)
       <*> (Text.pack . QC.getPrintableString <$> arbitrary)
   shrink (RichField k v) = RichField <$> QC.shrink k <*> QC.shrink v
 
