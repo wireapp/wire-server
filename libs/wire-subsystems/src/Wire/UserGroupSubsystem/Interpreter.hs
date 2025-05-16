@@ -67,7 +67,7 @@ createUserGroupImpl ::
   Sem r UserGroup
 createUserGroupImpl creator newGroup = do
   let managedBy = ManagedByWire
-  team <- getTeamAsAdmin creator
+  team <- getTeamAsAdmin creator >>= note UserGroupNotATeamAdmin
   luids <- qualifyLocal $ toList newGroup.members
   profiles <- getLocalUserProfiles luids
   let existingIds = Set.fromList $ fmap (qUnqualified . profileQualifiedId) profiles
@@ -83,17 +83,25 @@ createUserGroupImpl creator newGroup = do
 
 getTeamAsAdmin ::
   ( Member UserSubsystem r,
-    Member (Error UserGroupSubsystemError) r,
     Member GalleyAPIAccess r
   ) =>
   UserId ->
-  Sem r TeamId
-getTeamAsAdmin creator = do
-  note UserGroupNotATeamAdmin =<< runMaybeT do
-    team <- MaybeT $ getUserTeam creator
-    creatorTeamMember <- MaybeT $ getTeamMember creator team
-    guard (isAdminOrOwner (creatorTeamMember ^. permissions))
-    pure team
+  Sem r (Maybe TeamId)
+getTeamAsAdmin user = runMaybeT do
+  (team, member) <- MaybeT $ getTeamAsMember user
+  guard (isAdminOrOwner (member ^. permissions))
+  pure team
+
+getTeamAsMember ::
+  ( Member UserSubsystem r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  Sem r (Maybe (TeamId, TeamMember))
+getTeamAsMember member = runMaybeT do
+  team <- MaybeT $ getUserTeam member
+  member <- MaybeT $ getTeamMember member team
+  pure (team, member)
 
 mkEvent :: UserId -> UserGroupEvent -> TeamMemberList -> Push
 mkEvent author evt recipients =
@@ -139,7 +147,7 @@ updateGroupImpl ::
   UserGroupUpdate ->
   Sem r (Maybe UserGroup)
 updateGroupImpl updater groupId groupUpdate = do
-  team <- getTeamAsAdmin updater
+  team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
   updatedGroup <- Store.updateUserGroup team groupId groupUpdate
   admins <- getTeamAdmins team
   pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
@@ -155,7 +163,17 @@ deleteGroupImpl ::
   UserId ->
   UserGroupId ->
   Sem r ()
-deleteGroupImpl deleter groupId = undefined
+deleteGroupImpl deleter groupId =
+  getTeamAsMember deleter >>= \case
+    Nothing -> pure ()
+    Just (team, member) -> do
+      if isAdminOrOwner (member ^. permissions)
+        then do
+          Store.deleteUserGroup team groupId
+          admins <- getTeamAdmins team
+          pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
+        else do
+          throw UserGroupNotATeamAdmin
 
 addUserImpl ::
   ( Member UserSubsystem r,
