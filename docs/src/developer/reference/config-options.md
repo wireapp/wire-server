@@ -1451,10 +1451,11 @@ rabbitmq:
   host: localhost
   port: 5672
   vHost: /
+  adminHost: localhost
   adminPort: 15672 # for background-worker
 ```
 
-the `adminPort` setting is only needed by background-worker.
+the `adminHost` and `adminPort` settings are only needed by background-worker.
 
 In order to enable TLS when connecting to RabbitMQ, the following settings need to be added:
 
