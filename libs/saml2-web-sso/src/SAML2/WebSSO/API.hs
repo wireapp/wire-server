@@ -205,7 +205,7 @@ simpleVerifyAuthnResponse creds raw = do
   let err = throwError . BadSamlResponseSamlError . cs . show
   doc :: Cursor <- do
     either err (pure . fromDocument) (parseLBS def raw)
-  assertions <- do
+  assertions :: NonEmpty Element <- do
     let elemOnly (NodeElement el) = Just el
         elemOnly _ = Nothing
     case mapMaybe (elemOnly . node) (doc $/ element "{urn:oasis:names:tc:SAML:2.0:assertion}Assertion") of
@@ -224,7 +224,7 @@ simpleVerifyAuthnResponse creds raw = do
 allVerifies :: forall m err. (MonadError (Error err) m) => NonEmpty SignCreds -> LBS -> NonEmpty String -> m (NonEmpty Assertion)
 allVerifies creds raw nodeids = do
   let workArounds = verifyADFS creds raw nodeids
-  xmls <- case verify creds raw `mapM` nodeids of
+  xmls :: NonEmpty XmlTree <- case verify creds raw `mapM` nodeids of
     Right assertions -> pure assertions
     Left err -> case workArounds of
       Right ws -> pure ws
