@@ -529,7 +529,7 @@ test-suite gundeck-tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -Wredundant-constraints -Wunused-packages
+    -threaded -Wredundant-constraints -Wunused-packages -Wno-x-partial
 
   build-depends:
     , aeson
