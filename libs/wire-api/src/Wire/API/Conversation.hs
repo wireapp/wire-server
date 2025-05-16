@@ -1075,7 +1075,7 @@ instance ToSchema ConversationJoin where
       $ ConversationJoin
         <$> (.users) .= field "users" (nonEmptyArray schema)
         <*> role .= field "role" schema
-        <*> joinType .= field "join_type" schema
+        <*> joinType .= (fromMaybe def <$> optField "join_type" schema)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTarget :: Qualified UserId,
