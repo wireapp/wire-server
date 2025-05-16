@@ -145,8 +145,12 @@ mlsPublicKeysToJWK (MLSKeys (MLSPublicKey ed) (MLSPublicKey ec256) (MLSPublicKey
   -- The x parameter is mandatory for all keys, the y parameter is mandatory for
   -- all ECDSA keys.
   -- https://www.rfc-editor.org/rfc/rfc7518.html#section-6.2.1
-  (MLSKeys
-    (JWK "OKP" "Ed25519" (BA.convert ed) Nothing) . uncurry (JWK "EC" "P-256") . second Just <$> splitXY ec256)
+  ( MLSKeys
+      (JWK "OKP" "Ed25519" (BA.convert ed) Nothing)
+      . uncurry (JWK "EC" "P-256")
+      . second Just
+      <$> splitXY ec256
+  )
     <*> (uncurry (JWK "EC" "P-384") . second Just <$> splitXY ec384)
     <*> (uncurry (JWK "EC" "P-521") . second Just <$> splitXY ec521)
   where

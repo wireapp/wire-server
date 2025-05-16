@@ -80,11 +80,13 @@ settingsParser =
   where
     exportParser :: Parser CommandSettings
     exportParser =
-      (Export . parseUUID <$> strOption
-                  ( long "teamid"
-                      <> metavar "TEAMID"
-                      <> help "team id"
-                  ))
+      ( Export . parseUUID
+          <$> strOption
+            ( long "teamid"
+                <> metavar "TEAMID"
+                <> help "team id"
+            )
+      )
         <*> strOption
           ( long "target-path"
               <> metavar "PATH"
