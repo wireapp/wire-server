@@ -1,3 +1,79 @@
+# [2025-05-16] (Chart Release 5.15.0)
+
+## API changes
+
+
+* From API version V9 on, the `POST /domain-verification/{domain}/backend` and
+  `POST /get-domain-registration` endpoints are adjusted to also carry the
+  `webapp_url` in their payloads. The structure of these payloads changes as
+  well: The former `backend_url` and the new `webapp_url` are now combined in one
+  object in the `backend` field:
+
+  ```json
+  {
+  ...
+    "backend": {
+      "config_url": "{url}",
+      "webapp_url": "{url}"
+    }
+  }
+  ```
+
+  The same change is applied to the internal endpoints `PUT
+  /i/domain-registration` and `GET /i/domain-registration`. (#4559)
+
+
+## Features
+
+
+* Team admins can create a channel without joining (#4527, #4553)
+
+
+## Bug fixes and other updates
+
+
+* Only forward one conversation create event to pydio (#4535, #4551)
+
+* Fixed channel permissions for external partners. They are allowed to add members if they are channel admins or if add-permissions are set to everyone. (#4534)
+
+* gundeck: Send notifications to temp clients only when there are no rabbitmq clients in the recipient list.  Before this, it was wrongly sending the notification to all recipients. (#4556)
+
+* hxt doesn't support all of unicode (it decodes utf8-encoded bytestrings as ascii-encoded using LBS.unpack).  the related code and fix are now in saml2-web-sso. (#4577)
+
+* charts/{cannon,nginz}: Add the events endpoint to nginz config (#4540, #4540)
+
+* Lazy streams were broken due to
+  https://github.com/haskell-servant/servant/pull/1781 . So, in specific cases,
+  the playload of a streamed response was realised in the application's memory
+  instead of streaming it piecewise. (#4538)
+
+* Use [multipart upload](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html) to S3 for all assets (#4548)
+
+
+## Internal changes
+
+
+* Remove wai-routes, wai-predicates deps from proxy and translate routing table and handlers to servant.  New integration tests for proxy featuring mock services. (#4525)
+
+* Include untouched base64-encoded authentication response from http request body in error messages, not some intermediate parse result. (#4570)
+
+* Move zauth logic from brig to wire-subsystems (part 1: Brig.ZAuth, simplify implementation) (#4479)
+
+* Fix Redis replication in our docker-compose env (used to run integration tests
+  locally): We allow only TLS connections to the Redis nodes. Thus, replication
+  has to use TLS as well (by default it doesn't.) (#4566)
+
+* Bump redis version used by redis-ephemeral to 6.2.16 (#4524)
+
+* The backend now verifies that new leaf nodes occurring in an MLS commit match the signature key registered by the corresponding client (#4531)
+
+
+## Federation changes
+
+
+* Federation API version V2 is finalized. (#4546)
+
+
 # [2025-04-07] (Chart Release 5.14.0)
 
 ## Release notes
