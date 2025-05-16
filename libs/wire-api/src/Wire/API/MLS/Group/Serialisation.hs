@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.Group.Serialisation
-  ( GroupIdVersion (GroupIdVersion1),
+  ( GroupIdVersion (..),
     GroupIdParts (..),
     groupIdParts,
     convToGroupId,

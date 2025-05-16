@@ -426,8 +426,9 @@ ensureAllowed tag _ action conv (TeamMember tm) = do
 ensureAllowed tag loc action conv (ConvMember origUser) = do
   case tag of
     SConversationJoinTag ->
-      mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $
+      mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $ do
         ensureConvRoleNotElevated origUser (role action)
+        checkGroupIdSupport loc conv action
     SConversationDeleteTag ->
       for_ (convTeam conv) $ \tid -> do
         lusr <- ensureLocal loc (convMemberId loc origUser)
