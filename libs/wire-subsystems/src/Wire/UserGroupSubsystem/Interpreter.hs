@@ -98,10 +98,10 @@ getTeamAsMember ::
   ) =>
   UserId ->
   Sem r (Maybe (TeamId, TeamMember))
-getTeamAsMember member = runMaybeT do
-  team <- MaybeT $ getUserTeam member
-  member <- MaybeT $ getTeamMember member team
-  pure (team, member)
+getTeamAsMember memberId = runMaybeT do
+  team <- MaybeT $ getUserTeam memberId
+  mbr <- MaybeT $ getTeamMember memberId team
+  pure (team, mbr)
 
 mkEvent :: UserId -> UserGroupEvent -> TeamMemberList -> Push
 mkEvent author evt recipients =
@@ -185,7 +185,10 @@ addUserImpl ::
   UserGroupId ->
   UserId ->
   Sem r ()
-addUserImpl adder groupId addeeId = undefined
+addUserImpl adder groupId addeeId = do
+  team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
+  void $ getTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
+  Store.addUser team groupId addeeId
 
 removeUserImpl ::
   ( Member UserSubsystem r,
@@ -197,4 +200,7 @@ removeUserImpl ::
   UserGroupId ->
   UserId ->
   Sem r ()
-removeUserImpl remover groupId removeeId = undefined
+removeUserImpl remover groupId removeeId = do
+  team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
+  void $ getTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
+  Store.removeUser team groupId removeeId

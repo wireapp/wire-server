@@ -159,7 +159,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   { name = newUserGroupName,
                     members = User.userId <$> V.fromList (allUsers team)
                   }
-              Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
+              [nonAdminUser] = someAdminsOrOwners 1 team
           void $ createGroup (User.userId nonAdminUser) newUserGroup
           unexpected
 
@@ -302,7 +302,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                     { name = newUserGroupName,
                       members = User.userId <$> V.fromList (allUsers team)
                     }
-                Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
+                [nonAdminUser] = someAdminsOrOwners 1 team
             grp <- createGroup (ownerId team) newUserGroup
             void $ updateGroup (User.userId nonAdminUser) grp.id_ (UserGroupUpdate newUserGroupName2)
             unexpected
@@ -338,7 +338,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             runDependenciesWithReturnState (allUsers team) (galleyTeamWithExtra team [extraTeamMember])
               . interpretUserGroupSubsystem
               $ do
-                let nug = NewUserGroup {name = name, members = mempty}
+                let nug = NewUserGroup name mempty
                 ug <- createGroup (ownerId team) nug
                 deleteGroup (ownerId team) ug.id_
                 pure ug
@@ -373,65 +373,74 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . interpretUserGroupSubsystem
           $ do
             grp <- createGroup (ownerId team) (NewUserGroup groupName mempty)
-            let Just (nonAdminUser, _) = find (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
+            let [nonAdminUser] = someAdminsOrOwners 1 team
             void $ deleteGroup (User.userId nonAdminUser) grp.id_
             unexpected
 
   describe "AddUser, RemoveUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()" $ do
-    prop "addUser adds a user" $ \team newGroup newUserId -> do
-      expectRight
-        . runDependencies mempty mempty
-        . interpretUserGroupSubsystem
-        $ do
-          ug :: UserGroup <- createGroup (ownerId team) newGroup
-          addUser (ownerId team) ug.id_ newUserId
-          ug' :: Maybe UserGroup <- getGroup (ownerId team) ug.id_
-          addUser (ownerId team) ug.id_ newUserId -- idempotency
-          ug'' :: Maybe UserGroup <- getGroup (ownerId team) ug.id_
-          pure $
-            ((sort . V.toList . (.members)) <$> ug') === Just (sort (newUserId : V.toList ug.members))
-              .&&. ug'' === ug'
+    prop "addUser, removeUser adds, removes a user" $
+      \((WithMods team) :: WithMods '[AtLeastSixMembers] ArbitraryTeam) newGroupName ->
+        expectRight
+          . runDependencies (allUsers team) (galleyTeam team)
+          . interpretUserGroupSubsystem
+          $ do
+            let [mbr1, mbr2] = someMembersWithRoles 2 team Nothing
+            ug :: UserGroup <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
 
-    prop "if user does not exist in UserStore, fail." $ \() -> do
-      -- TODO
-      False === True
+            addUser (ownerId team) ug.id_ (User.userId mbr1)
+            ugWithFirst <- getGroup (ownerId team) ug.id_
 
-    prop "if user is not in team, fail." $ \() -> do
-      -- TODO
-      False === True
+            addUser (ownerId team) ug.id_ (User.userId mbr1)
+            ugWithIdemP <- getGroup (ownerId team) ug.id_
 
-    prop "removeUser removes a user" $ \team newGroup -> do
-      expectRight
-        . runDependencies mempty mempty
-        . interpretUserGroupSubsystem
-        $ do
-          ug :: UserGroup <- createGroup (ownerId team) newGroup
-          let removee :: UserId
-              removee =
-                if V.null ug.members
-                  then Id UUID.nil -- bad id
-                  else ug.members V.! (length ug.members `div` 2)
-          removeUser (ownerId team) ug.id_ removee
-          ug' <- getGroup (ownerId team) ug.id_
-          removeUser (ownerId team) ug.id_ removee
-          ug'' <- getGroup (ownerId team) ug.id_ -- idempotency
-          pure
-            . foldr' (.&&.) (True === True)
-            . flip fmap [ug', ug'']
-            $ \ug''' ->
-              (((sort . V.toList . (.members)) <$> ug''') === Just (sort (V.toList ug.members \\ [removee]))) :: Property
+            addUser (ownerId team) ug.id_ (User.userId mbr2)
+            ugWithSecond <- getGroup (ownerId team) ug.id_
 
-    prop "only team admins can and remove users to groups" $ \() ->
-      -- TODO
-      False === True
+            removeUser (ownerId team) ug.id_ (User.userId mbr1)
+            ugWithoutFirst <- getGroup (ownerId team) ug.id_
+            removeUser (ownerId team) ug.id_ (User.userId mbr1) -- idemp
+            pure $
+              ((.members) <$> ugWithFirst) === Just (V.fromList [User.userId mbr1])
+                .&&. ((.members) <$> ugWithIdemP) === Just (V.fromList [User.userId mbr1])
+                .&&. ((sort . V.toList . (.members)) <$> ugWithSecond) === Just (sort [User.userId mbr1, User.userId mbr2])
+                .&&. ((.members) <$> ugWithoutFirst) === Just (V.fromList [User.userId mbr2])
 
-data TeamGenMod = AtLeastOneMember | AtLeastOneNonAdmin
+    prop "added/removed user must be team member." $
+      \((WithMods team) :: WithMods '[AtLeastSixMembers] ArbitraryTeam)
+       newGroupName
+       (team2 :: ArbitraryTeam)
+       (addOrRemove :: Bool) ->
+          expectLeft UserGroupMemberIsNotInTheSameTeam
+            . runDependencies (allUsers team) (galleyTeam team)
+            . interpretUserGroupSubsystem
+            $ do
+              ug <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
+              (if addOrRemove then addUser else removeUser) (ownerId team) ug.id_ (ownerId team2)
+              unexpected
+
+    prop "adding/removing user must be team admin." $
+      \((WithMods team) :: WithMods '[AtLeastSixMembers] ArbitraryTeam)
+       newGroupName
+       (team2 :: ArbitraryTeam)
+       (addOrRemove :: Bool) ->
+          expectLeft UserGroupNotATeamAdmin
+            . runDependencies (allUsers team) (galleyTeam team)
+            . interpretUserGroupSubsystem
+            $ do
+              ug <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
+              (if addOrRemove then addUser else removeUser) (ownerId team2) ug.id_ (ownerId team)
+              unexpected
+
+data TeamGenMod = AtLeastOneMember | AtLeastSixMembers | AtLeastOneNonAdmin
 
 class KnownTeamGenMod a where
   teamGenMod :: TeamGenMod
 
 instance KnownTeamGenMod 'AtLeastOneMember where
   teamGenMod = AtLeastOneMember
+
+instance KnownTeamGenMod 'AtLeastSixMembers where
+  teamGenMod = AtLeastSixMembers
 
 instance KnownTeamGenMod 'AtLeastOneNonAdmin where
   teamGenMod = AtLeastOneNonAdmin
@@ -441,6 +450,8 @@ applyConstraint =
   case teamGenMod @mod of
     AtLeastOneMember -> flip suchThat \team ->
       not $ Imports.null team.members
+    AtLeastSixMembers -> flip suchThat \team ->
+      length team.members > 6
     AtLeastOneNonAdmin -> flip suchThat \team ->
       any (\(_, mem) -> not $ isAdminOrOwner (mem ^. permissions)) team.members
 
@@ -494,3 +505,13 @@ galleyTeam t = galleyTeamWithExtra t []
 
 galleyTeamWithExtra :: ArbitraryTeam -> [TeamMember] -> Map TeamId [TeamMember]
 galleyTeamWithExtra t tm = Map.singleton t.tid $ tm <> map snd (t.owner : t.members)
+
+someAdminsOrOwners :: Int -> ArbitraryTeam -> [User]
+someAdminsOrOwners num team = someMembersWithRoles num team (Just [RoleMember, RoleExternalPartner])
+
+someMembersWithRoles :: Int -> ArbitraryTeam -> Maybe [Role] -> [User]
+someMembersWithRoles num team mbRoles = fst <$> take num (filter f team.members)
+  where
+    f (_, mem) = case mbRoles of
+      Just roles -> permissionsRole (mem ^. permissions) `elem` (Just <$> roles)
+      Nothing -> True
